@@ -1,0 +1,10 @@
+[project]
+name = "Hybrid-Sensitivity-Weighted-Quantization"
+version = "2.0.0"
+description = "HSWQ(Hybrid-Sensitivity-Weighted-Quantization) is a groundbreaking fp8e4m3 quantisation method that applies the principles of weighted histogram methods and SVDQ."
+authors = [{ name = "ussoewwin" }]
+license = { file = "LICENSE" }
+requires-python = ">=3.10, <3.13"
+
+[project.urls]
+Repository = "https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization"
