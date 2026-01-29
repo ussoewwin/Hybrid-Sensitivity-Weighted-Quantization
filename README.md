@@ -1,5 +1,9 @@
 # Hybrid-Sensitivity-Weighted-Quantization (HSWQ)
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
+</p>
+
 High-fidelity FP8 quantization for diffusion models (SDXL / SD1.5 / Flux.1). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast, and offers two modes: standard-compatible (V1) and high-performance scaled (V2).
 
 **Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
