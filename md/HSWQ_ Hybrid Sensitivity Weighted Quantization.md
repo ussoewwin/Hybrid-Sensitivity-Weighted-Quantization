@@ -17,7 +17,7 @@ Whereas conventional FP8 methods apply uniform compression (Naive Cast), HSWQ an
 | :--- | :--- | :--- |
 | **Compatibility** | **Full (100%)** | Custom loader required (HSWQLoader) |
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (Weights + `.scale` metadata) |
-| **Image quality (SSIM)** | **~0.87** (theoretical limit) | **~0.92+** (close to FP16) |
+| **Image quality (SSIM)** | 0.86-0.95 (theoretical limit) | 0.87-0.96 (close to FP16) |
 | **Mechanism** | Optimal clipping (Smart Clipping) | Full-range scaling (Dynamic Scaling) |
 | **Primary use** | Distribution, general users | In-house use, maximum quality, server-side |
 
