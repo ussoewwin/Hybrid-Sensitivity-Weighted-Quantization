@@ -16,7 +16,7 @@ High-fidelity FP8 quantization for diffusion models (SDXL / SD1.5 / Flux.1). HSW
 | :--- | :--- | :--- |
 | **Compatibility** | Full (100%), any FP8 loader | Custom loader (HSWQLoader) required |
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (weights + `.scale` metadata) |
-| **Image quality (SSIM)** | ~0.87 (theoretical limit) | ~0.92+ (close to FP16) |
+| **Image quality (SSIM)** | ~0.95 (theoretical limit) | ~0.96+ (close to FP16) |
 | **Mechanism** | Optimal clipping (smart clipping) | Full-range scaling (dynamic scaling) |
 | **Use case** | Distribution, general users | In-house, max quality, server-side |
 
