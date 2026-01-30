@@ -130,8 +130,8 @@ graph TD
 | Model | SSIM (Avg) | File size | Compatibility |
 | :--- | :--- | :--- | :--- |
 | **Original FP16** | 1.0000 | 100% (6.5GB) | High |
-| **Naive FP8** | ~0.81 | 50% | High |
-| **HSWQ V1** | **0.86–0.88** | 55% (FP16 mixed) | **High** |
-| **HSWQ V2** | **0.90–0.94** | 55% (FP16 mixed) | Low (custom loader) |
+| **Naive FP8** | 0.81-0.93 | 50% | High |
+| **HSWQ V1** | **0.86–0.95** | 55% (FP16 mixed) | **High** |
+| **HSWQ V2** | **0.87–0.96** | 55% (FP16 mixed) | Low (custom loader) |
 
 HSWQ V1 provides a clear quality gain over Naive FP8 while keeping full compatibility, establishing it as a practical standard distribution format.
