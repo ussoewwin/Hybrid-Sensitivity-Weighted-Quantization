@@ -3,7 +3,7 @@
 
 **Version:** 2.0  
 **Date:** 2026-01-29  
-**Models:** SDXL / SD1.5 / Flux.1 (Proposed)
+**Models:** SDXL
 
 ---
 
