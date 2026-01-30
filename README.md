@@ -8,6 +8,8 @@ High-fidelity FP8 quantization for diffusion models (SDXL / SD1.5 / Flux.1). HSW
 
 **Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
 
+**SDXL models:** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
+
 ---
 
 ## Overview
