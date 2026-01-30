@@ -2,20 +2,20 @@
 HSWQ Weighted Histogram MSE Optimizer
 =====================================
 
-HSWQ設計書に完全準拠した重み付けヒストグラムMSE最適化モジュール。
+Weighted histogram MSE optimization per HSWQ spec.
 
-設計書の核心公式:
+Core formula:
     Δ* = argmin_Δ Σ_i H(i) · (q(x_i, Δ) - x_i)²
 
-ここで:
-    - H(i): 重み付けヒストグラム（入力重要度 I_c で重み付け）
-    - q(x, Δ): 量子化→逆量子化関数
-    - Δ: クリッピング値（amax）
+Where:
+    - H(i): weighted histogram (by input importance I_c)
+    - q(x, Δ): quantize-dequantize
+    - Δ: clipping value (amax)
 
-このモジュールは以下を提供:
-    1. WeightedHistogram: 入力重要度で重み付けしたヒストグラム構築
-    2. FP8E4M3Quantizer: FP8 E4M3の正確な量子化・逆量子化シミュレーション
-    3. MSEOptimizer: 完全なMSE最適化によるamax探索
+Provides:
+    1. WeightedHistogram: importance-weighted histogram
+    2. FP8E4M3Quantizer: accurate FP8 E4M3 quantize/dequantize simulation
+    3. MSEOptimizer: amax search via MSE optimization
 """
 
 import torch
@@ -25,19 +25,13 @@ from typing import Optional, Tuple, List
 
 class FP8E4M3Quantizer:
     """
-    FP8 E4M3 フォーマットの正確な量子化・逆量子化シミュレータ
-    
-    FP8 E4M3 仕様:
-        - 符号: 1ビット
-        - 指数部: 4ビット (バイアス = 7)
-        - 仮数部: 3ビット
-        - 表現範囲: ±[2^-6, 448] (非正規化数含む)
-        - 特殊値: NaN (0x7F, 0xFF), ±0
+    Accurate FP8 E4M3 quantize/dequantize simulator.
+
+    FP8 E4M3: sign 1b, exponent 4b (bias 7), mantissa 3b.
+    Range ±[2^-6, 448] (incl. denormals). Special: NaN (0x7F, 0xFF), ±0.
     """
-    
-    # FP8 E4M3の全表現可能正値（非正規化数含む）
-    # 生成: 2^(e-7) * (1 + m/8) for e in [1,15], m in [0,7]
-    #       2^-6 * (m/8) for m in [1,7] (非正規化数)
+    # All representable positive values (incl. denormals)
+    # 2^(e-7)*(1+m/8) e in [1,15], m in [0,7]; 2^-6*(m/8) m in [1,7] denorm
     
     def __init__(self, device: str = "cuda"):
         self.device = device
@@ -45,32 +39,15 @@ class FP8E4M3Quantizer:
         self._build_fp8_grid()
     
     def _build_fp8_grid(self):
-        """FP8 E4M3の全表現可能正値グリッドを構築 (PyTorch Native Behavior)"""
-        # 全バイトパターン (0-255) を生成
-        # device上で生成することで転送コストを回避
+        """Build full representable positive FP8 E4M3 grid (PyTorch native)."""
         all_bytes = torch.arange(256, dtype=torch.uint8, device=self.device)
-        
-        # FP8 E4M3として解釈
         fp8_vals = all_bytes.view(torch.float8_e4m3fn)
-        
-        # float32にキャストして値を取得
-        # これによりPyTorchの実装依存の挙動も含めて完全に再現される
         f32_vals = fp8_vals.float()
-        
-        # 正の数のみ抽出し、NaNを除外
-        # (E4M3FNにはInfは存在しないが、NaNは0x7F, 0xFFにある)
         valid_mask = ~f32_vals.isnan()
         valid_vals = f32_vals[valid_mask]
-        
         pos_vals = valid_vals[valid_vals >= 0]
-        
-        # ソートして重複排除 (uniqueはソートも兼ねるが明示的に)
         unique_vals = pos_vals.unique().sort().values
-        
         self._positive_grid = unique_vals
-        
-        # 完全グリッド（対称）
-        # unique_vals[unique_vals > 0] で0を除外してから反転
         negative_values = -unique_vals[unique_vals > 0].flip(0)
         self._full_grid = torch.cat([negative_values, unique_vals])
         
@@ -78,73 +55,68 @@ class FP8E4M3Quantizer:
     
     def quantize_dequantize(self, values: torch.Tensor, amax: float, scaled: bool = True) -> torch.Tensor:
         """
-        完全な量子化→逆量子化関数 q(x, Δ)
-        
-        処理フロー:
-        (scaled=True の場合)
-        1. スケーリング: x_scaled = x * (max_fp8 / amax)
-        2. 最近接FP8値へのマッピング
-        3. 逆スケーリング: x_dequant = q_fp8 * (amax / max_fp8)
-        
-        (scaled=False の場合 - 標準互換モード)
-        1. クリッピング: x_clipped = clamp(x, -amax, amax)
-        2. 最近接FP8値へのマッピング (スケーリングなし)
-        
+        Full quantize-dequantize function q(x, Δ).
+
+        Flow:
+        (scaled=True)
+        1. Scaling: x_scaled = x * (max_fp8 / amax)
+        2. Map to nearest FP8 value
+        3. Inverse scaling: x_dequant = q_fp8 * (amax / max_fp8)
+
+        (scaled=False - standard compatible mode)
+        1. Clipping: x_clipped = clamp(x, -amax, amax)
+        2. Map to nearest FP8 value (no scaling)
+
         Args:
-            values: 入力テンソル
-            amax: クリッピング値
-            scaled: スケーリングを行うかどうか（True: 最高性能, False: 互換モード）
-            
+            values: Input tensor
+            amax: Clipping value
+            scaled: Whether to apply scaling (True: best performance, False: compatible mode)
+
         Returns:
-            量子化→逆量子化された値
+            Quantize-dequantized values
         """
         if amax <= 0:
             return torch.zeros_like(values)
         
         if scaled:
-            # スケーリングファクター
+            # Scale factor
             scale = self.max_representable / amax
             
-            # スケールされた値
+            # Scaled values
             scaled_vals = values * scale
             
-            # クリッピング（FP8の表現範囲内に収める）
+            # Clip to FP8 range
             scaled_vals = scaled_vals.clamp(-self.max_representable, self.max_representable)
             
-            # 最近接FP8値へのマッピング
+            # Map to nearest FP8
             quantized = self._round_to_fp8_grid(scaled_vals)
             
-            # 逆スケーリング
+            # Inverse scale
             dequantized = quantized / scale
             return dequantized
             
         else:
-            # スケーリングなし（互換モード）
-            # 単にamaxでクリップしてから、FP8グリッドに乗せる
-            
-            # 1. クリッピング
+            # No scaling (compatible mode): clip by amax then round to FP8 grid
+            # 1. Clip
             clipped = values.clamp(-amax, amax)
-            # amaxがFP8最大値(448)より大きい場合、448でさらにクリップする必要がある
-            # （FP8は448までしか表現できないため）
+            # If amax > 448, clip to 448 (FP8 max)
             clipped = clipped.clamp(-self.max_representable, self.max_representable)
             
-            # 2. 最近接FP8値へのマッピング
-            # スケーリングしないので、値そのものをグリッドに丸める
+            # 2. Round to nearest FP8 (no scaling)  [comment kept in English]
             dequantized = self._round_to_fp8_grid(clipped)
             return dequantized
     
     def _round_to_fp8_grid(self, values: torch.Tensor) -> torch.Tensor:
-        """値を最近接のFP8グリッド点に丸める"""
-        # 符号を保存
+        """Round value to nearest FP8 grid point."""
+        # Preserve sign
         signs = torch.sign(values)
         abs_values = values.abs()
         
-        # 各値に対して最近接のグリッド点を見つける
-        # ブロードキャストで距離を計算
+        # Find nearest grid point per value (broadcast distance)
         # abs_values: (N,), grid: (G,) -> distances: (N, G)
         abs_flat = abs_values.reshape(-1)
         
-        # メモリ効率のためバッチ処理
+        # Batch for memory
         batch_size = 10000
         result = torch.zeros_like(abs_flat)
         
@@ -158,7 +130,7 @@ class FP8E4M3Quantizer:
         return result * signs
     
     def compute_quantization_error(self, value: float, amax: float, scaled: bool = True) -> float:
-        """単一値の量子化誤差を計算"""
+        """Compute quantization error for a single value."""
         val_tensor = torch.tensor([value], device=self.device)
         dequant = self.quantize_dequantize(val_tensor, amax, scaled=scaled)
         return (dequant - val_tensor).abs().item()
@@ -166,21 +138,21 @@ class FP8E4M3Quantizer:
 
 class WeightedHistogram:
     """
-    HSWQ設計書準拠の重み付けヒストグラム
-    
-    設計書の定義:
-        α_{k,c} = I_c  (入力チャンネルcの重要度)
+    HSWQ spec-compliant weighted histogram.
+
+    Spec definition:
+        α_{k,c} = I_c  (importance of input channel c)
         H(b) = Σ_{(k,c) ∈ bin_b} α_{k,c}
-    
-    通常のヒストグラムが「頻度」をカウントするのに対し、
-    重み付けヒストグラムは「重要度の総和」をカウントする。
+
+    Whereas a normal histogram counts "frequency",
+    the weighted histogram counts "sum of importance".
     """
-    
+
     def __init__(self, bins: int = 4096, device: str = "cuda"):
         """
         Args:
-            bins: ヒストグラムのビン数（精度に影響）
-            device: 計算デバイス
+            bins: Number of histogram bins (affects precision)
+            device: Compute device
         """
         self.bins = bins
         self.device = device
@@ -189,29 +161,23 @@ class WeightedHistogram:
         self.total_weight = 0.0
         
     def build(self, weight: torch.Tensor, importance: Optional[torch.Tensor] = None):
-        """
-        重みテンソルから重み付けヒストグラムを構築
-        
-        Args:
-            weight: 重みテンソル (Conv2d: [O,I,K,K], Linear: [O,I])
-            importance: 入力チャンネル重要度 I_c (shape: [I])
-        """
+        """Build weighted histogram from weight tensor. importance: I_c shape [I]."""
         weight = weight.detach().float().to(self.device)
         w_abs = weight.abs()
         
-        # 最大値の取得
+        # Get max value
         self.max_val = w_abs.max().item()
         if self.max_val == 0:
-            self.max_val = 1e-7  # ゼロ除算防止
+            self.max_val = 1e-7  # Prevent division by zero
         
-        # 重要度の拡張
+        # Expand importance
         if importance is not None:
             importance = importance.float().to(self.device)
-            # 0次元（スカラー）の場合は1次元に変換してtorch.catの互換性を確保
+            # Scalar -> 1D for torch.cat
             if importance.dim() == 0:
                 importance = importance.view(1)
             
-            # 形状チェックと拡張
+            # Shape check and expand
             if weight.dim() == 4:  # Conv2d: (Out, In, K, K)
                 in_channels = weight.shape[1]
                 if importance.numel() >= in_channels:
@@ -237,23 +203,22 @@ class WeightedHistogram:
         else:
             imp_expanded = torch.ones_like(weight)
         
-        # ビンインデックスの計算
+        # Bin indices
         bin_width = self.max_val / self.bins
         bin_indices = (w_abs / bin_width).long().clamp(0, self.bins - 1)
         
-        # 重み付けヒストグラムの構築
         self.histogram = torch.zeros(self.bins, dtype=torch.float64, device=self.device)
         self.histogram.scatter_add_(0, bin_indices.reshape(-1), 
                                     imp_expanded.reshape(-1).double())
         
         self.total_weight = self.histogram.sum().item()
         
-        # 確率分布に正規化
+        # Normalize to distribution
         if self.total_weight > 0:
             self.histogram = self.histogram / self.total_weight
     
     def get_bin_centers(self) -> torch.Tensor:
-        """各ビンの中心値を返す"""
+        """Return center value of each bin."""
         bin_width = self.max_val / self.bins
         return torch.linspace(
             0.5 * bin_width,
@@ -264,19 +229,14 @@ class WeightedHistogram:
         )
     
     def get_histogram(self) -> torch.Tensor:
-        """正規化されたヒストグラムを返す"""
+        """Return normalized histogram."""
         return self.histogram
 
 
 class MSEOptimizer:
     """
-    HSWQ設計書準拠のMSE最適化器
-    
-    設計書の公式:
-        Δ* = argmin_Δ Σ_i H(i) · (q(x_i, Δ) - x_i)²
-    
-    完全な量子化誤差（クリッピング + 量子化ステップ）を考慮した
-    最適amaxの探索を行う。
+    HSWQ MSE optimizer: Δ* = argmin_Δ Σ_i H(i)·(q(x_i,Δ)-x_i)².
+    Finds optimal amax given full quantization error (clip + quantize step).
     """
     
     def __init__(self, device: str = "cuda"):
@@ -288,27 +248,16 @@ class MSEOptimizer:
                              bin_centers: torch.Tensor,
                              amax: float,
                              scaled: bool = True) -> float:
-        """
-        指定されたamaxでの重み付けMSEを計算
-        
-        Args:
-            histogram: 正規化された重み付けヒストグラム H(i)
-            bin_centers: 各ビンの中心値 x_i
-            amax: クリッピング値 Δ
-            scaled: スケーリング有無
-            
-        Returns:
-            重み付けMSE: Σ H(i) · (q(x_i, amax) - x_i)²
-        """
-        # 量子化→逆量子化
+        """Compute weighted MSE for given amax. Returns Σ H(i)·(q(x_i,amax)-x_i)²."""
+        # Quantize -> dequantize
         dequantized = self.fp8_quantizer.quantize_dequantize(
             bin_centers.float(), amax, scaled=scaled
         ).double()
         
-        # 量子化誤差の二乗
+        # Squared quantization error
         error_sq = (dequantized - bin_centers) ** 2
         
-        # 重み付けMSE
+        # Weighted MSE
         weighted_mse = (histogram * error_sq).sum().item()
         
         return weighted_mse
@@ -319,19 +268,7 @@ class MSEOptimizer:
                           search_range: Tuple[float, float] = (0.5, 1.0),
                           refinement_iterations: int = 3,
                           scaled: bool = True) -> float:
-        """
-        重み付けMSEを最小化する最適amaxを探索
-        
-        Args:
-            weighted_hist: 構築済みの重み付けヒストグラム
-            num_candidates: 候補amax数
-            search_range: 探索範囲 (max_valの割合)
-            refinement_iterations: 精錬反復回数
-            scaled: スケーリング有無（Falseなら互換モードで過剰クリップを防ぐ）
-            
-        Returns:
-            最適なamax値
-        """
+        """Find amax that minimizes weighted MSE. scaled=False for compatible mode."""
         if weighted_hist.histogram is None or weighted_hist.max_val <= 0:
             return weighted_hist.max_val
         
@@ -339,33 +276,18 @@ class MSEOptimizer:
         bin_centers = weighted_hist.get_bin_centers()
         max_val = weighted_hist.max_val
         
-        # 初期探索範囲
-        # scaled=Falseの場合、クリップしない方が基本的に良いので、
-        # 探索範囲を広げる必要があるかも？
-        # しかし、もし448を超える値があるなら、適切なクリッピングが必要。
-        # FP8の最大値448を考慮する。
-        
+        # Initial search range; FP8 max 448. For scaled=False, explore but cap at 448.
         low = max_val * search_range[0]
         high = max_val * search_range[1]
-        
-        # scaled=False（互換モード）の特別考慮
         if not scaled:
-            # スケーリングしない場合、448より大きな値は必ずクリップされる。
-            # 448以下の範囲でクリップする意味は「粒度を変える」ことだが
-            # スケーリングなしでは粒度は変わらない。
-            # よって、amax < 448 の探索は「どこまで情報を捨てるか」という話になる。
-            # 通常はmax_val付近（つまり捨てない）が最適になるはず。
-            # 一応探索は行うが、448キャップを考慮。
-            pass
+            pass  # compatible mode: still search, 448 cap applied in quantizer
         
         best_amax = max_val
         min_mse = float('inf')
         
         for iteration in range(refinement_iterations + 1):
-            # 候補の生成
             candidates = torch.linspace(low, high, num_candidates, device=self.device)
-            
-            # 各候補のMSEを評価
+            # Evaluate MSE per candidate
             for amax_tensor in candidates:
                 amax = amax_tensor.item()
                 mse = self.compute_weighted_mse(histogram, bin_centers, amax, scaled=scaled)
@@ -374,39 +296,23 @@ class MSEOptimizer:
                     min_mse = mse
                     best_amax = amax
             
-            # 精錬: 最良候補周辺に範囲を狭める
+            # Refine: narrow range around best
             if iteration < refinement_iterations:
                 range_width = (high - low) / 4
-                low = max(max_val * 0.1, best_amax - range_width) # 下限緩和
-                high = min(max_val * 1.2, best_amax + range_width) # 上限緩和
+                low = max(max_val * 0.1, best_amax - range_width)
+                high = min(max_val * 1.2, best_amax + range_width)
         
         return best_amax
 
 
 class HSWQWeightedHistogramOptimizer:
     """
-    HSWQ重み付けヒストグラム最適化器
-    
-    WeightedHistogram, FP8E4M3Quantizer, MSEOptimizerを統合した
-    ハイレベルインターフェース。
-    
-    使用例:
-        optimizer = HSWQWeightedHistogramOptimizer()
-        optimal_amax = optimizer.compute_optimal_amax(weight_tensor, importance)
+    HSWQ weighted histogram optimizer: WeightedHistogram + FP8E4M3Quantizer + MSEOptimizer.
+    Example: optimizer.compute_optimal_amax(weight_tensor, importance)
     """
-    
-    def __init__(self, 
-                 bins: int = 4096,
-                 num_candidates: int = 200,
-                 refinement_iterations: int = 3,
-                 device: str = "cuda"):
-        """
-        Args:
-            bins: ヒストグラムのビン数
-            num_candidates: amax候補数
-            refinement_iterations: 精錬反復回数
-            device: 計算デバイス
-        """
+    def __init__(self, bins: int = 4096, num_candidates: int = 200,
+                 refinement_iterations: int = 3, device: str = "cuda"):
+        """Args: bins, num_candidates, refinement_iterations, device."""
         self.bins = bins
         self.num_candidates = num_candidates
         self.refinement_iterations = refinement_iterations
@@ -417,26 +323,9 @@ class HSWQWeightedHistogramOptimizer:
                              weight: torch.Tensor,
                              importance: Optional[torch.Tensor] = None,
                              scaled: bool = True) -> float:
-        """
-        重みテンソルに対する最適amaxを計算
-        
-        設計書のフルアルゴリズム:
-        1. 入力重要度 I_c を用いて重み付けヒストグラム H(b) を構築
-        2. 完全なMSE（量子化誤差全体）を最小化するamaxを探索
-        
-        Args:
-            weight: 重みテンソル
-            importance: 入力チャンネル重要度（オプション）
-            scaled: スケーリング有無（False=互換モード）
-            
-        Returns:
-            最適なamax値
-        """
-        # 重み付けヒストグラムの構築
+        """Compute optimal amax: build weighted hist from I_c, then minimize MSE. scaled=False for compatible."""
         weighted_hist = WeightedHistogram(bins=self.bins, device=self.device)
         weighted_hist.build(weight, importance)
-        
-        # 最適amaxの探索
         optimal_amax = self.mse_optimizer.find_optimal_amax(
             weighted_hist,
             num_candidates=self.num_candidates,
@@ -451,17 +340,7 @@ class HSWQWeightedHistogramOptimizer:
                                         importance: Optional[torch.Tensor] = None,
                                         scaled: bool = True
                                         ) -> dict:
-        """
-        最適amaxと統計情報を返す
-        
-        Returns:
-            dict: {
-                'optimal_amax': float,
-                'max_val': float,
-                'compression_ratio': float,  # optimal_amax / max_val
-                'estimated_mse': float
-            }
-        """
+        """Return optimal_amax, max_val, compression_ratio, estimated_mse."""
         weighted_hist = WeightedHistogram(bins=self.bins, device=self.device)
         weighted_hist.build(weight, importance)
         
@@ -472,7 +351,7 @@ class HSWQWeightedHistogramOptimizer:
             scaled=scaled
         )
         
-        # 最適amaxでのMSEを計算
+        # MSE at optimal amax
         histogram = weighted_hist.get_histogram()
         bin_centers = weighted_hist.get_bin_centers()
         estimated_mse = self.mse_optimizer.compute_weighted_mse(
@@ -487,7 +366,7 @@ class HSWQWeightedHistogramOptimizer:
         }
 
 
-# --- モジュールテスト用 ---
+# --- Module self-test ---
 if __name__ == "__main__":
     print("HSWQ Weighted Histogram MSE Optimizer - Self Test")
     print("=" * 60)
@@ -502,7 +381,7 @@ if __name__ == "__main__":
     print(f"  Max representable: {quantizer.max_representable}")
     print(f"  Sample grid values: {quantizer._positive_grid[:10].tolist()}")
     
-    # テスト2: 量子化・逆量子化
+    # Test 2: Quantize-dequantize
     print("\n[Test 2] Quantize-Dequantize")
     test_values = torch.tensor([0.1, 0.5, 1.0, 2.0, 100.0, 400.0], device=device)
     amax = 448.0
@@ -512,10 +391,10 @@ if __name__ == "__main__":
     print(f"  Dequantized: {dequant.tolist()}")
     print(f"  Errors: {errors.tolist()}")
     
-    # テスト3: 重み付けヒストグラム
+    # Test 3: Weighted histogram
     print("\n[Test 3] Weighted Histogram")
     weight = torch.randn(64, 32, 3, 3, device=device)  # Conv2d
-    importance = torch.rand(32, device=device) * 2  # ランダム重要度
+    importance = torch.rand(32, device=device) * 2  # Random importance
     
     hist = WeightedHistogram(bins=1024, device=device)
     hist.build(weight, importance)
@@ -523,7 +402,7 @@ if __name__ == "__main__":
     print(f"  Total weight: {hist.total_weight:.4f}")
     print(f"  Histogram sum: {hist.histogram.sum().item():.4f} (should be 1.0)")
     
-    # テスト4: MSE最適化
+    # Test 4: MSE optimization
     print("\n[Test 4] MSE Optimization")
     optimizer = HSWQWeightedHistogramOptimizer(device=device)
     result = optimizer.compute_optimal_amax_with_stats(weight, importance)
