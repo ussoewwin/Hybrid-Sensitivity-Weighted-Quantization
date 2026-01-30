@@ -1,24 +1,18 @@
 """
-SDXLモデルをFP8形式に量子化するスクリプト (HSWQ V2: Scaled High-Performance Mode)
+Quantize SDXL to FP8 (HSWQ V2: Scaled High-Performance Mode).
 
-HSWQ設計書のフルスペック実装。
-amaxを用いたスケーリング量子化（x * 448/amax）を行い、FP8のダイナミックレンジを最大限に活用する。
-生成されるモデルは標準ローダーでは正しく読み込めない（画像が崩壊する）ため、
-同梱の専用ローダーまたは対応するComfyUIノードが必要。
+Full HSWQ spec: scaling quantization (x * 448/amax) to use FP8 dynamic range.
+Output model requires a dedicated loader or ComfyUI node; standard loader will produce broken images.
 
-特徴:
-- スケーリングありのMSE最適化 (scaled=True)
-- スケール情報の保存 (.scaleキー)
-- 微小な値も高精度に表現可能（画質向上）
+Features:
+- MSE optimization with scaling (scaled=True)
+- Save scale in .scale key
+- Better precision for small values
 
-アルゴリズム:
-1. Calibration & Layer Selection (V1と同じ)
-2. Quantization (V2独自):
-   - Input Importanceを使った重み付けヒストグラム作成
-   - scaled=True でMSEを最小化するamaxを探索
-   - スケーリング適用: value_scaled = value * (448.0 / amax)
-   - FP8キャスト: value_scaled.to(float8_e4m3fn)
-   - スケール保存: inv_scale = amax / 448.0 を .scale として保存
+Algorithm:
+1. Calibration & Layer Selection (same as V1)
+2. Quantization (V2): importance-weighted histogram, find amax with scaled=True,
+   apply value_scaled = value * (448.0 / amax), cast to float8_e4m3fn, save inv_scale = amax/448 as .scale
 """
 import argparse
 import torch
@@ -31,10 +25,10 @@ from tqdm import tqdm
 import sys
 import numpy as np
 
-# HSWQ専用モジュール
+# HSWQ module
 from weighted_histogram_mse import HSWQWeightedHistogramOptimizer
 
-# C++20標準を強制
+# Enforce C++20
 if sys.platform == "win32":
     os.environ.setdefault("CXXFLAGS", "/std:c++20")
 else:
@@ -199,29 +193,29 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
     return comfyui_to_diffusers_map
 
 def load_unet_from_safetensors(path, device="cuda"):
-    print(f"モデルをロード中: {path}")
+    print(f"Loading model: {path}")
     state_dict = load_file(path)
-    print("UNetの構造を検出中...")
+    print("Detecting UNet structure...")
     unet_config = detect_unet_config_from_keys(state_dict)
-    print(f"検出されたUNet設定: {unet_config}")
-    print("Diffusersパイプラインを初期化中...")
+    print(f"Detected UNet config: {unet_config}")
+    print("Initializing Diffusers pipeline...")
     try:
         pipeline = StableDiffusionXLPipeline.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, use_safetensors=True, variant="fp16").to(device)
     except Exception as e:
-        print(f"警告: 事前学習済みモデルのロードに失敗しました: {e}")
+        print(f"Warning: Failed to load pretrained model: {e}")
         from diffusers import UNet2DConditionModel
         unet = UNet2DConditionModel(sample_size=128, in_channels=4, out_channels=4, layers_per_block=2, block_out_channels=(320, 640, 1280), down_block_types=("DownBlock2D", "CrossAttnDownBlock2D", "CrossAttnDownBlock2D"), up_block_types=("CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "UpBlock2D"))
         pipeline = StableDiffusionXLPipeline(vae=None, text_encoder=None, text_encoder_2=None, tokenizer=None, tokenizer_2=None, unet=unet, scheduler=None)
     print("キーマッピングを作成中...")
     comfyui_to_diffusers_map = unet_to_diffusers_mapping(unet_config, state_dict)
-    print("UNetの重みをロード中...")
+    print("Loading UNet weights...")
     new_state_dict = {}
     for comfy_key, diffusers_key in comfyui_to_diffusers_map.items():
         if comfy_key in state_dict: new_state_dict[diffusers_key] = state_dict[comfy_key]
     m, u = pipeline.unet.load_state_dict(new_state_dict, strict=False)
     return pipeline, state_dict, comfyui_to_diffusers_map
 
-# --- Dual Monitor: Sensitivity & Importance (V1と同じ) ---
+# --- Dual Monitor: Sensitivity & Importance (same as V1) ---
 class DualMonitor:
     def __init__(self):
         self.output_sum = 0.0
@@ -337,7 +331,7 @@ def main():
         device=device
     )
     
-    # 1. 最適化フェーズ
+    # 1. Optimization phase
     for name, module in tqdm(pipeline.unet.named_modules(), desc="Analyzing"):
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
             if name in keep_layers: continue
@@ -382,16 +376,14 @@ def main():
             if weight_key in weight_amax_dict:
                 amax = weight_amax_dict[weight_key]
                 
-                # スケーリング適用: x_scaled = x * (448 / amax)
+                # Apply scaling: x_scaled = x * (448 / amax)
                 scale_val = 448.0 / amax
                 scaled_value = torch.clamp(value * scale_val, -448.0, 448.0)
                 new_value = scaled_value.to(torch.float8_e4m3fn)
                 
                 output_state_dict[key] = new_value
                 
-                # スケール情報保存: inv_scale = amax / 448.0
-                # キー名: 元のキーに ".scale" を付与
-                # 例: model.diffusion_model...weight -> model.diffusion_model...scale
+                # Save scale: inv_scale = amax / 448.0, key suffix ".scale"
                 scale_key = key
                 if key.endswith(".weight"):
                     scale_key = key.replace(".weight", ".scale")

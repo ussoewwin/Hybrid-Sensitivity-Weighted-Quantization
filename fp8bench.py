@@ -9,7 +9,7 @@ import gc
 import time
 import sys
 
-# 再現性のために決定論的動作を強制
+# Enforce deterministic behavior for reproducibility
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -27,14 +27,14 @@ def load_pipeline(path, device="cuda"):
         sys.exit(1)
 
 def generate_image_fixed(pipe, prompt, seed, steps):
-    # シード固定ジェネレーターの作成
+    # Create fixed-seed generator
     generator = torch.Generator("cuda").manual_seed(seed)
     
     start_time = time.time()
     image = pipe(
         prompt=prompt,
         num_inference_steps=steps,
-        generator=generator, # 固定ジェネレーターを渡す
+        generator=generator,  # Pass fixed generator
         output_type="pil"
     ).images[0]
     end_time = time.time()
@@ -45,10 +45,10 @@ def calculate_metrics(img1, img2):
     arr1 = np.array(img1)
     arr2 = np.array(img2)
 
-    # MSE (平均二乗誤差)
+    # MSE (mean squared error)
     mse = np.mean((arr1 - arr2) ** 2)
 
-    # SSIM (構造的類似性)
+    # SSIM (structural similarity)
     score_ssim = ssim(arr1, arr2, win_size=3, channel_axis=2, data_range=255)
 
     return mse, score_ssim
