@@ -83,23 +83,19 @@ graph TD
     A[Calibration Input] --> B{Dual Monitor}
     B --> C[Sensitivity Map]
     B --> D[Importance Map]
-    
     C --> E{Layer Selection}
     E -->|Top 25%| F[Keep FP16]
     E -->|Others| G[Weighted MSE Opt]
-    
     G --> H{Optimization Mode}
     D --> G
-    
-    H -->|V1: Compatible| I[Find Best Clip (amax)]
-    I --> J[Clip & Cast (No Scaling)]
+    H -->|V1: Compatible| I[Find Best Clip amax]
+    I --> J["Clip and Cast - No Scaling"]
     J --> K[Standard FP8 Weights]
     K --> L[Save .safetensors]
     F --> L
-    
-    H -->|V2: Scaled| M[Find Best Scale (amax)]
-    M --> N[Scale & Cast]
-    N --> O[FP8 Weights + .scale Meta]
+    H -->|V2: Scaled| M[Find Best Scale amax]
+    M --> N["Scale and Cast"]
+    N --> O["FP8 Weights + .scale Meta"]
     O --> P[Save .safetensors]
     F --> P
 ```
