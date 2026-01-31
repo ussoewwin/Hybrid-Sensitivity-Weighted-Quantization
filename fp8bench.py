@@ -77,7 +77,7 @@ def main():
     img_fp16.save("bench_result_fp16.png")
     print(f"FP16 Time: {time_fp16:.2f}s")
     
-    # 完全なメモリ解放
+    # Full memory release
     del pipe
     gc.collect()
     torch.cuda.empty_cache()
@@ -96,7 +96,7 @@ def main():
     # 3. Comparison
     print("\n=== 3. Calculating Metrics ===")
     
-    # サイズチェック（モデル間違いでサイズが違う場合のエラー防止）
+    # Size check (prevent error when models/settings differ)
     if img_fp16.size != img_fp8.size:
         print(f"Error: Image sizes do not match! FP16:{img_fp16.size}, FP8:{img_fp8.size}")
         print("Different models or settings used.")
@@ -109,7 +109,7 @@ def main():
     print(f"SSIM (Sim) : {score:.4f} \t(1.0 is perfect match)")
     print(f"--------------------------------------------------")
 
-    # 判定ロジック
+    # Grading logic
     if score > 0.98:
         grade = "PERFECT (S)"
     elif score > 0.95:
@@ -121,7 +121,7 @@ def main():
     
     print(f"Quality Grade: {grade}")
 
-    # 差分画像生成
+    # Difference image generation
     diff_img = ImageChops.difference(img_fp16, img_fp8)
     diff_img = ImageChops.multiply(diff_img, Image.new('RGB', diff_img.size, (10, 10, 10))) 
     diff_img.save("bench_result_diff.png")
