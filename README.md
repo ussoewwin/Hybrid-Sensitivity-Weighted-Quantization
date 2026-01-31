@@ -77,3 +77,12 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 | **HSWQ V2** | **0.87–0.96** | 55% (FP16 mixed) | Low (custom loader) |
 
 HSWQ V1 gives a clear gain over Naive FP8 with full compatibility; V2 targets maximum quality with a custom loader.
+
+---
+
+## Changelog
+
+### 1.0.1
+- **DualMonitor 2D input support** — Fixed handling of 2D input tensors `(B, C)` in `DualMonitor.update()`. Previously, 2D inputs (e.g. embedding layers, `adaLN_modulation` in Z-Image Turbo) fell back to uniform importance `1.0`; now per-channel importance `(C,)` is computed via `mean(dim=0)`. This improves weighted histogram MSE for time_embedding, add_embedding (SDXL) and adaLN / t_embedder / cap_embedder (ZIT).  
+  See [HSWQ DualMonitor Fix Report](md/HSWQ_DualMonitor_Fix_Report.md) for details.  
+  **Release notes:** [Release notes](md/RELEASES.md) *(to be added)*
