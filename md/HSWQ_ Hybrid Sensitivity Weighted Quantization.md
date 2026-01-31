@@ -78,6 +78,7 @@ With a custom loader, FP8 dynamic range is fully utilized.
 
 ## 4. Process Flow
 
+```mermaid
 graph TD
     A[Calibration Input] --> B{Dual Monitor}
     B --> C[Sensitivity Map]
