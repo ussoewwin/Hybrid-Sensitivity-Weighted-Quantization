@@ -21,3 +21,7 @@ venv/
 *.ckpt
 output/
 cache/
+
+# Local push/tag scripts (excluded from repo)
+do_push.ps1
+do_tag.ps1
