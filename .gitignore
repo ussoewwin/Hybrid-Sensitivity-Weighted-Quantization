@@ -26,3 +26,4 @@ cache/
 do_push.ps1
 do_tag.ps1
 remove_tracked.ps1
+rm_gitignore_msg.txt
