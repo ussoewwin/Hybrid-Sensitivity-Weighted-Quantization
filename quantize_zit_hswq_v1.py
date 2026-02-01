@@ -151,6 +151,7 @@ class ZITCalibrationPipeline:
             
         # Random seed
         self.prng = np.random.RandomState(42)
+        self.sampler_name = "euler" # Default sampler
         
     def encode_prompt(self, prompt):
         """Encode prompt with Qwen3 text encoder."""
@@ -196,28 +197,64 @@ class ZITCalibrationPipeline:
             cap_mask = torch.ones(batch_size, cap_len, 
                                  device=self.device, dtype=torch.bool)
         
-        # Random timestep
-        t_idx = self.prng.randint(0, 1000)
-        t = torch.tensor([t_idx / 1000.0], device=self.device, dtype=torch.float16)
+        # Use ComfyUI's k_diffusion sampler for accurate calibration
+        import comfy.k_diffusion.sampling as k_sampling
+        
+        # Wrapper to adapt NextDiT for k-diffusion sampler
+        class ZITWrapper:
+            def __init__(self, model, cap_feats, cap_mask):
+                self.model = model
+                self.cap_feats = cap_feats
+                self.cap_mask = cap_mask
+
+            def __call__(self, x, sigma, **kwargs):
+                # Ensure inputs are correct dtype for the fp16 model
+                dtype = torch.float16
+                
+                # ZIT expects t in [0, 1]. Input sigma from sample_euler is appropriate.
+                # Cast x and sigma/t to fp16 to avoid "Float and Half" mismatch
+                x_in = x.to(dtype=dtype)
+                t_in = sigma.to(dtype=dtype)
+
+                try:
+                    out = self.model(x_in, t_in, self.cap_feats, None, attention_mask=self.cap_mask)
+                    if isinstance(out, tuple):
+                        out = out[0]
+                    # Output needs to be cast back to x.dtype (likely float32) for k-diffusion
+                    return out.to(dtype=x.dtype)
+                except Exception as e:
+                    # Return zeros to allow process to continue (will be noisy data but won't crash)
+                    print(f"Wrapper Error: {e}")
+                    return torch.zeros_like(x)
+
+        # Initialize latents
         x = torch.randn(batch_size, latent_c, latent_h, latent_w,
                        device=self.device, dtype=torch.float16)
+
+        # Create sigmas for Flow Matching (1.0 -> 0.0)
+        # We need num_inference_steps + 1 points to get num_inference_steps intervals
+        sigmas = torch.linspace(1.0, 0.0, num_inference_steps + 1, device=self.device)
         
-        with torch.no_grad():
-            try:
-                # NextDiT.forward(x, timesteps, context, num_tokens, attention_mask=None, ...)
-                # num_tokens=None at inference (all tokens)
-                self.model(
-                    x, 
-                    t, # timesteps
-                    cap_feats, # context
-                    None, # num_tokens
-                    attention_mask=cap_mask
-                )
-            except Exception as e:
-                print(f"Warning: Forward pass failed: {e}")
-                import traceback
-                traceback.print_exc()
-                pass
+        model_wrap = ZITWrapper(self.model, cap_feats, cap_mask)
+        
+        try:
+             # Run sampling with progress bar
+             sampler_name = getattr(self, "sampler_name", "euler")
+             
+             sampler_func_name = f"sample_{sampler_name}"
+             if not hasattr(k_sampling, sampler_func_name):
+                 print(f"Warning: Sampler {sampler_name} not found in k_diffusion. Using sample_euler.")
+                 sampler_func = k_sampling.sample_euler
+             else:
+                 sampler_func = getattr(k_sampling, sampler_func_name)
+             
+             # Call the dynamic sampler function
+             sampler_func(model_wrap, x, sigmas, disable=False)
+             
+        except Exception as e:
+             print(f"Sampling failed: {e}")
+             import traceback
+             traceback.print_exc()
         
         return {"latent": None}
     
@@ -303,6 +340,7 @@ def main():
     parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples (HSWQ recommended: 256)")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (HSWQ recommended: 0.25 for quality)")
+    parser.add_argument("--sampler", type=str, default="euler", help="Sampler name (e.g., euler, dpmpp_2m, heun)")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -324,10 +362,13 @@ def main():
             # Load tokenizer
             tokenizer_path = args.tokenizer_path
             if tokenizer_path and os.path.exists(tokenizer_path):
+                print(f"  Loading tokenizer from disk: {tokenizer_path}")
                 tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path)
-                print(f"  Loading tokenizer: {tokenizer_path}")
             else:
-                print(f"  Warning: Tokenizer path not set or missing: {tokenizer_path}")
+                # Fallback to Hugging Face download or if simple string is provided
+                model_id = tokenizer_path if tokenizer_path else "Qwen/Qwen2.5-7B-Instruct"
+                print(f"  Loading tokenizer from HF: {model_id}")
+                tokenizer = Qwen2Tokenizer.from_pretrained(model_id)
             
             # ComfyUI Qwen3_4B (operations=comfy.ops required)
             state_dict = load_file(args.clip_path)
@@ -360,6 +401,8 @@ def main():
     
     # Pipeline init (with text encoder)
     pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device)
+    pipeline.sampler_name = args.sampler
+    print(f"Using sampler: {args.sampler}")
 
     print("Preparing calibration (Dual Monitor hooks)...")
     handles = []
