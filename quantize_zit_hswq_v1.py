@@ -1,9 +1,10 @@
 """
-Z-Image Turbo (ZIT) FP8 quantization script (HSWQ V1: Standard Compatible Mode).
+Z-Image Turbo (ZIT) FP8 quantization script (HSWQ V1.1: Metadata Injection).
 HSWQ spec: Sensitivity protection and Importance-weighted MSE. No scaling (scaled=False).
 ZIT V1.1: DualMonitor 2D input support (adaLN_modulation, t_embedder etc. (B, C) shape).
+V1.1 Metadata: Injects .comfy_quant metadata and Unity Scale (1.0) to strictly comply with ComfyUI's MixedPrecisionOps requirements while maintaining HSWQ V1 behavior.
 
-Changelog: V13 Dual Monitor; V15 weighted histogram MSE; HSWQ V1 scaled=False; ZIT NextDiT; ZIT V1.1 2D input.
+Changelog: V13 Dual Monitor; V15 weighted histogram MSE; HSWQ V1 scaled=False; ZIT NextDiT; ZIT V1.1 2D input; V1.1 Metadata & Unity Scale.
 
 Algorithm: Calibration (Sensitivity + Importance). Layer selection (top N% FP16 keep). Quantization: others -> weighted histogram, amax with scaled=False, clip and cast.
 """
@@ -16,6 +17,7 @@ import os
 import gc
 from tqdm import tqdm
 import sys
+import json
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 import numpy as np
@@ -217,7 +219,9 @@ class ZITCalibrationPipeline:
                 t_in = sigma.to(dtype=dtype)
 
                 try:
-                    out = self.model(x_in, t_in, self.cap_feats, None, attention_mask=self.cap_mask)
+                    # Ensure features are FP16
+                    cap_feats_in = self.cap_feats.to(dtype=dtype)
+                    out = self.model(x_in, t_in, cap_feats_in, None, attention_mask=self.cap_mask)
                     if isinstance(out, tuple):
                         out = out[0]
                     # Output needs to be cast back to x.dtype (likely float32) for k-diffusion
@@ -330,7 +334,7 @@ def hook_fn(module, input, output, name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ZIT FP8 Quantization (HSWQ V1: Full Weighted MSE Optimization)")
+    parser = argparse.ArgumentParser(description="ZIT FP8 Quantization (HSWQ V1.1: Metadata Injection & Unity Scale)")
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
     parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
@@ -506,6 +510,24 @@ def main():
                 clamped_value = torch.clamp(value.float(), -amax, amax)
                 new_value = clamped_value.to(torch.float8_e4m3fn)
                 converted_count += 1
+                
+                # [ComfyUI Adapter for ZIT/Lumina]
+                # Unlike SDXL, ComfyUI does not natively auto-detect FP8 optimization for Lumina/NextDiT.
+                # To force MixedPrecisionOps (and low VRAM), we must inject .comfy_quant metadata.
+                comfy_quant_key = f"{module_name}.comfy_quant"
+                metadata_json = {"format": "float8_e4m3fn"}
+                metadata_bytes = json.dumps(metadata_json).encode("utf-8")
+                metadata_tensor = torch.tensor(list(metadata_bytes), dtype=torch.uint8)
+                output_state_dict[comfy_quant_key] = metadata_tensor
+
+                # [HSWQ V1 Adapter Scale]
+                # MixedPrecisionOps requires 'weight_scale' when .comfy_quant is present.
+                # HSWQ V1 (Compatible) is unscaled. The mathematical identity for unscaled data is 1.0.
+                # We provide this purely to satisfy the loader's API requirement.
+                if module_name:
+                    scale_key = f"{module_name}.weight_scale"
+                    output_state_dict[scale_key] = torch.tensor(1.0, dtype=torch.float32)
+
             else:
                 new_value = value.to(torch.float16) if value.dtype == torch.bfloat16 else value
         else:
