@@ -29,3 +29,5 @@ remove_tracked.ps1
 rm_gitignore_msg.txt
 remove_msg.txt
 push_clip.ps1
+push_clip_msg.txt
+push_rm_gitignore.ps1
