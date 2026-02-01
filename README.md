@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity FP8 quantization for **SDXL** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast, and offers two modes: standard-compatible (V1) and high-performance scaled (V2).
+High-fidelity FP8 quantization for **SDXL** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. It offers two modes: standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
 
 **Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
 
@@ -16,11 +16,11 @@ High-fidelity FP8 quantization for **SDXL** diffusion models. HSWQ uses **sensit
 
 | Feature | V1: Standard Compatible | V2: High Performance Scaled |
 | :--- | :--- | :--- |
-| **Compatibility** | Full (100%), any FP8 loader | Custom loader (HSWQLoader) required |
+| **Compatibility** | Full (100%), any FP8 loader | Requires dedicated loader — **not usable at present** |
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (weights + `.scale` metadata) |
 | **Image quality (SSIM)** | ~0.95 (theoretical limit) | ~0.96+ (close to FP16) |
 | **Mechanism** | Optimal clipping (smart clipping) | Full-range scaling (dynamic scaling) |
-| **Use case** | Distribution, general users | In-house, max quality, server-side |
+| **Use case** | Distribution, general users | Unavailable until a dedicated loader exists |
 
 File size is reduced by about **50%** vs FP16 while keeping best quality per use case.
 
@@ -40,8 +40,8 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 
 ## Modes
 
-- **V1** (`scaled=False`): No scaling; only the clipping threshold (amax) is optimized. Output is standard FP8 weights. Use when you need maximum compatibility.
-- **V2** (`scaled=True`): Weights are scaled to FP8 range, quantized, and inverse scale `S` is stored in Safetensors (`.scale`). Use with HSWQLoader for best quality.
+- **V1** (`scaled=False`): No scaling; only the clipping threshold (amax) is optimized. Output is standard FP8 weights. **Use this mode** — full compatibility with any FP8 loader.
+- **V2** (`scaled=True`): Weights are scaled to FP8 range, quantized, and inverse scale `S` is stored in Safetensors (`.scale`). Requires a dedicated loader; **not usable at the current time.**
 
 ---
 
@@ -49,13 +49,16 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 
 | File | Description |
 |------|-------------|
-| `quantize_sdxl_hswq_v1.py` | V1 conversion: standard-compatible FP8 (no scaling). |
-| `quantize_sdxl_hswq_v2_scaled.py` | V2 conversion: high-performance FP8 with `.scale` metadata. |
+| `quantize_sdxl_hswq_v1.1.py` | V1 SDXL conversion: standard-compatible FP8 (no scaling). |
+| `quantize_sdxl_hswq_v2.1_scaled.py` | V2 SDXL conversion: FP8 with `.scale` metadata. Not usable at present (no dedicated loader). |
+| `quantize_zit_hswq_v1.py` | Z-Image Turbo (ZIT) conversion: HSWQ FP8 for ZIT models. |
 | `weighted_histogram_mse.py` | Core optimization: weighted histogram MSE (PyTorch native grid). |
 | `verify_fp8_grid.py` | Verifies FP8 grid accuracy. |
+| `fp8bench.py` | FP8 benchmarking utilities. |
+| `archives/` | Older scripts: `quantize_sdxl_hswq_v1.py`, `quantize_sdxl_hswq_v2_scaled.py`. |
+| `sample/` | Calibration prompt sets (`calibration_prompts_128.txt`, `_256`, `_512`). |
 | `md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md` | Full technical spec (algorithm, process flow, benchmarks). |
-
-*(ComfyUI loader for V2: `hswq_loader_node.py` — not in this repo; see technical doc.)*
+| `md/HSWQ_DualMonitor_Fix_Report.md` | DualMonitor 2D input fix report (v1.0.1). |
 
 ---
 
@@ -74,9 +77,9 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 | Original FP16 | 1.0000 | 100% (6.5GB) | High |
 | Naive FP8 | 0.81–0.93 | 50% | High |
 | **HSWQ V1** | **0.86–0.95** | 55% (FP16 mixed) | **High** |
-| **HSWQ V2** | **0.87–0.96** | 55% (FP16 mixed) | Low (custom loader) |
+| **HSWQ V2** | **0.87–0.96** | 55% (FP16 mixed) | Not usable (no dedicated loader) |
 
-HSWQ V1 gives a clear gain over Naive FP8 with full compatibility; V2 targets maximum quality with a custom loader.
+HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offer higher quality but requires a dedicated loader and is not usable at the current time.
 
 ---
 
