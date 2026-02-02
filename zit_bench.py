@@ -21,6 +21,9 @@ def resolve_path(path, is_file=True):
     target = os.path.basename(path)
     print(f"  Note: {target} not found at {path}. Searching recursively...")
     for root, dirs, files in os.walk("."):
+        # Skip hidden directories (like .local, .cache, .Trash)
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        
         root_abs = os.path.abspath(root)
         if "ComfyUI" in root_abs or "node_modules" in root_abs:
             continue
@@ -48,6 +51,9 @@ def resolve_tokenizer_path(provided_path, clip_resolved_path):
     # Priority 3: Recursive search, excluding ComfyUI/SD1
     print("  Note: Searching recursively for Qwen 3 4B tokenizer (excluding ComfyUI/SD1)...")
     for root, dirs, files in os.walk("."):
+        # Skip hidden directories
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        
         root_abs = os.path.abspath(root)
         if "ComfyUI" in root_abs or "sd1" in root_abs.lower() or "clip_l" in root_abs.lower() or ".git" in root_abs:
             continue
