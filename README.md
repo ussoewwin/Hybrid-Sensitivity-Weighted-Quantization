@@ -18,7 +18,7 @@ High-fidelity FP8 quantization for **SDXL** diffusion models. HSWQ uses **sensit
 | :--- | :--- | :--- |
 | **Compatibility** | Full (100%), any FP8 loader | Requires dedicated loader — **not usable at present** |
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (weights + `.scale` metadata) |
-| **Image quality (SSIM)** | ~0.95 (theoretical limit) | ~0.96+ (close to FP16) |
+| **Image quality (SSIM)** | ~0.98 (max) | Unmeasurable (no dedicated loader) |
 | **Mechanism** | Optimal clipping (smart clipping) | Full-range scaling (dynamic scaling) |
 | **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) |
 | **Use case** | Distribution, general users | Unavailable until a dedicated loader exists |
@@ -77,7 +77,7 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% (6.5GB) | High |
 | Naive FP8 | 0.81–0.93 | 50% | High |
-| **HSWQ V1** | **0.86–0.95** | 55% (FP16 mixed) | **High** |
+| **HSWQ V1** | **0.86–0.98** | 55% (FP16 mixed) | **High** |
 | **HSWQ V2** | — (currently unmeasurable) | 55% (FP16 mixed) | Not usable (no dedicated loader) |
 
 HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offer higher quality but requires a dedicated loader; benchmark is currently unmeasurable and V2 is not usable at the current time.

@@ -17,7 +17,7 @@ Whereas conventional FP8 methods apply uniform compression (Naive Cast), HSWQ an
 | :--- | :--- | :--- |
 | **Compatibility** | **Full (100%)** | Custom loader required (HSWQLoader) — not usable at present |
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (Weights + `.scale` metadata) |
-| **Image quality (SSIM)** | 0.86-0.95 (theoretical limit) | 0.87-0.96 (close to FP16) |
+| **Image quality (SSIM)** | 0.86-0.98 (max) | Unmeasurable (no dedicated loader) |
 | **Mechanism** | Optimal clipping (Smart Clipping) | Full-range scaling (Dynamic Scaling) |
 | **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) |
 | **Primary use** | Distribution, general users | In-house use, maximum quality, server-side |
@@ -136,7 +136,7 @@ graph TD
 | :--- | :--- | :--- | :--- |
 | **Original FP16** | 1.0000 | 100% (6.5GB) | High |
 | **Naive FP8** | 0.81-0.93 | 50% | High |
-| **HSWQ V1** | **0.86–0.95** | 55% (FP16 mixed) | **High** |
-| **HSWQ V2** | **0.87–0.96** | 55% (FP16 mixed) | Low (custom loader) |
+| **HSWQ V1** | **0.86–0.98** | 55% (FP16 mixed) | **High** |
+| **HSWQ V2** | — (unmeasurable) | 55% (FP16 mixed) | Not usable (no dedicated loader) |
 
 HSWQ V1 provides a clear quality gain over Naive FP8 while keeping full compatibility, establishing it as a practical standard distribution format.
