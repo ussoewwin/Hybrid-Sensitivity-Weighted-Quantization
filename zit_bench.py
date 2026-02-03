@@ -121,25 +121,64 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
     args_path = resolve_path(path, is_file=True)
     print(f"Loading state_dict: {os.path.basename(args_path)}")
     state_dict = load_file(args_path)
-    config = detect_zit_config_from_keys(state_dict)
     
+    # === STEP 1: Convert BF16 -> FP16 ===
+    converted_dict = {}
+    for k, v in state_dict.items():
+        if v.dtype == torch.bfloat16:
+            converted_dict[k] = v.to(torch.float16)
+        else:
+            converted_dict[k] = v
+    
+    # === STEP 2: Detect and Strip Prefix BEFORE config detection ===
+    prefixes_to_try = [
+        "",                          # HSWQ / No prefix
+        "model.",                    # Some ComfyUI exports
+        "model.diffusion_model.",    # Third-party (e.g., ggml, official FP8)
+        "diffusion_model.",          # Alternative format
+    ]
+    
+    best_prefix = ""
+    for prefix in prefixes_to_try:
+        if prefix == "":
+            continue
+        # Check if this prefix exists in keys
+        if any(k.startswith(prefix) for k in converted_dict.keys()):
+            # Check if stripping this prefix would give us recognizable keys
+            sample_key = f"{prefix}layers.0.attention_norm1.weight"
+            if sample_key in converted_dict:
+                best_prefix = prefix
+                print(f"  [Prefix Detection] Detected prefix: '{prefix}'")
+                break
+    
+    # Strip the detected prefix
+    if best_prefix:
+        print(f"  [Prefix Strip] Stripping prefix: '{best_prefix}'")
+        stripped_dict = {}
+        for k, v in converted_dict.items():
+            if k.startswith(best_prefix):
+                new_key = k[len(best_prefix):]
+                stripped_dict[new_key] = v
+            else:
+                stripped_dict[k] = v
+        converted_dict = stripped_dict
+    
+    # === STEP 3: Detect config from STRIPPED keys ===
+    config = detect_zit_config_from_keys(converted_dict)
+    print(f"  [Config Detection] hidden_size={config['hidden_size']}, layers={config['num_layers']}")
+    
+    # === STEP 4: Create model with correct dimensions ===
     if is_fp8:
         print(f"Using mixed_precision_ops for FP8 model load...")
         ops = comfy.ops.mixed_precision_ops(compute_dtype=torch.float16)
     else:
         print(f"Using standard operations for FP16 model load...")
         ops = comfy.ops.disable_weight_init
-        
-    
-    # Calculate MLP Ratio if intermediate_size detected
-    # NextDiT uses mlp_ratio (default 4.0) to calc hidden dim: int(dim * mlp_ratio) 
-    # We must reverse this to match checkpoint.
-    # intermediate_size = 10240, dim = 3840 -> ratio = 2.6666...
     
     kwargs = {}
     if config.get("intermediate_size"):
         ratio = config["intermediate_size"] / config["hidden_size"]
-        kwargs["ffn_dim_multiplier"] = ratio  # CORRECT argument name!
+        kwargs["ffn_dim_multiplier"] = ratio
         print(f"  Calculated FFN Dim Multiplier: {ratio:.4f} (Dim: {config['hidden_size']} -> {config['intermediate_size']})")
 
     import inspect
@@ -164,28 +203,15 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
         **kwargs
     )
     
-    converted_dict = {}
-    for k, v in state_dict.items():
-        if v.dtype == torch.bfloat16:
-            converted_dict[k] = v.to(torch.float16)
-        else:
-            converted_dict[k] = v
-            
-    # CRITICAL: Do NOT call model.state_dict() here for FP8
+    # === STEP 5: Load weights ===
     try:
         missing, unexpected = model.load_state_dict(converted_dict, strict=False)
     except RuntimeError as e:
         print(f"  CRITICAL ERROR: Model Size Mismatch despite config adjustment.")
         print(f"  Error: {e}")
-        print(f"  Attempted kwargs: {kwargs}")
+        print(f"  Config: {config}")
         print(f"  NextDiT Signature: {inspect.signature(NextDiT.__init__)}")
         sys.exit(1)
-    
-    if len(missing) == len(list(model.parameters())) + len(list(model.buffers())):
-        if any(k.startswith("model.") for k in converted_dict.keys()):
-            print("  Note: No keys matched. Attempting to remove 'model.' prefix...")
-            remapped_dict = {k[6:]: v for k, v in converted_dict.items()}
-            missing, unexpected = model.load_state_dict(remapped_dict, strict=False)
 
     print(f"  [Keys] Matched: {len(converted_dict) - len(unexpected)}, Missing: {len(missing)}, Unexpected: {len(unexpected)}")
     
@@ -200,7 +226,7 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
         print(f"  Note: FP16 model loaded on {device} and cast to float16.")
         
     model.eval()
-    return model
+    return model, converted_dict  # Return model AND original state_dict for FP8 stats fallback
 
 def encode_prompt(prompt, text_encoder, tokenizer, device):
     template = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
@@ -292,8 +318,20 @@ def calculate_metrics(l1, l2):
     score_ssim = ssim(arr1_hwc[:, :, :3], arr2_hwc[:, :, :3], win_size=3, channel_axis=2, data_range=data_range)
     return mse, score_ssim
 
-def print_model_stats(model, name):
-    state = model.state_dict()
+def print_model_stats(model, name, original_state_dict=None):
+    """Print model statistics. Handles FP8 models with mixed_precision_ops gracefully."""
+    try:
+        state = model.state_dict()
+    except (AttributeError, RuntimeError) as e:
+        # FP8 models with mixed_precision_ops may crash here
+        print(f"[{name}] Note: state_dict() failed ({type(e).__name__}). Using original state_dict for stats.")
+        if original_state_dict is not None:
+            state = original_state_dict
+        else:
+            print(f"[{name}] Warning: No fallback state_dict available. Skipping detailed stats.")
+            print(f"[{name}] Model type: {type(model).__name__}")
+            return
+    
     target_key = None
     for key in state.keys():
         if "layers.10" in key and "weight" in key and "norm" not in key:
@@ -394,8 +432,8 @@ def main():
     
     # FP16 Benchmark
     print("\n=== 1. Benchmarking Baseline (FP16) ===")
-    model = load_zit_model(args.fp16, device, args.comfy_path, is_fp8=False)
-    print_model_stats(model, "FP16 Baseline")
+    model, state_dict_fp16 = load_zit_model(args.fp16, device, args.comfy_path, is_fp8=False)
+    print_model_stats(model, "FP16 Baseline", state_dict_fp16)
     latents_fp16, time_fp16, vram_fp16 = run_inference(model, embeds, mask, args.steps, args.seed, device)
     print(f"FP16 Time: {time_fp16:.2f}s | Peak VRAM: {vram_fp16:.2f} MB")
     
@@ -408,8 +446,8 @@ def main():
 
     # FP8 Benchmark
     print("\n=== 2. Benchmarking Quantized (FP8) ===")
-    model = load_zit_model(args.fp8, device, args.comfy_path, is_fp8=True)
-    print_model_stats(model, "FP8 Quantized")
+    model, state_dict_fp8 = load_zit_model(args.fp8, device, args.comfy_path, is_fp8=True)
+    print_model_stats(model, "FP8 Quantized", state_dict_fp8)
     latents_fp8, time_fp8, vram_fp8 = run_inference(model, embeds, mask, args.steps, args.seed, device)
     print(f"FP8 Time: {time_fp8:.2f}s | Peak VRAM: {vram_fp8:.2f} MB")
     
