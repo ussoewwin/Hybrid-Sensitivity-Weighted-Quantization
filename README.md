@@ -46,23 +46,6 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 
 ---
 
-## Files in This Repo
-
-| File | Description |
-|------|-------------|
-| `quantize_sdxl_hswq_v1.1.py` | V1 SDXL conversion: standard-compatible FP8 (no scaling). |
-| `quantize_sdxl_hswq_v2.1_scaled.py` | V2 SDXL conversion: FP8 with `.scale` metadata. Not usable at present (no dedicated loader). |
-| `quantize_zit_hswq_v1.py` | Z-Image Turbo (ZIT) conversion: HSWQ FP8 for ZIT models. |
-| `weighted_histogram_mse.py` | Core optimization: weighted histogram MSE (PyTorch native grid). |
-| `verify_fp8_grid.py` | Verifies FP8 grid accuracy. |
-| `fp8bench.py` | FP8 benchmarking utilities. |
-| `archives/` | Older scripts: `quantize_sdxl_hswq_v1.py`, `quantize_sdxl_hswq_v2_scaled.py`. |
-| `sample/` | Calibration prompt sets (`calibration_prompts_128.txt`, `_256`, `_512`). |
-| `md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md` | Full technical spec (algorithm, process flow, benchmarks). |
-| `md/HSWQ_DualMonitor_Fix_Report.md` | DualMonitor 2D input fix report (v1.0.1). |
-
----
-
 ## Recommended Parameters
 
 - **Samples:** 256 (minimum for reliable stats; 128 is insufficient).
