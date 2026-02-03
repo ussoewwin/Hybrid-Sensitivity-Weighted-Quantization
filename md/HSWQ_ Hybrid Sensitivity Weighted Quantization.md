@@ -15,10 +15,11 @@ Whereas conventional FP8 methods apply uniform compression (Naive Cast), HSWQ an
 
 | Feature | V1: Standard Compatible | V2: High Performance Scaled |
 | :--- | :--- | :--- |
-| **Compatibility** | **Full (100%)** | Custom loader required (HSWQLoader) |
+| **Compatibility** | **Full (100%)** | Custom loader required (HSWQLoader) — not usable at present |
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (Weights + `.scale` metadata) |
 | **Image quality (SSIM)** | 0.86-0.95 (theoretical limit) | 0.87-0.96 (close to FP16) |
 | **Mechanism** | Optimal clipping (Smart Clipping) | Full-range scaling (Dynamic Scaling) |
+| **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) |
 | **Primary use** | Distribution, general users | In-house use, maximum quality, server-side |
 
 This approach reduces file size by about 50% (vs. FP16) while achieving the best quality for each use case.
@@ -41,6 +42,14 @@ During calibration inference, statistics are collected from two perspectives.
     *   **Purpose**: Identify which input channels contribute most to the computation.
     *   **Metric**: Input tensor mean absolute value $\text{Mean}(|X|_c)$.
     *   **Action**: Used as **weights** in the weighted histogram.
+
+### 2.1.1. 32bit保護 (Sensitivity 蓄積)
+キャリブレーション時の **Sensitivity Monitor** では、出力テンソルの平均・二乗平均を多数サンプルにわたって加算する。オーバーフローと精度劣化を防ぐため次のようにしている。
+
+*   **出力側**: フックで得た出力テンソルを `.float()` で **FP32 に変換**してからバッチ平均・二乗平均を計算する（FP16 のままでは分散計算の精度が不足する）。
+*   **蓄積側**: 加算用の `output_sum` / `output_sq_sum` は Python の `float`（実質 64bit）で保持し、256 サンプル以上の累積でもオーバーフローしないようにする。
+
+コード上は「Accumulate in FP32/Double to avoid overflow」として、V1.1 / V2.1 の `DualMonitor` に実装されている。
 
 ### 2.2. Rigorous FP8 Grid Simulation
 Instead of theoretical formulas (`2 ** E * ...`), a **physical grid** is used: all byte values (0–255) are cast to PyTorch’s `torch.float8_e4m3fn` type.
