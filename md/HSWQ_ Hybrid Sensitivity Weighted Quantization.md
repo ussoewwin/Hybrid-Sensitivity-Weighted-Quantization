@@ -43,13 +43,13 @@ During calibration inference, statistics are collected from two perspectives.
     *   **Metric**: Input tensor mean absolute value $\text{Mean}(|X|_c)$.
     *   **Action**: Used as **weights** in the weighted histogram.
 
-### 2.1.1. 32bit保護 (Sensitivity 蓄積)
-キャリブレーション時の **Sensitivity Monitor** では、出力テンソルの平均・二乗平均を多数サンプルにわたって加算する。オーバーフローと精度劣化を防ぐため次のようにしている。
+### 2.1.1. 32-bit Protection (Sensitivity Accumulation)
+In the **Sensitivity Monitor** during calibration, the mean and mean-of-squares of the output tensor are accumulated over many samples. To avoid overflow and loss of precision:
 
-*   **出力側**: フックで得た出力テンソルを `.float()` で **FP32 に変換**してからバッチ平均・二乗平均を計算する（FP16 のままでは分散計算の精度が不足する）。
-*   **蓄積側**: 加算用の `output_sum` / `output_sq_sum` は Python の `float`（実質 64bit）で保持し、256 サンプル以上の累積でもオーバーフローしないようにする。
+*   **Output side**: The output tensor from the hook is cast to **FP32** via `.float()` before computing batch mean and mean-of-squares (variance in FP16 is not accurate enough).
+*   **Accumulation side**: The accumulators `output_sum` and `output_sq_sum` are stored as Python `float` (64-bit), so that accumulation over 256+ samples does not overflow.
 
-コード上は「Accumulate in FP32/Double to avoid overflow」として、V1.1 / V2.1 の `DualMonitor` に実装されている。
+This is implemented in the V1.1 / V2.1 `DualMonitor` as “Accumulate in FP32/Double to avoid overflow”.
 
 ### 2.2. Rigorous FP8 Grid Simulation
 Instead of theoretical formulas (`2 ** E * ...`), a **physical grid** is used: all byte values (0–255) are cast to PyTorch’s `torch.float8_e4m3fn` type.
