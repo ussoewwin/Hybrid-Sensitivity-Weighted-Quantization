@@ -49,7 +49,7 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 ## Recommended Parameters
 
 - **Samples:** 256 (minimum for reliable stats; 128 is insufficient).
-- **Keep ratio:** 0.25 (25%) — keeps critical layers in FP16; 0.10 has higher degradation risk.
+- **Keep ratio:** 10–25% — keeps critical layers in FP16.
 - **Steps:** 20–25 — to include early denoising sensitivity.
 
 ---
