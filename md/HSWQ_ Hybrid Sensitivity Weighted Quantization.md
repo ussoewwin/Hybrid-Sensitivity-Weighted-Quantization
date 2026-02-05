@@ -36,7 +36,7 @@ During calibration inference, statistics are collected from two perspectives.
 1.  **Sensitivity Monitor (output variance)**:
     *   **Purpose**: Identify layers whose corruption severely degrades image quality.
     *   **Metric**: Output tensor variance $\text{Var}(Y)$.
-    *   **Action**: **Keep top 25% (recommended) in FP16** for protection.
+    *   **Action**: **Keep top 10–25% in FP16** for protection (for SDXL, 10% is often sufficient).
 
 2.  **Importance Monitor (input importance)**:
     *   **Purpose**: Identify which input channels contribute most to the computation.

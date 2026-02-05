@@ -42,24 +42,20 @@ def try_import_sage_attention():
 
 ### 3. Monkey-patch enable
 
+`F.scaled_dot_product_attention` is replaced by a wrapper that:
+
+- Saves the original in `_original_sdpa`.
+- If `attn_mask is not None` or `is_causal` is true: calls original SDPA with the same arguments (SA2 does not support these).
+- Otherwise: calls `sageattn(query, key, value, is_causal=False)`. On any exception, falls back to original SDPA with the same arguments.
+
 ```python
-def enable_sage_attention():
-    global _original_sdpa
-    import torch.nn.functional as F
-    from sageattention import sageattn
-    
-    _original_sdpa = F.scaled_dot_product_attention  # Save original
-    
-    def sage_sdpa_wrapper(query, key, value, attn_mask=None, 
-                          dropout_p=0.0, is_causal=False, scale=None):
-        # Fallback for params SA2 does not support
-        if attn_mask is not None or is_causal:
-            return _original_sdpa(query, key, value, ...)
-        
-        # Fast path via SA2
+def sage_sdpa_wrapper(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
+    if attn_mask is not None or is_causal:
+        return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale)
+    try:
         return sageattn(query, key, value, is_causal=False)
-    
-    F.scaled_dot_product_attention = sage_sdpa_wrapper
+    except Exception:
+        return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale)
 ```
 
 ### 4. Restore original SDPA
@@ -81,14 +77,6 @@ def disable_sage_attention():
 | `is_causal=True` | Fall back to original SDPA |
 | SA2 runtime error | Fall back to original SDPA |
 | SA2 not installed | Warn and use standard SDPA |
-
-## Speed comparison
-
-| Setup | 256 samples × 20 steps (SDXL) |
-|-------|------------------------------|
-| PyTorch SDPA (default) | ~2.5 hours |
-| SageAttention2 (`--sa2`) | ~1.8–2 hours |
-| **Reduction** | **~20–30%** |
 
 ## Usage
 
@@ -127,12 +115,12 @@ python quantize_sdxl_hswq_v1.6.py \
 
 ## Version support
 
-| Script | SA2 | Quantization |
-|--------|-----|--------------|
-| V1.1 | ❌ | Standard (bins=4096) |
-| **V1.2** | ✅ | Standard (bins=4096) |
-| V1.5 | ❌ | High precision (bins=8192) |
-| **V1.6** | ✅ | High precision (bins=8192) |
+| Script | SA2 (`--sa2`) | Quantization |
+|--------|----------------|--------------|
+| V1.1 (archives) | ❌ | Standard (bins=4096) |
+| **V1.2** | ✅ | Standard (bins=4096, 200 candidates, 3 refinements) |
+| V1.5 (archives) | ❌ | High precision (bins=8192, 1000 candidates, 10 refinements) |
+| **V1.6** | ✅ | High precision (bins=8192, 1000 candidates, 10 refinements) |
 
 ## Dependencies
 
