@@ -25,6 +25,8 @@ cache/
 # Local push/tag scripts (excluded from repo)
 do_push.ps1
 do_tag.ps1
+do_release_v103.ps1
+do_edit_release_v103.ps1
 remove_tracked.ps1
 rm_gitignore_msg.txt
 remove_msg.txt
