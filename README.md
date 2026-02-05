@@ -30,7 +30,7 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 ## Architecture
 
 1. **Dual Monitor System** — During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 25% kept in FP16.
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL, 10% is often sufficient).
    - **Importance** (input mean absolute value): per-channel contribution → used as weights in the weighted histogram.
 
 2. **Rigorous FP8 Grid Simulation** — Uses a physical grid (all 0–255 values cast to `torch.float8_e4m3fn`) instead of theoretical formulas, so MSE matches real runtime.
@@ -49,7 +49,7 @@ File size is reduced by about **50%** vs FP16 while keeping best quality per use
 ## Recommended Parameters
 
 - **Samples:** 256 (minimum for reliable stats; 128 is insufficient).
-- **Keep ratio:** 10–25% — keeps critical layers in FP16.
+- **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL, 10% often gives sufficient quality.
 - **Steps:** 20–25 — to include early denoising sensitivity.
 
 ---
@@ -70,7 +70,7 @@ HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offe
 ## Changelog
 
 ### 1.0.3
-- **SDXL SageAttention2** — V1.2 (standard) and V1.6 (high precision) add optional SageAttention2-accelerated calibration via `--sa2`. Calibration time reduced by ~20–30%. Same FP8 output; SA2 used only during calibration.  
+- **SDXL SageAttention2** — V1.2 (standard) and V1.6 (high precision) add optional SageAttention2-accelerated calibration via `--sa2`. Same FP8 output; SA2 used only during calibration.  
   **Release notes:** [v1.0.3](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.3) *(to be published)*
 
 ### 1.0.2
