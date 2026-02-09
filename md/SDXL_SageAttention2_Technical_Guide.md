@@ -2,7 +2,7 @@
 
 ## Overview
 
-SDXL HSWQ V1.2/V1.6 integrates SageAttention2 to speed up calibration. Enable it with the `--sa2` option to reduce calibration time by about 20–30%.
+SDXL HSWQ V1.2/V1.6 integrates SageAttention2 to speed up calibration. Enable it with the `--sa2` option (about 10% faster).
 
 ## Architecture
 
@@ -108,7 +108,7 @@ python quantize_sdxl_hswq_v1.6.py \
 
 | Item | SageAttention2 | FlashAttention2 |
 |------|----------------|------------------|
-| Speed | 20–30% faster | Baseline |
+| Speed | ~10% faster | Baseline |
 | Precision | INT8 quantized (small error) | Full precision |
 | Windows | ✅ (woct0rdho fork) | ❌ (community build needed) |
 | Ease of use | Simple (pip install) | Hard (build required) |
