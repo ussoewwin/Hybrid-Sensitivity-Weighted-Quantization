@@ -12,6 +12,12 @@ High-fidelity FP8 quantization for **SDXL** diffusion models. HSWQ uses **sensit
 
 ---
 
+## How to quantize
+
+- **SDXL:** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md)
+
+---
+
 ## Overview
 
 | Feature | V1: Standard Compatible | V2: High Performance Scaled |
