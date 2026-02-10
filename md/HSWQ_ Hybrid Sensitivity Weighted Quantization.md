@@ -22,7 +22,7 @@ Whereas conventional FP8 methods apply uniform compression (Naive Cast), HSWQ an
 | **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) |
 | **Primary use** | Distribution, general users | In-house use, maximum quality, server-side |
 
-This approach reduces file size by about 50% (vs. FP16) while achieving the best quality for each use case.
+This approach reduces file size by about 40–45% (vs. FP16) while achieving the best quality for each use case.
 
 ---
 
