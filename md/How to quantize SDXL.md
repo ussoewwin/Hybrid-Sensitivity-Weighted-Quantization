@@ -25,6 +25,20 @@ pip install diffusers safetensors transformers accelerate tqdm sentencepiece pro
 pip install -r requirements.txt
 ```
 
+## Install SageAttention2 (optional, for faster calibration with `--sa2`)
+
+**Windows:**
+
+```bash
+pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post4/sageattention-2.2.0+cu130torch2.9.0andhigher.post4-cp39-abi3-win_amd64.whl
+```
+
+**Linux:**
+
+```bash
+pip install sageattention
+```
+
 ## Quantize an SDXL model
 
 Example: koronemixVpred_v20. Adjust the file paths to your environment.
