@@ -23,7 +23,7 @@ High-fidelity FP8 quantization for **SDXL** diffusion models. HSWQ uses **sensit
 | **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) |
 | **Use case** | Distribution, general users | Unavailable until a dedicated loader exists |
 
-File size is reduced by about **50%** vs FP16 while keeping best quality per use case.
+File size is reduced by about **40–45%** vs FP16 while keeping best quality per use case.
 
 ---
 
