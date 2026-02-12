@@ -39,6 +39,8 @@ pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-
 pip install sageattention
 ```
 
+Note: This installs SageAttention 1, not SageAttention2 (SA2). For SA2 on Linux, check the [SageAttention](https://github.com/woct0rdho/SageAttention) repository for a compatible build or wheel.
+
 ## Quantize an SDXL model
 
 Example: koronemixVpred_v20. Adjust the file paths to your environment.
