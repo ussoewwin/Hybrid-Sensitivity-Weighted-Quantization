@@ -1,13 +1,13 @@
 """
-Flux1.devモデルをFP8形式に量子化するスクリプト (HSWQ V1.2: Flux Edition)
-SDXL HSWQ V1.21 (GPU Accelerated) と完全に同一の構造・アルゴリズムで実装。
+Quantize Flux1.dev model to FP8 (HSWQ V1.2: Flux Edition).
+Same structure and algorithm as SDXL HSWQ V1.21 (GPU Accelerated).
 
-アルゴリズム: (SDXL V1.21と同一)
-1. Load Pipeline + comfyui_to_diffusers_map 構築
+Algorithm (same as SDXL V1.21):
+1. Load Pipeline + build comfyui_to_diffusers_map
 2. Calibration Loop (DualMonitor: Sensitivity & Input Importance)
-3. Layer Selection (Keep Top N% Sensitive Layers)
+3. Layer Selection (Keep top N% by sensitivity)
 4. HSWQ Optimization (Weighted Histogram MSE, scaled=False)
-5. GPU Accelerated Quantization (comfyui_to_diffusers_map逆引きで変換)
+5. GPU Accelerated Quantization (convert via comfyui_to_diffusers_map)
 """
 
 import argparse
@@ -21,16 +21,16 @@ from tqdm import tqdm
 import sys
 import numpy as np
 
-# HSWQ専用モジュールをインポート
+# HSWQ modules
 from weighted_histogram_mse import HSWQWeightedHistogramOptimizer
 
-# C++20標準を強制
+# Enforce C++20
 if sys.platform == "win32":
     os.environ.setdefault("CXXFLAGS", "/std:c++20")
 else:
     os.environ.setdefault("CXXFLAGS", "-std=c++20")
 
-# === SageAttention2 Integration (SDXL V1.21と同一) ===
+# === SageAttention2 Integration (same as SDXL V1.21) ===
 _sage_attn_available = False
 _original_sdpa = None
 
@@ -39,16 +39,16 @@ def try_import_sage_attention():
     try:
         from sageattention import sageattn
         _sage_attn_available = True
-        print("[SageAttention2] インポート成功")
+        print("[SageAttention2] Successfully imported.")
         return True
     except ImportError:
-        print("[SageAttention2] 未インストール。標準Attentionで実行します。")
+        print("[SageAttention2] Not installed. Using standard attention.")
         return False
 
 def enable_sage_attention():
     global _original_sdpa
     if not _sage_attn_available:
-        print("[SageAttention2] 有効化不可 - 利用不可")
+        print("[SageAttention2] Cannot enable - not available.")
         return False
     
     import torch.nn.functional as F
@@ -65,7 +65,7 @@ def enable_sage_attention():
             return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale, **kwargs)
     
     F.scaled_dot_product_attention = sage_sdpa_wrapper
-    print("[SageAttention2] 有効化完了 (SDPA monkey-patch)")
+    print("[SageAttention2] Enabled (SDPA monkey-patch)")
     return True
 
 def disable_sage_attention():
@@ -74,23 +74,19 @@ def disable_sage_attention():
         import torch.nn.functional as F
         F.scaled_dot_product_attention = _original_sdpa
         _original_sdpa = None
-        print("[SageAttention2] 無効化完了（元のSDPAに復元）")
+        print("[SageAttention2] Disabled (restored original SDPA)")
 
 
-# --- ComfyUI互換のマッピング関数群 (SDXL V1.21の unet_to_diffusers_mapping に相当) ---
+# --- ComfyUI-compatible mapping (equivalent to SDXL V1.21 unet_to_diffusers_mapping) ---
 
 def flux_to_diffusers_mapping(state_dict, key_prefix=None):
-    """Flux ComfyUIキー → Diffusersキー のマッピングを構築。
-    SDXL V1.21の unet_to_diffusers_mapping と同じ役割。
-    
-    key_prefix: None の場合は自動検出。
-    
-    戻り値: comfyui_to_diffusers_map = {comfy_full_key: diffusers_key}
-    例: {"model.diffusion_model.double_blocks.0.img_mlp.0.weight": "transformer_blocks.0.ff.net.0.proj.weight"}
+    """Build Flux ComfyUI key -> Diffusers key mapping (same role as SDXL V1.21 unet_to_diffusers_mapping).
+    key_prefix: If None, auto-detected.
+    Returns: comfyui_to_diffusers_map = {comfy_full_key: diffusers_key}
     """
     state_dict_keys = list(state_dict.keys())
     
-    # プレフィックスの自動検出
+    # Auto-detect prefix
     if key_prefix is None:
         has_full_prefix = any(k.startswith("model.diffusion_model.") for k in state_dict_keys)
         has_no_prefix = any(k.startswith("double_blocks.") or k.startswith("single_blocks.") for k in state_dict_keys)
@@ -102,9 +98,9 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
         else:
             key_prefix = "model.diffusion_model."
         
-        print(f"  プレフィックス自動検出: '{key_prefix}' (prefix付き={has_full_prefix}, prefix無し={has_no_prefix})")
+        print(f"  Auto-detected prefix: '{key_prefix}' (full={has_full_prefix}, no_prefix={has_no_prefix})")
     
-    # ブロック数を自動検出
+    # Detect block counts
     num_double = 0
     num_single = 0
     for k in state_dict_keys:
@@ -119,7 +115,7 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
                 if len(parts) > 1 and parts[1].isdigit():
                     num_single = max(num_single, int(parts[1]) + 1)
     
-    print(f"  検出: Double Blocks={num_double}, Single Blocks={num_single}")
+    print(f"  Detected: Double Blocks={num_double}, Single Blocks={num_single}")
     
     comfyui_to_diffusers_map = {}
     
@@ -144,7 +140,7 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
     
     # --- Double Blocks ---
     for i in range(num_double):
-        # 1:1マッピング（非融合レイヤー）
+        # 1:1 mapping (non-fused layers)
         one_to_one = {
             f"double_blocks.{i}.img_mod.lin": f"transformer_blocks.{i}.norm1.linear",
             f"double_blocks.{i}.txt_mod.lin": f"transformer_blocks.{i}.norm1_context.linear",
@@ -161,14 +157,13 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
                 if comfy_key in state_dict_keys:
                     comfyui_to_diffusers_map[comfy_key] = f"{diff_name}{suffix}"
         
-        # 融合QKVレイヤー: ComfyUI側は1つのテンソル、Diffusers側は分割
-        # → マッピング先を "FUSED:xxx" としてマーク（量子化時にDiffusersの分割モジュールではなく直接処理）
+        # Fused QKV: ComfyUI has one tensor, Diffusers splits it -> mark as "FUSED:xxx" for direct handling at quantize
         for suffix in [".weight", ".bias"]:
-            # img_attn.qkv → to_q + to_k + to_v (融合)
+            # img_attn.qkv -> to_q + to_k + to_v (fused)
             comfy_key = f"{key_prefix}double_blocks.{i}.img_attn.qkv{suffix}"
             if comfy_key in state_dict_keys:
                 comfyui_to_diffusers_map[comfy_key] = f"FUSED:transformer_blocks.{i}.attn.img_qkv{suffix}"
-            # txt_attn.qkv → add_q_proj + add_k_proj + add_v_proj (融合)
+            # txt_attn.qkv -> add_q_proj + add_k_proj + add_v_proj (fused)
             comfy_key = f"{key_prefix}double_blocks.{i}.txt_attn.qkv{suffix}"
             if comfy_key in state_dict_keys:
                 comfyui_to_diffusers_map[comfy_key] = f"FUSED:transformer_blocks.{i}.attn.txt_qkv{suffix}"
@@ -188,7 +183,7 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
     
     # --- Single Blocks ---
     for i in range(num_single):
-        # 1:1マッピング
+        # 1:1 mapping
         one_to_one = {
             f"single_blocks.{i}.modulation.lin": f"single_transformer_blocks.{i}.norm.linear",
             f"single_blocks.{i}.linear2": f"single_transformer_blocks.{i}.proj_out",
@@ -199,7 +194,7 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
                 if comfy_key in state_dict_keys:
                     comfyui_to_diffusers_map[comfy_key] = f"{diff_name}{suffix}"
         
-        # 融合Linear1: to_q + to_k + to_v + proj_mlp (4つが融合)
+        # Fused Linear1: to_q + to_k + to_v + proj_mlp (4 fused)
         for suffix in [".weight", ".bias"]:
             comfy_key = f"{key_prefix}single_blocks.{i}.linear1{suffix}"
             if comfy_key in state_dict_keys:
@@ -220,63 +215,59 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
 
 
 def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_path=None, t5_path=None, vae_path=None):
-    """Fluxパイプラインをロード。SDXL V1.21の load_unet_from_safetensors と同じ役割。
-    
-    戻り値:
-        pipeline: FluxPipeline
-        original_state_dict: 元のsafetensorsのstate_dict
-        comfyui_to_diffusers_map: ComfyUIキー→Diffusersキーのマッピング
+    """Load Flux pipeline (same role as SDXL V1.21 load_unet_from_safetensors).
+    Returns: pipeline, original_state_dict, comfyui_to_diffusers_map
     """
-    print(f"Flux1モデルをロード中: {path}")
+    print(f"Loading Flux1 model: {path}")
     
-    # 元のstate_dictをロード（SDXL V1.21と同様に保持）
+    # Load original state_dict (keep as in SDXL V1.21)
     original_state_dict = load_file(path)
     
-    # キーマッピングを構築
-    print("キーマッピングを作成中...")
+    # Build key mapping
+    print("Building key mapping...")
     comfyui_to_diffusers_map = flux_to_diffusers_mapping(original_state_dict)
-    print(f"  マッピング数: {len(comfyui_to_diffusers_map)}")
+    print(f"  Mapping count: {len(comfyui_to_diffusers_map)}")
     
-    # 外部コンポーネントのロード
+    # Load external components
     text_encoder = None
     text_encoder_2 = None
     tokenizer = None
     tokenizer_2 = None
     vae = None
     
-    # ヘルパー: ファイルまたはディレクトリからモデルをロード
+    # Helper: load model from file or directory
     def load_external_component(path, model_class, config_class_or_repo, default_repo=None, tokenizer_repo=None, is_diffusers=False, token=None):
         model = None
         tok = None
         
         if os.path.isfile(path):
-            print(f"単一ファイルからロード中: {path}")
+            print(f"Loading from single file: {path}")
             try:
                 if is_diffusers:
-                    print(f"デフォルト設定を取得中: {config_class_or_repo}")
+                    print(f"Loading default config: {config_class_or_repo}")
                     model = model_class.from_pretrained(config_class_or_repo, subfolder="vae", token=token)
                     sd = load_file(path)
                     m, u = model.load_state_dict(sd, strict=False)
-                    print(f"重みロード完了。Missing: {len(m)}, Unexpected: {len(u)}")
+                    print(f"Weights loaded. Missing: {len(m)}, Unexpected: {len(u)}")
                     model.to(torch.float16)
                 else:
-                    print(f"デフォルト設定を取得中: {default_repo}")
+                    print(f"Loading default config: {default_repo}")
                     config = config_class_or_repo.from_pretrained(default_repo, token=token)
                     model = model_class(config)
                     sd = load_file(path)
                     m, u = model.load_state_dict(sd, strict=False)
-                    print(f"重みロード完了。Missing: {len(m)}, Unexpected: {len(u)}")
+                    print(f"Weights loaded. Missing: {len(m)}, Unexpected: {len(u)}")
                     model.to(torch.float16)
             except Exception as e:
-                print(f"単一ファイルロード失敗: {e}")
+                print(f"Single-file load failed: {e}")
                 sys.exit(1)
             
             if tokenizer_repo:
-                print(f"トークナイザーを取得中: {tokenizer_repo}")
+                print(f"Loading tokenizer: {tokenizer_repo}")
                 tok = AutoTokenizer.from_pretrained(tokenizer_repo, token=token)
                 
         else:
-            print(f"ディレクトリからロード中: {path}")
+            print(f"Loading from directory: {path}")
             try:
                 if is_diffusers:
                      model = model_class.from_pretrained(path, torch_dtype=torch.float16, token=token)
@@ -284,39 +275,37 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
                     model = model_class.from_pretrained(path, torch_dtype=torch.float16, token=token)
                     tok = AutoTokenizer.from_pretrained(path, token=token)
             except Exception as e:
-                print(f"ディレクトリロードエラー: {e}")
+                print(f"Directory load error: {e}")
                 sys.exit(1)
                 
         return model, tok
 
-    # 外部CLIPロード
+    # Load external CLIP
     if clip_path:
         text_encoder, tokenizer = load_external_component(
             clip_path, CLIPTextModel, CLIPTextConfig, "openai/clip-vit-large-patch14", "openai/clip-vit-large-patch14", token=token
         )
-        print("CLIPロード完了。")
+        print("CLIP loaded.")
 
-    # 外部T5ロード
+    # Load external T5
     if t5_path:
         text_encoder_2, tokenizer_2 = load_external_component(
             t5_path, T5EncoderModel, T5Config, "google/t5-v1_1-xxl", "google/t5-v1_1-xxl", token=token
         )
-        print("T5ロード完了。")
+        print("T5 loaded.")
 
-    # 外部VAEロード
+    # Load external VAE
     if vae_path:
         vae, _ = load_external_component(
             vae_path, AutoencoderKL, "black-forest-labs/FLUX.1-schnell", is_diffusers=True, token=token
         )
-        print("VAEロード完了。")
+        print("VAE loaded.")
 
-    # FluxPipelineをロード
-    # FluxPipelineをロード
-    print("FluxPipelineを構築中（手動ウェイトロード）...")
+    # Load FluxPipeline (manual weight load)
+    print("Building FluxPipeline (manual weight load)...")
     pipeline = None
     try:
-        # まずConfigのみで空のモデルを初期化
-        # Configロード用のパス決定
+        # Initialize empty model from config first; decide config path
         config_path = "black-forest-labs/FLUX.1-schnell"
         if is_diffusers:
              config_path = config_class_or_repo
@@ -332,21 +321,20 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
              vae=vae
         )
 
-        # ターゲットのstate_dictを作成 (Diffusers形式)
+        # Build target state_dict (Diffusers format)
         converted_state_dict = {}
         
-        # 既存のマッピングを利用して単純な1:1転送と、Fused Layerの分割転送を行う
-        print("    ウェイトをDiffusers形式に変換・分割中...")
+        # 1:1 transfer and fused-layer split via existing mapping
+        print("    Converting/splitting weights to Diffusers format...")
         
-        # 1. 1:1 マッピングの適用
-        # comfyui_to_diffusers_map には "FUSED:" 以外の通常マッピングも含まれている
+        # 1. Apply 1:1 mapping (comfyui_to_diffusers_map includes non-FUSED entries)
         for comfy_key, val in original_state_dict.items():
             if comfy_key in comfyui_to_diffusers_map:
                 diff_key = comfyui_to_diffusers_map[comfy_key]
                 if not diff_key.startswith("FUSED:"):
                      converted_state_dict[diff_key] = val
         
-        # 2. Fused Layer の手動分割
+        # 2. Manual split of fused layers
         # Double Blocks: img_attn.qkv -> to_q, to_k, to_v
         # Double Blocks: txt_attn.qkv -> add_q_proj, add_k_proj, add_v_proj
         # Single Blocks: linear1 -> to_q, to_k, to_v, proj_mlp
@@ -400,19 +388,18 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
                     converted_state_dict[f"{base}.attn.to_v.{suffix}"] = v
                     converted_state_dict[f"{base}.proj_mlp.{suffix}"] = mlp
 
-        # モデルにロード
-        print(f"変換済みState Dictサイズ: {len(converted_state_dict)}")
+        # Load into model
+        print(f"Converted state dict size: {len(converted_state_dict)}")
         m, u = pipeline.load_state_dict(converted_state_dict, strict=False)
-        print(f"手動ロード結果 - Missing: {len(m)}, Unexpected: {len(u)}")
+        print(f"Manual load - Missing: {len(m)}, Unexpected: {len(u)}")
         
-        # 簡易チェック
-        if len(m) > 100: # あまりに多い場合は警告
-            print(f"警告: Missing keysが多いです ({len(m)}個)。正しくロードできていない可能性があります。")
+        if len(m) > 100:
+            print(f"Warning: Many missing keys ({len(m)}). Load may be incorrect.")
             # print(m[:5])
 
     except Exception as e:
-        print(f"手動ロード失敗: {e}")
-        print("from_single_fileへのフォールバックを試みます...")
+        print(f"Manual load failed: {e}")
+        print("Trying from_single_file fallback...")
         try:
             pipeline = FluxPipeline.from_single_file(
                 path, 
@@ -426,36 +413,36 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
                 vae=vae
             )
         except Exception as e2:
-            print(f"フォールバックも失敗: {e2}")
+            print(f"Fallback also failed: {e2}")
             sys.exit(1)
             
-    print("VRAM最適化: Model CPU Offload を有効化します...")
+    print("Enabling Model CPU Offload for VRAM...")
     pipeline.enable_model_cpu_offload()
     
-    # SDXL V1.21と同じ: pipeline, original_state_dict, comfyui_to_diffusers_map を返す
+    # Same as SDXL V1.21: return pipeline, original_state_dict, comfyui_to_diffusers_map
     return pipeline, original_state_dict, comfyui_to_diffusers_map
 
 
-# --- Dual Monitor: Sensitivity & Importance (SDXL V1.21と同一) ---
+# --- Dual Monitor: Sensitivity & Importance (same as SDXL V1.21) ---
 class DualMonitor:
     def __init__(self):
-        # Sensitivity (出力分散)
+        # Sensitivity (output variance)
         self.output_sum = 0.0
         self.output_sq_sum = 0.0
         self.count = 0
-        # Importance (入力活性化)
+        # Importance (input activation)
         self.channel_importance = None
     
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
-            # 1. Sensitivity更新 (出力分散)
+            # 1. Sensitivity update (output variance)
             out_detached = output_tensor.detach().float()
             batch_mean = out_detached.mean().item()
             batch_sq_mean = (out_detached ** 2).mean().item()
             self.output_sum += batch_mean
             self.output_sq_sum += batch_sq_mean
             
-            # 2. Importance更新 (入力活性化)
+            # 2. Importance update (input activation)
             inp_detached = input_tensor.detach()
             if inp_detached.dim() == 4:    # Conv2d: (B, C, H, W)
                 current_imp = inp_detached.abs().mean(dim=(0, 2, 3))
@@ -490,37 +477,37 @@ def hook_fn(module, input, output, name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Flux1.dev FP8量子化 (HSWQ V1.2: SDXL V1.21同一構造)")
-    parser.add_argument("--input", type=str, required=True, help="入力safetensorsモデルのパス")
-    parser.add_argument("--output", type=str, required=True, help="出力safetensorsモデルのパス")
-    parser.add_argument("--calib_file", type=str, required=True, help="キャリブレーションプロンプトテキストファイルのパス")
-    parser.add_argument("--num_calib_samples", type=int, default=256, help="キャリブレーションサンプル数 (HSWQ推奨: 256)")
-    parser.add_argument("--num_inference_steps", type=int, default=25, help="推論ステップ数 (HSWQ正規: 25)")
-    parser.add_argument("--keep_ratio", type=float, default=0.25, help="FP16保持レイヤーの割合")
-    parser.add_argument("--sa2", action="store_true", help="SageAttention2で高速化")
-    parser.add_argument("--token", type=str, help="HuggingFaceトークン（ゲートモデル用）")
-    parser.add_argument("--clip_path", type=str, help="CLIPテキストエンコーダのパス")
-    parser.add_argument("--t5_path", type=str, help="T5テキストエンコーダのパス")
-    parser.add_argument("--vae_path", type=str, help="VAEモデルのパス")
+    parser = argparse.ArgumentParser(description="Flux1.dev FP8 quantization (HSWQ V1.2, same structure as SDXL V1.21)")
+    parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
+    parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
+    parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
+    parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples (HSWQ: 256)")
+    parser.add_argument("--num_inference_steps", type=int, default=25, help="Inference steps (HSWQ: 25)")
+    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16")
+    parser.add_argument("--sa2", action="store_true", help="Use SageAttention2 for faster calibration")
+    parser.add_argument("--token", type=str, help="Hugging Face token (gated models)")
+    parser.add_argument("--clip_path", type=str, help="CLIP text encoder path")
+    parser.add_argument("--t5_path", type=str, help="T5 text encoder path")
+    parser.add_argument("--vae_path", type=str, help="VAE model path")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"デバイス: {device}")
+    print(f"Device: {device}")
     
-    # === SageAttention2初期化 (SDXL V1.21と同一) ===
+    # === SageAttention2 init (same as SDXL V1.21) ===
     if args.sa2:
         if try_import_sage_attention():
             enable_sage_attention()
         else:
-            print("[警告] --sa2指定ですがSageAttention2が利用不可。標準Attentionで続行します。")
+            print("[Warning] --sa2 set but SageAttention2 not available. Using standard attention.")
 
-    # === SDXL V1.21と同一: pipeline, original_state_dict, comfyui_to_diffusers_map を取得 ===
+    # === Same as SDXL V1.21: get pipeline, original_state_dict, comfyui_to_diffusers_map ===
     pipeline, original_state_dict, comfyui_to_diffusers_map = load_flux_pipeline_from_safetensors(
         args.input, device, token=args.token, clip_path=args.clip_path, t5_path=args.t5_path, vae_path=args.vae_path
     )
 
-    # === キャリブレーション (SDXL V1.21と同一構造) ===
-    print("キャリブレーション準備中（Dual Monitorフック登録）...")
+    # === Calibration (same structure as SDXL V1.21) ===
+    print("Preparing calibration (registering Dual Monitor hooks)...")
     handles = []
     target_modules = []
     for name, module in pipeline.transformer.named_modules():
@@ -529,7 +516,7 @@ def main():
             handles.append(handle)
             target_modules.append(name)
 
-    print("キャリブレーションデータを準備中...")
+    print("Preparing calibration data...")
     with open(args.calib_file, "r", encoding="utf-8") as f:
         prompts = [line.strip() for line in f.readlines() if line.strip()]
     if len(prompts) < args.num_calib_samples:
@@ -537,8 +524,8 @@ def main():
     else:
         prompts = prompts[:args.num_calib_samples]
 
-    print(f"キャリブレーションを実行中（{args.num_calib_samples}サンプル, {args.num_inference_steps}ステップ）...")
-    print("※ 感度(Sensitivity)と入力重要度(Importance)を同時計測します...")
+    print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps)...")
+    print("Measuring Sensitivity and Importance...")
     
     pipeline.set_progress_bar_config(disable=False)
     
@@ -550,40 +537,40 @@ def main():
             gc.collect()
             torch.cuda.empty_cache()
 
-    # フック解除
+    # Remove hooks
     for h in handles: h.remove()
     
     # === SageAttention2 Cleanup ===
     if args.sa2:
         disable_sage_attention()
 
-    # === レイヤー感度分析 (SDXL V1.21と同一) ===
-    print("\nレイヤー感度分析を実行中...")
+    # === Layer sensitivity analysis (same as SDXL V1.21) ===
+    print("\nRunning layer sensitivity analysis...")
     layer_sensitivities = []
     for name in target_modules:
         if name in dual_monitors:
             sensitivity = dual_monitors[name].get_sensitivity()
             layer_sensitivities.append((name, sensitivity))
     
-    # 感度順にソート（降順）
+    # Sort by sensitivity (descending)
     layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
     
-    # 上位N%を特定
+    # Identify top N%
     num_keep = int(len(layer_sensitivities) * args.keep_ratio)
     keep_layers = set([x[0] for x in layer_sensitivities[:num_keep]])
     
-    print(f"総レイヤー数: {len(layer_sensitivities)}")
-    print(f"FP16保持レイヤー数: {len(keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
+    print(f"Total layers: {len(layer_sensitivities)}")
+    print(f"FP16-kept layers: {len(keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
     print("Top 5 Sensitive Layers:")
     for i in range(min(5, len(layer_sensitivities))):
         print(f"  {i+1}. {layer_sensitivities[i][0]}: {layer_sensitivities[i][1]:.4f}")
 
-    # === HSWQ最適化 (SDXL V1.21と同一: named_modules → amax計算) ===
-    print("\n[HSWQ] 完全重み付けMSE解析と量子化パラメータ計算を開始します...")
-    print("※ 互換モード (scaled=False): エラーを最小化する最適なクリッピング閾値を探索...")
+    # === HSWQ optimization (same as SDXL V1.21: named_modules -> amax) ===
+    print("\n[HSWQ] Starting weighted MSE analysis and quantization parameter computation...")
+    print("Compatibility mode (scaled=False): searching optimal clipping threshold...")
     weight_amax_dict = {}
     
-    # HSWQ専用最適化器を初期化（SDXL V1.21と同一パラメータ: bins=4096, 200候補, 3回精錬）
+    # Init HSWQ optimizer (same as SDXL V1.21: bins=4096, 200 candidates, 3 refinements)
     hswq_optimizer = HSWQWeightedHistogramOptimizer(
         bins=4096,
         num_candidates=200,
@@ -593,20 +580,20 @@ def main():
     
     for name, module in tqdm(pipeline.transformer.named_modules(), desc="Analyzing"):
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
-            # FP16保持レイヤーならスキップ（amax計算不要）
+            # Skip FP16-kept layers (no amax needed)
             if name in keep_layers:
                 continue
                 
-            # 重要度の取得
+            # Get importance
             importance = None
             if name in dual_monitors:
                 importance = dual_monitors[name].channel_importance
             
-            # HSWQ: 最適amaxを探索 (scaled=False)
+            # HSWQ: find optimal amax (scaled=False)
             optimal_amax = hswq_optimizer.compute_optimal_amax(
                 module.weight.data, 
                 importance,
-                scaled=False  # 重要: 互換モード
+                scaled=False  # Compatibility mode
             )
             weight_amax_dict[name + ".weight"] = optimal_amax
             
@@ -615,14 +602,14 @@ def main():
     first_fused_module_name = {}
     for name, module in pipeline.transformer.named_modules():
         if isinstance(module, torch.nn.Linear):
-            # QKVが分割されている場合、代表的なモジュール名（最初のQなど）を保存しておく
+            # When QKV is split, store representative module name (e.g. first Q)
             # transformer_blocks.{i}.attn.to_q
             # transformer_blocks.{i}.attn.add_q_proj
             # single_transformer_blocks.{i}.attn.to_q
             parts = name.split(".")
             if len(parts) >= 2 and parts[-1].startswith("to_q"):
                 # transformer_blocks.{i}.attn.to_q -> {i}.attn.img_qkv
-                # single_transformer_blocks.{i}.attn.to_q -> {i}.linear1 (Singleはlinear1=QKV+MLP)
+                # single_transformer_blocks.{i}.attn.to_q -> {i}.linear1 (Single: linear1=QKV+MLP)
                 if parts[0] == "transformer_blocks":
                     block_idx = parts[1]
                     key = f"transformer_blocks.{block_idx}.attn.img_qkv"
@@ -639,10 +626,9 @@ def main():
                     key = f"transformer_blocks.{block_idx}.attn.txt_qkv"
                     first_fused_module_name[key] = name
 
-    # === Flux固有: 融合QKVレイヤーのamax計算 ===
-    # ComfyUI形式では img_attn.qkv / txt_attn.qkv / linear1 が融合テンソル
-    # Diffusersでは分割されるため named_modules には存在しない
-    # → original_state_dict から直接amaxを計算するが、ImportanceはDiffusersモジュールから借りる
+    # === Flux: amax for fused QKV layers ===
+    # ComfyUI: img_attn.qkv / txt_attn.qkv / linear1 are fused; Diffusers splits them (not in named_modules)
+    # Compute amax from original_state_dict; borrow Importance from Diffusers modules
     fused_count = 0
     for key, value in original_state_dict.items():
         if key in comfyui_to_diffusers_map:
@@ -651,11 +637,10 @@ def main():
                 # "FUSED:transformer_blocks.0.attn.img_qkv.weight"
                 target_base = diffusers_key[6:-7] # remove FUSED: and .weight
 
-                # Importance (入力活性化) を取得
+                # Get Importance (input activation)
                 importance = None
                 
-                # target_baseに対応する代表的なDiffusersモジュールを探す
-                # 例: transformer_blocks.0.attn.img_qkv -> transformer_blocks.0.attn.to_q
+                # Find representative Diffusers module for target_base (e.g. attn.to_q)
                 if target_base in first_fused_module_name:
                     rep_name = first_fused_module_name[target_base]
                     if rep_name in dual_monitors:
@@ -669,42 +654,42 @@ def main():
                     weight_amax_dict[diffusers_key] = optimal_amax
                     fused_count += 1
     
-    print(f"量子化対象レイヤー数: {len(weight_amax_dict)} (うち融合QKV: {fused_count})")
+    print(f"Layers to quantize: {len(weight_amax_dict)} (fused QKV: {fused_count})")
     
-    # === VRAM最適化 (SDXL V1.21と同一) ===
-    print("\n[VRAM最適化] GPU高速変換の準備中...")
+    # === VRAM optimization (same as SDXL V1.21) ===
+    print("\n[VRAM] Preparing GPU conversion...")
     del pipeline
     del hswq_optimizer
     gc.collect()
     torch.cuda.empty_cache()
     
-    # === 量子化変換 (SDXL V1.21と完全に同一の構造) ===
-    # comfyui_to_diffusers_map を逆引きして変換する
-    print(f"量子化モデルを保存中: {args.output}")
+    # === Quantization (same structure as SDXL V1.21) ===
+    # Convert using reverse lookup of comfyui_to_diffusers_map
+    print(f"Saving quantized model: {args.output}")
     output_state_dict = {}
     converted_count = 0
     kept_count = 0
     
-    print("重みを変換中 (GPU Accelerated)...")
+    print("Converting weights (GPU)...")
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
-        # SDXL V1.21と同一: comfyui_to_diffusers_mapでDiffusersキーを取得
+        # Same as SDXL V1.21: get Diffusers key from comfyui_to_diffusers_map
         diffusers_key = None
         if key in comfyui_to_diffusers_map:
             diffusers_key = comfyui_to_diffusers_map[key]
         
-        # diffusers_keyからモジュール名を特定（.weightを除く）
+        # Module name from diffusers_key (without .weight)
         module_name = None
         if diffusers_key:
             if diffusers_key.endswith(".weight"):
                 module_name = diffusers_key[:-7]
             
-        # 変換判定 (SDXL V1.21と同一ロジック)
+        # Convert decision (same logic as SDXL V1.21)
         if module_name and module_name in keep_layers:
-            # FP16保持
+            # Keep FP16
             new_value = value
             kept_count += 1
         elif diffusers_key:
-            # 量子化対象
+            # Quantize
             weight_key = diffusers_key + ".weight"
             if diffusers_key.endswith(".weight"):
                 weight_key = diffusers_key
@@ -712,7 +697,7 @@ def main():
             if weight_key in weight_amax_dict:
                 amax = weight_amax_dict[weight_key]
                 if amax == 0: amax = 1e-6
-                # GPU上でClamp→FP8変換
+                # Clamp -> FP8 on GPU
                 val_gpu = value.float().to(device)
                 clamped_value = torch.clamp(val_gpu, -amax, amax)
                 new_value = clamped_value.to(torch.float8_e4m3fn).cpu()
@@ -725,12 +710,12 @@ def main():
             
         output_state_dict[key] = new_value
 
-    print(f"変換完了:")
-    print(f"  FP8化されたレイヤー: {converted_count}")
-    print(f"  FP16保持されたレイヤー: {kept_count}")
+    print("Conversion done:")
+    print(f"  FP8 layers: {converted_count}")
+    print(f"  FP16-kept layers: {kept_count}")
     
     save_file(output_state_dict, args.output)
-    print("保存完了！")
+    print("Save complete.")
 
 if __name__ == "__main__":
     main()
