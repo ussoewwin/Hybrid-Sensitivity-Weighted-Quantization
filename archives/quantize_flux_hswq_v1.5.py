@@ -1,16 +1,16 @@
 """
-Flux1.devモデルをFP8形式に量子化するスクリプト (HSWQ V1.5: 高精度・適応型)
-SDXL HSWQ V1.21 (GPU Accelerated) と同一の構造・アルゴリズムに加え、
-モデルの重み分布に基づいた「適応型探索範囲(Adaptive Search Range)」を実装。
-手動調整なしで、外れ値の多いモデル（画質低下しやすいモデル）を自動検出し保護します。
+Quantize Flux1.dev model to FP8 (HSWQ V1.5: high-precision, adaptive).
+Same structure/algorithm as SDXL HSWQ V1.21 (GPU Accelerated), plus
+Adaptive Search Range based on weight distribution: auto-detect and protect
+outlier-heavy models without manual tuning.
 
-アルゴリズム:
-1. Load Pipeline + comfyui_to_diffusers_map 構築
-2. Calibration Loop (DualMonitor: 感度 & 入力重要度)
-3. Layer Selection (感度の高い上位N%を保持)
-4. HSWQ Optimization (重み付けヒストグラムMSE, scaled=False)
-   - **NEW: 適応型探索範囲 (Kurtosis/Outlier Ratio Based)**
-5. GPU Accelerated Quantization (comfyui_to_diffusers_map逆引きで変換)
+Algorithm:
+1. Load Pipeline + build comfyui_to_diffusers_map
+2. Calibration Loop (DualMonitor: sensitivity & input importance)
+3. Layer Selection (keep top N% by sensitivity)
+4. HSWQ Optimization (weighted histogram MSE, scaled=False)
+   - **NEW: Adaptive search range (kurtosis/outlier-ratio based)**
+5. GPU Accelerated Quantization (convert via comfyui_to_diffusers_map reverse lookup)
 """
 
 import argparse
@@ -24,17 +24,16 @@ from tqdm import tqdm
 import sys
 import numpy as np
 
-# インポートパスの調整
+# Import path adjustment
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 if os.path.exists(os.path.join(current_dir, "hswq")):
     sys.path.insert(0, os.path.join(current_dir, "hswq"))
 
-# HSWQ専用モジュールをインポート
-# HSWQWeightedHistogramOptimizerを使用しつつ、内部コンポーネント(WeightedHistogram)も必要
+# HSWQ modules (HSWQWeightedHistogramOptimizer + WeightedHistogram)
 from weighted_histogram_mse import HSWQWeightedHistogramOptimizer, WeightedHistogram
 
-# C++20標準を強制
+# Enforce C++20
 if sys.platform == "win32":
     os.environ.setdefault("CXXFLAGS", "/std:c++20")
 else:
@@ -49,16 +48,16 @@ def try_import_sage_attention():
     try:
         from sageattention import sageattn
         _sage_attn_available = True
-        print("[SageAttention2] インポート成功")
+        print("[SageAttention2] Successfully imported.")
         return True
     except ImportError:
-        print("[SageAttention2] 未インストール。標準Attentionで実行します。")
+        print("[SageAttention2] Not installed. Using standard attention.")
         return False
 
 def enable_sage_attention():
     global _original_sdpa
     if not _sage_attn_available:
-        print("[SageAttention2] 有効化不可 - 利用不可")
+        print("[SageAttention2] Cannot enable - not available")
         return False
     
     import torch.nn.functional as F
@@ -75,7 +74,7 @@ def enable_sage_attention():
             return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale, **kwargs)
     
     F.scaled_dot_product_attention = sage_sdpa_wrapper
-    print("[SageAttention2] 有効化完了 (SDPA monkey-patch)")
+    print("[SageAttention2] Enabled (SDPA monkey-patch)")
     return True
 
 def disable_sage_attention():
@@ -84,23 +83,18 @@ def disable_sage_attention():
         import torch.nn.functional as F
         F.scaled_dot_product_attention = _original_sdpa
         _original_sdpa = None
-        print("[SageAttention2] 無効化完了（元のSDPAに復元）")
+        print("[SageAttention2] Disabled (restored original SDPA)")
 
-# --- 適応型探索範囲決定ロジック (New in v1.5) ---
+# --- Adaptive search range (New in v1.5) ---
 def get_adaptive_search_range(weight_tensor: torch.Tensor) -> tuple[float, float]:
-    """重み分布に基づき最適な探索範囲を自動決定"""
-    # GPUにある場合はそのまま、CPUの場合はCPUで計算
-    # 巨大テンソルの場合はサンプリングして高速化
+    """Choose optimal search range from weight distribution."""
     w_abs = weight_tensor.abs().float()
     max_val = w_abs.max().item()
     
     if max_val == 0:
         return (0.5, 1.0)
 
-    # 統計量
-    # 大きすぎる場合はサンプリング (100万要素以上)
     if w_abs.numel() > 1_000_000:
-        # ランダムサンプリング
         indices = torch.randint(0, w_abs.numel(), (1_000_000,), device=w_abs.device)
         sample = w_abs.flatten()[indices]
         p99 = torch.quantile(sample, 0.99).item()
@@ -115,21 +109,18 @@ def get_adaptive_search_range(weight_tensor: torch.Tensor) -> tuple[float, float
 
     outlier_ratio = max_val / (p99 + 1e-6)
     
-    # 判定ロジック
-    # 尖度が非常に高い ＝ 裾が重い ＝ 外れ値が重要 ＝ クリッピングしてはいけない
-    # アウトライア比率が高いモデルは、HSWQの探索範囲を「1.0」つまり最大値に固定し、クリッピングを禁止する。
     if outlier_ratio > 3.0:
-        return (1.0, 1.0) # 異常値 (探索無効、Max量子化を強制)
+        return (1.0, 1.0)  # Severe outliers: no clipping, max quant
     elif kurtosis > 50.0:
-        return (0.95, 1.0) # 非常に慎重に
+        return (0.95, 1.0)  # Very conservative
     elif kurtosis > 20.0 or outlier_ratio > 2.2:
-        return (0.8, 1.0) # 慎重に
+        return (0.8, 1.0)   # Conservative
     elif outlier_ratio > 1.8:
-        return (0.65, 1.0) # やや外れ値あり
+        return (0.65, 1.0)  # Some outliers
     else:
-        return (0.55, 1.0) # 標準 (ガウス分布に近い)
+        return (0.55, 1.0)  # Normal (near-Gaussian)
 
-# --- ComfyUI互換のマッピング関数群 ---
+# --- ComfyUI-compatible mapping ---
 
 def flux_to_diffusers_mapping(state_dict, key_prefix=None):
     state_dict_keys = list(state_dict.keys())
@@ -141,7 +132,7 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
         if has_full_prefix: key_prefix = "model.diffusion_model."
         elif has_no_prefix: key_prefix = ""
         else: key_prefix = "model.diffusion_model."
-        print(f"  プレフィックス自動検出: '{key_prefix}'")
+        print(f"  Auto-detected prefix: '{key_prefix}'")
     
     num_double = 0
     num_single = 0
@@ -155,7 +146,7 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
                 parts = stripped.split(".")
                 if len(parts) > 1 and parts[1].isdigit(): num_single = max(num_single, int(parts[1]) + 1)
     
-    print(f"  検出: Double Blocks={num_double}, Single Blocks={num_single}")
+    print(f"  Detected: Double Blocks={num_double}, Single Blocks={num_single}")
     
     comfyui_to_diffusers_map = {}
     
@@ -236,11 +227,11 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
     return comfyui_to_diffusers_map
 
 def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_path=None, t5_path=None, vae_path=None):
-    print(f"Flux1モデルをロード中: {path}")
+    print(f"Loading Flux1 model: {path}")
     original_state_dict = load_file(path)
-    print("キーマッピングを作成中...")
+    print("Building key mapping...")
     comfyui_to_diffusers_map = flux_to_diffusers_mapping(original_state_dict)
-    print(f"  マッピング数: {len(comfyui_to_diffusers_map)}")
+    print(f"  Mapping count: {len(comfyui_to_diffusers_map)}")
     
     text_encoder, text_encoder_2, tokenizer, tokenizer_2, vae = None, None, None, None, None
     
@@ -258,7 +249,7 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
                     m, u = model.load_state_dict(load_file(path), strict=False)
                     model.to(torch.float16)
             except Exception as e:
-                print(f"単一ファイルロード失敗: {e}")
+                print(f"Single-file load failed: {e}")
                 sys.exit(1)
             if tokenizer_repo: tok = AutoTokenizer.from_pretrained(tokenizer_repo, token=token)
         else:
@@ -268,7 +259,7 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
                     model = model_class.from_pretrained(path, torch_dtype=torch.float16, token=token)
                     tok = AutoTokenizer.from_pretrained(path, token=token)
             except Exception as e:
-                print(f"ディレクトリロードエラー: {e}")
+                print(f"Directory load error: {e}")
                 sys.exit(1)
         return model, tok
 
@@ -276,13 +267,13 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
     if t5_path: text_encoder_2, tokenizer_2 = load_external_component(t5_path, T5EncoderModel, T5Config, "google/t5-v1_1-xxl", "google/t5-v1_1-xxl", token=token)
     if vae_path: vae, _ = load_external_component(vae_path, AutoencoderKL, "black-forest-labs/FLUX.1-schnell", is_diffusers=True, token=token)
 
-    print("FluxPipelineを構築中（手動ウェイトロード）...")
+    print("Building FluxPipeline (manual weight load)...")
     try:
         config_path = "black-forest-labs/FLUX.1-schnell"
         pipeline = FluxPipeline.from_pretrained(config_path, torch_dtype=torch.float16, token=token, text_encoder=text_encoder, text_encoder_2=text_encoder_2, tokenizer=tokenizer, tokenizer_2=tokenizer_2, vae=vae)
         
         converted_state_dict = {}
-        print("    ウェイトをDiffusers形式に変換・分割中...")
+        print("    Converting/splitting weights to Diffusers format...")
         for comfy_key, val in original_state_dict.items():
             if comfy_key in comfyui_to_diffusers_map:
                 diff_key = comfyui_to_diffusers_map[comfy_key]
@@ -319,13 +310,13 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
                     converted_state_dict[f"{base}.proj_mlp.{suffix}"] = mlp
 
         m, u = pipeline.transformer.load_state_dict(converted_state_dict, strict=False)
-        print(f"手動ロード結果 - Missing: {len(m)}, Unexpected: {len(u)}")
+        print(f"Manual load - Missing: {len(m)}, Unexpected: {len(u)}")
         
     except Exception as e:
-        print(f"手動ロード失敗: {e}")
+        print(f"Manual load failed: {e}")
         sys.exit(1)
             
-    print("VRAM最適化: Model CPU Offload を有効化します...")
+    print("Enabling Model CPU Offload for VRAM...")
     pipeline.enable_model_cpu_offload()
     return pipeline, original_state_dict, comfyui_to_diffusers_map
 
@@ -357,22 +348,22 @@ def hook_fn(module, input, output, name):
     dual_monitors[name].update(input[0], output)
 
 def main():
-    parser = argparse.ArgumentParser(description="Flux1.dev FP8量子化 (HSWQ V1.5: 高精度・適応型)")
-    parser.add_argument("--input", type=str, required=True, help="入力safetensorsモデルのパス")
-    parser.add_argument("--output", type=str, required=True, help="出力safetensorsモデルのパス")
-    parser.add_argument("--calib_file", type=str, required=True, help="キャリブレーションプロンプトテキストファイルのパス")
-    parser.add_argument("--num_calib_samples", type=int, default=256, help="キャリブレーションサンプル数 (推奨: 256)")
-    parser.add_argument("--num_inference_steps", type=int, default=25, help="推論ステップ数 (正規: 25)")
-    parser.add_argument("--keep_ratio", type=float, default=0.25, help="FP16保持レイヤーの割合")
-    parser.add_argument("--sa2", action="store_true", help="SageAttention2で高速化")
-    parser.add_argument("--token", type=str, help="HuggingFaceトークン")
-    parser.add_argument("--clip_path", type=str, help="CLIPパス")
-    parser.add_argument("--t5_path", type=str, help="T5パス")
-    parser.add_argument("--vae_path", type=str, help="VAEパス")
+    parser = argparse.ArgumentParser(description="Flux1.dev FP8 quantization (HSWQ V1.5: high-precision, adaptive)")
+    parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
+    parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
+    parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
+    parser.add_argument("--num_calib_samples", type=int, default=256, help="Calibration samples (recommended: 256)")
+    parser.add_argument("--num_inference_steps", type=int, default=25, help="Inference steps (default: 25)")
+    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16")
+    parser.add_argument("--sa2", action="store_true", help="Use SageAttention2 for faster calibration")
+    parser.add_argument("--token", type=str, help="Hugging Face token")
+    parser.add_argument("--clip_path", type=str, help="CLIP path")
+    parser.add_argument("--t5_path", type=str, help="T5 path")
+    parser.add_argument("--vae_path", type=str, help="VAE path")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"デバイス: {device}")
+    print(f"Device: {device}")
     
     if args.sa2:
         if try_import_sage_attention(): enable_sage_attention()
@@ -381,7 +372,7 @@ def main():
         args.input, device, token=args.token, clip_path=args.clip_path, t5_path=args.t5_path, vae_path=args.vae_path
     )
 
-    print("キャリブレーション準備中...")
+    print("Preparing calibration...")
     handles = []
     target_modules = []
     for name, module in pipeline.transformer.named_modules():
@@ -389,14 +380,14 @@ def main():
             handles.append(module.register_forward_hook(lambda m, i, o, n=name: hook_fn(m, i, o, n)))
             target_modules.append(name)
 
-    print("キャリブレーション実行中...")
+    print("Running calibration...")
     with open(args.calib_file, "r", encoding="utf-8") as f:
         prompts = [line.strip() for line in f.readlines() if line.strip()]
     prompts = (prompts * (args.num_calib_samples // len(prompts) + 1))[:args.num_calib_samples]
 
     pipeline.set_progress_bar_config(disable=False)
     for i, prompt in enumerate(prompts):
-        print(f"\nサンプル {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
+        print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
         with torch.no_grad():
             pipeline(prompt=prompt, num_inference_steps=args.num_inference_steps, guidance_scale=3.5, output_type="latent")
         if (i + 1) % 10 == 0:
@@ -406,7 +397,7 @@ def main():
     for h in handles: h.remove()
     if args.sa2: disable_sage_attention()
 
-    print("\nレイヤー感度分析...")
+    print("\nLayer sensitivity analysis...")
     layer_sensitivities = []
     for name in target_modules:
         if name in dual_monitors:
@@ -414,15 +405,15 @@ def main():
     layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
     num_keep = int(len(layer_sensitivities) * args.keep_ratio)
     keep_layers = set([x[0] for x in layer_sensitivities[:num_keep]])
-    print(f"総レイヤー数: {len(layer_sensitivities)}, 保持レイヤー数: {len(keep_layers)} (上位 {args.keep_ratio*100:.1f}%)")
+    print(f"Total layers: {len(layer_sensitivities)}, kept: {len(keep_layers)} (top {args.keep_ratio*100:.1f}%)")
 
-    print("\n[HSWQ V1.5] 適応型高精度最適化を開始...")
-    print("※ 高精度モード: bins=8192, candidates=1000, iterations=10")
-    print("※ 適応型探索範囲: 有効")
+    print("\n[HSWQ V1.5] Starting adaptive high-precision optimization...")
+    print("High-precision: bins=8192, candidates=1000, iterations=10")
+    print("Adaptive search range: enabled")
     
     weight_amax_dict = {}
     
-    # HSWQオプティマイザのインスタンス作成（ライブラリのものを使用）
+    # Create HSWQ optimizer instance (from library)
     hswq_optimizer = HSWQWeightedHistogramOptimizer(
         bins=8192,
         num_candidates=1000,
@@ -430,29 +421,27 @@ def main():
         device=device
     )
     
-    for name, module in tqdm(pipeline.transformer.named_modules(), desc="解析中"):
+    for name, module in tqdm(pipeline.transformer.named_modules(), desc="Analyzing"):
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
             if name in keep_layers: continue
             
             importance = dual_monitors[name].channel_importance if name in dual_monitors else None
             
-            # --- 適応型解析 ---
+            # --- Adaptive analysis ---
             adaptive_range = get_adaptive_search_range(module.weight.data)
             # -----------------
             
-            # クラス拡張や継承ではなく、コンポーネントを直接使用して最適化
-            # (HSWQWeightedHistogramOptimizer.compute_optimal_amax が search_range を受け取れないため)
-            
-            # 1. 重み付けヒストグラム構築
+            # Use components directly (optimizer.compute_optimal_amax does not take search_range)
+            # 1. Build weighted histogram
             weighted_hist = WeightedHistogram(bins=hswq_optimizer.bins, device=hswq_optimizer.device)
             weighted_hist.build(module.weight.data, importance)
             
-            # 2. MSE最適化 (hswq_optimizerのメンバを使用)
+            # 2. MSE optimization (using hswq_optimizer members)
             optimal_amax = hswq_optimizer.mse_optimizer.find_optimal_amax(
                 weighted_hist,
                 num_candidates=hswq_optimizer.num_candidates,
                 refinement_iterations=hswq_optimizer.refinement_iterations,
-                search_range=adaptive_range, # ここでadaptive_rangeを渡す
+                search_range=adaptive_range,
                 scaled=False
             )
             
@@ -481,11 +470,11 @@ def main():
                     if rep_name in dual_monitors: importance = dual_monitors[rep_name].channel_importance
 
                 if value.dim() == 2 and value.numel() >= 1024:
-                    # --- 適応型解析 (Fused) ---
+                    # --- Adaptive analysis (Fused) ---
                     adaptive_range = get_adaptive_search_range(value)
                     # -------------------------
                     
-                    # Fused Layersも同様に直接コンポーネントを使用
+                    # Fused layers: use components directly
                     weighted_hist = WeightedHistogram(bins=hswq_optimizer.bins, device=hswq_optimizer.device)
                     weighted_hist.build(value, importance)
                     
@@ -500,19 +489,19 @@ def main():
                     weight_amax_dict[diffusers_key] = optimal_amax
                     fused_count += 1
     
-    print(f"対象レイヤー数: {len(weight_amax_dict)} (融合レイヤー: {fused_count})")
+    print(f"Layers to quantize: {len(weight_amax_dict)} (fused: {fused_count})")
     
     del pipeline
     del hswq_optimizer
     gc.collect()
     torch.cuda.empty_cache()
     
-    print(f"量子化モデルを保存中: {args.output}")
+    print(f"Saving quantized model: {args.output}")
     output_state_dict = {}
     converted_count = 0
     kept_count = 0
     
-    for key, value in tqdm(original_state_dict.items(), desc="変換中"):
+    for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         diffusers_key = None
         if key in comfyui_to_diffusers_map: diffusers_key = comfyui_to_diffusers_map[key]
         
@@ -529,7 +518,7 @@ def main():
                 amax = weight_amax_dict[weight_key]
                 if amax == 0: amax = 1e-6
                 
-                # GPU量子化 (Clampのみ, Scaleなし)
+                # GPU quantization (Clamp only, no Scale)
                 val_gpu = value.float().to(device)
                 clamped_value = torch.clamp(val_gpu, -amax, amax)
                 new_value = clamped_value.to(torch.float8_e4m3fn).cpu()
@@ -542,7 +531,7 @@ def main():
             
         output_state_dict[key] = new_value
 
-    print(f"完了。量子化済み: {converted_count}, 保持: {kept_count}")
+    print(f"Done. Quantized: {converted_count}, kept: {kept_count}")
     save_file(output_state_dict, args.output)
 
 if __name__ == "__main__":

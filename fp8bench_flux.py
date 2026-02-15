@@ -8,8 +8,7 @@ import numpy as np
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
 
-# ComfyUIのパス設定 (カレントディレクトリのComfyUI-masterを想定)
-# ユーザー環境に合わせて調整が必要な場合はここを変更
+# ComfyUI path (expects ComfyUI-master in current directory; change if needed)
 COMFY_PATH = os.path.abspath("ComfyUI-master")
 if COMFY_PATH not in sys.path:
     sys.path.append(COMFY_PATH)
@@ -23,12 +22,12 @@ except ImportError:
     print("Please ensure the script is running from the correct directory or update COMFY_PATH.")
     sys.exit(1)
 
-# 警告抑制
+# Suppress verbose logging
 import logging
 logging.getLogger("comfy").setLevel(logging.WARNING)
 
 def setup_paths(args):
-    """モデルファイルのパスをComfyUIに登録する"""
+    """Register model file paths with ComfyUI."""
     def register_path(folder_type, file_path):
         if not file_path: return
         directory = os.path.dirname(os.path.abspath(file_path))
@@ -41,7 +40,7 @@ def setup_paths(args):
     register_path("vae", args.vae_path)
 
 def generate_image_comfy(unet_name, clip_obj, vae_obj, args):
-    """ComfyUIノードを使用して画像を生成する"""
+    """Generate image using ComfyUI nodes."""
     print(f"Loading UNet: {unet_name}")
     unet_loader = nodes.UNETLoader()
     unet = unet_loader.load_unet(unet_name=unet_name, weight_dtype="default")[0]
@@ -61,7 +60,7 @@ def generate_image_comfy(unet_name, clip_obj, vae_obj, args):
     print("Sampling...")
     ksampler = nodes.KSampler()
     
-    # ComfyUIのシードはランダム生成されることが多いが、再現性のために固定
+    # Fixed seed for reproducibility
     seed = args.seed
     
     torch.cuda.synchronize()
@@ -87,7 +86,7 @@ def generate_image_comfy(unet_name, clip_obj, vae_obj, args):
     return img, elapsed
 
 def load_common_components(args):
-    """CLIPとVAEをロード（共通）"""
+    """Load CLIP and VAE (shared)."""
     print("Loading CLIP/T5...")
     dual_clip_loader = nodes.DualCLIPLoader()
     clip = dual_clip_loader.load_clip(
