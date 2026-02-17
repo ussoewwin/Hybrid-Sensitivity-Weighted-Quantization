@@ -31,6 +31,48 @@ if sys.platform == "win32":
 else:
     os.environ.setdefault("CXXFLAGS", "-std=c++20")
 
+# === SageAttention2 Integration (optional, for faster calibration with --sa2) ===
+_sage_attn_available = False
+_original_sdpa = None
+
+def try_import_sage_attention():
+    global _sage_attn_available
+    try:
+        from sageattention import sageattn
+        _sage_attn_available = True
+        print("[SageAttention2] Successfully imported.")
+        return True
+    except ImportError:
+        print("[SageAttention2] Not installed. Calibration will use standard attention.")
+        return False
+
+def enable_sage_attention():
+    global _original_sdpa
+    if not _sage_attn_available:
+        print("[SageAttention2] Cannot enable - not available.")
+        return False
+    import torch.nn.functional as F
+    from sageattention import sageattn
+    _original_sdpa = F.scaled_dot_product_attention
+    def sage_sdpa_wrapper(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
+        if attn_mask is not None or is_causal:
+            return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale)
+        try:
+            return sageattn(query, key, value, is_causal=False)
+        except Exception:
+            return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale)
+    F.scaled_dot_product_attention = sage_sdpa_wrapper
+    print("[SageAttention2] Enabled for calibration (monkey-patched SDPA).")
+    return True
+
+def disable_sage_attention():
+    global _original_sdpa
+    if _original_sdpa is not None:
+        import torch.nn.functional as F
+        F.scaled_dot_product_attention = _original_sdpa
+        _original_sdpa = None
+        print("[SageAttention2] Disabled (restored original SDPA).")
+
 # --- ZIT (NextDiT) model load and inference pipeline ---
 
 # Common prefixes to try (order matters: most specific first)
@@ -403,7 +445,14 @@ def main():
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (HSWQ recommended: 0.25 for quality)")
     parser.add_argument("--sampler", type=str, default="euler", help="Sampler name (e.g., euler, dpmpp_2m, heun)")
+    parser.add_argument("--sa2", action="store_true", help="Enable SageAttention2 for faster calibration (requires sageattention package)")
     args = parser.parse_args()
+
+    if args.sa2:
+        if try_import_sage_attention():
+            enable_sage_attention()
+        else:
+            print("[Warning] --sa2 specified but SageAttention2 not available. Continuing with standard attention.")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
@@ -502,6 +551,9 @@ def main():
 
     # Remove hooks
     for h in handles: h.remove()
+
+    if args.sa2:
+        disable_sage_attention()
 
     print("\nAnalyzing layer sensitivity...")
     layer_sensitivities = []
