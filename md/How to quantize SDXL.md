@@ -51,5 +51,5 @@ python quantize_sdxl_hswq_v1.2.py --input "D:\USERFILES\ComfyUI\ComfyUI\models\u
 
 **Notes:**
 
-- A sample size of **32** is sufficient to maintain adequate precision.
+- The recommended value is **256**; in practice, a sample size of **32** is sufficient to maintain adequate precision.
 - The ratio for retaining FP16 can also maintain sufficient quality at **0.1** in the case of SDXL.
