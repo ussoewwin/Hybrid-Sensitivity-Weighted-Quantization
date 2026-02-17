@@ -76,6 +76,10 @@ HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offe
 
 ## Changelog
 
+### 1.0.4
+- **Quantization guides** — Published step-by-step procedures for [SDXL](md/How%20to%20quantize%20SDXL.md) and [ZIT (Z Image Turbo)](md/How%20to%20quantize%20ZIT.md).  
+  **Release notes:** [v1.0.4](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.4)
+
 ### 1.0.3
 - **SDXL SageAttention2** — V1.2 (standard) and V1.6 (high precision) add optional SageAttention2-accelerated calibration via `--sa2`. Same FP8 output; SA2 used only during calibration.  
   **Release notes:** [v1.0.3](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.3) *(to be published)*
