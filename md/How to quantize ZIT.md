@@ -54,7 +54,7 @@ Use the converted safetensors file, e.g. `clip/qwen3_4b_abliterated_fp16_convert
 Adjust the file paths to your environment.
 
 ```bash
-python quantize_zit_hswq_v1.5.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_r256_s25_r0.25_v1.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_256.txt" --num_calib_samples 256 --num_inference_steps 25 --keep_ratio 0.25
+python quantize_zit_hswq_v1.5.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_r256_s25_r0.25_v1.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_256.txt" --num_calib_samples 256 --num_inference_steps 25 --keep_ratio 0.25 --sa2
 ```
 
 **Notes:**
