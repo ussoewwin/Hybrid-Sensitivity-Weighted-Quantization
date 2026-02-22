@@ -15,7 +15,7 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image** diff
 ## How to quantize
 
 - **SDXL:** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md)
-- **Z Image:** [How to quantize Z Image](md/How%20to%20quantize%20ZIT.md)
+- **Z Image:** [How to quantize Z Image](md/How%20to%20quantize%20ZI.md)
 
 ---
 
