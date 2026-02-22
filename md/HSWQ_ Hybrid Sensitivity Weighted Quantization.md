@@ -112,13 +112,6 @@ graph TD
 *   **Steps**: `20–25`
     *   To include sensitivity from the early denoising stages.
 
-### 5.2. Package Layout (`hswq/`)
-*   `quantize_sdxl_hswq_v1.py`: V1 compatible-mode conversion script
-*   `quantize_sdxl_hswq_v2_scaled.py`: V2 high-performance conversion script
-*   `weighted_histogram_mse.py`: Core optimization engine (PyTorch native grid)
-*   `hswq_loader_node.py`: ComfyUI custom node for V2
-*   `verify_fp8_grid.py`: FP8 grid accuracy verification tool
-
 ---
 
 ## 6. Benchmark Results (Reference)
