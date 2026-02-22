@@ -55,7 +55,7 @@ File size is reduced by about **40–45%** vs FP16 while keeping best quality pe
 
 ## Recommended Parameters
 
-- **Samples:** 256 (minimum for reliable stats; 128 is insufficient).
+- **Samples:** 256 (recommended). In practice, a sample size of 32 is sufficient to maintain adequate precision.
 - **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL, 10% often gives sufficient quality.
 - **Steps:** 20–25 — to include early denoising sensitivity.
 
