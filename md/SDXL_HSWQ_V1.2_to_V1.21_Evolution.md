@@ -152,12 +152,10 @@ print("Saved.")
 
 ## 6. Other Differences (Comments and User-Facing Text)
 
-- **Docstring:** Previous is in English (changelog V13/V15/V1/V1.1/V1.2). Updated adds the line about VRAM-optimized GPU conversion. Both are in English.
-- **Print messages:** Updated uses English (e.g. "Loading model", "Building key mapping", "Preparing calibration", "Converting weights", "Conversion done", "Saved."). Same as previous; behavior unchanged.
 - **Comment in DualMonitor:** Both say "Accumulate in FP32/Double to avoid overflow". Logic is identical.
 - **enable_sage_attention:** Updated adds an extra guard `if _original_sdpa is not None: return True` to avoid double-patching; previous does not. Small robustness improvement.
 
-None of these change the algorithm or the output; they only affect readability and logging language.
+None of these change the algorithm or the output.
 
 ---
 
