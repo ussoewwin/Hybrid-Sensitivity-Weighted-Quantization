@@ -6,7 +6,7 @@
 
 High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. It offers two modes: standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
 
-**Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
+**Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) · **Release notes:** [RELEASES.md](RELEASES.md)
 
 **SDXL models:** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
 
@@ -75,6 +75,10 @@ HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offe
 ---
 
 ## Changelog
+
+### 1.0.5
+- **SDXL V1.2 update** — Quantization conversion now runs on GPU (faster). Previous version archived: `archives/quantize_sdxl_hswq_v1.2(old).py`.
+  **Release notes:** [v1.0.5](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.5) *(to be published)*
 
 ### 1.0.4
 - **Quantization guides** — Published step-by-step procedures for [SDXL](md/How%20to%20quantize%20SDXL.md) and [Z Image](md/How%20to%20quantize%20ZI.md).  
