@@ -20,7 +20,7 @@ Whereas conventional FP8 methods apply uniform compression (Naive Cast), HSWQ an
 | **Image quality (SSIM)** | 0.86-0.98 (max) | Unmeasurable (no dedicated loader) |
 | **Mechanism** | Optimal clipping (Smart Clipping) | Full-range scaling (Dynamic Scaling) |
 | **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) |
-| **Primary use** | Distribution, general users | In-house use, maximum quality, server-side |
+| **Primary use** | Distribution, general users | Requires dedicated loader — not usable at present |
 
 This approach reduces file size by about 40–45% (vs. FP16) while achieving the best quality for each use case.
 
