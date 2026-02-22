@@ -67,8 +67,8 @@ File size is reduced by about **40–45%** vs FP16 while keeping best quality pe
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% (6.5GB) | High |
 | Naive FP8 | 0.81–0.93 | 50% | High |
-| **HSWQ V1** | **0.86–0.98** | 55% (FP16 mixed) | **High** |
-| **HSWQ V2** | — (currently unmeasurable) | 55% (FP16 mixed) | Not usable (no dedicated loader) |
+| **HSWQ V1** | **0.86–0.98** | 55–60% (FP16 mixed) | **High** |
+| **HSWQ V2** | — (currently unmeasurable) | 55–60% (FP16 mixed) | Not usable (no dedicated loader) |
 
 HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offer higher quality but requires a dedicated loader; benchmark is currently unmeasurable and V2 is not usable at the current time.
 
