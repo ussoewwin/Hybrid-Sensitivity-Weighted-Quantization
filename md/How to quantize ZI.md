@@ -1,4 +1,4 @@
-# How to quantize Z Image Turbo (ZIT)
+# How to quantize Z Image (ZI)
 
 The dedicated VRAM for the GPU must be **24GB or more**.
 
@@ -49,7 +49,7 @@ Download the text encoder and save it in the **`clip`** folder.
 
 Use the converted safetensors file, e.g. `clip/qwen3_4b_abliterated_fp16_converted.safetensors`, and pass its path to `--clip_path` when quantizing.
 
-## Quantize a ZIT model
+## Quantize a ZI model
 
 Adjust the file paths to your environment.
 
