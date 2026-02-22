@@ -60,4 +60,4 @@ python quantize_zit_hswq_v1.5.py --input "path/to/your_zit_model.safetensors" --
 **Notes:**
 
 - The recommended value is **256**; in practice, a sample size of **32** is sufficient to maintain adequate precision.
-- For ZIT, a ratio of **1.0** (keep all layers in FP16) can result in a noticeable drop in quality when reduced; the recommended value is **0.25**.
+- For ZI, a ratio of **1.0** (keep all layers in FP16) can result in a noticeable drop in quality when reduced; the recommended value is **0.25**.
