@@ -43,14 +43,6 @@ During calibration inference, statistics are collected from two perspectives.
     *   **Metric**: Input tensor mean absolute value $\text{Mean}(|X|_c)$.
     *   **Action**: Used as **weights** in the weighted histogram.
 
-### 2.1.1. 32-bit Protection (Sensitivity Accumulation)
-In the **Sensitivity Monitor** during calibration, the mean and mean-of-squares of the output tensor are accumulated over many samples. To avoid overflow and loss of precision:
-
-*   **Output side**: The output tensor from the hook is cast to **FP32** via `.float()` before computing batch mean and mean-of-squares (variance in FP16 is not accurate enough).
-*   **Accumulation side**: The accumulators `output_sum` and `output_sq_sum` are stored as Python `float` (64-bit), so that accumulation over 256+ samples does not overflow.
-
-This is implemented in the V1.1 / V2.1 `DualMonitor` as “Accumulate in FP32/Double to avoid overflow”.
-
 ### 2.2. Rigorous FP8 Grid Simulation
 Instead of theoretical formulas (`2 ** E * ...`), a **physical grid** is used: all byte values (0–255) are cast to PyTorch’s `torch.float8_e4m3fn` type.
 This simulates implementation-dependent rounding and special values exactly, ensuring MSE calculations match the real runtime environment.
