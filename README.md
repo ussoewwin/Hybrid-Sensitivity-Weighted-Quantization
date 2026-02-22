@@ -76,7 +76,7 @@ HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offe
 
 ## Changelog
 
-[CHANGELOG.md](CHANGELOG.md)
+Version history and release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
