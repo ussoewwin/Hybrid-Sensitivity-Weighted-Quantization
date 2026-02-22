@@ -15,7 +15,7 @@ This document explains what changed in the **V1.2 update**: the script `quantize
 | **Save** | `save_file(output_state_dict, args.output)` only | Same, plus **fallback**: on save failure, move all tensors to CPU and save again |
 | **Output** | Identical FP8/FP16 layout and values (same algorithm) | Identical; only execution path and speed differ |
 
-So: the **updated** script = previous script + “run the quantization conversion on GPU and use VRAM aggressively.”
+So: the **updated** script = previous script + "run the quantization conversion on GPU and use VRAM aggressively."
 
 ---
 
@@ -67,7 +67,7 @@ for k in tqdm(input_keys, desc="Loading to VRAM"):
   So that in the conversion loop, every `value` is already on device. Then `torch.clamp(value, -amax, amax)` and `value.to(torch.float8_e4m3fn)` run on the GPU, which is much faster than doing the same on CPU for millions of elements.
 
 - **Why replace in place with `original_state_dict[k] = original_state_dict[k].to(device)`?**  
-  So we don’t build a second full copy in RAM; we move each tensor from CPU to GPU and drop the CPU reference, keeping peak CPU memory lower.
+  So we don't build a second full copy in RAM; we move each tensor from CPU to GPU and drop the CPU reference, keeping peak CPU memory lower.
 
 **Previous (archived)** has none of this: it keeps `pipeline` and `hswq_optimizer` in memory and never moves `original_state_dict` to GPU. The conversion loop therefore runs on **CPU** tensors.
 
@@ -109,7 +109,7 @@ for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         new_value = clamped_value.to(torch.float8_e4m3fn)
 ```
 
-Here `value` has already been moved to GPU in the VRAM optimization block. So clamp and cast run on **GPU**. The comment “GPU Accelerated” reflects that.
+Here `value` has already been moved to GPU in the VRAM optimization block. So clamp and cast run on **GPU**. The comment "GPU Accelerated" reflects that.
 
 **Meaning:**  
 Same formulas (clamp by `amax`, cast to FP8 E4M3). Only the execution device changes; numerical results are the same. GPU execution reduces conversion time significantly for a model the size of SDXL.
