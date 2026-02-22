@@ -77,7 +77,7 @@ HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offe
 ## Changelog
 
 ### 1.0.4
-- **Quantization guides** — Published step-by-step procedures for [SDXL](md/How%20to%20quantize%20SDXL.md) and [ZIT (Z Image Turbo)](md/How%20to%20quantize%20ZIT.md).  
+- **Quantization guides** — Published step-by-step procedures for [SDXL](md/How%20to%20quantize%20SDXL.md) and [Z Image](md/How%20to%20quantize%20ZI.md).  
   **Release notes:** [v1.0.4](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.4)
 
 ### 1.0.3
