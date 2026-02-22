@@ -119,7 +119,7 @@ graph TD
 | Model | SSIM (Avg) | File size | Compatibility |
 | :--- | :--- | :--- | :--- |
 | **Original FP16** | 1.0000 | 100% | High |
-| **Naive FP8** | 0.81-0.93 | 50% | High |
+| **Naive FP8** | 0.75–0.93 | 50% | High |
 | **HSWQ V1** | **0.86–0.98** | 55–60% (FP16 mixed) | **High** |
 | **HSWQ V2** | — (unmeasurable) | 55–60% (FP16 mixed) | Not usable (no dedicated loader) |
 
