@@ -66,7 +66,7 @@ File size is reduced by about **40–45%** vs FP16 while keeping best quality pe
 | Model | SSIM (Avg) | File size | Compatibility |
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
-| Naive FP8 | 0.81–0.93 | 50% | High |
+| Naive FP8 | 0.75–0.93 | 50% | High |
 | **HSWQ V1** | **0.86–0.98** | 55–60% (FP16 mixed) | **High** |
 | **HSWQ V2** | — (currently unmeasurable) | 55–60% (FP16 mixed) | Not usable (no dedicated loader) |
 
