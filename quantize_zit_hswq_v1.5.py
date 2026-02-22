@@ -1,13 +1,13 @@
 """
-Z-Image Turbo (ZIT) FP8 Quantization - High Precision Tuned Edition (V1.5)
-Based on: ZIT V1.py (No Unconditional FP32 Protection, Unscaled)
-Features:
-  - Unscaled FP8 (scaled=False) - STRICTLY MAINTAINED
-  - HSWQ Native Logic (No forced FP32 protection for Bias/Norm)
-  - High Precision Optimization:
-      - Bins: 8192 (High Res)
-      - Candidates: 1000 (Dense Search)
-      - Refinement: 10 iterations (Deep Fit)
+Quantize Z-Image Turbo (ZIT) model to FP8 (HSWQ V1.5: High Precision Tuned).
+Implements sensitivity-based protection and importance-weighted optimization per HSWQ spec.
+Uses scaled=False (clipping-threshold search only) for standard-loader compatibility.
+
+V1.5 High Precision Edition:
+  - Bins: 8192 (High Res Histogram)
+  - Candidates: 1000 (Dense Search)
+  - Refinement: 10 iterations (Deep Fit)
+  - SA2: --sa2 for SageAttention2-accelerated calibration
 """
 import argparse
 import torch
@@ -19,8 +19,17 @@ import gc
 from tqdm import tqdm
 import sys
 import json
+
+# Resolve import paths (avoid ModuleNotFoundError)
 current_dir = os.path.dirname(os.path.abspath(__file__))
+potential_paths = [current_dir, os.getcwd(), os.path.dirname(sys.argv[0]) if sys.argv[0] else ""]
+for p in potential_paths:
+    if p and p not in sys.path:
+        sys.path.insert(0, p)
+
+# Add ComfyUI-master path
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
+
 import numpy as np
 # HSWQ module
 from weighted_histogram_mse import HSWQWeightedHistogramOptimizer
@@ -36,6 +45,7 @@ _sage_attn_available = False
 _original_sdpa = None
 
 def try_import_sage_attention():
+    """Attempt to import SageAttention2 and return availability status."""
     global _sage_attn_available
     try:
         from sageattention import sageattn
@@ -47,25 +57,38 @@ def try_import_sage_attention():
         return False
 
 def enable_sage_attention():
+    """Monkey-patch torch.nn.functional.scaled_dot_product_attention with SageAttention2."""
     global _original_sdpa
     if not _sage_attn_available:
         print("[SageAttention2] Cannot enable - not available.")
         return False
+    
+    if _original_sdpa is not None:
+        # Already enabled
+        return True
+    
     import torch.nn.functional as F
     from sageattention import sageattn
+    
     _original_sdpa = F.scaled_dot_product_attention
+    
     def sage_sdpa_wrapper(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
+        # SageAttention2 does not support attn_mask or is_causal directly
+        # Fall back to original SDPA if these are used
         if attn_mask is not None or is_causal:
             return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale)
+        
         try:
             return sageattn(query, key, value, is_causal=False)
         except Exception:
             return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale)
+    
     F.scaled_dot_product_attention = sage_sdpa_wrapper
     print("[SageAttention2] Enabled for calibration (monkey-patched SDPA).")
     return True
 
 def disable_sage_attention():
+    """Restore original scaled_dot_product_attention."""
     global _original_sdpa
     if _original_sdpa is not None:
         import torch.nn.functional as F
@@ -151,6 +174,59 @@ def detect_zit_config_from_keys(state_dict):
             break
     
     return zit_config
+
+
+def resolve_tokenizer_offline(provided_path, comfy_path, clip_path=None):
+    """Offline-only logic to find a local tokenizer (ZIT/Qwen3-4B)."""
+    validation_files = ["tokenizer.json", "vocab.json", "config.json"]
+    
+    # Candidate 1: explicit path
+    if provided_path and os.path.isdir(provided_path):
+        if any(os.path.exists(os.path.join(provided_path, f)) for f in validation_files):
+            return provided_path
+
+    # Candidate 2: ComfyUI standard locations and near CLIP weights
+    search_roots = []
+    if comfy_path:
+        search_roots.extend([
+            os.path.join(comfy_path, "models", "clip"),
+            os.path.join(comfy_path, "models", "tokenizers"),
+            comfy_path
+        ])
+    if clip_path and os.path.exists(clip_path):
+        search_roots.append(os.path.dirname(os.path.abspath(clip_path)))
+
+    for root_dir in search_roots:
+        if not os.path.exists(root_dir): continue
+        for root, dirs, files in os.walk(root_dir):
+            if any(f in files for f in validation_files):
+                if any(x in root.lower() for x in ["qwen", "qwen2.5", "qwen3", "zit", "zib"]):
+                    print(f"  [Offline Discovery] Found Qwen-compatible tokenizer: {root}")
+                    return root
+
+    # Candidate 3: recursive search (skip ComfyUI etc.)
+    print("  Note: Searching recursively for any local Qwen tokenizer...")
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ["ComfyUI-master", "node_modules"]]
+        if any(f in files for f in validation_files):
+            if any(x in root.lower() for x in ["qwen", "qwen2.5", "qwen3", "zit", "zib"]):
+                print(f"  [Offline Discovery] Found potential tokenizer: {root}")
+                return root
+                
+    # Fallback: any tokenizer.json (exclude SD family)
+    for root_dir in search_roots:
+        if not os.path.exists(root_dir): continue
+        for root, dirs, files in os.walk(root_dir):
+            if "tokenizer.json" in files:
+                root_lower = root.lower()
+                if any(x in root_lower for x in ["sd1", "sd2", "sdxl", "stable-diffusion", "clip-vit"]):
+                    continue
+                print(f"  [Offline Discovery] Found generic fallback tokenizer: {root}")
+                return root
+
+    return None
+
+    return None
 
 
 def load_zit_model(path, device="cuda", comfy_path=None):
@@ -393,6 +469,7 @@ class DualMonitor:
             
             # 2. Importance Update (Input Activation)
             # ZIT V1.1: 2D input support (adaLN_modulation, t_embedder etc.)
+            # [RESTORED] Strictly Pure V1.5 L1 Norm (Absolute Mean)
             inp_detached = input_tensor.detach()
             if inp_detached.dim() == 4:     # Conv2d: (B, C, H, W)
                 current_imp = inp_detached.abs().mean(dim=(0, 2, 3))  # -> (C,)
@@ -434,7 +511,7 @@ def hook_fn(module, input, output, name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ZIT FP8 Quantization (V1.5 High-Precision Tuned: Scaled=False, No Forced Protection)")
+    parser = argparse.ArgumentParser(description="ZIT FP8 Quantization (V1.5: Final Restore)")
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
     parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
@@ -448,18 +525,16 @@ def main():
     parser.add_argument("--sa2", action="store_true", help="Enable SageAttention2 for faster calibration (requires sageattention package)")
     args = parser.parse_args()
 
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Device: {device}")
+    
+    # === V1.5: SageAttention2 Initialization ===
     if args.sa2:
         if try_import_sage_attention():
             enable_sage_attention()
         else:
             print("[Warning] --sa2 specified but SageAttention2 not available. Continuing with standard attention.")
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Device: {device}")
-    print("=" * 60)
-    print("HSWQ V1.5 High-Precision Tuning")
-    print("Settings: Scaled=False (Unscaled) | Protection=Native(No Force) | Candidates=1000 | Bins=8192")
-    print("=" * 60)
 
     # Load ZIT NextDiT model
     model, original_state_dict, stripped_state_dict, zit_config, detected_prefix = load_zit_model(args.input, device, args.comfy_path)
@@ -473,18 +548,30 @@ def main():
     if os.path.exists(args.clip_path):
         try:
             from comfy.text_encoders import llama as llama_module
+            import comfy.ops
             from transformers import Qwen2Tokenizer
             
-            # Load tokenizer
-            tokenizer_path = args.tokenizer_path
-            if tokenizer_path and os.path.exists(tokenizer_path):
+            # Load tokenizer: Strictly Offline with Discovery
+            tokenizer_path = resolve_tokenizer_offline(args.tokenizer_path, args.comfy_path, args.clip_path)
+            
+            if tokenizer_path:
                 print(f"  Loading tokenizer from disk: {tokenizer_path}")
-                tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path)
+                try:
+                    tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+                except Exception as e:
+                    print(f"  Warning: Failed to load {tokenizer_path} with local_files_only. Error: {e}")
+                    print("  Retrying without local_files_only (Risk of 403)...")
+                    tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path)
             else:
-                # Fallback to Hugging Face download or if simple string is provided
-                model_id = tokenizer_path if tokenizer_path else "Qwen/Qwen2.5-7B-Instruct"
-                print(f"  Loading tokenizer from HF: {model_id}")
-                tokenizer = Qwen2Tokenizer.from_pretrained(model_id)
+                # Last resort: try Repo ID with local_files_only
+                model_id = args.tokenizer_path if args.tokenizer_path else "Qwen/Qwen2.5-7B-Instruct"
+                print(f"  CRITICAL: Local tokenizer not found. Trying Repo ID: {model_id} (STRICT LOCAL)")
+                try:
+                    tokenizer = Qwen2Tokenizer.from_pretrained(model_id, local_files_only=True)
+                except Exception as e:
+                    print(f"  FATAL: Offline load failed. 403 Forbidden is inevitable without local tokenizer files.")
+                    print(f"  [PROMPT] Please ensure tokenizer files (tokenizer.json etc.) exist in {os.path.join(args.comfy_path, 'models/clip/qwen_tokenizer') if args.comfy_path else './tokenizers/qwen'}")
+                    sys.exit(1)
             
             # ComfyUI Qwen3_4B (operations=comfy.ops required)
             state_dict = load_file(args.clip_path)
@@ -519,7 +606,7 @@ def main():
     pipeline.sampler_name = args.sampler
     print(f"Using sampler: {args.sampler}")
 
-    print("Preparing calibration (Dual Monitor hooks)...")
+    print("Preparing calibration (registering Dual Monitor hooks)...")
     handles = []
     target_modules = []
     for name, module in model.named_modules():
@@ -537,7 +624,7 @@ def main():
         prompts = prompts[:args.num_calib_samples]
 
     print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps)...")
-    print("Measuring Sensitivity and Input Importance...")
+    print("Measuring Sensitivity and Importance...")
     
     pipeline.set_progress_bar_config(disable=False)
     
@@ -555,7 +642,7 @@ def main():
     if args.sa2:
         disable_sage_attention()
 
-    print("\nAnalyzing layer sensitivity...")
+    print("\nRunning layer sensitivity analysis...")
     layer_sensitivities = []
     for name in target_modules:
         if name in dual_monitors:
@@ -567,16 +654,17 @@ def main():
     keep_layers = set([x[0] for x in layer_sensitivities[:num_keep]])
     
     print(f"Total layers: {len(layer_sensitivities)}")
-    print(f"FP16 keep layers: {len(keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
+    print(f"FP16-kept layers: {len(keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
     print("Top 5 Sensitive Layers:")
     for i in range(min(5, len(layer_sensitivities))):
         print(f"  {i+1}. {layer_sensitivities[i][0]}: {layer_sensitivities[i][1]:.4f}")
 
-    print("\n[HSWQ V1] Starting HIGH-PRECISION weighted MSE optimization...")
-    print("Settings: scaled=False (Unscaled), Candidates=1000, Iterations=10, Bins=8192")
+    print("\n[HSWQ] Starting weighted MSE analysis and quantization parameter computation...")
+    print("Compatibility mode (scaled=False): searching optimal clipping threshold...")
+    print("※ V1.5 High Precision Mode: bins=8192, candidates=1000, iterations=10")
     weight_amax_dict = {}
     
-    # --- TUNING SETTINGS (V1 + High Precision) ---
+    # Init HSWQ V1.5 high-precision optimizer (bins=8192, 1000 candidates, 10 refinements)
     hswq_optimizer = HSWQWeightedHistogramOptimizer(
         bins=8192,               # High Res Histogram
         num_candidates=1000,     # Dense Grid
@@ -609,7 +697,7 @@ def main():
     converted_count = 0
     kept_count = 0
     
-    print("Converting weights (Unscaled)...")
+    print("Converting weights...")
     # Process using STRIPPED keys (no prefix) for consistency with model.named_modules()
     for stripped_key, value in tqdm(stripped_state_dict.items(), desc="Converting"):
         ## NOTE: No unconditional FP32 protection block here (as requested for "Best Score" setup)
@@ -659,11 +747,11 @@ def main():
         output_key = detected_prefix + stripped_key
         output_state_dict[output_key] = new_value
 
-    print(f"Done:")
+    print("Conversion done:")
     print(f"  FP8 layers: {converted_count}")
-    print(f"  FP16 kept layers: {kept_count}")
+    print(f"  FP16-kept layers: {kept_count}")
     save_file(output_state_dict, args.output)
-    print("Saved.")
+    print("Save complete.")
 
 if __name__ == "__main__":
     main()
