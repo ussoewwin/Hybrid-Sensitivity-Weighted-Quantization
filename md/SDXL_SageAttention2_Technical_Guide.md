@@ -128,4 +128,8 @@ python quantize_sdxl_hswq_v1.6.py \
 ```bash
 # SageAttention2 install (Windows)
 pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post4/sageattention-2.2.0+cu130torch2.9.0andhigher.post4-cp39-abi3-win_amd64.whl
+pip install triton-windows
+
+# Linux
+pip install sageattention triton
 ```
