@@ -1,8 +1,8 @@
 """
 Quantize Flux1.dev model to FP8 (HSWQ V1.2: Flux Edition).
-Same structure/algorithm as SDXL HSWQ V1.21 (GPU Accelerated).
+Same structure/algorithm as SDXL HSWQ V1.2 (GPU Accelerated).
 
-Algorithm (same as SDXL V1.21):
+Algorithm (same as SDXL V1.2):
 1. Load Pipeline + build comfyui_to_diffusers_map
 2. Calibration Loop (DualMonitor: sensitivity & input importance)
 3. Layer Selection (keep top N% by sensitivity)
@@ -30,7 +30,7 @@ if sys.platform == "win32":
 else:
     os.environ.setdefault("CXXFLAGS", "-std=c++20")
 
-# === SageAttention2 Integration (same as SDXL V1.21) ===
+# === SageAttention2 Integration (same as SDXL V1.2) ===
 _sage_attn_available = False
 _original_sdpa = None
 
@@ -77,7 +77,7 @@ def disable_sage_attention():
         print("[SageAttention2] Disabled (restored original SDPA)")
 
 
-# --- ComfyUI-compatible mapping (same role as SDXL V1.21 unet_to_diffusers_mapping) ---
+# --- ComfyUI-compatible mapping (same role as SDXL V1.2 unet_to_diffusers_mapping) ---
 
 def flux_to_diffusers_mapping(state_dict, key_prefix=None):
     """Build Flux ComfyUI key -> Diffusers key mapping. Returns comfyui_to_diffusers_map."""
@@ -212,10 +212,10 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
 
 
 def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_path=None, t5_path=None, vae_path=None):
-    """Load Flux pipeline (same role as SDXL V1.21 load_unet_from_safetensors). Returns: pipeline, original_state_dict, comfyui_to_diffusers_map"""
+    """Load Flux pipeline (same role as SDXL V1.2 load_unet_from_safetensors). Returns: pipeline, original_state_dict, comfyui_to_diffusers_map"""
     print(f"Loading Flux1 model: {path}")
     
-    # Load original state_dict (keep as in SDXL V1.21)
+    # Load original state_dict (keep as in SDXL V1.2)
     original_state_dict = load_file(path)
     
     # Build key mapping
@@ -336,11 +336,11 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
     print("Enabling Model CPU Offload for VRAM...")
     pipeline.enable_model_cpu_offload()
     
-    # Same as SDXL V1.21: return pipeline, original_state_dict, comfyui_to_diffusers_map
+    # Same as SDXL V1.2: return pipeline, original_state_dict, comfyui_to_diffusers_map
     return pipeline, original_state_dict, comfyui_to_diffusers_map
 
 
-# --- Dual Monitor: Sensitivity & Importance (same as SDXL V1.21) ---
+# --- Dual Monitor: Sensitivity & Importance (same as SDXL V1.2) ---
 class DualMonitor:
     def __init__(self):
         # Sensitivity (output variance)
@@ -394,7 +394,7 @@ def hook_fn(module, input, output, name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Flux1.dev FP8 quantization (HSWQ V1.2, same structure as SDXL V1.21)")
+    parser = argparse.ArgumentParser(description="Flux1.dev FP8 quantization (HSWQ V1.2, same structure as SDXL V1.2)")
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
     parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
@@ -411,19 +411,19 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
     
-    # === SageAttention2 init (same as SDXL V1.21) ===
+    # === SageAttention2 init (same as SDXL V1.2) ===
     if args.sa2:
         if try_import_sage_attention():
             enable_sage_attention()
         else:
             print("[Warning] --sa2 set but SageAttention2 not available. Using standard attention.")
 
-    # === Same as SDXL V1.21: get pipeline, original_state_dict, comfyui_to_diffusers_map ===
+    # === Same as SDXL V1.2: get pipeline, original_state_dict, comfyui_to_diffusers_map ===
     pipeline, original_state_dict, comfyui_to_diffusers_map = load_flux_pipeline_from_safetensors(
         args.input, device, token=args.token, clip_path=args.clip_path, t5_path=args.t5_path, vae_path=args.vae_path
     )
 
-    # === Calibration (same structure as SDXL V1.21) ===
+    # === Calibration (same structure as SDXL V1.2) ===
     print("Preparing calibration (registering Dual Monitor hooks)...")
     handles = []
     target_modules = []
@@ -461,7 +461,7 @@ def main():
     if args.sa2:
         disable_sage_attention()
 
-    # === Layer sensitivity analysis (same as SDXL V1.21) ===
+    # === Layer sensitivity analysis (same as SDXL V1.2) ===
     print("\nRunning layer sensitivity analysis...")
     layer_sensitivities = []
     for name in target_modules:
@@ -482,12 +482,12 @@ def main():
     for i in range(min(5, len(layer_sensitivities))):
         print(f"  {i+1}. {layer_sensitivities[i][0]}: {layer_sensitivities[i][1]:.4f}")
 
-    # === HSWQ optimization (same as SDXL V1.21: named_modules -> amax) ===
+    # === HSWQ optimization (same as SDXL V1.2: named_modules -> amax) ===
     print("\n[HSWQ] Starting weighted MSE analysis and quantization parameter computation...")
     print("Compatibility mode (scaled=False): searching optimal clipping threshold...")
     weight_amax_dict = {}
     
-    # Init HSWQ optimizer (same as SDXL V1.21: bins=4096, 200 candidates, 3 refinements)
+    # Init HSWQ optimizer (same as SDXL V1.2: bins=4096, 200 candidates, 3 refinements)
     hswq_optimizer = HSWQWeightedHistogramOptimizer(
         bins=4096,
         num_candidates=200,
@@ -533,14 +533,14 @@ def main():
     
     print(f"Layers to quantize: {len(weight_amax_dict)} (fused QKV: {fused_count})")
     
-    # === VRAM optimization (same as SDXL V1.21) ===
+    # === VRAM optimization (same as SDXL V1.2) ===
     print("\n[VRAM] Preparing GPU conversion...")
     del pipeline
     del hswq_optimizer
     gc.collect()
     torch.cuda.empty_cache()
     
-    # === Quantization (same structure as SDXL V1.21) ===
+    # === Quantization (same structure as SDXL V1.2) ===
     # Convert using reverse lookup of comfyui_to_diffusers_map
     print(f"Saving quantized model: {args.output}")
     output_state_dict = {}
@@ -549,7 +549,7 @@ def main():
     
     print("Converting weights (GPU)...")
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
-        # Same as SDXL V1.21: get Diffusers key from comfyui_to_diffusers_map
+        # Same as SDXL V1.2: get Diffusers key from comfyui_to_diffusers_map
         diffusers_key = None
         if key in comfyui_to_diffusers_map:
             diffusers_key = comfyui_to_diffusers_map[key]
@@ -560,7 +560,7 @@ def main():
             if diffusers_key.endswith(".weight"):
                 module_name = diffusers_key[:-7]
             
-        # Convert decision (same logic as SDXL V1.21)
+        # Convert decision (same logic as SDXL V1.2)
         if module_name and module_name in keep_layers:
             # Keep FP16
             new_value = value

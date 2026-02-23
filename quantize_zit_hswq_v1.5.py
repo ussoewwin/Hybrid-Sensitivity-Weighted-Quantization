@@ -30,11 +30,6 @@ for p in potential_paths:
 # Add ComfyUI-master path
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
-# Support for SageAttention2 in virtual environment (venv)
-venv_site_packages = os.path.join(os.path.dirname(current_dir), "venv", "Lib", "site-packages")
-if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
-    sys.path.append(venv_site_packages)
-
 import numpy as np
 # HSWQ module
 from weighted_histogram_mse import HSWQWeightedHistogramOptimizer
@@ -57,8 +52,8 @@ def try_import_sage_attention():
         _sage_attn_available = True
         print("[SageAttention2] Successfully imported.")
         return True
-    except ImportError as e:
-        print(f"[SageAttention2] Not installed. Calibration will use standard attention. ({e})")
+    except ImportError:
+        print("[SageAttention2] Not installed. Calibration will use standard attention.")
         return False
 
 def enable_sage_attention():
@@ -338,9 +333,6 @@ class ZITCalibrationPipeline:
         
     def encode_prompt(self, prompt):
         """Encode prompt with Qwen3 text encoder."""
-        if not prompt or not prompt.strip():
-            prompt = "a photo" # Default to avoid empty token error
-            
         llama_template = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
         formatted_prompt = llama_template.format(prompt)
         
@@ -356,11 +348,6 @@ class ZITCalibrationPipeline:
         input_ids = tokens["input_ids"].to(self.device)
         attention_mask = tokens["attention_mask"].to(self.device)
         
-        # Guard: if empty tokens, return dummy to avoid RuntimeError in text encoder
-        if input_ids.shape[1] == 0:
-            input_ids = torch.zeros((1, 1), dtype=torch.long, device=self.device)
-            attention_mask = torch.ones((1, 1), dtype=torch.long, device=self.device)
-
         # Text encoder embedding
         with torch.no_grad():
             outputs = self.text_encoder(
@@ -379,13 +366,7 @@ class ZITCalibrationPipeline:
         latent_h, latent_w = 128, 128
         latent_c = 16  # Model in_channels
         if self.text_encoder is not None:
-            # Move text encoder to GPU for encoding
-            self.text_encoder.to(self.device).eval()
             cap_feats, cap_mask = self.encode_prompt(prompt)
-            
-            # Move back to CPU to save ~8GB VRAM during DIT sampling
-            self.text_encoder.cpu()
-            torch.cuda.empty_cache()
         else:
             print("Warning: Text encoder not set. Using random tensor.")
             cap_len = 256
@@ -651,10 +632,9 @@ def main():
         print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
         with torch.no_grad():
             pipeline(prompt=prompt, num_inference_steps=args.num_inference_steps)
-        
-        # VRAM Optimization: Clear cache every sample
-        gc.collect()
-        torch.cuda.empty_cache()
+        if (i + 1) % 10 == 0:
+            gc.collect()
+            torch.cuda.empty_cache()
 
     # Remove hooks
     for h in handles: h.remove()
@@ -711,39 +691,24 @@ def main():
             torch.cuda.empty_cache()
 
     print(f"Layers to quantize: {len(weight_amax_dict)}")
-
-    # === VRAM Optimization: High-speed GPU Conversion ===
-    # Users requirement: Fast GPU conversion + VRAM efficiency
-    print("\n[VRAM Optimization] Preparing for high-speed GPU conversion...")
-    del pipeline
-    del model
-    del hswq_optimizer
-    gc.collect()
-    torch.cuda.empty_cache()
-
-    print(f"[VRAM Optimization] Moving source weights to {device}...")
-    input_keys = list(stripped_state_dict.keys())
-    for k in tqdm(input_keys, desc="Loading to VRAM"):
-        stripped_state_dict[k] = stripped_state_dict[k].to(device)
-
     print(f"Saving quantized model: {args.output}")
     print(f"  Output prefix: '{detected_prefix}' (same as input)")
     output_state_dict = {}
     converted_count = 0
     kept_count = 0
     
-    print("Converting weights (GPU accelerated)...")
-    # Process using STRIPPED keys (no prefix); tensors are on GPU after VRAM optimization
+    print("Converting weights...")
+    # Process using STRIPPED keys (no prefix) for consistency with model.named_modules()
     for stripped_key, value in tqdm(stripped_state_dict.items(), desc="Converting"):
+        ## NOTE: No unconditional FP32 protection block here (as requested for "Best Score" setup)
+        
         # ZIT: state_dict key == module.name.weight/bias; get module name (strip .weight)
         module_name = None
         if stripped_key.endswith(".weight"):
             module_name = stripped_key[:-7]
-        elif stripped_key.endswith(".bias"):
-            module_name = stripped_key[:-5]
             
         if module_name and module_name in keep_layers:
-            new_value = value if value.dtype == torch.float16 else value.to(torch.float16)
+            new_value = value.to(torch.float16)
             kept_count += 1
         elif stripped_key in weight_amax_dict or (module_name and module_name + ".weight" in weight_amax_dict):
             # Quantize
@@ -753,12 +718,14 @@ def main():
                 amax = weight_amax_dict[weight_key]
                 if amax == 0: amax = 1e-6
                 
-                # --- UNSCALED LOGIC --- Clamp -> Cast on GPU
+                # --- UNSCALED LOGIC ---
+                # Clamp -> Cast (No normalization)
                 clamped_value = torch.clamp(value.float(), -amax, amax)
                 new_value = clamped_value.to(torch.float8_e4m3fn)
                 converted_count += 1
                 
-                # Metadata: comfy_quant (required for ZIT/NextDiT ops injection; ComfyUI expects JSON)
+                # Metadata: comfy_quant (required for ZIT/NextDiT ops injection)
+                # Use PREFIXED key for output
                 if module_name:
                     prefixed_module = detected_prefix + module_name
                     comfy_quant_key = f"{prefixed_module}.comfy_quant"
@@ -780,16 +747,10 @@ def main():
         output_key = detected_prefix + stripped_key
         output_state_dict[output_key] = new_value
 
-    print(f"Quantization results:")
+    print("Conversion done:")
     print(f"  FP8 layers: {converted_count}")
     print(f"  FP16-kept layers: {kept_count}")
-    
-    try:
-        save_file(output_state_dict, args.output)
-    except Exception as e:
-        print(f"[Save Warning] GPU Tensor save failed ({e}). Moving to CPU explicitly...")
-        cpu_dict = {k: v.cpu() for k, v in output_state_dict.items()}
-        save_file(cpu_dict, args.output)
+    save_file(output_state_dict, args.output)
     print("Save complete.")
 
 if __name__ == "__main__":
