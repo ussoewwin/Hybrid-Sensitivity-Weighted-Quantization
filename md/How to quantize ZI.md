@@ -31,12 +31,13 @@ pip install -r requirements.txt
 
 ```bash
 pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post4/sageattention-2.2.0+cu130torch2.9.0andhigher.post4-cp39-abi3-win_amd64.whl
+pip install triton-windows
 ```
 
 **Linux:**
 
 ```bash
-pip install sageattention
+pip install sageattention triton
 ```
 
 Note: This installs SageAttention 1, not SageAttention2 (SA2). For SA2 on Linux, check the [SageAttention](https://github.com/woct0rdho/SageAttention) repository for a compatible build or wheel.
