@@ -1,14 +1,13 @@
 """
-SDXLモデルをFP8形式に量子化するスクリプト (HSWQ V1.21: GPU Accelerated V1.2)
-HSWQ設計書に基づき、Sensitivityによる保護とImportanceによる重み付け最適化を実装。
-標準ローダーとの互換性を維持するため、スケーリングなし（scaled=False）での
-最適化（クリッピング閾値探索）を行う。
+Quantize SDXL model to FP8 (HSWQ V1.3: GPU Accelerated, Fast histogram).
+Implements sensitivity-based protection and importance-weighted optimization per HSWQ spec.
+Uses scaled=False (clipping-threshold search only) for standard-loader compatibility.
 
-修正履歴:
-- V1.2: SageAttention2による高速キャリブレーションオプション追加 (--sa2)
-- V1.21: VRAMを最大限活用し、量子化変換プロセスをGPU上で実行して高速化
+Changelog:
+- V1.2: SageAttention2 option for faster calibration (--sa2)
+- V1.21/V1.3: VRAM-optimized; quantization conversion on GPU; Fast histogram module
 
-アルゴリズム: (V1.1/V1.2と同様 + GPU Convert)
+Algorithm: same as V1.1/V1.2 + GPU convert + weighted_histogram_mse_fast.
 """
 
 import argparse
@@ -22,10 +21,10 @@ from tqdm import tqdm
 import sys
 import numpy as np
 
-# HSWQ専用モジュールをインポート
+# HSWQ module (Fast)
 from weighted_histogram_mse_fast import HSWQWeightedHistogramOptimizerFast as HSWQWeightedHistogramOptimizer
 
-# C++20標準を強制
+# Enforce C++20
 if sys.platform == "win32":
     os.environ.setdefault("CXXFLAGS", "/std:c++20")
 else:
@@ -87,7 +86,7 @@ def disable_sage_attention():
 
 
 
-# --- ComfyUI互換のマッピング関数群 ---
+# --- ComfyUI-compatible mapping helpers ---
 
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
@@ -247,22 +246,22 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
     return comfyui_to_diffusers_map
 
 def load_unet_from_safetensors(path, device="cuda"):
-    print(f"モデルをロード中: {path}")
+    print(f"Loading model: {path}")
     state_dict = load_file(path)
-    print("UNetの構造を検出中...")
+    print("Detecting UNet structure...")
     unet_config = detect_unet_config_from_keys(state_dict)
-    print(f"検出されたUNet設定: {unet_config}")
-    print("Diffusersパイプラインを初期化中...")
+    print(f"Detected UNet config: {unet_config}")
+    print("Initializing Diffusers pipeline...")
     try:
         pipeline = StableDiffusionXLPipeline.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, use_safetensors=True, variant="fp16").to(device)
     except Exception as e:
-        print(f"警告: 事前学習済みモデルのロードに失敗しました: {e}")
+        print(f"Warning: failed to load pretrained model: {e}")
         from diffusers import UNet2DConditionModel
         unet = UNet2DConditionModel(sample_size=128, in_channels=4, out_channels=4, layers_per_block=2, block_out_channels=(320, 640, 1280), down_block_types=("DownBlock2D", "CrossAttnDownBlock2D", "CrossAttnDownBlock2D"), up_block_types=("CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "UpBlock2D"))
         pipeline = StableDiffusionXLPipeline(vae=None, text_encoder=None, text_encoder_2=None, tokenizer=None, tokenizer_2=None, unet=unet, scheduler=None)
-    print("キーマッピングを作成中...")
+    print("Building key mapping...")
     comfyui_to_diffusers_map = unet_to_diffusers_mapping(unet_config, state_dict)
-    print("UNetの重みをロード中...")
+    print("Loading UNet weights...")
     new_state_dict = {}
     for comfy_key, diffusers_key in comfyui_to_diffusers_map.items():
         if comfy_key in state_dict: new_state_dict[diffusers_key] = state_dict[comfy_key]
@@ -273,7 +272,7 @@ def load_unet_from_safetensors(path, device="cuda"):
 class DualMonitor:
     def __init__(self):
         # For Sensitivity (Output Variance)
-        # FP32/Doubleで累積してオーバーフローを防ぐ
+        # Accumulate in FP32/Double to avoid overflow
         self.output_sum = 0.0
         self.output_sq_sum = 0.0
         self.count = 0
@@ -286,8 +285,8 @@ class DualMonitor:
             # 1. Sensitivity Update (Output Variance)
             # output_tensor: (Batch, Channels, H, W) or (Batch, Tokens, Channels)
             
-            out_detached = output_tensor.detach().float() # FP32にキャスト
-            # 全要素の平均と二乗平均
+            out_detached = output_tensor.detach().float()  # cast to FP32
+            # mean and mean of squares
             batch_mean = out_detached.mean().item()
             batch_sq_mean = (out_detached ** 2).mean().item()
             
@@ -295,16 +294,16 @@ class DualMonitor:
             self.output_sq_sum += batch_sq_mean
             
             # 2. Importance Update (Input Activation)
-            # V1.1: 2D入力対応を追加
+            # V1.1: 2D input support
             inp_detached = input_tensor.detach()
             if inp_detached.dim() == 4: # Conv2d: (B, C, H, W)
                 current_imp = inp_detached.abs().mean(dim=(0, 2, 3))  # -> (C,)
             elif inp_detached.dim() == 3: # Transformer: (B, T, C)
                 current_imp = inp_detached.abs().mean(dim=(0, 1))     # -> (C,)
-            elif inp_detached.dim() == 2: # Linear埋め込み層: (B, C) - time_embedding等
+            elif inp_detached.dim() == 2:  # Linear/embedding: (B, C) e.g. time_embedding
                 current_imp = inp_detached.abs().mean(dim=0)          # -> (C,)
             else:
-                # 1D以下: フォールバック（均一重み）- これは事実上発生しないはず
+                # 1D or less: fallback (uniform weight); should not occur in practice
                 current_imp = torch.ones(1, device=inp_detached.device, dtype=inp_detached.dtype)
                 
             if self.channel_importance is None:
@@ -315,7 +314,7 @@ class DualMonitor:
             self.count += 1
 
     def get_sensitivity(self):
-        # 分散 = E[X^2] - (E[X])^2
+        # variance = E[X^2] - (E[X])^2
         if self.count == 0: return 0.0
         mean = self.output_sum / self.count
         sq_mean = self.output_sq_sum / self.count
@@ -328,16 +327,16 @@ def hook_fn(module, input, output, name):
     if name not in dual_monitors:
         dual_monitors[name] = DualMonitor()
     
-    # inputはタプル (tensor, ...)
+    # input is tuple (tensor, ...)
     inp = input[0]
-    # outputはtensor
+    # output is tensor
     out = output
     
     dual_monitors[name].update(inp, out)
 
-# --- V15: HSWQ専用モジュール連携 ---
-# 重み付けヒストグラム最適化は weighted_histogram_mse.py に移譲
-# HSWQWeightedHistogramOptimizer を使用して完全なMSE最適化を実行
+# --- HSWQ module integration ---
+# Weighted histogram MSE optimization is in weighted_histogram_mse_fast.py
+# HSWQWeightedHistogramOptimizer (Fast) performs full weighted MSE optimization
 
 
 def main():
@@ -352,7 +351,7 @@ def main():
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"デバイス: {device}")
+    print(f"Device: {device}")
     
     # === V1.2: SageAttention2 Initialization ===
     if args.sa2:
@@ -364,7 +363,7 @@ def main():
 
     pipeline, original_state_dict, comfyui_to_diffusers_map = load_unet_from_safetensors(args.input, device)
 
-    print("キャリブレーション準備中（Dual Monitorフック登録）...")
+    print("Preparing calibration (registering Dual Monitor hooks)...")
     handles = []
     target_modules = []
     for name, module in pipeline.unet.named_modules():
@@ -373,7 +372,7 @@ def main():
             handles.append(handle)
             target_modules.append(name)
 
-    print("キャリブレーションデータを準備中...")
+    print("Preparing calibration data...")
     with open(args.calib_file, "r", encoding="utf-8") as f:
         prompts = [line.strip() for line in f.readlines() if line.strip()]
     if len(prompts) < args.num_calib_samples:
@@ -381,8 +380,8 @@ def main():
     else:
         prompts = prompts[:args.num_calib_samples]
 
-    print(f"キャリブレーションを実行中（{args.num_calib_samples}サンプル, {args.num_inference_steps}ステップ）...")
-    print("※ 感度(Sensitivity)と入力重要度(Importance)を同時計測します...")
+    print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps)...")
+    print("Measuring Sensitivity and Importance (input activation) simultaneously...")
     
     pipeline.set_progress_bar_config(disable=False)
     
@@ -394,39 +393,39 @@ def main():
             gc.collect()
             torch.cuda.empty_cache()
 
-    # フック解除
+    # Remove hooks
     for h in handles: h.remove()
     
     # === V1.2: SageAttention2 Cleanup ===
     if args.sa2:
         disable_sage_attention()
 
-    print("\nレイヤー感度分析を実行中...")
+    print("\nRunning layer sensitivity analysis...")
     layer_sensitivities = []
     for name in target_modules:
         if name in dual_monitors:
             sensitivity = dual_monitors[name].get_sensitivity()
             layer_sensitivities.append((name, sensitivity))
     
-    # 感度順にソート（降順：感度が高い順）
+    # Sort by sensitivity (descending)
     layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
     
-    # 上位N%を特定
+    # Top N% to keep in FP16
     num_keep = int(len(layer_sensitivities) * args.keep_ratio)
     keep_layers = set([x[0] for x in layer_sensitivities[:num_keep]])
     
-    print(f"総レイヤー数: {len(layer_sensitivities)}")
-    print(f"FP16保持レイヤー数: {len(keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
+    print(f"Total layers: {len(layer_sensitivities)}")
+    print(f"FP16-kept layers: {len(keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
     print("Top 5 Sensitive Layers:")
     for i in range(min(5, len(layer_sensitivities))):
         print(f"  {i+1}. {layer_sensitivities[i][0]}: {layer_sensitivities[i][1]:.4f}")
 
-    print("\n[HSWQ] 完全重み付けMSE解析と量子化パラメータ計算を開始します...")
-    print("※ HSWQ専用モジュール連携: FP8 E4M3正確なグリッドによる精密MSE最適化を実行...")
-    print("※ 互換モード (scaled=False): エラーを最小化する最適なクリッピング閾値を探索...")
+    print("\n[HSWQ] Starting weighted MSE analysis and quantization parameter computation...")
+    print("HSWQ module: FP8 E4M3 exact-grid MSE optimization.")
+    print("Compatibility mode (scaled=False): finding optimal clipping threshold to minimize error...")
     weight_amax_dict = {}
     
-    # HSWQ専用最適化器を初期化（bins=4096, 200候補, 3回精錬）
+    # HSWQ optimizer: bins=4096, 200 candidates, 3 refinement iterations
     hswq_optimizer = HSWQWeightedHistogramOptimizer(
         bins=4096,
         num_candidates=200,
@@ -436,80 +435,76 @@ def main():
     
     for name, module in tqdm(pipeline.unet.named_modules(), desc="Analyzing"):
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
-            # FP16保持レイヤーならスキップ（amax計算不要）
+            # Skip FP16-kept layers (no amax needed)
             if name in keep_layers:
                 continue
                 
-            # 重要度の取得
+            # Get importance
             importance = None
             if name in dual_monitors:
                 importance = dual_monitors[name].channel_importance
             
-            # V16改 (HSWQ V1): 専用モジュールによる完全重み付けMSE最適化
-            # scaled=False: スケーリングなし（互換優先）での最適amaxを探索
-            # これにより、過剰なクリッピングを防ぎつつ、448超の外れ値を適切に処理する
+            # HSWQ: full weighted MSE via module; scaled=False for compatibility
             optimal_amax = hswq_optimizer.compute_optimal_amax(
                 module.weight.data, 
                 importance,
-                scaled=False  # 重要: 互換モード
+                scaled=False  # compatibility mode
             )
             weight_amax_dict[name + ".weight"] = optimal_amax
             
             torch.cuda.empty_cache()
 
-    print(f"量子化対象レイヤー数: {len(weight_amax_dict)}")
+    print(f"Layers to quantize: {len(weight_amax_dict)}")
     
-    # === VRAM Optimization Plan ===
-    # ユーザー要望: VRAMを最大限使用して高速化せよ
-    # 1. PipelineとOptimizerを削除してVRAMを解放
-    # 2. original_state_dict全体をGPUに移動 (SDXL UNet ~5GBなら余裕)
-    # 3. GPU上で高速にClamp/Castを実行
+    # === VRAM Optimization ===
+    # 1. Delete pipeline and optimizer to free VRAM
+    # 2. Move original_state_dict to GPU
+    # 3. Run clamp/cast on GPU
     
     print("\n[VRAM Optimization] Preparing for high-speed GPU conversion...")
     del pipeline
     del hswq_optimizer
-    # comfyui_to_diffusers_mapは文字列辞書なのでCPUでOK
+    # comfyui_to_diffusers_map is string dict, stays on CPU
     gc.collect()
     torch.cuda.empty_cache()
     
     print(f"[VRAM Optimization] Moving source weights to {device}...")
-    # original_state_dictの値をGPUに移動
-    # dict.items()を回すとメモリ倍増のリスクがあるため、keyでアクセスして置換
+    # Move original_state_dict to GPU; iterate by key to avoid memory doubling
     input_keys = list(original_state_dict.keys())
     for k in tqdm(input_keys, desc="Loading to VRAM"):
         original_state_dict[k] = original_state_dict[k].to(device)
     
-    print(f"量子化モデルを保存中: {args.output}")
+    print(f"Saving quantized model: {args.output}")
     output_state_dict = {}
     converted_count = 0
     kept_count = 0
     
-    print("重みを変換中 (GPU Accelerated)...")
+    print("Converting weights (GPU accelerated)...")
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         diffusers_key = None
         if key in comfyui_to_diffusers_map: diffusers_key = comfyui_to_diffusers_map[key]
         elif key.startswith("model.diffusion_model."):
             if key in comfyui_to_diffusers_map: diffusers_key = comfyui_to_diffusers_map[key]
         
-        # diffusers_keyからモジュール名を特定（.weightを除く）
+        # Resolve module name from diffusers_key (strip .weight)
         module_name = None
         if diffusers_key:
             if diffusers_key.endswith(".weight"):
                 module_name = diffusers_key[:-7]
             
-        # 変換判定
+        # Conversion decision
         if module_name and module_name in keep_layers:
-            # FP16保持 (GPU上のまま)
+            # Keep FP16 (leave on GPU)
             new_value = value
             kept_count += 1
         elif diffusers_key:
-            # 量子化対象
+            # Quantize
             weight_key = diffusers_key + ".weight"
             if diffusers_key.endswith(".weight"): weight_key = diffusers_key
             
             if weight_key in weight_amax_dict:
                 amax = weight_amax_dict[weight_key]
-                # GPU上で高速実行
+                # Run on GPU
                 clamped_value = torch.clamp(value, -amax, amax)
                 new_value = clamped_value.to(torch.float8_e4m3fn)
                 converted_count += 1
@@ -518,15 +513,14 @@ def main():
         else:
             new_value = value
             
-        # 出力用辞書に格納 (safetensors保存時にCPUへ移動されるが、ここではGPU Tensorのまま保持)
+        # Store in output dict (safetensors may move to CPU on save)
         output_state_dict[key] = new_value
 
-    print(f"変換完了:")
-    print(f"  FP8化されたレイヤー: {converted_count}")
-    print(f"  FP16保持されたレイヤー: {kept_count}")
+    print("Conversion done:")
+    print(f"  FP8 layers: {converted_count}")
+    print(f"  FP16-kept layers: {kept_count}")
     
-    # save_fileはGPU Tensorを受け付けてCPUに移動してから保存してくれる(safetensors仕様)
-    # VRAMがカツカツの場合は手動でCPUに戻すべきだが、ここでは高速化優先
+    # save_file accepts GPU tensors and moves to CPU on save; fallback below if needed
     try:
         save_file(output_state_dict, args.output)
     except Exception as e:
@@ -534,7 +528,7 @@ def main():
         cpu_dict = {k: v.cpu() for k, v in output_state_dict.items()}
         save_file(cpu_dict, args.output)
         
-    print("保存完了！")
+    print("Saved.")
 
 if __name__ == "__main__":
     main()
