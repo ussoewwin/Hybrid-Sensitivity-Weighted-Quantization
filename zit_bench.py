@@ -34,41 +34,38 @@ def resolve_path(path, is_file=True):
                 return found
     return path
 
-def resolve_tokenizer_offline(provided_path, comfy_path):
-    """Offline-only logic to find a local tokenizer."""
+def resolve_tokenizer_path(provided_path, clip_resolved_path):
     validation_files = ["tokenizer.json", "vocab.json", "config.json"]
     
-    # Candidate 1: explicit path
+    # Priority 1: User provided path
     if provided_path and os.path.isdir(provided_path):
         if any(os.path.exists(os.path.join(provided_path, f)) for f in validation_files):
-            return provided_path
-
-    # Candidate 2: ComfyUI standard locations
-    if comfy_path:
-        search_roots = [
-            os.path.join(comfy_path, "models", "clip"),
-            os.path.join(comfy_path, "models", "tokenizers"),
-            comfy_path
-        ]
-        for root_dir in search_roots:
-            if not os.path.exists(root_dir): continue
-            for root, dirs, files in os.walk(root_dir):
-                if any(f in files for f in validation_files):
-                    if any(x in root.lower() for x in ["qwen", "qwen2.5", "zit"]):
-                        print(f"  [Offline Discovery] Found tokenizer in ComfyUI: {root}")
-                        return root
-
-    # Candidate 3: recursive search (skip ComfyUI etc.)
-    print("  Note: Searching recursively for any local Qwen tokenizer...")
+            return provided_path, True
+            
+    # Priority 2: Directory of the resolved CLIP file
+    if clip_resolved_path:
+        clip_dir = os.path.dirname(os.path.abspath(clip_resolved_path))
+        if any(os.path.exists(os.path.join(clip_dir, f)) for f in validation_files):
+            return clip_dir, True
+        
+    # Priority 3: Recursive search, excluding ComfyUI/SD1
+    print("  Note: Searching recursively for Qwen 3 4B tokenizer (excluding ComfyUI/SD1)...")
     for root, dirs, files in os.walk("."):
-        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ["ComfyUI-master", "node_modules"]]
+        # Skip hidden directories
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        
+        root_abs = os.path.abspath(root)
+        if "ComfyUI" in root_abs or "sd1" in root_abs.lower() or "clip_l" in root_abs.lower() or ".git" in root_abs:
+            continue
         if any(f in files for f in validation_files):
-            if any(x in root.lower() for x in ["qwen", "qwen2.5", "zit"]):
-                print(f"  [Offline Discovery] Found potential tokenizer: {root}")
-                return root
+            if "tokenizer.json" in files or "tokenizer_config.json" in files:
+                print(f"  Found potential tokenizer: {root}")
+                return root, True
                 
-    return None
-
+    # Priority 4: Default HF repo
+    default_repo = "Qwen/Qwen2.5-7B"
+    print(f"  Note: No local tokenizer found. Falling back to HF repo: {default_repo}")
+    return default_repo, False
 
 def latent_to_img(l):
     l = l[0].permute(1, 2, 0).cpu().float().numpy()
@@ -206,14 +203,8 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
         **kwargs
     )
     
-    # === STEP 5: Load weights (FIXED FP8 DESTRUCTION BUG) ===
+    # === STEP 5: Load weights ===
     try:
-        # assign=True allows the nn.Parameter to physically change its dtype to float8_e4m3fn
-        # Without this, PyTorch forces the FP8 tensor to cast back into the FP16 init wrapper!
-        missing, unexpected = model.load_state_dict(converted_dict, strict=False, assign=True)
-    except TypeError:
-        # Fallback for older PyTorch versions (<2.3) that lack assign=True
-        print("  [Warning] PyTorch version does not support assign=True. FP8 dtype might be cast to FP16.")
         missing, unexpected = model.load_state_dict(converted_dict, strict=False)
     except RuntimeError as e:
         print(f"  CRITICAL ERROR: Model Size Mismatch despite config adjustment.")
@@ -229,13 +220,13 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
 
     if is_fp8:
         model = model.to(device)
-        print(f"  Note: FP8 model loaded on {device}. (Weights physically maintained as float8_e4m3fn)")
+        print(f"  Note: FP8 model loaded on {device}. (Weights managed by mixed_precision_ops)")
     else:
         model = model.to(device).to(torch.float16)
         print(f"  Note: FP16 model loaded on {device} and cast to float16.")
         
     model.eval()
-    return model, converted_dict
+    return model, converted_dict  # Return model AND original state_dict for FP8 stats fallback
 
 def encode_prompt(prompt, text_encoder, tokenizer, device):
     template = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
@@ -300,12 +291,12 @@ def run_inference(model, prompt_embeds, prompt_mask, steps, seed, device):
     
     start_time = time.time()
     with torch.no_grad():
-        result = k_sampling.sample_euler(wrapper, x, sigmas, disable=False)
+        result = k_sampling.sample_euler(wrapper, x, sigmas, disable=False)  # CAPTURE THE RESULT!
     end_time = time.time()
     
     peak_vram = torch.cuda.max_memory_allocated() / (1024**2)
     
-    return result, end_time - start_time, peak_vram
+    return result, end_time - start_time, peak_vram  # RETURN THE DENOISED RESULT!
 
 def calculate_metrics(l1, l2):
     # Convert to numpy float32 for stable calculation
@@ -328,9 +319,11 @@ def calculate_metrics(l1, l2):
     return mse, score_ssim
 
 def print_model_stats(model, name, original_state_dict=None):
+    """Print model statistics. Handles FP8 models with mixed_precision_ops gracefully."""
     try:
         state = model.state_dict()
     except (AttributeError, RuntimeError) as e:
+        # FP8 models with mixed_precision_ops may crash here
         print(f"[{name}] Note: state_dict() failed ({type(e).__name__}). Using original state_dict for stats.")
         if original_state_dict is not None:
             state = original_state_dict
@@ -368,6 +361,7 @@ def main():
     parser.add_argument("--fp8", required=True, help="Quantized model path")
     parser.add_argument("--clip_path", required=True, help="Qwen3-4B text encoder path")
     parser.add_argument("--tokenizer_path", default=None, help="Tokenizer path or Repo ID")
+    parser.add_argument("--token", default=None, help="Hugging Face Token")
     parser.add_argument("--comfy_path", required=True, help="ComfyUI root path")
     parser.add_argument("--prompt", default="A beautiful cyberpunk city at night, high detail.", help="Benchmark prompt")
     parser.add_argument("--seed", type=int, default=42)
@@ -388,7 +382,7 @@ def main():
     
     try:
         from comfy.text_encoders import llama as llama_module
-        from transformers import Qwen2Tokenizer
+        from transformers import AutoTokenizer
         import comfy.ops
     except ImportError as e:
         print(f"CRITICAL ERROR: Could not import 'comfy'.")
@@ -403,30 +397,28 @@ def main():
     
     print("Starting Text Encoder Initialization...")
     
-    # Load tokenizer: Strictly Offline with Discovery
-    tokenizer_path = resolve_tokenizer_offline(args.tokenizer_path, args.comfy_path)
-    
-    if tokenizer_path:
-        print(f"  Loading tokenizer from disk: {tokenizer_path}")
-        try:
-            tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path, local_files_only=True)
-        except Exception as e:
-            print(f"  Warning: Failed to load found path {tokenizer_path} with local_files_only. Error: {e}")
-            print("  Retrying without local_files_only constraint (Risk of 403)...")
-            tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path)
-    else:
-        # Last resort: try Repo ID with local_files_only
-        model_id = args.tokenizer_path if args.tokenizer_path else "Qwen/Qwen2.5-7B-Instruct"
-        print(f"  CRITICAL: Local tokenizer not found in common paths. Trying Repo ID: {model_id} (STRICT LOCAL)")
-        try:
-            tokenizer = Qwen2Tokenizer.from_pretrained(model_id, local_files_only=True)
-        except Exception as e:
-            print(f"  FATAL: Offine load failed. No local tokenizer found and Hub access is blocked (403).")
-            print(f"  Error: {e}")
-            print(f"  [PROMPT] Please place tokenizer files in {os.path.join(args.comfy_path, 'models/clip/qwen_tokenizer')} or similar.")
-            sys.exit(1)
-
     resolved_clip = resolve_path(args.clip_path, is_file=True)
+    tokenizer_path, is_local = resolve_tokenizer_path(args.tokenizer_path, resolved_clip)
+    
+    if is_local:
+        print(f"  Note: Confirmed Qwen 3 4B tokenizer in: {tokenizer_path}")
+    else:
+        print(f"  Warning: Local tokenizer files not found. Using path: {tokenizer_path} (is_local=False)")
+    
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_path, 
+            local_files_only=is_local, 
+            trust_remote_code=True,
+            token=args.token
+        )
+    except Exception as e:
+        print(f"Error loading tokenizer (is_local={is_local}): {e}")
+        if is_local:
+             print("Retrying with remote load (using token if provided)...")
+             tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True, token=args.token)
+        else:
+             sys.exit(1)
 
     text_encoder = llama_module.Qwen3_4B(
         config_dict={}, device=device, dtype=torch.float16, operations=comfy.ops.disable_weight_init

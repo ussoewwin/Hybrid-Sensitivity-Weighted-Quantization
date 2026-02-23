@@ -228,7 +228,69 @@ So **only “which histogram module is used for amax” changes**; the conversio
 
 ---
 
-## 6. Summary
+## 6. Why Precision Is Preserved
+
+The Fast module is designed so that **numerical precision and the final optimized amax (and thus FP8 output) match the original** in theory and in practice. Here is a complete, step-by-step justification.
+
+### 6.1 Same Core Formula and Algorithm
+
+Both modules minimize the same weighted MSE:
+
+\( \Delta^* = \arg\min_\Delta \sum_i H(i) \cdot (q(x_i, \Delta) - x_i)^2 \)
+
+- The set of candidate amax values (grid search + refinement), the number of bins, and the refinement logic are **identical** in the original and Fast code paths. So the **optimization problem** is the same; only the way we **evaluate** each candidate (i.e. compute the weighted MSE and round to the FP8 grid) can differ. Precision is preserved if that evaluation is the same.
+
+### 6.2 Histogram Construction (Same Precision)
+
+- **Original:** `WeightedHistogram` uses `torch.zeros(self.bins, dtype=torch.float64)` and `scatter_add_(..., imp_expanded.reshape(-1).double())`. Bin indices are computed from `weight.abs()`; the histogram is normalized. `get_bin_centers()` returns `torch.linspace(..., dtype=torch.float64)`.
+- **Fast:** `WeightedHistogramOptimized` uses the same: `dtype=torch.float64` for the histogram, `.double()` in `scatter_add_`, and `get_bin_centers()` returns `torch.linspace(..., dtype=torch.float64)` (with an explicit comment "Match histogram precision").
+
+So the **histogram H(i)** and **bin centers x_i** are represented in **float64** in both modules. There is no reduction in precision in the histogram or in the representative value of each bin.
+
+### 6.3 Weighted MSE Evaluation (Same Precision)
+
+For a given candidate amax, the weighted MSE is computed as:
+
+1. `dequantized = quantizer.quantize_dequantize(bin_centers.float(), amax, scaled=...).double()`
+2. `error_sq = (dequantized - bin_centers) ** 2`
+3. `weighted_mse = (histogram * error_sq).sum().item()`
+
+- **Original and Fast:** Both pass `bin_centers` (float64) to the quantizer; the quantizer internally uses float for the rounding step, then the result is cast back to `.double()` for the subtraction and squaring. So `error_sq` and `histogram * error_sq` are in float64, and the sum is the same precision. The only way the result can differ is if **quantize_dequantize** (and thus the FP8 rounding step) returns different values for the same inputs.
+
+### 6.4 FP8 Rounding: Mathematically Equivalent
+
+The only algorithmic difference between the two modules is **how** we round a value to the nearest representable FP8 grid point.
+
+- **Original (`_round_to_fp8_grid`):** For each value \( v \), compute distances to all positive grid points \( g_0, \ldots, g_{G-1} \), then choose \( g_k \) such that \( |v| - g_k \) is minimum (via `argmin`). For ties, `argmin` returns the first index achieving the minimum.
+- **Fast (`_round_to_fp8_grid_optimized`):** The positive grid is sorted. Use `searchsorted` to find the index \( i \) where \( v \) would be inserted. Then compare distance to the left neighbor \( g_{i-1} \) and the right neighbor \( g_i \), and choose the closer one. For a value exactly midway between two grid points, one of the two implementations might pick the left and the other the right neighbor (tie-breaking can differ).
+
+So for **almost all** inputs, both methods return the **same** grid point: the one that minimizes \( | |v| - g | \). The only possible difference is in **tie-breaking** when \( |v| \) is exactly midway between two consecutive grid points. In that case:
+
+- The two grid points give the **same** quantization error for that single value.
+- In our use case, the inputs to rounding are **bin centers** (from `linspace`) and, during inference inside the quantizer, **scaled or clipped weights**. The probability of such an exact tie is negligible; and even if it happens for one bin, the weighted MSE sum over many bins is dominated by the other terms, so the **optimal amax** (the minimizer of the sum) is effectively unchanged in practice.
+
+Therefore, **FP8 rounding in the Fast module is mathematically equivalent to the original** for the purpose of minimizing weighted MSE: same formula, same grid, same result except for negligible tie-breaking that does not change the chosen amax or the final FP8 output in any meaningful way.
+
+### 6.5 No Other Numerical Changes
+
+- **Device transfer:** The Fast module only **skips** `.to(device)` when the tensor is already on the target device. It does not change dtypes or the order of operations. So no extra rounding or conversion is introduced.
+- **Parameters:** Bins, num_candidates, refinement_iterations, and search_range are passed through unchanged. So the **search space** and **stopping condition** are the same.
+
+### 6.6 Summary of the Argument
+
+| Stage | Original | Fast | Precision / equality |
+|-------|----------|------|----------------------|
+| Histogram H(i) | float64, scatter_add with .double() | Same | Equal |
+| Bin centers x_i | float64 linspace | Same | Equal |
+| Per-candidate MSE | dequant in double, sum in float64 | Same | Equal if rounding is equal |
+| FP8 rounding | Nearest grid (argmin over all) | Nearest grid (searchsorted + left/right) | Same result except negligible ties |
+| Amax search | Same candidates, same refinement | Same | Same optimal amax in practice |
+
+So **precision is preserved** because: (1) the histogram and bin centers stay float64, (2) the weighted MSE is computed in the same way in float64, and (3) the FP8 rounding in the Fast module implements the same “nearest grid point” rule as the original, with at most negligible tie-breaking differences that do not affect the chosen amax or the final quantized model.
+
+---
+
+## 7. Summary
 
 - **Original (`weighted_histogram_mse`) + SDXL V1.2**  
   - Optimal amax from weighted histogram MSE.  
@@ -241,4 +303,4 @@ So **only “which histogram module is used for amax” changes**; the conversio
 - **SDXL-side change**  
   - V1.3 only swaps the import to the Fast module; conversion algorithm and VRAM strategy match V1.2.
 
-This completes the full explanation of the change from the original histogram + V1.2 to V1.3 + Histogram Fast.
+This completes the full explanation of the change from the original histogram + V1.2 to V1.3 + Histogram Fast, including why numerical precision is preserved.

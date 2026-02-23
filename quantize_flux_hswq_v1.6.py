@@ -1,6 +1,6 @@
 """
 Quantize Flux1.dev model to FP8 (HSWQ V1.5: high-precision, adaptive).
-Same structure/algorithm as SDXL HSWQ V1.21 (GPU Accelerated), plus
+Same structure/algorithm as SDXL HSWQ V1.2 (GPU Accelerated), plus
 Adaptive Search Range based on weight distribution: auto-detect and protect
 outlier-heavy models without manual tuning.
 

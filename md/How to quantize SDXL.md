@@ -47,7 +47,7 @@ Note: This installs SageAttention 1, not SageAttention2 (SA2). For SA2 on Linux,
 Example: koronemixVpred_v20. Adjust the file paths to your environment.
 
 ```bash
-python quantize_sdxl_hswq_v1.3.py --input "D:\USERFILES\ComfyUI\ComfyUI\models\unet\koronemixVpred_v20.safetensors" --output "D:\USERFILES\fp8e4m3\koronemixVpred_v20_hswq_r256_s25_r0.25_v1.safetensors" --calib_file "D:\USERFILES\fp8e4m3\calibration_prompts_256.txt" --num_calib_samples 256 --num_inference_steps 25 --keep_ratio 0.25 --sa2
+python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.safetensors" --output "<output-dir>/koronemixVpred_v20_hswq_r256_s25_r0.25_v1.safetensors" --calib_file "<output-dir>/calibration_prompts_256.txt" --num_calib_samples 256 --num_inference_steps 25 --keep_ratio 0.25 --sa2
 ```
 
 **Notes:**
