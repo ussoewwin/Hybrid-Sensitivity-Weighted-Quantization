@@ -1,8 +1,13 @@
 # Changelog
 
+## 1.0.6
+
+**SDXL V1.3 (current)** — Current script: `quantize_sdxl_hswq_v1.3.py`. Uses Fast histogram module (`weighted_histogram_mse_fast`) for faster amax computation; same algorithm and FP8 output as V1.2. V1.2 script moved to `archives/quantize_sdxl_hswq_v1.2.py`.  
+Release notes: [v1.0.6](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.6)
+
 ## 1.0.5
 
-**SDXL V1.2 update** — Quantization conversion now runs on GPU (faster). Previous version archived: `archives/quantize_sdxl_hswq_v1.2(old).py`.  
+**SDXL V1.2 update** — Quantization conversion now runs on GPU (faster). Superseded by V1.3; V1.2 archived at `archives/quantize_sdxl_hswq_v1.2.py`. Previous CPU version: `archives/quantize_sdxl_hswq_v1.2(old).py`.  
 Release notes: [v1.0.5](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.5) (to be published)
 
 ## 1.0.4
