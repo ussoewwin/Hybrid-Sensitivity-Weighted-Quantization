@@ -1,6 +1,8 @@
 # SDXL HSWQ V1.2 Update — Code Evolution and Technical Explanation
 
-This document explains what changed in the **V1.2 update**: the script `quantize_sdxl_hswq_v1.2.py` now uses GPU-accelerated conversion. The previous version is archived at `archives/quantize_sdxl_hswq_v1.2(old).py`.
+**Current SDXL script:** `quantize_sdxl_hswq_v1.3.py`. V1.2 is archived at `archives/quantize_sdxl_hswq_v1.2.py`.
+
+This document explains what changed in the **V1.2 update**: the script `quantize_sdxl_hswq_v1.2.py` began using GPU-accelerated conversion. The earlier CPU version is archived at `archives/quantize_sdxl_hswq_v1.2(old).py`.
 
 ---
 
@@ -170,7 +172,8 @@ None of these change the algorithm or the output.
 
 | File | Role |
 |------|------|
-| `quantize_sdxl_hswq_v1.2.py` (repository root) | **Updated**: GPU-accelerated conversion, VRAM optimization, save fallback. |
-| `archives/quantize_sdxl_hswq_v1.2(old).py` | **Previous (archived)**: CPU conversion, no VRAM optimization block. |
+| `quantize_sdxl_hswq_v1.3.py` (repository root) | **Current**: Fast histogram, GPU conversion, VRAM optimization. |
+| `archives/quantize_sdxl_hswq_v1.2.py` | **Archived**: GPU conversion (V1.2), original histogram. |
+| `archives/quantize_sdxl_hswq_v1.2(old).py` | **Archived**: CPU conversion, no VRAM optimization block. |
 
-Both produce the same FP8 + FP16 mix; the update only changes where and how fast the conversion step runs.
+All produce the same FP8 + FP16 mix; V1.3 uses the Fast histogram module for amax computation.

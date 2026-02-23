@@ -2,7 +2,7 @@
 
 ## Overview
 
-SDXL HSWQ V1.2/V1.6 integrates SageAttention2 to speed up calibration. Enable it with the `--sa2` option (about 10% faster).
+SDXL HSWQ V1.3/V1.6 integrates SageAttention2 to speed up calibration. Enable it with the `--sa2` option (about 10% faster).
 
 ## Architecture
 
@@ -81,8 +81,8 @@ def disable_sage_attention():
 ## Usage
 
 ```bash
-# V1.2 (standard precision)
-python quantize_sdxl_hswq_v1.2.py \
+# V1.3 (standard precision, Fast histogram)
+python quantize_sdxl_hswq_v1.3.py \
     --input model.safetensors \
     --output model_fp8.safetensors \
     --calib_file prompts.txt \
@@ -118,7 +118,8 @@ python quantize_sdxl_hswq_v1.6.py \
 | Script | SA2 (`--sa2`) | Quantization |
 |--------|----------------|--------------|
 | V1.1 (archives) | ❌ | Standard (bins=4096) |
-| **V1.2** | ✅ | Standard (bins=4096, 200 candidates, 3 refinements) |
+| V1.2 (archives) | ✅ | Standard (bins=4096, 200 candidates, 3 refinements) |
+| **V1.3** | ✅ | Standard + Fast histogram (bins=4096, 200 candidates, 3 refinements) |
 | V1.5 (archives) | ❌ | High precision (bins=8192, 1000 candidates, 10 refinements) |
 | **V1.6** | ✅ | High precision (bins=8192, 1000 candidates, 10 refinements) |
 
