@@ -11,7 +11,7 @@ High-performance version with:
 Changelog from original:
 - _round_to_fp8_grid: Binary search instead of brute force
 - build(): Device transfer check added
-- histogram: float32 instead of float64 (sufficient precision)
+- histogram/bin_centers: float64 preserved (same as original, for precision)
 - Added performance benchmarking mode
 
 Core formula (unchanged):
@@ -154,7 +154,7 @@ class WeightedHistogramOptimized:
     
     Performance improvements:
     - Device transfer check (avoid unnecessary copies)
-    - float32 instead of float64 (sufficient precision, half memory)
+    - histogram and bin_centers remain float64 (same as original, precision preserved)
     """
 
     def __init__(self, bins: int = 4096, device: str = "cuda"):
