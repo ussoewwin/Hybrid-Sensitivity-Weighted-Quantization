@@ -111,6 +111,7 @@ graph TD
     *   Safety margin to protect critical layers; for SDXL, 10% is often sufficient; for Z Image, 25% is recommended.
 *   **Steps**: `20–25`
     *   To include sensitivity from the early denoising stages.
+*   **Latent**: 32–256; 128 (recommended) — calibration latent size (H/W).
 
 ---
 
