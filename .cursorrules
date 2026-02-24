@@ -1,6 +1,0 @@
-# Git commit (project rule)
-
-When running or suggesting `git commit` in this repository:
-- Use ONLY: `git commit -m "message"`.
-- Do NOT add `--trailer` or any option that adds "Co-authored-by" or similar.
-- The sole author of this repository is the human owner; no agent or tool may appear as co-author.
