@@ -279,14 +279,12 @@ class MSEOptimizerOptimized:
         low = max_val * search_range[0]
         high = max_val * search_range[1]
 
-        # [DEBUG] Log search bounds to terminal
-        if max_val > 0:
-            print(f"  [MSE SEARCH DEBUG] max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f}")
-
         best_amax = max_val
         min_mse = float('inf')
-        
+
         for iteration in range(refinement_iterations + 1):
+            if max_val > 0:
+                print(f"  [MSE SEARCH DEBUG] max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f} (iter {iteration})")
             candidates = torch.linspace(low, high, num_candidates, device=self.device)
             for amax_tensor in candidates:
                 amax = amax_tensor.item()
