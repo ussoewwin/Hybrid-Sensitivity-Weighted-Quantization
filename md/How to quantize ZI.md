@@ -64,4 +64,5 @@ python quantize_zit_hswq_v1.5.py --input "path/to/your_zit_model.safetensors" --
 - **Latent:** 32–256; 128 (recommended).
 - **Keep ratio:** 0.25.
 - Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity; default is 128.
+- **GPU:** For `--latent 256`, RTX 5090 or above is recommended; for `--latent 32`, RTX 5060 Ti 16GB is sufficient.
 - Optional `--sa2` enables SageAttention2 for faster calibration.
