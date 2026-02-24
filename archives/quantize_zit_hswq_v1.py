@@ -341,7 +341,7 @@ def main():
     parser.add_argument("--clip_path", type=str, required=True, help="Path to Qwen3-4B text encoder safetensors")
     parser.add_argument("--comfy_path", type=str, default=None, help="Path to ComfyUI root directory")
     parser.add_argument("--tokenizer_path", type=str, default=None, help="Path to tokenizer directory")
-    parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples (HSWQ recommended: 256)")
+    parser.add_argument("--num_calib_samples", type=int, default=25, help="Number of calibration samples (HSWQ recommended: 25)")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (HSWQ recommended: 0.25 for quality)")
     parser.add_argument("--sampler", type=str, default="euler", help="Sampler name (e.g., euler, dpmpp_2m, heun)")

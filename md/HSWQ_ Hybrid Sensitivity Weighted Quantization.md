@@ -106,7 +106,7 @@ graph TD
 ## 5. Implementation Specs and Recommended Settings
 
 ### 5.1. Recommended Parameters
-*   **Samples**: `256` (recommended). In practice, a sample size of 32 is sufficient to maintain adequate precision.
+*   **Samples**: 25 (recommended).
 *   **Keep Ratio**: `0.25` (25%)
     *   Safety margin to protect critical layers; for SDXL, 10% is often sufficient; for Z Image, 25% is recommended.
 *   **Steps**: `20–25`

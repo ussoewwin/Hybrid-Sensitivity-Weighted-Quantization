@@ -10,9 +10,11 @@ venv/
 *.egg-info/
 .eggs/
 
-# IDE
+# IDE / Cursor (do not track or push)
 .idea/
 .vscode/
+.cursor/
+.cursorrules
 *.swp
 *.swo
 
