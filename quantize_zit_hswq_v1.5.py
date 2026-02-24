@@ -31,8 +31,8 @@ for p in potential_paths:
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
 import numpy as np
-# HSWQ module
-from weighted_histogram_mse import HSWQWeightedHistogramOptimizer
+# HSWQ module (fast: binary-search FP8 grid, same formula as original)
+from weighted_histogram_mse_fast import HSWQWeightedHistogramOptimizerFast
 
 # Enforce C++20
 if sys.platform == "win32":
@@ -316,11 +316,12 @@ class ZITCalibrationPipeline:
     Uses real prompts through text encoder for calibration (real-data statistics, not random tensors).
     """
     
-    def __init__(self, model, text_encoder, tokenizer, device="cuda"):
+    def __init__(self, model, text_encoder, tokenizer, device="cuda", latent_size=128):
         self.model = model
         self.text_encoder = text_encoder
         self.tokenizer = tokenizer
         self.device = device
+        self.latent_size = int(latent_size)
         self.hidden_dim = model.dim if hasattr(model, 'dim') else 3072
         
         # Move text encoder to device
@@ -370,13 +371,13 @@ class ZITCalibrationPipeline:
     def __call__(self, prompt, num_inference_steps=20, **kwargs):
         """Run calibration inference (real prompts)."""
         batch_size = 1
-        latent_h, latent_w = 128, 128
+        latent_h = latent_w = self.latent_size
         latent_c = 16  # Model in_channels
         if self.text_encoder is not None:
             cap_feats, cap_mask = self.encode_prompt(prompt)
         else:
             print("Warning: Text encoder not set. Using random tensor.")
-            cap_len = 256
+            cap_len = self.latent_size
             cap_feats = torch.randn(batch_size, cap_len, 2560, # Hidden size
                                    device=self.device, dtype=torch.float16)
             cap_mask = torch.ones(batch_size, cap_len, 
@@ -514,7 +515,7 @@ def hook_fn(module, input, output, name):
     
     dual_monitors[name].update(inp, out)
 
-# --- HSWQ module: weighted_histogram_mse.HSWQWeightedHistogramOptimizer ---
+# --- HSWQ module: weighted_histogram_mse_fast.HSWQWeightedHistogramOptimizerFast ---
 
 
 def main():
@@ -525,11 +526,12 @@ def main():
     parser.add_argument("--clip_path", type=str, required=True, help="Path to Qwen3-4B text encoder safetensors")
     parser.add_argument("--comfy_path", type=str, default=None, help="Path to ComfyUI root directory")
     parser.add_argument("--tokenizer_path", type=str, default=None, help="Path to tokenizer directory")
-    parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples (HSWQ recommended: 256)")
+    parser.add_argument("--num_calib_samples", type=int, default=25, help="Number of calibration samples (HSWQ recommended: 25)")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (HSWQ recommended: 0.25 for quality)")
     parser.add_argument("--sampler", type=str, default="euler", help="Sampler name (e.g., euler, dpmpp_2m, heun)")
     parser.add_argument("--sa2", action="store_true", help="Enable SageAttention2 for faster calibration (requires sageattention package)")
+    parser.add_argument("--latent", type=int, default=128, help="Calibration latent size (H and W). e.g. --latent 256")
     args = parser.parse_args()
 
 
@@ -609,7 +611,7 @@ def main():
         print(f"Warning: Text encoder file not found: {args.clip_path}")
     
     # Pipeline init (with text encoder)
-    pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device)
+    pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device, latent_size=args.latent)
     pipeline.sampler_name = args.sampler
     print(f"Using sampler: {args.sampler}")
 
@@ -630,7 +632,7 @@ def main():
     else:
         prompts = prompts[:args.num_calib_samples]
 
-    print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps)...")
+    print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps, latent={args.latent})...")
     print("Measuring Sensitivity and Importance...")
     
     pipeline.set_progress_bar_config(disable=False)
@@ -638,7 +640,8 @@ def main():
     for i, prompt in enumerate(prompts):
         print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
         with torch.no_grad():
-            pipeline(prompt=prompt, num_inference_steps=args.num_inference_steps)
+            with torch.cuda.amp.autocast():
+                pipeline(prompt=prompt, num_inference_steps=args.num_inference_steps)
         if (i + 1) % 10 == 0:
             gc.collect()
             torch.cuda.empty_cache()
@@ -671,8 +674,8 @@ def main():
     print("※ V1.5 High Precision Mode: bins=8192, candidates=1000, iterations=10")
     weight_amax_dict = {}
     
-    # Init HSWQ V1.5 high-precision optimizer (bins=8192, 1000 candidates, 10 refinements)
-    hswq_optimizer = HSWQWeightedHistogramOptimizer(
+    # Init HSWQ V1.5 high-precision optimizer (bins=8192, 1000 candidates, 10 refinements; fast histogram)
+    hswq_optimizer = HSWQWeightedHistogramOptimizerFast(
         bins=8192,               # High Res Histogram
         num_candidates=1000,     # Dense Grid
         refinement_iterations=10, # Deep Search
