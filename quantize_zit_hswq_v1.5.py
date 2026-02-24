@@ -333,6 +333,8 @@ class ZITCalibrationPipeline:
         
     def encode_prompt(self, prompt):
         """Encode prompt with Qwen3 text encoder."""
+        if not prompt or not prompt.strip():
+            prompt = "a photo"
         llama_template = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
         formatted_prompt = llama_template.format(prompt)
         
@@ -347,6 +349,11 @@ class ZITCalibrationPipeline:
         
         input_ids = tokens["input_ids"].to(self.device)
         attention_mask = tokens["attention_mask"].to(self.device)
+        
+        # Guard: empty tokens cause RuntimeError in text encoder (reshape of 0 elements)
+        if input_ids.shape[1] == 0:
+            input_ids = torch.zeros((1, 1), dtype=torch.long, device=self.device)
+            attention_mask = torch.ones((1, 1), dtype=torch.long, device=self.device)
         
         # Text encoder embedding
         with torch.no_grad():
