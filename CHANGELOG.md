@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8
+
+**ZI V1.5 latent option and docs** — Added `--latent` (32–256, default 128) for calibration spatial resolution; Mixed Precision calibration (FP16 + autocast) documented. How-to Notes format aligned (Samples / Latent / Keep ratio per line); SDXL samples set to 25 (README). GPU guidance: L256 → RTX 5090 or above recommended; L32 → RTX 5060 Ti 16GB sufficient.  
+Release notes: [v1.0.8](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.8) (to be published)
+
 ## 1.0.7
 
 **zit_bench: text encoder CPU offload** — After encoding the prompt, the text encoder is moved to CPU to free VRAM. FP16/FP8 benchmark runs use the freed memory for the ZIT model only.

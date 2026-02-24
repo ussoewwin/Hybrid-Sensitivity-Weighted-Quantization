@@ -671,7 +671,7 @@ def main():
 
     print("\n[HSWQ] Starting weighted MSE analysis and quantization parameter computation...")
     print("Compatibility mode (scaled=False): searching optimal clipping threshold...")
-    print("※ V1.5 High Precision Mode: bins=8192, candidates=1000, iterations=10")
+    print("Note: V1.5 High Precision Mode: bins=8192, candidates=1000, iterations=10")
     weight_amax_dict = {}
     
     # Init HSWQ V1.5 high-precision optimizer (bins=8192, 1000 candidates, 10 refinements; fast histogram)
