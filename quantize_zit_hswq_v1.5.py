@@ -640,7 +640,7 @@ def main():
     for i, prompt in enumerate(prompts):
         print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
         with torch.no_grad():
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast("cuda"):
                 pipeline(prompt=prompt, num_inference_steps=args.num_inference_steps)
         if (i + 1) % 10 == 0:
             gc.collect()
