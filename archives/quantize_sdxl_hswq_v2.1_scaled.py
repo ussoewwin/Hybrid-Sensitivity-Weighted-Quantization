@@ -260,7 +260,7 @@ def main():
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
     parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
-    parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples")
+    parser.add_argument("--num_calib_samples", type=int, default=25, help="Number of calibration samples (recommended: 25)")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16")
     args = parser.parse_args()

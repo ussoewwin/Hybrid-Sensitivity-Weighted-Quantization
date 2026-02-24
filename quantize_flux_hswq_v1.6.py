@@ -359,7 +359,7 @@ def main():
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
     parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
-    parser.add_argument("--num_calib_samples", type=int, default=256, help="Calibration samples (recommended: 256)")
+    parser.add_argument("--num_calib_samples", type=int, default=25, help="Calibration samples (recommended: 25)")
     parser.add_argument("--num_inference_steps", type=int, default=25, help="Inference steps (default: 25)")
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16")
     parser.add_argument("--sa2", action="store_true", help="Use SageAttention2 for faster calibration")
