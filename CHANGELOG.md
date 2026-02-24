@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.7
+
+**zit_bench: text encoder CPU offload** — After encoding the prompt, the text encoder is moved to CPU to free VRAM. FP16/FP8 benchmark runs use the freed memory for the ZIT model only.
+
 ## 1.0.6
 
 **SDXL V1.3 + Fast histogram (current)** — Current script: `quantize_sdxl_hswq_v1.3.py`. Uses the Fast histogram module (`weighted_histogram_mse_fast`) for amax computation: FP8 grid rounding is done with binary search instead of brute force (about 10–50× faster on large layers), with the same formula and float64 precision as the original. Same algorithm and FP8 output as V1.2; only the speed of the amax step changes. V1.2 script moved to `archives/quantize_sdxl_hswq_v1.2.py`.  
