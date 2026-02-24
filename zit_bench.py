@@ -436,7 +436,10 @@ def main():
     text_encoder.load_state_dict(load_file(resolved_clip), strict=False)
     text_encoder.eval()
     
+    # Encode on GPU, then offload text encoder to CPU to free VRAM for benchmark
     embeds, mask = encode_prompt(args.prompt, text_encoder, tokenizer, device)
+    text_encoder.cpu().to(torch.float16)
+    torch.cuda.empty_cache()
     
     # FP16 Benchmark
     print("\n=== 1. Benchmarking Baseline (FP16) ===")
