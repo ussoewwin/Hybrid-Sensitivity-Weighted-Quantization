@@ -1,0 +1,13 @@
+---
+description: Git commit must never add Co-authored-by or any trailer. Sole author is the repo owner.
+globs: 
+alwaysApply: true
+---
+
+# Git commit
+
+When executing or suggesting `git commit` in this repository:
+
+- Use ONLY: `git commit -m "commit message"`.
+- Do NOT use `--trailer` or any option that adds "Co-authored-by" or similar.
+- The repository has a single author (the human owner). No agent or tool may appear as co-author in commits.
