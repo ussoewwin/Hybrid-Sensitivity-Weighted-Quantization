@@ -60,6 +60,8 @@ python quantize_zit_hswq_v1.5.py --input "path/to/your_zit_model.safetensors" --
 
 **Notes:**
 
-- **Samples:** 25 (recommended). **Latent:** 32–256; 128 (recommended). **Keep ratio:** 0.25.
+- **Samples:** 25 (recommended).
+- **Latent:** 32–256; 128 (recommended).
+- **Keep ratio:** 0.25.
 - Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity; default is 128.
 - Optional `--sa2` enables SageAttention2 for faster calibration.

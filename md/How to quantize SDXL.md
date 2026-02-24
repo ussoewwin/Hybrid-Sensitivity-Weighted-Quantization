@@ -47,10 +47,10 @@ Note: This installs SageAttention 1, not SageAttention2 (SA2). For SA2 on Linux,
 Example: koronemixVpred_v20. Adjust the file paths to your environment.
 
 ```bash
-python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.safetensors" --output "<output-dir>/koronemixVpred_v20_hswq_r256_s25_r0.25_v1.safetensors" --calib_file "<output-dir>/calibration_prompts_256.txt" --num_calib_samples 256 --num_inference_steps 25 --keep_ratio 0.25 --sa2
+python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.safetensors" --output "<output-dir>/koronemixVpred_v20_hswq_r25_s25_r0.25_v1.safetensors" --calib_file "<output-dir>/calibration_prompts_256.txt" --num_calib_samples 25 --num_inference_steps 25 --keep_ratio 0.25 --sa2
 ```
 
 **Notes:**
 
-- The recommended value is **256**; in practice, a sample size of **32** is sufficient to maintain adequate precision.
-- The ratio for retaining FP16 can also maintain sufficient quality at **0.1** in the case of SDXL.
+- **Samples:** 25 (recommended).
+- **Keep ratio:** 0.25. 0.1 can maintain sufficient quality for SDXL.
