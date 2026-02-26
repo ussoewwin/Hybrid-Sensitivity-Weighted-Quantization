@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. It offers two modes: standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
+High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. It offers two modes: standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
 
 **Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
 
@@ -15,7 +15,7 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image** diff
 ## How to quantize
 
 - **SDXL:** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md)
-- **Z Image:** [How to quantize Z Image](md/How%20to%20quantize%20ZI.md)
+- **Z Image Turbo:** [How to quantize Z Image Turbo](md/How%20to%20quantize%20ZIT.md)
 
 ---
 
@@ -56,7 +56,7 @@ File size is reduced by about **40–45%** vs FP16 while keeping best quality pe
 ## Recommended Parameters
 
 - **Samples:** 25 (recommended).
-- **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL, 10% often gives sufficient quality; for Z Image, 25% is recommended.
+- **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL, 10% often gives sufficient quality; for Z Image Turbo, 25% is recommended.
 - **Steps:** 20–25 — to include early denoising sensitivity.
 - **Latent:** 32–256, default 128 — calibration latent size (H/W). Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity.
 

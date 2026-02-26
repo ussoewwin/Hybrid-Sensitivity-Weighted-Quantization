@@ -21,7 +21,7 @@ Release notes: [v1.0.5](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted
 
 ## 1.0.4
 
-**Quantization guides** — Published step-by-step procedures for SDXL and Z Image.  
+**Quantization guides** — Published step-by-step procedures for SDXL and Z Image Turbo.  
 Release notes: [v1.0.4](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.4)
 
 ## 1.0.3

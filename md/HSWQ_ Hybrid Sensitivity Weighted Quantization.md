@@ -3,13 +3,13 @@
 
 **Version:** 2.0  
 **Date:** 2026-01-29  
-**Models:** SDXL, Flux1.dev, Z Image
+**Models:** SDXL, Flux1.dev, Z Image Turbo
 
 ---
 
 ## 1. Executive Summary
 
-**HSWQ (Hybrid Sensitivity Weighted Quantization)** is a high-fidelity FP8 quantization algorithm optimized for diffusion models (SDXL, Flux1.dev, Z Image).
+**HSWQ (Hybrid Sensitivity Weighted Quantization)** is a high-fidelity FP8 quantization algorithm optimized for diffusion models (SDXL, Flux1.dev, Z Image Turbo).
 
 Whereas conventional FP8 methods apply uniform compression (Naive Cast), HSWQ analyzes model **sensitivity** and **importance** to provide two modes:
 
@@ -108,7 +108,7 @@ graph TD
 ### 5.1. Recommended Parameters
 *   **Samples**: 25 (recommended).
 *   **Keep Ratio**: `0.25` (25%)
-    *   Safety margin to protect critical layers; for SDXL, 10% is often sufficient; for Z Image, 25% is recommended.
+    *   Safety margin to protect critical layers; for SDXL, 10% is often sufficient; for Z Image Turbo, 25% is recommended.
 *   **Steps**: `20–25`
     *   To include sensitivity from the early denoising stages.
 *   **Latent**: 32–256; 128 (recommended) — calibration latent size (H/W).
