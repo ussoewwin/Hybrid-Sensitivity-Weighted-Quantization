@@ -270,11 +270,11 @@ def load_zit_model(path, device="cuda", comfy_path=None):
     match_rate = matched / len(converted_state_dict) if len(converted_state_dict) > 0 else 0
     print(f"  [Keys] Matched: {matched}, Missing: {len(missing)}, Unexpected: {len(unexpected)} (Rate: {match_rate*100:.1f}%)")
     
-    # [物理的修復] 鍵の一致率が低ければ、乱数重みのままの量子化（詐欺）を防ぐため即座にプロセスを殺す
+    # [Physical safeguard] Abort immediately if key match rate is too low to avoid quantizing effectively random weights
     if match_rate < 0.5:
-        print("\n[FATAL ERROR] 鍵の一致率が異常に低いです（50%未満）。")
-        print("プレフィックスの不一致により、重みが事実上の「乱数」です。このまま量子化してもゴミしか生成されません。")
-        print("引数やモデル構造を再確認してください。")
+        print("\n[FATAL ERROR] Key match rate is abnormally low (< 50%).")
+        print("Due to prefix mismatch, weights are effectively random. Quantizing in this state will only produce garbage.")
+        print("Please double-check your arguments and model structure.")
         sys.exit(1)
     
     model = model.to(device).to(torch.float16)
@@ -333,7 +333,7 @@ class ZITCalibrationPipeline:
         try:
              sampler_func_name = f"sample_{self.sampler_name}"
              sampler_func = getattr(k_sampling, sampler_func_name, k_sampling.sample_euler)
-             # [物理的修復] 戻り値を空中に捨てず、確実にキャプチャして返す（データ詐欺の解消）
+             # [Physical fix] Capture and return the sampler result instead of discarding it
              result = sampler_func(model_wrap, x, sigmas, disable=False)
              return {"latent": result}
         except Exception as e: 
@@ -350,11 +350,11 @@ class DualMonitor:
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
             out_detached = output_tensor.detach().float()
-            # NaN/Inf防止: FP16大出力の二乗がオーバーフローするためclamp
+            # Prevent NaN/Inf: clamp before squaring to avoid FP16 overflow on large outputs
             out_clamped = torch.clamp(out_detached, -65504.0, 65504.0)
             mean_val = out_clamped.mean().item()
             sq_mean_val = (out_clamped ** 2).mean().item()
-            # NaN/Infガード
+            # Guard against NaN/Inf
             import math
             if math.isfinite(mean_val) and math.isfinite(sq_mean_val):
                 self.output_sum += mean_val
@@ -387,14 +387,13 @@ def hook_fn(module, input, output, name):
 def derive_hswq_strategy(model_profile):
     """
     [Pure Data-Driven Engine]
-    モデル全体の統計からAlpha/Betaを算出し、さらに各レイヤーの
-    search_lowを無段階で決定する動的評価関数を生成して返す。
-    一切の手抜き閾値（if k > 20: 0.9 等）を排除。
+    Derives Alpha/Beta from global model statistics and returns a continuous
+    evaluation function that decides per-layer search_low without hardcoded thresholds.
     """
     
-    # [CRITICAL FIX] プロファイルのキー名からモデルプレフィックスを自動検出して剥がし、
-    # detect_and_strip_prefix 後のモジュール名（layers.X.xxx 等）と一致させる。
-    # load_zit_model の呼び出し順序に依存しない自律設計。
+    # [CRITICAL FIX] Automatically detect and strip model prefixes from profile keys
+    # so they match detect_and_strip_prefix outputs (layers.X.xxx, etc.).
+    # This makes the design independent of load_zit_model call order.
     if model_profile:
         sample_key = next(iter(model_profile))
         profile_prefix = ""
@@ -410,7 +409,7 @@ def derive_hswq_strategy(model_profile):
             model_profile = normalized_profile
             print(f"  [Profile Normalize] Stripped prefix '{profile_prefix}' from {len(normalized_profile)} profile keys.")
     
-    # --- search_low の純粋数学的算出関数 ---
+    # --- Purely mathematical search_low computation ---
     def get_dynamic_search_low(name, weight_tensor):
         profile_key = name + ".weight"
         prof = model_profile.get(profile_key, model_profile.get(name, {})) if model_profile else {}
@@ -419,22 +418,22 @@ def derive_hswq_strategy(model_profile):
             k_stat = prof.get("kurtosis", 0)
             o_ratio = prof.get("outlier_ratio", 0)
         else:
-            # プロファイル欠落時もデフォルト固定値には逃げず、その場で厳密計算
+            # If profile entry is missing, compute statistics on-the-fly instead of falling back to a fixed default
             t_f32 = weight_tensor.float()
             k_stat = calculate_kurtosis(t_f32)
             std = torch.std(t_f32).item()
             abs_max = max(abs(t_f32.min().item()), abs(t_f32.max().item()))
             o_ratio = float(abs_max / std if std > 0 else 0)
             
-        # 手抜き閾値(If/Else)を完全排除し、数学的な連続関数で決定
-        # Kurtosis上限100、Outlier Ratio上限60として0.50〜0.99の間で無段階マッピング
+        # Remove ad-hoc if/else thresholds and use a continuous mathematical mapping.
+        # Map kurtosis (<=100) and outlier ratio (<=60) into a continuous range 0.50–0.99.
         k_penalty = min(k_stat / 100.0, 0.49)
         o_penalty = min(o_ratio / 60.0, 0.49)
         
-        # 0.50を底とし、最も異常値の強い要素に比例して保護ラインを上げる
+        # Use 0.50 as the base and raise the protection line according to the strongest abnormality
         return float(np.clip(0.50 + max(k_penalty, o_penalty), 0.50, 0.99))
 
-    # --- 全体戦略(Alpha/Beta)の決定 ---
+    # --- Decide global strategy (Alpha/Beta) ---
     if not model_profile:
         print("  [Strategy] No profile data available. Using continuous mathematical fallback.")
         return 0.5, 0.5, get_dynamic_search_low
@@ -446,16 +445,16 @@ def derive_hswq_strategy(model_profile):
     print(f"  Avg Kurtosis across model: {avg_k:.2f}")
 
     # [V1.9 Pure Data-Driven Finalization]
-    # 手抜きのIf分岐を廃止。
-    # 基本(0.5/0.5)からスタートし、avg_k(モデル全体の尖度)の強さに比例して
-    # SVD構造保護(alpha)の比率を最大0.8までシームレスに引き上げる。
-    k_factor = min(avg_k / 50.0, 0.3)  # 最大 +0.3 (50.0は上限目安としてのスケーリング定数)
+    # Remove ad-hoc if branches.
+    # Start from (0.5 / 0.5), then increase Alpha (SVD protection ratio) up to 0.8
+    # in proportion to avg_k (global kurtosis), keeping alpha + beta = 1.0.
+    k_factor = min(avg_k / 50.0, 0.3)  # Max +0.3 (50.0 is a scaling constant)
     alpha = float(np.clip(0.5 + k_factor, 0.5, 0.8))
-    beta = 1.0 - alpha  # 常に合計1.0を維持
+    beta = 1.0 - alpha  # Always keep the sum at 1.0
     
     print(f"  --> Pure Data-Driven Ratio: Alpha(SVD)={alpha:.3f}, Beta(Mag)={beta:.3f}")
 
-    # [NEW] FP8数学的限界を超える異常レイヤーの事前抽出 (Hard VETO)
+    # [NEW] Pre-extract layers that exceed FP8 mathematical limits (Hard VETO)
     hard_veto_layers = set()
     if model_profile:
         for name, prof in model_profile.items():
@@ -464,11 +463,12 @@ def derive_hswq_strategy(model_profile):
                 m = prof.get("abs_max", 0)
                 o = prof.get("outlier_ratio", 0)
                 
-                # ZIBの特性「密集帯vs外れ値の乖離」を測定し、FP8 Unscaledに確実に収まらない層を弾く
-                # 安定層の尖度は0.1~5.0に収まる。20超は明確な逸脱（adaLN等の変調層を捕捉）
-                is_extreme_divergence = (o > 40)  # 乖離率が高く、FP8の解像度で中心が潰れる層
-                is_extreme_kurtosis = (k > 20)    # 分布が通常から明確に逸脱している層
-                is_huge_magnitude = (m > 20)      # 絶対値がFP8 E4M3の安全域を超えるもの
+                # Measure ZIB's characteristic \"dense band vs. outliers\" behavior and exclude layers
+                # that would clearly not fit into unscaled FP8.
+                # Stable layers typically have kurtosis in 0.1–5.0; >20 is a clear deviation (e.g. adaLN-like mods).
+                is_extreme_divergence = (o > 40)  # Very high outlier ratio where FP8 resolution crushes the center
+                is_extreme_kurtosis = (k > 20)    # Distribution deviates strongly from normal
+                is_huge_magnitude = (m > 20)      # Magnitude beyond FP8 E4M3 safe range
                 
                 if is_extreme_divergence or is_extreme_kurtosis or is_huge_magnitude:
                     layer_base_name = name.replace(".weight", "") if name.endswith(".weight") else name
@@ -520,7 +520,7 @@ def main():
         if comfy_path not in sys.path:
             sys.path.insert(0, comfy_path)
     
-    # トークナイザーの誠実な確保
+    # Robust tokenizer resolution
     tokenizer = None
     text_encoder = None 
     try:
@@ -528,7 +528,7 @@ def main():
         from comfy.text_encoders import llama as llama_module
         from transformers import Qwen2Tokenizer
         
-        # トークナイザーの誠実な確保 (V1.9 Autonomous search / Strictly Offline with Discovery)
+        # Robust tokenizer discovery (V1.9 Autonomous search / Strictly Offline with Discovery)
         tokenizer_dir = resolve_tokenizer_offline(args.tokenizer_path, args.comfy_path, args.clip_path)
         
         if tokenizer_dir:
@@ -553,7 +553,7 @@ def main():
         print(f"[*] Loading Text Encoder: {args.clip_path}")
         state_dict = load_file(args.clip_path)
         text_encoder = llama_module.Qwen3_4B(config_dict={}, device=device, dtype=torch.float16, operations=comfy.ops.disable_weight_init)
-        # 鍵の一部不一致を許容しつつロード
+        # Load while allowing partial key mismatch
         text_encoder.load_state_dict(state_dict, strict=False)
         text_encoder.eval()
         
@@ -631,11 +631,11 @@ def main():
         disable_sage_attention()
 
     print("\nAnalyzing layer sensitivity (Profile-Based)...")
-    # DualMonitorの出力分散はスケール依存で不正確なため、
-    # 分布プロファイル(kurtosis + outlier_ratio)を連続スコアとして使用する
+    # DualMonitor variance is scale-dependent and inaccurate, so we use
+    # the distribution profile (kurtosis + outlier_ratio) as a continuous score instead.
     
-    # model_profileのキーにはプレフィックス(model.diffusion_model.)が残っている可能性があるため
-    # derive_hswq_strategyと同じ方式でプレフィックスを剥離した辞書を構築する
+    # model_profile keys may still contain prefixes (model.diffusion_model.),
+    # so we build a prefix-stripped dictionary using the same approach as derive_hswq_strategy.
     _norm_profile = {}
     for _pk, _pv in model_profile.items():
         if isinstance(_pv, dict):
@@ -644,16 +644,16 @@ def main():
                 if _pfx and _stripped.startswith(_pfx):
                     _stripped = _stripped[len(_pfx):]
                     break
-            # .weight サフィックスも剥離してモジュール名に統一
+            # Strip `.weight` suffix to normalize to module names
             if _stripped.endswith(".weight"):
                 _stripped = _stripped[:-7]
             _norm_profile[_stripped] = _pv
     
-    # VETO層はDynamic候補から除外（VETO=常にFP16確定なので、Dynamic予算は別の層に使う）
+    # Exclude VETO layers from the Dynamic pool (they are always FP16, so Dynamic budget should go elsewhere)
     layer_sensitivities = []
     for name in target_modules:
         if name in hard_veto_layers:
-            continue  # VETO層はプールから除外
+            continue  # Remove VETO layers from the candidate pool
         prof = _norm_profile.get(name, {})
         k = prof.get("kurtosis", 0)
         o = prof.get("outlier_ratio", 0)
@@ -665,7 +665,7 @@ def main():
     num_keep_dynamic = int(len(layer_sensitivities) * args.keep_ratio)
     dynamic_keep_layers = set([x[0] for x in layer_sensitivities[:num_keep_dynamic]])
     
-    # [V1.92 Exclusive Protection] VETO(常時FP16) + Dynamic(追加FP16) = 重複なし最大保護
+    # [V1.92 Exclusive Protection] VETO (always FP16) + Dynamic (additional FP16) with no overlap for maximum coverage
     keep_layers = dynamic_keep_layers.union(hard_veto_layers)
     
     non_veto_total = len(layer_sensitivities)
@@ -702,7 +702,7 @@ def main():
             
             importance = dual_monitors[name].channel_importance if name in dual_monitors else None
             
-            # 純粋な数式から下限値を取得し、V4シグネチャに合わせたタプル配管
+            # Obtain the lower bound from the pure mathematical function and adapt it to the V4 signature
             layer_search_low = get_layer_search_low(name, module.weight.data)
             layer_search_range = (layer_search_low, 1.0)
             
