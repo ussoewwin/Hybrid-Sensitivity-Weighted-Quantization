@@ -37,6 +37,59 @@ if sys.platform == "win32":
 else:
     os.environ.setdefault("CXXFLAGS", "-std=c++20")
 
+# === SageAttention2 Integration (optional, for faster calibration with --sa2) ===
+_sage_attn_available = False
+_original_sdpa = None
+
+def try_import_sage_attention():
+    """Attempt to import SageAttention2 and return availability status."""
+    global _sage_attn_available
+    try:
+        import sageattention
+        _sage_attn_available = True
+        print("[SageAttention2] Successfully imported.")
+        return True
+    except ImportError:
+        print("[SageAttention2] Not installed. Calibration will use standard attention.")
+        return False
+
+def enable_sage_attention():
+    """Monkey-patch torch.nn.functional.scaled_dot_product_attention with SageAttention2."""
+    global _original_sdpa
+    if not _sage_attn_available:
+        print("[SageAttention2] Cannot enable - not available.")
+        return False
+    
+    if _original_sdpa is not None:
+        # Already enabled
+        return True
+    
+    import torch.nn.functional as F
+    from sageattention import sageattn
+    
+    _original_sdpa = F.scaled_dot_product_attention
+    
+    def sage_sdpa_wrapper(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, **kwargs):
+        if attn_mask is not None or is_causal:
+            return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale, **kwargs)
+        try:
+            return sageattn(query, key, value, is_causal=False)
+        except Exception:
+            return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale, **kwargs)
+    
+    F.scaled_dot_product_attention = sage_sdpa_wrapper
+    print("[SageAttention2] Enabled for calibration (monkey-patched SDPA).")
+    return True
+
+def disable_sage_attention():
+    """Restore original scaled_dot_product_attention."""
+    global _original_sdpa
+    if _original_sdpa is not None:
+        import torch.nn.functional as F
+        F.scaled_dot_product_attention = _original_sdpa
+        _original_sdpa = None
+        print("[SageAttention2] Disabled (restored original SDPA).")
+
 # --- Z-Image Base (NextDiT) model load and inference pipeline ---
 ZIT_PREFIXES = [
     "model.diffusion_model.",
@@ -388,6 +441,7 @@ def main():
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     parser.add_argument("--tokenizer_path", type=str, help="Path to tokenizer (optional)")
     parser.add_argument("--token", type=str, help="Hugging Face API token for fallback download (optional)")
+    parser.add_argument("--sa2", action="store_true", help="Enable SageAttention2 for faster calibration (requires sageattention package)")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -395,6 +449,13 @@ def main():
     print("HSWQ V1.9 Autonomous Engine (Environment-Aware Analysis)")
     print("=" * 60)
     
+    # === V1.5: SageAttention2 Initialization ===
+    if args.sa2:
+        if try_import_sage_attention():
+            enable_sage_attention()
+        else:
+            print("[Warning] --sa2 specified but SageAttention2 not available. Continuing with standard attention.")
+
     # --- ComfyUI Path Setup ---
     comfy_path = args.comfy_path
     if comfy_path is None:
@@ -510,6 +571,9 @@ def main():
             gc.collect()
             torch.cuda.empty_cache()
     for h in handles: h.remove()
+    
+    if args.sa2:
+        disable_sage_attention()
 
     print("\nAnalyzing layer sensitivity...")
     layer_sensitivities = []
