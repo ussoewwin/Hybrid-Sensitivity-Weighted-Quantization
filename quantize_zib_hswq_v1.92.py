@@ -350,8 +350,17 @@ class DualMonitor:
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
             out_detached = output_tensor.detach().float()
-            self.output_sum += out_detached.mean().item()
-            self.output_sq_sum += (out_detached ** 2).mean().item()
+            # NaN/Inf防止: FP16大出力の二乗がオーバーフローするためclamp
+            out_clamped = torch.clamp(out_detached, -65504.0, 65504.0)
+            mean_val = out_clamped.mean().item()
+            sq_mean_val = (out_clamped ** 2).mean().item()
+            # NaN/Infガード
+            import math
+            if math.isfinite(mean_val) and math.isfinite(sq_mean_val):
+                self.output_sum += mean_val
+                self.output_sq_sum += sq_mean_val
+            else:
+                pass  # Skip corrupted batch
             inp_detached = input_tensor.detach()
             
             if inp_detached.dim() == 4: current_imp = inp_detached.abs().mean(dim=(0, 2, 3))
@@ -366,7 +375,9 @@ class DualMonitor:
     def get_sensitivity(self):
         if self.count == 0: return 0.0
         mean = self.output_sum / self.count
-        return (self.output_sq_sum / self.count) - mean ** 2
+        variance = (self.output_sq_sum / self.count) - mean ** 2
+        import math
+        return variance if math.isfinite(variance) else 0.0
 
 dual_monitors = {}
 def hook_fn(module, input, output, name):
@@ -380,6 +391,24 @@ def derive_hswq_strategy(model_profile):
     search_lowを無段階で決定する動的評価関数を生成して返す。
     一切の手抜き閾値（if k > 20: 0.9 等）を排除。
     """
+    
+    # [CRITICAL FIX] プロファイルのキー名からモデルプレフィックスを自動検出して剥がし、
+    # detect_and_strip_prefix 後のモジュール名（layers.X.xxx 等）と一致させる。
+    # load_zit_model の呼び出し順序に依存しない自律設計。
+    if model_profile:
+        sample_key = next(iter(model_profile))
+        profile_prefix = ""
+        for pfx in ZIT_PREFIXES:
+            if pfx and sample_key.startswith(pfx):
+                profile_prefix = pfx
+                break
+        if profile_prefix:
+            normalized_profile = {}
+            for key, val in model_profile.items():
+                stripped_key = key[len(profile_prefix):] if key.startswith(profile_prefix) else key
+                normalized_profile[stripped_key] = val
+            model_profile = normalized_profile
+            print(f"  [Profile Normalize] Stripped prefix '{profile_prefix}' from {len(normalized_profile)} profile keys.")
     
     # --- search_low の純粋数学的算出関数 ---
     def get_dynamic_search_low(name, weight_tensor):
@@ -426,7 +455,33 @@ def derive_hswq_strategy(model_profile):
     
     print(f"  --> Pure Data-Driven Ratio: Alpha(SVD)={alpha:.3f}, Beta(Mag)={beta:.3f}")
 
-    return alpha, beta, get_dynamic_search_low
+    # [NEW] FP8数学的限界を超える異常レイヤーの事前抽出 (Hard VETO)
+    hard_veto_layers = set()
+    if model_profile:
+        for name, prof in model_profile.items():
+            if isinstance(prof, dict):
+                k = prof.get("kurtosis", 0)
+                m = prof.get("abs_max", 0)
+                o = prof.get("outlier_ratio", 0)
+                
+                # ZIBの特性「密集帯vs外れ値の乖離」を測定し、FP8 Unscaledに確実に収まらない層を弾く
+                # 安定層の尖度は0.1~5.0に収まる。20超は明確な逸脱（adaLN等の変調層を捕捉）
+                is_extreme_divergence = (o > 40)  # 乖離率が高く、FP8の解像度で中心が潰れる層
+                is_extreme_kurtosis = (k > 20)    # 分布が通常から明確に逸脱している層
+                is_huge_magnitude = (m > 20)      # 絶対値がFP8 E4M3の安全域を超えるもの
+                
+                if is_extreme_divergence or is_extreme_kurtosis or is_huge_magnitude:
+                    layer_base_name = name.replace(".weight", "") if name.endswith(".weight") else name
+                    hard_veto_layers.add(layer_base_name)
+                    reasons = []
+                    if is_extreme_kurtosis: reasons.append(f"k={k:.1f}")
+                    if is_extreme_divergence: reasons.append(f"o={o:.1f}")
+                    if is_huge_magnitude: reasons.append(f"m={m:.2f}")
+                    print(f"    VETO: {layer_base_name} [{', '.join(reasons)}]")
+                    
+    print(f"  [Static Profile VETO] Identified {len(hard_veto_layers)} layers with extreme distribution (Unquantizable in FP8).")
+
+    return alpha, beta, get_dynamic_search_low, hard_veto_layers
 
 def main():
     parser = argparse.ArgumentParser(description="Z-Image Base FP8 Quantization - HSWQ V1.9 (Autonomous Engine)")
@@ -544,7 +599,7 @@ def main():
             model_profile = profile_data.get("layers", profile_data)
     
     # --- 2. Strategy & Model Load ---
-    alpha, beta, get_layer_search_low = derive_hswq_strategy(model_profile)
+    alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(model_profile)
     model, original_state_dict, stripped_state_dict, zit_config, detected_prefix = load_zit_model(args.input, device, args.comfy_path)
     
     # tokenizer and text_encoder are already loaded in the initial block
@@ -575,18 +630,60 @@ def main():
     if args.sa2:
         disable_sage_attention()
 
-    print("\nAnalyzing layer sensitivity...")
+    print("\nAnalyzing layer sensitivity (Profile-Based)...")
+    # DualMonitorの出力分散はスケール依存で不正確なため、
+    # 分布プロファイル(kurtosis + outlier_ratio)を連続スコアとして使用する
+    
+    # model_profileのキーにはプレフィックス(model.diffusion_model.)が残っている可能性があるため
+    # derive_hswq_strategyと同じ方式でプレフィックスを剥離した辞書を構築する
+    _norm_profile = {}
+    for _pk, _pv in model_profile.items():
+        if isinstance(_pv, dict):
+            _stripped = _pk
+            for _pfx in ZIT_PREFIXES:
+                if _pfx and _stripped.startswith(_pfx):
+                    _stripped = _stripped[len(_pfx):]
+                    break
+            # .weight サフィックスも剥離してモジュール名に統一
+            if _stripped.endswith(".weight"):
+                _stripped = _stripped[:-7]
+            _norm_profile[_stripped] = _pv
+    
+    # VETO層はDynamic候補から除外（VETO=常にFP16確定なので、Dynamic予算は別の層に使う）
     layer_sensitivities = []
     for name in target_modules:
-        if name in dual_monitors: layer_sensitivities.append((name, dual_monitors[name].get_sensitivity()))
-    layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
-    num_keep = int(len(layer_sensitivities) * args.keep_ratio)
-    keep_layers = set([x[0] for x in layer_sensitivities[:num_keep]])
+        if name in hard_veto_layers:
+            continue  # VETO層はプールから除外
+        prof = _norm_profile.get(name, {})
+        k = prof.get("kurtosis", 0)
+        o = prof.get("outlier_ratio", 0)
+        m = prof.get("abs_max", 0)
+        profile_score = k + o * 2.0 + m * 0.5
+        layer_sensitivities.append((name, profile_score))
     
-    print(f"総レイヤー数: {len(layer_sensitivities)}, 保持レイヤー数: {len(keep_layers)} (上位 {args.keep_ratio*100:.1f}%)")
-    print("\nTop Sensitive Layers (MSE):")
+    layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
+    num_keep_dynamic = int(len(layer_sensitivities) * args.keep_ratio)
+    dynamic_keep_layers = set([x[0] for x in layer_sensitivities[:num_keep_dynamic]])
+    
+    # [V1.92 Exclusive Protection] VETO(常時FP16) + Dynamic(追加FP16) = 重複なし最大保護
+    keep_layers = dynamic_keep_layers.union(hard_veto_layers)
+    
+    non_veto_total = len(layer_sensitivities)
+    print(f"Total layers: {non_veto_total + len(hard_veto_layers)} (Non-VETO pool: {non_veto_total})")
+    print(f"Dynamic kept (from non-VETO pool): {len(dynamic_keep_layers)} (Top {args.keep_ratio*100:.1f}% of {non_veto_total})")
+    print(f"Static kept (Hard VETO): {len(hard_veto_layers)} (Always FP16)")
+    print(f"Final FP16 kept layers: {len(keep_layers)} (VETO {len(hard_veto_layers)} + Dynamic {len(dynamic_keep_layers)})")
+    
+    print("\n--- Hard VETO Layers Detail ---")
+    for veto_name in sorted(hard_veto_layers):
+        in_dynamic = '(+Dynamic)' if veto_name in dynamic_keep_layers else '(VETO only)'
+        print(f"  FP16 {in_dynamic}: {veto_name}")
+    
+    print("\nTop 10 Sensitive Layers (Dynamic):")
     for i in range(min(10, len(layer_sensitivities))):
-        print(f"  {i+1}. {layer_sensitivities[i][0]}: {layer_sensitivities[i][1]:.4f}")
+        name, sens = layer_sensitivities[i]
+        in_veto = ' [+VETO]' if name in hard_veto_layers else ''
+        print(f"  {i+1}. {name}: {sens:.4f}{in_veto}")
 
     print("\n[HSWQ V1.9 Autonomous Engine] Starting Optimization...")
     weight_amax_dict = {}
