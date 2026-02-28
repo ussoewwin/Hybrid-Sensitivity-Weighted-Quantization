@@ -10,6 +10,10 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo*
 
 **SDXL models:** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/logo.png" width="400">
+</p>
+
 ---
 
 ## How to quantize
