@@ -24,6 +24,9 @@ venv/
 output/
 cache/
 
+# Local / private
+.mailmap
+
 # Local push/tag scripts (excluded from repo)
 do_push.ps1
 do_tag.ps1
