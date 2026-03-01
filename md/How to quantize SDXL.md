@@ -25,32 +25,16 @@ pip install diffusers safetensors transformers accelerate tqdm sentencepiece pro
 pip install -r requirements.txt
 ```
 
-## Install SageAttention2 (optional, for faster calibration with `--sa2`)
-
-**Windows:**
-
-```bash
-pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post4/sageattention-2.2.0+cu130torch2.9.0andhigher.post4-cp39-abi3-win_amd64.whl
-pip install triton-windows
-```
-
-**Linux:**
-
-```bash
-pip install sageattention triton
-```
-
-Note: This installs SageAttention 1, not SageAttention2 (SA2). For SA2 on Linux, check the [SageAttention](https://github.com/woct0rdho/SageAttention) repository for a compatible build or wheel.
-
 ## Quantize an SDXL model
 
 Example: koronemixVpred_v20. Adjust the file paths to your environment.
 
 ```bash
-python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.safetensors" --output "<output-dir>/koronemixVpred_v20_hswq_r25_s25_r0.25_v1.safetensors" --calib_file "<output-dir>/calibration_prompts_256.txt" --num_calib_samples 25 --num_inference_steps 25 --keep_ratio 0.25 --sa2
+python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.safetensors" --output "<output-dir>/koronemixVpred_v20_hswq_r25_s25_r0.25_v1.safetensors" --calib_file "<output-dir>/calibration_prompts_256.txt" --num_calib_samples 25 --num_inference_steps 25 --keep_ratio 0.25
 ```
 
 **Notes:**
 
 - **Samples:** 25 (recommended).
 - **Keep ratio:** 0.25. 0.1 can maintain sufficient quality for SDXL.
+- **SageAttention2 (SA2) is not used for SDXL calibration.** Calibration uses native PyTorch SDPA only. SA2 was found to slightly lower calibration scores (SSIM) and to provide no meaningful speed gain, so it is excluded to keep calibration pure and reproducible.
