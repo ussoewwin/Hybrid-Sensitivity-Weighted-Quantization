@@ -30,7 +30,7 @@ pip install -r requirements.txt
 Example: koronemixVpred_v20. Adjust the file paths to your environment.
 
 ```bash
-python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.safetensors" --output "<output-dir>/koronemixVpred_v20_hswq_r25_s25_r0.25_v1.safetensors" --calib_file "<output-dir>/calibration_prompts_256.txt" --num_calib_samples 25 --num_inference_steps 25 --keep_ratio 0.25
+python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.safetensors" --output "<output-dir>/koronemixVpred_v20_hswq_r32_s25_r0.25_v1.safetensors" --calib_file "<output-dir>/calibration_prompts_256.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.25
 ```
 
 **Notes:**
