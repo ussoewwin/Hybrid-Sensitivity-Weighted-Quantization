@@ -106,7 +106,7 @@ graph TD
 ## 5. Implementation Specs and Recommended Settings
 
 ### 5.1. Recommended Parameters
-*   **Samples**: 25 (recommended).
+*   **Samples**: 32 (recommended).
 *   **Keep Ratio**: `0.25` (25%)
     *   Safety margin to protect critical layers; for SDXL, 10% is often sufficient; for Z Image Turbo, 25% is recommended.
 *   **Steps**: `20–25`

@@ -59,7 +59,7 @@ File size is reduced by about **35–40%** vs FP16 while keeping best quality pe
 
 ## Recommended Parameters
 
-- **Samples:** 25 (recommended).
+- **Samples:** 32 (recommended).
 - **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL, 10% often gives sufficient quality; for Z Image Turbo, 25% is recommended.
 - **Steps:** 20–25 — to include early denoising sensitivity.
 - **Latent:** 32–256, default 128 — calibration latent size (H/W). Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity.
