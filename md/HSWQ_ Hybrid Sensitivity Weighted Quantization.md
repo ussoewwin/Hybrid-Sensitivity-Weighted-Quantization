@@ -121,7 +121,7 @@ graph TD
 | :--- | :--- | :--- | :--- |
 | **Original FP16** | 1.0000 | 100% | High |
 | **Naive FP8** | 0.75–0.93 | 50% | High |
-| **HSWQ V1** | **0.86–0.98** | 60-65% (FP16 mixed) | **High** |
-| **HSWQ V2** | — (unmeasurable) | 60-65% (FP16 mixed) | Not usable (no dedicated loader) |
+| **HSWQ V1** | **0.86–0.98** | 60-70% (FP16 mixed) | **High** |
+| **HSWQ V2** | — (unmeasurable) | 60-70% (FP16 mixed) | Not usable (no dedicated loader) |
 
 HSWQ V1 provides a clear quality gain over Naive FP8 while keeping full compatibility, establishing it as a practical standard distribution format.
