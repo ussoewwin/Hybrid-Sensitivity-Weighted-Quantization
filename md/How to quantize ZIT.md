@@ -25,7 +25,7 @@ pip install diffusers safetensors transformers accelerate tqdm sentencepiece pro
 pip install -r requirements.txt
 ```
 
-## Install SageAttention2 (optional, for faster calibration with `--sa2`)
+## Install SageAttention2 (optional, `--sa2` — does not degrade calibration)
 
 **Windows:**
 
@@ -65,4 +65,4 @@ python quantize_zit_hswq_v1.5.py --input "path/to/your_zit_model.safetensors" --
 - **Keep ratio:** 0.25.
 - Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity; default is 128.
 - **GPU:** For `--latent 256`, RTX 5090 or above is recommended; for `--latent 32`, RTX 5060 Ti 16GB is sufficient.
-- Optional `--sa2` enables SageAttention2 for faster calibration.
+- Optional `--sa2` enables SageAttention2; it does not degrade calibration scores (no significant speed gain).

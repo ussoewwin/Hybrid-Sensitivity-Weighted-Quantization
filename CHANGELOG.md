@@ -2,7 +2,7 @@
 
 ## 1.0.9
 
-**SDXL: SageAttention2 removed from calibration** — SDXL quantization no longer uses SageAttention2 (SA2). Calibration uses native PyTorch SDPA only; SA2 was found to slightly lower calibration scores (SSIM) with no meaningful speed gain, so it was removed for purity and reproducibility. Z Image Turbo still supports optional `--sa2` for faster calibration.  
+**SDXL: SageAttention2 removed from calibration** — SDXL quantization no longer uses SageAttention2 (SA2). Calibration uses native PyTorch SDPA only; SA2 was found to slightly lower calibration scores (SSIM) with no meaningful speed gain, so it was removed for purity and reproducibility. Z Image Turbo still supports optional `--sa2` (does not degrade scores; no significant speed gain).  
 Release notes: [v1.0.9](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.9) (to be published)
 
 ## 1.0.8
