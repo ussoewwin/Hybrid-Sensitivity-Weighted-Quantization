@@ -117,8 +117,8 @@ class FP8E4M3QuantizerOptimized:
         left_dist = (abs_flat - left_vals).abs()
         right_dist = (abs_flat - right_vals).abs()
         
-        # Choose closer one
-        result = torch.where(left_dist < right_dist, left_vals, right_vals)
+        # Choose closer one. Tie-break: choose the left one (closer to 0) to match V1.2 argmin behavior.
+        result = torch.where(left_dist <= right_dist, left_vals, right_vals)
         
         # Reshape and restore signs
         result = result.reshape(original_shape)
