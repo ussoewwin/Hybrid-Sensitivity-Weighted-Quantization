@@ -193,7 +193,7 @@ In V1.3 the Fast class is imported under the name `HSWQWeightedHistogramOptimize
 ### 4.2 Docstring / Message Differences
 
 - V1.2: English (e.g. "Quantize SDXL model to FP8 (HSWQ V1.2: GPU-accelerated conversion)").
-- V1.3: Some Japanese messages (e.g. "VRAMを最大限活用し...", "キャリブレーション準備中").  
+- V1.3: All user-facing messages are in English (e.g. "Maximizing VRAM usage...", "Preparing calibration...").  
 Algorithm and conversion flow are the same.
 
 ### 4.3 Same Conversion Flow

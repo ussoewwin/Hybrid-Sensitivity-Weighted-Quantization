@@ -570,14 +570,14 @@ def main():
     input_abs = os.path.abspath(args.input)
     input_root = os.path.splitext(os.path.basename(args.input))[0]
     
-    # プロファイル決定ロジックの誠実化
+    # Profile path and run policy
     profile_path = args.profile
     is_auto = False
     if not profile_path:
         profile_path = os.path.join(script_dir, f"{input_root}_distribution_profile.json")
         is_auto = True
     
-    # [修正] 「解析を飛ばすな」の厳守：自動生成パスの場合は既存ファイルがあっても再解析を強行
+    # When path is auto-generated, always re-run analysis (do not skip even if file exists)
     should_run_analysis = is_auto or not os.path.exists(profile_path)
     
     if should_run_analysis:
