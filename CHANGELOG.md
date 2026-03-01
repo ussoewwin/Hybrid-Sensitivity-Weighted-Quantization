@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.9
+
+**SDXL: SageAttention2 removed from calibration** — SDXL quantization no longer uses SageAttention2 (SA2). Calibration uses native PyTorch SDPA only; SA2 was found to slightly lower calibration scores (SSIM) with no meaningful speed gain, so it was removed for purity and reproducibility. Z Image Turbo still supports optional `--sa2` for faster calibration.  
+Release notes: [v1.0.9](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.0.9) (to be published)
+
 ## 1.0.8
 
 **ZI V1.5 latent option and docs** — Added `--latent` (32–256, default 128) for calibration spatial resolution; Mixed Precision calibration (FP16 + autocast) documented. How-to Notes format aligned (Samples / Latent / Keep ratio per line); SDXL samples set to 25 (README). GPU guidance: L256 → RTX 5090 or above recommended; L32 → RTX 5060 Ti 16GB sufficient.  
