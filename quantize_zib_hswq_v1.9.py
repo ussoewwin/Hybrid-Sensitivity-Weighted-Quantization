@@ -270,11 +270,11 @@ def load_zit_model(path, device="cuda", comfy_path=None):
     match_rate = matched / len(converted_state_dict) if len(converted_state_dict) > 0 else 0
     print(f"  [Keys] Matched: {matched}, Missing: {len(missing)}, Unexpected: {len(unexpected)} (Rate: {match_rate*100:.1f}%)")
     
-    # [物理的修復] 鍵の一致率が低ければ、乱数重みのままの量子化（詐欺）を防ぐため即座にプロセスを殺す
+    # Abort if key match rate is too low to avoid quantizing effectively random weights
     if match_rate < 0.5:
-        print("\n[FATAL ERROR] 鍵の一致率が異常に低いです（50%未満）。")
-        print("プレフィックスの不一致により、重みが事実上の「乱数」です。このまま量子化してもゴミしか生成されません。")
-        print("引数やモデル構造を再確認してください。")
+        print("\n[FATAL ERROR] Key match rate is abnormally low (< 50%).")
+        print("Due to prefix mismatch, weights are effectively random. Quantizing in this state will only produce garbage.")
+        print("Please double-check your arguments and model structure.")
         sys.exit(1)
     
     model = model.to(device).to(torch.float16)
@@ -333,7 +333,7 @@ class ZITCalibrationPipeline:
         try:
              sampler_func_name = f"sample_{self.sampler_name}"
              sampler_func = getattr(k_sampling, sampler_func_name, k_sampling.sample_euler)
-             # [物理的修復] 戻り値を空中に捨てず、確実にキャプチャして返す（データ詐欺の解消）
+             # Capture and return the sampler result instead of discarding it
              result = sampler_func(model_wrap, x, sigmas, disable=False)
              return {"latent": result}
         except Exception as e: 
@@ -376,12 +376,11 @@ def hook_fn(module, input, output, name):
 def derive_hswq_strategy(model_profile):
     """
     [Pure Data-Driven Engine]
-    モデル全体の統計からAlpha/Betaを算出し、さらに各レイヤーの
-    search_lowを無段階で決定する動的評価関数を生成して返す。
-    一切の手抜き閾値（if k > 20: 0.9 等）を排除。
+    Derives Alpha/Beta from global model statistics and returns a continuous
+    evaluation function that decides per-layer search_low without hardcoded thresholds.
     """
     
-    # --- search_low の純粋数学的算出関数 ---
+    # --- Purely mathematical search_low computation ---
     def get_dynamic_search_low(name, weight_tensor):
         profile_key = name + ".weight"
         prof = model_profile.get(profile_key, model_profile.get(name, {})) if model_profile else {}
@@ -390,22 +389,21 @@ def derive_hswq_strategy(model_profile):
             k_stat = prof.get("kurtosis", 0)
             o_ratio = prof.get("outlier_ratio", 0)
         else:
-            # プロファイル欠落時もデフォルト固定値には逃げず、その場で厳密計算
+            # If profile entry is missing, compute on-the-fly instead of fixed default
             t_f32 = weight_tensor.float()
             k_stat = calculate_kurtosis(t_f32)
             std = torch.std(t_f32).item()
             abs_max = max(abs(t_f32.min().item()), abs(t_f32.max().item()))
             o_ratio = float(abs_max / std if std > 0 else 0)
             
-        # 手抜き閾値(If/Else)を完全排除し、数学的な連続関数で決定
-        # Kurtosis上限100、Outlier Ratio上限60として0.50〜0.99の間で無段階マッピング
+        # Continuous mapping: kurtosis <= 100, outlier ratio <= 60 -> range 0.50--0.99
         k_penalty = min(k_stat / 100.0, 0.49)
         o_penalty = min(o_ratio / 60.0, 0.49)
         
-        # 0.50を底とし、最も異常値の強い要素に比例して保護ラインを上げる
+        # Base 0.50; raise protection line in proportion to strongest abnormality
         return float(np.clip(0.50 + max(k_penalty, o_penalty), 0.50, 0.99))
 
-    # --- 全体戦略(Alpha/Beta)の決定 ---
+    # --- Global strategy (Alpha/Beta) ---
     if not model_profile:
         print("  [Strategy] No profile data available. Using continuous mathematical fallback.")
         return 0.5, 0.5, get_dynamic_search_low
@@ -416,13 +414,10 @@ def derive_hswq_strategy(model_profile):
     print(f"\n[Autonomous Strategy Analysis]")
     print(f"  Avg Kurtosis across model: {avg_k:.2f}")
 
-    # [V1.9 Pure Data-Driven Finalization]
-    # 手抜きのIf分岐を廃止。
-    # 基本(0.5/0.5)からスタートし、avg_k(モデル全体の尖度)の強さに比例して
-    # SVD構造保護(alpha)の比率を最大0.8までシームレスに引き上げる。
-    k_factor = min(avg_k / 50.0, 0.3)  # 最大 +0.3 (50.0は上限目安としてのスケーリング定数)
+    # [V1.9 Pure Data-Driven] No ad-hoc if branches. Start (0.5/0.5), increase Alpha up to 0.8 with avg_k.
+    k_factor = min(avg_k / 50.0, 0.3)  # max +0.3
     alpha = float(np.clip(0.5 + k_factor, 0.5, 0.8))
-    beta = 1.0 - alpha  # 常に合計1.0を維持
+    beta = 1.0 - alpha  # keep sum 1.0
     
     print(f"  --> Pure Data-Driven Ratio: Alpha(SVD)={alpha:.3f}, Beta(Mag)={beta:.3f}")
 
@@ -465,7 +460,7 @@ def main():
         if comfy_path not in sys.path:
             sys.path.insert(0, comfy_path)
     
-    # トークナイザーの誠実な確保
+    # Tokenizer and text encoder (robust resolution)
     tokenizer = None
     text_encoder = None 
     try:
@@ -473,7 +468,7 @@ def main():
         from comfy.text_encoders import llama as llama_module
         from transformers import Qwen2Tokenizer
         
-        # トークナイザーの誠実な確保 (V1.9 Autonomous search / Strictly Offline with Discovery)
+        # Tokenizer: V1.9 autonomous search / strictly offline with discovery
         tokenizer_dir = resolve_tokenizer_offline(args.tokenizer_path, args.comfy_path, args.clip_path)
         
         if tokenizer_dir:
@@ -498,7 +493,7 @@ def main():
         print(f"[*] Loading Text Encoder: {args.clip_path}")
         state_dict = load_file(args.clip_path)
         text_encoder = llama_module.Qwen3_4B(config_dict={}, device=device, dtype=torch.float16, operations=comfy.ops.disable_weight_init)
-        # 鍵の一部不一致を許容しつつロード
+        # Load allowing partial key mismatch
         text_encoder.load_state_dict(state_dict, strict=False)
         text_encoder.eval()
         
@@ -515,14 +510,14 @@ def main():
     input_abs = os.path.abspath(args.input)
     input_root = os.path.splitext(os.path.basename(args.input))[0]
     
-    # プロファイル決定ロジックの誠実化
+    # Profile path and run policy
     profile_path = args.profile
     is_auto = False
     if not profile_path:
         profile_path = os.path.join(script_dir, f"{input_root}_distribution_profile.json")
         is_auto = True
     
-    # [修正] 「解析を飛ばすな」の厳守：自動生成パスの場合は既存ファイルがあっても再解析を強行
+    # When path is auto-generated, always re-run analysis (do not skip even if file exists)
     should_run_analysis = is_auto or not os.path.exists(profile_path)
     
     if should_run_analysis:
@@ -583,7 +578,7 @@ def main():
     num_keep = int(len(layer_sensitivities) * args.keep_ratio)
     keep_layers = set([x[0] for x in layer_sensitivities[:num_keep]])
     
-    print(f"総レイヤー数: {len(layer_sensitivities)}, 保持レイヤー数: {len(keep_layers)} (上位 {args.keep_ratio*100:.1f}%)")
+    print(f"Total layers: {len(layer_sensitivities)}, FP16-kept: {len(keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
     print("\nTop Sensitive Layers (MSE):")
     for i in range(min(10, len(layer_sensitivities))):
         print(f"  {i+1}. {layer_sensitivities[i][0]}: {layer_sensitivities[i][1]:.4f}")
@@ -605,7 +600,7 @@ def main():
             
             importance = dual_monitors[name].channel_importance if name in dual_monitors else None
             
-            # 純粋な数式から下限値を取得し、V4シグネチャに合わせたタプル配管
+            # Get lower bound from pure math; adapt to V4 signature
             layer_search_low = get_layer_search_low(name, module.weight.data)
             layer_search_range = (layer_search_low, 1.0)
             

@@ -2,18 +2,16 @@
 HSWQ Weighted Histogram MSE Optimizer V4 (SVD & RMS Magnitude Hybrid Blended Edition)
 =====================================================================================
 
-標準環境との互換性（一切の専用ローダー不要）を保ちつつ、
-「主成分への投影誤差の最小化(SVD)」と「定数バイアス的な絶対エネルギーの保護(RMS Magnitude)」という
-互いに直交する2つの評価基準をL2正規化してブレンドした最新の進化版モジュール。
+Compatible with standard environments (no custom loaders). Blends two orthogonal
+objectives with L2 normalization: (1) minimization of projection error onto
+principal components (SVD), (2) preservation of constant-bias absolute energy (RMS Magnitude).
 
-ハイブリッド数理モデル:
+Hybrid model:
     L(i,j) = (U_i_norm^2) * (V_j_norm^2)  # SVD Leverage
     M(i,j) = X_ij^2                       # RMS Magnitude
-    
     Score(i,j) = alpha * (L / ||L||_2) + beta * (M / ||M||_2)
 
-各要素(i, j)にこのハイブリッドな「ピクセルごとの重要度（2D/4D）」を付与し、
-ヒストグラムMSEを最高精度で構築する機能を提供します。
+Assigns per-element (2D/4D) importance and builds weighted histogram MSE at high precision.
 """
 
 import torch
@@ -24,7 +22,7 @@ from typing import Optional, Tuple, List
 
 class FP8E4M3Quantizer:
     """
-    FP8 E4M3 フォーマットの正確な量子化・逆量子化シミュレータ
+    Accurate quantize/dequantize simulator for FP8 E4M3 format.
     """
     
     def __init__(self, device: str = "cuda"):
@@ -35,7 +33,7 @@ class FP8E4M3Quantizer:
         self._build_fp8_grid()
     
     def _build_fp8_grid(self):
-        """FP8 E4M3の全表現可能正値グリッドを構築 (PyTorch Native Behavior)"""
+        """Build full representable positive grid for FP8 E4M3 (PyTorch native behavior)."""
         all_bytes = torch.arange(256, dtype=torch.uint8, device=self.device)
         fp8_vals = all_bytes.view(torch.float8_e4m3fn)
         f32_vals = fp8_vals.float()
@@ -54,7 +52,7 @@ class FP8E4M3Quantizer:
         self.max_representable = self._positive_grid.max().item()  # 448.0
     
     def quantize_dequantize(self, values: torch.Tensor, amax: float, scaled: bool = True) -> torch.Tensor:
-        """完全な量子化→逆量子化関数 q(x, Δ)"""
+        """Full quantize-then-dequantize function q(x, delta)."""
         if amax <= 0:
             return torch.zeros_like(values)
         
@@ -72,7 +70,7 @@ class FP8E4M3Quantizer:
             return dequantized
     
     def _round_to_fp8_grid(self, values: torch.Tensor) -> torch.Tensor:
-        """値を最近接のFP8グリッド点に丸める"""
+        """Round values to nearest FP8 grid points."""
         signs = torch.sign(values)
         abs_values = values.abs()
         
@@ -92,7 +90,7 @@ class FP8E4M3Quantizer:
 
 class WeightedHistogram:
     """
-    HSWQ設計書準拠の重み付けヒストグラム（SVD 2D/4D 重要度対応版）
+    HSWQ-compliant weighted histogram (SVD 2D/4D importance).
     """
     
     def __init__(self, bins: int = 4096, device: str = "cuda"):
@@ -104,8 +102,8 @@ class WeightedHistogram:
         
     def build(self, weight: torch.Tensor, importance: Optional[torch.Tensor] = None):
         """
-        重みテンソルから重み付けヒストグラムを構築
-        V2更新内容：要素ごとに異なる重要度マップ(2D/4D)を完全にサポート。
+        Build weighted histogram from weight tensor.
+        V2: full per-element importance maps (2D/4D) supported.
         """
         weight = weight.detach().float().to(self.device)
         w_abs = weight.abs()
@@ -117,15 +115,15 @@ class WeightedHistogram:
         if importance is not None:
             importance = importance.float().to(self.device)
             
-            # V2: 形状が完全に一致する場合は要素ごとの重要度として直接使用（SVDスコア等）
+            # V2: when shapes match exactly, use as per-element importance (e.g. SVD scores)
             if importance.shape == weight.shape:
                 imp_expanded = importance
             else:
-                # 従来互換: 0次元（スカラー）の場合は1次元に変換
+                # Legacy: treat 0-dim (scalar) as 1-dim
                 if importance.dim() == 0:
                     importance = importance.view(1)
                 
-                # 従来互換: チャンネル数のみの1D importanceの場合、ブロードキャストして拡張
+                # Legacy: 1D importance (channel-only) -> broadcast to match weight
                 if weight.dim() == 4:  # Conv2d: (Out, In, K, K)
                     in_channels = weight.shape[1]
                     if importance.numel() >= in_channels:
@@ -148,11 +146,11 @@ class WeightedHistogram:
         else:
             imp_expanded = torch.ones_like(weight)
         
-        # ビンインデックスの計算
+        # Bin indices
         bin_width = self.max_val / self.bins
         bin_indices = (w_abs / bin_width).long().clamp(0, self.bins - 1)
         
-        # 重み付けヒストグラムの構築 (ヒストグラムのビンに重みを加算)
+        # Build weighted histogram (add weights to bins)
         self.histogram = torch.zeros(self.bins, dtype=torch.float64, device=self.device)
         self.histogram.scatter_add_(0, bin_indices.reshape(-1), imp_expanded.reshape(-1).double())
         
@@ -176,7 +174,7 @@ class WeightedHistogram:
 
 
 class MSEOptimizer:
-    """MSE最適化器"""
+    """MSE optimizer."""
     
     def __init__(self, device: str = "cuda"):
         self.device = device
@@ -198,8 +196,7 @@ class MSEOptimizer:
         low = max_val * search_range[0]
         high = max_val * search_range[1]
         
-        # [PROVE-OF-WORK] 探索範囲の実効値ログ (見た目だけの偽造を排除)
-        # 量子化が「空転」していないことの証明
+        # [PROVE-OF-WORK] Log effective search range (avoid fake-looking bounds)
         if max_val > 0:
             print(f"  [MSE SEARCH DEBUG] max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f}")
         
@@ -230,13 +227,13 @@ class MSEOptimizer:
 # ==============================================================================
 def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, beta: float = 0.3, top_p: float = 1.0, min_k: int = 1, max_k: int = 4096) -> torch.Tensor:
     """
-    SVD特異値に基づく構造的重要性(Leverage)と、RMS振幅に基づくエネルギースケール(Magnitude)を
-    それぞれL2正規化し、指定の重み(alpha, beta)でブレンドした究極の重要度スコア行列を出力する。
+    Outputs blended importance matrix: SVD-based structural leverage and RMS magnitude,
+    each L2-normalized and combined with weights (alpha, beta).
     """
     device = weight.device
     original_shape = weight.shape
     
-    # 2Dに平坦化
+    # Flatten to 2D
     if weight.ndim > 2:
         w_float = weight.detach().float().view(weight.shape[0], -1)
     elif weight.ndim == 2:
@@ -256,11 +253,11 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
     if w_float.shape[0] > 100 or w_float.shape[1] > 100:
         print(f"  [Hybrid Full-SVD/RMS] Executing torch.linalg.svd and RMS blending on shape {w_float.shape} [alpha={alpha}, beta={beta}]...")
 
-    # --- 1. SVD Leverage 計算 (完全版: σ^2 重み付き) ---
-    # 近似(svd_lowrank)を排し、厳密解(linalg.svd)による全主成分プロジェクションを使用
+    # --- 1. SVD Leverage (full: σ^2 weighted) ---
+    # Use full SVD (linalg.svd), not low-rank approximation
     U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
     
-    # ご主人様ご指摘の理論に基づく完全版レバレッジ式（σ^2の重みを反映）
+    # Full leverage formula with σ^2 weighting
     # weighted_U_k = U * S
     # leverage = (U_ik^2 * σ_k^2) * (V_jk^2)
     S_sq = S ** 2
@@ -268,27 +265,27 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
     col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1) # (N, k) @ (k, 1) -> (N, 1)
     leverage_2d = row_scores * col_scores.T      # (M, N)
 
-    # --- 2. RMS Magnitude 計算 ---
+    # --- 2. RMS Magnitude ---
     magnitude_2d = w_float ** 2  # (M, N)
 
-    # --- 3. L2 正規化 (各スコア行列が同じインパクトを持つようにする) ---
+    # --- 3. L2 normalize (equal impact per score matrix) ---
     lev_norm = torch.norm(leverage_2d, p=2)
     mag_norm = torch.norm(magnitude_2d, p=2)
     
-    # ゼロ除算防止
+    # Avoid division by zero
     if lev_norm > 0: leverage_2d = leverage_2d / lev_norm
     if mag_norm > 0: magnitude_2d = magnitude_2d / mag_norm
 
-    # --- 4. Alpha/Beta ブレンド ---
+    # --- 4. Alpha/Beta blend ---
     hybrid_importance = (alpha * leverage_2d) + (beta * magnitude_2d)
 
-    # --- 5. ヒストグラム全体スケールの正規化 ---
-    # 平均が1.0付近になるように合わせて、ヒストグラム面積を重みパラメータ数に一致させる
+    # --- 5. Histogram scale normalization ---
+    # Scale so mean ~1.0 and histogram area matches weight count
     avg_score = hybrid_importance.mean()
     if avg_score > 0:
         hybrid_importance = hybrid_importance / avg_score
 
-    # V2同様、マイルドなベースライン保護（0除算/完全消衰防止）としてオフセット
+    # V2-style mild baseline (avoid 0-div and full collapse)
     hybrid_importance = 0.5 + 0.5 * hybrid_importance
 
     return hybrid_importance.view(original_shape)
@@ -297,7 +294,7 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
 
 class HSWQWeightedHistogramOptimizerV4:
     """
-    HSWQ重み付けヒストグラム最適化器（V4: SVD-Magnitude Hybrid版）
+    HSWQ weighted histogram optimizer (V4: SVD-Magnitude Hybrid).
     """
     
     def __init__(self, bins: int = 8192, num_candidates: int = 1000, refinement_iterations: int = 10, device: str = "cuda", alpha: float = 0.7, beta: float = 0.3):
@@ -311,21 +308,21 @@ class HSWQWeightedHistogramOptimizerV4:
     
     def compute_optimal_amax(self, weight: torch.Tensor, importance: Optional[torch.Tensor] = None, use_svd_leverage: bool = True, search_range: Tuple[float, float] = (0.5, 1.0), scaled: bool = True) -> float:
         """
-        重みテンソルに対する最適amaxを計算 (V4 Hybrid)
+        Compute optimal amax for weight tensor (V4 Hybrid).
         """
-        # SVD+Magnitude Hybrid 重要度の適用
+        # Apply SVD+Magnitude hybrid importance
         combined_importance = None
         
         if use_svd_leverage and weight.ndim >= 2:
-            # SVD+RMSを使ったハイブリッド重要度行列の計算
+            # Compute hybrid importance matrix (SVD + RMS)
             hybrid_importance = compute_hybrid_leverage_scores(weight, alpha=self.alpha, beta=self.beta)
 
             
-            # もし既存のDualMonitorによるチャンネル重要度(1D)があれば、掛け合わせる
+            # If 1D channel importance (e.g. from DualMonitor) exists, multiply
             if importance is not None:
                 importance = importance.float().to(self.device)
                 
-                # ブロードキャストして次元を揃える
+                # Broadcast to match weight dimensions
                 if weight.ndim == 4:
                     in_channels = weight.shape[1]
                     pad_len = max(0, in_channels - importance.numel())
@@ -345,11 +342,11 @@ class HSWQWeightedHistogramOptimizerV4:
         else:
             combined_importance = importance
 
-        # 重み付けヒストグラムの構築 (2D/4Dの combined_importance が渡されると、各ピクセルごとに重みが付与される)
+        # Build weighted histogram (2D/4D combined_importance gives per-pixel weights)
         weighted_hist = WeightedHistogram(bins=self.bins, device=self.device)
         weighted_hist.build(weight, combined_importance)
         
-        # 最適amaxの探索
+        # Search for optimal amax
         max_val = weighted_hist.max_val
         low = max_val * search_range[0]
         high = max_val * search_range[1]
@@ -369,7 +366,7 @@ class HSWQWeightedHistogramOptimizerV4:
     def compute_optimal_amax_with_stats(self, weight: torch.Tensor, importance: Optional[torch.Tensor] = None, use_svd_leverage: bool = True, scaled: bool = True) -> dict:
         optimal_amax = self.compute_optimal_amax(weight, importance, use_svd_leverage=use_svd_leverage, scaled=scaled)
         
-        # SVD重要度の計算（表示や確認用）
+        # SVD importance (for display/verification)
         combined_importance = None
         if use_svd_leverage and weight.ndim >= 2:
             hybrid_importance = compute_hybrid_leverage_scores(weight, alpha=self.alpha, beta=self.beta)
@@ -399,29 +396,29 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
     
-    # テスト: ランダムな重みテンソルと、1D重要度、Hybrid重要度の組み合わせ
+    # Test: random weight tensor with 1D and hybrid importance
     print("\n[Test] 2D Weight Matrix Hybrid Extraction and Amax Optimization")
     
-    # (128, 256) のダミーテンソル
+    # Dummy (128, 256) tensor
     U_true = torch.randn(128, 16, device=device)
     V_true = torch.randn(256, 16, device=device)
     weight = U_true @ V_true.T
     
-    # 意図的に一部の外れ値を重くする(ノイズ追加)
+    # Add intentional outliers
     weight[5, 5] = 20.0
     weight[10, 100] = -25.0
     
     optimizer = HSWQWeightedHistogramOptimizerV4(device=device, alpha=0.7, beta=0.3)
     
-    print("\n1. 従来のMSE探索 (Hybrid-Aware: False)")
+    print("\n1. Conventional MSE search (Hybrid-Aware: False)")
     result_v1 = optimizer.compute_optimal_amax_with_stats(weight, importance=None, use_svd_leverage=False)
     print(f"  Optimal amax: {result_v1['optimal_amax']:.4f}")
     
-    print("\n2. Hybrid SVD+RMS MSE探索 (Hybrid-Aware: True)")
+    print("\n2. Hybrid SVD+RMS MSE search (Hybrid-Aware: True)")
     result_v2 = optimizer.compute_optimal_amax_with_stats(weight, importance=None, use_svd_leverage=True)
     print(f"  Optimal amax: {result_v2['optimal_amax']:.4f}")
     
-    # 内部関数を直接呼んでみる
+    # Call internal function directly
     hybrid_score = compute_hybrid_leverage_scores(weight, alpha=0.7, beta=0.3)
     print(f"\n[Hybrid Score Inspection]")
     print(f"  Shape: {hybrid_score.shape}")
