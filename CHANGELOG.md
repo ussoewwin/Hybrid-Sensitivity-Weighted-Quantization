@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0
+
+**SDXL V1.3: deterministic calibration** — Full reproducibility for calibration: global RNG seeds (`random`, `numpy`, `torch`, CUDA) and cuDNN settings (`deterministic=True`, `benchmark=False`) are fixed at script start; a fixed `generator` is passed to the diffusers pipeline so initial latents are identical across runs and machines. Original non-deterministic script archived as `archives/quantize_sdxl_hswq_v1.3(random_seed).py`.  
+Release notes: [v1.1.0](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.1.0) (to be published)
+
 ## 1.0.9
 
 **SDXL: SageAttention2 removed from calibration** — SDXL quantization no longer uses SageAttention2 (SA2). Calibration uses native PyTorch SDPA only; SA2 was found to slightly lower calibration scores (SSIM) with no meaningful speed gain, so it was removed for purity and reproducibility. Z Image Turbo still supports optional `--sa2` (does not degrade scores; no significant speed gain).  
