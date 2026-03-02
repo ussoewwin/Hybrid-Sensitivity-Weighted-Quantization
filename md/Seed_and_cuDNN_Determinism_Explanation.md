@@ -1,61 +1,114 @@
-# Seed and cuDNN Fix for Reproducible Calibration
+# Seed and cuDNN Fix for Reproducible Calibration (Technical)
 
-This document explains **why** HSWQ calibration needed full determinism, **what** the fix achieves, and **how** it is implemented in code (SDXL V1.3 and ZIT V1.6).
-
----
-
-## 1. Background: Why Calibration Was Non-Reproducible
-
-HSWQ calibration does two things:
-
-1. **Sensitivity** — For each layer, it measures the **variance of the layer’s output** over many calibration samples (many prompts × many denoising steps). Layers with high variance are more “sensitive” and are kept in FP16.
-2. **Importance** — Per-channel mean absolute value of **inputs** to each layer, used as weights in the weighted histogram MSE that chooses the optimal clipping (amax) for FP8.
-
-Both depend on the **exact activations** flowing through the model. Those activations depend on:
-
-- **Initial latent noise** — `torch.randn(...)` at the start of each calibration sample.
-- **Any other randomness** — e.g. dropout (if enabled), hash order, or third-party libs using `random` / `numpy` / `torch` RNG.
-- **GPU computation order** — cuDNN (used by Conv2d and related ops) can pick different algorithms or reduction order for speed, which can change the last few bits of floating-point results.
-
-If any of these change between runs or between machines:
-
-- The **sequence of activations** changes.
-- **DualMonitor** (sensitivity and importance) sees different numbers.
-- **Layer rankings** (which layers get FP16) and **optimal amax** per layer can change.
-- So **Amax and SSIM** can differ run-to-run or machine-to-machine, even with the same prompts and script.
-
-So “reproducibility” here means: **same script, same inputs, same hardware or different hardware → same Amax and same calibration-derived choices (FP16 set, amax dict), and therefore same quantized model and scores.**
+This document gives a **technical** explanation of why HSWQ calibration required full determinism, which **sources of non-determinism** exist, and **exactly how** the fix is implemented in SDXL V1.3, with code and script locations.
 
 ---
 
-## 2. What the Fix Means
+## 1. Background: What Calibration Does and Why Exact Numbers Matter
 
-Fixing **seeds** and **cuDNN behavior** means:
+### 1.1 Calibration pipeline (SDXL V1.3)
 
-| Goal | How it’s achieved |
-|------|-------------------|
-| Same initial noise every time | Fix RNG state (Python `random`, `numpy`, `torch`, CUDA) and, where we control it, reset or pass a fixed generator right before generating latents. |
-| Same floating-point path on GPU | Force cuDNN to use deterministic algorithms and disable benchmark-driven algorithm selection. |
-| Same calibration outputs | With the above, the same prompts and script produce the same activations → same sensitivity/importance → same Amax and FP16 set. |
+Calibration in `quantize_sdxl_hswq_v1.3.py` runs in this order:
 
-So after the fix:
+1. Load the UNet and build a diffusers `StableDiffusionXLPipeline` on the target device.
+2. Register **forward hooks** on every `Conv2d` and `Linear` in the UNet. Each hook calls `DualMonitor.update(input_tensor, output_tensor)` for that layer.
+3. Run **N calibration samples** (e.g. 32). For each sample:
+   - Get one prompt from the calibration file.
+   - Call `pipeline(prompt=..., num_inference_steps=..., output_type="latent", generator=...)`. This runs **M denoising steps** (e.g. 25); at each step the full UNet forward pass runs, so every hooked layer sees one (input, output) pair per step.
+   - Over the run, each layer’s hook is invoked **N × M times** (e.g. 32 × 25 = 800 times).
+4. After the loop, **DualMonitor** for each layer holds:
+   - `output_sum`, `output_sq_sum`, `count`: running sum of output values and their squares, and call count.
+   - `channel_importance`: running per-channel mean of input absolute values.
+5. **Sensitivity** per layer = variance of output = `(output_sq_sum/count) - (output_sum/count)^2`. Layers are **ranked by this variance**; the top K% are kept in FP16.
+6. **Importance** (per-channel) is used later by the HSWQ optimizer to build a **weighted histogram** of weight values; the optimizer finds the **amax** (clipping threshold) that minimizes weighted MSE for each FP8-quantized layer.
 
-- **Same machine, multiple runs** → identical Amax, identical FP16 layer set, identical quantized weights.
-- **Different machines** (e.g. different 4090s) → still identical, as long as they run the same code and seeds (no non-deterministic libs or drivers that we don’t control).
+So the **only** inputs to the final quantization are: (a) the **order** of layers by sensitivity, and (b) the **per-layer amax** from the weighted histogram. Both come directly from the **sequence of (input, output) tensors** that each hook saw. If that sequence changes in any way, the order and the amax values change, and the quantized model and its SSIM can change.
 
-The fix is “full” in the sense that we control all **our** sources of non-determinism (RNG and cuDNN). We do not change external libraries (e.g. diffusers internals) beyond what we call; for diffusers we only guarantee the **inputs** we give it (e.g. generator) are fixed.
+### 1.2 Why “exact” activations matter
+
+- **Running statistics:** DualMonitor uses **incremental** mean/variance and importance. The final value for a layer is a function of the **entire sequence** of (input, output) pairs for that layer. Changing even one pair (e.g. one step on one sample) changes the running state and thus the final variance and importance.
+- **Propagation:** The initial latent is the only random input we inject per sample. It is fed into the UNet; every layer’s output depends on that latent and all previous layers. So **one different latent** implies **different activations at every layer, at every step**, and therefore different inputs to DualMonitor at every call.
+- **Amplification:** Floating-point arithmetic is not associative: `(a + b) + c` and `a + (b + c)` can differ at the last bit. So the **order** in which values are summed (e.g. in cuDNN reductions) can change the result. Over hundreds of layers × many steps × many samples, small per-op differences accumulate into visibly different running means and variances.
+- **Consequence:** Without fixing RNG and cuDNN, the same script and same prompts can yield **different layer order** (different layers in FP16) and **different amax** per layer → different quantized weights → **different SSIM** and possible “run-to-run” or “machine-to-machine” variation.
+
+So “reproducibility” here means: **same script, same calibration prompts, same or different machine → identical sensitivity order, identical amax dict, identical quantized model and metrics.**
+
+---
+
+## 2. Sources of Non-Determinism (Technical)
+
+We need to fix every source that can change the sequence of (input, output) tensors or the way they are aggregated.
+
+### 2.1 Python and interpreter
+
+| Source | What it affects | Default behavior |
+|--------|-----------------|------------------|
+| **`random` module** | Any code using `random.random()`, `random.shuffle()`, etc. (ours or libraries). | Seeded by system time / process id if not set; differs per run. |
+| **`hash()` / `PYTHONHASHSEED`** | Hash of objects (e.g. dict keys). Dict iteration order in Python 3.7+ is insertion order, but hashing can affect internal behavior; setting `PYTHONHASHSEED` removes hash randomization. | If unset, Python can randomize hashes (e.g. for strings) for security; iteration over dicts/sets can then vary. |
+| **Dict/set iteration** | Any logic that iterates over `state_dict`, `named_modules()`, etc. If order ever depended on hash, it could vary. | With fixed PYTHONHASHSEED and same insertion order, iteration is stable. |
+
+### 2.2 NumPy
+
+| Source | What it affects | Default behavior |
+|--------|-----------------|------------------|
+| **`np.random`** | Any code using `np.random.rand()`, `np.random.shuffle()`, etc. | Separate RNG from Python and PyTorch; not seeded by `random.seed()` or `torch.manual_seed()`. So it must be seeded explicitly. |
+
+### 2.3 PyTorch (CPU and CUDA)
+
+| Source | What it affects | Default behavior |
+|--------|-----------------|------------------|
+| **CPU generator** | `torch.randn(..., device='cpu')`, `torch.rand()`, dropout on CPU, etc. | Default global generator; state advances with every call; initial state is undefined unless `torch.manual_seed()` is called. |
+| **CUDA generator (per device)** | `torch.randn(..., device='cuda')`, dropout on GPU, and **any library that uses the default CUDA generator** (e.g. diffusers when creating the initial latent). | Each device has its own RNG state; not set by `torch.manual_seed(seed)` alone; must set with `torch.cuda.manual_seed(seed)` and optionally `torch.cuda.manual_seed_all(seed)` for all devices. |
+| **Explicit `Generator`** | When we pass `generator=...` to `pipeline()`, diffusers uses **that** generator for the initial latent. Its state is independent of the global CUDA generator until we create it with `manual_seed(42)`. | If we don’t pass a generator, the library uses its default (often the global CUDA generator), whose state we may not control precisely across process/version. |
+
+So we need: (1) global CPU and CUDA seeds at script start, and (2) for SDXL, a **single** `torch.Generator(device).manual_seed(42)` passed to every `pipeline(...)` call so the **sequence** of random numbers consumed by diffusers is fixed.
+
+### 2.4 cuDNN (NVIDIA backend for Conv and related ops)
+
+PyTorch uses **cuDNN** for many ops on GPU (e.g. `Conv2d`, `BatchNorm`, certain reductions). Two settings matter:
+
+| Setting | Meaning | Default | Effect if not fixed |
+|---------|---------|---------|---------------------|
+| **`torch.backends.cudnn.deterministic`** | When `True`, cuDNN is only allowed to use **deterministic** algorithms for the current op. Some algorithms use atomic adds or different reduction order and can produce slightly different results (last bits) for the same mathematical operation. | `False` | Different runs or different GPUs can pick different algorithms → different floating-point results → different activations. |
+| **`torch.backends.cudnn.benchmark`** | When `True`, at the **first** occurrence of each (op, shape) pair, cuDNN **benchmarks** several algorithms and caches the “fastest.” Later runs use the cached choice. | `True` | The “first” run can differ from the next; and the **cached choice** can depend on GPU model, driver, and even other processes. So algorithm selection can vary by run or machine. |
+
+So we set `cudnn.deterministic = True` and `cudnn.benchmark = False` at script start so that (a) only deterministic algorithms are used, and (b) algorithm choice is not time-dependent or environment-dependent.
+
+### 2.5 Summary table: source → fix → effect
+
+| Source | Fix | Effect |
+|--------|-----|--------|
+| Python `random` | `random.seed(42)` | Same sequence from any code using `random.*`. |
+| Hash / dict | `os.environ["PYTHONHASHSEED"] = "42"` | Deterministic hashing; stable behavior for dicts/sets. |
+| NumPy | `np.random.seed(42)` | Same sequence from any `np.random.*` usage. |
+| PyTorch CPU | `torch.manual_seed(42)` | Same CPU RNG state. |
+| PyTorch CUDA (current device) | `torch.cuda.manual_seed(42)` | Same CUDA RNG state for default generator on current device. |
+| PyTorch CUDA (all devices) | `torch.cuda.manual_seed_all(42)` | Same CUDA RNG on all devices (multi-GPU or future use). |
+| cuDNN algorithm choice | `torch.backends.cudnn.deterministic = True` | Only deterministic algorithms used. |
+| cuDNN benchmark | `torch.backends.cudnn.benchmark = False` | No benchmark-based algorithm selection; same algorithm for same op. |
+| Diffusers latent | `generator=torch.Generator(device).manual_seed(42)` passed to `pipeline(...)` | Same sequence of initial latents (and any other randomness diffusers takes from that generator). |
 
 ---
 
 ## 3. Code: Global Seed and cuDNN (Script Start)
 
-Used in both **SDXL V1.3** and **ZIT V1.6** (and any other script that needs reproducible calibration). Call this once at the top of the script, after importing `os`, `numpy`, and `torch`, and before any calibration or model code that uses RNG or GPU.
+**Location in script:** `quantize_sdxl_hswq_v1.3.py`, immediately after importing `numpy` and `torch`, and **before** any code that uses RNG or loads the model (so before `load_unet_from_safetensors` and before the calibration loop).
+
+**Requirement:** `random`, `os`, `numpy`, and `torch` must be imported before calling `seed_everything`. The script already has `import random` and uses `os`, `np`, and `torch`.
+
+**Full code as in the script:**
 
 ```python
+import argparse
 import random
+import torch
+# ... other imports ...
 import os
 import numpy as np
-import torch
+
+# HSWQ module (Fast)
+from weighted_histogram_mse_fast import HSWQWeightedHistogramOptimizerFast as HSWQWeightedHistogramOptimizer
+
 
 def seed_everything(seed=42):
     """Fix all RNG seeds and cuDNN for 100% reproducible calibration (same Amax/scores across runs and machines)."""
@@ -68,84 +121,84 @@ def seed_everything(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+
 seed_everything(42)
 ```
 
-**What each line does:**
+**Line-by-line:**
 
 | Line | Purpose |
 |------|--------|
-| `random.seed(seed)` | Python’s `random` module (e.g. any lib that uses it) starts from a fixed state. |
-| `os.environ["PYTHONHASHSEED"]` | Makes `hash()` and dict iteration order deterministic (e.g. for string keys). Should be set before process start for full effect; setting in script still helps for any later hashing. |
-| `np.random.seed(seed)` | NumPy’s RNG (e.g. any code using `np.random.*`) is fixed. |
-| `torch.manual_seed(seed)` | PyTorch CPU RNG (e.g. `torch.randn` on CPU) is fixed. |
-| `torch.cuda.manual_seed(seed)` | PyTorch CUDA RNG for the current device is fixed. |
-| `torch.cuda.manual_seed_all(seed)` | PyTorch CUDA RNG for **all** devices is fixed (multi-GPU or future use). |
-| `torch.backends.cudnn.deterministic = True` | cuDNN is told to choose only deterministic algorithms (no “faster but slightly different” options). |
-| `torch.backends.cudnn.benchmark = False` | Disables cuDNN’s auto-tuning of algorithms per input size. That tuning can vary by run/environment and change which algorithm is used, so disabling it keeps the same algorithm for the same op. |
+| `random.seed(seed)` | Sets the state of Python’s `random` module (Mersenne Twister). Any later call to `random.random()`, `random.shuffle()`, etc. (in our code or in libraries) starts from this state. |
+| `os.environ["PYTHONHASHSEED"] = str(seed)` | Disables hash randomization when set before or at startup. Ensures `hash()` is deterministic for the same object; helps avoid order-dependent behavior in dicts/sets. |
+| `np.random.seed(seed)` | Sets NumPy’s global RNG state. Independent of Python and PyTorch; must be set explicitly. |
+| `torch.manual_seed(seed)` | Sets the **default CPU** generator’s state. Affects `torch.randn()`, `torch.rand()`, etc. on CPU. |
+| `torch.cuda.manual_seed(seed)` | Sets the **current CUDA device**’s default generator state. Affects `torch.randn(..., device='cuda')` and any CUDA dropout when using the default generator. |
+| `torch.cuda.manual_seed_all(seed)` | Sets the default generator state for **all** CUDA devices. Needed if any code runs on a non-current device. |
+| `torch.backends.cudnn.deterministic = True` | Tells cuDNN to use only algorithms that produce the same output for the same input (no non-deterministic reductions). May be slower than default. |
+| `torch.backends.cudnn.benchmark = False` | Disables “benchmark mode”: cuDNN will not run multiple algorithms and cache the fastest. The same (deterministic) algorithm is used every time for the same op shape. |
 
-Without this block, different runs or different machines can get different random numbers and different cuDNN paths, and thus different calibration results.
+**When to call:** Once at import time (or at the very start of `main()` before loading the model). Must run **before** any calibration step so that the first use of RNG and the first cuDNN op see the fixed state.
 
 ---
 
 ## 4. Code: SDXL — Fixed Generator for the Pipeline
 
-In SDXL we use **diffusers**’ `StableDiffusionXLPipeline`. The initial latent is created **inside** `pipeline(...)`. We cannot call `torch.manual_seed` right before that internal `randn`; instead we pass a **fixed generator** so that diffusers uses the same RNG state for latent creation.
+**Location in script:** `quantize_sdxl_hswq_v1.3.py`, inside `main()`, **after** the pipeline is created and prompts are loaded, **before** the `for i, prompt in enumerate(prompts):` loop. The generator is created once and passed into every `pipeline(...)` call.
 
-Create the generator once before the calibration loop and pass it into every `pipeline(...)` call:
+**Why a generator instead of only global seed:** The initial latent for each calibration sample is created **inside** `StableDiffusionXLPipeline.__call__`. We cannot insert `torch.manual_seed(42)` right before that internal `randn`. The library accepts an optional `generator` argument; when provided, it uses that generator for the initial latent (and possibly other internal randomness). So we create one generator, seed it once, and pass the **same** generator to every call. That way the **sequence** of random numbers (sample 1 → first draw, sample 2 → second draw, …) is fixed and reproducible.
+
+**Full code as in the script:**
 
 ```python
-# Before the calibration loop (device is already set, e.g. device = "cuda")
-generator = torch.Generator(device=device).manual_seed(42)
-
-for i, prompt in enumerate(prompts):
-    with torch.no_grad():
-        pipeline(
-            prompt=prompt,
-            num_inference_steps=args.num_inference_steps,
-            output_type="latent",
-            generator=generator,
-        )
+    # ... pipeline and prompts are ready ...
+    print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps)...")
+    print("Measuring Sensitivity and Importance (input activation) simultaneously...")
+    
+    pipeline.set_progress_bar_config(disable=False)
+    generator = torch.Generator(device=device).manual_seed(42)
+    
+    for i, prompt in enumerate(prompts):
+        print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
+        with torch.no_grad():
+            pipeline(
+                prompt=prompt,
+                num_inference_steps=args.num_inference_steps,
+                output_type="latent",
+                generator=generator,
+            )
+        if (i + 1) % 10 == 0:
+            gc.collect()
+            torch.cuda.empty_cache()
 ```
 
-**Why this works:**
+**Details:**
 
-- `torch.Generator(device=device).manual_seed(42)` creates a generator on the same device as the model and sets its state to a fixed seed.
-- Passing `generator=generator` to `pipeline(...)` makes diffusers use this generator for the initial latent (and any other randomness it uses from that generator). The same generator is reused for every sample, so the **sequence** of random numbers is deterministic: sample 1 gets the first draw, sample 2 the next, and so on.
-- So the same prompts in the same order always produce the same latents and the same forward pass, hence the same sensitivity/importance and Amax.
+- **`torch.Generator(device=device)`** — Creates a new generator object on the same device as the pipeline (usually `"cuda"`). This generator has its own state, separate from the global default.
+- **`.manual_seed(42)`** — Sets that generator’s state to a fixed seed and returns the generator. Every subsequent random draw from this generator (e.g. when diffusers calls it for the latent) is deterministic.
+- **Reuse in the loop** — We pass the **same** `generator` to every `pipeline(...)` call. Diffusers consumes some number of random values from it for each sample. So sample 1 gets the first N draws, sample 2 the next M draws, etc. The sequence is fixed, so the sequence of latents is fixed.
+- **Do not reseed inside the loop** — If we called `generator.manual_seed(42)` (or created a new generator with seed 42) inside the loop, every sample would get the **same** latent. That would hurt diversity of calibration and is wrong. One generator, created once and reused, gives a deterministic but **varied** sequence of latents.
 
-**Important:** Do **not** call `manual_seed(42)` again inside the loop for every sample; that would make every sample use the **same** latent and hurt calibration diversity. One generator, reused, gives a deterministic but varied sequence.
+**Device note:** If `device == "cpu"`, `torch.Generator(device="cpu")` is used; the pipeline then runs on CPU and the generator is the CPU generator. The logic is the same: one generator, one seed, reuse for all samples.
 
 ---
 
-## 5. Code: ZIT — Seed Right Before Initial Latent
+## 5. Script Location Summary (SDXL V1.3)
 
-In ZIT we use a **custom** calibration pipeline: we create the initial latent ourselves with `torch.randn(...)`. To guarantee the same latent every time for that call (independent of what happened earlier in the process), we set the seed **immediately before** that line:
-
-```python
-# Inside the calibration step (e.g. in ZITCalibrationPipeline.__call__), right before creating the latent
-# Fix seed immediately before initial noise so every run yields identical latents (full reproducibility)
-torch.manual_seed(42)
-x = torch.randn(batch_size, latent_c, latent_h, latent_w,
-                device=self.device, dtype=torch.float16)
-```
-
-**Why right before `randn`:**
-
-- Between script start and this line, other code may have consumed RNG state (e.g. text encoding, model init, or other ops). So the state of the global RNG at this point can vary by run or environment.
-- By calling `torch.manual_seed(42)` immediately before `torch.randn(...)`, we force the **next** random draw to be the same in every run. So the initial latent `x` is identical across runs and machines, and the rest of the calibration (sensitivity, importance, amax) follows from that.
-
-Together with `seed_everything(42)` at script start, this gives full control over the only place we explicitly draw random numbers in the ZIT calibration path.
+| Fix | File | Approximate location |
+|-----|------|----------------------|
+| `seed_everything` definition and `seed_everything(42)` | `quantize_sdxl_hswq_v1.3.py` | Lines 30–42: after HSWQ import, before C++20 / ComfyUI helpers. |
+| `generator = torch.Generator(device=device).manual_seed(42)` | `quantize_sdxl_hswq_v1.3.py` | Inside `main()`, after `pipeline.set_progress_bar_config(disable=False)`, before the `for i, prompt in enumerate(prompts):` loop (line 342). |
+| `generator=generator` in `pipeline(...)` | `quantize_sdxl_hswq_v1.3.py` | Inside the same loop, in the `pipeline(...)` call (lines 347–352). |
 
 ---
 
-## 6. Summary Table
+## 6. Before vs After (Expected Behavior)
 
-| Item | SDXL V1.3 | ZIT V1.6 |
-|------|-----------|----------|
-| Global seed + cuDNN at start | `seed_everything(42)` | `seed_everything(42)` |
-| Initial latent | Created inside diffusers | Created in our code |
-| How latent is fixed | `generator=torch.Generator(device).manual_seed(42)` passed to `pipeline(..., generator=generator)` | `torch.manual_seed(42)` immediately before `torch.randn(...)` |
-| Script location | `quantize_sdxl_hswq_v1.3.py` | `quantize_zit_hswq_v1.6.py` |
+| Scenario | Without fix | With fix |
+|----------|-------------|----------|
+| Same machine, same script, two runs | Amax and/or FP16 set can differ; SSIM can differ. | Identical Amax, identical FP16 set, identical quantized model and SSIM. |
+| Different machine (e.g. another 4090), same script | Amax and/or FP16 set can differ due to cuDNN and RNG. | Identical Amax, identical FP16 set, identical quantized model and SSIM (assuming same PyTorch/cuDNN and no other non-deterministic drivers). |
+| Same run, same calibration data | N/A | Same prompts in same order → same latent sequence → same sensitivity/importance → same amax and layer order. |
 
-With these in place, calibration is **deterministic**: same prompts and same script produce the same Amax and the same FP16 layer set on every run and across supported machines.
+The fix does **not** guarantee determinism of code we do not control (e.g. diffusers internals beyond the generator we pass, or system libraries). Within our script and the way we call the pipeline, we fix all **our** sources of non-determinism (RNG and cuDNN) so that calibration is fully reproducible in practice.
