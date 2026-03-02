@@ -12,7 +12,6 @@ Algorithm: same as V1.1/V1.2 + GPU convert + Fast histogram.
 """
 
 import argparse
-import random
 import torch
 from diffusers import StableDiffusionXLPipeline
 import safetensors.torch
@@ -25,22 +24,6 @@ import numpy as np
 
 # HSWQ module (Fast)
 from weighted_histogram_mse_fast import HSWQWeightedHistogramOptimizerFast as HSWQWeightedHistogramOptimizer
-
-
-def seed_everything(seed=42):
-    """Fix all RNG seeds and cuDNN for 100% reproducible calibration (same Amax/scores across runs and machines)."""
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-
-seed_everything(42)
-
 
 # Enforce C++20
 if sys.platform == "win32":
@@ -339,17 +322,11 @@ def main():
     print("Measuring Sensitivity and Importance (input activation) simultaneously...")
     
     pipeline.set_progress_bar_config(disable=False)
-    generator = torch.Generator(device=device).manual_seed(42)
     
     for i, prompt in enumerate(prompts):
         print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
         with torch.no_grad():
-            pipeline(
-                prompt=prompt,
-                num_inference_steps=args.num_inference_steps,
-                output_type="latent",
-                generator=generator,
-            )
+            pipeline(prompt=prompt, num_inference_steps=args.num_inference_steps, output_type="latent")
         if (i + 1) % 10 == 0:
             gc.collect()
             torch.cuda.empty_cache()
