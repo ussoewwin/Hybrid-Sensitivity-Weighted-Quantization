@@ -16,7 +16,8 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | waiIllustriousSDXL_v160 | r0.1 | 19.05 | 0.9333 |
 | waiANIPONYXL_v140 | r0.15 | 15.64 | 0.9361 |
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 0.9233 |
-| uwazumimixILL_v50 | — | 14.26 | **0.9679** |
+| uwazumimixILL_v50 | r0.05 | 14.26 | **0.9679** |
+| unholyDesireMixSinister_v60 | r0.15 | 10.29 | 0.9336 |
 
 ---
 
