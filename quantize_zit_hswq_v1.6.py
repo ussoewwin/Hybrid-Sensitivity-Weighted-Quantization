@@ -11,15 +11,14 @@ V1.5 High Precision Edition:
 """
 import argparse
 import random
-import torch
-import torch.nn as nn
-import safetensors.torch
-from safetensors.torch import load_file, save_file
 import os
-import gc
-from tqdm import tqdm
 import sys
+import gc
 import json
+
+# Import numpy before any sys.path change or torch; otherwise torch loads numpy,
+# then path change can make a second numpy visible and trigger "cannot load module more than once"
+import numpy as np
 
 # Resolve import paths (avoid ModuleNotFoundError)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,11 +26,13 @@ potential_paths = [current_dir, os.getcwd(), os.path.dirname(sys.argv[0]) if sys
 for p in potential_paths:
     if p and p not in sys.path:
         sys.path.insert(0, p)
-
-# Add ComfyUI-master path
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
-import numpy as np
+import torch
+import torch.nn as nn
+import safetensors.torch
+from safetensors.torch import load_file, save_file
+from tqdm import tqdm
 import subprocess
 # HSWQ module (fast: binary-search FP8 grid, same formula as original)
 from weighted_histogram_mse_fast import HSWQWeightedHistogramOptimizerFast
