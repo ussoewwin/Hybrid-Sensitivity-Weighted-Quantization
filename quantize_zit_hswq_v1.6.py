@@ -26,7 +26,12 @@ potential_paths = [current_dir, os.getcwd(), os.path.dirname(sys.argv[0]) if sys
 for p in potential_paths:
     if p and p not in sys.path:
         sys.path.insert(0, p)
+
+# Add ComfyUI and histogram subdirectories so imports work regardless of clone path / CWD
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
+histogram_dir = os.path.join(current_dir, "histogram")
+if histogram_dir not in sys.path:
+    sys.path.insert(0, histogram_dir)
 
 import torch
 import torch.nn as nn
