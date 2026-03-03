@@ -24,6 +24,9 @@ venv/
 output/
 cache/
 
+# Test data (do not track)
+test/score.txt
+
 # Local / private
 .mailmap
 
