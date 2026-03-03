@@ -24,6 +24,11 @@ import subprocess
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
+# Ensure histogram modules are importable regardless of clone path / CWD
+histogram_dir = os.path.join(current_dir, "histogram")
+if histogram_dir not in sys.path:
+    sys.path.insert(0, histogram_dir)
+
 # Support for SageAttention2 in virtual environment (venv)
 venv_site_packages = os.path.join(os.path.dirname(current_dir), "venv", "Lib", "site-packages")
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
