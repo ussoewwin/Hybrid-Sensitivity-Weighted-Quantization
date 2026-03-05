@@ -25,6 +25,14 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | perfectionRealisticILXL_60 | r0.1 | 11.02 | 0.9677 |
 | perfectionAsianILXL_v10 | r0.1 | 8.56 | 0.9732 |
 | obsessionIllustrious_vPredV20 | r0.1 | 10.23 | **0.9866** |
+| novaAsianXL_illustriousV70 | r0.1 | 14.84 | 0.9620 |
+| luminarqmixV8Noobaixl_v82 | r0.1 | 10.84 | **0.9683** |
+| koronemixVpred_v20 | r0.1 | 13.77 | 0.9622 |
+| koronemixIllustrious_v70 | r0.15 | 12.76 | **0.9735** |
+| JANKUTrainedNoobaiRouwei_v69 | r0.25 | 10.97 | 0.9614 |
+| harukiMIX_ponyV40 | r0.15 | 14.49 | 0.9645 |
+| harukiMIX_illustriousV40 | r0.1 | 6.79 | **0.9715** |
+| epicrealismXL_pureFix | r0.1 | 6.82 | **0.9783** |
 
 ---
 
