@@ -24,12 +24,6 @@ from tqdm import tqdm
 import sys
 import numpy as np
 
-# Ensure histogram modules are importable regardless of clone path / CWD
-current_dir = os.path.dirname(os.path.abspath(__file__))
-histogram_dir = os.path.join(current_dir, "histogram")
-if histogram_dir not in sys.path:
-    sys.path.insert(0, histogram_dir)
-
 # HSWQ modules
 from weighted_histogram_mse import HSWQWeightedHistogramOptimizer, WeightedHistogram, WeightedHistogram
 
