@@ -46,3 +46,4 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 - **MSE:** Mean Squared Error; 0 = perfect match.
 - **SSIM:** Structural Similarity; 1.0 = perfect match.
 - **Keep ratio:** Fraction of layers kept in FP16 (e.g. r0.1 = 10%, r0.15 = 15%). Blank = not recorded in source.
+- **Test environment:** RTX 5060 Ti 16GB, PyTorch 2.1.0 + CUDA 13.0.
