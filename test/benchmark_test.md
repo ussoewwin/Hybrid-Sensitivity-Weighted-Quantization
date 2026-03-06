@@ -34,7 +34,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | harukiMIX_illustriousV40 | r0.1 | 6.79 | **0.9715** |
 | epicrealismXL_pureFix | r0.1 | 6.82 | **0.9783** |
 | ebaraPonyXL_v21 | r0.1 | 30.14 | 0.9349 |
-| cyberrealistic_v100Redux | | 29.09 | **0.9749** |
+| cyberrealistic_v100Redux | r0.1 | 29.09 | **0.9749** |
 | cottonnoob_v50 | r0.1 | 6.46 | **0.9877** |
 
 ---
