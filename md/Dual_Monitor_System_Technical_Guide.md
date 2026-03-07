@@ -120,7 +120,7 @@ The implementation supports 4D (Conv2d), 3D (Transformer), and **2D** (Linear/em
 
 **SDXL V1.3 / ZIT 1.5 (explicit branches):**
 
-```267:276:quantize_sdxl_hswq_v1.3.py
+```266:277:quantize_sdxl_hswq_v1.3.py
             # 2. Importance Update (Input Activation)
             # V1.1: 2D input support
             inp_detached = input_tensor.detach()
@@ -137,7 +137,7 @@ The implementation supports 4D (Conv2d), 3D (Transformer), and **2D** (Linear/em
 
 **Running average:**
 
-```279:283:quantize_sdxl_hswq_v1.3.py
+```279:284:quantize_sdxl_hswq_v1.3.py
             if self.channel_importance is None:
                 self.channel_importance = current_imp
             else:
@@ -154,7 +154,7 @@ When computing the optimal amax for a layer that is **not** in `keep_layers`, th
 
 **SDXL V1.3:**
 
-```404:416:quantize_sdxl_hswq_v1.3.py
+```405:416:quantize_sdxl_hswq_v1.3.py
             # Get importance
             importance = None
             if name in dual_monitors:
@@ -198,7 +198,7 @@ All three scripts register a **forward hook** on every `Conv2d` and `Linear` mod
 
 **Hook (SDXL):**
 
-```295:315:quantize_sdxl_hswq_v1.3.py
+```296:305:quantize_sdxl_hswq_v1.3.py
 def hook_fn(module, input, output, name):
     if name not in dual_monitors:
         dual_monitors[name] = DualMonitor()
