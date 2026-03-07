@@ -105,10 +105,12 @@ def calculate_latent_mse(l1, l2):
 
 ---
 
-## 6. SSIM unchanged
+## 6. Why SSIM is not changed (stays in pixel space)
 
-- SSIM is still computed by the existing `calculate_metrics(img1, img2)` on decoded images (grayscale).
-- No new SSIM function was added; the reported SSIM and the grade logic are unchanged.
+- SSIM is defined for **structural/perceptual similarity** on **image-like data** (e.g. 0–255 luminance/grayscale).
+- Latents are **16ch, can be negative, different scale**; applying SSIM to raw latent is ill-conditioned and gives misleadingly low or unstable values.
+- We care about **how similar the decoded images look**, so SSIM should be computed on **final pixel output**, not on latent.
+- Therefore SSIM is **left unchanged**: still from `calculate_metrics(img1, img2)` on decoded images (grayscale). No new SSIM function was added; the reported SSIM and the grade logic are unchanged.
 
 ---
 
