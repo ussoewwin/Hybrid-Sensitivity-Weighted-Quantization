@@ -73,13 +73,13 @@ class FP8E4M3Quantizer:
 - **Normalized values:** \(2^{e-7}(1 + m/8)\), \(e\in[1,15]\), \(m\in[0,7]\).
 - **Denormals:** \(2^{-6}(m/8)\), \(m\in[1,7]\) (comment lines 38–39).
 
-### 2.2 Grid Construction — `_build_fp8_grid` (lines 45–59)
+### 2.2 Grid Construction — `_build_fp8_grid` (lines 46–60)
 
 **Formula:** The grid is the set of all distinct float32 values obtained by interpreting each byte in \([0,255]\) as `torch.float8_e4m3fn` and converting to float. NaNs and duplicates are removed; positives are sorted.
 
 **Code (exact):**
 
-```46:59:histogram/weighted_histogram_mse.py
+```46:60:histogram/weighted_histogram_mse.py
     def _build_fp8_grid(self):
         """Build full representable positive FP8 E4M3 grid (PyTorch native behavior)."""
         # All byte patterns (0-255) on device to avoid transfer cost
@@ -98,9 +98,9 @@ class FP8E4M3Quantizer:
 ```
 
 - `max_representable = 448.0` (FP8 E4M3 maximum positive value).
-- This **physical grid** ensures rounding matches PyTorch’s actual FP8 behavior.
+- This **physical grid** ensures rounding matches PyTorch's actual FP8 behavior.
 
-### 2.3 Quantize–Dequantize — `quantize_dequantize` (lines 60–91)
+### 2.3 Quantize–Dequantize — `quantize_dequantize` (lines 62–92)
 
 **Signature:** `quantize_dequantize(values, amax, scaled=True)`. Implements \(q(x,\,\Delta)\).
 
@@ -116,7 +116,7 @@ class FP8E4M3Quantizer:
 
 **Code (scaled branch):**
 
-```80:86:histogram/weighted_histogram_mse.py
+```81:87:histogram/weighted_histogram_mse.py
         if scaled:
             scale = self.max_representable / amax
             scaled_vals = values * scale
@@ -128,7 +128,7 @@ class FP8E4M3Quantizer:
 
 **Code (non-scaled branch):**
 
-```88:91:histogram/weighted_histogram_mse.py
+```88:92:histogram/weighted_histogram_mse.py
         else:
             clipped = values.clamp(-amax, amax)
             clipped = clipped.clamp(-self.max_representable, self.max_representable)
@@ -136,16 +136,16 @@ class FP8E4M3Quantizer:
             return dequantized
 ```
 
-Guard: if `amax <= 0`, returns zeros (lines 77–78).
+Guard: if `amax <= 0`, returns zeros (lines 78–79).
 
-### 2.4 Rounding to FP8 Grid — `_round_to_fp8_grid` (lines 93–108)
+### 2.4 Rounding to FP8 Grid — `_round_to_fp8_grid` (lines 94–109)
 
 **Formula:** For each absolute value \(a \ge 0\), find the nearest positive grid point:
 \(\mathrm{round}_{\mathrm{FP8}}(a) = \mathrm{argmin}_{g \in \textit{positive\_grid}} |a - g|\), then reapply sign.
 
 **Code (core):**
 
-```94:108:histogram/weighted_histogram_mse.py
+```94:109:histogram/weighted_histogram_mse.py
     def _round_to_fp8_grid(self, values: torch.Tensor) -> torch.Tensor:
         """Round values to nearest FP8 grid point."""
         signs = torch.sign(values)
@@ -167,7 +167,7 @@ Guard: if `amax <= 0`, returns zeros (lines 77–78).
 - Batching by 10000 elements limits memory for large tensors.
 - Distance matrix: `batch` shape `(N,)`, `_positive_grid` shape `(G,)` → `distances` shape `(N, G)`; `argmin(dim=1)` gives index of nearest grid point per element.
 
-### 2.5 Single-Value Error — `compute_quantization_error` (lines 110–115)
+### 2.5 Single-Value Error — `compute_quantization_error` (lines 111–115)
 
 **Formula:** \(\mathrm{error}(x,\,\Delta) = |q(x,\,\Delta) - x|\).
 
@@ -187,9 +187,9 @@ Used for debugging; the main optimization uses the full histogram and bin center
 
 ### 3.1 Role and Formula
 
-From the class docstring (lines 117–122): \(\alpha_{k,c} = I_c\); \(H(b) = \sum \alpha_{k,c}\) over all weight elements \((k,c)\) whose bin is \(b\).
+From the class docstring (lines 118–123): \(\alpha_{k,c} = I_c\); \(H(b) = \sum \alpha_{k,c}\) over all weight elements \((k,c)\) whose bin is \(b\).
 
-```117:123:histogram/weighted_histogram_mse.py
+```118:123:histogram/weighted_histogram_mse.py
 class WeightedHistogram:
     """
     HSWQ spec-compliant weighted histogram.
@@ -200,9 +200,9 @@ class WeightedHistogram:
 
 So the histogram is **not** a count of elements per bin; it is the **sum of importance** per bin. After building, it is **normalized** so that \(\sum_{i=0}^{B-1} H(i) = 1\).
 
-### 3.2 Constructor and State (lines 124–130)
+### 3.2 Constructor and State (lines 125–131)
 
-```124:130:histogram/weighted_histogram_mse.py
+```125:131:histogram/weighted_histogram_mse.py
     def __init__(self, bins: int = 4096, device: str = "cuda"):
         """Args: bins (affects precision), device."""
         self.bins = bins
@@ -215,7 +215,7 @@ So the histogram is **not** a count of elements per bin; it is the **sum of impo
 - `bins` \(= B\): number of histogram bins (e.g. 4096).
 - `histogram`, `max_val`, `total_weight` are set in `build()`.
 
-### 3.3 Building the Histogram — `build` (lines 132–177)
+### 3.3 Building the Histogram — `build` (lines 133–177)
 
 **Inputs:** `weight` (tensor), optional `importance` \(I_c\) (per-channel, shape \([I]\)).
 
@@ -223,7 +223,7 @@ So the histogram is **not** a count of elements per bin; it is the **sum of impo
 
 $$\text{max\_val} = \max_{k,c} |W_{k,c}|,\qquad \text{guard: if } \text{max\_val}=0 \text{ then set } 10^{-7}.$$
 
-```134:138:histogram/weighted_histogram_mse.py
+```135:139:histogram/weighted_histogram_mse.py
         weight = weight.detach().float().to(self.device)
         w_abs = weight.abs()
         self.max_val = w_abs.max().item()
@@ -260,6 +260,8 @@ $$\text{max\_val} = \max_{k,c} |W_{k,c}|,\qquad \text{guard: if } \text{max\_val
                                         device=self.device)
                     importance = torch.cat([importance, padding])
                 imp_expanded = importance.view(1, -1).expand_as(weight)
+            else:
+                imp_expanded = torch.ones_like(weight)
 ```
 
 **Step 3 — Binning and scatter-add:**
@@ -270,7 +272,7 @@ $$\text{max\_val} = \max_{k,c} |W_{k,c}|,\qquad \text{guard: if } \text{max\_val
 
 **Code:**
 
-```171:174:histogram/weighted_histogram_mse.py
+```169:173:histogram/weighted_histogram_mse.py
         bin_width = self.max_val / self.bins
         bin_indices = (w_abs / bin_width).long().clamp(0, self.bins - 1)
         self.histogram = torch.zeros(self.bins, dtype=torch.float64, device=self.device)
@@ -282,7 +284,7 @@ $$\text{max\_val} = \max_{k,c} |W_{k,c}|,\qquad \text{guard: if } \text{max\_val
 
 $$H(i) \leftarrow \frac{H_{\mathrm{raw}}(i)}{\sum_j H_{\mathrm{raw}}(j)},\qquad \sum_i H(i) = 1.$$
 
-```176:177:histogram/weighted_histogram_mse.py
+```175:177:histogram/weighted_histogram_mse.py
         self.total_weight = self.histogram.sum().item()
         if self.total_weight > 0:
             self.histogram = self.histogram / self.total_weight
@@ -292,7 +294,7 @@ $$H(i) \leftarrow \frac{H_{\mathrm{raw}}(i)}{\sum_j H_{\mathrm{raw}}(j)},\qquad 
 
 **Bin center formula:** \(x_i = (i + 0.5) \cdot \mathit{bin\_width}\) for \(i = 0,\,\ldots,\, B-1\), i.e. center of each bin in \([0,\,\text{max\_val}]\).
 
-```181:188:histogram/weighted_histogram_mse.py
+```179:188:histogram/weighted_histogram_mse.py
     def get_bin_centers(self) -> torch.Tensor:
         """Return center value of each bin."""
         bin_width = self.max_val / self.bins
@@ -315,7 +317,7 @@ $$H(i) \leftarrow \frac{H_{\mathrm{raw}}(i)}{\sum_j H_{\mathrm{raw}}(j)},\qquad 
 
 Finds \(\Delta^* = \arg\min_\Delta \sum_i H(i)(q(x_i,\Delta)-x_i)^2\) using the histogram and bin centers. Holds an `FP8E4M3Quantizer` instance for \(q\).
 
-```196:205:histogram/weighted_histogram_mse.py
+```195:203:histogram/weighted_histogram_mse.py
 class MSEOptimizer:
     """
     HSWQ spec-compliant MSE optimizer.
@@ -327,7 +329,7 @@ class MSEOptimizer:
         self.fp8_quantizer = FP8E4M3Quantizer(device)
 ```
 
-### 4.2 Weighted MSE — `compute_weighted_mse` (lines 206–218)
+### 4.2 Weighted MSE — `compute_weighted_mse` (lines 205–217)
 
 **Formula:** For a candidate \(\Delta = \text{amax}\),
 
@@ -335,7 +337,7 @@ $$\mathrm{MSE}(\Delta) = \sum_{i=0}^{B-1} H(i) \cdot \bigl(q(x_i,\,\Delta) - x_i
 
 **Code:**
 
-```207:218:histogram/weighted_histogram_mse.py
+```205:217:histogram/weighted_histogram_mse.py
     def compute_weighted_mse(self, 
                              histogram: torch.Tensor,
                              bin_centers: torch.Tensor,
@@ -353,7 +355,7 @@ $$\mathrm{MSE}(\Delta) = \sum_{i=0}^{B-1} H(i) \cdot \bigl(q(x_i,\,\Delta) - x_i
 
 - `bin_centers` are evaluated with \(q(\cdot,\,\text{amax})\); squared error per bin is then multiplied by \(H(i)\) and summed.
 
-### 4.3 Optimal amax Search — `find_optimal_amax` (lines 220–255)
+### 4.3 Optimal amax Search — `find_optimal_amax` (lines 219–254)
 
 **Inputs:** `weighted_hist`, `num_candidates`, `search_range` \((r_{\mathrm{lo}}, r_{\mathrm{hi}})\), `refinement_iterations`, `scaled`.
 
@@ -365,7 +367,7 @@ Example: `search_range=(0.5, 1.0)` → search in \([0.5\,\text{max\_val},\, 1.0\
 
 **Code (guard and initial bounds):**
 
-```227:236:histogram/weighted_histogram_mse.py
+```226:237:histogram/weighted_histogram_mse.py
         if weighted_hist.histogram is None or weighted_hist.max_val <= 0:
             return weighted_hist.max_val
         
@@ -377,6 +379,7 @@ Example: `search_range=(0.5, 1.0)` → search in \([0.5\,\text{max\_val},\, 1.0\
         if not scaled:
             pass  # compatible mode: 448 cap applied in quantizer
         best_amax = max_val
+        min_mse = float('inf')
 ```
 
 **Search loop:** For iteration \(t = 0,\,1,\,\ldots,\,\texttt{refinement\_iterations}\):
@@ -391,7 +394,7 @@ $$\mathit{low}_{t+1} = \max\bigl(0.1\,\text{max\_val},\; \Delta^*_t - \mathit{ra
 
 **Code (loop and refinement):**
 
-```241:255:histogram/weighted_histogram_mse.py
+```239:254:histogram/weighted_histogram_mse.py
         for iteration in range(refinement_iterations + 1):
             # Debug: log search bounds (initial + each refinement update)
             print(f"  [MSE SEARCH DEBUG] max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f} (iter {iteration})")
@@ -420,7 +423,7 @@ $$\mathit{low}_{t+1} = \max\bigl(0.1\,\text{max\_val},\; \Delta^*_t - \mathit{ra
 
 High-level API: given a weight tensor and optional per-channel importance, build the weighted histogram and run the MSE optimizer to get the best amax (and optionally stats).
 
-```259:275:histogram/weighted_histogram_mse.py
+```257:273:histogram/weighted_histogram_mse.py
 class HSWQWeightedHistogramOptimizer:
     """
     HSWQ weighted histogram optimizer: WeightedHistogram + FP8E4M3Quantizer + MSEOptimizer.
@@ -446,13 +449,13 @@ class HSWQWeightedHistogramOptimizer:
 
 Parameters: `bins`, `num_candidates`, `refinement_iterations`, `device`. A single `MSEOptimizer(device)` is stored as `self.mse_optimizer`.
 
-### 5.3 `compute_optimal_amax` (lines 276–291)
+### 5.3 `compute_optimal_amax` (lines 275–290)
 
 **Formula:** \(\Delta^* = \arg\min_\Delta \sum_i H(i)(q(x_i,\Delta)-x_i)^2\) where \(H\) and \(x_i\) are built from `weight` and `importance`.
 
 **Code:**
 
-```276:291:histogram/weighted_histogram_mse.py
+```275:290:histogram/weighted_histogram_mse.py
     def compute_optimal_amax(self,
                              weight: torch.Tensor,
                              importance: Optional[torch.Tensor] = None,
@@ -473,7 +476,7 @@ Parameters: `bins`, `num_candidates`, `refinement_iterations`, `device`. A singl
 
 This is the one-liner entry point used by quantizer scripts.
 
-### 5.4 `compute_optimal_amax_with_stats` (lines 293–319)
+### 5.4 `compute_optimal_amax_with_stats` (lines 292–318)
 
 Same optimization as above; additionally computes **estimated MSE** at the chosen amax and returns a dict.
 
@@ -488,7 +491,7 @@ Same optimization as above; additionally computes **estimated MSE** at the chose
 
 **Code:**
 
-```294:319:histogram/weighted_histogram_mse.py
+```292:318:histogram/weighted_histogram_mse.py
     def compute_optimal_amax_with_stats(self,
                                         weight: torch.Tensor,
                                         importance: Optional[torch.Tensor] = None,
@@ -522,7 +525,7 @@ Same optimization as above; additionally computes **estimated MSE** at the chose
 
 ## 6. Self-Test (`if __name__ == "__main__"`)
 
-The script runs four checks (lines 323–365):
+The script runs four checks (lines 322–367):
 
 1. **FP8 grid:** Build quantizer, print positive grid size, max representable, sample values.
 2. **Quantize–dequantize:** Run on a small tensor with amax=448, print original, dequantized, and errors.
@@ -531,7 +534,7 @@ The script runs four checks (lines 323–365):
 
 **Code (tests 1–2):**
 
-```327:344:histogram/weighted_histogram_mse.py
+```329:344:histogram/weighted_histogram_mse.py
     # Test 1: FP8 grid construction
     print("\n[Test 1] FP8 E4M3 Grid Construction")
     quantizer = FP8E4M3Quantizer(device)
@@ -546,7 +549,7 @@ The script runs four checks (lines 323–365):
 
 **Code (tests 3–4):**
 
-```347:364:histogram/weighted_histogram_mse.py
+```346:364:histogram/weighted_histogram_mse.py
     # Test 3: Weighted histogram
     ...
     hist = WeightedHistogram(bins=1024, device=device)
