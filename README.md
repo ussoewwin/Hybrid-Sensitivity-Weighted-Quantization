@@ -63,7 +63,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 
 - **Samples:** 32 (recommended) — number of calibration samples.
 - **Steps:** 25 — number of inference steps per sample during calibration.
-- **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL, 10% often gives sufficient quality; for Z Image Turbo, 25% is recommended.
+- **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL, 10% often gives sufficient quality.
 - **Latent:** 32–256, default 128 — calibration latent size (H/W). Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity.
 
 ---
