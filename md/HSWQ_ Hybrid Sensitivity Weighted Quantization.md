@@ -48,7 +48,7 @@ Instead of theoretical formulas (`2 ** E * ...`), a **physical grid** is used: a
 This simulates implementation-dependent rounding and special values exactly, ensuring MSE calculations match the real runtime environment.
 
 ### 2.3. Weighted MSE Optimization
-Parameters that minimize quantization error are searched using the collected importance histogram.
+Parameters that minimize quantization error are searched using the collected importance histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](Weighted_Histogram_MSE_Technical_Guide.md).
 
 ---
 
