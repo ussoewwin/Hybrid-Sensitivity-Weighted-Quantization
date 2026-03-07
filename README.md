@@ -48,7 +48,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 
 2. **Rigorous FP8 Grid Simulation** — Uses a physical grid (all 0–255 values cast to `torch.float8_e4m3fn`) instead of theoretical formulas, so MSE matches real runtime.
 
-3. **Weighted MSE Optimization** — Finds parameters that minimize quantization error using the importance histogram.
+3. **Weighted MSE Optimization** — Finds parameters that minimize quantization error using the importance histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
 
 ---
 
