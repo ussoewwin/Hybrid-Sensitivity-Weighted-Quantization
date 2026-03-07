@@ -247,7 +247,7 @@ class CLIP:
             else:
                 m, u = self.load_sd(state_dict, full_model=True)
                 if len(m) > 0:
-                    m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
+                    m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a and "text_projection.weight" not in a, m))
                     if len(m_filter) > 0:
                         logging.warning("clip missing: {}".format(m))
                     else:
