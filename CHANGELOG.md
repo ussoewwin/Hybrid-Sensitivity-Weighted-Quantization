@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+**Flux benchmark** — MSE is now computed in latent space (before VAE decode) so quantization error is measured without VAE amplification; SSIM stays in pixel space (decoded images) for perceptual quality. Generator returns raw latent for metrics.  
+Release notes: [v1.1.1](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.1.1) (to be published)
+
 ## 1.1.0
 
 **SDXL V1.3: deterministic calibration** — Full reproducibility for calibration: global RNG seeds (`random`, `numpy`, `torch`, CUDA) and cuDNN settings (`deterministic=True`, `benchmark=False`) are fixed at script start; a fixed `generator` is passed to the diffusers pipeline so initial latents are identical across runs and machines. Original non-deterministic script archived as `archives/quantize_sdxl_hswq_v1.3(random_seed).py`.  
