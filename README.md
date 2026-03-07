@@ -45,6 +45,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 1. **Dual Monitor System** — During calibration, two metrics are collected:
    - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL, 10% is often sufficient).
    - **Importance** (input mean absolute value): per-channel contribution → used as weights in the weighted histogram.
+   **Technical details:** [Dual Monitor System — Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
 2. **Rigorous FP8 Grid Simulation** — Uses a physical grid (all 0–255 values cast to `torch.float8_e4m3fn`) instead of theoretical formulas, so MSE matches real runtime.
 

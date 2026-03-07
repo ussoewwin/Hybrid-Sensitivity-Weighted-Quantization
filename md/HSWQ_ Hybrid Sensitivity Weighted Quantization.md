@@ -43,6 +43,8 @@ During calibration inference, statistics are collected from two perspectives.
     *   **Metric**: Input tensor mean absolute value $\text{Mean}(|X|_c)$.
     *   **Action**: Used as **weights** in the weighted histogram.
 
+**Technical details:** [Dual Monitor System — Technical Guide](Dual_Monitor_System_Technical_Guide.md).
+
 ### 2.2. Rigorous FP8 Grid Simulation
 Instead of theoretical formulas (`2 ** E * ...`), a **physical grid** is used: all byte values (0–255) are cast to PyTorch’s `torch.float8_e4m3fn` type.
 This simulates implementation-dependent rounding and special values exactly, ensuring MSE calculations match the real runtime environment.
