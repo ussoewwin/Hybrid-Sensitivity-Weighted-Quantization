@@ -36,8 +36,8 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | ebaraPonyXL_v21 | r0.1 | 30.14 | 0.9349 |
 | cyberrealistic_v100Redux | r0.1 | 29.09 | **0.9749** |
 | cottonnoob_v50 | r0.1 | 6.46 | **0.9877** |
-| bluePencilXL_v031 | | 24.48 | 0.9006 |
-| asianRealismByStable_v30FP16 | | 30.26 | 0.9129 |
+| bluePencilXL_v031 | r0.1 | 24.48 | 0.9006 |
+| asianRealismByStable_v30FP16 | r0.1 | 30.26 | 0.9129 |
 
 ---
 
@@ -73,8 +73,8 @@ Lower MSE is better; higher SSIM is better. Δ = Native − HSWQ (positive Δ MS
 | ebaraPonyXL_v21 | r0.1 | 30.14 | 33.50 | +3.36 | 0.9349 | 0.9203 | +0.0146 | HSWQ |
 | cyberrealistic_v100Redux | r0.1 | 29.09 | 79.72 | +50.63 | 0.9749 | 0.9322 | +0.0427 | HSWQ |
 | cottonnoob_v50 | r0.1 | 6.46 | 22.28 | +15.82 | 0.9877 | 0.9524 | +0.0353 | HSWQ |
-| bluePencilXL_v031 | — | 24.48 | 41.67 | +17.19 | 0.9006 | 0.8808 | +0.0198 | HSWQ |
-| asianRealismByStable_v30FP16 | — | 30.26 | 12.00 | −18.26 | 0.9129 | 0.9432 | −0.0303 | Native |
+| bluePencilXL_v031 | r0.1 | 24.48 | 41.67 | +17.19 | 0.9006 | 0.8808 | +0.0198 | HSWQ |
+| asianRealismByStable_v30FP16 | r0.1 | 30.26 | 12.00 | −18.26 | 0.9129 | 0.9432 | −0.0303 | Native |
 
 **Winner** = better on both MSE and SSIM. asianRealismByStable_v30FP16: Native wins (to be verified). Native measurements are not yet complete for all models.
 
