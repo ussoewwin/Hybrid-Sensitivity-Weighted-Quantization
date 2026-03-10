@@ -45,13 +45,13 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 Same setup (vs FP16 reference). **HSWQ FP8** vs baseline (see below).  
 Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ MSE ⇒ HSWQ better; positive Δ SSIM ⇒ HSWQ better).  
-**Native** = naive cast FP8. **Official FP8** = officially distributed FP8. Native and Official FP8 are not the same.
+**Native** = naive cast FP8. **Official FP8** = officially distributed FP8. Native and Official FP8 are not the same. **N/A** = no baseline score measured.
 
 | Model | Keep | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Winner |
 |-------|------|----------|--------------|-------|-----------|---------------|--------|--------|
-| waiREALISM_v10 | r0.1 | 10.72 | — | — | 0.9538 | — | — | — |
-| waiREALCN_v150 | r0.15 | 31.20 | — | — | 0.9317 | — | — | — |
-| waiIllustriousSDXL_v160 | r0.1 | 19.05 | — | — | 0.9333 | — | — | — |
+| waiREALISM_v10 | r0.1 | 10.72 | N/A | N/A | 0.9538 | N/A | N/A | N/A |
+| waiREALCN_v150 | r0.15 | 31.20 | N/A | N/A | 0.9317 | N/A | N/A | N/A |
+| waiIllustriousSDXL_v160 | r0.1 | 19.05 | N/A | N/A | 0.9333 | N/A | N/A | N/A |
 | waiANIPONYXL_v140 | r0.15 | 15.64 | 23.00 | +7.36 | 0.9361 | 0.9306 | -0.0055 | — |
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 20.49 | +2.00 | 0.9233 | 0.9364 | +0.0131 | — |
 | uwazumimixILL_v50 | r0 | 13.76 | 11.80 | −1.96 | 0.9641 | 0.9542 | −0.0099 | — |
