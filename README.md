@@ -23,6 +23,25 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo*
 
 **Benchmark results:** [SDXL (MSE / SSIM)](test/benchmark_test.md)
 
+### Analysis & Key Findings (HSWQ V1.3)
+
+The comprehensive benchmark results demonstrate that **HSWQ V1.3** provides a profound advantage over standard naive FP8 conversion, proving essential for structurally vulnerable SDXL models.
+
+1. **Rescuing "Unstable" Models from Native FP8 Collapse**  
+   Standard naive FP8 casting frequently destroys models with irregular weight distributions or extreme outliers. Several models in this test—such as **JANKUTrainedNoobaiRouwei_v69** (SSIM drops to **0.8872**), **unholyDesireMixSinister_v60** (**0.8694**), and **waiIllustriousSDXL_v160** (**0.8864**)—suffered catastrophic structural collapse under Native FP8. **HSWQ V1.3**'s Dual-Monitor engine dynamically identifies high-variance layers and protects them in FP16, successfully pulling these models back to highly usable states (SSIM **0.93–0.96+**) while drastically reducing Mean Squared Error (MSE).
+
+2. **The Raw Power of Weighted Histogram Optimization (Even at r=0)**  
+   The results for **uwazumimixILL_v50** (tested at **r0**, meaning 0% FP16 protection) highlight the core strength of the V1.3 algorithm. Even when forcing the entire UNet into FP8 without any protective fallback, HSWQ achieved an SSIM of **0.9641** (outperforming the naive baseline's **0.9542**) while significantly lowering MSE. This proves that HSWQ's exact-grid MSE optimization, weighted by input activations, is fundamentally superior to naive casting on its own.
+
+3. **Near-Lossless Fidelity for Modern Architectures**  
+   Highly evolved architectures like Pony and Illustrious derivatives (e.g., **cottonnoob_v50**, **obsessionIllustrious_vPredV20**, **epicrealismXL_pureFix**) show exceptional tolerance to HSWQ, frequently scoring between **0.97** and **0.98+** SSIM. Their optimized parameter distributions allow HSWQ to compress them aggressively with virtually zero human-perceivable degradation.
+
+4. **PTQ Limitations vs. Official FP8 Releases**  
+   In one specific instance (**asianRealismByStable_v30FP16**), the officially distributed FP8 model outperforms HSWQ. This transparently illustrates the natural limitations of Post-Training Quantization (PTQ) when compared to Quantization-Aware Training (QAT) or a publisher's manually curated FP8 release. However, for the vast majority of community merges and finetunes that lack an official FP8 release, HSWQ clearly stands as the definitive quantization solution.
+
+**Conclusion:**  
+HSWQ V1.3 offers a highly efficient, structurally safe quantization strategy for SDXL. By relying on activation variance for targeted FP16 protection and importance-weighted histogram clipping for FP8 optimization, it consistently prevents structural collapse, maximizes VRAM efficiency, and outperforms naive conversion without the overhead of heavy computational operations.
+
 ---
 
 ## Overview
