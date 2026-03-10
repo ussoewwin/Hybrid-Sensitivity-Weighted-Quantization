@@ -43,11 +43,12 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 ## HSWQ vs Native FP8 comparison (partial)
 
-Same setup (vs FP16 reference). **HSWQ FP8** vs **Native FP8 (naive cast)**.  
-Lower MSE is better; higher SSIM is better. Δ = Native − HSWQ (positive Δ MSE ⇒ HSWQ better; positive Δ SSIM ⇒ HSWQ better).
+Same setup (vs FP16 reference). **HSWQ FP8** vs baseline (see below).  
+Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ MSE ⇒ HSWQ better; positive Δ SSIM ⇒ HSWQ better).  
+**Native** = naive cast FP8. **Official FP8** = officially distributed FP8. Native and Official FP8 are not the same.
 
-| Model | Keep | HSWQ MSE | Native MSE | Δ MSE | HSWQ SSIM | Native SSIM | Δ SSIM | Winner |
-|-------|------|----------|------------|-------|-----------|-------------|--------|--------|
+| Model | Keep | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Winner |
+|-------|------|----------|--------------|-------|-----------|---------------|--------|--------|
 | waiREALISM_v10 | r0.1 | 10.72 | — | — | 0.9538 | — | — | — |
 | waiREALCN_v150 | r0.15 | 31.20 | — | — | 0.9317 | — | — | — |
 | waiIllustriousSDXL_v160 | r0.1 | 19.05 | — | — | 0.9333 | — | — | — |
@@ -74,9 +75,9 @@ Lower MSE is better; higher SSIM is better. Δ = Native − HSWQ (positive Δ MS
 | cyberrealistic_v100Redux | r0.1 | 29.09 | 79.72 | +50.63 | 0.9749 | 0.9322 | +0.0427 | HSWQ |
 | cottonnoob_v50 | r0.1 | 6.46 | 22.28 | +15.82 | 0.9877 | 0.9524 | +0.0353 | HSWQ |
 | bluePencilXL_v031 | r0.1 | 24.48 | 41.67 | +17.19 | 0.9006 | 0.8808 | +0.0198 | HSWQ |
-| asianRealismByStable_v30FP16 | r0.1 | 30.26 | 12.00 | −18.26 | 0.9129 | 0.9432 | −0.0303 | Native |
+| asianRealismByStable_v30FP16 | r0.1 | 30.26 | 12.00 | −18.26 | 0.9129 | 0.9432 | −0.0303 | Official FP8 |
 
-**Winner** = better on both MSE and SSIM. asianRealismByStable_v30FP16: Native wins (to be verified). Native measurements are not yet complete for all models.
+**Winner** = better on both MSE and SSIM. For asianRealismByStable_v30FP16, the publisher distributes an official FP8 version; that official FP8 outperforms HSWQ.
 
 ---
 
