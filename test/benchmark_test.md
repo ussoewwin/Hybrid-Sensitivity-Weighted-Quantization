@@ -20,7 +20,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | 0.9336 |
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | 0.9452 |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | **0.9751** |
-| ealvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 0.9367 |
+| realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 0.9367 |
 | prefectIllustriousXL_v70 | r0.1 | 17.14 | 0.9157 |
 | perfectionRealisticILXL_60 | r0.1 | 11.02 | 0.9677 |
 | perfectionAsianILXL_v10 | r0.1 | 8.56 | 0.9732 |
@@ -58,7 +58,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | — | — | 0.9336 | — | — | — |
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | — | — | 0.9452 | — | — | — |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | — | — | 0.9751 | — | — | — |
-| ealvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | — | — | 0.9367 | — | — | — |
+| realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | — | — | 0.9367 | — | — | — |
 | prefectIllustriousXL_v70 | r0.1 | 17.14 | — | — | 0.9157 | — | — | — |
 | perfectionRealisticILXL_60 | r0.1 | 11.02 | — | — | 0.9677 | — | — | — |
 | perfectionAsianILXL_v10 | r0.1 | 8.56 | 22.37 | +13.81 | 0.9732 | 0.9596 | +0.0136 | HSWQ |
