@@ -307,25 +307,20 @@ def run_inference(model, prompt_embeds, prompt_mask, steps, seed, device):
     
     return result, end_time - start_time, peak_vram
 
-def calculate_metrics(l1, l2):
-    # Convert to numpy float32 for stable calculation
+def calculate_latent_mse(l1, l2):
+    """MSE on raw latent tensors."""
     arr1 = l1[0].cpu().float().numpy()
     arr2 = l2[0].cpu().float().numpy()
-    
     if np.array_equal(arr1, arr2):
         print("  CRITICAL WARNING: Raw latents are bit-perfect identical.")
-    
-    mse = np.mean((arr1 - arr2) ** 2)
-    
-    combined_min = min(arr1.min(), arr2.min())
-    combined_max = max(arr1.max(), arr2.max())
-    data_range = combined_max - combined_min
-    
-    arr1_hwc = arr1.transpose(1, 2, 0)
-    arr2_hwc = arr2.transpose(1, 2, 0)
-    
-    score_ssim = ssim(arr1_hwc[:, :, :3], arr2_hwc[:, :, :3], win_size=3, channel_axis=2, data_range=data_range)
-    return mse, score_ssim
+    return float(np.mean((arr1 - arr2) ** 2))
+
+
+def calculate_ssim_normalized(img1, img2):
+    """SSIM on 0-255 images (e.g. from latent_to_img)."""
+    a1 = np.array(img1)
+    a2 = np.array(img2)
+    return float(ssim(a1, a2, win_size=3, channel_axis=2, data_range=255))
 
 def print_model_stats(model, name, original_state_dict=None):
     try:
@@ -369,6 +364,7 @@ def main():
     parser.add_argument("--clip_path", required=True, help="Qwen3-4B text encoder path")
     parser.add_argument("--tokenizer_path", default=None, help="Tokenizer path or Repo ID")
     parser.add_argument("--comfy_path", required=True, help="ComfyUI root path")
+    parser.add_argument("--vae", default=None, help="VAE path; if set, decode latents with VAE and compute SSIM on decoded pixel images (like Flux)")
     parser.add_argument("--prompt", default="A beautiful cyberpunk city at night, high detail.", help="Benchmark prompt")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=int, default=20)
@@ -385,6 +381,19 @@ def main():
     if args.comfy_path not in sys.path:
         sys.path.insert(0, args.comfy_path)
     print(f"  ComfyUI Path set to: {args.comfy_path}")
+
+    vae_obj = None
+    if args.vae:
+        if not os.path.isfile(args.vae) and not os.path.isdir(args.vae):
+            print(f"  Warning: --vae path not found: {args.vae}")
+        else:
+            import folder_paths
+            import nodes
+            vae_dir = os.path.dirname(os.path.abspath(args.vae))
+            folder_paths.add_model_folder_path("vae", vae_dir)
+            vae_loader = nodes.VAELoader()
+            vae_obj = vae_loader.load_vae(vae_name=os.path.basename(args.vae))[0]
+            print(f"  Loaded VAE for decode: {os.path.basename(args.vae)}")
     
     try:
         from comfy.text_encoders import llama as llama_module
@@ -454,7 +463,13 @@ def main():
     latents_fp16, time_fp16, vram_fp16 = run_inference(model, embeds, mask, args.steps, args.seed, device)
     print(f"FP16 Time: {time_fp16:.2f}s | Peak VRAM: {vram_fp16:.2f} MB")
     
-    img_fp16 = latent_to_img(latents_fp16)
+    if vae_obj is not None:
+        vae_decode = nodes.VAEDecode()
+        samples = {"samples": latents_fp16}
+        image_tensor = vae_decode.decode(vae=vae_obj, samples=samples)[0]
+        img_fp16 = Image.fromarray(np.clip(255.0 * image_tensor[0].cpu().numpy(), 0, 255).astype(np.uint8))
+    else:
+        img_fp16 = latent_to_img(latents_fp16)
     img_fp16.save("bench_fp16.png")
     
     del model
@@ -468,11 +483,18 @@ def main():
     latents_fp8, time_fp8, vram_fp8 = run_inference(model, embeds, mask, args.steps, args.seed, device)
     print(f"FP8 Time: {time_fp8:.2f}s | Peak VRAM: {vram_fp8:.2f} MB")
     
-    img_fp8 = latent_to_img(latents_fp8)
+    if vae_obj is not None:
+        vae_decode = nodes.VAEDecode()
+        samples = {"samples": latents_fp8}
+        image_tensor = vae_decode.decode(vae=vae_obj, samples=samples)[0]
+        img_fp8 = Image.fromarray(np.clip(255.0 * image_tensor[0].cpu().numpy(), 0, 255).astype(np.uint8))
+    else:
+        img_fp8 = latent_to_img(latents_fp8)
     img_fp8.save("bench_fp8.png")
     
-    # Comparison
-    mse, score = calculate_metrics(latents_fp16, latents_fp8)
+    # Comparison: MSE in latent space, SSIM on normalized 0-255 view (latent_to_img)
+    mse = calculate_latent_mse(latents_fp16, latents_fp8)
+    score = calculate_ssim_normalized(img_fp16, img_fp8)
     
     print("\n" + "="*50)
     print("ZIT FP8 BENCHMARK RESULTS")
@@ -487,9 +509,10 @@ def main():
     print(f"Inference Time:       FP16: {time_fp16:>8.2f}s")
     print(f"                      FP8:  {time_fp8:>8.2f}s")
     print("-" * 50)
-    print(f"Fidelity (Latent Space):")
-    print(f"  MSE (Error):        {mse:.4f}")
-    print(f"  SSIM (Similarity):  {score:.4f}")
+    print(f"Fidelity:")
+    print(f"  MSE (latent):       {mse:.4f}")
+    ssim_label = "SSIM (decoded)" if vae_obj is not None else "SSIM (0-255 view)"
+    print(f"  {ssim_label}:  {score:.4f}")
     print("="*50)
 
     diff_img = ImageChops.difference(img_fp16, img_fp8)
