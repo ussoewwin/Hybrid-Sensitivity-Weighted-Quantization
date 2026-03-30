@@ -36,7 +36,7 @@ During calibration inference, statistics are collected from two perspectives.
 1.  **Sensitivity Monitor (output variance)**:
     *   **Purpose**: Identify layers whose corruption severely degrades image quality.
     *   **Metric**: Output tensor variance $\text{Var}(Y)$.
-    *   **Action**: Layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL, 10% often gives sufficient quality; for ZIT, r1.0 is sufficient).
+    *   **Action**: Layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL and ZIT, 10% often gives sufficient quality).
 
 2.  **Importance Monitor (input importance)**:
     *   **Purpose**: Identify which input channels contribute most to the computation.
@@ -110,7 +110,7 @@ graph TD
 ### 5.1. Recommended Parameters
 *   **Samples**: 32 (recommended).
 *   **Keep Ratio**: `0.25` (25%)
-    *   Safety margin to protect critical layers; for SDXL, 10% often gives sufficient quality; for ZIT, r1.0 is sufficient.
+    *   Safety margin to protect critical layers; for SDXL and ZIT, 10% often gives sufficient quality.
 *   **Steps**: `20–25`
     *   To include sensitivity from the early denoising stages.
 *   **Latent**: 32–256; 128 (recommended) — calibration latent size (H/W).
