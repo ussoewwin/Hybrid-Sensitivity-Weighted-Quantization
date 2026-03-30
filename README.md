@@ -43,7 +43,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 ## Architecture
 
 1. **Dual Monitor System** — During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL, 10% is often sufficient).
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL, 10% often gives sufficient quality; for ZIT, r1.0 is sufficient).
    - **Importance** (input mean absolute value): per-channel contribution → used as weights in the weighted histogram.
    **Technical details:** [Dual Monitor System — Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
