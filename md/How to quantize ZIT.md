@@ -55,14 +55,11 @@ Use the converted safetensors file, e.g. `clip/qwen3_4b_abliterated_fp16_convert
 Adjust the file paths to your environment.
 
 ```bash
-python quantize_zit_hswq_v1.5.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_L128_r0.25_v1.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.25 --latent 128 --sa2
+python quantize_zib_hswq_v1.92.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_r32_r0.25_v1.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.1 --sa2
 ```
 
 **Notes:**
 
 - **Samples:** 32 (recommended).
-- **Latent:** 32–256; 128 (recommended).
-- **Keep ratio:** 0.25.
-- Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity; default is 128.
-- **GPU:** For `--latent 256`, RTX 5090 or above is recommended; for `--latent 32`, RTX 5060 Ti 16GB is sufficient.
+- **Keep ratio:** 0.1 (as in the example). Adjust if you want to trade off quality vs. memory/speed.
 - Optional `--sa2` enables SageAttention2; it does not degrade calibration scores (no significant speed gain).
