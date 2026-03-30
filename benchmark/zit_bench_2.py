@@ -455,7 +455,7 @@ def main():
     # Verify offload: text encoder must reside on CPU during ZIT benchmark
     te_device = next(text_encoder.parameters()).device
     print(f"  [Offload] Text encoder on {te_device} (VRAM freed for ZIT benchmark).")
-    
+
     # FP16 Benchmark
     print("\n=== 1. Benchmarking Baseline (FP16) ===")
     model, state_dict_fp16 = load_zit_model(args.fp16, device, args.comfy_path, is_fp8=False)
