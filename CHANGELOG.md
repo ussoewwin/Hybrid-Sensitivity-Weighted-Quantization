@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2
+
+**zit_bench: SSIM calculation fixed** — SSIM is now computed in pixel space (normalized `latent_to_img()` output by default, or VAE-decoded pixels with `--vae`) so the score reflects visual structural differences reliably. Latent-space MSE is kept as the numeric fidelity metric.  
+Release notes: [v1.1.2](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.1.2) (to be published)
+
 ## 1.1.1
 
 **Flux benchmark** — MSE is now computed in latent space (before VAE decode) so quantization error is measured without VAE amplification; SSIM stays in pixel space (decoded images) for perceptual quality. Generator returns raw latent for metrics.  
