@@ -23,7 +23,7 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo*
 
 **Benchmark results:**
 - **SDXL:** [MSE / SSIM](test/benchmark_test.md)
-- **ZIT:** [MSE / SSIM](test/benchmark_zit.md)
+- **Z Image:** [MSE / SSIM](test/benchmark_zit.md)
 
 ---
 

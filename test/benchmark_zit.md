@@ -1,6 +1,6 @@
-# ZIT Benchmark Test Results
+# Z Image Benchmark Test Results
 
-Benchmark comparison: **FP16 reference** vs **HSWQ FP8 quantized** output (Z-Image / ZIT family).  
+Benchmark comparison: **FP16 reference** vs **HSWQ FP8 quantized** output (Z Image Turbo family).  
 Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 **Source:** `test/score_zi.txt`
@@ -44,6 +44,6 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 ---
 
-## Analysis & Key Findings (ZIT, partial)
+## Analysis & Key Findings (Z Image, partial)
 
 For every model in `score_zi.txt` with a Native FP8 or Official FP8 baseline, **HSWQ** shows lower latent MSE and higher SSIM than that baseline, with large gaps vs naive Native FP8 on several checkpoints. **moodyRealMix_zitV4DPO** uses an **Official FP8** baseline; HSWQ still wins on both metrics in this run. Expand this section as more models and baselines are added to `score_zi.txt`.
