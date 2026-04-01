@@ -26,6 +26,7 @@ cache/
 
 # Test data (do not track)
 test/score.txt
+test/score_zi.txt
 
 # Local / private
 .mailmap
