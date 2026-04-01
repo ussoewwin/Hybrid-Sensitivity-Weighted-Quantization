@@ -1,4 +1,4 @@
-# How to quantize Z Image Turbo (ZI)
+# How to quantize Z Image (ZI)
 
 The dedicated VRAM for the GPU must be **24GB or more**.
 
