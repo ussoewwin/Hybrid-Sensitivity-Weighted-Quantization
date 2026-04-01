@@ -2,6 +2,8 @@
 
 The dedicated VRAM for the GPU must be **24GB or more**.
 
+**Z Image base models are not recommended for HSWQ quantization. Please select a Z Image turbo model instead.**
+
 ## Clone the repository
 
 ```bash
