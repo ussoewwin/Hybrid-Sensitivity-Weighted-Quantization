@@ -95,3 +95,4 @@ Version history and release notes are in [CHANGELOG.md](CHANGELOG.md).
 This project is built upon the following repositories:
 
 - **[ComfyUI](https://github.com/Comfy-Org/ComfyUI)** — The most powerful and modular diffusion model GUI, API and backend with a graph/nodes interface by [@Comfy-Org](https://github.com/Comfy-Org).
+
