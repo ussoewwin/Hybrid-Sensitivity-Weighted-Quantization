@@ -30,6 +30,7 @@ test/score_zi.txt
 
 # Local / private
 .mailmap
+md/SDXL_反省文.md
 
 # Local push/tag scripts (excluded from repo)
 do_push.ps1
