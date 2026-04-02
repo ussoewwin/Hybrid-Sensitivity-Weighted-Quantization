@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.3
+
+**Documentation: HSWQ V4 hybrid SVD–RMS technical guide published** — Full technical guide for the V4 weighted histogram optimizer (`histogram/weighted_histogram_mse_v4.py`): full-SVD structural leverage + RMS magnitude blend, FP8 E4M3 grid simulation, weighted MSE search, and how V4 fits the HSWQ pipeline (including Z Image / NextDiT context). README **Architecture** links to this guide under Weighted MSE Optimization.  
+Guide: [md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)  
+Release notes: [v1.1.3](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.1.3) (to be published)
+
 ## 1.1.2
 
 **zit_bench: SSIM calculation fixed** — SSIM is now computed in pixel space (normalized `latent_to_img()` output by default, or VAE-decoded pixels with `--vae`) so the score reflects visual structural differences reliably. Latent-space MSE is kept as the numeric fidelity metric.  
