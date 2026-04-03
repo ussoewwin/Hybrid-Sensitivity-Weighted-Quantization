@@ -316,7 +316,7 @@ def main():
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
     parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples (HSWQ recommended: 256)")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
-    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (HSWQ recommended: 0.25 for quality)")
+    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL/ZIT)")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

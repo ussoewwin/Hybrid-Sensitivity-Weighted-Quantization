@@ -36,5 +36,5 @@ python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.saf
 **Notes:**
 
 - **Samples:** 32 (recommended).
-- **Keep ratio:** 0.25. 0.1 can maintain sufficient quality for SDXL.
+- **Keep ratio:** 0.25 in the example; use `0.05`–`0.25` as needed. For SDXL and ZIT, 0.05–0.10 often maintains sufficient quality.
 - **SageAttention2 (SA2) is not used for SDXL calibration.** Calibration uses native PyTorch SDPA only. SA2 was found to slightly lower calibration scores (SSIM) and to provide no meaningful speed gain, so it is excluded to keep calibration pure and reproducible.
