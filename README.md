@@ -45,7 +45,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 ## Architecture
 
 1. **Dual Monitor System** — During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL and ZIT, 10% often gives sufficient quality).
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 5–25% kept in FP16 (for SDXL and ZIT, 5–10% often gives sufficient quality).
    - **Importance** (input mean absolute value): per-channel contribution → used as weights in the weighted histogram.
    **Technical details:** [Dual Monitor System — Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
@@ -66,7 +66,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 
 - **Samples:** 32 (recommended) — number of calibration samples.
 - **Steps:** 25 — number of inference steps per sample during calibration.
-- **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL and ZIT, 10% often gives sufficient quality.
+- **Keep ratio:** 5–25% — keeps critical layers in FP16. For SDXL and ZIT, 5–10% often gives sufficient quality.
 - **Latent:** 32–256, default 128 — calibration latent size (H/W). Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity.
 
 ---

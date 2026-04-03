@@ -24,7 +24,7 @@ Each word in **HSWQ** corresponds to a core design choice:
 | Word | Meaning | Implementation |
 |------|---------|----------------|
 | **Hybrid** | Combines two orthogonal monitoring perspectives — **sensitivity** (output-side) and **importance** (input-side) — in a single calibration pass. Neither alone is sufficient. | Dual Monitor System: one hook per layer collects both metrics simultaneously. |
-| **Sensitivity** | Output variance \(\mathrm{Var}(Y)\) identifies which layers, if corrupted, would hurt image quality the most. | Layer Selection: top 10–25% by sensitivity are kept in FP16; the rest are quantized. |
+| **Sensitivity** | Output variance \(\mathrm{Var}(Y)\) identifies which layers, if corrupted, would hurt image quality the most. | Layer Selection: top 5–25% by sensitivity are kept in FP16; the rest are quantized. |
 | **Weighted** | Per-element importance weights \(\alpha_{m,n}\) control how quantization error is distributed. The MSE objective is not uniform — it penalizes errors on important elements more heavily. | Weighted Histogram MSE: importance-weighted histogram \(H(i)\), not frequency histogram, drives the amax search. |
 | **Quantization** | FP8 E4M3 post-training quantization with a physically accurate grid simulation. No retraining. | FP8E4M3Quantizer: grid built from all 256 byte patterns, ensuring MSE matches runtime behavior exactly. |
 
@@ -39,7 +39,7 @@ Stage 1: Dual Monitor (Calibration)
 
 Stage 2: Layer Selection
     ├── Sort layers by Sensitivity (descending)
-    ├── Top keep_ratio (10–25%) → Keep in FP16 (no quantization)
+    ├── Top keep_ratio (5–25%) → Keep in FP16 (no quantization)
     └── Remaining layers → Proceed to Stage 3
 
 Stage 3: Weighted MSE Optimization (per FP8 layer)

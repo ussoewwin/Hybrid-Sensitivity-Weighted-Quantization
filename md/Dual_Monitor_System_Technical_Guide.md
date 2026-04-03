@@ -9,7 +9,7 @@ During calibration, the HSWQ pipeline collects two metrics per layer: **Sensitiv
 
 | Metric | What it measures | How it is used |
 |--------|------------------|----------------|
-| **Sensitivity** | Output variance \(\mathrm{Var}(Y)\) of each layer | Sort layers by sensitivity; **top 10–25% kept in FP16** (most critical). |
+| **Sensitivity** | Output variance \(\mathrm{Var}(Y)\) of each layer | Sort layers by sensitivity; **top 5–25% kept in FP16** (most critical). |
 | **Importance** | Per-channel mean absolute value of **input** \(X\) | Used as **weights** \(I_c\) in the weighted histogram when computing optimal amax. |
 
 Both are collected **simultaneously** in a single calibration forward pass via a single hook per layer (`DualMonitor.update(input_tensor, output_tensor)`).
@@ -67,7 +67,7 @@ Flux 1.6 and ZIT 1.5 use the same formula (accumulate `output_sum`, `output_sq_s
 
 ### 2.3 Usage: Layer Selection
 
-After calibration, layers are sorted by sensitivity **descending**; the top `keep_ratio` (e.g. 10% or 25%) are kept in FP16, the rest are quantized.
+After calibration, layers are sorted by sensitivity **descending**; the top `keep_ratio` (e.g. 5–10% or 25%) are kept in FP16, the rest are quantized.
 
 **SDXL V1.3:**
 
