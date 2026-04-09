@@ -9,6 +9,7 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo*
 **Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
 
 **SDXL models:** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
+**Z Image models:** [Hugging Face — HSWQ-Z-Image-fp8e4m3](https://huggingface.co/ussoewwin/HSWQ-Z-Image-fp8e4m3)
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/logo.png" width="400">
@@ -45,13 +46,13 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 ## Architecture
 
 1. **Dual Monitor System** — During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 5–25% kept in FP16 (for SDXL and ZIT, 5–10% often gives sufficient quality).
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL and ZIT, 10% often gives sufficient quality).
    - **Importance** (input mean absolute value): per-channel contribution → used as weights in the weighted histogram.
    **Technical details:** [Dual Monitor System — Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
 2. **Rigorous FP8 Grid Simulation** — Uses a physical grid (all 0–255 values cast to `torch.float8_e4m3fn`) instead of theoretical formulas, so MSE matches real runtime.
 
-3. **Weighted MSE Optimization** — Finds parameters that minimize quantization error using the importance histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md). Z Image pipelines use **HSWQ V4**, which blends full-SVD structural leverage with RMS magnitude for per-element importance (on top of the histogram). **Technical details:** [HSWQ V4 Hybrid SVD–RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
+3. **Weighted MSE Optimization** — Finds parameters that minimize quantization error using the importance histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
 
 ---
 
@@ -66,7 +67,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 
 - **Samples:** 32 (recommended) — number of calibration samples.
 - **Steps:** 25 — number of inference steps per sample during calibration.
-- **Keep ratio:** 5–25% — keeps critical layers in FP16. For SDXL and ZIT, 5–10% often gives sufficient quality.
+- **Keep ratio:** 10–25% — keeps critical layers in FP16. For SDXL and ZIT, 10% often gives sufficient quality.
 - **Latent:** 32–256, default 128 — calibration latent size (H/W). Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity.
 
 ---
@@ -95,4 +96,3 @@ Version history and release notes are in [CHANGELOG.md](CHANGELOG.md).
 This project is built upon the following repositories:
 
 - **[ComfyUI](https://github.com/Comfy-Org/ComfyUI)** — The most powerful and modular diffusion model GUI, API and backend with a graph/nodes interface by [@Comfy-Org](https://github.com/Comfy-Org).
-
