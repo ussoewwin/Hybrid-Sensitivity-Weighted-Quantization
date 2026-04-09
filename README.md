@@ -9,6 +9,7 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo*
 **Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
 
 **SDXL models:** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
+
 **Z Image models:** [Hugging Face — HSWQ-Z-Image-fp8e4m3](https://huggingface.co/ussoewwin/HSWQ-Z-Image-fp8e4m3)
 
 <p align="center">
