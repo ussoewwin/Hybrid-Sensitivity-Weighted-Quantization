@@ -3,7 +3,7 @@
 
 **Document version:** 3.0  
 **Date:** 2026-04-20  
-**Targets:** SDXL (v1.3), Flux.1-dev (v1.6), Z Image Turbo / Base (v1.92)
+**Targets:** SDXL (v1.3), Z Image Turbo / Base (v1.92)
 
 ---
 
@@ -29,11 +29,10 @@ The output stays **standard FP8 E4M3** (`torch.float8_e4m3fn`) — no custom loa
 
 | Family | Script | Histogram backend | Strategy engine | Notes |
 |---|---|---|---|---|
-| SDXL | `quantize_sdxl_hswq_v1.3.py` | `weighted_histogram_mse_fast` (searchsorted) | DualMonitor → keep_ratio FP16; channel-importance weighted MSE | 10–50× faster amax search vs. brute-force grid. SA2 attention optional during calibration. |
-| Flux.1-dev | `quantize_flux_hswq_v1.6.py` | `weighted_histogram_mse_fast` | DualMonitor + **Adaptive search_range** per layer | Adaptive lower bound prevents over-clipping on Flux's spiky activation layers. |
+| SDXL | `quantize_sdxl_hswq_v1.3.py` | `weighted_histogram_mse_fast` (searchsorted) | DualMonitor → keep_ratio FP16; channel-importance weighted MSE | 10–50× faster amax search vs. brute-force grid. |
 | Z Image Turbo / Base | `quantize_zit_hswq_v1.6.py` / `quantize_zib_hswq_v1.92.py` | `weighted_histogram_mse_v4` (SVD + RMS hybrid) | **Pure Data-Driven Autonomous Engine** (Profile → Alpha/Beta + Hard VETO + Dynamic search_low) | Full V4 stack. Profile JSON is generated automatically by `analyze/analyze_zib_distribution.py` if missing. |
 
-All families share the same FP8 E4M3 physical-grid simulator and emit `comfy_quant` / `weight_scale` metadata so the result loads in standard ComfyUI/Diffusers FP8 paths.
+Both families share the same FP8 E4M3 physical-grid simulator and emit `comfy_quant` / `weight_scale` metadata so the result loads in standard ComfyUI/Diffusers FP8 paths.
 
 ---
 
@@ -101,7 +100,7 @@ A separate analysis pass over the FP16 state-dict produces a JSON profile keyed 
 | `outlier_ratio` | `abs_max / std` | High ratio = the bulk of values is much smaller than the extremes; clipping to `abs_max` crushes the bulk. |
 | `abs_max` | Largest absolute weight | Beyond ~20 the safe E4M3 representation budget is gone even with optimal clip. |
 
-For Z Image, this profile is **mandatory**; if it is missing, the quantize script auto-invokes `analysis/analyze_zib_distribution.py`. For SDXL/Flux it is optional (used only when present, otherwise on-the-fly stats are computed).
+For Z Image, this profile is **mandatory**; if it is missing, the quantize script auto-invokes `analysis/analyze_zib_distribution.py`. For SDXL it is optional (used only when present, otherwise on-the-fly stats are computed).
 
 ### 3.3 Hard VETO
 
@@ -133,7 +132,7 @@ final_FP16 = VETO_layers ∪ top_keep_ratio_dynamic   (no overlap)
 
 ### 3.5 Per-layer Adaptive `search_low`
 
-Instead of a global `search_range=(0.55, 1.0)` for amax, V1.92 / Flux v1.6 derive the lower bound **per layer** from the same profile:
+Instead of a global `search_range=(0.55, 1.0)` for amax, V1.92 derives the lower bound **per layer** from the same profile:
 
 ```
 k_penalty = min(kurtosis      / 100, 0.49)
@@ -145,7 +144,7 @@ Result: a calm layer is allowed to clip aggressively (search_low ≈ 0.50, finer
 
 ### 3.6 Importance backends
 
-#### V1 / Fast — channel importance (SDXL, Flux)
+#### V1 / Fast — channel importance (SDXL)
 
 ```
 importance_c = mean(|X|, dim=batch+spatial)        # per input channel
@@ -214,16 +213,16 @@ V1 optimizes only the clipping threshold (no per-tensor scale). V2 would additio
 
 ## 5. Recommended Parameters
 
-| Parameter | SDXL v1.3 | Flux.1-dev v1.6 | Z Image Turbo/Base v1.92 |
-|---|---|---|---|
-| `samples` | 32 | 32 | 256 (default in script) |
-| `steps` | 20–25 | 20–25 | 20 |
-| `keep_ratio` | 0.10 (often enough); 0.25 for safety | 0.15–0.25 | 0.25 (VETO is on top of this) |
-| `latent` | 128 | 128 | 128 |
-| Histogram | Fast | Fast | V4 (SVD+RMS hybrid) |
-| Profile | optional | optional | **mandatory** (auto-generated) |
-| Adaptive `search_low` | n/a | yes | yes |
-| Hard VETO | n/a | n/a | yes |
+| Parameter | SDXL v1.3 | Z Image Turbo/Base v1.92 |
+|---|---|---|
+| `samples` | 32 | 256 (default in script) |
+| `steps` | 20–25 | 20 |
+| `keep_ratio` | 0.10 (often enough); 0.25 for safety | 0.25 (VETO is on top of this) |
+| `latent` | 128 | 128 |
+| Histogram | Fast | V4 (SVD+RMS hybrid) |
+| Profile | optional | **mandatory** (auto-generated) |
+| Adaptive `search_low` | n/a | yes |
+| Hard VETO | n/a | yes |
 
 For SDXL, 5–10 % FP16 retention combined with the Fast weighted histogram already reaches SSIM ≈ 0.94–0.99 against the FP16 reference (see `test/benchmark_test.md`). For Z Image, the VETO + V4 stack is what unlocks usable SSIM on extreme-distribution checkpoints (e.g. JANKU-trained Noobai derivatives).
 
@@ -238,7 +237,6 @@ See per-family benchmark documents for exact numbers; this is the high-level pic
 | Original FP16 | 1.0000 | 100 % | High |
 | Naive FP8 cast | 0.75 – 0.93 | 50 % | High |
 | **HSWQ V1 (SDXL Fast)** | **0.94 – 0.99** | 60–70 % (FP16 mixed) | **High — standard FP8 loader** |
-| **HSWQ V1 (Flux Fast + Adaptive)** | **0.93 – 0.99** | 60–70 % | **High** |
 | **HSWQ V1 (Z Image V4 + VETO)** | **0.86 – 0.97** on extreme checkpoints, **0.94+** on typical | 60–70 % | **High** |
 | HSWQ V2 (Scaled) | — (not measurable yet) | 60–70 % | Custom loader required |
 
@@ -246,7 +244,6 @@ Detailed per-model tables:
 
 - SDXL: [`test/benchmark_test.md`](../test/benchmark_test.md)
 - Z Image: [`test/benchmark_zit.md`](../test/benchmark_zit.md)
-- Flux: [`md/Flux_Benchmark_MSE_SSIM.md`](Flux_Benchmark_MSE_SSIM.md)
 
 ---
 
@@ -257,7 +254,6 @@ Detailed per-model tables:
 - **[HSWQ V4 SVD-RMS — Technical Guide](HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)** — Full V4 optimizer reference: SVD leverage derivation, RMS magnitude, hybrid blending, line-by-line `compute_hybrid_leverage_scores`, integration with the V1.92 pipeline.
 - [SDXL V1.3 + Histogram Fast — Full Explanation](SDXL_V1.3_and_Histogram_Fast_Explanation.md)
 - [Adaptive Search Range — Technical Guide](Adaptive_Search_Range_Technical_Guide.md)
-- [Flux v1.6 Adaptive Search Range](Flux1_v1.6_Adaptive_Search_Range_Explanation.md)
 - [Z Image V1.5 — Latent and Mixed-Precision Calibration](ZI_V1.5_Latent_and_MixedPrecision_Calibration.md)
 - [Z Image V1.9 → V1.92 Changes (VETO + V4 Hybrid)](V1.9_to_V1.92_Changes.md)
 - [How to quantize SDXL](How%20to%20quantize%20SDXL.md) / [How to quantize Z Image](How%20to%20quantize%20Z%20Image.md)
