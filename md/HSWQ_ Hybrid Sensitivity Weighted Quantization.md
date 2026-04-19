@@ -215,7 +215,7 @@ V1 optimizes only the clipping threshold (no per-tensor scale). V2 would additio
 
 | Parameter | SDXL v1.3 | Z Image Turbo/Base v1.92 |
 |---|---|---|
-| `samples` | 32 | 256 (default in script) |
+| `samples` | 32 | 32 |
 | `steps` | 25 | 25 |
 | `keep_ratio` | 0.10 (often enough); 0.25 for safety | 0.25 (VETO is on top of this) |
 | `latent` | 128 | 128 |
@@ -224,7 +224,7 @@ V1 optimizes only the clipping threshold (no per-tensor scale). V2 would additio
 | Adaptive `search_low` | n/a | yes |
 | Hard VETO | n/a | yes |
 
-For SDXL, 5–10 % FP16 retention combined with the Fast weighted histogram already reaches SSIM ≈ 0.94–0.99 against the FP16 reference (see `test/benchmark_test.md`). For Z Image, the VETO + V4 stack is what unlocks usable SSIM on extreme-distribution checkpoints (e.g. JANKU-trained Noobai derivatives).
+Sensitivity (output variance): layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL and ZIT, 10% often gives sufficient quality).
 
 ---
 
