@@ -216,7 +216,7 @@ V1 optimizes only the clipping threshold (no per-tensor scale). V2 would additio
 | Parameter | SDXL v1.3 | Z Image Turbo/Base v1.92 |
 |---|---|---|
 | `samples` | 32 | 256 (default in script) |
-| `steps` | 20–25 | 20 |
+| `steps` | 25 | 25 |
 | `keep_ratio` | 0.10 (often enough); 0.25 for safety | 0.25 (VETO is on top of this) |
 | `latent` | 128 | 128 |
 | Histogram | Fast | V4 (SVD+RMS hybrid) |
