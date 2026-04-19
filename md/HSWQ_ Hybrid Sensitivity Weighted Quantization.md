@@ -174,6 +174,8 @@ k_factor = min(avg_kurtosis / 50, 0.30)
 
 Reasoning: heavier-tailed models benefit from protecting the **principal subspace** (SVD); flatter models benefit from preserving raw **energy** (RMS). Z Image's `compute_optimal_amax(..., use_svd_leverage=True)` builds this matrix once and feeds it as per-element importance into the same weighted histogram MSE search as the simpler families.
 
+Full mathematical derivation (σ²-weighted bilateral leverage, L2 normalization, per-element histogram), line-by-line walkthrough of `compute_hybrid_leverage_scores`, and the V1.5 → V1.9 → V1.92 failure history that motivated the hybrid model are documented separately in [HSWQ V4 SVD-RMS — Technical Guide](HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
+
 ### 3.7 Rigorous FP8 Grid Simulation
 
 All amax search candidates are evaluated against the **physical** FP8 E4M3 grid:
@@ -252,6 +254,7 @@ Detailed per-model tables:
 
 - [Dual Monitor System — Technical Guide](Dual_Monitor_System_Technical_Guide.md)
 - [Weighted Histogram MSE — Technical Guide](Weighted_Histogram_MSE_Technical_Guide.md)
+- **[HSWQ V4 SVD-RMS — Technical Guide](HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)** — Full V4 optimizer reference: SVD leverage derivation, RMS magnitude, hybrid blending, line-by-line `compute_hybrid_leverage_scores`, integration with the V1.92 pipeline.
 - [SDXL V1.3 + Histogram Fast — Full Explanation](SDXL_V1.3_and_Histogram_Fast_Explanation.md)
 - [Adaptive Search Range — Technical Guide](Adaptive_Search_Range_Technical_Guide.md)
 - [Flux v1.6 Adaptive Search Range](Flux1_v1.6_Adaptive_Search_Range_Explanation.md)
