@@ -1,8 +1,13 @@
 # Changelog
 
+## 1.1.4
+
+**HSWQ technical overview updated to current architecture** — Rewrote `md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md` to match the latest stack (SDXL v1.3, Flux v1.6, Z Image v1.92), clarifying the 3-axis HSWQ design (Profile / Sensitivity / Importance), V4 SVD+RMS hybrid and Hard VETO positioning, plus a GitHub-compatible Mermaid diagram fix and direct link path to the V4 technical guide.
+Guides: [HSWQ Technical Overview](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md), [HSWQ V4 SVD-RMS Technical Guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)
+
 ## 1.1.3
 
-**Documentation: HSWQ V4 hybrid SVD–RMS technical guide published** — Full technical guide for the V4 weighted histogram optimizer (`histogram/weighted_histogram_mse_v4.py`): full-SVD structural leverage + RMS magnitude blend, FP8 E4M3 grid simulation, weighted MSE search, and how V4 fits the HSWQ pipeline (including Z Image / NextDiT context). README **Architecture** links to this guide under Weighted MSE Optimization.  
+**Documentation: HSWQ V4 hybrid SVD-RMS technical guide published** — Full technical guide for the V4 weighted histogram optimizer (`histogram/weighted_histogram_mse_v4.py`): full-SVD structural leverage + RMS magnitude blend, FP8 E4M3 grid simulation, weighted MSE search, and how V4 fits the HSWQ pipeline (including Z Image / NextDiT context). README **Architecture** links to this guide under Weighted MSE Optimization.  
 Guide: [md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)  
 Release notes: [v1.1.3](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.1.3) (to be published)
 
