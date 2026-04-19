@@ -31,6 +31,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | koronemixVpred_v20 | r0.1 | 13.77 | 0.9622 |
 | koronemixIllustrious_v70 | r0.15 | 12.76 | **0.9735** |
 | JANKUTrainedNoobaiRouwei_v69 | r0.25 | 10.97 | 0.9614 |
+| JANKUTrainedChenkinNoobai_v777 | r0.1 | 19.83 | 0.9575 |
 | harukiMIX_ponyV40 | r0.15 | 14.49 | 0.9645 |
 | harukiMIX_illustriousV40 | r0.1 | 6.79 | **0.9715** |
 | epicrealismXL_pureFix | r0.1 | 6.82 | **0.9783** |
@@ -70,6 +71,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | koronemixVpred_v20 | r0.1 | 13.77 | 14.55 | +0.78 | 0.9622 | 0.9590 | +0.0032 | HSWQ |
 | koronemixIllustrious_v70 | r0.15 | 12.76 | 27.09 | +14.33 | 0.9735 | 0.9610 | +0.0125 | HSWQ |
 | JANKUTrainedNoobaiRouwei_v69 | r0.25 | 10.97 | 94.81 | +83.84 | 0.9614 | 0.8872 | +0.0742 | HSWQ |
+| JANKUTrainedChenkinNoobai_v777 | r0.1 | 19.83 | 26.37 | +6.54 | 0.9575 | 0.9546 | −0.0029 | HSWQ |
 | harukiMIX_ponyV40 | r0.15 | 14.49 | 23.65 | +9.16 | 0.9645 | 0.9301 | +0.0344 | HSWQ |
 | harukiMIX_illustriousV40 | r0.1 | 6.79 | 9.32 | +2.53 | 0.9715 | 0.9685 | +0.0030 | HSWQ |
 | epicrealismXL_pureFix | r0.1 | 6.82 | 26.79 | +19.97 | 0.9783 | 0.9579 | +0.0204 | HSWQ |
