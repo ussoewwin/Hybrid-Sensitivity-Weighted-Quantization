@@ -41,40 +41,40 @@ All families share the same FP8 E4M3 physical-grid simulator and emit `comfy_qua
 
 ```mermaid
 graph TD
-    A[Calibration Inputs] --> B[Diffusers Pipeline + Hooks]
-    B --> C{Dual Monitor}
-    C --> C1[Sensitivity = Var(output)]
-    C --> C2[Importance = Mean(|X|_c)]
-    W[FP16 weights] --> P[Static Distribution Profile]
-    P --> P1[kurtosis]
-    P --> P2[outlier_ratio]
-    P --> P3[abs_max]
+    A["Calibration Inputs"] --> B["Diffusers Pipeline + Hooks"]
+    B --> C{"Dual Monitor"}
+    C --> C1["Sensitivity = Var(output)"]
+    C --> C2["Importance = Mean(abs X, channel)"]
+    W["FP16 weights"] --> P["Static Distribution Profile"]
+    P --> P1["kurtosis"]
+    P --> P2["outlier_ratio"]
+    P --> P3["abs_max"]
 
-    P1 --> V{Hard VETO?}
+    P1 --> V{"Hard VETO?"}
     P2 --> V
     P3 --> V
-    V -- yes --> KFP16[Force FP16]
+    V -- yes --> KFP16["Force FP16"]
 
-    P1 --> S[Autonomous Strategy]
+    P1 --> S["Autonomous Strategy"]
     P2 --> S
     P3 --> S
-    S --> SAlpha[Alpha = SVD weight]
-    S --> SBeta[Beta = RMS weight]
-    S --> SLow[get_dynamic_search_low]
+    S --> SAlpha["Alpha = SVD weight"]
+    S --> SBeta["Beta = RMS weight"]
+    S --> SLow["get_dynamic_search_low"]
 
-    C1 --> Sel{Top keep_ratio<br/>by sensitivity}
+    C1 --> Sel{"Top keep_ratio by sensitivity"}
     Sel --> KFP16
-    Sel -- not selected --> Q[FP8 candidate]
+    Sel -- "not selected" --> Q["FP8 candidate"]
 
-    Q --> H[Weighted Histogram MSE]
+    Q --> H["Weighted Histogram MSE"]
     C2 --> H
     SAlpha --> H
     SBeta --> H
     SLow --> H
-    H --> Amax[Per-layer optimal amax]
+    H --> Amax["Per-layer optimal amax"]
 
-    Amax --> Cast[clamp(±amax) → cast to fp8_e4m3fn]
-    KFP16 --> Save[(Safetensors)]
+    Amax --> Cast["clamp to amax then cast fp8_e4m3fn"]
+    KFP16 --> Save["Safetensors"]
     Cast --> Save
 ```
 
