@@ -18,6 +18,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 0.9233 |
 | uwazumimixILL_v50 | r0 | 13.76 | **0.9641** |
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | 0.9336 |
+| unholyDesireMixSinister_v80 | r0.1 | 31.80 | 0.9116 |
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | 0.9452 |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | **0.9751** |
 | realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 0.9367 |
@@ -56,6 +57,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 20.49 | +2.00 | 0.9233 | 0.9364 | +0.0131 | — |
 | uwazumimixILL_v50 | r0 | 13.76 | 11.80 | −1.96 | 0.9641 | 0.9542 | −0.0099 | — |
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | 39.70 | +29.41 | 0.9336 | 0.8694 | −0.0642 | HSWQ |
+| unholyDesireMixSinister_v80 | r0.1 | 31.80 | 67.74 | +35.93 | 0.9116 | 0.8988 | −0.0128 | HSWQ |
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | 69.70 | +10.89 | 0.9452 | 0.9377 | −0.0075 | HSWQ |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | 31.09 | -2.45 | 0.9751 | 0.9558 | -0.0193 | — |
 | realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 44.62 | +29.47 | 0.9367 | 0.8888 | +0.0479 | HSWQ |
