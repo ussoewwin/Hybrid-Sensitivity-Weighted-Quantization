@@ -755,6 +755,37 @@ def derive_hswq_strategy(model_profile):
 
     return alpha, beta, get_dynamic_search_low, hard_veto_layers
 
+
+def resolve_weights_path(raw_path: str, script_dir: str) -> tuple[str, list[str]]:
+    """Resolve .safetensors path when CWD differs from repo root (Docker/CI).
+
+    Order: HSWQ_ZIB_INPUT, ZIB_INPUT_MODEL, abspath(raw), script_dir/raw,
+    script_dir/basename(raw).
+    Returns (first existing file path, or abspath(raw) if none), list of tried paths.
+    """
+    tried: list[str] = []
+    candidates: list[str] = []
+    for env_key in ("HSWQ_ZIB_INPUT", "ZIB_INPUT_MODEL"):
+        v = (os.environ.get(env_key) or "").strip()
+        if v:
+            candidates.append(os.path.abspath(v))
+    if os.path.isabs(raw_path):
+        candidates.append(os.path.normpath(raw_path))
+    else:
+        candidates.append(os.path.abspath(raw_path))
+        candidates.append(os.path.normpath(os.path.join(script_dir, raw_path)))
+        candidates.append(os.path.normpath(os.path.join(script_dir, os.path.basename(raw_path))))
+    seen: set[str] = set()
+    for p in candidates:
+        if not p or p in seen:
+            continue
+        seen.add(p)
+        tried.append(p)
+        if os.path.isfile(p):
+            return p, tried
+    return os.path.abspath(raw_path), tried
+
+
 def main():
     parser = argparse.ArgumentParser(description="Z-Image Base FP8 Quantization - HSWQ V1.9 (Autonomous Engine)")
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
@@ -770,6 +801,23 @@ def main():
     parser.add_argument("--token", type=str, help="Hugging Face API token for fallback download (optional)")
     parser.add_argument("--sa2", action="store_true", help="Enable SageAttention2 for faster calibration (requires sageattention package)")
     args = parser.parse_args()
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    raw_input_arg = args.input
+    resolved_input, tried_inputs = resolve_weights_path(raw_input_arg, script_dir)
+    if not os.path.isfile(resolved_input):
+        print("[FATAL] Input weights file not found.")
+        print(f"  --input: {raw_input_arg!r}")
+        print("  Tried:")
+        for p in tried_inputs:
+            print(f"    - {p}")
+        print("  Hint: place the .safetensors next to the repo, pass an absolute path,")
+        print("        or set HSWQ_ZIB_INPUT / ZIB_INPUT_MODEL to the model file.")
+        sys.exit(1)
+    cli_abs = os.path.normpath(os.path.abspath(os.path.expanduser(raw_input_arg)))
+    if os.path.normpath(resolved_input) != cli_abs:
+        print(f"[*] Resolved --input: {raw_input_arg!r} -> {resolved_input}")
+    args.input = resolved_input
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("=" * 60)
@@ -834,7 +882,6 @@ def main():
         sys.exit(1)
     
     # --- 1. Locate Analysis Script & Profile --- (Environment-Agnostic)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
     analyze_script = os.path.join(script_dir, "analyze", "analyze_zib_distribution.py")
     if not os.path.exists(analyze_script):
         analyze_script = os.path.join(script_dir, "analyze_zib_distribution.py")
