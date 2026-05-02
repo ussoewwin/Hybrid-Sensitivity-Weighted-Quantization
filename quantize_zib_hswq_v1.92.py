@@ -159,6 +159,79 @@ def normalize_zanime_keys(state_dict):
     normalized = _fuse_zanime_attention(normalized)
     return normalized, reverse_map
 
+def _denormalize_zanime_output(state_dict, reverse_map):
+    """Inverse of normalize_zanime_keys for Z-Anime output saving.
+
+    The HSWQ-V1.92 output is internally in NextDiT key form
+    (qkv fused, out/q_norm/k_norm). Z-Anime checkpoints (matching the
+    official FP8 distribution layout) require Diffusers form
+    (to_q/to_k/to_v/to_out.0/norm_q/norm_k) plus the 'all_<module>.2-1'
+    prefix, so ComfyUI's z_image_to_diffusers loader path can pick them up.
+
+    NOTE: qkv weight splitting is NOT done here. qkv layers are split per-head
+    in the quantization/save stage so that to_q, to_k, to_v each receive their
+    own HSWQ-optimized amax. This function only handles companion-key splits
+    that may still exist (e.g. weight_scale/comfy_quant attached to qkv.* by
+    the HSWQ V1 save path), renames out/q_norm/k_norm, and restores prefixes.
+    """
+    # 1. Split any leftover qkv.* companion keys (.weight_scale, .comfy_quant)
+    #    Replicate metadata for each of to_q / to_k / to_v.
+    intermediate = {}
+    qkv_companion_prefixes = set()
+    for k in list(state_dict.keys()):
+        m = re.match(r"^(.+?\.attention)\.qkv\.(weight_scale|comfy_quant)$", k)
+        if m:
+            qkv_companion_prefixes.add((m.group(1), m.group(2)))
+
+    skip = set()
+    for prefix, suffix in qkv_companion_prefixes:
+        src = f"{prefix}.qkv.{suffix}"
+        if src not in state_dict:
+            continue
+        meta = state_dict[src]
+        for tgt in ("to_q", "to_k", "to_v"):
+            tgt_key = f"{prefix}.{tgt}.{suffix}"
+            intermediate[tgt_key] = meta.clone() if hasattr(meta, "clone") else meta
+        skip.add(src)
+
+    # 2. Rename and pass through. Catches weight + companions
+    #    (.weight_scale / .comfy_quant) attached to renamed modules.
+    rename_map_suffixes = [
+        (".attention.out.weight",       ".attention.to_out.0.weight"),
+        (".attention.out.weight_scale", ".attention.to_out.0.weight_scale"),
+        (".attention.out.comfy_quant",  ".attention.to_out.0.comfy_quant"),
+        (".attention.q_norm.weight",    ".attention.norm_q.weight"),
+        (".attention.k_norm.weight",    ".attention.norm_k.weight"),
+    ]
+    renamed = {}
+    for k, v in state_dict.items():
+        if k in skip:
+            continue
+        new_k = k
+        for src, dst in rename_map_suffixes:
+            if k.endswith(src):
+                new_k = k[: -len(src)] + dst
+                break
+        renamed[new_k] = v
+    for k, v in intermediate.items():
+        renamed[k] = v
+
+    # 3. Restore 'all_<module>.2-1' prefix.
+    #    Use reverse_map to learn which top-level module names were prefixed.
+    prefix_modules = set()
+    for norm_key in reverse_map:
+        prefix_modules.add(norm_key.split(".", 1)[0])
+
+    final = {}
+    for k, v in renamed.items():
+        first = k.split(".", 1)[0]
+        if first in prefix_modules:
+            rest = k[len(first):]
+            final[f"all_{first}.2-1{rest}"] = v
+        else:
+            final[k] = v
+    return final
+
 def calculate_kurtosis(tensor):
     mean = torch.mean(tensor)
     std = torch.std(tensor)
@@ -786,7 +859,12 @@ def main():
         print(f"  {i+1}. {name}: {sens:.4f}{in_veto}")
 
     print("\n[HSWQ V1.9 Autonomous Engine] Starting Optimization...")
+    if is_zanime:
+        print("  [Z-Anime] qkv layers will be split into to_q / to_k / to_v and HSWQ-optimized individually.")
     weight_amax_dict = {}
+    # Z-Anime only: per-layer split-amax map for qkv -> to_q/to_k/to_v.
+    # Maps internal qkv module name to (amax_q, amax_k, amax_v).
+    zanime_qkv_split_amax = {}
     hswq_optimizer = HSWQWeightedHistogramOptimizerV4(
         bins=8192,
         num_candidates=1000,
@@ -806,6 +884,38 @@ def main():
             layer_search_low = get_layer_search_low(name, module.weight.data)
             layer_search_range = (layer_search_low, 1.0)
             
+            # Z-Anime split path: optimize to_q / to_k / to_v individually.
+            # Same HSWQ V4 pipeline (alpha/beta/search_range/SVD leverage) applied
+            # per-chunk so each projection gets its own optimal clipping threshold.
+            if is_zanime and name.endswith(".attention.qkv"):
+                qkv_w = module.weight.data
+                # qkv weight shape: [3 * dim_out, dim_in], even split along dim=0
+                chunks = torch.chunk(qkv_w, 3, dim=0)
+                if len(chunks) != 3 or any(c.shape[0] != chunks[0].shape[0] for c in chunks):
+                    print(f"  [WARN] qkv split mismatch at {name}; falling back to fused amax.")
+                    optimal_amax = hswq_optimizer.compute_optimal_amax(
+                        qkv_w, importance,
+                        use_svd_leverage=True, scaled=False,
+                        search_range=layer_search_range,
+                    )
+                    weight_amax_dict[name + ".weight"] = optimal_amax
+                else:
+                    print(f"  [HSWQ-split] {name:50} | per-projection | search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}")
+                    amaxes = []
+                    for tag, chunk in zip(("to_q", "to_k", "to_v"), chunks):
+                        # Importance is per input-channel and shared across q/k/v
+                        # because all three projections take the same hidden input.
+                        a = hswq_optimizer.compute_optimal_amax(
+                            chunk.contiguous(), importance,
+                            use_svd_leverage=True, scaled=False,
+                            search_range=layer_search_range,
+                        )
+                        amaxes.append(a)
+                        print(f"    [HSWQ-split]   {tag}: amax={a:.6f}")
+                    zanime_qkv_split_amax[name] = tuple(amaxes)
+                torch.cuda.empty_cache()
+                continue
+            
             print(f"  [HSWQ] {name:50} | Pure Data-Driven | search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}")
             
             # Optimization with Dynamic Range
@@ -822,26 +932,55 @@ def main():
 
     print(f"Saving quantized model: {args.output}")
     if is_zanime:
-        print("  [Z-Anime] Output will use STANDARD NextDiT key format (no all_<mod>.2-1 prefix) for ComfyUI compatibility.")
+        print("  [Z-Anime] Output will use Diffusers key format (to_q/to_k/to_v/to_out.0/norm_q/norm_k + 'all_<module>.2-1' prefix), matching the official FP8 distribution.")
     output_state_dict = {}
 
     # Z-Image keep layers: FP16 (legacy proven path).
     # Z-Anime keep layers: BF16 (matches official FP8 distribution baseline; required for SSIM >= 0.95).
     keep_dtype = torch.bfloat16 if is_zanime else torch.float16
 
+    def _emit_quant_meta(out_dict, prefixed_module):
+        out_dict[f"{prefixed_module}.comfy_quant"] = torch.tensor(
+            list(json.dumps({"format": "float8_e4m3fn"}).encode("utf-8")),
+            dtype=torch.uint8,
+        )
+        out_dict[f"{prefixed_module}.weight_scale"] = torch.tensor(1.0, dtype=torch.float32)
+
     for stripped_key, value in tqdm(stripped_state_dict.items(), desc="Converting"):
         module_name = stripped_key[:-7] if stripped_key.endswith(".weight") else None
 
+        # Z-Anime split-save path for qkv: emit 3 separate FP8 weights
+        # (to_q / to_k / to_v) using each projection's individual HSWQ amax.
+        if is_zanime and module_name and module_name in zanime_qkv_split_amax:
+            base = module_name[: -len(".qkv")]  # strip trailing '.qkv'
+            qkv_w = value
+            chunks = torch.chunk(qkv_w, 3, dim=0)
+            amaxes = zanime_qkv_split_amax[module_name]
+            for tag, chunk, amax in zip(("to_q", "to_k", "to_v"), chunks, amaxes):
+                a = max(float(amax), 1e-6)
+                fp8_chunk = torch.clamp(chunk.contiguous().float(), -a, a).to(torch.float8_e4m3fn)
+                tgt_module = f"{base}.{tag}"
+                tgt_key = f"{detected_prefix}{tgt_module}.weight"
+                output_state_dict[tgt_key] = fp8_chunk
+                _emit_quant_meta(output_state_dict, f"{detected_prefix}{tgt_module}")
+            continue
+
         if module_name and module_name in keep_layers:
             new_value = value.to(keep_dtype)
+            # Z-Anime keep path: if qkv is kept (FP16/BF16, no quant), still split
+            # into to_q/to_k/to_v so the saved layout matches Diffusers format.
+            if is_zanime and module_name.endswith(".attention.qkv"):
+                base = module_name[: -len(".qkv")]
+                chunks = torch.chunk(new_value, 3, dim=0)
+                for tag, chunk in zip(("to_q", "to_k", "to_v"), chunks):
+                    output_state_dict[f"{detected_prefix}{base}.{tag}.weight"] = chunk.contiguous().clone()
+                continue
         elif stripped_key in weight_amax_dict or (module_name and module_name + ".weight" in weight_amax_dict):
             weight_key = stripped_key if stripped_key in weight_amax_dict else module_name + ".weight"
             amax = max(weight_amax_dict[weight_key], 1e-6)
             new_value = torch.clamp(value.float(), -amax, amax).to(torch.float8_e4m3fn)
             if module_name:
-                prefixed_module = detected_prefix + module_name
-                output_state_dict[f"{prefixed_module}.comfy_quant"] = torch.tensor(list(json.dumps({"format": "float8_e4m3fn"}).encode("utf-8")), dtype=torch.uint8)
-                output_state_dict[f"{prefixed_module}.weight_scale"] = torch.tensor(1.0, dtype=torch.float32)
+                _emit_quant_meta(output_state_dict, detected_prefix + module_name)
         else:
             if is_zanime:
                 new_value = value.to(torch.bfloat16) if value.dtype != torch.bfloat16 else value
@@ -850,6 +989,16 @@ def main():
 
         out_key = detected_prefix + stripped_key
         output_state_dict[out_key] = new_value
+
+    # Z-Anime: rewrite NextDiT keys back to Diffusers form
+    # (out -> to_out.0, q_norm/k_norm -> norm_q/norm_k, restore 'all_<module>.2-1' prefix).
+    # qkv weights have already been split per-projection above and emitted with
+    # individual HSWQ amax values, so this pass only handles renames + prefix.
+    if is_zanime:
+        before_n = len(output_state_dict)
+        output_state_dict = _denormalize_zanime_output(output_state_dict, zanime_reverse_map)
+        after_n = len(output_state_dict)
+        print(f"  [Z-Anime] Diffusers key restoration: {before_n} -> {after_n} keys.")
 
     save_file(output_state_dict, args.output)
     print("Saved.")
