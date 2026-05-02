@@ -103,6 +103,26 @@ ZIT_PREFIXES = [
     "",
 ]
 
+def normalize_zanime_keys(state_dict):
+    """Z-Anime固有のキー命名を標準NextDiT形式へ正規化。ZIB/ZIT既存ロジックへの影響を避けるため、入力層でのみ適用。"""
+    normalized = {}
+    for key, value in state_dict.items():
+        new_key = key
+        if new_key.startswith("all_x_embedder.2-1"):
+            new_key = "x_embedder" + new_key[len("all_x_embedder.2-1"):]
+        elif new_key.startswith("all_final_layer.2-1"):
+            new_key = "final_layer" + new_key[len("all_final_layer.2-1"):]
+        normalized[new_key] = value
+    return normalized
+
+def normalize_single_zanime_key(key):
+    """単一キーのZ-Anime正規化。出力復元用。"""
+    if key.startswith("all_x_embedder.2-1"):
+        return "x_embedder" + key[len("all_x_embedder.2-1"):]
+    elif key.startswith("all_final_layer.2-1"):
+        return "final_layer" + key[len("all_final_layer.2-1"):]
+    return key
+
 def calculate_kurtosis(tensor):
     mean = torch.mean(tensor)
     std = torch.std(tensor)
@@ -111,10 +131,19 @@ def calculate_kurtosis(tensor):
 
 def detect_and_strip_prefix(state_dict):
     keys = list(state_dict.keys())
+    is_zanime = False
+
+    # --- Z-Anime detection & normalization ---
+    if any(k.startswith("all_x_embedder.2-1") for k in keys):
+        is_zanime = True
+        print("  [Model Detection] Z-Anime key naming detected. Normalizing to standard NextDiT keys...")
+        normalized = normalize_zanime_keys(state_dict)
+        return normalized, "", is_zanime
+
     for prefix in ZIT_PREFIXES:
         if prefix == "":
             if any(k.startswith("layers.") or k.startswith("x_embedder") for k in keys):
-                return state_dict, ""
+                return state_dict, "", is_zanime
         else:
             test_key = f"{prefix}layers.0.attention_norm1.weight"
             if test_key in keys:
@@ -125,9 +154,9 @@ def detect_and_strip_prefix(state_dict):
                         stripped[k[len(prefix):]] = v
                     else:
                         stripped[k] = v
-                return stripped, prefix
+                return stripped, prefix, is_zanime
     print("  [Prefix Detection] No prefix detected (assuming HSWQ format)")
-    return state_dict, ""
+    return state_dict, "", is_zanime
 
 def detect_zit_config_from_keys(state_dict):
     state_dict_keys = list(state_dict.keys())
@@ -223,7 +252,9 @@ def resolve_tokenizer_offline(provided_path, comfy_path, clip_path=None):
 def load_zit_model(path, device="cuda", comfy_path=None):
     print(f"Loading Base model: {path}")
     original_state_dict = load_file(path)
-    stripped_state_dict, detected_prefix = detect_and_strip_prefix(original_state_dict)
+    stripped_state_dict, detected_prefix, is_zanime = detect_and_strip_prefix(original_state_dict)
+    if is_zanime:
+        print("  [Z-Anime] Normalized keys applied. Model will be loaded with standard NextDiT keys.")
     
     print("Detecting Structure (Base Model)...")
     zit_config = detect_zit_config_from_keys(stripped_state_dict)
@@ -284,7 +315,7 @@ def load_zit_model(path, device="cuda", comfy_path=None):
     
     model = model.to(device).to(torch.float16)
     model.eval()
-    return model, original_state_dict, stripped_state_dict, zit_config, detected_prefix
+    return model, original_state_dict, stripped_state_dict, zit_config, detected_prefix, is_zanime
 
 class ZITCalibrationPipeline:
     def __init__(self, model, text_encoder, tokenizer, device="cuda"):
@@ -496,7 +527,7 @@ def main():
     parser.add_argument("--clip_path", type=str, required=True, help="Path to text encoder safetensors")
     parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
-    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL/ZIT)")
+    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16")
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     parser.add_argument("--tokenizer_path", type=str, help="Path to tokenizer (optional)")
@@ -605,7 +636,7 @@ def main():
     
     # --- 2. Strategy & Model Load ---
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(model_profile)
-    model, original_state_dict, stripped_state_dict, zit_config, detected_prefix = load_zit_model(args.input, device, args.comfy_path)
+    model, original_state_dict, stripped_state_dict, zit_config, detected_prefix, is_zanime = load_zit_model(args.input, device, args.comfy_path)
     
     # tokenizer and text_encoder are already loaded in the initial block
     pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device)
@@ -739,12 +770,25 @@ def main():
             new_value = torch.clamp(value.float(), -amax, amax).to(torch.float8_e4m3fn)
             if module_name:
                 prefixed_module = detected_prefix + module_name
+                # Z-Anime output key restoration for metadata
+                if is_zanime:
+                    if prefixed_module.startswith("x_embedder"):
+                        prefixed_module = "all_x_embedder.2-1" + prefixed_module[len("x_embedder"):]
+                    elif prefixed_module.startswith("final_layer"):
+                        prefixed_module = "all_final_layer.2-1" + prefixed_module[len("final_layer"):]
                 output_state_dict[f"{prefixed_module}.comfy_quant"] = torch.tensor(list(json.dumps({"format": "float8_e4m3fn"}).encode("utf-8")), dtype=torch.uint8)
                 output_state_dict[f"{prefixed_module}.weight_scale"] = torch.tensor(1.0, dtype=torch.float32)
         else:
             new_value = value.to(torch.float16) if value.dtype == torch.bfloat16 else value
         
-        output_state_dict[detected_prefix + stripped_key] = new_value
+        # Z-Anime output key restoration
+        out_key = detected_prefix + stripped_key
+        if is_zanime:
+            if out_key.startswith("x_embedder"):
+                out_key = "all_x_embedder.2-1" + out_key[len("x_embedder"):]
+            elif out_key.startswith("final_layer"):
+                out_key = "all_final_layer.2-1" + out_key[len("final_layer"):]
+        output_state_dict[out_key] = new_value
 
     save_file(output_state_dict, args.output)
     print("Saved.")
