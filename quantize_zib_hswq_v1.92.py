@@ -217,19 +217,44 @@ def _denormalize_zanime_output(state_dict, reverse_map):
         renamed[k] = v
 
     # 3. Restore 'all_<module>.2-1' prefix.
-    #    Use reverse_map to learn which top-level module names were prefixed.
-    prefix_modules = set()
-    for norm_key in reverse_map:
-        prefix_modules.add(norm_key.split(".", 1)[0])
+    #    The `.2-1` insertion depth varies per key (see normalize_zanime_keys
+    #    Step 1: x_embedder.weight <-> all_x_embedder.2-1.weight depth=1, but
+    #    layers.0.attention.to_q.weight <-> all_layers.0.2-1.attention.to_q.weight
+    #    depth=2 because '.2-1' sits AFTER the block index for layers.X).
+    #    Build a robust per-module mapping from reverse_map (which is the only
+    #    authoritative record of where '.2-1' was originally located) and use it
+    #    for both `.weight` keys and their HSWQ V1 companion keys
+    #    (`.weight_scale`, `.comfy_quant`). Naive top-level prefix restoration
+    #    misplaces '.2-1' for layers.X and breaks the ComfyUI z_image_to_diffusers
+    #    loader for ALL 30 transformer blocks, silently leaving them randomly
+    #    initialized after load.
+    weight_norm_to_orig = dict(reverse_map)  # norm_key (with .weight) -> orig_key (with .2-1)
+    module_norm_to_orig = {}                  # norm_module (no .weight) -> orig_module (no .weight)
+    for norm_key, orig_key in weight_norm_to_orig.items():
+        if norm_key.endswith(".weight") and orig_key.endswith(".weight"):
+            module_norm_to_orig[norm_key[:-7]] = orig_key[:-7]
 
     final = {}
     for k, v in renamed.items():
-        first = k.split(".", 1)[0]
-        if first in prefix_modules:
-            rest = k[len(first):]
-            final[f"all_{first}.2-1{rest}"] = v
-        else:
-            final[k] = v
+        if k in weight_norm_to_orig:
+            # Direct .weight mapping (handles to_q/to_k/to_v split outputs and
+            # the renamed to_out.0 / norm_q / norm_k forms emitted by step 2).
+            final[weight_norm_to_orig[k]] = v
+            continue
+        # Companion keys (.weight_scale, .comfy_quant) emitted by HSWQ V1
+        # save path: split off the suffix and reuse the module-level mapping.
+        matched = False
+        for suffix in (".weight_scale", ".comfy_quant"):
+            if k.endswith(suffix):
+                module_norm = k[: -len(suffix)]
+                if module_norm in module_norm_to_orig:
+                    final[module_norm_to_orig[module_norm] + suffix] = v
+                    matched = True
+                    break
+        if matched:
+            continue
+        # Keys without a ZA prefix in the original file pass through unchanged.
+        final[k] = v
     return final
 
 def calculate_kurtosis(tensor):
