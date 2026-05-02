@@ -79,15 +79,22 @@ def latent_to_img(l):
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+import re
+
 def normalize_zanime_keys(state_dict):
-    """Z-Anime固有のキー命名を標準NextDiT形式へ正規化。"""
+    """Z-Anime固有のキー命名を標準NextDiT形式へ正規化。
+    Z-Anime uses 'all_<module>.2-1' prefix pattern, e.g.:
+      all_layers.0.2-1.attention.qkv.weight -> layers.0.attention.qkv.weight
+      all_x_embedder.2-1.weight -> x_embedder.weight
+      all_noise_refiner.0.2-1.attention.qkv.weight -> noise_refiner.0.attention.qkv.weight
+    """
     normalized = {}
     for key, value in state_dict.items():
         new_key = key
-        if new_key.startswith("all_x_embedder.2-1"):
-            new_key = "x_embedder" + new_key[len("all_x_embedder.2-1"):]
-        elif new_key.startswith("all_final_layer.2-1"):
-            new_key = "final_layer" + new_key[len("all_final_layer.2-1"):]
+        if new_key.startswith("all_"):
+            # Pattern: all_<module_path>.2-1<rest>
+            # Uses non-greedy match to capture the shortest module path before .2-1
+            new_key = re.sub(r'^all_(.*?)\.2-1', r'\1', new_key)
         normalized[new_key] = value
     return normalized
 
