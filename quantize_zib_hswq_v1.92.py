@@ -316,6 +316,14 @@ def load_zit_model(path, device="cuda", comfy_path=None):
     if zit_config.get("intermediate_size"):
         ffn_multiplier = zit_config["intermediate_size"] / zit_config["hidden_size"]
     
+    # Z-Image: stays in FP16 (proven 0.95+ SSIM path).
+    # Z-Anime: native BF16 base. Down-casting to FP16 before HSWQ calibration
+    # collapses dynamic range on adaLN/outlier-heavy layers, so HSWQ ends up
+    # picking optimal amax against already-degraded weights. Keep BF16 end-to-end
+    # for Z-Anime calibration; HSWQ histogram+SVD path is unchanged.
+    inference_dtype = torch.bfloat16 if is_zanime else torch.float16
+    print(f"  [Calibration dtype] {inference_dtype} ({'Z-Anime BF16 path' if is_zanime else 'Z-Image FP16 path'})")
+    
     nextdit_kwargs = {}
     if zit_config.get("qk_norm"):
         nextdit_kwargs["qk_norm"] = True
@@ -334,7 +342,7 @@ def load_zit_model(path, device="cuda", comfy_path=None):
         z_image_modulation=True,
         pad_tokens_multiple=64,
         device="cpu",
-        dtype=torch.float16,
+        dtype=inference_dtype,
         operations=ops,
         **nextdit_kwargs,
     )
@@ -342,10 +350,13 @@ def load_zit_model(path, device="cuda", comfy_path=None):
     print("Loading Weights...")
     converted_state_dict = {}
     for key, value in stripped_state_dict.items():
-        if value.dtype == torch.bfloat16:
-            converted_state_dict[key] = value.to(torch.float16)
-        else:
+        if is_zanime:
             converted_state_dict[key] = value
+        else:
+            if value.dtype == torch.bfloat16:
+                converted_state_dict[key] = value.to(torch.float16)
+            else:
+                converted_state_dict[key] = value
             
     missing, unexpected = model.load_state_dict(converted_state_dict, strict=False)
     matched = len(converted_state_dict) - len(unexpected)
@@ -359,16 +370,20 @@ def load_zit_model(path, device="cuda", comfy_path=None):
         print("Please double-check your arguments and model structure.")
         sys.exit(1)
     
-    model = model.to(device).to(torch.float16)
+    model = model.to(device).to(inference_dtype)
     model.eval()
-    return model, original_state_dict, stripped_state_dict, zit_config, detected_prefix, is_zanime, zanime_reverse_map
+    return model, original_state_dict, stripped_state_dict, zit_config, detected_prefix, is_zanime, zanime_reverse_map, inference_dtype
 
 class ZITCalibrationPipeline:
-    def __init__(self, model, text_encoder, tokenizer, device="cuda"):
+    def __init__(self, model, text_encoder, tokenizer, device="cuda", dtype=torch.float16):
         self.model = model
         self.text_encoder = text_encoder
         self.tokenizer = tokenizer
         self.device = device
+        # dtype is split per model family at load time:
+        #   Z-Image  -> float16  (legacy proven path)
+        #   Z-Anime  -> bfloat16 (native base dtype; required for SSIM >= 0.95)
+        self.dtype = dtype
         self.hidden_dim = model.dim if hasattr(model, 'dim') else 3840
         if self.text_encoder is not None:
             self.text_encoder = self.text_encoder.to(device)
@@ -389,28 +404,31 @@ class ZITCalibrationPipeline:
     def __call__(self, prompt, num_inference_steps=20, **kwargs):
         batch_size = 1
         latent_h, latent_w, latent_c = 128, 128, 16
+        run_dtype = self.dtype
         if self.text_encoder is not None:
             cap_feats, cap_mask = self.encode_prompt(prompt)
+            cap_feats = cap_feats.to(dtype=run_dtype)
         else:
             cap_len = 256
-            cap_feats = torch.randn(batch_size, cap_len, 2560, device=self.device, dtype=torch.float16)
+            cap_feats = torch.randn(batch_size, cap_len, 2560, device=self.device, dtype=run_dtype)
             cap_mask = torch.ones(batch_size, cap_len, device=self.device, dtype=torch.bool)
         
         import comfy.k_diffusion.sampling as k_sampling
         class ZITWrapper:
-            def __init__(self, model, cap_feats, cap_mask):
+            def __init__(self, model, cap_feats, cap_mask, dtype):
                 self.model = model
                 self.cap_feats = cap_feats
                 self.cap_mask = cap_mask
+                self.dtype = dtype
             def __call__(self, x, sigma, **kwargs):
-                dtype = torch.float16
+                dtype = self.dtype
                 try:
                     return self.model(x.to(dtype=dtype), sigma.to(dtype=dtype), self.cap_feats.to(dtype=dtype), None, attention_mask=self.cap_mask).to(dtype=x.dtype)
                 except: return torch.zeros_like(x)
 
-        x = torch.randn(batch_size, latent_c, latent_h, latent_w, device=self.device, dtype=torch.float16)
+        x = torch.randn(batch_size, latent_c, latent_h, latent_w, device=self.device, dtype=run_dtype)
         sigmas = torch.linspace(1.0, 0.0, num_inference_steps + 1, device=self.device)
-        model_wrap = ZITWrapper(self.model, cap_feats, cap_mask)
+        model_wrap = ZITWrapper(self.model, cap_feats, cap_mask, run_dtype)
         
         try:
              sampler_func_name = f"sample_{self.sampler_name}"
@@ -682,10 +700,10 @@ def main():
     
     # --- 2. Strategy & Model Load ---
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(model_profile)
-    model, original_state_dict, stripped_state_dict, zit_config, detected_prefix, is_zanime, zanime_reverse_map = load_zit_model(args.input, device, args.comfy_path)
+    model, original_state_dict, stripped_state_dict, zit_config, detected_prefix, is_zanime, zanime_reverse_map, inference_dtype = load_zit_model(args.input, device, args.comfy_path)
     
     # tokenizer and text_encoder are already loaded in the initial block
-    pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device)
+    pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device, dtype=inference_dtype)
 
     print("Preparing calibration (Dual Monitor hooks)...")
     handles, target_modules = [], []
@@ -807,11 +825,15 @@ def main():
         print("  [Z-Anime] Output will use STANDARD NextDiT key format (no all_<mod>.2-1 prefix) for ComfyUI compatibility.")
     output_state_dict = {}
 
+    # Z-Image keep layers: FP16 (legacy proven path).
+    # Z-Anime keep layers: BF16 (matches official FP8 distribution baseline; required for SSIM >= 0.95).
+    keep_dtype = torch.bfloat16 if is_zanime else torch.float16
+
     for stripped_key, value in tqdm(stripped_state_dict.items(), desc="Converting"):
         module_name = stripped_key[:-7] if stripped_key.endswith(".weight") else None
 
         if module_name and module_name in keep_layers:
-            new_value = value.to(torch.float16)
+            new_value = value.to(keep_dtype)
         elif stripped_key in weight_amax_dict or (module_name and module_name + ".weight" in weight_amax_dict):
             weight_key = stripped_key if stripped_key in weight_amax_dict else module_name + ".weight"
             amax = max(weight_amax_dict[weight_key], 1e-6)
@@ -821,7 +843,10 @@ def main():
                 output_state_dict[f"{prefixed_module}.comfy_quant"] = torch.tensor(list(json.dumps({"format": "float8_e4m3fn"}).encode("utf-8")), dtype=torch.uint8)
                 output_state_dict[f"{prefixed_module}.weight_scale"] = torch.tensor(1.0, dtype=torch.float32)
         else:
-            new_value = value.to(torch.float16) if value.dtype == torch.bfloat16 else value
+            if is_zanime:
+                new_value = value.to(torch.bfloat16) if value.dtype != torch.bfloat16 else value
+            else:
+                new_value = value.to(torch.float16) if value.dtype == torch.bfloat16 else value
 
         out_key = detected_prefix + stripped_key
         output_state_dict[out_key] = new_value
