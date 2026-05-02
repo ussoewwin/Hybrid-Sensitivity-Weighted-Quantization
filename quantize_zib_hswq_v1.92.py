@@ -557,6 +557,80 @@ def hook_fn(module, input, output, name):
     if name not in dual_monitors: dual_monitors[name] = DualMonitor()
     dual_monitors[name].update(input[0], output)
 
+
+def _is_zanime_profile(profile):
+    """A ZA profile is built from the Diffusers-form BF16 base, so it contains
+    `.attention.to_q.weight` keys. Z-Image / ZIB / ZIT profiles never do
+    (their attention is already fused as `.attention.qkv.weight`)."""
+    if not profile:
+        return False
+    return any(isinstance(k, str) and k.endswith(".attention.to_q.weight") for k in profile)
+
+
+def _convert_zanime_profile_to_nextdit(profile):
+    """[Z-Anime profile namespace bridge — pure key renaming, no threshold change]
+
+    `analyze_zib_distribution.py` builds the profile from the ZA BF16 base, whose
+    state_dict uses Diffusers attention naming (to_q / to_k / to_v / to_out.0 /
+    norm_q / norm_k). The downstream HSWQ pipeline — derive_hswq_strategy(),
+    get_dynamic_search_low(), `_norm_profile`, hard_veto matching at L828/L968,
+    and the dynamic-keep profile_score at L834 — all see the FUSED NextDiT
+    module namespace produced by `_fuse_zanime_attention` (qkv / out / q_norm /
+    k_norm). Without bridging, profile lookups miss and HSWQ's VETO judgements
+    cannot reach the final keep_layers application site.
+
+    This bridge does ONLY namespace alignment:
+      * 3 per-projection entries (to_q/to_k/to_v) -> 1 fused `qkv` entry
+        aggregated by per-statistic MAX. The fused weight is literally
+        torch.cat([Wq, Wk, Wv], dim=0); its abs_max / kurtosis / outlier_ratio
+        are dominated by whichever projection is most extreme. This is the
+        mathematical consequence of concatenation, not a hardcoded heuristic.
+      * to_out.0 -> out, norm_q -> q_norm, norm_k -> k_norm renames mirror
+        the renames already performed by `_fuse_zanime_attention`.
+
+    All HSWQ thresholds (k>20, o>40, m>20), alpha/beta derivation, search_low
+    formulas, and VETO judgement code remain untouched.
+    """
+    converted = {}
+    qkv_buckets = {}  # fused qkv key -> list of (to_q/to_k/to_v profile dicts)
+
+    for key, prof in profile.items():
+        if not isinstance(prof, dict):
+            converted[key] = prof
+            continue
+
+        new_key = key
+
+        # Step 1: strip 'all_<module>.2-1' ZA prefix (mirrors normalize_zanime_keys Step 1).
+        # ZA profile is built directly from the BF16 base file, which still carries this
+        # prefix; without stripping it the namespace won't match the post-normalize state_dict.
+        if new_key.startswith("all_"):
+            new_key = re.sub(r"^all_(.*?)\.2-1", r"\1", new_key)
+
+        # Step 2: Diffusers -> Lumina renames (mirrors _fuse_zanime_attention).
+        new_key = re.sub(r"\.attention\.to_out\.0\.weight$", ".attention.out.weight", new_key)
+        new_key = re.sub(r"\.attention\.norm_q\.weight$", ".attention.q_norm.weight", new_key)
+        new_key = re.sub(r"\.attention\.norm_k\.weight$", ".attention.k_norm.weight", new_key)
+
+        # Step 3: detect Diffusers attention projection and bucket for qkv fusion.
+        m = re.match(r"^(.*\.attention\.)(to_q|to_k|to_v)\.weight$", new_key)
+        if m:
+            qkv_key = m.group(1) + "qkv.weight"
+            qkv_buckets.setdefault(qkv_key, []).append(prof)
+            continue
+
+        converted[new_key] = prof
+
+    # Aggregate to_q/to_k/to_v into qkv via per-statistic MAX (concatenation dominance).
+    for qkv_key, projs in qkv_buckets.items():
+        agg = {}
+        for stat in ("kurtosis", "outlier_ratio", "abs_max", "std"):
+            agg[stat] = max((p.get(stat, 0) for p in projs), default=0)
+        converted[qkv_key] = agg
+
+    return converted
+
+
 def derive_hswq_strategy(model_profile):
     """
     [Pure Data-Driven Engine]
@@ -772,6 +846,17 @@ def main():
             model_profile = profile_data.get("layers", profile_data)
     
     # --- 2. Strategy & Model Load ---
+    # [Z-Anime profile namespace bridge] ZA profile is built from the Diffusers-form
+    # BF16 base, but downstream HSWQ pipeline (derive_hswq_strategy / get_dynamic_search_low /
+    # _norm_profile / keep_layers matching at L828/L968 / dynamic profile_score at L834)
+    # operates on NextDiT fused module names. Bridge purely by key renaming so VETO
+    # judgements actually reach the final keep_layers application site.
+    if model_profile and _is_zanime_profile(model_profile):
+        n_before = len(model_profile)
+        model_profile = _convert_zanime_profile_to_nextdit(model_profile)
+        print(f"  [Z-Anime profile bridge] Diffusers (to_q/to_k/to_v/to_out.0/norm_q/norm_k) ->")
+        print(f"    fused NextDiT (qkv/out/q_norm/k_norm) via per-statistic MAX.")
+        print(f"    Profile entries: {n_before} -> {len(model_profile)}")
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(model_profile)
     model, original_state_dict, stripped_state_dict, zit_config, detected_prefix, is_zanime, zanime_reverse_map, inference_dtype = load_zit_model(args.input, device, args.comfy_path)
     
