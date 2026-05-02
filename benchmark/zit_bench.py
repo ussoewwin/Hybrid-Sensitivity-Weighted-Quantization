@@ -79,6 +79,18 @@ def latent_to_img(l):
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+def normalize_zanime_keys(state_dict):
+    """Z-Anime固有のキー命名を標準NextDiT形式へ正規化。"""
+    normalized = {}
+    for key, value in state_dict.items():
+        new_key = key
+        if new_key.startswith("all_x_embedder.2-1"):
+            new_key = "x_embedder" + new_key[len("all_x_embedder.2-1"):]
+        elif new_key.startswith("all_final_layer.2-1"):
+            new_key = "final_layer" + new_key[len("all_final_layer.2-1"):]
+        normalized[new_key] = value
+    return normalized
+
 def detect_zit_config_from_keys(state_dict):
     state_dict_keys = list(state_dict.keys())
     zit_config = {}
@@ -92,6 +104,8 @@ def detect_zit_config_from_keys(state_dict):
     zit_config["num_layers"] = max(layer_indices) + 1 if layer_indices else 30
     if "x_embedder.weight" in state_dict:
         zit_config["hidden_size"] = state_dict["x_embedder.weight"].shape[0]
+    elif "all_x_embedder.2-1.weight" in state_dict:
+        zit_config["hidden_size"] = state_dict["all_x_embedder.2-1.weight"].shape[0]
     else:
         zit_config["hidden_size"] = 3072
     
@@ -165,6 +179,11 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
             else:
                 stripped_dict[k] = v
         converted_dict = stripped_dict
+    
+    # === STEP 2b: Z-Anime key normalization ===
+    if any(k.startswith("all_x_embedder.2-1") for k in converted_dict.keys()):
+        print("  [Model Detection] Z-Anime key naming detected. Normalizing to standard NextDiT keys...")
+        converted_dict = normalize_zanime_keys(converted_dict)
     
     # === STEP 3: Detect config from STRIPPED keys ===
     config = detect_zit_config_from_keys(converted_dict)
