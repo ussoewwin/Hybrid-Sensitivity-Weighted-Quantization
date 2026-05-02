@@ -29,7 +29,7 @@ histogram_dir = os.path.join(current_dir, "histogram")
 if histogram_dir not in sys.path:
     sys.path.insert(0, histogram_dir)
 
-# Support for SageAttention2 in virtual environment (venv)
+# Support for optional venv site-packages (e.g. local wheels)
 venv_site_packages = os.path.join(os.path.dirname(current_dir), "venv", "Lib", "site-packages")
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
     sys.path.append(venv_site_packages)
@@ -41,59 +41,6 @@ if sys.platform == "win32":
     os.environ.setdefault("CXXFLAGS", "/std:c++20")
 else:
     os.environ.setdefault("CXXFLAGS", "-std=c++20")
-
-# === SageAttention2 Integration (optional, for faster calibration with --sa2) ===
-_sage_attn_available = False
-_original_sdpa = None
-
-def try_import_sage_attention():
-    """Attempt to import SageAttention2 and return availability status."""
-    global _sage_attn_available
-    try:
-        import sageattention
-        _sage_attn_available = True
-        print("[SageAttention2] Successfully imported.")
-        return True
-    except ImportError:
-        print("[SageAttention2] Not installed. Calibration will use standard attention.")
-        return False
-
-def enable_sage_attention():
-    """Monkey-patch torch.nn.functional.scaled_dot_product_attention with SageAttention2."""
-    global _original_sdpa
-    if not _sage_attn_available:
-        print("[SageAttention2] Cannot enable - not available.")
-        return False
-    
-    if _original_sdpa is not None:
-        # Already enabled
-        return True
-    
-    import torch.nn.functional as F
-    from sageattention import sageattn
-    
-    _original_sdpa = F.scaled_dot_product_attention
-    
-    def sage_sdpa_wrapper(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, **kwargs):
-        if attn_mask is not None or is_causal:
-            return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale, **kwargs)
-        try:
-            return sageattn(query, key, value, is_causal=False)
-        except Exception:
-            return _original_sdpa(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale, **kwargs)
-    
-    F.scaled_dot_product_attention = sage_sdpa_wrapper
-    print("[SageAttention2] Enabled for calibration (monkey-patched SDPA).")
-    return True
-
-def disable_sage_attention():
-    """Restore original scaled_dot_product_attention."""
-    global _original_sdpa
-    if _original_sdpa is not None:
-        import torch.nn.functional as F
-        F.scaled_dot_product_attention = _original_sdpa
-        _original_sdpa = None
-        print("[SageAttention2] Disabled (restored original SDPA).")
 
 # --- Z-Image Base (NextDiT) model load and inference pipeline ---
 ZIT_PREFIXES = [
@@ -656,11 +603,15 @@ def _convert_zanime_profile_to_nextdit(profile):
     return converted
 
 
-def derive_hswq_strategy(model_profile):
+def derive_hswq_strategy(model_profile, is_zanime=False):
     """
     [Pure Data-Driven Engine]
     Derives Alpha/Beta from global model statistics and returns a continuous
     evaluation function that decides per-layer search_low without hardcoded thresholds.
+
+    is_zanime: when True, relax the search_low upper clip from 0.99 to 0.90 so the
+    gray-zone layers (k/o below VETO threshold but above stable range) actually receive
+    a meaningful HSWQ search range. ZI/ZIB/ZIT (is_zanime=False) keeps the original 0.99.
     """
     
     # [CRITICAL FIX] Automatically detect and strip model prefixes from profile keys
@@ -702,8 +653,12 @@ def derive_hswq_strategy(model_profile):
         k_penalty = min(k_stat / 100.0, 0.49)
         o_penalty = min(o_ratio / 60.0, 0.49)
         
-        # Use 0.50 as the base and raise the protection line according to the strongest abnormality
-        return float(np.clip(0.50 + max(k_penalty, o_penalty), 0.50, 0.99))
+        # Use 0.50 as the base and raise the protection line according to the strongest abnormality.
+        # Z-Anime: cap at 0.90 so that gray-zone layers (k/o just below VETO threshold) keep a
+        # real HSWQ search range instead of being clipped to a 1%-wide window (=naive cast).
+        # ZI/ZIB/ZIT (is_zanime=False): cap stays at 0.99 to preserve the existing behavior.
+        upper_clip = 0.90 if is_zanime else 0.99
+        return float(np.clip(0.50 + max(k_penalty, o_penalty), 0.50, upper_clip))
 
     # --- Decide global strategy (Alpha/Beta) ---
     if not model_profile:
@@ -799,7 +754,6 @@ def main():
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     parser.add_argument("--tokenizer_path", type=str, help="Path to tokenizer (optional)")
     parser.add_argument("--token", type=str, help="Hugging Face API token for fallback download (optional)")
-    parser.add_argument("--sa2", action="store_true", help="Enable SageAttention2 for faster calibration (requires sageattention package)")
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -823,13 +777,6 @@ def main():
     print("=" * 60)
     print("HSWQ V1.9 Autonomous Engine (Environment-Aware Analysis)")
     print("=" * 60)
-    
-    # === V1.5: SageAttention2 Initialization ===
-    if args.sa2:
-        if try_import_sage_attention():
-            enable_sage_attention()
-        else:
-            print("[Warning] --sa2 specified but SageAttention2 not available. Continuing with standard attention.")
 
     # --- ComfyUI Path Setup ---
     comfy_path = args.comfy_path
@@ -923,13 +870,14 @@ def main():
     # _norm_profile / keep_layers matching at L828/L968 / dynamic profile_score at L834)
     # operates on NextDiT fused module names. Bridge purely by key renaming so VETO
     # judgements actually reach the final keep_layers application site.
-    if model_profile and _is_zanime_profile(model_profile):
+    is_zanime_profile_flag = bool(model_profile) and _is_zanime_profile(model_profile)
+    if is_zanime_profile_flag:
         n_before = len(model_profile)
         model_profile = _convert_zanime_profile_to_nextdit(model_profile)
         print(f"  [Z-Anime profile bridge] Diffusers (to_q/to_k/to_v/to_out.0/norm_q/norm_k) ->")
         print(f"    fused NextDiT (qkv/out/q_norm/k_norm) via per-statistic MAX.")
         print(f"    Profile entries: {n_before} -> {len(model_profile)}")
-    alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(model_profile)
+    alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(model_profile, is_zanime=is_zanime_profile_flag)
     model, original_state_dict, stripped_state_dict, zit_config, detected_prefix, is_zanime, zanime_reverse_map, inference_dtype = load_zit_model(args.input, device, args.comfy_path)
     
     # tokenizer and text_encoder are already loaded in the initial block
@@ -956,9 +904,32 @@ def main():
             gc.collect()
             torch.cuda.empty_cache()
     for h in handles: h.remove()
-    
-    if args.sa2:
-        disable_sage_attention()
+
+    # [Z-Anime Structural VETO] Identify Linear layers whose weight shape is unique
+    # within the model. These are typically boundary / projection layers (e.g.
+    # cap_embedder.1 [3840, 2560] for text->DiT bridge, final_layer.linear [64, 3840]
+    # for output projection) that the data-driven (k/o/m) thresholds may miss but
+    # which strongly affect SSIM. No layer names are hardcoded; selection is purely
+    # structural via shape uniqueness over Linear weights of the loaded model.
+    # Guarded by is_zanime so ZI/ZIB/ZIT behavior is strictly unchanged.
+    if is_zanime:
+        shape_count = {}
+        for _n, _m in model.named_modules():
+            if isinstance(_m, torch.nn.Linear):
+                _shp = tuple(_m.weight.shape)
+                shape_count[_shp] = shape_count.get(_shp, 0) + 1
+        structural_veto = set()
+        for _n, _m in model.named_modules():
+            if isinstance(_m, torch.nn.Linear):
+                _shp = tuple(_m.weight.shape)
+                if shape_count[_shp] == 1 and _n not in hard_veto_layers:
+                    structural_veto.add(_n)
+                    print(f"    [Structural VETO] {_n} shape={list(_shp)} (uniqueness=1)")
+        if structural_veto:
+            hard_veto_layers = hard_veto_layers.union(structural_veto)
+            print(f"  [Z-Anime Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
+        else:
+            print(f"  [Z-Anime Structural VETO] No additional unique-shape layers found.")
 
     print("\nAnalyzing layer sensitivity (Profile-Based)...")
     # DualMonitor variance is scale-dependent and inaccurate, so we use
