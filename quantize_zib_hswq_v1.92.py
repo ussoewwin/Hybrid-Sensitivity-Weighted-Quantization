@@ -759,30 +759,13 @@ def main():
             torch.cuda.empty_cache()
 
     print(f"Saving quantized model: {args.output}")
+    if is_zanime:
+        print("  [Z-Anime] Output will use STANDARD NextDiT key format (no all_<mod>.2-1 prefix) for ComfyUI compatibility.")
     output_state_dict = {}
-    
-    def restore_zanime_key(normalized_key):
-        """Restore standard NextDiT key back to original Z-Anime form using reverse_map.
-        For derived keys (e.g. .comfy_quant, .weight_scale), reconstruct the all_<mod>.2-1<rest> form."""
-        if not is_zanime:
-            return normalized_key
-        if normalized_key in zanime_reverse_map:
-            return zanime_reverse_map[normalized_key]
-        # Derived key (e.g. <module>.comfy_quant): find matching weight key prefix in reverse_map
-        # by stripping the suffix and looking for a matching base
-        for suffix in [".comfy_quant", ".weight_scale"]:
-            if normalized_key.endswith(suffix):
-                base = normalized_key[:-len(suffix)]
-                weight_base = base + ".weight"
-                if weight_base in zanime_reverse_map:
-                    original_weight = zanime_reverse_map[weight_base]
-                    original_base = original_weight[:-len(".weight")]
-                    return original_base + suffix
-        return normalized_key
 
     for stripped_key, value in tqdm(stripped_state_dict.items(), desc="Converting"):
         module_name = stripped_key[:-7] if stripped_key.endswith(".weight") else None
-            
+
         if module_name and module_name in keep_layers:
             new_value = value.to(torch.float16)
         elif stripped_key in weight_amax_dict or (module_name and module_name + ".weight" in weight_amax_dict):
@@ -791,14 +774,12 @@ def main():
             new_value = torch.clamp(value.float(), -amax, amax).to(torch.float8_e4m3fn)
             if module_name:
                 prefixed_module = detected_prefix + module_name
-                meta_quant_key = restore_zanime_key(f"{prefixed_module}.comfy_quant")
-                meta_scale_key = restore_zanime_key(f"{prefixed_module}.weight_scale")
-                output_state_dict[meta_quant_key] = torch.tensor(list(json.dumps({"format": "float8_e4m3fn"}).encode("utf-8")), dtype=torch.uint8)
-                output_state_dict[meta_scale_key] = torch.tensor(1.0, dtype=torch.float32)
+                output_state_dict[f"{prefixed_module}.comfy_quant"] = torch.tensor(list(json.dumps({"format": "float8_e4m3fn"}).encode("utf-8")), dtype=torch.uint8)
+                output_state_dict[f"{prefixed_module}.weight_scale"] = torch.tensor(1.0, dtype=torch.float32)
         else:
             new_value = value.to(torch.float16) if value.dtype == torch.bfloat16 else value
-        
-        out_key = restore_zanime_key(detected_prefix + stripped_key)
+
+        out_key = detected_prefix + stripped_key
         output_state_dict[out_key] = new_value
 
     save_file(output_state_dict, args.output)
