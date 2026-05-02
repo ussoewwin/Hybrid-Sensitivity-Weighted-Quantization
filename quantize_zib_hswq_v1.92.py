@@ -138,12 +138,12 @@ def _fuse_zanime_attention(state_dict):
     return new_dict
 
 def normalize_zanime_keys(state_dict):
-    """Z-Anime固有のキー命名を標準NextDiT形式へ正規化。
-    Step 1: 'all_<module>.2-1' prefix を剥がす。
+    """Normalize Z-Anime specific key naming to standard NextDiT format.
+    Step 1: Strip 'all_<module>.2-1' prefix.
       all_x_embedder.2-1.weight               -> x_embedder.weight
       all_final_layer.2-1.linear.weight       -> final_layer.linear.weight
       all_layers.0.2-1.attention.to_q.weight  -> layers.0.attention.to_q.weight
-    Step 2: Diffusers-style attention を ComfyUI NextDiT 用に fuse / rename。
+    Step 2: Fuse / rename Diffusers-style attention to ComfyUI NextDiT style.
       to_q+to_k+to_v -> qkv (cat dim=0), to_out.0 -> out, norm_q/norm_k -> q_norm/k_norm
     Returns (normalized_dict, reverse_map) where reverse_map[normalized_key] = original_key.
     ZIB/ZIT logic is preserved by only applying this when Z-Anime is detected.
