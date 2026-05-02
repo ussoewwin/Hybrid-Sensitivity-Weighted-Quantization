@@ -81,12 +81,45 @@ torch.backends.cudnn.benchmark = False
 
 import re
 
+def _fuse_zanime_attention(state_dict):
+    """Z-Anime (Diffusers/HF style) attention -> ComfyUI NextDiT (lumina) style.
+      <p>.attention.to_q.weight + to_k.weight + to_v.weight -> <p>.attention.qkv.weight (cat dim=0)
+      <p>.attention.to_out.0.weight                          -> <p>.attention.out.weight
+      <p>.attention.norm_q.weight                            -> <p>.attention.q_norm.weight
+      <p>.attention.norm_k.weight                            -> <p>.attention.k_norm.weight
+    Only applied when Z-Anime is detected; ZI/ZIB/ZIT keys (already qkv-fused) are unaffected.
+    """
+    new_dict = dict(state_dict)
+    prefixes = set()
+    for k in list(new_dict.keys()):
+        m = re.match(r"^(.+?\.attention)\.to_q\.weight$", k)
+        if m:
+            prefixes.add(m.group(1))
+    for prefix in prefixes:
+        kq, kk, kv = f"{prefix}.to_q.weight", f"{prefix}.to_k.weight", f"{prefix}.to_v.weight"
+        if kq in new_dict and kk in new_dict and kv in new_dict:
+            qkv = torch.cat([new_dict[kq], new_dict[kk], new_dict[kv]], dim=0)
+            new_dict[f"{prefix}.qkv.weight"] = qkv
+            del new_dict[kq], new_dict[kk], new_dict[kv]
+    rename_map = {
+        ".attention.to_out.0.weight": ".attention.out.weight",
+        ".attention.norm_q.weight":   ".attention.q_norm.weight",
+        ".attention.norm_k.weight":   ".attention.k_norm.weight",
+    }
+    for k in list(new_dict.keys()):
+        for src, dst in rename_map.items():
+            if k.endswith(src):
+                new_dict[k.replace(src, dst)] = new_dict.pop(k)
+                break
+    return new_dict
+
 def normalize_zanime_keys(state_dict):
     """Z-Anime固有のキー命名を標準NextDiT形式へ正規化。
-    Z-Anime uses 'all_<module>.2-1' prefix pattern, e.g.:
-      all_layers.0.2-1.attention.qkv.weight -> layers.0.attention.qkv.weight
+    Step 1: 'all_<module>.2-1' prefix を剥がす (only for x_embedder / final_layer in Z-Anime base).
       all_x_embedder.2-1.weight -> x_embedder.weight
-      all_noise_refiner.0.2-1.attention.qkv.weight -> noise_refiner.0.attention.qkv.weight
+    Step 2: Diffusers-style attention を ComfyUI NextDiT 用に fuse / rename.
+      to_q+to_k+to_v -> qkv (cat dim=0), to_out.0 -> out, norm_q/norm_k -> q_norm/k_norm
+    ZI/ZIB/ZIT logic is preserved by only applying this when Z-Anime is detected.
     """
     normalized = {}
     for key, value in state_dict.items():
@@ -96,6 +129,7 @@ def normalize_zanime_keys(state_dict):
             # Uses non-greedy match to capture the shortest module path before .2-1
             new_key = re.sub(r'^all_(.*?)\.2-1', r'\1', new_key)
         normalized[new_key] = value
+    normalized = _fuse_zanime_attention(normalized)
     return normalized
 
 def detect_zit_config_from_keys(state_dict):
@@ -132,7 +166,12 @@ def detect_zit_config_from_keys(state_dict):
         print(f"  Detected Intermediate Size: {zit_config['intermediate_size']}")
     else:
         zit_config["intermediate_size"] = None # Let model default logic handle or fail
-        
+
+    # Detect qk_norm (Z-Anime has attention.q_norm/k_norm; ZI/ZIB/ZIT typically not)
+    zit_config["qk_norm"] = any(k.endswith(".attention.q_norm.weight") for k in state_dict_keys)
+    if zit_config["qk_norm"]:
+        print(f"  Detected qk_norm=True (q_norm/k_norm weights present)")
+
     return zit_config
 
 def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
@@ -209,6 +248,8 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
         ratio = config["intermediate_size"] / config["hidden_size"]
         kwargs["ffn_dim_multiplier"] = ratio
         print(f"  Calculated FFN Dim Multiplier: {ratio:.4f} (Dim: {config['hidden_size']} -> {config['intermediate_size']})")
+    if config.get("qk_norm"):
+        kwargs["qk_norm"] = True
 
     import inspect
     print(f"  Debug: NextDiT Signature: {inspect.signature(NextDiT.__init__)}")
