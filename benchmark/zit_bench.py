@@ -597,9 +597,9 @@ def main():
     print("-" * 50)
     print(f"Fidelity:")
     mse_label = "MSE (0-255 view)" if is_zanime else "MSE (latent)"
-    print(f"  {mse_label}:       {mse:.4f}")
     ssim_label = "SSIM (decoded)" if vae_obj is not None else "SSIM (0-255 view)"
-    print(f"  {ssim_label}:  {score:.4f}")
+    print(f"  {mse_label:<18}: {mse:.4f}")
+    print(f"  {ssim_label:<18}: {score:.4f}")
     print("="*50)
 
     diff_img = ImageChops.difference(img_fp16, img_fp8)
