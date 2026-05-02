@@ -228,7 +228,8 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
         converted_dict = stripped_dict
     
     # === STEP 2b: Z-Anime key normalization ===
-    if any(k.startswith("all_x_embedder.2-1") for k in converted_dict.keys()):
+    is_zanime = any(k.startswith("all_x_embedder.2-1") for k in converted_dict.keys())
+    if is_zanime:
         print("  [Model Detection] Z-Anime key naming detected. Normalizing to standard NextDiT keys...")
         converted_dict = normalize_zanime_keys(converted_dict)
     
@@ -303,7 +304,7 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_fp8=False):
         print(f"  Note: FP16 model loaded on {device} and cast to float16.")
         
     model.eval()
-    return model, converted_dict
+    return model, converted_dict, is_zanime
 
 def encode_prompt(prompt, text_encoder, tokenizer, device):
     template = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
@@ -389,6 +390,16 @@ def calculate_ssim_normalized(img1, img2):
     a1 = np.array(img1)
     a2 = np.array(img2)
     return float(ssim(a1, a2, win_size=3, channel_axis=2, data_range=255))
+
+
+def calculate_normalized_mse(img1, img2):
+    """MSE on the same 0-255 view used by SSIM. Used for Z-Anime where raw latent
+    magnitudes diverge from ZI/ZIB/ZIT and make raw latent MSE non-comparable.
+    Parallel to the historical Z Image SSIM fix (md/ZIT_Benchmark_SSIM_Explanation.md):
+    align the metric input with the perceptual 0-255 view that latent_to_img() produces."""
+    a1 = np.array(img1).astype(np.float32)
+    a2 = np.array(img2).astype(np.float32)
+    return float(np.mean((a1 - a2) ** 2))
 
 def print_model_stats(model, name, original_state_dict=None):
     try:
@@ -526,7 +537,7 @@ def main():
     
     # FP16 Benchmark
     print("\n=== 1. Benchmarking Baseline (FP16) ===")
-    model, state_dict_fp16 = load_zit_model(args.fp16, device, args.comfy_path, is_fp8=False)
+    model, state_dict_fp16, is_zanime_fp16 = load_zit_model(args.fp16, device, args.comfy_path, is_fp8=False)
     print_model_stats(model, "FP16 Baseline", state_dict_fp16)
     latents_fp16, time_fp16, vram_fp16 = run_inference(model, embeds, mask, args.steps, args.seed, device)
     print(f"FP16 Time: {time_fp16:.2f}s | Peak VRAM: {vram_fp16:.2f} MB")
@@ -546,7 +557,8 @@ def main():
 
     # FP8 Benchmark
     print("\n=== 2. Benchmarking Quantized (FP8) ===")
-    model, state_dict_fp8 = load_zit_model(args.fp8, device, args.comfy_path, is_fp8=True)
+    model, state_dict_fp8, is_zanime_fp8 = load_zit_model(args.fp8, device, args.comfy_path, is_fp8=True)
+    is_zanime = is_zanime_fp16 or is_zanime_fp8
     print_model_stats(model, "FP8 Quantized", state_dict_fp8)
     latents_fp8, time_fp8, vram_fp8 = run_inference(model, embeds, mask, args.steps, args.seed, device)
     print(f"FP8 Time: {time_fp8:.2f}s | Peak VRAM: {vram_fp8:.2f} MB")
@@ -563,6 +575,10 @@ def main():
     # Comparison: MSE in latent space, SSIM on normalized 0-255 view (latent_to_img)
     mse = calculate_latent_mse(latents_fp16, latents_fp8)
     score = calculate_ssim_normalized(img_fp16, img_fp8)
+    # Z-Anime: also report MSE on the same 0-255 view that SSIM uses, since raw
+    # latent magnitudes for Z-Anime diverge from ZI and make `mse` (latent) non-comparable.
+    # ZI/ZIB/ZIT path is unchanged; this is additive and gated by is_zanime.
+    mse_view = calculate_normalized_mse(img_fp16, img_fp8) if is_zanime else None
     
     print("\n" + "="*50)
     print("ZIT FP8 BENCHMARK RESULTS")
@@ -578,7 +594,11 @@ def main():
     print(f"                      FP8:  {time_fp8:>8.2f}s")
     print("-" * 50)
     print(f"Fidelity:")
-    print(f"  MSE (latent):       {mse:.4f}")
+    if mse_view is not None:
+        print(f"  MSE (0-255 view):   {mse_view:.4f}")
+        print(f"  MSE (latent, raw):  {mse:.4f}")
+    else:
+        print(f"  MSE (latent):       {mse:.4f}")
     ssim_label = "SSIM (decoded)" if vae_obj is not None else "SSIM (0-255 view)"
     print(f"  {ssim_label}:  {score:.4f}")
     print("="*50)
