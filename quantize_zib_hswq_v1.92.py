@@ -931,6 +931,37 @@ def main():
         else:
             print(f"  [Z-Anime Structural VETO] No additional unique-shape layers found.")
 
+    # [Z-Anime Per-Projection qkv VETO] Auto-detect attention.qkv layers via key
+    # pattern (no hardcoded layer names) and split the fused weight into to_q /
+    # to_k / to_v chunks. If any per-projection abs_max exceeds the FP8 E4M3
+    # safe range threshold (m > 5.0, same magnitude scale as the existing
+    # data-driven m > 20 hard_veto), add the qkv layer to hard_veto_layers.
+    # Per-projection split is the same operation already performed during
+    # quantization for is_zanime, so the threshold is applied on the actual
+    # quantization unit, not the fused statistic.
+    if is_zanime:
+        proj_veto = set()
+        for _n, _m in model.named_modules():
+            if isinstance(_m, torch.nn.Linear) and _n.endswith(".attention.qkv"):
+                if _n in hard_veto_layers:
+                    continue
+                _w = _m.weight.detach().float()
+                _out_dim = _w.shape[0]
+                if _out_dim % 3 != 0:
+                    continue
+                _chunk = _out_dim // 3
+                _amax = [_w[i * _chunk:(i + 1) * _chunk].abs().max().item() for i in range(3)]
+                if max(_amax) > 5.0:
+                    proj_veto.add(_n)
+                    _tags = ["to_q", "to_k", "to_v"]
+                    _hi = ", ".join(f"{t}={a:.2f}" for t, a in zip(_tags, _amax) if a > 5.0)
+                    print(f"    [Per-Projection VETO] {_n} ({_hi})")
+        if proj_veto:
+            hard_veto_layers = hard_veto_layers.union(proj_veto)
+            print(f"  [Z-Anime Per-Projection VETO] Added {len(proj_veto)} qkv layers (total VETO: {len(hard_veto_layers)}).")
+        else:
+            print(f"  [Z-Anime Per-Projection VETO] No qkv layer exceeds per-projection abs_max threshold.")
+
     print("\nAnalyzing layer sensitivity (Profile-Based)...")
     # DualMonitor variance is scale-dependent and inaccurate, so we use
     # the distribution profile (kurtosis + outlier_ratio) as a continuous score instead.
