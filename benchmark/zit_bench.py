@@ -572,13 +572,15 @@ def main():
         img_fp8 = latent_to_img(latents_fp8)
     img_fp8.save("bench_fp8.png")
     
-    # Comparison: MSE in latent space, SSIM on normalized 0-255 view (latent_to_img)
-    mse = calculate_latent_mse(latents_fp16, latents_fp8)
+    # Comparison: MSE and SSIM.
+    # Z-Anime: raw latent magnitudes diverge from ZI, so latent MSE is non-comparable.
+    # Use the same 0-255 view that SSIM uses (latent_to_img output) for Z-Anime MSE.
+    # ZI/ZIB/ZIT: keep legacy latent-space MSE (v1.1.1 Flux precedent).
+    if is_zanime:
+        mse = calculate_normalized_mse(img_fp16, img_fp8)
+    else:
+        mse = calculate_latent_mse(latents_fp16, latents_fp8)
     score = calculate_ssim_normalized(img_fp16, img_fp8)
-    # Z-Anime: also report MSE on the same 0-255 view that SSIM uses, since raw
-    # latent magnitudes for Z-Anime diverge from ZI and make `mse` (latent) non-comparable.
-    # ZI/ZIB/ZIT path is unchanged; this is additive and gated by is_zanime.
-    mse_view = calculate_normalized_mse(img_fp16, img_fp8) if is_zanime else None
     
     print("\n" + "="*50)
     print("ZIT FP8 BENCHMARK RESULTS")
@@ -594,11 +596,8 @@ def main():
     print(f"                      FP8:  {time_fp8:>8.2f}s")
     print("-" * 50)
     print(f"Fidelity:")
-    if mse_view is not None:
-        print(f"  MSE (0-255 view):   {mse_view:.4f}")
-        print(f"  MSE (latent, raw):  {mse:.4f}")
-    else:
-        print(f"  MSE (latent):       {mse:.4f}")
+    mse_label = "MSE (0-255 view)" if is_zanime else "MSE (latent)"
+    print(f"  {mse_label}:       {mse:.4f}")
     ssim_label = "SSIM (decoded)" if vae_obj is not None else "SSIM (0-255 view)"
     print(f"  {ssim_label}:  {score:.4f}")
     print("="*50)
