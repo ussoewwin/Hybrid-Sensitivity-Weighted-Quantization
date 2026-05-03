@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.5
+
+**Z-Anime HSWQ support** — `quantize_zib_hswq_v1.92.py`: Z-Anime checkpoints use an **`is_zanime`** branch (detection, calibration dtype, `upper_clip`, Hard VETO / attention fusion / projection VETO as implemented). `benchmark/zit_bench.py`: dtype and MSE labeling aligned for Z-Anime runs. Non–Z-Anime Z Image Turbo / Base behavior unchanged.  
+Release notes: [v1.1.5](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.1.5)
+
 ## 1.1.4
 
 **HSWQ technical overview updated to current architecture** — Rewrote `md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md` to match the latest stack (SDXL v1.3, Flux v1.6, Z Image v1.92), clarifying the 3-axis HSWQ design (Profile / Sensitivity / Importance), V4 SVD+RMS hybrid and Hard VETO positioning, plus a GitHub-compatible Mermaid diagram fix and direct link path to the V4 technical guide.
