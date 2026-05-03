@@ -224,7 +224,7 @@ V1 optimizes only the clipping threshold (no per-tensor scale). V2 would additio
 | Adaptive `search_low` | n/a | yes |
 | Hard VETO | n/a | yes |
 
-Sensitivity (output variance): layers that hurt image quality most if corrupted → top 10–25% kept in FP16 (for SDXL and ZIT, 10% often gives sufficient quality).
+Sensitivity (output variance): layers that hurt image quality most if corrupted → top 5–25% kept in FP16 (for SDXL and ZIT, 10% often gives sufficient quality).
 
 ---
 
