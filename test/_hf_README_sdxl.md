@@ -54,7 +54,7 @@ File size is reduced by about **60-70%** vs FP16 while keeping best quality per 
 ## Architecture
 
 1. **Dual Monitor System** — During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 10-25% kept in FP16.
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → top 5–25% kept in FP16 (for SDXL and ZIT, 10% often gives sufficient quality).
    - **Importance** (input mean absolute value): per-channel contribution → used as weights in the weighted histogram.
 
 2. **Rigorous FP8 Grid Simulation** — Uses a physical grid (all 0–255 values cast to `torch.float8_e4m3fn`) instead of theoretical formulas, so MSE matches real runtime.
@@ -73,7 +73,7 @@ File size is reduced by about **60-70%** vs FP16 while keeping best quality per 
 ## Recommended Parameters
 
 - **Samples:** 32 (recommended).
-- **Keep ratio:** 0.25 (25%) — keeps critical layers in FP16 (※The ratio for retaining fp16 can also maintain sufficient quality at 0.1 in the case of SDXL).
+- **Keep ratio:** 0.25 (25%) in the example — use `0.05`–`0.25` (5–25%) as needed. For SDXL and ZIT, 0.05–0.10 often maintains sufficient quality.
 - **Steps:** 25(recommended). — to include early denoising sensitivity.
 ---
 
