@@ -27,22 +27,9 @@ pip install diffusers safetensors transformers accelerate tqdm sentencepiece pro
 pip install -r requirements.txt
 ```
 
-## Install SageAttention2 (optional, `--sa2` — does not degrade calibration)
+## `quantize_zib_hswq_v1.92.py` and attention backends
 
-**Windows:**
-
-```bash
-pip install https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post4/sageattention-2.2.0+cu130torch2.9.0andhigher.post4-cp39-abi3-win_amd64.whl
-pip install triton-windows
-```
-
-**Linux:**
-
-```bash
-pip install sageattention triton
-```
-
-Note: This installs SageAttention 1, not SageAttention2 (SA2). For SA2 on Linux, check the [SageAttention](https://github.com/woct0rdho/SageAttention) repository for a compatible build or wheel.
+`quantize_zib_hswq_v1.92.py` does **not** define a `--sa2` (SageAttention2) flag. Use only the arguments shown in the example below. You do **not** need a separate “install SageAttention2 for quantization” step for this guide.
 
 ## Download text encoder (CLIP)
 
@@ -57,11 +44,10 @@ Use the converted safetensors file, e.g. `clip/qwen3_4b_abliterated_fp16_convert
 Adjust the file paths to your environment.
 
 ```bash
-python quantize_zib_hswq_v1.92.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_r32_r0.25_v1.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.1 --sa2
+python quantize_zib_hswq_v1.92.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_r32_r0.25_v1.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.1
 ```
 
 **Notes:**
 
 - **Samples:** 32 (recommended).
 - **Keep ratio:** 0.1 (as in the example); the valid range is typically `0.05`–`0.25`. For SDXL and ZIT, 0.05–0.10 often gives sufficient quality. Adjust if you want to trade off quality vs. memory/speed.
-- Optional `--sa2` enables SageAttention2; it does not degrade calibration scores (no significant speed gain).
