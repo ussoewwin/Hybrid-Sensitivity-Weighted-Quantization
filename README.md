@@ -10,7 +10,7 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, **Z Image Turbo**, a
 
 **SDXL models:** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
 
-**Z Image models:** [Hugging Face — HSWQ-Z-Image-fp8e4m3](https://huggingface.co/ussoewwin/HSWQ-Z-Image-fp8e4m3) **/ Z-Anime** — [Z-Anime HSWQ Support — Complete Explanation](md/ZAnime_HSWQ_Support_Complete_Explanation.md)
+**Z Image / Z-Anime models:** [Hugging Face — HSWQ-Z-Image-fp8e4m3](https://huggingface.co/ussoewwin/HSWQ-Z-Image-fp8e4m3)
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/logo.png" width="400">
