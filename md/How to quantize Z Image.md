@@ -25,6 +25,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 ```bash
 pip install diffusers safetensors transformers accelerate tqdm sentencepiece protobuf einops scikit-image
 pip install -r requirements.txt
+pip install comfy_aimdo
 ```
 
 ## `quantize_zib_hswq_v1.92.py` and attention backends
