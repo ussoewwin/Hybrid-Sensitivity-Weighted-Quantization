@@ -51,4 +51,4 @@ python quantize_zib_hswq_v1.92.py --input "path/to/your_zit_model.safetensors" -
 **Notes:**
 
 - **Samples:** 32 (recommended).
-- **Keep ratio:** 0.1 (as in the example); the valid range is typically `0.05`–`0.25`. For ZI and ZA, **0.10** often gives sufficient quality. Adjust if you want to trade off quality vs. memory/speed.
+- **Keep ratio:** 0.1 (as in the example); the valid range is typically `0.05`–`0.25`. For ZI and ZA, 0.1 often gives sufficient quality. Adjust if you want to trade off quality vs. memory/speed.
