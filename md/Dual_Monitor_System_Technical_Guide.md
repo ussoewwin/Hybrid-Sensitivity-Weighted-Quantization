@@ -67,7 +67,7 @@ Flux 1.6 and ZIT 1.5 use the same formula (accumulate `output_sum`, `output_sq_s
 
 ### 2.3 Usage: Layer Selection
 
-After calibration, layers are sorted by sensitivity **descending**; the top `keep_ratio` (e.g. 5–10% or 25%) are kept in FP16, the rest are quantized.
+After calibration, layers are sorted by sensitivity **descending**; the top `keep_ratio` (e.g. 5–25%) are kept in FP16, the rest are quantized.
 
 **SDXL V1.3:**
 
