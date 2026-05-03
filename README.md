@@ -4,13 +4,13 @@
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. It offers two modes: standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
+High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, **Z Image Turbo**, and **Z-Anime** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. It offers two modes: standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
 
 **Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
 
 **SDXL models:** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
 
-**Z Image models:** [Hugging Face — HSWQ-Z-Image-fp8e4m3](https://huggingface.co/ussoewwin/HSWQ-Z-Image-fp8e4m3)
+**Z Image models:** [Hugging Face — HSWQ-Z-Image-fp8e4m3](https://huggingface.co/ussoewwin/HSWQ-Z-Image-fp8e4m3) **/ Z-Anime** — [Z-Anime HSWQ Support — Complete Explanation](md/ZAnime_HSWQ_Support_Complete_Explanation.md)
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/logo.png" width="400">
@@ -21,11 +21,11 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo*
 ## How to quantize
 
 - **SDXL:** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md)
-- **Z Image:** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md)
+- **Z Image / Z-Anime:** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md)
 
 **Benchmark results:**
 - **SDXL:** [MSE / SSIM](test/benchmark_test.md)
-- **Z Image:** [MSE / SSIM](test/benchmark_zit.md)
+- **Z Image / Z-Anime:** [MSE / SSIM](test/benchmark_zit.md)
 
 ---
 
