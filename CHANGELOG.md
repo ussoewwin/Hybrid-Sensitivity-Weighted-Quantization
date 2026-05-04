@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.7
+
+**Z-Anime MSE-Guided VETO Reassessment** — `quantize_zib_hswq_v1.92.py`: Implemented dynamic MSE-Guided VETO Reassessment for Z-Anime. This logic safely releases layers VETO'd solely by `outlier_ratio` (primarily `feed_forward.w2`) by trial-quantizing and verifying their MSE against a dynamically calculated safe baseline (P75 + margin). This breakthrough safely increased the VRAM savings rate from ~25% to 29.3% while perfectly maintaining SSIM at 0.9528.
+Release notes: [v1.1.7](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.1.7)
+
 ## 1.1.6
 
 **Z-Anime Base benchmark results published** — Added and aligned `z anime base` benchmark results in the ZIT benchmark document, including HSWQ vs Official FP8 comparison and VRAM-saving analysis notes.
