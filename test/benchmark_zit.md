@@ -63,3 +63,35 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 For every model in `score_zi.txt` with a Native FP8 or Official FP8 baseline (10 models total), **HSWQ** shows lower latent MSE and higher SSIM than that baseline. The advantage is consistent across both Native baselines and Official FP8 distributions (e.g., **beyondREALITY_V30**, **moodyRealMix_zitV4DPO/V5DPO**), confirming HSWQ's effectiveness for the Z Image Turbo family.
 
+- **Important VRAM fact (ZA, HSWQ):** `12335.8 MB -> 9219.3 MB`, so **3116.5 MB (25.3%)** is saved.
+- **Important VRAM fact (ZIT, HSWQ):** ZIT rows in the same file save **4825.6–5040.9 MB (39.1%–40.9%)**.
+- **Reason in this log (numbers only):** FP16 peaks are almost equal (~`12335.7/12335.8 MB`), but ZA FP8 peak (`9219.3 MB`) is higher than ZIT FP8 peaks (`7294.8–7510.1 MB`), so ZA saved MB/% is lower.
+- **Important baseline fact (ZA official FP8):** `-0.0 MB (-0.0%)` saved (`FP8 12335.8 MB`), i.e. no VRAM reduction on the official FP8 baseline.
+
+### Why ZA VRAM saving is lower than ZIT (analysis)
+
+Use the peak decomposition:
+
+`M_peak = M_weights + M_activations + M_workspace + M_overhead`
+
+and saved VRAM:
+
+`saved = M_peak(FP16) - M_peak(FP8)`.
+
+In this log, FP16 peaks are almost identical (ZA `12335.8`, ZIT about `12335.7`), so the gap is determined by FP8 peak only:
+
+- ZA FP8 peak: `9219.3`
+- ZIT FP8 peak: `7294.8–7510.1`
+
+Therefore:
+
+- ZA saved: `12335.8 - 9219.3 = 3116.5 MB` (`25.3%`)
+- ZIT saved range: `12335.7 - 7510.1 = 4825.6 MB` to `12335.7 - 7294.8 = 5040.9 MB` (`39.1%–40.9%`)
+
+Direct difference in saved MB is exactly the FP8-peak gap:
+
+- vs ZIT min-FP8 case: `9219.3 - 7294.8 = 1924.5 MB`
+- vs ZIT max-FP8 case: `9219.3 - 7510.1 = 1709.2 MB`
+
+So, in this benchmark file, ZA saves less VRAM because its FP8 peak remains higher while FP16 peaks are the same scale.
+
