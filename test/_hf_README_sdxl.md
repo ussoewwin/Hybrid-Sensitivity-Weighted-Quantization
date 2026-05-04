@@ -73,7 +73,7 @@ File size is reduced by about **60-70%** vs FP16 while keeping best quality per 
 ## Recommended Parameters
 
 - **Samples:** 32 (recommended).
-- **Keep ratio:** 0.25 (25%) in the example — use `0.05`–`0.25` (5–25%) as needed. For SDXL and ZIT, 0.05–0.10 often maintains sufficient quality.
+- **Keep ratio:** 0.25 (25%) in the example; the valid range is typically `0.05`–`0.25` (5–25%). For SDXL, 0.25 often gives sufficient quality. Adjust if you want to trade off quality vs. memory/speed.
 - **Steps:** 25(recommended). — to include early denoising sensitivity.
 ---
 
