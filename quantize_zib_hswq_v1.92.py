@@ -1000,9 +1000,108 @@ def main():
     # [V1.92 Exclusive Protection] VETO (always FP16) + Dynamic (additional FP16) with no overlap for maximum coverage
     keep_layers = dynamic_keep_layers.union(hard_veto_layers)
     
-    non_veto_total = len(layer_sensitivities)
-    print(f"Total layers: {non_veto_total + len(hard_veto_layers)} (Non-VETO pool: {non_veto_total})")
-    print(f"Dynamic kept (from non-VETO pool): {len(dynamic_keep_layers)} (Top {args.keep_ratio*100:.1f}% of {non_veto_total})")
+    # =========================================================================
+    # [V1.92 MSE-Guided VETO Reassessment] — Z-Anime ONLY
+    # Layers VETO'd *only* by outlier_ratio (o>40), NOT by kurtosis or magnitude,
+    # are candidates for automatic release. These are typically feed_forward.w2
+    # layers that HSWQ's optimal clipping may handle well.
+    # Guarded by is_zanime so ZI/ZIB/ZIT behavior is strictly unchanged.
+    #
+    # Strategy:
+    #   1. Identify "outlier-only" VETO layers (o>40 but k<=20 and m<=20)
+    #   2. Trial-quantize a random sample of SAFE layers to get baseline MSE
+    #   3. Trial-quantize each outlier-only VETO candidate
+    #   4. If candidate MSE <= P75 of safe MSE distribution → release from VETO
+    # =========================================================================
+    outlier_only_veto = set()
+    if is_zanime:
+        for vname in hard_veto_layers:
+            prof = _norm_profile.get(vname, {})
+            k = prof.get("kurtosis", 0)
+            m = prof.get("abs_max", 0)
+            o = prof.get("outlier_ratio", 0)
+            # Only layers where outlier_ratio was the sole trigger
+            if o > 40 and k <= 20 and m <= 20:
+                outlier_only_veto.add(vname)
+    
+    if outlier_only_veto:
+        print(f"\n  [MSE-Guided Reassessment] {len(outlier_only_veto)} VETO layers are outlier-only (o>40, k<=20, m<=20).")
+        print(f"  Trial-quantizing to measure actual HSWQ quantization error...")
+        
+        trial_optimizer = HSWQWeightedHistogramOptimizerV4(
+            bins=8192, num_candidates=1000, refinement_iterations=10,
+            device=device, alpha=alpha, beta=beta
+        )
+        
+        # Step 1: Collect baseline MSE from safely-quantized layers (non-VETO, non-Dynamic)
+        safe_mses = []
+        _module_dict = dict(model.named_modules())
+        _safe_sample = [n for n in target_modules if n not in keep_layers and n in _module_dict]
+        # Sample up to 30 safe layers for baseline
+        import random
+        _safe_sample = random.sample(_safe_sample, min(30, len(_safe_sample)))
+        for sname in _safe_sample:
+            smod = _module_dict[sname]
+            if not hasattr(smod, 'weight'):
+                continue
+            sw = smod.weight.data
+            slayer_search_low = get_layer_search_low(sname, sw)
+            try:
+                sresult = trial_optimizer.compute_optimal_amax_with_stats(
+                    sw, importance=None, use_svd_leverage=True, scaled=False
+                )
+                safe_mses.append(sresult['estimated_mse'])
+            except Exception:
+                pass
+            torch.cuda.empty_cache()
+        
+        if safe_mses:
+            safe_mses.sort()
+            # P75 = 75th percentile of safe layer MSE
+            p75_idx = int(len(safe_mses) * 0.75)
+            mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)]
+            # Safety margin: allow up to 2x the P75 threshold
+            mse_threshold *= 2.0
+            print(f"  [MSE Baseline] Safe layers sampled: {len(safe_mses)}, P75 MSE: {safe_mses[p75_idx] if p75_idx < len(safe_mses) else safe_mses[-1]:.8f}, Threshold (2×P75): {mse_threshold:.8f}")
+            
+            # Step 2: Trial-quantize each outlier-only VETO candidate
+            released = set()
+            for vname in sorted(outlier_only_veto):
+                if vname not in _module_dict:
+                    continue
+                vmod = _module_dict[vname]
+                if not hasattr(vmod, 'weight'):
+                    continue
+                vw = vmod.weight.data
+                try:
+                    vresult = trial_optimizer.compute_optimal_amax_with_stats(
+                        vw, importance=None, use_svd_leverage=True, scaled=False
+                    )
+                    vmse = vresult['estimated_mse']
+                    vprof = _norm_profile.get(vname, {})
+                    vor = vprof.get("outlier_ratio", 0)
+                    if vmse <= mse_threshold:
+                        released.add(vname)
+                        print(f"    RELEASED: {vname} | MSE={vmse:.8f} <= threshold={mse_threshold:.8f} | o={vor:.1f} | amax={vresult['optimal_amax']:.4f}")
+                    else:
+                        print(f"    KEPT:     {vname} | MSE={vmse:.8f} >  threshold={mse_threshold:.8f} | o={vor:.1f}")
+                except Exception as e:
+                    print(f"    ERROR:    {vname} | {e}")
+                torch.cuda.empty_cache()
+            
+            if released:
+                hard_veto_layers = hard_veto_layers - released
+                keep_layers = keep_layers - released
+                print(f"  [MSE-Guided Reassessment] Released {len(released)} layers from VETO. Remaining VETO: {len(hard_veto_layers)}.")
+                print(f"  Updated FP16 kept layers: {len(keep_layers)}")
+            else:
+                print(f"  [MSE-Guided Reassessment] No layers released (all exceeded MSE threshold).")
+        else:
+            print(f"  [MSE-Guided Reassessment] No safe baseline available, skipping.")
+    
+    non_veto_total = len([n for n in target_modules if n not in hard_veto_layers])
+    print(f"\nTotal layers: {len(target_modules)} (Non-VETO pool: {non_veto_total})")
+    print(f"Dynamic kept (from non-VETO pool): {len(dynamic_keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
     print(f"Static kept (Hard VETO): {len(hard_veto_layers)} (Always FP16)")
     print(f"Final FP16 kept layers: {len(keep_layers)} (VETO {len(hard_veto_layers)} + Dynamic {len(dynamic_keep_layers)})")
     
