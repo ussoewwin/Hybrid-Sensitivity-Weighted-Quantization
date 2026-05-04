@@ -21,6 +21,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | jibMixZIT_v20 | r0.05 | 0.0126 | 0.9577 |
 | harukiMIX_zit2603 | r0.05 | 0.0085 | 0.9678 |
 | 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.0286 | 0.9493 |
+| z anime | r0.05 | 31.5995 | 0.9583 |
 
 ---
 
@@ -42,6 +43,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | jibMixZIT_v20 | r0.05 | 0.0126 | 0.0410 | +0.0284 | 0.9577 | 0.9269 | −0.0308 | Native FP8 | HSWQ |
 | harukiMIX_zit2603 | r0.05 | 0.0085 | 0.0130 | +0.0045 | 0.9678 | 0.9248 | −0.0430 | Native FP8 | HSWQ |
 | 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.0286 | 0.0495 | +0.0209 | 0.9493 | 0.9226 | −0.0267 | Native FP8 | HSWQ |
+| z anime | r0.05 | 31.5995 | 50.9626 | +19.3631 | 0.9583 | 0.9427 | −0.0156 | Official FP8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM (lower MSE and higher SSIM for HSWQ vs baseline).
 
@@ -53,9 +55,11 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 - **SSIM (0–255 view):** Structural similarity on normalized 0–255 preview images (`zit_bench`); 1.0 = perfect match.
 - **Keep ratio:** Fraction of layers kept in FP16 (e.g. r0.1 = 10%, r0.05 = 5%).
 - **Test environment (from logs):** Peak VRAM ~12.3 GB FP16 / ~7.3–7.5 GB HSWQ FP8 where applicable; see `score_zi.txt` blocks for per-run VRAM and inference time.
+- **Z-Anime row:** The ZA MSE values in this table are from the 0–255 view block in `score_zi.txt` (not latent-space MSE).
 
 ---
 
 ## Analysis & Key Findings (Z Image, partial)
 
 For every model in `score_zi.txt` with a Native FP8 or Official FP8 baseline (10 models total), **HSWQ** shows lower latent MSE and higher SSIM than that baseline. The advantage is consistent across both Native baselines and Official FP8 distributions (e.g., **beyondREALITY_V30**, **moodyRealMix_zitV4DPO/V5DPO**), confirming HSWQ's effectiveness for the Z Image Turbo family.
+
