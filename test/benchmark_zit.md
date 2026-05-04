@@ -21,7 +21,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | jibMixZIT_v20 | r0.05 | 0.0126 | 0.9577 |
 | harukiMIX_zit2603 | r0.05 | 0.0085 | 0.9678 |
 | 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.0286 | 0.9493 |
-| z anime | r0.05 | 31.5995 | 0.9583 |
+| z anime base | r0.05 | 31.5995 | 0.9583 |
 
 ---
 
@@ -43,7 +43,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | jibMixZIT_v20 | r0.05 | 0.0126 | 0.0410 | +0.0284 | 0.9577 | 0.9269 | −0.0308 | Native FP8 | HSWQ |
 | harukiMIX_zit2603 | r0.05 | 0.0085 | 0.0130 | +0.0045 | 0.9678 | 0.9248 | −0.0430 | Native FP8 | HSWQ |
 | 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.0286 | 0.0495 | +0.0209 | 0.9493 | 0.9226 | −0.0267 | Native FP8 | HSWQ |
-| z anime | r0.05 | 31.5995 | 50.9626 | +19.3631 | 0.9583 | 0.9427 | −0.0156 | Official FP8 | HSWQ |
+| z anime base | r0.05 | 31.5995 | 50.9626 | +19.3631 | 0.9583 | 0.9427 | −0.0156 | Official FP8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM (lower MSE and higher SSIM for HSWQ vs baseline).
 
