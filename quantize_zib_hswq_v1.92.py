@@ -1045,10 +1045,10 @@ def main():
             if not hasattr(smod, 'weight'):
                 continue
             sw = smod.weight.data
-            s_importance = dual_monitors[sname].channel_importance if sname in dual_monitors else None
+            slayer_search_low = get_layer_search_low(sname, sw)
             try:
                 sresult = trial_optimizer.compute_optimal_amax_with_stats(
-                    sw, importance=s_importance, use_svd_leverage=True, scaled=False
+                    sw, importance=None, use_svd_leverage=True, scaled=False
                 )
                 safe_mses.append(sresult['estimated_mse'])
             except Exception:
@@ -1073,10 +1073,9 @@ def main():
                 if not hasattr(vmod, 'weight'):
                     continue
                 vw = vmod.weight.data
-                v_importance = dual_monitors[vname].channel_importance if vname in dual_monitors else None
                 try:
                     vresult = trial_optimizer.compute_optimal_amax_with_stats(
-                        vw, importance=v_importance, use_svd_leverage=True, scaled=False
+                        vw, importance=None, use_svd_leverage=True, scaled=False
                     )
                     vmse = vresult['estimated_mse']
                     vprof = _norm_profile.get(vname, {})
