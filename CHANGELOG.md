@@ -2,7 +2,7 @@
 
 ## 1.1.6
 
-**ZA Base benchmark results published** — Added and aligned `z anime base` benchmark results in the ZIT benchmark document, including HSWQ vs Official FP8 comparison and VRAM-saving analysis notes.
+**Z-Anime Base benchmark results published** — Added and aligned `z anime base` benchmark results in the ZIT benchmark document, including HSWQ vs Official FP8 comparison and VRAM-saving analysis notes.
 Benchmark: [test/benchmark_zit.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_zit.md)  
 
 ## 1.1.5
