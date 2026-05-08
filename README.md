@@ -35,7 +35,7 @@ High-fidelity FP8 quantization for **SDXL**, **Flux1.dev**, **Z Image Turbo**, a
 | :--- | :--- | :--- |
 | **Compatibility** | Full (100%), any FP8 loader | Requires dedicated loader — **not usable at present** |
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (weights + `.scale` metadata) |
-| **Image quality (SSIM)** | ~0.98 (max) | Unmeasurable (no dedicated loader) |
+| **Image quality (SSIM)** | ~0.99 (max) | Unmeasurable (no dedicated loader) |
 | **Mechanism** | Optimal clipping (smart clipping) | Full-range scaling (dynamic scaling) |
 | **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) |
 | **Use case** | Distribution, general users | Unavailable until a dedicated loader exists |
@@ -79,7 +79,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
 | Naive FP8 | 0.75–0.93 | 50% | High |
-| **HSWQ V1** | **0.86–0.98** | 60-70% (FP16 mixed) | **High** |
+| **HSWQ V1** | **0.86–0.99** | 60-70% (FP16 mixed) | **High** |
 | **HSWQ V2** | — (currently unmeasurable) | 60-70% (FP16 mixed) | Not usable (no dedicated loader) |
 
 HSWQ V1 gives a clear gain over Naive FP8 with full compatibility. V2 would offer higher quality but requires a dedicated loader; benchmark is currently unmeasurable and V2 is not usable at the current time.
