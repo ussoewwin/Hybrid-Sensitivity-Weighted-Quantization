@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.8
+
+**SDXL benchmark table aligned to `test/score.txt`** — `test/benchmark_test.md`: Corrected **waiIllustriousSDXL_v170** (r0.05) HSWQ MSE/SSIM and Native FP8 baseline to match measured runs in `test/score.txt` (HSWQ **26.08** / **0.9180** vs native **40.11** / **0.9040**). Previous table row used rounded values that did not match the score log. **waiIllustriousSDXL_v160** (r0.1) unchanged at **19.05** / **0.9333** (already matched score.txt).
+
 ## 1.1.7
 
 **Z-Anime MSE-Guided VETO Reassessment** — `quantize_zib_hswq_v1.92.py`: Implemented dynamic MSE-Guided VETO Reassessment for Z-Anime. This logic safely releases layers VETO'd solely by `outlier_ratio` (primarily `feed_forward.w2`) by trial-quantizing and verifying their MSE against a dynamically calculated safe baseline (P75 + margin). This breakthrough safely increased the VRAM savings rate from ~25% to 29.3% while perfectly maintaining SSIM at 0.9528.
