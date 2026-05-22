@@ -100,7 +100,8 @@ HSWQ V1 gives a clear gain over Naive FP8 with full compatibility; V2 targets ma
 | `realvisxlV50_v50Bakedvae_r32_r0.1.safetensors` | [RealVisXL V5.0 (BakedVAE)](https://civitai.red/models/139562) | v5.0 | CreativeML Open RAIL++-M |
 | `waiREALCN_v150_hswq_r32_r0.15_v1.safetensors` | [WAI-REAL_CN](https://civitai.red/models/469902) | v15.0 | Pony License |
 | `waiANIPONYXL_v140_hswq_r32_r0.15_v1.safetensors` | [WAI-ANI-PONYXL](https://civitai.red/models/404154) | v14.0 | Pony License |
-| `waiIllustriousSDXL_v160_hswq_r32_r0.1_v1.safetensors` | [WAI-illustrious-SDXL](https://civitai.red/models/827184) | v16.0 | Illustrious License |
+| `waiIllustriousSDXL_v160_hswq_r32_r0.1_v1.safetensors` | [WAI-illustrious-SDXL](https://civitai.red/models/827184/wai-illustrious-sdxl) | v16.0 | Illustrious License |
+| `waiIllustriousSDXL_v170_hswq_r32_r0.1_v1.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Illustrious License |
 | `waiREALISM_v10_hswq_r32_r0.1_v1.safetensors` | [WAI-REALISM-Illustrious](https://civitai.red/models/2233797) | v1.0 | Illustrious License |
 | `novaAsianXL_illustriousV70_r32_r0.1.safetensors` | [Nova Asian XL](https://civitai.red/models/641919/nova-asian-xl) | Illustrious v7.0 | Illustrious License |
 | `perfectionAsianILXL_v10_r32_r0.1.safetensors` | [Perfection Asian [ILXL / Illustrious XL]](https://civitai.red/models/1518448/perfection-asian-ilxl-illustrious-xl--sfw-checkpoint) | v1.0 | Illustrious License |
