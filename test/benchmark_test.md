@@ -14,7 +14,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | waiREALISM_v10 | r0.1 | 10.72 | **0.9538** |
 | waiREALCN_v150 | r0.15 | 31.20 | 0.9317 |
 | waiIllustriousSDXL_v160 | r0.1 | 19.05 | 0.9333 |
-| waiIllustriousSDXL_v170 | r0.05 | 26.08 | 0.9180 |
+| waiIllustriousSDXL_v170 | r0.1 | 26.08 | 0.9180 |
 | waiANIPONYXL_v140 | r0.15 | 15.64 | 0.9361 |
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 0.9233 |
 | uwazumimixILL_v50 | r0 | 13.76 | **0.9641** |
@@ -56,7 +56,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | waiREALISM_v10 | r0.1 | 10.72 | 13.90 | +3.18 | 0.9538 | 0.9317 | −0.0221 | HSWQ |
 | waiREALCN_v150 | r0.15 | 31.20 | 51.18 | +19.98 | 0.9317 | 0.9371 | +0.0054 | — |
 | waiIllustriousSDXL_v160 | r0.1 | 19.05 | 46.93 | +27.88 | 0.9333 | 0.8864 | −0.0469 | HSWQ |
-| waiIllustriousSDXL_v170 | r0.05 | 26.08 | 40.11 | +14.03 | 0.9180 | 0.9040 | +0.0140 | HSWQ |
+| waiIllustriousSDXL_v170 | r0.1 | 26.08 | 40.11 | +14.03 | 0.9180 | 0.9040 | +0.0140 | HSWQ |
 | waiANIPONYXL_v140 | r0.15 | 15.64 | 23.00 | +7.36 | 0.9361 | 0.9306 | -0.0055 | — |
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 20.49 | +2.00 | 0.9233 | 0.9364 | +0.0131 | — |
 | uwazumimixILL_v50 | r0 | 13.76 | 11.80 | −1.96 | 0.9641 | 0.9542 | −0.0099 | — |
@@ -96,23 +96,3 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 - **Keep ratio:** Fraction of layers kept in FP16 (e.g. r0.1 = 10%, r0.15 = 15%). Blank = not recorded in source.
 - **Test environment:** RTX 5060 Ti 16GB, PyTorch 2.1.0 + CUDA 13.0.
 
----
-
-## Analysis & Key Findings (HSWQ V1.3)
-
-The comprehensive benchmark results demonstrate that **HSWQ V1.3** provides a profound advantage over standard naive FP8 conversion, proving essential for structurally vulnerable SDXL models.
-
-1. **Rescuing "Unstable" Models from Native FP8 Collapse**  
-   Standard naive FP8 casting frequently destroys models with irregular weight distributions or extreme outliers. Several models in this test—such as **JANKUTrainedNoobaiRouwei_v69** (SSIM drops to **0.8872**), **unholyDesireMixSinister_v60** (**0.8694**), and **waiIllustriousSDXL_v160** (**0.8864**)—suffered catastrophic structural collapse under Native FP8. **HSWQ V1.3**'s Dual-Monitor engine dynamically identifies high-variance layers and protects them in FP16, successfully pulling these models back to highly usable states (SSIM **0.93–0.96+**) while drastically reducing Mean Squared Error (MSE).
-
-2. **The Raw Power of Weighted Histogram Optimization (Even at r=0)**  
-   The results for **uwazumimixILL_v50** (tested at **r0**, meaning 0% FP16 protection) highlight the core strength of the V1.3 algorithm. Even when forcing the entire UNet into FP8 without any protective fallback, HSWQ achieved an SSIM of **0.9641** (outperforming the naive baseline's **0.9542**) while significantly lowering MSE. This proves that HSWQ's exact-grid MSE optimization, weighted by input activations, is fundamentally superior to naive casting on its own.
-
-3. **Near-Lossless Fidelity for Modern Architectures**  
-   Highly evolved architectures like Pony and Illustrious derivatives (e.g., **cottonnoob_v50**, **obsessionIllustrious_vPredV20**, **epicrealismXL_pureFix**) show exceptional tolerance to HSWQ, frequently scoring between **0.97** and **0.98+** SSIM. Their optimized parameter distributions allow HSWQ to compress them aggressively with virtually zero human-perceivable degradation.
-
-4. **PTQ Limitations vs. Official FP8 Releases**  
-   In one specific instance (**asianRealismByStable_v30FP16**), the officially distributed FP8 model outperforms HSWQ. This transparently illustrates the natural limitations of Post-Training Quantization (PTQ) when compared to Quantization-Aware Training (QAT) or a publisher's manually curated FP8 release. However, for the vast majority of community merges and finetunes that lack an official FP8 release, HSWQ clearly stands as the definitive quantization solution.
-
-**Conclusion:**  
-HSWQ V1.3 offers a highly efficient, structurally safe quantization strategy for SDXL. By relying on activation variance for targeted FP16 protection and importance-weighted histogram clipping for FP8 optimization, it consistently prevents structural collapse, maximizes VRAM efficiency, and outperforms naive conversion without the overhead of heavy computational operations.
