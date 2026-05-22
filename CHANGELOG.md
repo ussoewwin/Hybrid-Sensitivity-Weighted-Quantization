@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.9
+
+**SDXL benchmark (full `test/score.txt` sync)** — `test/benchmark_test.md`: Expanded Results and HSWQ vs Native FP8 comparison tables to match `test/score.txt` (all models with native / official FP8 baselines where logged). Includes Analysis & Key Findings (HSWQ V1.3) section.
+
 ## 1.1.8
 
 **SDXL benchmark table aligned to `test/score.txt`** — `test/benchmark_test.md`: Corrected **waiIllustriousSDXL_v170** (r0.05) HSWQ MSE/SSIM and Native FP8 baseline to match measured runs in `test/score.txt` (HSWQ **26.08** / **0.9180** vs native **40.11** / **0.9040**). Previous table row used rounded values that did not match the score log. **waiIllustriousSDXL_v160** (r0.1) unchanged at **19.05** / **0.9333** (already matched score.txt).
