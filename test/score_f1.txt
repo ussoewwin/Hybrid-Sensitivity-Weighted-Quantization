@@ -1,0 +1,36 @@
+getphat FLUX Reality NSFW
+
+rtx5090 cuda13.0 
+
+hswq
+
+=== 3. Calculating Metrics ===
+--------------------------------------------------
+MSE (Error): 0.658786 	(0 is perfect match)
+SSIM (Sim) : 0.9705 	(1.0 is perfect match)
+--------------------------------------------------
+
+official fp8
+
+=== 3. Calculating Metrics ===
+--------------------------------------------------
+MSE (Error): 0.658786 	(0 is perfect match)
+SSIM (Sim) : 0.9705 	(1.0 is perfect match)
+-------------------------------------------------- 
+
+
+fluxedUpFluxNSFW_71FP16 r0.05
+
+=== 3. Calculating Metrics ===
+--------------------------------------------------
+MSE (Error): 0.265328 	(0 is perfect match)
+SSIM (Sim) : 0.9403 	(1.0 is perfect match)
+--------------------------------------------------
+
+native fp8
+
+=== 3. Calculating Metrics ===
+--------------------------------------------------
+MSE (Error): 0.217538 	(0 is perfect match)
+SSIM (Sim) : 0.9564 	(1.0 is perfect match)
+--------------------------------------------------
