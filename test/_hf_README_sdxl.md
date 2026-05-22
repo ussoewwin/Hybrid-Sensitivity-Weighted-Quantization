@@ -128,6 +128,7 @@ These models are derivatives of their respective creators. All credit for aesthe
 - **Prefect illustrious XL**: Created by [Goofy_Ai](https://civitai.red/user/Goofy_Ai).
 - **Unholy Desire Mix - Sinister Aesthetic (Illustrious)**: Created by [UnholyDesiresStudio](https://civitai.red/user/UnholyDesiresStudio).
 - **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.red/user/janxd).
+- **Koronemix Vpred v2.0**: Created by [koronen](https://civitai.red/user/koronen).
 
 ---
 **Disclaimer:** These models are provided for optimization and research purposes. Please adhere to the original licenses of the base models.
