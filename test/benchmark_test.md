@@ -86,7 +86,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | cottonnoob_v50 | r0.1 | 6.46 | 22.28 | +15.82 | 0.9877 | 0.9524 | +0.0353 | HSWQ |
 | bluePencilXL_v031 | r0.1 | 24.48 | 41.67 | +17.19 | 0.9006 | 0.8808 | +0.0198 | HSWQ |
 | asianRealismByStable_v30FP16 | r0.1 | 30.26 | 12.00 | −18.26 | 0.9129 | 0.9432 | −0.0303 | Official FP8 |
-| animemix_v80 | r0.1 | 17.80 | 11.15 | −6.66 | 0.9297 | 0.9512 | +0.0215 | Native FP8 |
+| animemix_v80 | r0.1 | 17.80 | 11.15 | −6.65 | 0.9297 | 0.9512 | +0.0215 | Native |
 | animagineXLV31_v30 | r0.1 | 18.25 | 51.77 | +33.52 | 0.9101 | 0.8775 | −0.0326 | HSWQ |
 
 **Winner** = better on both MSE and SSIM. For asianRealismByStable_v30FP16, the publisher distributes an official FP8 version; that official FP8 outperforms HSWQ.
