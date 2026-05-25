@@ -23,6 +23,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | 0.9452 |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | **0.9751** |
 | realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 0.9367 |
+| prefectIllustriousXL_v8 | r0.1 | 14.69 | 0.9358 |
 | prefectIllustriousXL_v70 | r0.1 | 17.14 | 0.9157 |
 | perfectionRealisticILXL_60 | r0.1 | 11.02 | 0.9677 |
 | perfectionAsianILXL_v10 | r0.1 | 8.56 | 0.9732 |
@@ -41,6 +42,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | cottonnoob_v50 | r0.1 | 6.46 | **0.9877** |
 | bluePencilXL_v031 | r0.1 | 24.48 | 0.9006 |
 | asianRealismByStable_v30FP16 | r0.1 | 30.26 | 0.9129 |
+| animemix_v80 | r0.1 | 17.80 | 0.9297 |
 | animagineXLV31_v30 | r0.1 | 18.25 | 0.9101 |
 
 ---
@@ -65,6 +67,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | 69.70 | +10.89 | 0.9452 | 0.9377 | −0.0075 | HSWQ |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | 31.09 | -2.45 | 0.9751 | 0.9558 | -0.0193 | — |
 | realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 44.62 | +29.47 | 0.9367 | 0.8888 | +0.0479 | HSWQ |
+| prefectIllustriousXL_v8 | r0.1 | 14.69 | 29.27 | +14.58 | 0.9358 | 0.9177 | −0.0181 | HSWQ |
 | prefectIllustriousXL_v70 | r0.1 | 17.14 | 22.25 | +5.11 | 0.9157 | 0.9096 | +0.0061 | HSWQ |
 | perfectionRealisticILXL_60 | r0.1 | 11.02 | 34.08 | +23.06 | 0.9677 | 0.9280 | +0.0397 | HSWQ |
 | perfectionAsianILXL_v10 | r0.1 | 8.56 | 22.37 | +13.81 | 0.9732 | 0.9596 | +0.0136 | HSWQ |
@@ -83,6 +86,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | cottonnoob_v50 | r0.1 | 6.46 | 22.28 | +15.82 | 0.9877 | 0.9524 | +0.0353 | HSWQ |
 | bluePencilXL_v031 | r0.1 | 24.48 | 41.67 | +17.19 | 0.9006 | 0.8808 | +0.0198 | HSWQ |
 | asianRealismByStable_v30FP16 | r0.1 | 30.26 | 12.00 | −18.26 | 0.9129 | 0.9432 | −0.0303 | Official FP8 |
+| animemix_v80 | r0.1 | 17.80 | 11.15 | −6.66 | 0.9297 | 0.9512 | +0.0215 | Native FP8 |
 | animagineXLV31_v30 | r0.1 | 18.25 | 51.77 | +33.52 | 0.9101 | 0.8775 | −0.0326 | HSWQ |
 
 **Winner** = better on both MSE and SSIM. For asianRealismByStable_v30FP16, the publisher distributes an official FP8 version; that official FP8 outperforms HSWQ.
