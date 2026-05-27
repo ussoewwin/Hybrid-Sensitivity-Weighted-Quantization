@@ -11,19 +11,20 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 | Model | Keep ratio | MSE (latent, ↓ better) | SSIM (0–255 view, ↑ better) |
 |-------|------------|--------------------------|-----------------------------|
-| darkBeastMar2126Latest_dbzit8SDAFOK | r0.05 | 0.0181 | 0.9591 |
-| moodyWildMix_v02 | r0.1 | 0.0057 | 0.9582 |
-| moodyRealMix_zitV4DPO | r0.1 | 0.0056 | 0.9618 |
-| moodyRealMix_zitV5DPO | r0.05 | 0.0050 | 0.9640 |
-| moodyRealMix_zitV6DPO | r0.05 | 0.0669 | 0.9919 |
-| moodyProMix_zitV12DPO | r0.05 | 0.0498 | 0.9918 |
-| unstableRevolution_V2Fp16 | r0.05 | 0.0069 | 0.9542 |
-| beyondREALITY_V30 | r0.05 | 0.0089 | 0.9597 |
-| bigLove_zt3 | r0.05 | 0.0053 | 0.9607 |
-| jibMixZIT_v20 | r0.05 | 0.0126 | 0.9577 |
-| harukiMIX_zit2603 | r0.05 | 0.0085 | 0.9678 |
-| 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.0286 | 0.9493 |
-| z anime base | r0.05 | 31.5995 | 0.9583 |
+| z anime base | r0.05 | 31.60 | 0.9583 |
+| unstableRevolution_V3Fp16 | r0.05 | 0.02 | 0.9913 |
+| unstableRevolution_V2Fp16 | r0.05 | 0.01 | 0.9542 |
+| moodyWildMix_v02 | r0.1 | 0.01 | 0.9582 |
+| moodyRealMix_zitV6DPO | r0.05 | 0.07 | 0.9919 |
+| moodyRealMix_zitV5DPO | r0.05 | 0.01 | 0.9640 |
+| moodyRealMix_zitV4DPO | r0.1 | 0.01 | 0.9618 |
+| moodyProMix_zitV12DPO | r0.05 | 0.05 | 0.9918 |
+| jibMixZIT_v20 | r0.05 | 0.01 | 0.9577 |
+| harukiMIX_zit2603 | r0.05 | 0.01 | 0.9678 |
+| darkBeastMar2126Latest_dbzit8SDAFOK | r0.05 | 0.02 | 0.9591 |
+| bigLove_zt3 | r0.05 | 0.01 | 0.9607 |
+| beyondREALITY_V30 | r0.05 | 0.01 | 0.9597 |
+| 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.03 | 0.9493 |
 
 ---
 
@@ -35,19 +36,20 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 | Model | Keep | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Baseline | Winner |
 |-------|------|----------|--------------|-------|-----------|---------------|--------|----------|--------|
-| darkBeastMar2126Latest_dbzit8SDAFOK | r0.05 | 0.0181 | 0.0253 | +0.0072 | 0.9591 | 0.9177 | −0.0414 | Native FP8 | HSWQ |
-| moodyWildMix_v02 | r0.1 | 0.0057 | 0.0188 | +0.0131 | 0.9582 | 0.9297 | −0.0285 | Native FP8 | HSWQ |
-| moodyRealMix_zitV4DPO | r0.1 | 0.0056 | 0.0192 | +0.0136 | 0.9618 | 0.9343 | −0.0275 | Official FP8 | HSWQ |
-| moodyRealMix_zitV5DPO | r0.05 | 0.0050 | 0.0143 | +0.0093 | 0.9640 | 0.9346 | −0.0294 | Official FP8 | HSWQ |
-| moodyRealMix_zitV6DPO | r0.05 | 0.0669 | 0.1033 | +0.0364 | 0.9919 | 0.9899 | −0.0020 | Official FP8 | HSWQ |
-| moodyProMix_zitV12DPO | r0.05 | 0.0498 | 0.3909 | +0.3411 | 0.9918 | 0.9603 | −0.0315 | Official FP8 | HSWQ |
-| unstableRevolution_V2Fp16 | r0.05 | 0.0069 | 0.0219 | +0.0150 | 0.9542 | 0.9195 | −0.0347 | Native FP8 | HSWQ |
-| beyondREALITY_V30 | r0.05 | 0.0089 | 0.0179 | +0.0090 | 0.9597 | 0.9253 | −0.0344 | Official FP8 | HSWQ |
-| bigLove_zt3 | r0.05 | 0.0053 | 0.0125 | +0.0072 | 0.9607 | 0.9230 | −0.0377 | Native FP8 | HSWQ |
-| jibMixZIT_v20 | r0.05 | 0.0126 | 0.0410 | +0.0284 | 0.9577 | 0.9269 | −0.0308 | Native FP8 | HSWQ |
-| harukiMIX_zit2603 | r0.05 | 0.0085 | 0.0130 | +0.0045 | 0.9678 | 0.9248 | −0.0430 | Native FP8 | HSWQ |
-| 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.0286 | 0.0495 | +0.0209 | 0.9493 | 0.9226 | −0.0267 | Native FP8 | HSWQ |
-| z anime base | r0.05 | 31.5995 | 50.9626 | +19.3631 | 0.9583 | 0.9427 | −0.0156 | Official FP8 | HSWQ |
+| z anime base | r0.05 | 31.60 | 50.96 | +19.36 | 0.9583 | 0.9427 | −0.0156 | Official FP8 | HSWQ |
+| unstableRevolution_V3Fp16 | r0.05 | 0.02 | 0.06 | +0.04 | 0.9913 | 0.9759 | −0.0154 | Official FP8 | HSWQ |
+| unstableRevolution_V2Fp16 | r0.05 | 0.01 | 0.02 | +0.01 | 0.9542 | 0.9195 | −0.0347 | Native FP8 | HSWQ |
+| moodyWildMix_v02 | r0.1 | 0.01 | 0.02 | +0.01 | 0.9582 | 0.9297 | −0.0285 | Native FP8 | HSWQ |
+| moodyRealMix_zitV6DPO | r0.05 | 0.07 | 0.10 | +0.03 | 0.9919 | 0.9899 | −0.0020 | Official FP8 | HSWQ |
+| moodyRealMix_zitV5DPO | r0.05 | 0.01 | 0.01 | +0.00 | 0.9640 | 0.9346 | −0.0294 | Official FP8 | HSWQ |
+| moodyRealMix_zitV4DPO | r0.1 | 0.01 | 0.02 | +0.01 | 0.9618 | 0.9343 | −0.0275 | Official FP8 | HSWQ |
+| moodyProMix_zitV12DPO | r0.05 | 0.05 | 0.39 | +0.34 | 0.9918 | 0.9603 | −0.0315 | Official FP8 | HSWQ |
+| jibMixZIT_v20 | r0.05 | 0.01 | 0.04 | +0.03 | 0.9577 | 0.9269 | −0.0308 | Native FP8 | HSWQ |
+| harukiMIX_zit2603 | r0.05 | 0.01 | 0.01 | +0.00 | 0.9678 | 0.9248 | −0.0430 | Native FP8 | HSWQ |
+| darkBeastMar2126Latest_dbzit8SDAFOK | r0.05 | 0.02 | 0.03 | +0.01 | 0.9591 | 0.9177 | −0.0414 | Native FP8 | HSWQ |
+| bigLove_zt3 | r0.05 | 0.01 | 0.01 | +0.00 | 0.9607 | 0.9230 | −0.0377 | Native FP8 | HSWQ |
+| beyondREALITY_V30 | r0.05 | 0.01 | 0.02 | +0.01 | 0.9597 | 0.9253 | −0.0344 | Official FP8 | HSWQ |
+| 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.03 | 0.05 | +0.02 | 0.9493 | 0.9226 | −0.0267 | Native FP8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM (lower MSE and higher SSIM for HSWQ vs baseline).
 
@@ -65,7 +67,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 ## Analysis & Key Findings (Z Image, partial)
 
-For every model in `score_zi.txt` with a Native FP8 or Official FP8 baseline (11 models total), **HSWQ** shows lower latent MSE and higher SSIM than that baseline. The advantage is consistent across both Native baselines and Official FP8 distributions (e.g., **beyondREALITY_V30**, **moodyRealMix_zitV4DPO/V5DPO/V6DPO**), confirming HSWQ's effectiveness for the Z Image Turbo family.
+For every model in `score_zi.txt` with a Native FP8 or Official FP8 baseline (14 models total), **HSWQ** shows lower latent MSE and higher SSIM than that baseline. The advantage is consistent across both Native baselines and Official FP8 distributions (e.g., **beyondREALITY_V30**, **moodyRealMix_zitV4DPO/V5DPO/V6DPO**, **moodyProMix_zitV12DPO**), confirming HSWQ's effectiveness for the Z Image Turbo family.
 
 - **Important VRAM fact (Z-Anime, HSWQ):** `12335.8 MB -> 9219.3 MB`, so **3116.5 MB (25.3%)** is saved.
 - **Important VRAM fact (ZIT, HSWQ):** ZIT rows in the same file save **4825.6–5040.9 MB (39.1%–40.9%)**.
