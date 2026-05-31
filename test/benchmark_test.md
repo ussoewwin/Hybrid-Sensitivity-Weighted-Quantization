@@ -27,6 +27,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | prefectIllustriousXL_v70 | r0.1 | 17.14 | 0.9157 |
 | perfectionRealisticILXL_60 | r0.1 | 11.02 | 0.9677 |
 | perfectionAsianILXL_v10 | r0.1 | 8.56 | 0.9732 |
+| oneObsession_v21Anime | r0.1 | 23.09 | 0.9109 |
 | obsessionIllustrious_vPredV20 | r0.1 | 10.23 | **0.9866** |
 | novaAsianXL_illustriousV70 | r0.1 | 14.84 | 0.9620 |
 | novaAnimeXL_ilV190 | r0.1 | 18.97 | 0.9315 |
@@ -72,6 +73,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | prefectIllustriousXL_v70 | r0.1 | 17.14 | 22.25 | +5.11 | 0.9157 | 0.9096 | −0.0061 | HSWQ |
 | perfectionRealisticILXL_60 | r0.1 | 11.02 | 34.08 | +23.06 | 0.9677 | 0.9280 | −0.0397 | HSWQ |
 | perfectionAsianILXL_v10 | r0.1 | 8.56 | 22.37 | +13.81 | 0.9732 | 0.9596 | −0.0136 | HSWQ |
+| oneObsession_v21Anime | r0.1 | 23.09 | 27.77 | +4.68 | 0.9109 | 0.9084 | −0.0025 | HSWQ |
 | obsessionIllustrious_vPredV20 | r0.1 | 10.23 | 43.67 | +33.44 | 0.9866 | 0.9626 | −0.0240 | HSWQ |
 | novaAsianXL_illustriousV70 | r0.1 | 14.84 | 19.45 | +4.61 | 0.9620 | 0.9445 | −0.0175 | HSWQ |
 | novaAnimeXL_ilV190 | r0.1 | 18.97 | 25.78 | +6.81 | 0.9315 | 0.9181 | −0.0134 | HSWQ |
