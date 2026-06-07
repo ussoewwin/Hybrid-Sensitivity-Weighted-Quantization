@@ -82,6 +82,7 @@ Quantized checkpoints use suffix **`_hswq_r32_r0.05_v1`** (R32 calibration sampl
 
 | Filename | Base Model | Version | License |
 | :--- | :--- | :--- | :--- |
+| `beyondREALITY_V30_hswq_r32_r0.05_v1.safetensors` | [beyondREALITY_V30](https://civitai.red/models/1090420/beyond-reality?modelVersionId=2648189) | v3.0 | Apache 2.0 |
 | `darkBeastMar2126Latest_dbzit8SDAFOK_hswq_r32_r0.05_v1.safetensors` | [darkBeastMar2126Latest_dbzit8SDAFOK](https://civitai.com/models/2242173?modelVersionId=2774410) | v8 | Apache 2.0 |
 | `harukiMIX_zit2603_hswq_r32_r0.05_v1.safetensors` | [harukiMIX_zit2603](https://civitai.com/models/856375/harukimix?modelVersionId=2815582) | v2603 | Apache 2.0 |
 | `moodyProMix_zitV12DPO_hswq_r32_r0.05_v1.safetensors` | [moodyProMix_zitV12DPO](https://civitai.red/models/620406?modelVersionId=2966200) | v12 | Apache 2.0 |
@@ -98,8 +99,7 @@ Quantized checkpoints use suffix **`_hswq_r32_r0.05_v1`** (R32 calibration sampl
 
 ### Base Models
 
-These models are derivatives of their respective creators or upstream distributions. All credit for training and aesthetic tuning belongs to the original authors.
-
+- **beyondREALITY_V30**: Created by [Nurburgring](https://civitai.red/user/Nurburgring) ([BEYOND REALITY](https://civitai.red/models/1090420/beyond-reality?modelVersionId=2648189) on Civitai).
 - **darkBeastMar2126Latest_dbzit8SDAFOK**: Created by [AiMetatron](https://civitai.com/user/AiMetatron).
 - **harukiMIX_zit2603**: Created by [HARUKI3](https://civitai.com/user/HARUKI3).
 - **moodyProMix_zitV12DPO**: Created by [catlover1937](https://civitai.red/user/catlover1937) ([Moody Pro Mix](https://civitai.red/models/620406) on Civitai).
