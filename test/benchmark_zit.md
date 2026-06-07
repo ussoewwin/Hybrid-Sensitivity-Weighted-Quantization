@@ -23,7 +23,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | harukiMIX_zit2603 | r0.05 | 0.01 | 0.9678 |
 | darkBeastMar2126Latest_dbzit8SDAFOK | r0.05 | 0.02 | 0.9591 |
 | bigLove_zt3 | r0.05 | 0.01 | 0.9607 |
-| beyondREALITY_V30 | r0.05 | 0.01 | 0.9597 |
+| beyondREALITY_V30 | r0.05 | 0.02 | 0.9917 |
 | 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.03 | 0.9493 |
 
 ---
@@ -48,7 +48,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | harukiMIX_zit2603 | r0.05 | 0.01 | 0.01 | +0.00 | 0.9678 | 0.9248 | −0.0430 | Native FP8 | HSWQ |
 | darkBeastMar2126Latest_dbzit8SDAFOK | r0.05 | 0.02 | 0.03 | +0.01 | 0.9591 | 0.9177 | −0.0414 | Native FP8 | HSWQ |
 | bigLove_zt3 | r0.05 | 0.01 | 0.01 | +0.00 | 0.9607 | 0.9230 | −0.0377 | Native FP8 | HSWQ |
-| beyondREALITY_V30 | r0.05 | 0.01 | 0.02 | +0.01 | 0.9597 | 0.9253 | −0.0344 | Official FP8 | HSWQ |
+| beyondREALITY_V30 | r0.05 | 0.02 | 0.10 | +0.08 | 0.9917 | 0.9748 | −0.0169 | Official FP8 | HSWQ |
 | 2127ZImageAsianUtopian_v36TurboFFV | r0.05 | 0.03 | 0.05 | +0.02 | 0.9493 | 0.9226 | −0.0267 | Native FP8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM (lower MSE and higher SSIM for HSWQ vs baseline).
