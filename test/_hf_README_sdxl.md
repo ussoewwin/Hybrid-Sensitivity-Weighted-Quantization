@@ -37,6 +37,15 @@ High-fidelity FP8 quantization for diffusion models (SDXL). HSWQ uses **sensitiv
 
 ---
 
+## Disclaimer
+
+- **No performance benchmarks** have been run on this build.
+- **No multi-environment testing** has been performed.
+- Fork `HSWQ SDXL` — test of whether features work and can be used normally (log, GitHub): https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/SDXL%20Benchmark%20Test%20Results.md
+- This is an **unofficial fork build**. Use at your own risk.
+
+---
+
 ## Overview
 
 | Feature | V1: Standard Compatible | V2: High Performance Scaled |
@@ -73,7 +82,7 @@ File size is reduced by about **60-70%** vs FP16 while keeping best quality per 
 ## Recommended Parameters
 
 - **Samples:** 32 (recommended).
-- **Keep ratio:** 0.25 (25%) in the example; the valid range is typically `0.05`–`0.25` (5–25%). For SDXL, 0.25 often gives sufficient quality. Adjust if you want to trade off quality vs. memory/speed.
+- **Keep ratio:** 0.1 (10%) in the example; the valid range is typically `0.05`–`0.25` (5–25%). For SDXL, 0.1 often gives sufficient quality. Adjust if you want to trade off quality vs. memory/speed.
 - **Steps:** 25(recommended). — to include early denoising sensitivity.
 ---
 
@@ -103,10 +112,14 @@ HSWQ V1 gives a clear gain over Naive FP8 with full compatibility; V2 targets ma
 | `waiIllustriousSDXL_v160_hswq_r32_r0.1_v1.safetensors` | [WAI-illustrious-SDXL](https://civitai.red/models/827184/wai-illustrious-sdxl) | v16.0 | Illustrious License |
 | `waiIllustriousSDXL_v170_hswq_r32_r0.1_v1.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Illustrious License |
 | `waiREALISM_v10_hswq_r32_r0.1_v1.safetensors` | [WAI-REALISM-Illustrious](https://civitai.red/models/2233797) | v1.0 | Illustrious License |
+| `novaAnimeXL_ilV190_hswq_r32_r0.1_v1.safetensors` | [Nova Anime XL](https://civitai.red/models/376130?modelVersionId=2940478) | Illustrious v19.0 | Illustrious License |
 | `novaAsianXL_illustriousV70_r32_r0.1.safetensors` | [Nova Asian XL](https://civitai.red/models/641919/nova-asian-xl) | Illustrious v7.0 | Illustrious License |
+| `oneObsession_v21Anime_hswq_r32_r0.1_v1.safetensors` | [One obsession](https://civitai.red/models/1318945?modelVersionId=2823418) | v21_Anime | Illustrious License |
 | `perfectionAsianILXL_v10_r32_r0.1.safetensors` | [Perfection Asian [ILXL / Illustrious XL]](https://civitai.red/models/1518448/perfection-asian-ilxl-illustrious-xl--sfw-checkpoint) | v1.0 | Illustrious License |
 | `perfectionRealisticILXL_60_r32_r0.1.safetensors` | [Perfection Realistic [ILXL / Illustrious XL]](https://civitai.red/models/1257570) | v6.0 | Illustrious License |
 | `prefectIllustriousXL_v70_r32_r0.1.safetensors` | [Prefect illustrious XL](https://civitai.red/models/1224788) | v7.0 | Illustrious License |
+| `prefectIllustriousXL_v8_hswq_r32_r0.1_v1.safetensors` | [Prefect illustrious XL](https://civitai.red/models/1224788) | v8.0 | Illustrious License |
+| `uwazumimixILL_v50_hswq_r32_r0_v1.safetensors` | [UwazumiMix_ILL](https://civitai.red/models/1590659) | v5.0 | Illustrious License |
 | `unholyDesireMixSinister_v80_hswq_r32_r0.1_v1.safetensors` | [Unholy Desire Mix - Sinister Aesthetic (Illustrious)](https://civitai.red/models/1307857/unholy-desire-mix-sinister-aesthetic-illustrious) | v8.0 | Illustrious License |
 | `JANKUTrainedChenkinNoobai_v777_hswq_r32_r0.1_v1.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.red/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Illustrious License |
 | `animagineXLV31_v30_hswq_r32_r0.1_v1.safetensors` | [Animagine XL 3.1](https://huggingface.co/cagliostrolab/animagine-xl-3.1) | v3.1 | CreativeML Open RAIL++-M |
@@ -123,13 +136,13 @@ We extend our deepest respect and gratitude to the **Nunchaku Team** for their g
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
 - **RealVisXL V5.0**: Created by [SG_161222](https://civitai.red/user/SG_161222).
 - **WAI-REAL_CN / WAI-ANI-PONYXL / WAI-illustrious-SDXL / WAI-REALISM-Illustrious**: Created by [WAI0731](https://civitai.red/user/WAI0731).
-- **Nova Asian XL** (Illustrious v7.0): Created by [Crody](https://civitai.red/user/Crody).
+- **Nova Anime XL** (Illustrious v19.0) / **Nova Asian XL** (Illustrious v7.0): Created by [Crody](https://civitai.red/user/Crody).
+- **One obsession**: Created by [maxfeifei8](https://civitai.red/user/maxfeifei8).
 - **Perfection Asian [ILXL / Illustrious XL]**: Created by [6tZ](https://civitai.red/user/6tZ) (Illustrious XL checkpoint merge).
 - **Perfection Realistic [ILXL / Illustrious XL]**: Created by [6tZ](https://civitai.red/user/6tZ) (Illustrious XL checkpoint merge).
 - **Prefect illustrious XL**: Created by [Goofy_Ai](https://civitai.red/user/Goofy_Ai).
+- **UwazumiMix_ILL**: Created by [UWAZUMI](https://civitai.red/user/UWAZUMI).
 - **Unholy Desire Mix - Sinister Aesthetic (Illustrious)**: Created by [UnholyDesiresStudio](https://civitai.red/user/UnholyDesiresStudio).
 - **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.red/user/janxd).
-- **Koronemix Vpred v2.0**: Created by [koronen](https://civitai.red/user/koronen).
 
 ---
-**Disclaimer:** These models are provided for optimization and research purposes. Please adhere to the original licenses of the base models.
