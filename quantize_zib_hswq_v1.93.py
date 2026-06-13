@@ -7,6 +7,8 @@ V1.93 moodyRealMix ZIT (filename key moodyrealmix) — independent from Z-Anime:
   - moody-only: Structural VETO, per-projection qkv VETO, gray-zone search_low cap,
     live-vs-profile weight drift scoring, MSE gray-zone VETO reassessment, fused-qkv
     per-projection HSWQ (Comfy qkv key preserved; not Diffusers split).
+  - moody V7 only (basename zitv7 / _v7): key-pattern hard VETO for all .attention.qkv
+    plus cap_embedder.1 / final_layer.linear / x_embedder / context_refiner attention.out.
   - Z-Anime code paths (is_zanime) are untouched. ZI/ZIB/ZIT r0.05 behavior unchanged.
 
 Design Philosophy:
@@ -358,6 +360,35 @@ def detect_moody_zit_checkpoint(path: str) -> bool:
     return "moodyrealmix" in os.path.basename(path).lower()
 
 
+def detect_moody_v7_zit_checkpoint(path: str) -> bool:
+    """moodyRealMix ZIT V7 only (basename key; V6DPO etc. excluded)."""
+    b = os.path.basename(path).lower()
+    if "moodyrealmix" not in b:
+        return False
+    return "zitv7" in b or "_v7." in b or b.endswith("_v7.safetensors") or "_v7_" in b
+
+
+def _moody_v7_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> set:
+    """V7-only: key-pattern hard VETO (no layer-name literals beyond suffix keys)."""
+    added = set()
+    for _n, _m in model.named_modules():
+        if not isinstance(_m, torch.nn.Linear):
+            continue
+        if _n in hard_veto_layers:
+            continue
+        if _n.endswith(".attention.qkv"):
+            added.add(_n)
+            continue
+        if _n.endswith((".cap_embedder.1", ".final_layer.linear", ".x_embedder")):
+            added.add(_n)
+            continue
+        if ".context_refiner" in _n and _n.endswith(".attention.out"):
+            added.add(_n)
+    for _n in sorted(added):
+        print(f"    [moodyV7 Key VETO] {_n}")
+    return added
+
+
 def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
     """Live kurtosis, outlier_ratio, abs_max for a weight tensor."""
     x = tensor.float()
@@ -498,9 +529,11 @@ def _mse_grayzone_veto_reassessment(
     return hard_veto_layers, keep_layers
 
 
-def _enhanced_veto_scope_label(is_zanime: bool, is_moody: bool, cli_flag: bool) -> str:
+def _enhanced_veto_scope_label(is_zanime: bool, is_moody: bool, cli_flag: bool, is_moody_v7: bool = False) -> str:
     if is_zanime:
         return "Z-Anime"
+    if is_moody_v7:
+        return "moodyV7"
     if is_moody:
         return "moodyZIT"
     if cli_flag:
@@ -1087,6 +1120,7 @@ def main():
         print(f"    fused NextDiT (qkv/out/q_norm/k_norm) via per-statistic MAX.")
         print(f"    Profile entries: {n_before} -> {len(model_profile)}")
     is_moody_zit = detect_moody_zit_checkpoint(args.input)
+    is_moody_v7 = detect_moody_v7_zit_checkpoint(args.input)
     use_bf16_cal_precheck = is_zanime_profile_flag
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(
         model_profile,
@@ -1106,8 +1140,10 @@ def main():
     ) = load_zit_model(args.input, device, args.comfy_path)
     use_enhanced_veto = is_moody_zit or args.enhanced_veto
     if use_enhanced_veto:
-        _ev_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto)
+        _ev_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto, is_moody_v7)
         print(f"  [Enhanced VETO] Enabled ({_ev_label}): Structural + per-projection qkv VETO.")
+    if is_moody_v7:
+        print("  [moodyV7] Key-pattern hard VETO will protect all .attention.qkv + boundary layers.")
     
     # tokenizer and text_encoder are already loaded in the initial block
     pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device, dtype=inference_dtype)
@@ -1174,7 +1210,7 @@ def main():
                     print(f"    [Structural VETO] {_n} shape={list(_shp)} (uniqueness=1)")
         if structural_veto:
             hard_veto_layers = hard_veto_layers.union(structural_veto)
-            _sv_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto)
+            _sv_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto, is_moody_v7)
             print(f"  [{_sv_label} Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
         else:
             print(f"  [Structural VETO] No additional unique-shape layers found.")
@@ -1228,10 +1264,16 @@ def main():
                     print(f"    [Per-Projection VETO] {_n} ({_hi})")
         if proj_veto:
             hard_veto_layers = hard_veto_layers.union(proj_veto)
-            _pv_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto)
+            _pv_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto, is_moody_v7)
             print(f"  [{_pv_label} Per-Projection VETO] Added {len(proj_veto)} qkv layers (total VETO: {len(hard_veto_layers)}).")
         else:
             print(f"  [Per-Projection VETO] No qkv layer exceeds per-projection abs_max threshold.")
+
+    if is_moody_v7:
+        _kv = _moody_v7_keypattern_veto(model, hard_veto_layers)
+        if _kv:
+            hard_veto_layers = hard_veto_layers.union(_kv)
+            print(f"  [moodyV7 Key VETO] Added {len(_kv)} layers (total VETO: {len(hard_veto_layers)}).")
 
     print("\nAnalyzing layer sensitivity (Profile-Based)...")
     # DualMonitor variance is scale-dependent and inaccurate, so we use
@@ -1387,8 +1429,9 @@ def main():
             if o > 40 and k <= 20 and m <= 20:
                 moody_outlier_only_veto.add(vname)
         if moody_outlier_only_veto:
+            _mgy_label = "moodyV7" if is_moody_v7 else "moodyZIT"
             hard_veto_layers, keep_layers = _mse_grayzone_veto_reassessment(
-                scope_label="moodyZIT",
+                scope_label=_mgy_label,
                 hard_veto_layers=hard_veto_layers,
                 keep_layers=keep_layers,
                 outlier_only_veto=moody_outlier_only_veto,
