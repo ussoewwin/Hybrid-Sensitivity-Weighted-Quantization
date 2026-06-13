@@ -2,14 +2,12 @@
 Z-Image Base (Non-Turbo) FP8 Quantization - HSWQ V1.93 (Pure Data-Driven Autonomous Engine)
 Target Model: Z-Image Base (e.g., UR03: moodyWildV0200001.UR03.safetensors)
 
-V1.93 moodyRealMix ZIT (filename key moodyrealmix) — independent from Z-Anime:
-  - FP16 calibration path unchanged (V6 is 100% BF16 weights yet SSIM 0.9919 on v1.92).
-  - moody-only: Structural VETO, per-projection qkv VETO, gray-zone search_low cap,
-    live-vs-profile weight drift scoring, MSE gray-zone VETO reassessment, fused-qkv
-    per-projection HSWQ (Comfy qkv key preserved; not Diffusers split).
-  - moody V7 only (basename zitv7 / _v7): key-pattern hard VETO for all .attention.qkv
-    plus cap_embedder.1 / final_layer.linear / x_embedder / context_refiner attention.out.
-  - Z-Anime code paths (is_zanime) are untouched. ZI/ZIB/ZIT r0.05 behavior unchanged.
+V1.93 moodyRealMix ZIT — independent from Z-Anime (CLI flags only, no filename detection):
+  - --moody-zit: Structural VETO, per-projection qkv VETO, gray-zone search_low cap,
+    live-vs-profile drift scoring, MSE gray-zone VETO reassessment, fused-qkv HSWQ.
+  - --moody-v7: moody-zit plus key-pattern hard VETO (qkv, w2, adaLN, attention.out,
+    t_embedder, boundary); MSE grayzone RELEASE disabled; qkv threshold 4.0.
+  - Z-Anime (is_zanime) untouched. ZI/ZIB/ZIT r0.05 behavior unchanged.
 
 Design Philosophy:
   1. Mandatory Analysis: Relies on weight distribution profiles (Kurtosis, Outlier Ratio).
@@ -355,34 +353,33 @@ def _bf16_weight_fraction(stripped_state_dict) -> float:
     return bf16_n / len(weights)
 
 
-def detect_moody_zit_checkpoint(path: str) -> bool:
-    """True when input filename matches moodyRealMix ZIT checkpoints (key pattern only)."""
-    return "moodyrealmix" in os.path.basename(path).lower()
-
-
-def detect_moody_v7_zit_checkpoint(path: str) -> bool:
-    """moodyRealMix ZIT V7 only (basename key; V6DPO etc. excluded)."""
-    b = os.path.basename(path).lower()
-    if "moodyrealmix" not in b:
-        return False
-    return "zitv7" in b or "_v7." in b or b.endswith("_v7.safetensors") or "_v7_" in b
-
-
 def _moody_v7_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> set:
-    """V7-only: key-pattern hard VETO (no layer-name literals beyond suffix keys)."""
+    """V7-only: key-pattern hard VETO (suffix keys only; no per-layer literals).
+
+    V6 bench SSIM ~0.99 at r0.05; V7 collapsed when MSE grayzone RELEASE freed
+    outlier-heavy feed_forward.w2 layers. V7 path keeps all matching suffixes on
+    FP16 and disables RELEASE (see main).
+    """
+    _BOUNDARY_SUFFIXES = (".cap_embedder.1", ".final_layer.linear", ".x_embedder")
+    _V7_PROTECT_SUFFIXES = (
+        ".attention.qkv",
+        ".feed_forward.w2",
+        ".adaLN_modulation",
+        ".attention.out",
+    )
     added = set()
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
             continue
         if _n in hard_veto_layers:
             continue
-        if _n.endswith(".attention.qkv"):
+        if _n.startswith("t_embedder."):
             added.add(_n)
             continue
-        if _n.endswith((".cap_embedder.1", ".final_layer.linear", ".x_embedder")):
+        if _n.endswith(_BOUNDARY_SUFFIXES):
             added.add(_n)
             continue
-        if ".context_refiner" in _n and _n.endswith(".attention.out"):
+        if any(_n.endswith(suf) for suf in _V7_PROTECT_SUFFIXES):
             added.add(_n)
     for _n in sorted(added):
         print(f"    [moodyV7 Key VETO] {_n}")
@@ -994,7 +991,17 @@ def main():
     parser.add_argument(
         "--enhanced-veto",
         action="store_true",
-        help="Enable Structural + per-projection qkv VETO (auto for Z-Anime and moodyRealMix filenames)",
+        help="Enable Structural + per-projection qkv VETO (auto for Z-Anime; or use with --moody-zit)",
+    )
+    parser.add_argument(
+        "--moody-zit",
+        action="store_true",
+        help="moodyRealMix ZIT path (Structural VETO, per-projection qkv, gray-zone cap, MSE reassessment)",
+    )
+    parser.add_argument(
+        "--moody-v7",
+        action="store_true",
+        help="moodyRealMix ZIT V7 (--moody-zit plus key-pattern hard VETO, no MSE RELEASE, qkv threshold 4.0)",
     )
     args = parser.parse_args()
 
@@ -1119,8 +1126,8 @@ def main():
         print(f"  [Z-Anime profile bridge] Diffusers (to_q/to_k/to_v/to_out.0/norm_q/norm_k) ->")
         print(f"    fused NextDiT (qkv/out/q_norm/k_norm) via per-statistic MAX.")
         print(f"    Profile entries: {n_before} -> {len(model_profile)}")
-    is_moody_zit = detect_moody_zit_checkpoint(args.input)
-    is_moody_v7 = detect_moody_v7_zit_checkpoint(args.input)
+    is_moody_v7 = bool(args.moody_v7)
+    is_moody_zit = bool(args.moody_zit or args.moody_v7)
     use_bf16_cal_precheck = is_zanime_profile_flag
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(
         model_profile,
@@ -1143,7 +1150,13 @@ def main():
         _ev_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto, is_moody_v7)
         print(f"  [Enhanced VETO] Enabled ({_ev_label}): Structural + per-projection qkv VETO.")
     if is_moody_v7:
-        print("  [moodyV7] Key-pattern hard VETO will protect all .attention.qkv + boundary layers.")
+        print("  [moodyV7] Enabled via --moody-v7.")
+        print(
+            "  [moodyV7] Key-pattern hard VETO: qkv, w2, adaLN, attention.out, "
+            "t_embedder, boundary layers; MSE RELEASE disabled."
+        )
+    elif is_moody_zit:
+        print("  [moodyZIT] Enabled via --moody-zit.")
     
     # tokenizer and text_encoder are already loaded in the initial block
     pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device, dtype=inference_dtype)
@@ -1257,10 +1270,13 @@ def main():
                     continue
                 _chunk = _out_dim // 3
                 _amax = [_w[i * _chunk:(i + 1) * _chunk].abs().max().item() for i in range(3)]
-                if max(_amax) > 5.0:
+                _proj_thresh = 4.0 if is_moody_v7 else 5.0
+                if max(_amax) > _proj_thresh:
                     proj_veto.add(_n)
                     _tags = ["to_q", "to_k", "to_v"]
-                    _hi = ", ".join(f"{t}={a:.2f}" for t, a in zip(_tags, _amax) if a > 5.0)
+                    _hi = ", ".join(
+                        f"{t}={a:.2f}" for t, a in zip(_tags, _amax) if a > _proj_thresh
+                    )
                     print(f"    [Per-Projection VETO] {_n} ({_hi})")
         if proj_veto:
             hard_veto_layers = hard_veto_layers.union(proj_veto)
@@ -1418,8 +1434,15 @@ def main():
         else:
             print(f"  [MSE-Guided Reassessment] No safe baseline available, skipping.")
 
-    # moodyRealMix only — same gray-zone MSE release as Z-Anime block, but separate code path.
-    if is_moody_zit:
+    # moodyRealMix only — gray-zone MSE release (V6DPO etc.). V7: disabled — RELEASE
+    # dropped SSIM below 0.95 when w2 layers were freed from hard VETO.
+    if is_moody_v7:
+        print(
+            "  [moodyV7] MSE grayzone RELEASE skipped "
+            f"({len([n for n in hard_veto_layers if _norm_profile.get(n, {}).get('outlier_ratio', 0) > 40])} "
+            "outlier-heavy layers stay FP16)."
+        )
+    elif is_moody_zit:
         moody_outlier_only_veto = set()
         for vname in hard_veto_layers:
             prof = _norm_profile.get(vname, {})
@@ -1429,9 +1452,8 @@ def main():
             if o > 40 and k <= 20 and m <= 20:
                 moody_outlier_only_veto.add(vname)
         if moody_outlier_only_veto:
-            _mgy_label = "moodyV7" if is_moody_v7 else "moodyZIT"
             hard_veto_layers, keep_layers = _mse_grayzone_veto_reassessment(
-                scope_label=_mgy_label,
+                scope_label="moodyZIT",
                 hard_veto_layers=hard_veto_layers,
                 keep_layers=keep_layers,
                 outlier_only_veto=moody_outlier_only_veto,
