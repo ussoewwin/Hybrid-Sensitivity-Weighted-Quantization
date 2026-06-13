@@ -6,7 +6,8 @@ V2.0 — no model-specific CLI flags or layer-name lists:
   1. Profile drift scoring on all layers (sensitivity + gray-zone search_low cap).
   2. Structural VETO (unique Linear weight shape) on all NextDiT models.
   3. Per-projection .attention.qkv VETO on all NextDiT models.
-  4. NextDiT key-pattern VETO (suffix/prefix auto-detect; no literal layer names).
+  4. NextDiT key-pattern VETO: boundary + t_embedder.* + outlier-heavy w2 only
+     (NOT blanket qkv/w2/adaLN/out — that inflates output to ~9GB; see ca87a38).
   5. Live supplemental VETO (outlier-heavy w2, high-drift t_embedder.*).
   6. MSE gray-zone RELEASE only when o-only AND drift < 0.5 AND not structural/key-pattern.
   Z-Anime: Diffusers I/O, BF16 keep path, profile bridge — unchanged.
@@ -361,18 +362,19 @@ _DRIFT_SENSITIVITY_MULT = 50.0
 _QKV_PROJ_VETO_THRESH_ZANIME = 5.0
 _QKV_PROJ_VETO_THRESH_DEFAULT = 4.5
 _W2_OUTLIER_LIVE_THRESH = 40.0
-_NEXTDIT_KP_SUFFIXES = (
-    ".attention.qkv",
-    ".feed_forward.w2",
-    ".adaLN_modulation",
-    ".attention.out",
-)
 _NEXTDIT_KP_BOUNDARY = (".cap_embedder.1", ".final_layer.linear", ".x_embedder")
 _NEXTDIT_KP_PREFIX = "t_embedder."
 
 
 def _compute_nextdit_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> set:
-    """Auto-detect NextDiT boundary/suffix layers via key patterns (not literal names)."""
+    """Selective NextDiT key-pattern VETO (autonomous; no CLI flags).
+
+    Reference ~6.6GB at r0.05: w2 fp8=32 fp16=1, qkv fp8=33 fp16=1.
+    Blanket .attention.qkv / .feed_forward.w2 / .adaLN_modulation / .attention.out
+    VETO inflates output to ~9GB while SSIM stays high. Keep boundary + t_embedder;
+    w2 only when live outlier_ratio > 40. qkv/adaLN/out rely on profile hard_veto,
+    structural VETO, and per-projection qkv.
+    """
     added = set()
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
@@ -381,14 +383,22 @@ def _compute_nextdit_keypattern_veto(model: nn.Module, hard_veto_layers: set) ->
             continue
         if _n.startswith(_NEXTDIT_KP_PREFIX):
             added.add(_n)
+            print(f"    [Key-Pattern VETO] {_n} (t_embedder)")
             continue
         if _n.endswith(_NEXTDIT_KP_BOUNDARY):
             added.add(_n)
+            print(f"    [Key-Pattern VETO] {_n} (boundary)")
             continue
-        if any(_n.endswith(s) for s in _NEXTDIT_KP_SUFFIXES):
-            added.add(_n)
+        if _n.endswith(".feed_forward.w2"):
+            _k, _o, _mstat = _layer_weight_stats(_m.weight.detach())
+            if _o > _W2_OUTLIER_LIVE_THRESH:
+                added.add(_n)
+                print(
+                    f"    [Key-Pattern VETO] {_n} "
+                    f"(w2 outlier o={_o:.1f} > {_W2_OUTLIER_LIVE_THRESH})"
+                )
     if added:
-        print(f"  [Key-Pattern VETO] Added {len(added)} NextDiT structural layers.")
+        print(f"  [Key-Pattern VETO] Added {len(added)} selective layers.")
     return added
 
 
