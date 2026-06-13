@@ -5,8 +5,8 @@ Target Model: Z-Image Base (e.g., UR03: moodyWildV0200001.UR03.safetensors)
 V1.93 moodyRealMix ZIT — independent from Z-Anime (CLI flags only, no filename detection):
   - --moody-zit: Structural VETO, per-projection qkv VETO, gray-zone search_low cap,
     live-vs-profile drift scoring, MSE gray-zone VETO reassessment, fused-qkv HSWQ.
-  - --moody-v7: moody-zit plus key-pattern hard VETO (qkv, w2, adaLN, attention.out,
-    t_embedder, boundary); MSE grayzone RELEASE disabled; qkv threshold 4.0.
+  - --moody-v7: moody-zit plus selective VETO (boundary, t_embedder, outlier-heavy w2
+    only); MSE grayzone RELEASE disabled; qkv per-projection threshold 4.0.
   - Z-Anime (is_zanime) untouched. ZI/ZIB/ZIT r0.05 behavior unchanged.
 
 Design Philosophy:
@@ -354,19 +354,16 @@ def _bf16_weight_fraction(stripped_state_dict) -> float:
 
 
 def _moody_v7_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> set:
-    """V7-only: key-pattern hard VETO (suffix keys only; no per-layer literals).
+    """V7-only: selective suffix VETO (no per-layer literals, no blanket qkv/w2).
 
-    V6 bench SSIM ~0.99 at r0.05; V7 collapsed when MSE grayzone RELEASE freed
-    outlier-heavy feed_forward.w2 layers. V7 path keeps all matching suffixes on
-    FP16 and disables RELEASE (see main).
+    Reference zit_hswq_r32_r0.05_v1 (~6.6GB): w2 fp8=32 fp16=1, qkv fp8=33 fp16=1.
+    Blanket .attention.qkv / .feed_forward.w2 VETO inflated output to ~9GB at r0.05
+    while SSIM stayed high. V7 keeps boundary + t_embedder; w2 only when live
+    outlier_ratio > 40 (same risk class MSE RELEASE freed and broke SSIM).
+    qkv/adaLN/out rely on profile hard_veto, structural VETO, per-projection qkv.
     """
     _BOUNDARY_SUFFIXES = (".cap_embedder.1", ".final_layer.linear", ".x_embedder")
-    _V7_PROTECT_SUFFIXES = (
-        ".attention.qkv",
-        ".feed_forward.w2",
-        ".adaLN_modulation",
-        ".attention.out",
-    )
+    _W2_OUTLIER_THRESH = 40.0
     added = set()
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
@@ -375,14 +372,20 @@ def _moody_v7_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> set:
             continue
         if _n.startswith("t_embedder."):
             added.add(_n)
+            print(f"    [moodyV7 Key VETO] {_n} (t_embedder)")
             continue
         if _n.endswith(_BOUNDARY_SUFFIXES):
             added.add(_n)
+            print(f"    [moodyV7 Key VETO] {_n} (boundary)")
             continue
-        if any(_n.endswith(suf) for suf in _V7_PROTECT_SUFFIXES):
-            added.add(_n)
-    for _n in sorted(added):
-        print(f"    [moodyV7 Key VETO] {_n}")
+        if _n.endswith(".feed_forward.w2"):
+            _k, _o, _mstat = _layer_weight_stats(_m.weight.detach())
+            if _o > _W2_OUTLIER_THRESH:
+                added.add(_n)
+                print(
+                    f"    [moodyV7 Key VETO] {_n} "
+                    f"(w2 outlier o={_o:.1f} > {_W2_OUTLIER_THRESH})"
+                )
     return added
 
 
@@ -1001,7 +1004,7 @@ def main():
     parser.add_argument(
         "--moody-v7",
         action="store_true",
-        help="moodyRealMix ZIT V7 (--moody-zit plus key-pattern hard VETO, no MSE RELEASE, qkv threshold 4.0)",
+        help="moodyRealMix ZIT V7 (--moody-zit plus selective w2/boundary VETO, no MSE RELEASE, qkv threshold 4.0)",
     )
     args = parser.parse_args()
 
@@ -1152,8 +1155,8 @@ def main():
     if is_moody_v7:
         print("  [moodyV7] Enabled via --moody-v7.")
         print(
-            "  [moodyV7] Key-pattern hard VETO: qkv, w2, adaLN, attention.out, "
-            "t_embedder, boundary layers; MSE RELEASE disabled."
+            "  [moodyV7] Selective VETO: boundary, t_embedder, w2 with outlier_ratio>40; "
+            "qkv via per-projection (4.0); MSE RELEASE disabled."
         )
     elif is_moody_zit:
         print("  [moodyZIT] Enabled via --moody-zit.")
