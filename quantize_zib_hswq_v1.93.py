@@ -1,6 +1,12 @@
 """
-Z-Image Base (Non-Turbo) FP8 Quantization - HSWQ V1.9 (Pure Data-Driven Autonomous Engine)
+Z-Image Base (Non-Turbo) FP8 Quantization - HSWQ V1.93 (Pure Data-Driven Autonomous Engine)
 Target Model: Z-Image Base (e.g., UR03: moodyWildV0200001.UR03.safetensors)
+
+V1.93 vs initial push (moody V7 review):
+  - BF16 weight ratio no longer switches calibration dtype / upper_clip for non-Z-Anime CKPTs.
+    moody V6 is 100% BF16 yet SSIM 0.9919 on v1.92 FP16 calibration + upper_clip 0.99.
+  - Structural VETO + per-projection qkv VETO run under enhanced-veto scope (Z-Anime, moodyRealMix
+    filename key, or --enhanced-veto), without changing ZI/ZIB/ZIT r0.05 behavior.
 
 Design Philosophy:
   1. Mandatory Analysis: Relies on weight distribution profiles (Kurtosis, Outlier Ratio).
@@ -346,14 +352,19 @@ def _bf16_weight_fraction(stripped_state_dict) -> float:
     return bf16_n / len(weights)
 
 
-def detect_is_bf16_base(path: str) -> bool:
-    """True for predominantly-BF16 Comfy NextDiT checkpoints (e.g. moody V7), not Z-Anime."""
-    sd = load_file(path)
-    stripped, _, is_zanime, _ = detect_and_strip_prefix(sd)
+def detect_moody_zit_checkpoint(path: str) -> bool:
+    """True when input filename matches moodyRealMix ZIT checkpoints (key pattern only)."""
+    return "moodyrealmix" in os.path.basename(path).lower()
+
+
+def _enhanced_veto_scope_label(is_zanime: bool, is_moody: bool, cli_flag: bool) -> str:
     if is_zanime:
-        return False
-    frac = _bf16_weight_fraction(stripped)
-    return frac >= 0.5
+        return "Z-Anime"
+    if is_moody:
+        return "moodyZIT"
+    if cli_flag:
+        return "enhanced-veto"
+    return "enhanced"
 
 
 def load_zit_model(path, device="cuda", comfy_path=None):
@@ -381,18 +392,17 @@ def load_zit_model(path, device="cuda", comfy_path=None):
     if zit_config.get("intermediate_size"):
         ffn_multiplier = zit_config["intermediate_size"] / zit_config["hidden_size"]
     
-    # Z-Image FP16 bases: FP16 calibration (proven r0.05 path for ZI/ZIB/ZIT / moody V6).
-    # Z-Anime + BF16-dominant Comfy bases (e.g. moody V7): keep BF16 end-to-end.
-    # Down-casting BF16→FP16 before HSWQ collapses adaLN/outlier dynamic range.
-    is_bf16_base = (not is_zanime) and (_bf16_weight_fraction(stripped_state_dict) >= 0.5)
-    use_bf16_calibration = is_zanime or is_bf16_base
-    inference_dtype = torch.bfloat16 if use_bf16_calibration else torch.float16
-    if is_zanime:
-        calib_label = "Z-Anime BF16 path"
-    elif is_bf16_base:
-        calib_label = f"BF16-base path (weight BF16 ratio={_bf16_weight_fraction(stripped_state_dict):.3f})"
-    else:
-        calib_label = "Z-Image FP16 path"
+    # Z-Image / moody ZIT: FP16 calibration (proven r0.05 path; moody V6 SSIM 0.9919).
+    # Z-Anime only: BF16 end-to-end calibration.
+    use_bf16_calibration = is_zanime
+    inference_dtype = torch.bfloat16 if is_zanime else torch.float16
+    calib_label = "Z-Anime BF16 path" if is_zanime else "Z-Image FP16 path"
+    bf16_frac = _bf16_weight_fraction(stripped_state_dict)
+    if not is_zanime and bf16_frac >= 0.5:
+        print(
+            f"  [Note] CKPT weights are {bf16_frac * 100:.0f}% BF16; "
+            f"calibration stays {inference_dtype} (v1.92-proven moody/ZIT path)."
+        )
     print(f"  [Calibration dtype] {inference_dtype} ({calib_label})")
     
     nextdit_kwargs = {}
@@ -451,7 +461,6 @@ def load_zit_model(path, device="cuda", comfy_path=None):
         is_zanime,
         zanime_reverse_map,
         inference_dtype,
-        is_bf16_base,
     )
 
 class ZITCalibrationPipeline:
@@ -644,9 +653,9 @@ def derive_hswq_strategy(model_profile, is_zanime=False, use_bf16_calibration=Fa
     Derives Alpha/Beta from global model statistics and returns a continuous
     evaluation function that decides per-layer search_low without hardcoded thresholds.
 
-    use_bf16_calibration: when True (Z-Anime or auto-detected BF16-base CKPT), relax
-    search_low upper clip from 0.99 to 0.90 so gray-zone layers keep a real HSWQ range.
-    FP16-base ZI/ZIB/ZIT (use_bf16_calibration=False) keeps 0.99.
+    use_bf16_calibration: when True (Z-Anime only), relax search_low upper clip from 0.99
+    to 0.90 so gray-zone layers keep a real HSWQ range. FP16 calibration (ZI/ZIB/ZIT /
+    moody ZIT) keeps 0.99.
     """
     
     # [CRITICAL FIX] Automatically detect and strip model prefixes from profile keys
@@ -689,9 +698,8 @@ def derive_hswq_strategy(model_profile, is_zanime=False, use_bf16_calibration=Fa
         o_penalty = min(o_ratio / 60.0, 0.49)
         
         # Use 0.50 as the base and raise the protection line according to the strongest abnormality.
-        # BF16 calibration (Z-Anime or auto-detected BF16 base): cap at 0.90 so gray-zone
-        # layers keep a real HSWQ search range instead of a 1%-wide window (= naive cast).
-        # FP16-base ZI/ZIB/ZIT: cap stays at 0.99 (unchanged r0.05 path).
+        # Z-Anime BF16 calibration: cap at 0.90 so gray-zone layers keep a real HSWQ range.
+        # FP16 calibration (ZI/ZIB/ZIT / moody): cap stays at 0.99 (unchanged r0.05 path).
         upper_clip = 0.90 if use_bf16_calibration else 0.99
         return float(np.clip(0.50 + max(k_penalty, o_penalty), 0.50, upper_clip))
 
@@ -789,6 +797,11 @@ def main():
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     parser.add_argument("--tokenizer_path", type=str, help="Path to tokenizer (optional)")
     parser.add_argument("--token", type=str, help="Hugging Face API token for fallback download (optional)")
+    parser.add_argument(
+        "--enhanced-veto",
+        action="store_true",
+        help="Enable Structural + per-projection qkv VETO (auto for Z-Anime and moodyRealMix filenames)",
+    )
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -912,10 +925,8 @@ def main():
         print(f"  [Z-Anime profile bridge] Diffusers (to_q/to_k/to_v/to_out.0/norm_q/norm_k) ->")
         print(f"    fused NextDiT (qkv/out/q_norm/k_norm) via per-statistic MAX.")
         print(f"    Profile entries: {n_before} -> {len(model_profile)}")
-    is_bf16_base_precheck = detect_is_bf16_base(args.input)
-    use_bf16_cal_precheck = is_zanime_profile_flag or is_bf16_base_precheck
-    if is_bf16_base_precheck:
-        print(f"  [BF16-base precheck] Input CKPT is predominantly BF16; search_low upper_clip=0.90.")
+    is_moody_zit = detect_moody_zit_checkpoint(args.input)
+    use_bf16_cal_precheck = is_zanime_profile_flag
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(
         model_profile,
         is_zanime=is_zanime_profile_flag,
@@ -930,9 +941,11 @@ def main():
         is_zanime,
         zanime_reverse_map,
         inference_dtype,
-        is_bf16_base,
     ) = load_zit_model(args.input, device, args.comfy_path)
-    use_bf16_calibration = is_zanime or is_bf16_base
+    use_enhanced_veto = is_zanime or is_moody_zit or args.enhanced_veto
+    if use_enhanced_veto:
+        _ev_label = _enhanced_veto_scope_label(is_zanime, is_moody_zit, args.enhanced_veto)
+        print(f"  [Enhanced VETO] Enabled ({_ev_label}): Structural + per-projection qkv VETO.")
     
     # tokenizer and text_encoder are already loaded in the initial block
     pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device, dtype=inference_dtype)
@@ -965,8 +978,8 @@ def main():
     # for output projection) that the data-driven (k/o/m) thresholds may miss but
     # which strongly affect SSIM. No layer names are hardcoded; selection is purely
     # structural via shape uniqueness over Linear weights of the loaded model.
-    # Guarded by use_bf16_calibration (Z-Anime or BF16-base CKPT); FP16 ZI/ZIB/ZIT unchanged.
-    if use_bf16_calibration:
+    # Guarded by enhanced-veto scope; FP16 ZI/ZIB/ZIT unchanged unless moody/--enhanced-veto.
+    if use_enhanced_veto:
         shape_count = {}
         for _n, _m in model.named_modules():
             if isinstance(_m, torch.nn.Linear):
@@ -981,7 +994,7 @@ def main():
                     print(f"    [Structural VETO] {_n} shape={list(_shp)} (uniqueness=1)")
         if structural_veto:
             hard_veto_layers = hard_veto_layers.union(structural_veto)
-            _sv_label = "Z-Anime" if is_zanime else "BF16-base"
+            _sv_label = _enhanced_veto_scope_label(is_zanime, is_moody_zit, args.enhanced_veto)
             print(f"  [{_sv_label} Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
         else:
             print(f"  [Structural VETO] No additional unique-shape layers found.")
@@ -994,7 +1007,7 @@ def main():
     # Per-projection split is the same operation already performed during
     # quantization for is_zanime, so the threshold is applied on the actual
     # quantization unit, not the fused statistic.
-    if use_bf16_calibration:
+    if use_enhanced_veto:
         proj_veto = set()
         for _n, _m in model.named_modules():
             if isinstance(_m, torch.nn.Linear) and _n.endswith(".attention.qkv"):
@@ -1013,7 +1026,7 @@ def main():
                     print(f"    [Per-Projection VETO] {_n} ({_hi})")
         if proj_veto:
             hard_veto_layers = hard_veto_layers.union(proj_veto)
-            _pv_label = "Z-Anime" if is_zanime else "BF16-base"
+            _pv_label = _enhanced_veto_scope_label(is_zanime, is_moody_zit, args.enhanced_veto)
             print(f"  [{_pv_label} Per-Projection VETO] Added {len(proj_veto)} qkv layers (total VETO: {len(hard_veto_layers)}).")
         else:
             print(f"  [Per-Projection VETO] No qkv layer exceeds per-projection abs_max threshold.")
@@ -1257,8 +1270,8 @@ def main():
         print("  [Z-Anime] Output will use Diffusers key format (to_q/to_k/to_v/to_out.0/norm_q/norm_k + 'all_<module>.2-1' prefix), matching the official FP8 distribution.")
     output_state_dict = {}
 
-    # FP16-base ZI/ZIB/ZIT: keep FP16. BF16 calibration path: keep BF16 (SSIM >= 0.95).
-    keep_dtype = torch.bfloat16 if use_bf16_calibration else torch.float16
+    # ZI/ZIB/ZIT / moody ZIT: keep FP16. Z-Anime BF16 path: keep BF16.
+    keep_dtype = torch.bfloat16 if is_zanime else torch.float16
 
     def _emit_quant_meta(out_dict, prefixed_module):
         out_dict[f"{prefixed_module}.comfy_quant"] = torch.tensor(
@@ -1303,7 +1316,7 @@ def main():
             if module_name:
                 _emit_quant_meta(output_state_dict, detected_prefix + module_name)
         else:
-            if use_bf16_calibration:
+            if is_zanime:
                 new_value = value.to(torch.bfloat16) if value.dtype != torch.bfloat16 else value
             else:
                 new_value = value.to(torch.float16) if value.dtype == torch.bfloat16 else value
