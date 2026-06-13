@@ -1,13 +1,15 @@
 """
-Z-Image Base (Non-Turbo) FP8 Quantization - HSWQ V1.93 (Pure Data-Driven Autonomous Engine)
-Target Model: Z-Image Base (e.g., UR03: moodyWildV0200001.UR03.safetensors)
+Z-Image Base (Non-Turbo) FP8 Quantization - HSWQ V2.0 (Pure Autonomous Engine)
+Target Model: Z-Image Base / NextDiT derivatives (ZI, ZIB, ZIT, moodyRealMix, etc.)
 
-V1.93 moodyRealMix ZIT — independent from Z-Anime (CLI flags only, no filename detection):
-  - --moody-zit: Structural VETO, per-projection qkv VETO, gray-zone search_low cap,
-    live-vs-profile drift scoring, MSE gray-zone VETO reassessment, fused-qkv HSWQ.
-  - --moody-v7: moody-zit plus selective VETO (boundary, t_embedder, outlier-heavy w2
-    only); MSE grayzone RELEASE disabled; qkv per-projection threshold 4.0.
-  - Z-Anime (is_zanime) untouched. ZI/ZIB/ZIT r0.05 behavior unchanged.
+V2.0 — no model-specific CLI flags or layer-name lists:
+  1. Profile drift scoring on all layers (sensitivity + gray-zone search_low cap).
+  2. Structural VETO (unique Linear weight shape) on all NextDiT models.
+  3. Per-projection .attention.qkv VETO on all NextDiT models.
+  4. NextDiT key-pattern VETO (suffix/prefix auto-detect; no literal layer names).
+  5. Live supplemental VETO (outlier-heavy w2, high-drift t_embedder.*).
+  6. MSE gray-zone RELEASE only when o-only AND drift < 0.5 AND not structural/key-pattern.
+  Z-Anime: Diffusers I/O, BF16 keep path, profile bridge — unchanged.
 
 Design Philosophy:
   1. Mandatory Analysis: Relies on weight distribution profiles (Kurtosis, Outlier Ratio).
@@ -353,40 +355,129 @@ def _bf16_weight_fraction(stripped_state_dict) -> float:
     return bf16_n / len(weights)
 
 
-def _moody_v7_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> set:
-    """V7-only: selective suffix VETO (no per-layer literals, no blanket qkv/w2).
+# --- V2.0 autonomous engine tunables (no layer-name literals) ---
+_DRIFT_VETO_THRESH = 0.5
+_DRIFT_SENSITIVITY_MULT = 50.0
+_QKV_PROJ_VETO_THRESH_ZANIME = 5.0
+_QKV_PROJ_VETO_THRESH_DEFAULT = 4.5
+_W2_OUTLIER_LIVE_THRESH = 40.0
+_NEXTDIT_KP_SUFFIXES = (
+    ".attention.qkv",
+    ".feed_forward.w2",
+    ".adaLN_modulation",
+    ".attention.out",
+)
+_NEXTDIT_KP_BOUNDARY = (".cap_embedder.1", ".final_layer.linear", ".x_embedder")
+_NEXTDIT_KP_PREFIX = "t_embedder."
 
-    Reference zit_hswq_r32_r0.05_v1 (~6.6GB): w2 fp8=32 fp16=1, qkv fp8=33 fp16=1.
-    Blanket .attention.qkv / .feed_forward.w2 VETO inflated output to ~9GB at r0.05
-    while SSIM stayed high. V7 keeps boundary + t_embedder; w2 only when live
-    outlier_ratio > 40 (same risk class MSE RELEASE freed and broke SSIM).
-    qkv/adaLN/out rely on profile hard_veto, structural VETO, per-projection qkv.
-    """
-    _BOUNDARY_SUFFIXES = (".cap_embedder.1", ".final_layer.linear", ".x_embedder")
-    _W2_OUTLIER_THRESH = 40.0
+
+def _compute_nextdit_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> set:
+    """Auto-detect NextDiT boundary/suffix layers via key patterns (not literal names)."""
     added = set()
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
             continue
         if _n in hard_veto_layers:
             continue
-        if _n.startswith("t_embedder."):
+        if _n.startswith(_NEXTDIT_KP_PREFIX):
             added.add(_n)
-            print(f"    [moodyV7 Key VETO] {_n} (t_embedder)")
             continue
-        if _n.endswith(_BOUNDARY_SUFFIXES):
+        if _n.endswith(_NEXTDIT_KP_BOUNDARY):
             added.add(_n)
-            print(f"    [moodyV7 Key VETO] {_n} (boundary)")
             continue
-        if _n.endswith(".feed_forward.w2"):
-            _k, _o, _mstat = _layer_weight_stats(_m.weight.detach())
-            if _o > _W2_OUTLIER_THRESH:
-                added.add(_n)
-                print(
-                    f"    [moodyV7 Key VETO] {_n} "
-                    f"(w2 outlier o={_o:.1f} > {_W2_OUTLIER_THRESH})"
-                )
+        if any(_n.endswith(s) for s in _NEXTDIT_KP_SUFFIXES):
+            added.add(_n)
+    if added:
+        print(f"  [Key-Pattern VETO] Added {len(added)} NextDiT structural layers.")
     return added
+
+
+def _compute_structural_veto(model: nn.Module, hard_veto_layers: set) -> set:
+    """Linear layers whose weight shape is unique within the model (boundary detection)."""
+    shape_count: dict[tuple, int] = {}
+    for _n, _m in model.named_modules():
+        if isinstance(_m, torch.nn.Linear):
+            _shp = tuple(_m.weight.shape)
+            shape_count[_shp] = shape_count.get(_shp, 0) + 1
+    structural_veto = set()
+    for _n, _m in model.named_modules():
+        if isinstance(_m, torch.nn.Linear):
+            _shp = tuple(_m.weight.shape)
+            if shape_count[_shp] == 1 and _n not in hard_veto_layers:
+                structural_veto.add(_n)
+                print(f"    [Structural VETO] {_n} shape={list(_shp)} (uniqueness=1)")
+    return structural_veto
+
+
+def _compute_per_projection_qkv_veto(
+    model: nn.Module, hard_veto_layers: set, threshold: float
+) -> set:
+    """Auto-detect .attention.qkv via key pattern; VETO if any projection abs_max > threshold."""
+    proj_veto = set()
+    for _n, _m in model.named_modules():
+        if not isinstance(_m, torch.nn.Linear) or not _n.endswith(".attention.qkv"):
+            continue
+        if _n in hard_veto_layers:
+            continue
+        _w = _m.weight.detach().float()
+        _out_dim = _w.shape[0]
+        if _out_dim % 3 != 0:
+            continue
+        _chunk = _out_dim // 3
+        _amax = [_w[i * _chunk:(i + 1) * _chunk].abs().max().item() for i in range(3)]
+        if max(_amax) > threshold:
+            proj_veto.add(_n)
+            _tags = ["to_q", "to_k", "to_v"]
+            _hi = ", ".join(f"{t}={a:.2f}" for t, a in zip(_tags, _amax) if a > threshold)
+            print(f"    [Per-Projection VETO] {_n} ({_hi})")
+    return proj_veto
+
+
+def _autonomous_supplemental_veto(
+    model: nn.Module, hard_veto_layers: set, norm_profile: dict
+) -> set:
+    """Live VETO beyond profile: outlier-heavy w2, high-drift t_embedder (key patterns only)."""
+    added = set()
+    for _n, _m in model.named_modules():
+        if not isinstance(_m, torch.nn.Linear):
+            continue
+        if _n in hard_veto_layers:
+            continue
+        prof = norm_profile.get(_n, {})
+        drift = _weight_profile_drift(_m.weight.data, prof)
+        _k, _o, _mstat = _layer_weight_stats(_m.weight.detach())
+        if _n.endswith(".feed_forward.w2") and _o > _W2_OUTLIER_LIVE_THRESH:
+            added.add(_n)
+            print(f"    [Live VETO] {_n} (w2 outlier o={_o:.1f} > {_W2_OUTLIER_LIVE_THRESH})")
+        elif _n.startswith("t_embedder.") and drift > _DRIFT_VETO_THRESH:
+            added.add(_n)
+            print(f"    [Live VETO] {_n} (t_embedder drift={drift:.3f} > {_DRIFT_VETO_THRESH})")
+    return added
+
+
+def _collect_mse_release_candidates(
+    hard_veto_layers: set,
+    structural_veto: set,
+    norm_profile: dict,
+    model: nn.Module,
+) -> set:
+    """Outlier-only profile VETO with low drift and non-structural — MSE release candidates."""
+    candidates = set()
+    _module_dict = dict(model.named_modules())
+    for vname in hard_veto_layers:
+        if vname in structural_veto:
+            continue
+        prof = norm_profile.get(vname, {})
+        k = prof.get("kurtosis", 0)
+        m = prof.get("abs_max", 0)
+        o = prof.get("outlier_ratio", 0)
+        if o > 40 and k <= 20 and m <= 20:
+            vmod = _module_dict.get(vname)
+            if vmod is not None and hasattr(vmod, "weight"):
+                drift = _weight_profile_drift(vmod.weight.data, prof)
+                if drift < _DRIFT_VETO_THRESH:
+                    candidates.add(vname)
+    return candidates
 
 
 def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
@@ -399,8 +490,8 @@ def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
     return k, o, amax
 
 
-def _moody_weight_profile_drift(weight_tensor: torch.Tensor, prof: dict) -> float:
-    """moody-only: relative drift between live weights and distribution profile."""
+def _weight_profile_drift(weight_tensor: torch.Tensor, prof: dict) -> float:
+    """Relative drift between live weights and distribution profile (all models)."""
     if not prof:
         return 0.0
     lk, lo, lm = _layer_weight_stats(weight_tensor)
@@ -417,7 +508,7 @@ def _quantize_fused_qkv_chunks(
     qkv_weight: torch.Tensor,
     amaxes: tuple[float, float, float],
 ) -> torch.Tensor:
-    """moody-only: per-projection clamp then re-fuse to Comfy .attention.qkv.weight."""
+    """Per-projection clamp then re-fuse to Comfy .attention.qkv.weight."""
     chunks = torch.chunk(qkv_weight, 3, dim=0)
     out_chunks = []
     for chunk, amax in zip(chunks, amaxes):
@@ -441,7 +532,7 @@ def _mse_grayzone_veto_reassessment(
     beta: float,
     device: str,
 ) -> tuple[set, set]:
-    """Gray-zone VETO release via trial MSE (moody path; Z-Anime keeps its own block)."""
+    """Gray-zone VETO release via trial MSE (V2.0 universal; Z-Anime uses same helper)."""
     if not outlier_only_veto:
         return hard_veto_layers, keep_layers
 
@@ -529,18 +620,6 @@ def _mse_grayzone_veto_reassessment(
     return hard_veto_layers, keep_layers
 
 
-def _enhanced_veto_scope_label(is_zanime: bool, is_moody: bool, cli_flag: bool, is_moody_v7: bool = False) -> str:
-    if is_zanime:
-        return "Z-Anime"
-    if is_moody_v7:
-        return "moodyV7"
-    if is_moody:
-        return "moodyZIT"
-    if cli_flag:
-        return "enhanced-veto"
-    return "enhanced"
-
-
 def load_zit_model(path, device="cuda", comfy_path=None):
     print(f"Loading Base model: {path}")
     original_state_dict = load_file(path)
@@ -566,7 +645,7 @@ def load_zit_model(path, device="cuda", comfy_path=None):
     if zit_config.get("intermediate_size"):
         ffn_multiplier = zit_config["intermediate_size"] / zit_config["hidden_size"]
     
-    # Z-Image / moody ZIT: FP16 calibration (proven r0.05 path; moody V6 SSIM 0.9919).
+    # Z-Image / NextDiT: FP16 calibration (keep_ratio via --keep_ratio CLI, e.g. 0.05).
     # Z-Anime only: BF16 end-to-end calibration.
     use_bf16_calibration = is_zanime
     inference_dtype = torch.bfloat16 if is_zanime else torch.float16
@@ -825,7 +904,6 @@ def derive_hswq_strategy(
     model_profile,
     is_zanime=False,
     use_bf16_calibration=False,
-    is_moody_zit=False,
 ):
     """
     [Pure Data-Driven Engine]
@@ -833,8 +911,8 @@ def derive_hswq_strategy(
     evaluation function that decides per-layer search_low without hardcoded thresholds.
 
     use_bf16_calibration: Z-Anime only — upper_clip 0.90.
-    is_moody_zit: moodyRealMix only — gray-zone layers get upper_clip 0.90 on FP16 path.
-    ZI/ZIB/ZIT: upper_clip 0.99 unchanged.
+    NextDiT (ZI/ZIB/ZIT/derivatives): gray-zone or profile drift tightens upper_clip.
+    keep_ratio is NOT fixed here — it is supplied at runtime via --keep_ratio.
     """
     
     # [CRITICAL FIX] Automatically detect and strip model prefixes from profile keys
@@ -887,14 +965,14 @@ def derive_hswq_strategy(
         o_penalty = min(o_ratio / 60.0, 0.49)
 
         upper_clip = 0.99
-        if is_moody_zit:
-            in_gray = (
-                (10 < k_stat <= 20)
-                or (30 < o_ratio <= 40)
-                or (5 < m_stat <= 20)
-            )
-            if in_gray:
-                upper_clip = 0.90
+        drift = _weight_profile_drift(weight_tensor, prof) if prof else 0.0
+        in_gray = (
+            (10 < k_stat <= 20)
+            or (30 < o_ratio <= 40)
+            or (5 < m_stat <= 20)
+        )
+        if in_gray or drift > _DRIFT_VETO_THRESH:
+            upper_clip = 0.90
         return float(np.clip(0.50 + max(k_penalty, o_penalty), 0.50, upper_clip))
 
     # --- Decide global strategy (Alpha/Beta) ---
@@ -991,21 +1069,6 @@ def main():
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     parser.add_argument("--tokenizer_path", type=str, help="Path to tokenizer (optional)")
     parser.add_argument("--token", type=str, help="Hugging Face API token for fallback download (optional)")
-    parser.add_argument(
-        "--enhanced-veto",
-        action="store_true",
-        help="Enable Structural + per-projection qkv VETO (auto for Z-Anime; or use with --moody-zit)",
-    )
-    parser.add_argument(
-        "--moody-zit",
-        action="store_true",
-        help="moodyRealMix ZIT path (Structural VETO, per-projection qkv, gray-zone cap, MSE reassessment)",
-    )
-    parser.add_argument(
-        "--moody-v7",
-        action="store_true",
-        help="moodyRealMix ZIT V7 (--moody-zit plus selective w2/boundary VETO, no MSE RELEASE, qkv threshold 4.0)",
-    )
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1027,7 +1090,7 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("=" * 60)
-    print("HSWQ V1.9 Autonomous Engine (Environment-Aware Analysis)")
+    print("HSWQ V2.0 Pure Autonomous Engine (Environment-Aware Analysis)")
     print("=" * 60)
 
     # --- ComfyUI Path Setup ---
@@ -1129,14 +1192,11 @@ def main():
         print(f"  [Z-Anime profile bridge] Diffusers (to_q/to_k/to_v/to_out.0/norm_q/norm_k) ->")
         print(f"    fused NextDiT (qkv/out/q_norm/k_norm) via per-statistic MAX.")
         print(f"    Profile entries: {n_before} -> {len(model_profile)}")
-    is_moody_v7 = bool(args.moody_v7)
-    is_moody_zit = bool(args.moody_zit or args.moody_v7)
     use_bf16_cal_precheck = is_zanime_profile_flag
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(
         model_profile,
         is_zanime=is_zanime_profile_flag,
         use_bf16_calibration=use_bf16_cal_precheck,
-        is_moody_zit=is_moody_zit,
     )
     (
         model,
@@ -1148,18 +1208,37 @@ def main():
         zanime_reverse_map,
         inference_dtype,
     ) = load_zit_model(args.input, device, args.comfy_path)
-    use_enhanced_veto = is_moody_zit or args.enhanced_veto
-    if use_enhanced_veto:
-        _ev_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto, is_moody_v7)
-        print(f"  [Enhanced VETO] Enabled ({_ev_label}): Structural + per-projection qkv VETO.")
-    if is_moody_v7:
-        print("  [moodyV7] Enabled via --moody-v7.")
-        print(
-            "  [moodyV7] Selective VETO: boundary, t_embedder, w2 with outlier_ratio>40; "
-            "qkv via per-projection (4.0); MSE RELEASE disabled."
+
+    # --- V2.0 autonomous VETO (all NextDiT; Z-Anime keeps separate thresholds) ---
+    structural_veto: set = set()
+    keypattern_veto: set = set()
+    if is_zanime:
+        structural_veto = _compute_structural_veto(model, hard_veto_layers)
+        if structural_veto:
+            hard_veto_layers = hard_veto_layers.union(structural_veto)
+            print(f"  [Z-Anime Structural VETO] Added {len(structural_veto)} layers (total VETO: {len(hard_veto_layers)}).")
+        proj_veto = _compute_per_projection_qkv_veto(
+            model, hard_veto_layers, _QKV_PROJ_VETO_THRESH_ZANIME
         )
-    elif is_moody_zit:
-        print("  [moodyZIT] Enabled via --moody-zit.")
+        if proj_veto:
+            hard_veto_layers = hard_veto_layers.union(proj_veto)
+            print(f"  [Z-Anime Per-Projection VETO] Added {len(proj_veto)} qkv layers (total VETO: {len(hard_veto_layers)}).")
+    else:
+        print("  [V2.0 Autonomous VETO] Structural + per-projection qkv + live supplemental.")
+        structural_veto = _compute_structural_veto(model, hard_veto_layers)
+        if structural_veto:
+            hard_veto_layers = hard_veto_layers.union(structural_veto)
+            print(f"  [Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
+        proj_veto = _compute_per_projection_qkv_veto(
+            model, hard_veto_layers, _QKV_PROJ_VETO_THRESH_DEFAULT
+        )
+        if proj_veto:
+            hard_veto_layers = hard_veto_layers.union(proj_veto)
+            print(f"  [Per-Projection VETO] Added {len(proj_veto)} qkv layers (total VETO: {len(hard_veto_layers)}).")
+        keypattern_veto = _compute_nextdit_keypattern_veto(model, hard_veto_layers)
+        if keypattern_veto:
+            hard_veto_layers = hard_veto_layers.union(keypattern_veto)
+            print(f"  [Key-Pattern VETO] hard_veto total: {len(hard_veto_layers)}.")
     
     # tokenizer and text_encoder are already loaded in the initial block
     pipeline = ZITCalibrationPipeline(model, text_encoder, tokenizer, device, dtype=inference_dtype)
@@ -1186,114 +1265,6 @@ def main():
             torch.cuda.empty_cache()
     for h in handles: h.remove()
 
-    # [Z-Anime Structural VETO] Identify Linear layers whose weight shape is unique
-    # within the model. These are typically boundary / projection layers (e.g.
-    # cap_embedder.1 [3840, 2560] for text->DiT bridge, final_layer.linear [64, 3840]
-    # for output projection) that the data-driven (k/o/m) thresholds may miss but
-    # which strongly affect SSIM. No layer names are hardcoded; selection is purely
-    # structural via shape uniqueness over Linear weights of the loaded model.
-    # Guarded by is_zanime so ZI/ZIB/ZIT behavior is strictly unchanged.
-    if is_zanime:
-        shape_count = {}
-        for _n, _m in model.named_modules():
-            if isinstance(_m, torch.nn.Linear):
-                _shp = tuple(_m.weight.shape)
-                shape_count[_shp] = shape_count.get(_shp, 0) + 1
-        structural_veto = set()
-        for _n, _m in model.named_modules():
-            if isinstance(_m, torch.nn.Linear):
-                _shp = tuple(_m.weight.shape)
-                if shape_count[_shp] == 1 and _n not in hard_veto_layers:
-                    structural_veto.add(_n)
-                    print(f"    [Structural VETO] {_n} shape={list(_shp)} (uniqueness=1)")
-        if structural_veto:
-            hard_veto_layers = hard_veto_layers.union(structural_veto)
-            print(f"  [Z-Anime Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
-        else:
-            print(f"  [Z-Anime Structural VETO] No additional unique-shape layers found.")
-    elif use_enhanced_veto:
-        shape_count = {}
-        for _n, _m in model.named_modules():
-            if isinstance(_m, torch.nn.Linear):
-                _shp = tuple(_m.weight.shape)
-                shape_count[_shp] = shape_count.get(_shp, 0) + 1
-        structural_veto = set()
-        for _n, _m in model.named_modules():
-            if isinstance(_m, torch.nn.Linear):
-                _shp = tuple(_m.weight.shape)
-                if shape_count[_shp] == 1 and _n not in hard_veto_layers:
-                    structural_veto.add(_n)
-                    print(f"    [Structural VETO] {_n} shape={list(_shp)} (uniqueness=1)")
-        if structural_veto:
-            hard_veto_layers = hard_veto_layers.union(structural_veto)
-            _sv_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto, is_moody_v7)
-            print(f"  [{_sv_label} Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
-        else:
-            print(f"  [Structural VETO] No additional unique-shape layers found.")
-
-    # [Z-Anime Per-Projection qkv VETO] Auto-detect attention.qkv layers via key
-    # pattern (no hardcoded layer names) and split the fused weight into to_q /
-    # to_k / to_v chunks. If any per-projection abs_max exceeds the FP8 E4M3
-    # safe range threshold (m > 5.0, same magnitude scale as the existing
-    # data-driven m > 20 hard_veto), add the qkv layer to hard_veto_layers.
-    # Per-projection split is the same operation already performed during
-    # quantization for is_zanime, so the threshold is applied on the actual
-    # quantization unit, not the fused statistic.
-    if is_zanime:
-        proj_veto = set()
-        for _n, _m in model.named_modules():
-            if isinstance(_m, torch.nn.Linear) and _n.endswith(".attention.qkv"):
-                if _n in hard_veto_layers:
-                    continue
-                _w = _m.weight.detach().float()
-                _out_dim = _w.shape[0]
-                if _out_dim % 3 != 0:
-                    continue
-                _chunk = _out_dim // 3
-                _amax = [_w[i * _chunk:(i + 1) * _chunk].abs().max().item() for i in range(3)]
-                if max(_amax) > 5.0:
-                    proj_veto.add(_n)
-                    _tags = ["to_q", "to_k", "to_v"]
-                    _hi = ", ".join(f"{t}={a:.2f}" for t, a in zip(_tags, _amax) if a > 5.0)
-                    print(f"    [Per-Projection VETO] {_n} ({_hi})")
-        if proj_veto:
-            hard_veto_layers = hard_veto_layers.union(proj_veto)
-            print(f"  [Z-Anime Per-Projection VETO] Added {len(proj_veto)} qkv layers (total VETO: {len(hard_veto_layers)}).")
-        else:
-            print(f"  [Z-Anime Per-Projection VETO] No qkv layer exceeds per-projection abs_max threshold.")
-    elif use_enhanced_veto:
-        proj_veto = set()
-        for _n, _m in model.named_modules():
-            if isinstance(_m, torch.nn.Linear) and _n.endswith(".attention.qkv"):
-                if _n in hard_veto_layers:
-                    continue
-                _w = _m.weight.detach().float()
-                _out_dim = _w.shape[0]
-                if _out_dim % 3 != 0:
-                    continue
-                _chunk = _out_dim // 3
-                _amax = [_w[i * _chunk:(i + 1) * _chunk].abs().max().item() for i in range(3)]
-                _proj_thresh = 4.0 if is_moody_v7 else 5.0
-                if max(_amax) > _proj_thresh:
-                    proj_veto.add(_n)
-                    _tags = ["to_q", "to_k", "to_v"]
-                    _hi = ", ".join(
-                        f"{t}={a:.2f}" for t, a in zip(_tags, _amax) if a > _proj_thresh
-                    )
-                    print(f"    [Per-Projection VETO] {_n} ({_hi})")
-        if proj_veto:
-            hard_veto_layers = hard_veto_layers.union(proj_veto)
-            _pv_label = _enhanced_veto_scope_label(False, is_moody_zit, args.enhanced_veto, is_moody_v7)
-            print(f"  [{_pv_label} Per-Projection VETO] Added {len(proj_veto)} qkv layers (total VETO: {len(hard_veto_layers)}).")
-        else:
-            print(f"  [Per-Projection VETO] No qkv layer exceeds per-projection abs_max threshold.")
-
-    if is_moody_v7:
-        _kv = _moody_v7_keypattern_veto(model, hard_veto_layers)
-        if _kv:
-            hard_veto_layers = hard_veto_layers.union(_kv)
-            print(f"  [moodyV7 Key VETO] Added {len(_kv)} layers (total VETO: {len(hard_veto_layers)}).")
-
     print("\nAnalyzing layer sensitivity (Profile-Based)...")
     # DualMonitor variance is scale-dependent and inaccurate, so we use
     # the distribution profile (kurtosis + outlier_ratio) as a continuous score instead.
@@ -1312,7 +1283,13 @@ def main():
             if _stripped.endswith(".weight"):
                 _stripped = _stripped[:-7]
             _norm_profile[_stripped] = _pv
-    
+
+    if not is_zanime:
+        _supp = _autonomous_supplemental_veto(model, hard_veto_layers, _norm_profile)
+        if _supp:
+            hard_veto_layers = hard_veto_layers.union(_supp)
+            print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
+
     # Exclude VETO layers from the Dynamic pool (they are always FP16, so Dynamic budget should go elsewhere)
     _module_dict_sens = dict(model.named_modules())
     layer_sensitivities = []
@@ -1324,10 +1301,10 @@ def main():
         o = prof.get("outlier_ratio", 0)
         m = prof.get("abs_max", 0)
         profile_score = k + o * 2.0 + m * 0.5
-        if is_moody_zit and name in _module_dict_sens:
+        if name in _module_dict_sens:
             _mw = _module_dict_sens[name]
             if hasattr(_mw, "weight"):
-                drift = _moody_weight_profile_drift(_mw.weight.data, prof)
+                drift = _weight_profile_drift(_mw.weight.data, prof)
                 profile_score += drift * 50.0
         layer_sensitivities.append((name, profile_score))
     
@@ -1437,29 +1414,18 @@ def main():
         else:
             print(f"  [MSE-Guided Reassessment] No safe baseline available, skipping.")
 
-    # moodyRealMix only — gray-zone MSE release (V6DPO etc.). V7: disabled — RELEASE
-    # dropped SSIM below 0.95 when w2 layers were freed from hard VETO.
-    if is_moody_v7:
-        print(
-            "  [moodyV7] MSE grayzone RELEASE skipped "
-            f"({len([n for n in hard_veto_layers if _norm_profile.get(n, {}).get('outlier_ratio', 0) > 40])} "
-            "outlier-heavy layers stay FP16)."
+    if not is_zanime:
+        release_cands = _collect_mse_release_candidates(
+            hard_veto_layers, structural_veto, _norm_profile, model
         )
-    elif is_moody_zit:
-        moody_outlier_only_veto = set()
-        for vname in hard_veto_layers:
-            prof = _norm_profile.get(vname, {})
-            k = prof.get("kurtosis", 0)
-            m = prof.get("abs_max", 0)
-            o = prof.get("outlier_ratio", 0)
-            if o > 40 and k <= 20 and m <= 20:
-                moody_outlier_only_veto.add(vname)
-        if moody_outlier_only_veto:
+        if keypattern_veto:
+            release_cands -= keypattern_veto
+        if release_cands:
             hard_veto_layers, keep_layers = _mse_grayzone_veto_reassessment(
-                scope_label="moodyZIT",
+                scope_label="V2.0",
                 hard_veto_layers=hard_veto_layers,
                 keep_layers=keep_layers,
-                outlier_only_veto=moody_outlier_only_veto,
+                outlier_only_veto=release_cands,
                 target_modules=target_modules,
                 model=model,
                 _norm_profile=_norm_profile,
@@ -1489,13 +1455,13 @@ def main():
     print("\n[HSWQ V1.9 Autonomous Engine] Starting Optimization...")
     if is_zanime:
         print("  [Z-Anime] qkv layers will be split into to_q / to_k / to_v and HSWQ-optimized individually.")
-    if is_moody_zit:
-        print("  [moodyZIT] qkv: per-projection HSWQ; output stays fused .attention.qkv.weight (Comfy).")
+    elif not is_zanime:
+        print("  [NextDiT] qkv: per-projection HSWQ; output stays fused .attention.qkv.weight (Comfy).")
     weight_amax_dict = {}
     # Z-Anime only: per-layer split-amax map for qkv -> to_q/to_k/to_v.
     # Maps internal qkv module name to (amax_q, amax_k, amax_v).
     zanime_qkv_split_amax = {}
-    moody_qkv_split_amax = {}
+    fused_qkv_split_amax = {}
     hswq_optimizer = HSWQWeightedHistogramOptimizerV4(
         bins=8192,
         num_candidates=1000,
@@ -1547,12 +1513,12 @@ def main():
                 torch.cuda.empty_cache()
                 continue
 
-            # moodyZIT: per-projection amax, fused Comfy qkv save (not Diffusers split).
-            if is_moody_zit and name.endswith(".attention.qkv"):
+            # NextDiT (non Z-Anime): per-projection amax, fused Comfy qkv save.
+            if not is_zanime and name.endswith(".attention.qkv"):
                 qkv_w = module.weight.data
                 chunks = torch.chunk(qkv_w, 3, dim=0)
                 if len(chunks) != 3 or any(c.shape[0] != chunks[0].shape[0] for c in chunks):
-                    print(f"  [WARN] moody qkv split mismatch at {name}; falling back to fused amax.")
+                    print(f"  [WARN] qkv split mismatch at {name}; falling back to fused amax.")
                     optimal_amax = hswq_optimizer.compute_optimal_amax(
                         qkv_w, importance,
                         use_svd_leverage=True, scaled=False,
@@ -1560,7 +1526,7 @@ def main():
                     )
                     weight_amax_dict[name + ".weight"] = optimal_amax
                 else:
-                    print(f"  [HSWQ-moody] {name:50} | per-projection | search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}")
+                    print(f"  [HSWQ-qkv] {name:50} | per-projection | search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}")
                     amaxes = []
                     for tag, chunk in zip(("q", "k", "v"), chunks):
                         a = hswq_optimizer.compute_optimal_amax(
@@ -1569,8 +1535,8 @@ def main():
                             search_range=layer_search_range,
                         )
                         amaxes.append(a)
-                        print(f"    [HSWQ-moody]   {tag}: amax={a:.6f}")
-                    moody_qkv_split_amax[name] = tuple(amaxes)
+                        print(f"    [HSWQ-qkv]   {tag}: amax={a:.6f}")
+                    fused_qkv_split_amax[name] = tuple(amaxes)
                 torch.cuda.empty_cache()
                 continue
             
@@ -1593,7 +1559,7 @@ def main():
         print("  [Z-Anime] Output will use Diffusers key format (to_q/to_k/to_v/to_out.0/norm_q/norm_k + 'all_<module>.2-1' prefix), matching the official FP8 distribution.")
     output_state_dict = {}
 
-    # ZI/ZIB/ZIT / moody ZIT: keep FP16. Z-Anime BF16 path: keep BF16.
+    # ZI/ZIB/ZIT / NextDiT: keep FP16. Z-Anime BF16 path: keep BF16.
     keep_dtype = torch.bfloat16 if is_zanime else torch.float16
 
     def _emit_quant_meta(out_dict, prefixed_module):
@@ -1622,9 +1588,9 @@ def main():
                 _emit_quant_meta(output_state_dict, f"{detected_prefix}{tgt_module}")
             continue
 
-        # moodyZIT: fused qkv FP8 with per-projection amax (Comfy key unchanged).
-        if is_moody_zit and module_name and module_name in moody_qkv_split_amax:
-            fp8_fused = _quantize_fused_qkv_chunks(value, moody_qkv_split_amax[module_name])
+        # NextDiT: fused qkv FP8 with per-projection amax (Comfy key unchanged).
+        if not is_zanime and module_name and module_name in fused_qkv_split_amax:
+            fp8_fused = _quantize_fused_qkv_chunks(value, fused_qkv_split_amax[module_name])
             out_key = detected_prefix + stripped_key
             output_state_dict[out_key] = fp8_fused
             _emit_quant_meta(output_state_dict, detected_prefix + module_name)
