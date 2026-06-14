@@ -384,6 +384,6 @@ graph TD
 - [Adaptive Search Range — Technical Guide](Adaptive_Search_Range_Technical_Guide.md)
 - [Z Image V1.5 — Latent and Mixed-Precision Calibration](ZI_V1.5_Latent_and_MixedPrecision_Calibration.md)
 - [Z Image V1.9 → V1.92 Changes (VETO + V4 Hybrid)](V1.9_to_V1.92_Changes.md)
-- [Z Image V1.92 → V2.0 Changes (Pure Autonomous Engine)](V1.92_to_V2.0_Changes.md)
-- **Quantizer script:** `quantize_zib_hswq_v2.0.py` (V2.0 Pure Autonomous Engine; supersedes v1.92 for ZIB / ZIT / Z-Anime)
+- [HSWQ V1.92 → V2.0 Changes (Pure Autonomous Engine)](V1.92_to_V2.0_Changes.md) — motivated by moodyRealMix_zitV7 + v1.92 SSIM ~0.88; extends default NextDiT path (`is_zanime` unchanged)
+- **Quantizer script:** `quantize_zib_hswq_v2.0.py` (V2.0 Pure Autonomous Engine; default NextDiT: ZI / ZIB / ZIT / moody mixes)
 - [How to quantize SDXL](How%20to%20quantize%20SDXL.md) / [How to quantize Z Image](How%20to%20quantize%20Z%20Image.md)
