@@ -28,9 +28,9 @@ pip install -r requirements.txt
 pip install comfy_aimdo
 ```
 
-## `quantize_zib_hswq_v1.92.py` and attention backends
+## `quantize_zib_hswq_v2.0.py` and attention backends
 
-`quantize_zib_hswq_v1.92.py` does **not** define a `--sa2` (SageAttention2) flag. Use only the arguments shown in the example below. You do **not** need a separate “install SageAttention2 for quantization” step for this guide.
+`quantize_zib_hswq_v2.0.py` does **not** define a `--sa2` (SageAttention2) flag. Use only the arguments shown in the example below. You do **not** need a separate “install SageAttention2 for quantization” step for this guide.
 
 ## Download text encoder (CLIP)
 
@@ -45,7 +45,7 @@ Use the converted safetensors file, e.g. `clip/qwen3_4b_abliterated_fp16_convert
 Adjust the file paths to your environment.
 
 ```bash
-python quantize_zib_hswq_v1.92.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_r32_r0.25_v1.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.1
+python quantize_zib_hswq_v2.0.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_r32_r0.1_v2.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.1
 ```
 
 **Notes:**
