@@ -19,6 +19,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | moodyRealMix_zitV6DPO | r0.05 | 0.07 | 0.9919 |
 | moodyRealMix_zitV5DPO | r0.05 | 0.01 | 0.9640 |
 | moodyRealMix_zitV4DPO | r0.1 | 0.01 | 0.9618 |
+| moodyProMix_zitV13 | r0.0 | 0.00 | 0.9964 |
 | moodyProMix_zitV12DPO | r0.05 | 0.05 | 0.9918 |
 | jibMixZIT_v20 | r0.05 | 0.01 | 0.9577 |
 | harukiMIX_zit2603 | r0.05 | 0.01 | 0.9678 |
@@ -45,6 +46,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | moodyRealMix_zitV6DPO | r0.05 | 0.07 | 0.10 | +0.03 | 0.9919 | 0.9899 | −0.0020 | Official FP8 | HSWQ |
 | moodyRealMix_zitV5DPO | r0.05 | 0.01 | 0.01 | +0.00 | 0.9640 | 0.9346 | −0.0294 | Official FP8 | HSWQ |
 | moodyRealMix_zitV4DPO | r0.1 | 0.01 | 0.02 | +0.01 | 0.9618 | 0.9343 | −0.0275 | Official FP8 | HSWQ |
+| moodyProMix_zitV13 | r0.0 | 0.00 | 0.06 | +0.06 | 0.9964 | 0.9799 | −0.0165 | Official FP8 | HSWQ |
 | moodyProMix_zitV12DPO | r0.05 | 0.05 | 0.39 | +0.34 | 0.9918 | 0.9603 | −0.0315 | Official FP8 | HSWQ |
 | jibMixZIT_v20 | r0.05 | 0.01 | 0.04 | +0.03 | 0.9577 | 0.9269 | −0.0308 | Native FP8 | HSWQ |
 | harukiMIX_zit2603 | r0.05 | 0.01 | 0.01 | +0.00 | 0.9678 | 0.9248 | −0.0430 | Native FP8 | HSWQ |
