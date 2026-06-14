@@ -86,6 +86,7 @@ Quantized checkpoints use suffix **`_hswq_r32_r0.05_v1`** (R32 calibration sampl
 | `darkBeastMar2126Latest_dbzit8SDAFOK_hswq_r32_r0.05_v1.safetensors` | [darkBeastMar2126Latest_dbzit8SDAFOK](https://civitai.com/models/2242173?modelVersionId=2774410) | v8 | Apache 2.0 |
 | `harukiMIX_zit2603_hswq_r32_r0.05_v1.safetensors` | [harukiMIX_zit2603](https://civitai.com/models/856375/harukimix?modelVersionId=2815582) | v2603 | Apache 2.0 |
 | `moodyProMix_zitV12DPO_hswq_r32_r0.05_v1.safetensors` | [moodyProMix_zitV12DPO](https://civitai.red/models/620406?modelVersionId=2966200) | v12 | Apache 2.0 |
+| `moodyProMix_zitV13_hswq_r32_r0_v1.safetensors` | [moodyProMix_zitV13](https://civitai.red/models/620406) | v13 | Apache 2.0 |
 | `moodyRealMix_zitV5DPO_hswq_r32_r0.05_v1.safetensors` | [moodyRealMix_zitV5DPO](https://civitai.red/models/621441?modelVersionId=2824098) | v5 | Apache 2.0 |
 | `moodyRealMix_zitV6DPO_hswq_r32_r0.05_v1.safetensors` | [moodyRealMix_zitV6DPO](https://civitai.red/models/621441?modelVersionId=2922447) | v6 | Apache 2.0 |
 | `moodyRealMix_zitV7_hswq_r32_r0_v1.safetensors` | [moodyRealMix_zitV7](https://civitai.red/models/621441) | v7 | Apache 2.0 |
@@ -103,7 +104,7 @@ Quantized checkpoints use suffix **`_hswq_r32_r0.05_v1`** (R32 calibration sampl
 - **beyondREALITY_V30**: Created by [Nurburgring](https://civitai.red/user/Nurburgring) ([BEYOND REALITY](https://civitai.red/models/1090420/beyond-reality?modelVersionId=2648189) on Civitai).
 - **darkBeastMar2126Latest_dbzit8SDAFOK**: Created by [AiMetatron](https://civitai.com/user/AiMetatron).
 - **harukiMIX_zit2603**: Created by [HARUKI3](https://civitai.com/user/HARUKI3).
-- **moodyProMix_zitV12DPO**: Created by [catlover1937](https://civitai.red/user/catlover1937) ([Moody Pro Mix](https://civitai.red/models/620406) on Civitai).
+- **moodyProMix_zitV12DPO** / **moodyProMix_zitV13**: Created by [catlover1937](https://civitai.red/user/catlover1937) ([Moody Pro Mix](https://civitai.red/models/620406) on Civitai).
 - **moodyRealMix_zitV5DPO** / **moodyRealMix_zitV6DPO** / **moodyRealMix_zitV7**: Created by [catlover1937](https://civitai.red/user/catlover1937) ([Moody Real Mix](https://civitai.red/models/621441) on Civitai).
 - **moodyWildMix_v02**: Created by [catlover1937](https://civitai.red/user/catlover1937).
 - **unstableRevolution_V2Fp16**: Created by [Peli86](https://civitai.com/user/Peli86).
