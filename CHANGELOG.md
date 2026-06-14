@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+**Z Image quantizer V2.0 (`quantize_zib_hswq_v1.92.py` → `quantize_zib_hswq_v2.0.py`)** — Renamed the interim v1.93 autonomous engine to V2.0. On the default fused-key NextDiT path, V2.0 adds structural VETO, per-projection qkv VETO, selective key-pattern VETO, drift scoring, supplemental live VETO, and MSE gray-zone reassessment—without filename flags or hardcoded layer lists. Profile Hard VETO, HSWQ V4, V1 FP8 format, and `--keep_ratio` CLI behavior are unchanged. Developed after moodyRealMix V7 at `--keep_ratio 0.05` fell to ~0.88 SSIM under V1.92 while V6 stayed at 0.99; V2.0 targets high SSIM at acceptable FP8 file size on the shared NextDiT stack.
+Release notes: [v1.2.0](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.2.0)
+
 ## 1.1.9
 
 **SDXL benchmark (full `test/score.txt` sync)** — `test/benchmark_test.md`: Expanded Results and HSWQ vs Native FP8 comparison tables to match `test/score.txt` (all models with native / official FP8 baselines where logged). Includes Analysis & Key Findings (HSWQ V1.3) section.
