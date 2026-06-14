@@ -3,7 +3,7 @@
 
 **Document version:** 3.0  
 **Date:** 2026-04-20  
-**Targets:** SDXL (v1.3), Z Image Turbo / Base (v2.0), Z-Anime
+**Targets:** SDXL (v1.3), Z Image Turbo / Base (v1.92), Z-Anime
 
 ---
 
@@ -30,7 +30,7 @@ The output stays **standard FP8 E4M3** (`torch.float8_e4m3fn`) — no custom loa
 | Family | Script | Histogram backend | Strategy engine | Notes |
 |---|---|---|---|---|
 | SDXL | `quantize_sdxl_hswq_v1.3.py` | `weighted_histogram_mse_fast` (searchsorted) | DualMonitor → keep_ratio FP16; channel-importance weighted MSE | 10–50× faster amax search vs. brute-force grid. |
-| Z Image Turbo / Base / Z-Anime | `quantize_zib_hswq_v2.0.py` (ZIB / ZIT / Z-Anime) | `weighted_histogram_mse_v4` (SVD + RMS hybrid) | **Pure Autonomous Engine V2.0** (Profile drift + structural/key-pattern VETO; no model-specific CLI flags) | Full V4 stack. Profile JSON is generated automatically by `analyze/analyze_zib_distribution.py` if missing. Z-Anime-only branches are guarded by `is_zanime`. Legacy `quantize_zib_hswq_v1.92.py` remains in-repo. [Z-Anime](ZAnime_HSWQ_Support_Complete_Explanation.md) |
+| Z Image Turbo / Base / Z-Anime | `quantize_zib_hswq_v1.92.py` (ZIB / ZIT / Z-Anime) | `weighted_histogram_mse_v4` (SVD + RMS hybrid) | **Pure Data-Driven Autonomous Engine** (Profile → Alpha/Beta + Hard VETO + Dynamic search_low) | Full V4 stack. Profile JSON is generated automatically by `analyze/analyze_zib_distribution.py` if missing. Z-Anime-only branches are guarded by `is_zanime`. [Z-Anime](ZAnime_HSWQ_Support_Complete_Explanation.md) |
 
 Both families share the same FP8 E4M3 physical-grid simulator and emit `comfy_quant` / `weight_scale` metadata so the result loads in standard ComfyUI/Diffusers FP8 paths.
 
