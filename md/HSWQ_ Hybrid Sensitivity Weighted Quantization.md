@@ -284,31 +284,17 @@ Detailed per-model tables:
 
 ---
 
-## 7. Related Documents
-
-- [Dual Monitor System — Technical Guide](Dual_Monitor_System_Technical_Guide.md)
-- [Weighted Histogram MSE — Technical Guide](Weighted_Histogram_MSE_Technical_Guide.md)
-- **[HSWQ V4 SVD-RMS — Technical Guide](HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)** — Full V4 optimizer reference: SVD leverage derivation, RMS magnitude, hybrid blending, line-by-line `compute_hybrid_leverage_scores`, integration with the V1.92 / V2.0 pipeline.
-- [SDXL V1.3 + Histogram Fast — Full Explanation](SDXL_V1.3_and_Histogram_Fast_Explanation.md)
-- [Adaptive Search Range — Technical Guide](Adaptive_Search_Range_Technical_Guide.md)
-- [Z Image V1.5 — Latent and Mixed-Precision Calibration](ZI_V1.5_Latent_and_MixedPrecision_Calibration.md)
-- [Z Image V1.9 → V1.92 Changes (VETO + V4 Hybrid)](V1.9_to_V1.92_Changes.md)
-- **Quantizer script:** `quantize_zib_hswq_v2.0.py` (V2.0 Pure Autonomous Engine; supersedes v1.92 for ZIB / ZIT / Z-Anime)
-- [How to quantize SDXL](How%20to%20quantize%20SDXL.md) / [How to quantize Z Image](How%20to%20quantize%20Z%20Image.md)
-
----
-
-## 8. V2.0 Pure Autonomous Engine (quantize_zib_hswq_v2.0.py)
+## 7. V2.0 Pure Autonomous Engine (quantize_zib_hswq_v2.0.py)
 
 V2.0 retains the full V1.92 stack (mandatory distribution profile, DualMonitor calibration, V4 SVD+RMS histogram, static Hard VETO, dynamic `keep_ratio`, per-layer `search_low`, V1-compatible FP8 output). It adds a **second decision layer** that promotes or releases FP16 layers without CLI flags or hardcoded layer-name lists.
 
-### 8.1 Design constraints
+### 7.1 Design constraints
 
 - **No model-specific CLI toggles** for veto behavior — all detection is automatic from module names (`.endswith`, prefix) and tensor statistics.
 - **ZI / ZIB / ZIT unchanged in spirit:** shared NextDiT code path; Z-Anime-only branches remain behind `is_zanime` (Diffusers I/O, profile bridge, BF16 calibration path, stricter qkv threshold).
 - **Selective key-pattern VETO:** avoids blanket promotion of every `.attention.qkv` / `.feed_forward.w2` / `.adaLN_modulation` / `.attention.out` (file-size blow-up without SSIM gain).
 
-### 8.2 Profile drift
+### 7.2 Profile drift
 
 Relative drift compares **live** weight statistics at quantization time against the JSON distribution profile:
 
@@ -325,13 +311,13 @@ Uses:
 3. **Live supplemental VETO:** `t_embedder.*` layers when `drift > 0.5`.
 4. **MSE release guard:** candidates must have `drift < 0.5`.
 
-### 8.3 Structural and per-projection VETO
+### 7.3 Structural and per-projection VETO
 
 **Structural VETO** counts occurrences of each `Linear` weight shape in the loaded model. Shapes with count `1` are treated as structural boundaries and forced to FP16.
 
 **Per-projection qkv VETO** applies to fused `.attention.qkv` modules: the weight matrix is split into three equal row blocks (q, k, v). If **any** projection's `abs_max` exceeds the threshold, the whole qkv module is VETO'd to FP16. At quantize time, per-projection optimal `amax` values can still be applied via chunked clamp before re-fusing to Comfy `.attention.qkv.weight`.
 
-### 8.4 Selective key-pattern VETO (NextDiT)
+### 7.4 Selective key-pattern VETO (NextDiT)
 
 Applied only when **not** `is_zanime`:
 
@@ -343,7 +329,7 @@ Applied only when **not** `is_zanime`:
 
 All other qkv / adaLN / out layers rely on static Hard VETO, structural VETO, and per-projection qkv VETO instead of blanket key lists.
 
-### 8.5 MSE gray-zone VETO reassessment
+### 7.5 MSE gray-zone VETO reassessment
 
 For NextDiT (universal in V2.0 via `_mse_grayzone_veto_reassessment`):
 
@@ -354,7 +340,7 @@ For NextDiT (universal in V2.0 via `_mse_grayzone_veto_reassessment`):
 
 Z-Anime retains the V1.92 **outlier-only** MSE reassessment path (guarded by `is_zanime`; random sample of safe layers for baseline).
 
-### 8.6 FP16 set composition (unchanged formula, richer VETO input)
+### 7.6 FP16 set composition (unchanged formula, richer VETO input)
 
 ```
 final_FP16 = Hard_VETO_static
@@ -368,7 +354,7 @@ final_FP16 = Hard_VETO_static
 
 VETO layers are removed from the Dynamic sensitivity pool before `keep_ratio` ranking so the Dynamic budget targets quantizable layers only.
 
-### 8.7 V2.0 mermaid (autonomous VETO layer)
+### 7.7 V2.0 mermaid (autonomous VETO layer)
 
 ```mermaid
 graph TD
@@ -386,3 +372,18 @@ graph TD
     KR --> F["final_FP16 union"]
     R --> D
 ```
+
+---
+
+## 8. Related Documents
+
+- [Dual Monitor System — Technical Guide](Dual_Monitor_System_Technical_Guide.md)
+- [Weighted Histogram MSE — Technical Guide](Weighted_Histogram_MSE_Technical_Guide.md)
+- **[HSWQ V4 SVD-RMS — Technical Guide](HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)** — Full V4 optimizer reference: SVD leverage derivation, RMS magnitude, hybrid blending, line-by-line `compute_hybrid_leverage_scores`, integration with the V1.92 / V2.0 pipeline.
+- [SDXL V1.3 + Histogram Fast — Full Explanation](SDXL_V1.3_and_Histogram_Fast_Explanation.md)
+- [Adaptive Search Range — Technical Guide](Adaptive_Search_Range_Technical_Guide.md)
+- [Z Image V1.5 — Latent and Mixed-Precision Calibration](ZI_V1.5_Latent_and_MixedPrecision_Calibration.md)
+- [Z Image V1.9 → V1.92 Changes (VETO + V4 Hybrid)](V1.9_to_V1.92_Changes.md)
+- [Z Image V1.92 → V2.0 Changes (Pure Autonomous Engine)](V1.92_to_V2.0_Changes.md)
+- **Quantizer script:** `quantize_zib_hswq_v2.0.py` (V2.0 Pure Autonomous Engine; supersedes v1.92 for ZIB / ZIT / Z-Anime)
+- [How to quantize SDXL](How%20to%20quantize%20SDXL.md) / [How to quantize Z Image](How%20to%20quantize%20Z%20Image.md)
