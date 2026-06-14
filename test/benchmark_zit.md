@@ -15,6 +15,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | unstableRevolution_V3Fp16 | r0.05 | 0.02 | 0.9913 |
 | unstableRevolution_V2Fp16 | r0.05 | 0.01 | 0.9542 |
 | moodyWildMix_v02 | r0.1 | 0.01 | 0.9582 |
+| moodyRealMix_zitV7 | r0.0 | 0.03 | 0.9976 |
 | moodyRealMix_zitV6DPO | r0.05 | 0.07 | 0.9919 |
 | moodyRealMix_zitV5DPO | r0.05 | 0.01 | 0.9640 |
 | moodyRealMix_zitV4DPO | r0.1 | 0.01 | 0.9618 |
@@ -40,6 +41,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | unstableRevolution_V3Fp16 | r0.05 | 0.02 | 0.06 | +0.04 | 0.9913 | 0.9759 | −0.0154 | Official FP8 | HSWQ |
 | unstableRevolution_V2Fp16 | r0.05 | 0.01 | 0.02 | +0.01 | 0.9542 | 0.9195 | −0.0347 | Native FP8 | HSWQ |
 | moodyWildMix_v02 | r0.1 | 0.01 | 0.02 | +0.01 | 0.9582 | 0.9297 | −0.0285 | Native FP8 | HSWQ |
+| moodyRealMix_zitV7 | r0.0 | 0.03 | 14.84 | +14.81 | 0.9976 | 0.8731 | −0.1245 | Official FP8 | HSWQ |
 | moodyRealMix_zitV6DPO | r0.05 | 0.07 | 0.10 | +0.03 | 0.9919 | 0.9899 | −0.0020 | Official FP8 | HSWQ |
 | moodyRealMix_zitV5DPO | r0.05 | 0.01 | 0.01 | +0.00 | 0.9640 | 0.9346 | −0.0294 | Official FP8 | HSWQ |
 | moodyRealMix_zitV4DPO | r0.1 | 0.01 | 0.02 | +0.01 | 0.9618 | 0.9343 | −0.0275 | Official FP8 | HSWQ |
@@ -67,7 +69,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 ## Analysis & Key Findings (Z Image, partial)
 
-For every model in `score_zi.txt` with a Native FP8 or Official FP8 baseline (14 models total), **HSWQ** shows lower latent MSE and higher SSIM than that baseline. The advantage is consistent across both Native baselines and Official FP8 distributions (e.g., **beyondREALITY_V30**, **moodyRealMix_zitV4DPO/V5DPO/V6DPO**, **moodyProMix_zitV12DPO**), confirming HSWQ's effectiveness for the Z Image Turbo family.
+For every model in `score_zi.txt` with a Native FP8 or Official FP8 baseline (15 models total), **HSWQ** shows lower latent MSE and higher SSIM than that baseline. The advantage is consistent across both Native baselines and Official FP8 distributions (e.g., **beyondREALITY_V30**, **moodyRealMix_zitV4DPO/V5DPO/V6DPO/V7**, **moodyProMix_zitV12DPO**), confirming HSWQ's effectiveness for the Z Image Turbo family.
 
 - **Important VRAM fact (Z-Anime, HSWQ):** `12335.8 MB -> 9219.3 MB`, so **3116.5 MB (25.3%)** is saved.
 - **Important VRAM fact (ZIT, HSWQ):** ZIT rows in the same file save **4825.6–5040.9 MB (39.1%–40.9%)**.
