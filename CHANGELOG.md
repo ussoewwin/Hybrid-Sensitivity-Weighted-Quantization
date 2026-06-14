@@ -1,9 +1,5 @@
 # Changelog
 
-## 1.2.0
-
-**Z Image quantizer V2.0** — Renamed `quantize_zib_hswq_v1.93.py` to `quantize_zib_hswq_v2.0.py` (Pure Autonomous Engine: profile drift, structural/key-pattern VETO, no model-specific CLI flags). Moved legacy `quantize_zit_hswq_v1.6.py` to `archives/quantize_zit_hswq_v1.6.py`. Updated [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) and [HSWQ technical overview](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) to reference v2.0.
-
 ## 1.1.9
 
 **SDXL benchmark (full `test/score.txt` sync)** — `test/benchmark_test.md`: Expanded Results and HSWQ vs Native FP8 comparison tables to match `test/score.txt` (all models with native / official FP8 baselines where logged). Includes Analysis & Key Findings (HSWQ V1.3) section.
