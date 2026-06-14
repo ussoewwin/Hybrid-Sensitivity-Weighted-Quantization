@@ -69,8 +69,6 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 ## Analysis & Key Findings (Z Image, partial)
 
-For every model in `score_zi.txt` with a Native FP8 or Official FP8 baseline (15 models total), **HSWQ** shows lower latent MSE and higher SSIM than that baseline. The advantage is consistent across both Native baselines and Official FP8 distributions (e.g., **beyondREALITY_V30**, **moodyRealMix_zitV4DPO/V5DPO/V6DPO/V7**, **moodyProMix_zitV12DPO**), confirming HSWQ's effectiveness for the Z Image Turbo family.
-
 - **Important VRAM fact (Z-Anime, HSWQ):** `12335.8 MB -> 9219.3 MB`, so **3116.5 MB (25.3%)** is saved.
 - **Important VRAM fact (ZIT, HSWQ):** ZIT rows in the same file save **4825.6–5040.9 MB (39.1%–40.9%)**.
 - **Reason in this log (numbers only):** FP16 peaks are almost equal (~`12335.7/12335.8 MB`), but Z-Anime FP8 peak (`9219.3 MB`) is higher than ZIT FP8 peaks (`7294.8–7510.1 MB`), so Z-Anime saved MB/% is lower.
