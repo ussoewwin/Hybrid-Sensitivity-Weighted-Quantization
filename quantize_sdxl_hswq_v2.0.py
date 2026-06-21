@@ -923,8 +923,9 @@ def derive_hswq_strategy(model_profile, veto_tunables: SdxlVetoTunables | None =
         avg_m = np.mean(all_m) if all_m else 0
         print(f"  [Profile Stats] Avg Kurtosis: {avg_k:.2f}, Avg OutlierRatio: {avg_o:.2f}, Avg AbsMax: {avg_m:.2f}")
         vt = veto_tunables
+        alpha_floor_safe = max(vt.alpha_floor, 0.5)
         alpha = float(
-            np.clip(vt.alpha_floor + avg_k * vt.k_scale, vt.alpha_floor, min(vt.alpha_clip_max, 0.80))
+            np.clip(alpha_floor_safe + avg_k * vt.k_scale, alpha_floor_safe, min(vt.alpha_clip_max, 0.80))
         )
         beta = 1.0 - alpha  # V2.0 fix: enforce alpha + beta = 1.0 (zib-proven constraint)
     else:
