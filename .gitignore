@@ -28,6 +28,13 @@ cache/
 test/score.txt
 test/score_zi.txt
 
+# Local verification / patch scripts (never commit or push)
+test/_verify_*
+test/_run_*
+test/_patch_*
+test/_analyze_*
+test/_wai*
+
 # Local / private
 .mailmap
 
