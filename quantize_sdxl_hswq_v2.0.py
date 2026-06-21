@@ -501,10 +501,8 @@ def _compute_sdxl_keypattern_veto(
             print(f"    [Key-Pattern VETO] {_n} (boundary)")
             continue
         if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
-            if tunables.ff2_auto_full_class:
-                added.add(_n)
-                print(f"    [Key-Pattern VETO] {_n} (ff2 full-class auto)")
-                continue
+            # V2.0 fix: skip full-class auto (inflates file size on SDXL);
+            # selective VETO below handles individual outlier ff2 layers.
             prof = (norm_profile or {}).get(_n, {})
             _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
             hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
@@ -578,12 +576,12 @@ def _compute_sdxl_per_projection_attn_veto(
         _k, _o, _amax = _profile_layer_stats(prof, _m.weight.detach())
         src = "profile" if prof else "live"
         if is_toout:
-            hit = _amax >= tunables.attn_toout_absmax or _o >= tunables.attn_toout_outlier
+            hit = _amax >= max(tunables.attn_toout_absmax, 4.5) or _o >= max(tunables.attn_toout_outlier, 40.0)
             thresh_msg = (
                 f"to_out amax>={tunables.attn_toout_absmax}, o>={tunables.attn_toout_outlier}"
             )
         else:
-            hit = _amax >= tunables.attn_qkv_absmax or _o >= tunables.attn_qkv_outlier
+            hit = _amax >= max(tunables.attn_qkv_absmax, 4.5) or _o >= max(tunables.attn_qkv_outlier, 40.0)
             thresh_msg = (
                 f"q/k/v amax>={tunables.attn_qkv_absmax}, o>={tunables.attn_qkv_outlier}"
             )
@@ -617,15 +615,12 @@ def _autonomous_supplemental_veto(
             norm_profile, min_count=tunables.ff2_suffix_min_count
         )
         if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
-            if tunables.ff2_auto_full_class:
+            # V2.0 fix: selective only (no full-class auto)
+            hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
+            if hit:
                 added.add(_n)
-                print(f"    [Supplemental VETO] {_n} (ff2 full-class auto)")
-            else:
-                hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
-                if hit:
-                    added.add(_n)
-                    print(f"    [Supplemental VETO] {_n} (ff.net.2 {reason})")
-        elif any(_n.startswith(p) for p in _SDXL_KP_PREFIXES) and drift > tunables.drift_veto_thresh:
+                print(f"    [Supplemental VETO] {_n} (ff.net.2 {reason})")
+        elif any(_n.startswith(p) for p in _SDXL_KP_PREFIXES) and drift > max(tunables.drift_veto_thresh, 0.5):
             added.add(_n)
             print(
                 f"    [Supplemental VETO] {_n} "
@@ -652,14 +647,14 @@ def _collect_mse_release_candidates(
         m = float(prof.get("abs_max", 0) or 0)
         o = float(prof.get("outlier_ratio", 0) or 0)
         if (
-            o > tunables.mse_release_o_min
-            and k <= tunables.mse_release_k_max
-            and m <= tunables.mse_release_m_max
+            o > min(tunables.mse_release_o_min, 40.0)
+            and k <= max(tunables.mse_release_k_max, 20.0)
+            and m <= max(tunables.mse_release_m_max, 20.0)
         ):
             vmod = _module_dict.get(vname)
             if vmod is not None and hasattr(vmod, "weight"):
                 drift = _weight_profile_drift(vmod.weight.data, prof)
-                if drift < tunables.drift_veto_thresh:
+                if drift < max(tunables.drift_veto_thresh, 0.5):
                     candidates.add(vname)
     return candidates
 
@@ -729,7 +724,7 @@ def _mse_grayzone_veto_reassessment(
 
     safe_mses.sort()
     p75_idx = int(len(safe_mses) * 0.75)
-    mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * tunables.mse_p75_multiplier
+    mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * max(tunables.mse_p75_multiplier, 2.0)
     print(
         f"  [MSE Baseline] Safe layers sampled: {len(safe_mses)}, "
         f"P75 MSE: {safe_mses[p75_idx]:.8f}, "
@@ -892,21 +887,24 @@ def derive_hswq_strategy(model_profile, veto_tunables: SdxlVetoTunables | None =
         else:
             k_stat, o_ratio, m_stat = _layer_weight_stats(weight_tensor)
         vt = veto_tunables
-        k_penalty = min(k_stat * vt.k_scale, vt.search_low_penalty_cap)
-        o_penalty = min(o_ratio * vt.o_scale, vt.search_low_penalty_cap)
-        upper_clip = vt.search_low_clip_max
+        # V2.0 fix: cap penalties at 0.49 (zib-proven) to prevent over-conservative search
+        k_penalty = min(k_stat * vt.k_scale, vt.search_low_penalty_cap, 0.49)
+        o_penalty = min(o_ratio * vt.o_scale, vt.search_low_penalty_cap, 0.49)
+        upper_clip = min(vt.search_low_clip_max, 0.99)
         drift = _weight_profile_drift(weight_tensor, prof) if prof else 0.0
+        # V2.0 fix: floor gray-zone bounds so SDXL's uniform distribution doesn't
+        # collapse the zone to near-zero width
         in_gray = (
-            (vt.k_gray_lo < k_stat <= vt.k_gray_hi)
-            or (vt.o_gray_lo < o_ratio <= vt.o_gray_hi)
-            or (vt.m_gray_lo < m_stat <= vt.m_gray_hi)
+            (max(vt.k_gray_lo, 10.0) < k_stat <= max(vt.k_gray_hi, 20.0))
+            or (max(vt.o_gray_lo, 30.0) < o_ratio <= max(vt.o_gray_hi, 40.0))
+            or (max(vt.m_gray_lo, 5.0) < m_stat <= max(vt.m_gray_hi, 20.0))
         )
-        if in_gray or drift > vt.drift_veto_thresh:
-            upper_clip = vt.search_low_gray_clip_max
+        if in_gray or drift > max(vt.drift_veto_thresh, 0.5):
+            upper_clip = min(vt.search_low_gray_clip_max, 0.90)
         return float(
             np.clip(
-                vt.search_low_floor + max(k_penalty, o_penalty),
-                vt.search_low_floor,
+                max(vt.search_low_floor, 0.5) + max(k_penalty, o_penalty),
+                max(vt.search_low_floor, 0.5),
                 upper_clip,
             )
         )
@@ -921,14 +919,12 @@ def derive_hswq_strategy(model_profile, veto_tunables: SdxlVetoTunables | None =
         print(f"  [Profile Stats] Avg Kurtosis: {avg_k:.2f}, Avg OutlierRatio: {avg_o:.2f}, Avg AbsMax: {avg_m:.2f}")
         vt = veto_tunables
         alpha = float(
-            np.clip(vt.alpha_floor + avg_k * vt.k_scale, vt.alpha_floor, vt.alpha_clip_max)
+            np.clip(vt.alpha_floor + avg_k * vt.k_scale, vt.alpha_floor, min(vt.alpha_clip_max, 0.80))
         )
-        beta = float(
-            np.clip(vt.beta_floor + avg_o * vt.o_scale, vt.beta_floor, vt.beta_clip_max)
-        )
+        beta = 1.0 - alpha  # V2.0 fix: enforce alpha + beta = 1.0 (zib-proven constraint)
     else:
         print("  [Profile Stats] No profile loaded. Using default alpha/beta.")
-        alpha, beta = 0.75, 0.75
+        alpha, beta = 0.5, 0.5
 
     print(f"  [Dynamic Alpha/Beta] alpha={alpha:.3f}, beta={beta:.3f}")
 
@@ -939,9 +935,11 @@ def derive_hswq_strategy(model_profile, veto_tunables: SdxlVetoTunables | None =
                 k = prof.get("kurtosis", 0)
                 m = prof.get("abs_max", 0)
                 o = prof.get("outlier_ratio", 0)
-                is_extreme_divergence = o > veto_tunables.extreme_outlier
-                is_extreme_kurtosis = k > veto_tunables.extreme_kurtosis
-                is_huge_magnitude = m > veto_tunables.huge_magnitude
+                # V2.0 fix: floor thresholds at zib-proven values to prevent
+                # Tukey upper fence from over-triggering on SDXL's uniform distribution
+                is_extreme_divergence = o > max(veto_tunables.extreme_outlier, 40.0)
+                is_extreme_kurtosis = k > max(veto_tunables.extreme_kurtosis, 20.0)
+                is_huge_magnitude = m > max(veto_tunables.huge_magnitude, 20.0)
                 if is_extreme_divergence or is_extreme_kurtosis or is_huge_magnitude:
                     layer_base_name = name.replace(".weight", "") if name.endswith(".weight") else name
                     hard_veto_layers.add(layer_base_name)
@@ -1167,8 +1165,13 @@ def main():
         mod = _module_dict_sens.get(name)
         if prof and mod is not None and hasattr(mod, "weight"):
             drift = _weight_profile_drift(mod.weight.data, prof)
+        # V2.0 fix: use fixed weights for stable ranking (zib-proven: k + o*2 + m*0.5)
+        # instead of dynamic score_o_weight/score_m_weight that are unstable on SDXL
         if prof:
-            score = _profile_score_from_entry(prof, drift, veto_tunables)
+            k = prof.get("kurtosis", 0) or 0
+            o = prof.get("outlier_ratio", 0) or 0
+            m = prof.get("abs_max", 0) or 0
+            score = k + o * 2.0 + m * 0.5 + drift * veto_tunables.drift_score_mult
         elif name in dual_monitors:
             score = dual_monitors[name].get_sensitivity()
             ranking_source = "dualmonitor_fallback"
