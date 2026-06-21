@@ -481,11 +481,56 @@ def main():
     print(f"[Final Summary]")
     print(f"  FP16 (sensitivity) : {num_keep}")
     print(f"  FP16 (VETO)        : {len(hard_veto_layers)}")
-    print(f"  FP16 (auto-protect): {len(auto_promoted) if all_mses else 0}")
+    print(f"  FP16 (auto-protect): {len(auto_promoted) if 'auto_promoted' in locals() else 0}")
     print(f"  FP16 total         : {fp16_count}")
     print(f"  FP8 total          : {fp8_count}")
     print(f"  FP16 ratio         : {fp16_count/(fp8_count+fp16_count)*100:.1f}%")
     print(f"{'=' * 70}")
+
+    # =====================================================================
+    # Dump full analysis log to JSON
+    # =====================================================================
+    import json
+    log_file_path = args.output.rsplit(".", 1)[0] + "_hswq_log.json"
+    print(f"\nSaving full analysis log to: {log_file_path}")
+    log_data = {
+        "summary": {
+            "total_quantizable_layers": fp8_count + fp16_count,
+            "fp16_count": fp16_count,
+            "fp8_count": fp8_count,
+            "fp16_ratio": fp16_count / max(1, fp8_count + fp16_count),
+            "keep_ratio_target": args.keep_ratio,
+            "auto_protect_threshold": float(threshold) if 'threshold' in locals() else None,
+        },
+        "layers": {}
+    }
+
+    # Aggregate layer info
+    sensitivity_dict = {name: sens for name, sens in layer_sensitivities}
+    
+    for name in target_modules:
+        status = "FP8"
+        reason = ""
+        if name in hard_veto_layers:
+            status = "FP16"
+            reason = "Hard VETO"
+        elif 'auto_promoted' in locals() and name in auto_promoted:
+            status = "FP16"
+            reason = "Auto-Protect (High MSE)"
+        elif name in keep_layers:
+            status = "FP16"
+            reason = f"Sensitivity Top {args.keep_ratio*100:.1f}%"
+        
+        log_data["layers"][name] = {
+            "status": status,
+            "reason": reason,
+            "sensitivity": sensitivity_dict.get(name, 0.0),
+            "mse": layer_results.get(name, {}).get("mse", None),
+            "optimal_amax": layer_results.get(name, {}).get("amax", None)
+        }
+
+    with open(log_file_path, "w", encoding="utf-8") as f:
+        json.dump(log_data, f, indent=4)
 
     # =====================================================================
     # GPU conversion (identical to V1.3)
