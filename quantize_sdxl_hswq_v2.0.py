@@ -708,19 +708,7 @@ def main():
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
     parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
-    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16")
-    parser.add_argument(
-        "--rank_by",
-        type=str,
-        choices=("profile", "dualmonitor"),
-        default="dualmonitor",
-        help="Dynamic FP16 layer ranking: dualmonitor (v1.3-style) or profile score",
-    )
-    parser.add_argument(
-        "--no_mse_veto_release",
-        action="store_true",
-        help="Disable MSE gray-zone VETO release (keep all hard VETO in FP16)",
-    )
+    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL/ZIT)")
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     args = parser.parse_args()
@@ -858,10 +846,9 @@ def main():
         h.remove()
 
 
-    print("\nAnalyzing layer sensitivity (Profile-Based)...")
+    print("\nAnalyzing layer sensitivity (DualMonitor)...")
     # DualMonitor ranking matches v1.3 (benchmark SSIM 0.9180 @ r0.1 for waiIllustriousSDXL_v170).
-    # Profile score ranking remains available via --rank_by profile.
-    
+
     # model_profile is already remapped to Diffusers module names (see _remap_profile_to_diffusers).
     _norm_profile = {k: v for k, v in model_profile.items() if isinstance(v, dict)}
 
@@ -876,20 +863,9 @@ def main():
     for name in target_modules:
         if name in hard_veto_layers:
             continue
-        if args.rank_by == "dualmonitor" and name in dual_monitors:
+        if name in dual_monitors:
             score = dual_monitors[name].get_sensitivity()
-        else:
-            prof = _norm_profile.get(name, {})
-            k = prof.get("kurtosis", 0)
-            o = prof.get("outlier_ratio", 0)
-            m = prof.get("abs_max", 0)
-            score = k + o * 2.0 + m * 0.5
-            if name in _module_dict_sens:
-                _mw = _module_dict_sens[name]
-                if hasattr(_mw, "weight"):
-                    drift = _weight_profile_drift(_mw.weight.data, prof)
-                    score += drift * 50.0
-        layer_sensitivities.append((name, score))
+            layer_sensitivities.append((name, score))
     
     layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
     num_keep_dynamic = int(len(layer_sensitivities) * args.keep_ratio)
@@ -904,7 +880,7 @@ def main():
     )
     if keypattern_veto:
         release_cands -= keypattern_veto
-    if release_cands and not args.no_mse_veto_release:
+    if release_cands:
         hard_veto_layers, keep_layers = _mse_grayzone_veto_reassessment(
             scope_label="V2.0 SDXL",
             hard_veto_layers=hard_veto_layers,
@@ -921,7 +897,7 @@ def main():
 
     non_veto_total = len([n for n in target_modules if n not in hard_veto_layers])
     print(f"\nTotal layers: {len(target_modules)} (Non-VETO pool: {non_veto_total})")
-    print(f"Dynamic ranking: {args.rank_by}")
+    print("Dynamic ranking: dualmonitor (v1.3-style)")
     print(f"Dynamic kept (from non-VETO pool): {len(dynamic_keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
     print(f"Static kept (Hard VETO): {len(hard_veto_layers)} (Always FP16)")
     print(f"Final FP16 kept layers: {len(keep_layers)} (VETO {len(hard_veto_layers)} + Dynamic {len(dynamic_keep_layers)})")
