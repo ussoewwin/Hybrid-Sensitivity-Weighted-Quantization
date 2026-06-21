@@ -886,33 +886,15 @@ def derive_hswq_strategy(model_profile, veto_tunables: SdxlVetoTunables | None =
         profile_key = name + ".weight"
         prof = model_profile.get(profile_key, model_profile.get(name, {})) if model_profile else {}
         if prof:
-            k_stat = prof.get("kurtosis", 0)
-            o_ratio = prof.get("outlier_ratio", 0)
-            m_stat = prof.get("abs_max", 0)
+            o_ratio = float(prof.get("outlier_ratio", 0) or 0)
         else:
-            k_stat, o_ratio, m_stat = _layer_weight_stats(weight_tensor)
-        vt = veto_tunables
-        # V2.0 fix: cap penalties at 0.49 (zib-proven) to prevent over-conservative search
-        k_penalty = min(k_stat * vt.k_scale, vt.search_low_penalty_cap, 0.49)
-        o_penalty = min(o_ratio * vt.o_scale, vt.search_low_penalty_cap, 0.49)
-        upper_clip = min(vt.search_low_clip_max, 0.99)
-        drift = _weight_profile_drift(weight_tensor, prof) if prof else 0.0
-        # V2.0 fix: floor gray-zone bounds so SDXL's uniform distribution doesn't
-        # collapse the zone to near-zero width
-        in_gray = (
-            (max(vt.k_gray_lo, 10.0) < k_stat <= max(vt.k_gray_hi, 20.0))
-            or (max(vt.o_gray_lo, 30.0) < o_ratio <= max(vt.o_gray_hi, 40.0))
-            or (max(vt.m_gray_lo, 5.0) < m_stat <= max(vt.m_gray_hi, 20.0))
-        )
-        if in_gray or drift > max(vt.drift_veto_thresh, 0.5):
-            upper_clip = min(vt.search_low_gray_clip_max, 0.90)
-        return float(
-            np.clip(
-                max(vt.search_low_floor, 0.5) + max(k_penalty, o_penalty),
-                max(vt.search_low_floor, 0.5),
-                upper_clip,
-            )
-        )
+            _, o_ratio, _ = _layer_weight_stats(weight_tensor)
+        # V2.0 SDXL fix: baseline is 0.99 (absmax) for uniform distribution.
+        # Only genuine outlier layers (o>40) get a wider search down to 0.95.
+        # This replaces the broken profile-derived search_low_floor logic.
+        if o_ratio > 40.0:
+            return 0.95
+        return 0.99
 
     if model_profile:
         all_k = [p.get("kurtosis", 0) for p in model_profile.values() if isinstance(p, dict)]
@@ -931,6 +913,11 @@ def derive_hswq_strategy(model_profile, veto_tunables: SdxlVetoTunables | None =
     else:
         print("  [Profile Stats] No profile loaded. Using default alpha/beta.")
         alpha, beta = 0.5, 0.5
+    # V2.0 SDXL fix: SVD leverage is counterproductive on SDXL's uniform weight distribution.
+    # Force alpha=0 (pure calibration magnitude importance) for stable SSIM.
+    # beta is kept for reference only; use_svd_leverage=False in the main loop.
+    alpha = 0.0
+    beta = 1.0
 
     print(f"  [Dynamic Alpha/Beta] alpha={alpha:.3f}, beta={beta:.3f}")
 
@@ -1257,7 +1244,7 @@ def main():
             optimal_amax = hswq_optimizer.compute_optimal_amax(
                 module.weight.data, 
                 importance, 
-                use_svd_leverage=True, 
+                use_svd_leverage=False,  # V2.0 SDXL fix: SVD leverage harms uniform distribution
                 scaled=False, 
                 search_range=layer_search_range,
             )
