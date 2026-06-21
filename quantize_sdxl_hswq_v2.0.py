@@ -237,7 +237,7 @@ def calculate_kurtosis(tensor):
 # --- V2.0 SDXL autonomous engine tunables (no layer-name literals) ---
 _DRIFT_VETO_THRESH = 0.5
 _DRIFT_SENSITIVITY_MULT = 50.0
-# ZI uses abs_max ~4.5 on fused QKV; SDXL Linear weights are typically 0.2–1.5.
+# SDXL attn Linear weights are typically abs_max ~0.2–1.5; profile-driven thresholds below.
 # Profile on waiIllustriousSDXL_v170: top attn2.to_* have abs_max ~0.58, outlier_ratio ~17–27.
 _SDXL_ATTN_VETO_ABSMAX = 0.45
 _SDXL_ATTN_VETO_OUTLIER = 14.0
@@ -511,7 +511,7 @@ class DualMonitor:
         self.output_sq_sum = 0.0
         self.count = 0
         self.channel_importance = None
-
+    
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
             out_detached = output_tensor.detach().float()
@@ -602,7 +602,7 @@ def derive_hswq_strategy(model_profile):
                 f"  [Profile Normalize] Stripped prefix '{profile_prefix}' "
                 f"from {len(normalized_profile)} profile keys."
             )
-
+    
     def get_dynamic_search_low(name, weight_tensor):
         profile_key = name + ".weight"
         prof = model_profile.get(profile_key, model_profile.get(name, {})) if model_profile else {}
@@ -662,7 +662,7 @@ def derive_hswq_strategy(model_profile):
                     if is_huge_magnitude:
                         reasons.append(f"m={m:.2f}")
                     print(f"    VETO: {layer_base_name} [{', '.join(reasons)}]")
-
+                    
     print(
         f"  [Static Profile VETO] Identified {len(hard_veto_layers)} layers "
         "with extreme distribution (Unquantizable in FP8)."
@@ -674,13 +674,12 @@ def derive_hswq_strategy(model_profile):
 def resolve_weights_path(raw_path: str, script_dir: str) -> tuple[str, list[str]]:
     """Resolve .safetensors path when CWD differs from repo root (Docker/CI).
 
-    Order: HSWQ_SDXL_INPUT, SDXL_INPUT_MODEL, HSWQ_ZIB_INPUT, ZIB_INPUT_MODEL,
-    abspath(raw), script_dir/raw, script_dir/basename(raw).
+    Order: HSWQ_SDXL_INPUT, SDXL_INPUT_MODEL, abspath(raw), script_dir/raw, script_dir/basename(raw).
     Returns (first existing file path, or abspath(raw) if none), list of tried paths.
     """
     tried: list[str] = []
     candidates: list[str] = []
-    for env_key in ("HSWQ_SDXL_INPUT", "HSWQ_ZIB_INPUT", "SDXL_INPUT_MODEL", "ZIB_INPUT_MODEL"):
+    for env_key in ("HSWQ_SDXL_INPUT", "SDXL_INPUT_MODEL"):
         v = (os.environ.get(env_key) or "").strip()
         if v:
             candidates.append(os.path.abspath(v))
@@ -708,7 +707,7 @@ def main():
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
     parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
-    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL/ZIT)")
+    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL)")
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     args = parser.parse_args()
@@ -747,19 +746,20 @@ def main():
     # --- 1. Locate Analysis Script & Profile --- (Environment-Agnostic)
     analyze_script = os.path.join(script_dir, "analyze", "analyze_sdxl_distribution.py")
     if not os.path.exists(analyze_script):
-        analyze_script = os.path.join(script_dir, "analyze", "analyze_zib_distribution.py")
-
+        print(f"[FATAL] SDXL profile script not found: {analyze_script}")
+        sys.exit(1)
+    
     input_abs = os.path.abspath(args.input)
     input_root = os.path.splitext(os.path.basename(args.input))[0]
-
+    
     profile_path = args.profile
     is_auto = False
     if not profile_path:
         profile_path = os.path.join(script_dir, f"{input_root}_distribution_profile.json")
         is_auto = True
-
+    
     should_run_analysis = is_auto or not os.path.exists(profile_path)
-
+    
     if should_run_analysis:
         if os.path.exists(analyze_script):
             print(f"[*] Executing mandated distribution analysis (No skip policy):")
@@ -780,7 +780,7 @@ def main():
         with open(profile_path, "r", encoding="utf-8") as f:
             profile_data = json.load(f)
             model_profile = profile_data.get("layers", profile_data)
-
+    
     # --- 2. SDXL UNet Load then profile remap (Diffusers module names) ---
     pipeline, original_state_dict, comfyui_to_diffusers_map = load_unet_from_safetensors(
         args.input, device
@@ -894,7 +894,7 @@ def main():
             beta=beta,
             device=device,
         )
-
+    
     non_veto_total = len([n for n in target_modules if n not in hard_veto_layers])
     print(f"\nTotal layers: {len(target_modules)} (Non-VETO pool: {non_veto_total})")
     print("Dynamic ranking: dualmonitor (v1.3-style)")
@@ -923,7 +923,7 @@ def main():
         alpha=alpha,
         beta=beta,
     )
-
+    
     for name, module in tqdm(model.named_modules(), desc="Analyzing"):
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
             if name in keep_layers:
@@ -936,10 +936,10 @@ def main():
                 f"search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}"
             )
             optimal_amax = hswq_optimizer.compute_optimal_amax(
-                module.weight.data,
-                importance,
-                use_svd_leverage=True,
-                scaled=False,
+                module.weight.data, 
+                importance, 
+                use_svd_leverage=True, 
+                scaled=False, 
                 search_range=layer_search_range,
             )
             weight_amax_dict[name + ".weight"] = optimal_amax
