@@ -235,17 +235,21 @@ def calculate_kurtosis(tensor):
     return torch.mean(((tensor - mean) / std) ** 4).item()
 
 # --- V2.0 SDXL autonomous engine tunables (no layer-name literals) ---
+# Calibrated from waiIllustriousSDXL_v170.safetensors profile (NOT ZIT thresholds).
+# v170: ff.net.2 outlier_ratio peaks ~18; attn2.to_* abs_max ~0.58 / to_out.0 often o~12–20, m~0.24–0.37.
 _DRIFT_VETO_THRESH = 0.5
 _DRIFT_SENSITIVITY_MULT = 50.0
-# SDXL attn Linear weights are typically abs_max ~0.2–1.5; profile-driven thresholds below.
-# Profile on waiIllustriousSDXL_v170: top attn2.to_* have abs_max ~0.58, outlier_ratio ~17–27.
 _SDXL_ATTN_VETO_ABSMAX = 0.45
-_SDXL_ATTN_VETO_OUTLIER = 14.0
-_W2_OUTLIER_LIVE_THRESH = 40.0
-_FF2_PROFILE_OUTLIER_VETO = 12.0
+_SDXL_ATTN_VETO_OUTLIER = 12.0
+_SDXL_ATTN_TOOUT_ABSMAX = 0.35
+_SDXL_ATTN_TOOUT_OUTLIER = 12.0
+_SDXL_FF2_OUTLIER_LIVE_THRESH = 18.0
+_FF2_PROFILE_OUTLIER_VETO = 10.0
+_SDXL_PROFILE_EXTREME_OUTLIER = 25.0
 _SDXL_KP_BOUNDARY_SUFFIXES = (".conv_in", ".conv_out")
 _SDXL_KP_PREFIXES = ("time_embedding.", "add_embedding.")
 _SDXL_ATTN_PROJ_SUFFIXES = (".to_q", ".to_k", ".to_v")
+_SDXL_ATTN_TOOUT_SUFFIX = ".to_out.0"
 _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 
 
@@ -291,11 +295,11 @@ def _compute_sdxl_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> se
             continue
         if _n.endswith(".ff.net.2"):
             _k, _o, _mstat = _layer_weight_stats(_m.weight.detach())
-            if _o > _W2_OUTLIER_LIVE_THRESH:
+            if _o > _SDXL_FF2_OUTLIER_LIVE_THRESH:
                 added.add(_n)
                 print(
                     f"    [Key-Pattern VETO] {_n} "
-                    f"(ff.net.2 outlier o={_o:.1f} > {_W2_OUTLIER_LIVE_THRESH})"
+                    f"(ff.net.2 outlier o={_o:.1f} > {_SDXL_FF2_OUTLIER_LIVE_THRESH})"
                 )
     if added:
         print(f"  [Key-Pattern VETO] Added {len(added)} selective layers.")
@@ -334,15 +338,24 @@ def _compute_sdxl_per_projection_attn_veto(
             continue
         if ".attn1" not in _n and ".attn2" not in _n:
             continue
-        if not any(_n.endswith(s) for s in _SDXL_ATTN_PROJ_SUFFIXES):
+        is_qkv = any(_n.endswith(s) for s in _SDXL_ATTN_PROJ_SUFFIXES)
+        is_toout = _n.endswith(_SDXL_ATTN_TOOUT_SUFFIX)
+        if not is_qkv and not is_toout:
             continue
         _k, _o, _amax = _layer_weight_stats(_m.weight.detach())
-        if _amax >= absmax_thresh or _o >= outlier_thresh:
+        if is_toout:
+            hit = _amax >= _SDXL_ATTN_TOOUT_ABSMAX or _o >= _SDXL_ATTN_TOOUT_OUTLIER
+            thresh_msg = (
+                f"to_out amax>={_SDXL_ATTN_TOOUT_ABSMAX}, o>={_SDXL_ATTN_TOOUT_OUTLIER}"
+            )
+        else:
+            hit = _amax >= absmax_thresh or _o >= outlier_thresh
+            thresh_msg = f"q/k/v amax>={absmax_thresh}, o>={outlier_thresh}"
+        if hit:
             proj_veto.add(_n)
             print(
                 f"    [Per-Projection VETO] {_n} "
-                f"(amax={_amax:.2f}, outlier={_o:.1f}; "
-                f"thresh amax>={absmax_thresh}, o>={outlier_thresh})"
+                f"(amax={_amax:.2f}, outlier={_o:.1f}; {thresh_msg})"
             )
     return proj_veto
 
@@ -362,12 +375,12 @@ def _autonomous_supplemental_veto(
         _k, _o, _mstat = _layer_weight_stats(_m.weight.detach())
         prof_o = prof.get("outlier_ratio", 0) if prof else 0.0
         if _n.endswith(".ff.net.2") and (
-            _o > _W2_OUTLIER_LIVE_THRESH or prof_o > _FF2_PROFILE_OUTLIER_VETO
+            _o > _SDXL_FF2_OUTLIER_LIVE_THRESH or prof_o > _FF2_PROFILE_OUTLIER_VETO
         ):
             added.add(_n)
             print(
                 f"    [Live VETO] {_n} (ff.net.2 live_o={_o:.1f}, profile_o={prof_o:.1f}; "
-                f"thresh live>{_W2_OUTLIER_LIVE_THRESH} or profile>{_FF2_PROFILE_OUTLIER_VETO})"
+                f"thresh live>{_SDXL_FF2_OUTLIER_LIVE_THRESH} or profile>{_FF2_PROFILE_OUTLIER_VETO})"
             )
         elif any(_n.startswith(p) for p in _SDXL_KP_PREFIXES) and drift > _DRIFT_VETO_THRESH:
             added.add(_n)
@@ -420,7 +433,10 @@ def _mse_grayzone_veto_reassessment(
     if not outlier_only_veto:
         return hard_veto_layers, keep_layers
 
-    print(f"\n  [{scope_label} MSE-Guided Reassessment] {len(outlier_only_veto)} VETO layers are outlier-only (o>40, k<=20, m<=20).")
+    print(
+        f"\n  [{scope_label} MSE-Guided Reassessment] {len(outlier_only_veto)} VETO layers "
+        "are outlier-only (o>40, k<=20, m<=20; SDXL v170 rarely triggers)."
+    )
     print(f"  Trial-quantizing to measure actual HSWQ quantization error...")
 
     trial_optimizer = HSWQWeightedHistogramOptimizerV4(
@@ -648,7 +664,7 @@ def derive_hswq_strategy(model_profile):
                 k = prof.get("kurtosis", 0)
                 m = prof.get("abs_max", 0)
                 o = prof.get("outlier_ratio", 0)
-                is_extreme_divergence = o > 40
+                is_extreme_divergence = o > _SDXL_PROFILE_EXTREME_OUTLIER
                 is_extreme_kurtosis = k > 20
                 is_huge_magnitude = m > 20
                 if is_extreme_divergence or is_extreme_kurtosis or is_huge_magnitude:
