@@ -263,6 +263,32 @@ def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
     return k, o, amax
 
 
+def _profile_score_from_entry(prof: dict, drift: float = 0.0) -> float:
+    """Dynamic ranking score from distribution profile (+ optional post-calib drift)."""
+    if not prof:
+        return 0.0
+    base = prof.get("profile_score")
+    if base is None:
+        k = float(prof.get("kurtosis", 0) or 0)
+        o = float(prof.get("outlier_ratio", 0) or 0)
+        m = float(prof.get("abs_max", 0) or 0)
+        base = k + o * 2.0 + m * 0.5
+    else:
+        base = float(base)
+    return base + drift * 50.0
+
+
+def _profile_layer_stats(prof: dict, weight_tensor: torch.Tensor) -> tuple[float, float, float]:
+    """Prefer precomputed profile stats; fall back to live weight scan."""
+    if prof and "kurtosis" in prof and "outlier_ratio" in prof and "abs_max" in prof:
+        return (
+            float(prof.get("kurtosis", 0) or 0),
+            float(prof.get("outlier_ratio", 0) or 0),
+            float(prof.get("abs_max", 0) or 0),
+        )
+    return _layer_weight_stats(weight_tensor)
+
+
 def _weight_profile_drift(weight_tensor: torch.Tensor, prof: dict) -> float:
     """Relative drift between live weights and distribution profile."""
     if not prof:
@@ -277,7 +303,11 @@ def _weight_profile_drift(weight_tensor: torch.Tensor, prof: dict) -> float:
     return max(dk, do, dm)
 
 
-def _compute_sdxl_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> set:
+def _compute_sdxl_keypattern_veto(
+    model: nn.Module,
+    hard_veto_layers: set,
+    norm_profile: dict | None = None,
+) -> set:
     """SDXL key-pattern VETO: embeddings, conv boundaries, outlier ff.net.2."""
     added = set()
     for _n, _m in model.named_modules():
@@ -294,20 +324,44 @@ def _compute_sdxl_keypattern_veto(model: nn.Module, hard_veto_layers: set) -> se
             print(f"    [Key-Pattern VETO] {_n} (boundary)")
             continue
         if _n.endswith(".ff.net.2"):
-            _k, _o, _mstat = _layer_weight_stats(_m.weight.detach())
+            prof = (norm_profile or {}).get(_n, {})
+            _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
+            src = "profile" if prof else "live"
             if _o > _SDXL_FF2_OUTLIER_LIVE_THRESH:
                 added.add(_n)
                 print(
                     f"    [Key-Pattern VETO] {_n} "
-                    f"(ff.net.2 outlier o={_o:.1f} > {_SDXL_FF2_OUTLIER_LIVE_THRESH})"
+                    f"(ff.net.2 {src} o={_o:.1f} > {_SDXL_FF2_OUTLIER_LIVE_THRESH})"
                 )
     if added:
         print(f"  [Key-Pattern VETO] Added {len(added)} selective layers.")
     return added
 
 
-def _compute_structural_veto(model: nn.Module, hard_veto_layers: set) -> set:
+def _compute_structural_veto(
+    model: nn.Module,
+    hard_veto_layers: set,
+    norm_profile: dict | None = None,
+) -> set:
     """Linear layers whose weight shape is unique within the model (boundary detection)."""
+    if norm_profile and any(
+        isinstance(v, dict) and "shape_uniqueness" in v for v in norm_profile.values()
+    ):
+        model_linears = {
+            n for n, m in model.named_modules() if isinstance(m, torch.nn.Linear)
+        }
+        structural_veto = set()
+        for name, entry in norm_profile.items():
+            if not isinstance(entry, dict):
+                continue
+            if name not in model_linears:
+                continue
+            if entry.get("shape_uniqueness") == 1 and name not in hard_veto_layers:
+                structural_veto.add(name)
+                shp = entry.get("shape", [])
+                print(f"    [Structural VETO] {name} shape={shp} (profile uniqueness=1)")
+        return structural_veto
+
     shape_count: dict[tuple, int] = {}
     for _n, _m in model.named_modules():
         if isinstance(_m, torch.nn.Linear):
@@ -319,7 +373,7 @@ def _compute_structural_veto(model: nn.Module, hard_veto_layers: set) -> set:
             _shp = tuple(_m.weight.shape)
             if shape_count[_shp] == 1 and _n not in hard_veto_layers:
                 structural_veto.add(_n)
-                print(f"    [Structural VETO] {_n} shape={list(_shp)} (uniqueness=1)")
+                print(f"    [Structural VETO] {_n} shape={list(_shp)} (live uniqueness=1)")
     return structural_veto
 
 
@@ -328,8 +382,9 @@ def _compute_sdxl_per_projection_attn_veto(
     hard_veto_layers: set,
     absmax_thresh: float,
     outlier_thresh: float,
+    norm_profile: dict | None = None,
 ) -> set:
-    """VETO attn projections when live abs_max or outlier_ratio exceeds SDXL thresholds."""
+    """VETO attn projections when profile (or live) abs_max / outlier_ratio exceeds thresholds."""
     proj_veto = set()
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
@@ -342,7 +397,9 @@ def _compute_sdxl_per_projection_attn_veto(
         is_toout = _n.endswith(_SDXL_ATTN_TOOUT_SUFFIX)
         if not is_qkv and not is_toout:
             continue
-        _k, _o, _amax = _layer_weight_stats(_m.weight.detach())
+        prof = (norm_profile or {}).get(_n, {})
+        _k, _o, _amax = _profile_layer_stats(prof, _m.weight.detach())
+        src = "profile" if prof else "live"
         if is_toout:
             hit = _amax >= _SDXL_ATTN_TOOUT_ABSMAX or _o >= _SDXL_ATTN_TOOUT_OUTLIER
             thresh_msg = (
@@ -355,7 +412,7 @@ def _compute_sdxl_per_projection_attn_veto(
             proj_veto.add(_n)
             print(
                 f"    [Per-Projection VETO] {_n} "
-                f"(amax={_amax:.2f}, outlier={_o:.1f}; {thresh_msg})"
+                f"({src} amax={_amax:.2f}, outlier={_o:.1f}; {thresh_msg})"
             )
     return proj_veto
 
@@ -363,7 +420,7 @@ def _compute_sdxl_per_projection_attn_veto(
 def _autonomous_supplemental_veto(
     model: nn.Module, hard_veto_layers: set, norm_profile: dict
 ) -> set:
-    """Live VETO: outlier ff.net.2, high-drift embedding layers."""
+    """Profile-primary VETO: outlier ff.net.2, high-drift embedding layers."""
     added = set()
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
@@ -372,19 +429,22 @@ def _autonomous_supplemental_veto(
             continue
         prof = norm_profile.get(_n, {})
         drift = _weight_profile_drift(_m.weight.data, prof)
-        _k, _o, _mstat = _layer_weight_stats(_m.weight.detach())
-        prof_o = prof.get("outlier_ratio", 0) if prof else 0.0
-        if _n.endswith(".ff.net.2") and (
-            _o > _SDXL_FF2_OUTLIER_LIVE_THRESH or prof_o > _FF2_PROFILE_OUTLIER_VETO
-        ):
-            added.add(_n)
-            print(
-                f"    [Live VETO] {_n} (ff.net.2 live_o={_o:.1f}, profile_o={prof_o:.1f}; "
-                f"thresh live>{_SDXL_FF2_OUTLIER_LIVE_THRESH} or profile>{_FF2_PROFILE_OUTLIER_VETO})"
-            )
+        _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
+        prof_o = float(prof.get("outlier_ratio", 0) or 0) if prof else 0.0
+        if _n.endswith(".ff.net.2"):
+            hit = prof_o > _FF2_PROFILE_OUTLIER_VETO if prof else _o > _SDXL_FF2_OUTLIER_LIVE_THRESH
+            if hit:
+                added.add(_n)
+                print(
+                    f"    [Supplemental VETO] {_n} "
+                    f"(ff.net.2 profile_o={prof_o:.1f} > {_FF2_PROFILE_OUTLIER_VETO})"
+                    if prof
+                    else f"    [Supplemental VETO] {_n} "
+                    f"(ff.net.2 live_o={_o:.1f} > {_SDXL_FF2_OUTLIER_LIVE_THRESH})"
+                )
         elif any(_n.startswith(p) for p in _SDXL_KP_PREFIXES) and drift > _DRIFT_VETO_THRESH:
             added.add(_n)
-            print(f"    [Live VETO] {_n} (embedding drift={drift:.3f} > {_DRIFT_VETO_THRESH})")
+            print(f"    [Supplemental VETO] {_n} (embedding drift={drift:.3f} > {_DRIFT_VETO_THRESH})")
     return added
 
 
@@ -806,9 +866,10 @@ def main():
         model_profile,
     )
     model = pipeline.unet
+    _norm_profile = {k: v for k, v in model_profile.items() if isinstance(v, dict)}
 
     print("  [V2.0 SDXL Autonomous VETO] Structural + per-projection attn + key-pattern + supplemental.")
-    structural_veto = _compute_structural_veto(model, hard_veto_layers)
+    structural_veto = _compute_structural_veto(model, hard_veto_layers, _norm_profile)
     if structural_veto:
         hard_veto_layers = hard_veto_layers.union(structural_veto)
         print(f"  [Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
@@ -817,11 +878,12 @@ def main():
         hard_veto_layers,
         _SDXL_ATTN_VETO_ABSMAX,
         _SDXL_ATTN_VETO_OUTLIER,
+        _norm_profile,
     )
     if proj_veto:
         hard_veto_layers = hard_veto_layers.union(proj_veto)
         print(f"  [Per-Projection VETO] Added {len(proj_veto)} attn layers (total VETO: {len(hard_veto_layers)}).")
-    keypattern_veto = _compute_sdxl_keypattern_veto(model, hard_veto_layers)
+    keypattern_veto = _compute_sdxl_keypattern_veto(model, hard_veto_layers, _norm_profile)
     if keypattern_veto:
         hard_veto_layers = hard_veto_layers.union(keypattern_veto)
         print(f"  [Key-Pattern VETO] hard_veto total: {len(hard_veto_layers)}.")
@@ -862,11 +924,7 @@ def main():
         h.remove()
 
 
-    print("\nAnalyzing layer sensitivity (DualMonitor)...")
-    # DualMonitor ranking matches v1.3 (benchmark SSIM 0.9180 @ r0.1 for waiIllustriousSDXL_v170).
-
-    # model_profile is already remapped to Diffusers module names (see _remap_profile_to_diffusers).
-    _norm_profile = {k: v for k, v in model_profile.items() if isinstance(v, dict)}
+    print("\nAnalyzing layer sensitivity (profile_score + drift)...")
 
     _supp = _autonomous_supplemental_veto(model, hard_veto_layers, _norm_profile)
     if _supp:
@@ -876,13 +934,24 @@ def main():
     # Exclude VETO layers from the Dynamic pool (they are always FP16, so Dynamic budget goes elsewhere)
     _module_dict_sens = dict(model.named_modules())
     layer_sensitivities = []
+    ranking_source = "profile_score"
     for name in target_modules:
         if name in hard_veto_layers:
             continue
-        if name in dual_monitors:
+        prof = _norm_profile.get(name, {})
+        drift = 0.0
+        mod = _module_dict_sens.get(name)
+        if prof and mod is not None and hasattr(mod, "weight"):
+            drift = _weight_profile_drift(mod.weight.data, prof)
+        if prof:
+            score = _profile_score_from_entry(prof, drift)
+        elif name in dual_monitors:
             score = dual_monitors[name].get_sensitivity()
-            layer_sensitivities.append((name, score))
-    
+            ranking_source = "dualmonitor_fallback"
+        else:
+            continue
+        layer_sensitivities.append((name, score))
+
     layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
     num_keep_dynamic = int(len(layer_sensitivities) * args.keep_ratio)
     dynamic_keep_layers = set([x[0] for x in layer_sensitivities[:num_keep_dynamic]])
@@ -913,7 +982,7 @@ def main():
     
     non_veto_total = len([n for n in target_modules if n not in hard_veto_layers])
     print(f"\nTotal layers: {len(target_modules)} (Non-VETO pool: {non_veto_total})")
-    print("Dynamic ranking: dualmonitor (v1.3-style)")
+    print(f"Dynamic ranking: {ranking_source} (V2.0)")
     print(f"Dynamic kept (from non-VETO pool): {len(dynamic_keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
     print(f"Static kept (Hard VETO): {len(hard_veto_layers)} (Always FP16)")
     print(f"Final FP16 kept layers: {len(keep_layers)} (VETO {len(hard_veto_layers)} + Dynamic {len(dynamic_keep_layers)})")
