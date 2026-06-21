@@ -24,6 +24,7 @@ import sys
 import json
 import numpy as np
 import subprocess
+from dataclasses import dataclass
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
@@ -234,23 +235,139 @@ def calculate_kurtosis(tensor):
     if std == 0: return 0.0
     return torch.mean(((tensor - mean) / std) ** 4).item()
 
-# --- V2.0 SDXL autonomous engine tunables (no layer-name literals) ---
-# Calibrated from waiIllustriousSDXL_v170.safetensors profile (NOT ZIT thresholds).
-# v170: ff.net.2 outlier_ratio peaks ~18; attn2.to_* abs_max ~0.58 / to_out.0 often o~12–20, m~0.24–0.37.
-_DRIFT_VETO_THRESH = 0.5
-_DRIFT_SENSITIVITY_MULT = 50.0
-_SDXL_ATTN_VETO_ABSMAX = 0.45
-_SDXL_ATTN_VETO_OUTLIER = 12.0
-_SDXL_ATTN_TOOUT_ABSMAX = 0.35
-_SDXL_ATTN_TOOUT_OUTLIER = 12.0
-_SDXL_FF2_OUTLIER_LIVE_THRESH = 18.0
-_FF2_PROFILE_OUTLIER_VETO = 10.0
-_SDXL_PROFILE_EXTREME_OUTLIER = 25.0
+# --- V2.0 SDXL autonomous engine tunables (key-pattern / drift only; numeric thresholds from profile) ---
 _SDXL_KP_BOUNDARY_SUFFIXES = (".conv_in", ".conv_out")
 _SDXL_KP_PREFIXES = ("time_embedding.", "add_embedding.")
 _SDXL_ATTN_PROJ_SUFFIXES = (".to_q", ".to_k", ".to_v")
 _SDXL_ATTN_TOOUT_SUFFIX = ".to_out.0"
 _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
+
+
+@dataclass(frozen=True)
+class SdxlVetoTunables:
+    extreme_kurtosis: float
+    extreme_outlier: float
+    huge_magnitude: float
+    attn_qkv_absmax: float
+    attn_qkv_outlier: float
+    attn_toout_absmax: float
+    attn_toout_outlier: float
+    ff2_outlier_live: float
+    ff2_profile_outlier: float
+    ff2_profile_score_cutoff: float
+    ff2_auto_full_class: bool = False
+    drift_veto_thresh: float = 0.5
+    drift_score_mult: float = 1.0
+    mse_release_o_min: float = 40.0
+    mse_release_k_max: float = 20.0
+    mse_release_m_max: float = 20.0
+    mse_p75_multiplier: float = 2.0
+    k_scale: float = 0.01
+    o_scale: float = 0.016
+    m_scale: float = 0.05
+    k_gray_lo: float = 10.0
+    k_gray_hi: float = 20.0
+    o_gray_lo: float = 30.0
+    o_gray_hi: float = 40.0
+    m_gray_lo: float = 5.0
+    m_gray_hi: float = 20.0
+    search_low_floor: float = 0.5
+    search_low_penalty_cap: float = 0.49
+    search_low_clip_max: float = 0.99
+    search_low_gray_clip_max: float = 0.9
+    alpha_floor: float = 0.5
+    alpha_clip_max: float = 0.99
+    beta_floor: float = 0.5
+    beta_clip_max: float = 0.99
+    ff2_suffix_min_count: int = 4
+    score_o_weight: float = 2.0
+    score_m_weight: float = 0.5
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SdxlVetoTunables":
+        return cls(
+            extreme_kurtosis=float(d["extreme_kurtosis"]),
+            extreme_outlier=float(d["extreme_outlier"]),
+            huge_magnitude=float(d["huge_magnitude"]),
+            attn_qkv_absmax=float(d["attn_qkv_absmax"]),
+            attn_qkv_outlier=float(d["attn_qkv_outlier"]),
+            attn_toout_absmax=float(d["attn_toout_absmax"]),
+            attn_toout_outlier=float(d["attn_toout_outlier"]),
+            ff2_outlier_live=float(d["ff2_outlier_live"]),
+            ff2_profile_outlier=float(d["ff2_profile_outlier"]),
+            ff2_profile_score_cutoff=float(d.get("ff2_profile_score_cutoff", 0.0)),
+            ff2_auto_full_class=bool(d.get("ff2_auto_full_class", False)),
+            drift_veto_thresh=float(d.get("drift_veto_thresh", 0.5)),
+            drift_score_mult=float(d.get("drift_score_mult", 1.0)),
+            mse_release_o_min=float(d.get("mse_release_o_min", 40.0)),
+            mse_release_k_max=float(d.get("mse_release_k_max", 20.0)),
+            mse_release_m_max=float(d.get("mse_release_m_max", 20.0)),
+            mse_p75_multiplier=float(d.get("mse_p75_multiplier", 2.0)),
+            k_scale=float(d.get("k_scale", 0.01)),
+            o_scale=float(d.get("o_scale", 0.016)),
+            m_scale=float(d.get("m_scale", 0.05)),
+            k_gray_lo=float(d.get("k_gray_lo", 10.0)),
+            k_gray_hi=float(d.get("k_gray_hi", 20.0)),
+            o_gray_lo=float(d.get("o_gray_lo", 30.0)),
+            o_gray_hi=float(d.get("o_gray_hi", 40.0)),
+            m_gray_lo=float(d.get("m_gray_lo", 5.0)),
+            m_gray_hi=float(d.get("m_gray_hi", 20.0)),
+            search_low_floor=float(d.get("search_low_floor", 0.5)),
+            search_low_penalty_cap=float(d.get("search_low_penalty_cap", 0.49)),
+            search_low_clip_max=float(d.get("search_low_clip_max", 0.99)),
+            search_low_gray_clip_max=float(d.get("search_low_gray_clip_max", 0.9)),
+            alpha_floor=float(d.get("alpha_floor", 0.5)),
+            alpha_clip_max=float(d.get("alpha_clip_max", 0.99)),
+            beta_floor=float(d.get("beta_floor", 0.5)),
+            beta_clip_max=float(d.get("beta_clip_max", 0.99)),
+            ff2_suffix_min_count=int(d.get("ff2_suffix_min_count", 4)),
+            score_o_weight=float(d.get("score_o_weight", 2.0)),
+            score_m_weight=float(d.get("score_m_weight", 0.5)),
+        )
+
+    def as_dict(self) -> dict:
+        return {
+            "extreme_kurtosis": self.extreme_kurtosis,
+            "extreme_outlier": self.extreme_outlier,
+            "huge_magnitude": self.huge_magnitude,
+            "attn_qkv_absmax": self.attn_qkv_absmax,
+            "attn_qkv_outlier": self.attn_qkv_outlier,
+            "attn_toout_absmax": self.attn_toout_absmax,
+            "attn_toout_outlier": self.attn_toout_outlier,
+            "ff2_outlier_live": self.ff2_outlier_live,
+            "ff2_profile_outlier": self.ff2_profile_outlier,
+            "ff2_profile_score_cutoff": self.ff2_profile_score_cutoff,
+            "ff2_auto_full_class": self.ff2_auto_full_class,
+            "drift_veto_thresh": self.drift_veto_thresh,
+            "drift_score_mult": self.drift_score_mult,
+            "mse_p75_multiplier": self.mse_p75_multiplier,
+            "ff2_suffix_min_count": self.ff2_suffix_min_count,
+        }
+
+
+def resolve_veto_tunables(
+    norm_profile: dict,
+    profile_summary: dict | None = None,
+) -> SdxlVetoTunables:
+    """Load veto_tunables from profile summary or derive from normalized layer stats."""
+    analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
+    if analyze_dir not in sys.path:
+        sys.path.insert(0, analyze_dir)
+    from analyze_sdxl_distribution import derive_veto_tunables
+
+    if norm_profile:
+        derived = derive_veto_tunables(norm_profile)
+        if derived.get("ff2_auto_full_class"):
+            print(
+                "  [Auto FF2] full-class protection: "
+                f"count={derived.get('ff2_class_count', 0)}, "
+                f"span={derived.get('ff2_class_outlier_span', 0):.3f}, "
+                f"profile_o>={derived['ff2_profile_outlier']:.2f}"
+            )
+        return SdxlVetoTunables.from_dict(derived)
+    if profile_summary and isinstance(profile_summary.get("veto_tunables"), dict):
+        return SdxlVetoTunables.from_dict(profile_summary["veto_tunables"])
+    raise ValueError("resolve_veto_tunables: no layer profile available")
 
 
 def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
@@ -263,7 +380,11 @@ def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
     return k, o, amax
 
 
-def _profile_score_from_entry(prof: dict, drift: float = 0.0) -> float:
+def _profile_score_from_entry(
+    prof: dict,
+    drift: float = 0.0,
+    tunables: SdxlVetoTunables | None = None,
+) -> float:
     """Dynamic ranking score from distribution profile (+ optional post-calib drift)."""
     if not prof:
         return 0.0
@@ -272,10 +393,14 @@ def _profile_score_from_entry(prof: dict, drift: float = 0.0) -> float:
         k = float(prof.get("kurtosis", 0) or 0)
         o = float(prof.get("outlier_ratio", 0) or 0)
         m = float(prof.get("abs_max", 0) or 0)
-        base = k + o * 2.0 + m * 0.5
+        if tunables is not None:
+            base = k + o * tunables.score_o_weight + m * tunables.score_m_weight
+        else:
+            base = k + o + m
     else:
         base = float(base)
-    return base + drift * 50.0
+    mult = tunables.drift_score_mult if tunables is not None else 1.0
+    return base + drift * mult
 
 
 def _profile_layer_stats(prof: dict, weight_tensor: torch.Tensor) -> tuple[float, float, float]:
@@ -287,6 +412,56 @@ def _profile_layer_stats(prof: dict, weight_tensor: torch.Tensor) -> tuple[float
             float(prof.get("abs_max", 0) or 0),
         )
     return _layer_weight_stats(weight_tensor)
+
+
+def _discover_ff2_suffixes(
+    norm_profile: dict | None,
+    min_count: int = 1,
+) -> tuple[str, ...]:
+    """Discover FFN output Linear suffixes from this checkpoint profile (no layer names)."""
+    if not norm_profile:
+        return ()
+    analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
+    if analyze_dir not in sys.path:
+        sys.path.insert(0, analyze_dir)
+    from analyze_sdxl_distribution import _classify_layer_key
+
+    counts: dict[str, int] = {}
+    for key in norm_profile:
+        ck = key if key.endswith(".weight") else f"{key}.weight"
+        if _classify_layer_key(ck) != "ff2":
+            continue
+        base = key[:-7] if key.endswith(".weight") else key
+        idx = base.rfind(".ff.")
+        if idx < 0:
+            continue
+        suf = base[idx:]
+        counts[suf] = counts.get(suf, 0) + 1
+    if not counts:
+        return ()
+    best_count = max(counts.values())
+    return tuple(
+        sorted(s for s, c in counts.items() if c == best_count and c >= min_count)
+    )
+
+
+def _ff2_selective_veto_hit(
+    prof: dict | None,
+    live_o: float,
+    tunables: SdxlVetoTunables,
+) -> tuple[bool, str]:
+    """Selective ff.net.2 VETO: class-relative profile_score and outlier (not blanket)."""
+    if prof:
+        score = _profile_score_from_entry(prof, tunables=tunables)
+        o = float(prof.get("outlier_ratio", 0) or 0)
+        if score >= tunables.ff2_profile_score_cutoff:
+            return True, f"profile_score={score:.2f}>={tunables.ff2_profile_score_cutoff}"
+        if o >= tunables.ff2_profile_outlier:
+            return True, f"profile_o={o:.1f}>={tunables.ff2_profile_outlier}"
+        return False, ""
+    if live_o > tunables.ff2_outlier_live:
+        return True, f"live_o={live_o:.1f}>{tunables.ff2_outlier_live}"
+    return False, ""
 
 
 def _weight_profile_drift(weight_tensor: torch.Tensor, prof: dict) -> float:
@@ -306,10 +481,12 @@ def _weight_profile_drift(weight_tensor: torch.Tensor, prof: dict) -> float:
 def _compute_sdxl_keypattern_veto(
     model: nn.Module,
     hard_veto_layers: set,
+    tunables: SdxlVetoTunables,
     norm_profile: dict | None = None,
 ) -> set:
-    """SDXL key-pattern VETO: embeddings, conv boundaries, outlier ff.net.2."""
+    """SDXL key-pattern VETO: embeddings, boundaries, profile-tuned ff2 class."""
     added = set()
+    ff2_suffixes = _discover_ff2_suffixes(norm_profile)
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
             continue
@@ -323,18 +500,19 @@ def _compute_sdxl_keypattern_veto(
             added.add(_n)
             print(f"    [Key-Pattern VETO] {_n} (boundary)")
             continue
-        if _n.endswith(".ff.net.2"):
+        if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
+            if tunables.ff2_auto_full_class:
+                added.add(_n)
+                print(f"    [Key-Pattern VETO] {_n} (ff2 full-class auto)")
+                continue
             prof = (norm_profile or {}).get(_n, {})
             _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
-            src = "profile" if prof else "live"
-            if _o > _SDXL_FF2_OUTLIER_LIVE_THRESH:
+            hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
+            if hit:
                 added.add(_n)
-                print(
-                    f"    [Key-Pattern VETO] {_n} "
-                    f"(ff.net.2 {src} o={_o:.1f} > {_SDXL_FF2_OUTLIER_LIVE_THRESH})"
-                )
+                print(f"    [Key-Pattern VETO] {_n} (ff2 auto {reason})")
     if added:
-        print(f"  [Key-Pattern VETO] Added {len(added)} selective layers.")
+        print(f"  [Key-Pattern VETO] Added {len(added)} layers.")
     return added
 
 
@@ -380,8 +558,7 @@ def _compute_structural_veto(
 def _compute_sdxl_per_projection_attn_veto(
     model: nn.Module,
     hard_veto_layers: set,
-    absmax_thresh: float,
-    outlier_thresh: float,
+    tunables: SdxlVetoTunables,
     norm_profile: dict | None = None,
 ) -> set:
     """VETO attn projections when profile (or live) abs_max / outlier_ratio exceeds thresholds."""
@@ -401,13 +578,15 @@ def _compute_sdxl_per_projection_attn_veto(
         _k, _o, _amax = _profile_layer_stats(prof, _m.weight.detach())
         src = "profile" if prof else "live"
         if is_toout:
-            hit = _amax >= _SDXL_ATTN_TOOUT_ABSMAX or _o >= _SDXL_ATTN_TOOUT_OUTLIER
+            hit = _amax >= tunables.attn_toout_absmax or _o >= tunables.attn_toout_outlier
             thresh_msg = (
-                f"to_out amax>={_SDXL_ATTN_TOOUT_ABSMAX}, o>={_SDXL_ATTN_TOOUT_OUTLIER}"
+                f"to_out amax>={tunables.attn_toout_absmax}, o>={tunables.attn_toout_outlier}"
             )
         else:
-            hit = _amax >= absmax_thresh or _o >= outlier_thresh
-            thresh_msg = f"q/k/v amax>={absmax_thresh}, o>={outlier_thresh}"
+            hit = _amax >= tunables.attn_qkv_absmax or _o >= tunables.attn_qkv_outlier
+            thresh_msg = (
+                f"q/k/v amax>={tunables.attn_qkv_absmax}, o>={tunables.attn_qkv_outlier}"
+            )
         if hit:
             proj_veto.add(_n)
             print(
@@ -418,7 +597,10 @@ def _compute_sdxl_per_projection_attn_veto(
 
 
 def _autonomous_supplemental_veto(
-    model: nn.Module, hard_veto_layers: set, norm_profile: dict
+    model: nn.Module,
+    hard_veto_layers: set,
+    norm_profile: dict,
+    tunables: SdxlVetoTunables,
 ) -> set:
     """Profile-primary VETO: outlier ff.net.2, high-drift embedding layers."""
     added = set()
@@ -431,20 +613,24 @@ def _autonomous_supplemental_veto(
         drift = _weight_profile_drift(_m.weight.data, prof)
         _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
         prof_o = float(prof.get("outlier_ratio", 0) or 0) if prof else 0.0
-        if _n.endswith(".ff.net.2"):
-            hit = prof_o > _FF2_PROFILE_OUTLIER_VETO if prof else _o > _SDXL_FF2_OUTLIER_LIVE_THRESH
-            if hit:
+        ff2_suffixes = _discover_ff2_suffixes(
+            norm_profile, min_count=tunables.ff2_suffix_min_count
+        )
+        if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
+            if tunables.ff2_auto_full_class:
                 added.add(_n)
-                print(
-                    f"    [Supplemental VETO] {_n} "
-                    f"(ff.net.2 profile_o={prof_o:.1f} > {_FF2_PROFILE_OUTLIER_VETO})"
-                    if prof
-                    else f"    [Supplemental VETO] {_n} "
-                    f"(ff.net.2 live_o={_o:.1f} > {_SDXL_FF2_OUTLIER_LIVE_THRESH})"
-                )
-        elif any(_n.startswith(p) for p in _SDXL_KP_PREFIXES) and drift > _DRIFT_VETO_THRESH:
+                print(f"    [Supplemental VETO] {_n} (ff2 full-class auto)")
+            else:
+                hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
+                if hit:
+                    added.add(_n)
+                    print(f"    [Supplemental VETO] {_n} (ff.net.2 {reason})")
+        elif any(_n.startswith(p) for p in _SDXL_KP_PREFIXES) and drift > tunables.drift_veto_thresh:
             added.add(_n)
-            print(f"    [Supplemental VETO] {_n} (embedding drift={drift:.3f} > {_DRIFT_VETO_THRESH})")
+            print(
+                f"    [Supplemental VETO] {_n} "
+                f"(embedding drift={drift:.3f} > {tunables.drift_veto_thresh:.3f})"
+            )
     return added
 
 
@@ -453,6 +639,7 @@ def _collect_mse_release_candidates(
     structural_veto: set,
     norm_profile: dict,
     model: nn.Module,
+    tunables: SdxlVetoTunables,
 ) -> set:
     """Outlier-only profile VETO with low drift and non-structural — MSE release candidates."""
     candidates = set()
@@ -461,14 +648,18 @@ def _collect_mse_release_candidates(
         if vname in structural_veto:
             continue
         prof = norm_profile.get(vname, {})
-        k = prof.get("kurtosis", 0)
-        m = prof.get("abs_max", 0)
-        o = prof.get("outlier_ratio", 0)
-        if o > 40 and k <= 20 and m <= 20:
+        k = float(prof.get("kurtosis", 0) or 0)
+        m = float(prof.get("abs_max", 0) or 0)
+        o = float(prof.get("outlier_ratio", 0) or 0)
+        if (
+            o > tunables.mse_release_o_min
+            and k <= tunables.mse_release_k_max
+            and m <= tunables.mse_release_m_max
+        ):
             vmod = _module_dict.get(vname)
             if vmod is not None and hasattr(vmod, "weight"):
                 drift = _weight_profile_drift(vmod.weight.data, prof)
-                if drift < _DRIFT_VETO_THRESH:
+                if drift < tunables.drift_veto_thresh:
                     candidates.add(vname)
     return candidates
 
@@ -488,6 +679,7 @@ def _mse_grayzone_veto_reassessment(
     alpha: float,
     beta: float,
     device: str,
+    tunables: SdxlVetoTunables,
 ) -> tuple[set, set]:
     """Gray-zone VETO release via trial MSE (SDXL V2.0)."""
     if not outlier_only_veto:
@@ -495,7 +687,8 @@ def _mse_grayzone_veto_reassessment(
 
     print(
         f"\n  [{scope_label} MSE-Guided Reassessment] {len(outlier_only_veto)} VETO layers "
-        "are outlier-only (o>40, k<=20, m<=20; SDXL v170 rarely triggers)."
+        f"are outlier-only (o>{tunables.mse_release_o_min:.2f}, "
+        f"k<={tunables.mse_release_k_max:.2f}, m<={tunables.mse_release_m_max:.2f})."
     )
     print(f"  Trial-quantizing to measure actual HSWQ quantization error...")
 
@@ -507,7 +700,13 @@ def _mse_grayzone_veto_reassessment(
     safe_mses = []
     _module_dict = dict(model.named_modules())
     _safe_pool = [n for n in target_modules if n not in keep_layers and n in _module_dict]
-    _safe_ff = [n for n in _safe_pool if ".ff.net.2" in n or n.endswith(".ff.net.2")]
+    ff2_suffixes = _discover_ff2_suffixes(
+        _norm_profile, min_count=tunables.ff2_suffix_min_count
+    )
+    if ff2_suffixes:
+        _safe_ff = [n for n in _safe_pool if any(n.endswith(s) for s in ff2_suffixes)]
+    else:
+        _safe_ff = []
     step = max(1, len(_safe_ff) // 30)
     _safe_sample = _safe_ff[::step][:30]
     for sname in _safe_sample:
@@ -530,10 +729,11 @@ def _mse_grayzone_veto_reassessment(
 
     safe_mses.sort()
     p75_idx = int(len(safe_mses) * 0.75)
-    mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * 2.0
+    mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * tunables.mse_p75_multiplier
     print(
         f"  [MSE Baseline] Safe layers sampled: {len(safe_mses)}, "
-        f"P75 MSE: {safe_mses[p75_idx]:.8f}, Threshold (2xP75): {mse_threshold:.8f}"
+        f"P75 MSE: {safe_mses[p75_idx]:.8f}, "
+        f"Threshold ({tunables.mse_p75_multiplier:.2f}xP75): {mse_threshold:.8f}"
     )
 
     released = set()
@@ -655,7 +855,7 @@ def _remap_profile_to_diffusers(model_profile: dict, comfyui_to_diffusers_map: d
     return remapped
 
 
-def derive_hswq_strategy(model_profile):
+def derive_hswq_strategy(model_profile, veto_tunables: SdxlVetoTunables | None = None):
     """
     SDXL V2.0: Alpha/Beta from profile + per-layer search_low (SDXL-only).
     """
@@ -679,6 +879,9 @@ def derive_hswq_strategy(model_profile):
                 f"from {len(normalized_profile)} profile keys."
             )
     
+    if veto_tunables is None:
+        veto_tunables = resolve_veto_tunables(model_profile or {})
+
     def get_dynamic_search_low(name, weight_tensor):
         profile_key = name + ".weight"
         prof = model_profile.get(profile_key, model_profile.get(name, {})) if model_profile else {}
@@ -688,18 +891,25 @@ def derive_hswq_strategy(model_profile):
             m_stat = prof.get("abs_max", 0)
         else:
             k_stat, o_ratio, m_stat = _layer_weight_stats(weight_tensor)
-        k_penalty = min(k_stat / 100.0, 0.49)
-        o_penalty = min(o_ratio / 60.0, 0.49)
-        upper_clip = 0.99
+        vt = veto_tunables
+        k_penalty = min(k_stat * vt.k_scale, vt.search_low_penalty_cap)
+        o_penalty = min(o_ratio * vt.o_scale, vt.search_low_penalty_cap)
+        upper_clip = vt.search_low_clip_max
         drift = _weight_profile_drift(weight_tensor, prof) if prof else 0.0
         in_gray = (
-            (10 < k_stat <= 20)
-            or (30 < o_ratio <= 40)
-            or (5 < m_stat <= 20)
+            (vt.k_gray_lo < k_stat <= vt.k_gray_hi)
+            or (vt.o_gray_lo < o_ratio <= vt.o_gray_hi)
+            or (vt.m_gray_lo < m_stat <= vt.m_gray_hi)
         )
-        if in_gray or drift > _DRIFT_VETO_THRESH:
-            upper_clip = 0.90
-        return float(np.clip(0.50 + max(k_penalty, o_penalty), 0.50, upper_clip))
+        if in_gray or drift > vt.drift_veto_thresh:
+            upper_clip = vt.search_low_gray_clip_max
+        return float(
+            np.clip(
+                vt.search_low_floor + max(k_penalty, o_penalty),
+                vt.search_low_floor,
+                upper_clip,
+            )
+        )
 
     if model_profile:
         all_k = [p.get("kurtosis", 0) for p in model_profile.values() if isinstance(p, dict)]
@@ -709,8 +919,13 @@ def derive_hswq_strategy(model_profile):
         avg_o = np.mean(all_o) if all_o else 0
         avg_m = np.mean(all_m) if all_m else 0
         print(f"  [Profile Stats] Avg Kurtosis: {avg_k:.2f}, Avg OutlierRatio: {avg_o:.2f}, Avg AbsMax: {avg_m:.2f}")
-        alpha = float(np.clip(0.5 + (avg_k / 100.0), 0.5, 0.99))
-        beta = float(np.clip(0.5 + (avg_o / 60.0), 0.5, 0.99))
+        vt = veto_tunables
+        alpha = float(
+            np.clip(vt.alpha_floor + avg_k * vt.k_scale, vt.alpha_floor, vt.alpha_clip_max)
+        )
+        beta = float(
+            np.clip(vt.beta_floor + avg_o * vt.o_scale, vt.beta_floor, vt.beta_clip_max)
+        )
     else:
         print("  [Profile Stats] No profile loaded. Using default alpha/beta.")
         alpha, beta = 0.75, 0.75
@@ -724,9 +939,9 @@ def derive_hswq_strategy(model_profile):
                 k = prof.get("kurtosis", 0)
                 m = prof.get("abs_max", 0)
                 o = prof.get("outlier_ratio", 0)
-                is_extreme_divergence = o > _SDXL_PROFILE_EXTREME_OUTLIER
-                is_extreme_kurtosis = k > 20
-                is_huge_magnitude = m > 20
+                is_extreme_divergence = o > veto_tunables.extreme_outlier
+                is_extreme_kurtosis = k > veto_tunables.extreme_kurtosis
+                is_huge_magnitude = m > veto_tunables.huge_magnitude
                 if is_extreme_divergence or is_extreme_kurtosis or is_huge_magnitude:
                     layer_base_name = name.replace(".weight", "") if name.endswith(".weight") else name
                     hard_veto_layers.add(layer_base_name)
@@ -851,22 +1066,30 @@ def main():
             print("    Will proceed with internal backup strategy (on-the-fly calc).")
 
     model_profile = {}
+    profile_summary = {}
     if os.path.exists(profile_path):
         print(f"[*] Loading Analysis Data: {profile_path}")
         with open(profile_path, "r", encoding="utf-8") as f:
             profile_data = json.load(f)
-            model_profile = profile_data.get("layers", profile_data)
+            if isinstance(profile_data, dict):
+                profile_summary = profile_data.get("summary", {}) or {}
+                model_profile = profile_data.get("layers", profile_data)
+            else:
+                model_profile = profile_data
     
     # --- 2. SDXL UNet Load then profile remap (Diffusers module names) ---
     pipeline, original_state_dict, comfyui_to_diffusers_map = load_unet_from_safetensors(
         args.input, device
     )
     model_profile = _remap_profile_to_diffusers(model_profile, comfyui_to_diffusers_map)
-    alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(
-        model_profile,
-    )
     model = pipeline.unet
     _norm_profile = {k: v for k, v in model_profile.items() if isinstance(v, dict)}
+    veto_tunables = resolve_veto_tunables(_norm_profile, profile_summary)
+    print(f"  [Veto Tunables] {veto_tunables.as_dict()}")
+    alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy(
+        model_profile,
+        veto_tunables,
+    )
 
     print("  [V2.0 SDXL Autonomous VETO] Structural + per-projection attn + key-pattern + supplemental.")
     structural_veto = _compute_structural_veto(model, hard_veto_layers, _norm_profile)
@@ -876,14 +1099,15 @@ def main():
     proj_veto = _compute_sdxl_per_projection_attn_veto(
         model,
         hard_veto_layers,
-        _SDXL_ATTN_VETO_ABSMAX,
-        _SDXL_ATTN_VETO_OUTLIER,
+        veto_tunables,
         _norm_profile,
     )
     if proj_veto:
         hard_veto_layers = hard_veto_layers.union(proj_veto)
         print(f"  [Per-Projection VETO] Added {len(proj_veto)} attn layers (total VETO: {len(hard_veto_layers)}).")
-    keypattern_veto = _compute_sdxl_keypattern_veto(model, hard_veto_layers, _norm_profile)
+    keypattern_veto = _compute_sdxl_keypattern_veto(
+        model, hard_veto_layers, veto_tunables, _norm_profile
+    )
     if keypattern_veto:
         hard_veto_layers = hard_veto_layers.union(keypattern_veto)
         print(f"  [Key-Pattern VETO] hard_veto total: {len(hard_veto_layers)}.")
@@ -926,7 +1150,7 @@ def main():
 
     print("\nAnalyzing layer sensitivity (profile_score + drift)...")
 
-    _supp = _autonomous_supplemental_veto(model, hard_veto_layers, _norm_profile)
+    _supp = _autonomous_supplemental_veto(model, hard_veto_layers, _norm_profile, veto_tunables)
     if _supp:
         hard_veto_layers = hard_veto_layers.union(_supp)
         print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
@@ -944,7 +1168,7 @@ def main():
         if prof and mod is not None and hasattr(mod, "weight"):
             drift = _weight_profile_drift(mod.weight.data, prof)
         if prof:
-            score = _profile_score_from_entry(prof, drift)
+            score = _profile_score_from_entry(prof, drift, veto_tunables)
         elif name in dual_monitors:
             score = dual_monitors[name].get_sensitivity()
             ranking_source = "dualmonitor_fallback"
@@ -961,7 +1185,7 @@ def main():
     
     # [V2.0 SDXL MSE-Guided VETO Reassessment] outlier-only VETO release candidates
     release_cands = _collect_mse_release_candidates(
-        hard_veto_layers, structural_veto, _norm_profile, model
+        hard_veto_layers, structural_veto, _norm_profile, model, veto_tunables
     )
     if keypattern_veto:
         release_cands -= keypattern_veto
@@ -978,6 +1202,7 @@ def main():
             alpha=alpha,
             beta=beta,
             device=device,
+            tunables=veto_tunables,
         )
     
     non_veto_total = len([n for n in target_modules if n not in hard_veto_layers])
