@@ -27,6 +27,7 @@ cache/
 # Local test folder (never commit or push)
 test/*
 !test/benchmark_zit.md
+!test/benchmark_test.md
 
 # Local / private
 .mailmap
