@@ -1,15 +1,14 @@
 """
-Quantize SDXL model to FP8 (HSWQ V1.4: V1.3 + VETO + SDXL-optimized search_range).
+Quantize SDXL model to FP8 (HSWQ V1.4: V1.3 + VETO + auto-protect + SDXL search_range).
 
 Changelog from V1.3:
-- [NEW] Hard VETO: embedding/boundary layers always kept FP16, regardless of keep_ratio.
-        (time_embedding.*, add_embedding.*, conv_in, conv_out)
-        These layers have extreme outlier distributions unsuitable for FP8.
-        They are added ON TOP of keep_ratio — keep_ratio behavior is identical to V1.3.
-- [NEW] SDXL search_range=(0.99, 1.0): SDXL weights follow near-uniform distribution.
-        Absmax is the optimal clipping threshold. V1.3's (0.5, 1.0) wastes search budget
-        and risks spurious clipping on uniform layers.
-- keep_ratio: unchanged from V1.3. Same argument, same default (0.25), same behavior.
+- [NEW] Hard VETO: embedding/boundary layers always FP16 (on top of keep_ratio).
+- [NEW] Auto-protect: after computing optimal amax for all layers, measures actual
+        quantization MSE per layer. Layers with MSE above the auto-detected threshold
+        (Tukey fence: Q3 + 1.5*IQR) are promoted to FP16 automatically.
+        No manual threshold needed. Adapts to each model.
+- [NEW] SDXL search_range=(0.99, 1.0): optimal for uniform weight distribution.
+- keep_ratio: unchanged from V1.3.
 """
 
 import argparse
@@ -25,7 +24,6 @@ import sys
 import re
 import numpy as np
 
-# Ensure histogram modules are importable regardless of clone path / CWD
 current_dir = os.path.dirname(os.path.abspath(__file__))
 histogram_dir = os.path.join(current_dir, "histogram")
 if histogram_dir not in sys.path:
@@ -38,7 +36,6 @@ from weighted_histogram_mse_fast import (
 
 
 def seed_everything(seed=42):
-    """Fix all RNG seeds for reproducible calibration."""
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
@@ -58,29 +55,41 @@ else:
 
 
 # ---------------------------------------------------------------------------
-# V1.4: Hard VETO patterns (always FP16, on top of keep_ratio)
+# Hard VETO (always FP16)
 # ---------------------------------------------------------------------------
 _VETO_PREFIXES = (
     "time_embedding.",
     "add_embedding.",
 )
-_VETO_EXACT = {
-    "conv_in",
-    "conv_out",
-}
+_VETO_EXACT = {"conv_in", "conv_out"}
 
 def is_hard_veto(name: str) -> bool:
     if any(name.startswith(p) for p in _VETO_PREFIXES):
         return True
-    if name in _VETO_EXACT:
-        return True
-    return False
+    return name in _VETO_EXACT
 
 
 # ---------------------------------------------------------------------------
-# ComfyUI-compatible mapping helpers (unchanged from V1.3)
+# Auto-protect: Tukey fence on per-layer quantization MSE
 # ---------------------------------------------------------------------------
+def compute_auto_protect_threshold(mse_values: list[float]) -> float:
+    """
+    Tukey fence: Q3 + 1.5 * IQR.
+    Layers with MSE above this are statistical outliers = damaged by FP8.
+    """
+    if not mse_values:
+        return float('inf')
+    arr = np.array(sorted(mse_values))
+    q1 = np.percentile(arr, 25)
+    q3 = np.percentile(arr, 75)
+    iqr = q3 - q1
+    threshold = q3 + 1.5 * iqr
+    return float(threshold)
 
+
+# ---------------------------------------------------------------------------
+# ComfyUI mapping (unchanged from V1.3)
+# ---------------------------------------------------------------------------
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
     while True:
@@ -98,8 +107,7 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
     transformer_prefix = prefix + "1.transformer_blocks."
     transformer_keys = sorted(list(filter(lambda a: a.startswith(transformer_prefix), state_dict_keys)))
     if len(transformer_keys) > 0:
-        last_transformer_depth = count_blocks(state_dict_keys, transformer_prefix + '{}')
-        return last_transformer_depth
+        return count_blocks(state_dict_keys, transformer_prefix + '{}')
     return 0
 
 def detect_unet_config_from_keys(state_dict):
@@ -135,12 +143,12 @@ def detect_unet_config_from_keys(state_dict):
     for key in filtered_keys:
         match = re.match(r'(?:model\.diffusion_model\.)?input_blocks\.(\d+)\.1\.transformer_blocks\.(\d+)', key)
         if match:
-            block_idx, trans_idx = int(match.group(1)), int(match.group(2))
-            transformer_counts[block_idx] = max(transformer_counts.get(block_idx, 0), trans_idx + 1)
+            b, t = int(match.group(1)), int(match.group(2))
+            transformer_counts[b] = max(transformer_counts.get(b, 0), t + 1)
         match = re.match(r'(?:model\.diffusion_model\.)?output_blocks\.(\d+)\.1\.transformer_blocks\.(\d+)', key)
         if match:
-            block_idx, trans_idx = int(match.group(1)), int(match.group(2))
-            output_transformer_counts[block_idx] = max(output_transformer_counts.get(block_idx, 0), trans_idx + 1)
+            b, t = int(match.group(1)), int(match.group(2))
+            output_transformer_counts[b] = max(output_transformer_counts.get(b, 0), t + 1)
     middle_transformer_count = 0
     for key in filtered_keys:
         match = re.match(r'(?:model\.diffusion_model\.)?middle_block\.1\.transformer_blocks\.(\d+)', key)
@@ -249,7 +257,7 @@ def load_unet_from_safetensors(path, device="cuda"):
     return pipeline, state_dict, comfyui_to_diffusers_map
 
 
-# --- Dual Monitor: Sensitivity & Importance (identical to V1.3) ---
+# --- Dual Monitor (identical to V1.3) ---
 class DualMonitor:
     def __init__(self):
         self.output_sum = 0.0
@@ -294,13 +302,14 @@ def hook_fn(module, input, output, name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SDXL FP8 Quantization (HSWQ V1.4: V1.3 + VETO + SDXL search_range)")
-    parser.add_argument("--input",               type=str,   required=True,  help="Path to input safetensors model")
-    parser.add_argument("--output",              type=str,   required=True,  help="Path to output safetensors model")
-    parser.add_argument("--calib_file",          type=str,   required=True,  help="Path to calibration prompts text file")
-    parser.add_argument("--num_calib_samples",   type=int,   default=256,    help="Number of calibration samples (HSWQ recommended: 256)")
-    parser.add_argument("--num_inference_steps", type=int,   default=20,     help="Number of inference steps")
-    parser.add_argument("--keep_ratio",          type=float, default=0.25,   help="Ratio of layers to keep in FP16 (typical 0.05-0.25; 0.05-0.10 often sufficient for SDXL/ZIT)")
+    parser = argparse.ArgumentParser(description="SDXL FP8 Quantization (HSWQ V1.4)")
+    parser.add_argument("--input",               type=str,   required=True)
+    parser.add_argument("--output",              type=str,   required=True)
+    parser.add_argument("--calib_file",          type=str,   required=True)
+    parser.add_argument("--num_calib_samples",   type=int,   default=256)
+    parser.add_argument("--num_inference_steps", type=int,   default=20)
+    parser.add_argument("--keep_ratio",          type=float, default=0.25,
+                        help="Ratio of layers to keep in FP16 (typical 0.05-0.25)")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -308,9 +317,7 @@ def main():
 
     pipeline, original_state_dict, comfyui_to_diffusers_map = load_unet_from_safetensors(args.input, device)
 
-    # -------------------------------------------------------------------------
-    # Calibration hooks — ALL layers (identical to V1.3)
-    # -------------------------------------------------------------------------
+    # --- Calibration (identical to V1.3) ---
     print("Preparing calibration (registering Dual Monitor hooks)...")
     handles = []
     target_modules = []
@@ -329,7 +336,6 @@ def main():
         prompts = prompts[:args.num_calib_samples]
 
     print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps)...")
-    print("Measuring Sensitivity and Importance (input activation) simultaneously...")
     pipeline.set_progress_bar_config(disable=False)
     generator = torch.Generator(device=device).manual_seed(42)
 
@@ -349,10 +355,7 @@ def main():
     for h in handles:
         h.remove()
 
-    # -------------------------------------------------------------------------
-    # Sensitivity ranking — identical to V1.3
-    # ALL layers participate; keep_ratio applies to all layers exactly as V1.3.
-    # -------------------------------------------------------------------------
+    # --- Sensitivity ranking (identical to V1.3) ---
     print("\nRunning layer sensitivity analysis...")
     layer_sensitivities = []
     for name in target_modules:
@@ -361,34 +364,26 @@ def main():
             layer_sensitivities.append((name, sensitivity))
 
     layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
-
-    # Top keep_ratio% → FP16 (same as V1.3)
     num_keep = int(len(layer_sensitivities) * args.keep_ratio)
     keep_layers = set(x[0] for x in layer_sensitivities[:num_keep])
 
-    # V1.4 addition: hard VETO layers always FP16, on top of keep_ratio
+    # Hard VETO (on top of keep_ratio)
     hard_veto_layers = {name for name in target_modules if is_hard_veto(name)}
     keep_layers |= hard_veto_layers
 
     print(f"Total layers: {len(layer_sensitivities)}")
-    print(f"FP16-kept layers: {len(keep_layers)} "
-          f"(Top {args.keep_ratio*100:.1f}% = {num_keep} + VETO = {len(hard_veto_layers)})")
-    print("Top 5 Sensitive Layers:")
+    print(f"FP16-kept (sensitivity): {num_keep} (Top {args.keep_ratio*100:.1f}%)")
+    print(f"FP16-kept (VETO):        {len(hard_veto_layers)}")
+    print("Top 5 Sensitive:")
     for i in range(min(5, len(layer_sensitivities))):
         print(f"  {i+1}. {layer_sensitivities[i][0]}: {layer_sensitivities[i][1]:.4f}")
-    print(f"Hard VETO layers ({len(hard_veto_layers)}):")
-    for n in sorted(hard_veto_layers):
-        print(f"  VETO: {n}")
 
-    # -------------------------------------------------------------------------
-    # HSWQ optimization
-    # V1.4: search_range=(0.99, 1.0) — SDXL near-uniform distribution;
-    #       optimal amax is essentially absmax. Locks the search to that region.
-    # Optimizer settings same as V1.3 (bins=4096, candidates=200, refinement=3).
-    # -------------------------------------------------------------------------
-    print("\n[HSWQ V1.4] Starting weighted MSE analysis...")
-    print("HSWQ module: FP8 E4M3 exact-grid MSE optimization.")
-    print("search_range=(0.99, 1.0): SDXL uniform distribution — absmax is optimal.")
+    # =====================================================================
+    # HSWQ Pass 1: compute optimal amax AND MSE for every quantizable layer
+    # =====================================================================
+    print("\n" + "=" * 70)
+    print("[HSWQ V1.4] Pass 1: Computing optimal amax + MSE for all layers...")
+    print("=" * 70)
 
     SDXL_SEARCH_RANGE = (0.99, 1.0)
 
@@ -398,20 +393,20 @@ def main():
         refinement_iterations=3,
         device=device,
     )
-    weight_amax_dict = {}
 
-    for name, module in tqdm(pipeline.unet.named_modules(), desc="Analyzing"):
+    # Collect amax and MSE for every non-keep layer
+    layer_results = {}  # name -> {"amax": float, "mse": float}
+
+    for name, module in tqdm(pipeline.unet.named_modules(), desc="Pass 1: Amax + MSE"):
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
             if name in keep_layers:
                 continue
 
             importance = dual_monitors[name].channel_importance if name in dual_monitors else None
 
-            # Build weighted histogram (same as V1.3 internal path)
             wh = WeightedHistogramOptimized(bins=hswq_optimizer.bins, device=device)
             wh.build(module.weight.data, importance)
 
-            # Find optimal amax with SDXL-tuned search_range
             optimal_amax = hswq_optimizer.mse_optimizer.find_optimal_amax(
                 wh,
                 num_candidates=hswq_optimizer.num_candidates,
@@ -419,21 +414,89 @@ def main():
                 refinement_iterations=hswq_optimizer.refinement_iterations,
                 scaled=False,
             )
-            weight_amax_dict[name + ".weight"] = optimal_amax
+
+            # Measure actual MSE at this amax
+            histogram = wh.get_histogram()
+            bin_centers = wh.get_bin_centers()
+            mse = hswq_optimizer.mse_optimizer.compute_weighted_mse(
+                histogram, bin_centers, optimal_amax, scaled=False
+            )
+
+            layer_results[name] = {"amax": optimal_amax, "mse": mse}
             torch.cuda.empty_cache()
 
-    print(f"Layers to quantize: {len(weight_amax_dict)}")
+    # =====================================================================
+    # Auto-protect: detect MSE outliers and promote to FP16
+    # =====================================================================
+    all_mses = [r["mse"] for r in layer_results.values()]
 
-    # -------------------------------------------------------------------------
-    # VRAM Optimization → GPU conversion (identical to V1.3)
-    # -------------------------------------------------------------------------
-    print("\n[VRAM Optimization] Preparing for high-speed GPU conversion...")
+    if all_mses:
+        threshold = compute_auto_protect_threshold(all_mses)
+        arr = np.array(sorted(all_mses))
+        q1 = np.percentile(arr, 25)
+        median = np.percentile(arr, 50)
+        q3 = np.percentile(arr, 75)
+        iqr = q3 - q1
+
+        print(f"\n{'=' * 70}")
+        print(f"[Auto-Protect] MSE Distribution Analysis")
+        print(f"{'=' * 70}")
+        print(f"  Layers analyzed : {len(all_mses)}")
+        print(f"  MSE Q1          : {q1:.6e}")
+        print(f"  MSE Median      : {median:.6e}")
+        print(f"  MSE Q3          : {q3:.6e}")
+        print(f"  MSE IQR         : {iqr:.6e}")
+        print(f"  Auto threshold  : {threshold:.6e}  (Q3 + 1.5*IQR)")
+
+        # Identify and promote outlier layers
+        auto_promoted = set()
+        promoted_details = []
+        for name, result in layer_results.items():
+            if result["mse"] > threshold:
+                auto_promoted.add(name)
+                promoted_details.append((name, result["mse"]))
+
+        promoted_details.sort(key=lambda x: x[1], reverse=True)
+
+        if auto_promoted:
+            print(f"\n  Auto-promoted to FP16: {len(auto_promoted)} layers")
+            for name, mse in promoted_details:
+                print(f"    PROMOTE: {name:50} MSE={mse:.6e}")
+            keep_layers |= auto_promoted
+        else:
+            print(f"\n  No outlier layers detected. All layers within normal MSE range.")
+
+    # =====================================================================
+    # Build final amax dict (excluding all keep_layers)
+    # =====================================================================
+    weight_amax_dict = {}
+    for name, result in layer_results.items():
+        if name not in keep_layers:
+            weight_amax_dict[name + ".weight"] = result["amax"]
+
+    fp8_count = len(weight_amax_dict)
+    fp16_count = len(keep_layers)
+
+    print(f"\n{'=' * 70}")
+    print(f"[Final Summary]")
+    print(f"  FP16 (sensitivity) : {num_keep}")
+    print(f"  FP16 (VETO)        : {len(hard_veto_layers)}")
+    print(f"  FP16 (auto-protect): {len(auto_promoted) if all_mses else 0}")
+    print(f"  FP16 total         : {fp16_count}")
+    print(f"  FP8 total          : {fp8_count}")
+    print(f"  FP16 ratio         : {fp16_count/(fp8_count+fp16_count)*100:.1f}%")
+    print(f"{'=' * 70}")
+
+    # =====================================================================
+    # GPU conversion (identical to V1.3)
+    # =====================================================================
+    print("\n[VRAM Optimization] Preparing for GPU conversion...")
     del pipeline
     del hswq_optimizer
     gc.collect()
     torch.cuda.empty_cache()
 
-    print(f"[VRAM Optimization] Moving source weights to {device}...")
+    print(f"Moving source weights to {device}...")
     input_keys = list(original_state_dict.keys())
     for k in tqdm(input_keys, desc="Loading to VRAM"):
         original_state_dict[k] = original_state_dict[k].to(device)
@@ -443,7 +506,6 @@ def main():
     converted_count = 0
     kept_count = 0
 
-    print("Converting weights (GPU accelerated)...")
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         diffusers_key = None
         if key in comfyui_to_diffusers_map:
@@ -472,14 +534,13 @@ def main():
 
         output_state_dict[key] = new_value
 
-    print("Conversion done:")
-    print(f"  FP8 layers: {converted_count}")
-    print(f"  FP16-kept layers: {kept_count}")
+    print(f"  FP8 layers : {converted_count}")
+    print(f"  FP16 kept  : {kept_count}")
 
     try:
         save_file(output_state_dict, args.output)
     except Exception as e:
-        print(f"[Save Warning] GPU Tensor save failed ({e}). Moving to CPU explicitly...")
+        print(f"[Save Warning] {e}. Moving to CPU...")
         cpu_dict = {k: v.cpu() for k, v in output_state_dict.items()}
         save_file(cpu_dict, args.output)
 
