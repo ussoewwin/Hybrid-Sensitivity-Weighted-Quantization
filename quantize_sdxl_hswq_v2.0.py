@@ -451,16 +451,21 @@ def _ff2_selective_veto_hit(
     tunables: SdxlVetoTunables,
 ) -> tuple[bool, str]:
     """Selective ff.net.2 VETO: class-relative profile_score and outlier (not blanket)."""
+    # V2.0 fix: floor thresholds to prevent SDXL's uniform distribution from
+    # deriving thresholds so low that selective == full-class.
+    score_cut = max(tunables.ff2_profile_score_cutoff, 2.5)
+    outlier_cut = max(tunables.ff2_profile_outlier, 40.0)
+    live_cut = max(tunables.ff2_outlier_live, 40.0)
     if prof:
         score = _profile_score_from_entry(prof, tunables=tunables)
         o = float(prof.get("outlier_ratio", 0) or 0)
-        if score >= tunables.ff2_profile_score_cutoff:
-            return True, f"profile_score={score:.2f}>={tunables.ff2_profile_score_cutoff}"
-        if o >= tunables.ff2_profile_outlier:
-            return True, f"profile_o={o:.1f}>={tunables.ff2_profile_outlier}"
+        if score >= score_cut:
+            return True, f"profile_score={score:.2f}>={score_cut}"
+        if o >= outlier_cut:
+            return True, f"profile_o={o:.1f}>={outlier_cut}"
         return False, ""
-    if live_o > tunables.ff2_outlier_live:
-        return True, f"live_o={live_o:.1f}>{tunables.ff2_outlier_live}"
+    if live_o > live_cut:
+        return True, f"live_o={live_o:.1f}>{live_cut}"
     return False, ""
 
 
