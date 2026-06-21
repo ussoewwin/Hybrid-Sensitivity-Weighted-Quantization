@@ -47,7 +47,12 @@ def _layer_stats(tensor: torch.Tensor) -> Dict[str, float]:
     abs_flat = flat.abs()
     std = float(flat.std().item()) if flat.numel() > 1 else 0.0
     abs_max = float(abs_flat.max().item())
-    kurt = float(flat.kurtosis().item()) if flat.numel() > 1 else 0.0
+    if flat.numel() > 1:
+        arr = flat.cpu().numpy()
+        s = float(arr.std())
+        kurt = float(np.mean(((arr - arr.mean()) / s) ** 4) - 3.0) if s > 0 else 0.0
+    else:
+        kurt = 0.0
     outlier_ratio = float(abs_max / std if std > 0 else 0.0)
     return {
         "kurtosis": kurt,
