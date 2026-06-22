@@ -39,7 +39,7 @@ venv_site_packages = os.path.join(os.path.dirname(current_dir), "venv", "Lib", "
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
     sys.path.append(venv_site_packages)
 
-from weighted_histogram_mse_v4 import HSWQWeightedHistogramOptimizerV4
+from weighted_histogram_mse_v5 import HSWQWeightedHistogramOptimizerV5
 
 # Enforce C++20
 if sys.platform == "win32":
@@ -690,7 +690,7 @@ def _mse_grayzone_veto_reassessment(
     )
     print(f"  Trial-quantizing to measure actual HSWQ quantization error...")
 
-    trial_optimizer = HSWQWeightedHistogramOptimizerV4(
+    trial_optimizer = HSWQWeightedHistogramOptimizerV5(
         bins=8192, num_candidates=1000, refinement_iterations=10,
         device=device, alpha=alpha, beta=beta
     )
@@ -1259,7 +1259,7 @@ def main():
 
     print("\n[HSWQ V2.0 SDXL] Starting Optimization...")
     weight_amax_dict = {}
-    hswq_optimizer = HSWQWeightedHistogramOptimizerV4(
+    hswq_optimizer = HSWQWeightedHistogramOptimizerV5(
         bins=8192,
         num_candidates=1000,
         refinement_iterations=10,
