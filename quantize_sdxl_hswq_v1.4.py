@@ -386,7 +386,7 @@ def main():
     print("=" * 70)
 
     # V1.3 used default search_range=(0.5, 1.0). Restoring to allow proper outlier clipping!
-    SDXL_SEARCH_RANGE = (0.5, 1.0)
+    SDXL_SEARCH_RANGE = (0.99, 1.0)
 
     hswq_optimizer = HSWQWeightedHistogramOptimizer(
         bins=4096,
