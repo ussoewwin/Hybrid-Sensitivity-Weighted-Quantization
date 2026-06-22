@@ -392,7 +392,7 @@ class HSWQWeightedHistogramOptimizerV5:
         
         histogram = weighted_hist.get_histogram()
         bin_centers = weighted_hist.get_bin_centers()
-        estimated_mse = self.mse_optimizer.compute_weighted_mse(histogram, bin_centers, optimal_amax, scaled=scaled)
+        estimated_mse = self.mse_optimizer.compute_weighted_loss(histogram, bin_centers, optimal_amax, scaled=scaled, loss_type=loss_type)
         
         return {
             'optimal_amax': optimal_amax,
