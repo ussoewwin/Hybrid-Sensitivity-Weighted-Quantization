@@ -385,7 +385,8 @@ def main():
     print("[HSWQ V1.4] Pass 1: Computing optimal amax + MSE for all layers...")
     print("=" * 70)
 
-    SDXL_SEARCH_RANGE = (0.99, 1.0)
+    # V1.3 used default search_range=(0.5, 1.0). Restoring to allow proper outlier clipping!
+    SDXL_SEARCH_RANGE = (0.5, 1.0)
 
     hswq_optimizer = HSWQWeightedHistogramOptimizer(
         bins=4096,
