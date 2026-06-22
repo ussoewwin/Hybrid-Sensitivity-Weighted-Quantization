@@ -987,6 +987,7 @@ def main():
     parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL)")
+    parser.add_argument("--veto_ratio", type=float, default=0.12, help="Max ratio of layers for autonomous VETO (0=original 5-layer only, 0.12=~12%% budget cap)")
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     args = parser.parse_args()
@@ -1080,10 +1081,16 @@ def main():
     )
 
     print("  [V2.0 SDXL Autonomous VETO] Structural + per-projection attn + key-pattern + supplemental.")
+    # --- Mandatory VETOs (always kept regardless of budget) ---
+    mandatory_veto = set(hard_veto_layers)  # Static Profile VETO (extreme k/o/m)
     structural_veto = _compute_structural_veto(model, hard_veto_layers, _norm_profile)
     if structural_veto:
+        mandatory_veto = mandatory_veto.union(structural_veto)
         hard_veto_layers = hard_veto_layers.union(structural_veto)
         print(f"  [Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
+
+    # --- Soft VETOs (subject to budget cap) ---
+    soft_veto_scored = []  # list of (name, severity_score)
     proj_veto = _compute_sdxl_per_projection_attn_veto(
         model,
         hard_veto_layers,
@@ -1091,14 +1098,49 @@ def main():
         _norm_profile,
     )
     if proj_veto:
+        for pn in proj_veto:
+            prof = _norm_profile.get(pn, {})
+            _k = float(prof.get("kurtosis", 0) or 0)
+            _o = float(prof.get("outlier_ratio", 0) or 0)
+            _m = float(prof.get("abs_max", 0) or 0)
+            soft_veto_scored.append((pn, _k + _o * 2.0 + _m * 0.5, "attn"))
         hard_veto_layers = hard_veto_layers.union(proj_veto)
         print(f"  [Per-Projection VETO] Added {len(proj_veto)} attn layers (total VETO: {len(hard_veto_layers)}).")
     keypattern_veto = _compute_sdxl_keypattern_veto(
         model, hard_veto_layers, veto_tunables, _norm_profile
     )
     if keypattern_veto:
+        # Separate embedding/boundary (mandatory) from ff2 (soft)
+        kp_mandatory = set()
+        for kn in keypattern_veto:
+            if any(kn.startswith(p) for p in _SDXL_KP_PREFIXES) or kn.endswith(_SDXL_KP_BOUNDARY_SUFFIXES):
+                kp_mandatory.add(kn)
+            else:
+                prof = _norm_profile.get(kn, {})
+                _k = float(prof.get("kurtosis", 0) or 0)
+                _o = float(prof.get("outlier_ratio", 0) or 0)
+                _m = float(prof.get("abs_max", 0) or 0)
+                soft_veto_scored.append((kn, _k + _o * 2.0 + _m * 0.5, "ff2"))
+        mandatory_veto = mandatory_veto.union(kp_mandatory)
         hard_veto_layers = hard_veto_layers.union(keypattern_veto)
         print(f"  [Key-Pattern VETO] hard_veto total: {len(hard_veto_layers)}.")
+
+    # --- Budget Cap ---
+    total_modules = sum(1 for _, m in model.named_modules() if isinstance(m, (torch.nn.Conv2d, torch.nn.Linear)))
+    veto_budget = int(total_modules * args.veto_ratio) if args.veto_ratio > 0 else len(mandatory_veto)
+    veto_budget = max(veto_budget, len(mandatory_veto))  # mandatory always survives
+
+    if len(hard_veto_layers) > veto_budget:
+        # Sort soft VETOs by severity (highest first), trim to fit budget
+        soft_veto_scored.sort(key=lambda x: x[1], reverse=True)
+        available_slots = veto_budget - len(mandatory_veto)
+        kept_soft = set(s[0] for s in soft_veto_scored[:max(available_slots, 0)])
+        trimmed = hard_veto_layers - mandatory_veto - kept_soft
+        hard_veto_layers = mandatory_veto.union(kept_soft)
+        print(f"  [VETO Budget Cap] Trimmed {len(trimmed)} soft VETOs to fit budget {veto_budget}/{total_modules} ({args.veto_ratio:.1%}).")
+        print(f"  [VETO Budget Cap] Final: {len(mandatory_veto)} mandatory + {len(kept_soft)} soft = {len(hard_veto_layers)} total.")
+    else:
+        print(f"  [VETO Budget] {len(hard_veto_layers)}/{total_modules} layers ({len(hard_veto_layers)/total_modules:.1%}) — within budget.")
 
     print("Preparing calibration (Dual Monitor hooks)...")
     dual_monitors.clear()
