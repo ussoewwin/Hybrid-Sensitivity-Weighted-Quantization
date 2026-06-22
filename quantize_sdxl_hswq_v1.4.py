@@ -29,8 +29,8 @@ histogram_dir = os.path.join(current_dir, "histogram")
 if histogram_dir not in sys.path:
     sys.path.insert(0, histogram_dir)
 
-# HSWQ module (V4)
-from weighted_histogram_mse_v4 import HSWQWeightedHistogramOptimizerV4 as HSWQWeightedHistogramOptimizer
+# HSWQ module (Fast V2)
+from weighted_histogram_mse_fast_v2 import HSWQWeightedHistogramOptimizerFast as HSWQWeightedHistogramOptimizer
 
 
 def seed_everything(seed=42):
@@ -411,8 +411,7 @@ def main():
             optimal_amax = hswq_optimizer.compute_optimal_amax(
                 module.weight.data, 
                 importance,
-                scaled=False,  # compatibility mode
-                search_range=(0.99, 1.0)
+                scaled=False  # compatibility mode
             )
             weight_amax_dict[name + ".weight"] = optimal_amax
             
