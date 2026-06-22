@@ -413,6 +413,25 @@ def _apply_unified_veto_budget_cap(
     return kept_names, trimmed, veto_budget
 
 
+def _refresh_veto_pool_scores(
+    pool: dict[str, tuple[int, float, str]],
+    module_dict: dict[str, nn.Module],
+    norm_profile: dict,
+    tunables: SdxlVetoTunables,
+) -> int:
+    """Recompute pool severity scores using post-calibration weight drift (tier/source unchanged)."""
+    for name in list(pool.keys()):
+        tier, _, source = pool[name]
+        prof = norm_profile.get(name, norm_profile.get(name + ".weight", {}))
+        mod = module_dict.get(name)
+        drift = 0.0
+        if prof and mod is not None and hasattr(mod, "weight"):
+            drift = _weight_profile_drift(mod.weight.data, prof)
+        score = _veto_profile_severity_score(prof, drift=drift, tunables=tunables)
+        pool[name] = (tier, score, source)
+    return len(pool)
+
+
 def resolve_veto_tunables(
     norm_profile: dict,
     profile_summary: dict | None = None,
@@ -1246,16 +1265,20 @@ def main():
     if _supp:
         for sn in _supp:
             prof = _norm_profile.get(sn, {})
-            mod = _module_dict_pre.get(sn)
-            drift = 0.0
-            if prof and mod is not None and hasattr(mod, "weight"):
-                drift = _weight_profile_drift(mod.weight.data, prof)
-            score = _veto_profile_severity_score(prof, drift=drift, tunables=veto_tunables)
+            score = _veto_profile_severity_score(prof, tunables=veto_tunables)
             _register_veto_candidate(
                 veto_pool, sn, _VETO_TIER_SUPPLEMENTAL, score, "supplemental"
             )
             veto_considered.add(sn)
         print(f"  [Supplemental VETO] Discovered {len(_supp)} layers (pool: {len(veto_pool)}).")
+
+    _n_refreshed = _refresh_veto_pool_scores(
+        veto_pool, _module_dict_pre, _norm_profile, veto_tunables
+    )
+    print(
+        f"  [VETO Pool] Refreshed severity scores with post-calibration drift "
+        f"for {_n_refreshed} candidates before budget cap."
+    )
 
     hard_veto_layers, trimmed_veto, veto_budget = _apply_unified_veto_budget_cap(
         veto_pool, total_modules, args.veto_ratio
