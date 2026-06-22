@@ -30,7 +30,7 @@ if histogram_dir not in sys.path:
     sys.path.insert(0, histogram_dir)
 
 # HSWQ module (Fast)
-from weighted_histogram_mse_v4 import HSWQWeightedHistogramOptimizerV4 as HSWQWeightedHistogramOptimizer
+from weighted_histogram_mse_fast import HSWQWeightedHistogramOptimizerFast as HSWQWeightedHistogramOptimizer
 
 
 def seed_everything(seed=42):
@@ -407,13 +407,17 @@ def main():
             if name in dual_monitors:
                 importance = dual_monitors[name].channel_importance
             
-            # HSWQ: full weighted MSE via module; scaled=False for compatibility
-            optimal_amax = hswq_optimizer.compute_optimal_amax(
-                module.weight.data, 
-                importance,
-                scaled=False,  # compatibility mode
+            # Call find_optimal_amax directly to pass search_range without altering the fast optimizer signature
+            from weighted_histogram_mse_fast import WeightedHistogramOptimized
+            wh = WeightedHistogramOptimized(bins=hswq_optimizer.bins, device=device)
+            wh.build(module.weight.data, importance)
+
+            optimal_amax = hswq_optimizer.mse_optimizer.find_optimal_amax(
+                wh,
+                num_candidates=hswq_optimizer.num_candidates,
                 search_range=(0.99, 1.0),
-                use_svd_leverage=False
+                refinement_iterations=hswq_optimizer.refinement_iterations,
+                scaled=False
             )
             weight_amax_dict[name + ".weight"] = optimal_amax
             
