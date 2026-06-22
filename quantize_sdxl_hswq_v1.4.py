@@ -422,7 +422,11 @@ def main():
                 histogram, bin_centers, optimal_amax, scaled=False
             )
 
-            layer_results[name] = {"amax": optimal_amax, "mse": mse}
+            # Cast to float to detach from graph and prevent VRAM leak!
+            layer_results[name] = {
+                "amax": float(optimal_amax), 
+                "mse": float(mse)
+            }
             torch.cuda.empty_cache()
 
     # =====================================================================
