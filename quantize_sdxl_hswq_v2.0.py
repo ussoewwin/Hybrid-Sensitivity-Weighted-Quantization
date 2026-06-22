@@ -236,7 +236,7 @@ def calculate_kurtosis(tensor):
     return torch.mean(((tensor - mean) / std) ** 4).item()
 
 # --- V2.0 SDXL autonomous engine tunables (key-pattern / drift only; numeric thresholds from profile) ---
-_SDXL_KP_BOUNDARY_SUFFIXES = (".conv_in", ".conv_out")
+_SDXL_KP_BOUNDARY_SUFFIXES = (".conv_in", ".conv_out", ".to_out.0")
 _SDXL_KP_PREFIXES = ("time_embedding.", "add_embedding.")
 _SDXL_ATTN_PROJ_SUFFIXES = (".to_q", ".to_k", ".to_v")
 _SDXL_ATTN_TOOUT_SUFFIX = ".to_out.0"
