@@ -1243,7 +1243,7 @@ def main():
             )
             optimal_amax = hswq_optimizer.compute_optimal_amax(
                 module.weight.data, 
-                importance, 
+                None,  # FIXED: Do NOT pass importance here for SDXL, it ruins the histogram!
                 use_svd_leverage=False,  # V2.0 SDXL fix: SVD leverage harms uniform distribution
                 scaled=False, 
                 search_range=layer_search_range,
