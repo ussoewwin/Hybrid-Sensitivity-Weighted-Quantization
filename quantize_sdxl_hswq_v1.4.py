@@ -1,14 +1,14 @@
 """
-Quantize SDXL model to FP8 (HSWQ V1.4: V1.3 + VETO + auto-protect + SDXL search_range).
+Quantize SDXL model to FP8 (HSWQ V1.3: GPU Accelerated, Fast histogram).
+Implements sensitivity-based protection and importance-weighted optimization per HSWQ spec.
+Uses scaled=False (clipping-threshold search only) for standard-loader compatibility.
 
-Changelog from V1.3:
-- [NEW] Hard VETO: embedding/boundary layers always FP16 (on top of keep_ratio).
-- [NEW] Auto-protect: after computing optimal amax for all layers, measures actual
-        quantization MSE per layer. Layers with MSE above the auto-detected threshold
-        (Tukey fence: Q3 + 1.5*IQR) are promoted to FP16 automatically.
-        No manual threshold needed. Adapts to each model.
-- [NEW] SDXL search_range=(0.99, 1.0): optimal for uniform weight distribution.
-- keep_ratio: unchanged from V1.3.
+Changelog:
+- V1.21: VRAM-optimized; quantization conversion on GPU.
+- V1.3: Fast histogram (weighted_histogram_mse_fast). SA2 excluded from calibration.
+  (SA2 slightly lowers scores with no meaningful speed gain; native SDPA only for purity.)
+
+Algorithm: same as V1.1/V1.2 + GPU convert + Fast histogram.
 """
 
 import argparse
@@ -21,21 +21,20 @@ import os
 import gc
 from tqdm import tqdm
 import sys
-import re
 import numpy as np
 
+# Ensure histogram modules are importable regardless of clone path / CWD
 current_dir = os.path.dirname(os.path.abspath(__file__))
 histogram_dir = os.path.join(current_dir, "histogram")
 if histogram_dir not in sys.path:
     sys.path.insert(0, histogram_dir)
 
-from weighted_histogram_mse_fast import (
-    HSWQWeightedHistogramOptimizerFast as HSWQWeightedHistogramOptimizer,
-    WeightedHistogramOptimized,
-)
+# HSWQ module (Fast)
+from weighted_histogram_mse_v4 import HSWQWeightedHistogramOptimizerV4 as HSWQWeightedHistogramOptimizer
 
 
 def seed_everything(seed=42):
+    """Fix all RNG seeds and cuDNN for 100% reproducible calibration (same Amax/scores across runs and machines)."""
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
@@ -48,48 +47,17 @@ def seed_everything(seed=42):
 
 seed_everything(42)
 
+
+# Enforce C++20
 if sys.platform == "win32":
     os.environ.setdefault("CXXFLAGS", "/std:c++20")
 else:
     os.environ.setdefault("CXXFLAGS", "-std=c++20")
 
 
-# ---------------------------------------------------------------------------
-# Hard VETO (always FP16)
-# ---------------------------------------------------------------------------
-_VETO_PREFIXES = (
-    "time_embedding.",
-    "add_embedding.",
-)
-_VETO_EXACT = {"conv_in", "conv_out"}
 
-def is_hard_veto(name: str) -> bool:
-    if any(name.startswith(p) for p in _VETO_PREFIXES):
-        return True
-    return name in _VETO_EXACT
+# --- ComfyUI-compatible mapping helpers ---
 
-
-# ---------------------------------------------------------------------------
-# Auto-protect: Tukey fence on per-layer quantization MSE
-# ---------------------------------------------------------------------------
-def compute_auto_protect_threshold(mse_values: list[float]) -> float:
-    """
-    Tukey fence: Q3 + 1.5 * IQR.
-    Layers with MSE above this are statistical outliers = damaged by FP8.
-    """
-    if not mse_values:
-        return float('inf')
-    arr = np.array(sorted(mse_values))
-    q1 = np.percentile(arr, 25)
-    q3 = np.percentile(arr, 75)
-    iqr = q3 - q1
-    threshold = q3 + 1.5 * iqr
-    return float(threshold)
-
-
-# ---------------------------------------------------------------------------
-# ComfyUI mapping (unchanged from V1.3)
-# ---------------------------------------------------------------------------
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
     while True:
@@ -98,7 +66,7 @@ def count_blocks(state_dict_keys, prefix_string):
             if k.startswith(prefix_string.format(count)):
                 c = True
                 break
-        if not c:
+        if c == False:
             break
         count += 1
     return count
@@ -107,89 +75,98 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
     transformer_prefix = prefix + "1.transformer_blocks."
     transformer_keys = sorted(list(filter(lambda a: a.startswith(transformer_prefix), state_dict_keys)))
     if len(transformer_keys) > 0:
-        return count_blocks(state_dict_keys, transformer_prefix + '{}')
+        last_transformer_depth = count_blocks(state_dict_keys, transformer_prefix + '{}')
+        return last_transformer_depth
     return 0
 
-def detect_unet_config_from_keys(state_dict):
-    sd_keys = list(state_dict.keys())
-    unet_key_prefix = "model.diffusion_model."
-    filtered_keys = [k for k in sd_keys if k.startswith(unet_key_prefix)]
-    if not filtered_keys:
-        unet_key_prefix = ""
-        filtered_keys = sd_keys
-    num_res_blocks = []
-    channel_mult = []
-    transformer_depth = []
-    num_blocks = count_blocks(filtered_keys, unet_key_prefix + "input_blocks.{}")
-    for i in range(1, num_blocks):
-        block_keys = [k for k in filtered_keys if k.startswith(unet_key_prefix + f"input_blocks.{i}.")]
-        has_resnet = any(".in_layers." in k for k in block_keys)
-        has_transformer = any(".transformer_blocks." in k for k in block_keys)
-        if has_resnet:
-            if not channel_mult:
-                channel_mult.append(1)
-                num_res_blocks.append(0)
-                transformer_depth.append(0)
-            num_res_blocks[-1] += 1
-            td = calculate_transformer_depth(unet_key_prefix + f"input_blocks.{i}.", filtered_keys, state_dict)
-            if has_transformer:
-                transformer_depth[-1] = td
+def detect_unet_config_from_keys(state_dict, key_prefix="model.diffusion_model."):
+    state_dict_keys = list(state_dict.keys())
+    filtered_keys = [k for k in state_dict_keys if k.startswith(key_prefix)]
+    unet_config = {}
+    if f"{key_prefix}input_blocks.0.0.weight" in state_dict_keys:
+        model_channels = state_dict[f"{key_prefix}input_blocks.0.0.weight"].shape[0]
+        num_res_blocks = []
+        channel_mult = []
+        transformer_depth = []
+        transformer_depth_output = []
+        input_block_count = count_blocks(state_dict_keys, f"{key_prefix}input_blocks" + '.{}.')
+        last_res_blocks = 0
+        last_channel_mult = 0
+        for count in range(input_block_count):
+            prefix = f"{key_prefix}input_blocks.{count}."
+            prefix_output = f"{key_prefix}output_blocks.{input_block_count - count - 1}."
+            block_keys = sorted(list(filter(lambda a: a.startswith(prefix), state_dict_keys)))
+            if len(block_keys) == 0: break
+            block_keys_output = sorted(list(filter(lambda a: a.startswith(prefix_output), state_dict_keys)))
+            if f"{prefix}0.op.weight" in block_keys:
+                num_res_blocks.append(last_res_blocks)
+                channel_mult.append(last_channel_mult)
+                last_res_blocks = 0
+                last_channel_mult = 0
+                out = calculate_transformer_depth(prefix_output, state_dict_keys, state_dict)
+                transformer_depth_output.append(out)
+            else:
+                res_block_prefix = f"{prefix}0.in_layers.0.weight"
+                if res_block_prefix in block_keys:
+                    last_res_blocks += 1
+                    last_channel_mult = state_dict[f"{prefix}0.out_layers.3.weight"].shape[0] // model_channels
+                    out = calculate_transformer_depth(prefix, state_dict_keys, state_dict)
+                    transformer_depth.append(out)
+                res_block_prefix = f"{prefix_output}0.in_layers.0.weight"
+                if res_block_prefix in block_keys_output:
+                    out = calculate_transformer_depth(prefix_output, state_dict_keys, state_dict)
+                    transformer_depth_output.append(out)
+        num_res_blocks.append(last_res_blocks)
+        channel_mult.append(last_channel_mult)
+        if f"{key_prefix}middle_block.1.proj_in.weight" in state_dict_keys:
+            transformer_depth_middle = count_blocks(state_dict_keys, f"{key_prefix}middle_block.1.transformer_blocks." + '{}')
+        elif f"{key_prefix}middle_block.0.in_layers.0.weight" in state_dict_keys:
+            transformer_depth_middle = -1
         else:
-            channel_mult.append(channel_mult[-1] * 2 if channel_mult else 1)
-            num_res_blocks.append(0)
-            transformer_depth.append(0)
-    transformer_counts = {}
-    output_transformer_counts = {}
-    for key in filtered_keys:
-        match = re.match(r'(?:model\.diffusion_model\.)?input_blocks\.(\d+)\.1\.transformer_blocks\.(\d+)', key)
-        if match:
-            b, t = int(match.group(1)), int(match.group(2))
-            transformer_counts[b] = max(transformer_counts.get(b, 0), t + 1)
-        match = re.match(r'(?:model\.diffusion_model\.)?output_blocks\.(\d+)\.1\.transformer_blocks\.(\d+)', key)
-        if match:
-            b, t = int(match.group(1)), int(match.group(2))
-            output_transformer_counts[b] = max(output_transformer_counts.get(b, 0), t + 1)
-    middle_transformer_count = 0
-    for key in filtered_keys:
-        match = re.match(r'(?:model\.diffusion_model\.)?middle_block\.1\.transformer_blocks\.(\d+)', key)
-        if match:
-            middle_transformer_count = max(middle_transformer_count, int(match.group(1)) + 1)
-    return {
-        "num_res_blocks": num_res_blocks,
-        "channel_mult": channel_mult,
-        "transformer_depth": transformer_depth,
-        "transformer_depth_output": list(reversed(transformer_depth)),
-        "transformer_depth_middle": middle_transformer_count,
-    }
+            transformer_depth_middle = -2
+        unet_config["num_res_blocks"] = num_res_blocks
+        unet_config["channel_mult"] = channel_mult
+        unet_config["transformer_depth"] = transformer_depth
+        unet_config["transformer_depth_output"] = transformer_depth_output
+        unet_config["transformer_depth_middle"] = transformer_depth_middle
+    return unet_config
 
-def unet_to_diffusers_mapping(unet_config, state_dict, key_prefix="model.diffusion_model."):
+def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.diffusion_model."):
+    if "num_res_blocks" not in unet_config: return {}
     num_res_blocks = unet_config["num_res_blocks"]
-    num_blocks = len(num_res_blocks)
-    transformer_depth = unet_config["transformer_depth"][:]
-    transformer_depth_output = unet_config["transformer_depth_output"][:]
-    transformers_mid = unet_config.get("transformer_depth_middle", None)
-    sd_keys = list(state_dict.keys())
-    filtered_keys = [k for k in sd_keys if k.startswith(key_prefix)]
-    transformer_counts = {}
-    output_transformer_counts = {}
-    if filtered_keys:
+    channel_mult = unet_config["channel_mult"]
+    num_blocks = len(channel_mult)
+    if state_dict is not None:
+        import re
+        state_dict_keys = list(state_dict.keys())
+        filtered_keys = [k.replace(key_prefix, "") for k in state_dict_keys if k.startswith(key_prefix)]
+        transformer_counts = {}
         for key in filtered_keys:
-            match = re.match(r'model\.diffusion_model\.input_blocks\.(\d+)\.1\.transformer_blocks\.(\d+)', key)
+            match = re.match(r'input_blocks\.(\d+)\.1\.transformer_blocks\.(\d+)', key)
             if match:
-                b, t = int(match.group(1)), int(match.group(2))
-                transformer_counts[b] = max(transformer_counts.get(b, 0), t + 1)
-            match = re.match(r'model\.diffusion_model\.output_blocks\.(\d+)\.1\.transformer_blocks\.(\d+)', key)
-            if match:
-                b, t = int(match.group(1)), int(match.group(2))
-                output_transformer_counts[b] = max(output_transformer_counts.get(b, 0), t + 1)
-        mc = 0
+                block_idx = int(match.group(1))
+                trans_idx = int(match.group(2))
+                if block_idx not in transformer_counts: transformer_counts[block_idx] = 0
+                transformer_counts[block_idx] = max(transformer_counts[block_idx], trans_idx + 1)
+        output_transformer_counts = {}
         for key in filtered_keys:
-            match = re.match(r'model\.diffusion_model\.middle_block\.1\.transformer_blocks\.(\d+)', key)
+            match = re.match(r'output_blocks\.(\d+)\.1\.transformer_blocks\.(\d+)', key)
             if match:
-                mc = max(mc, int(match.group(1)) + 1)
-        if mc > 0:
-            transformers_mid = mc
+                block_idx = int(match.group(1))
+                trans_idx = int(match.group(2))
+                if block_idx not in output_transformer_counts: output_transformer_counts[block_idx] = 0
+                output_transformer_counts[block_idx] = max(output_transformer_counts[block_idx], trans_idx + 1)
+        middle_transformer_count = 0
+        for key in filtered_keys:
+            match = re.match(r'middle_block\.1\.transformer_blocks\.(\d+)', key)
+            if match:
+                trans_idx = int(match.group(1))
+                middle_transformer_count = max(middle_transformer_count, trans_idx + 1)
+        transformers_mid = middle_transformer_count if middle_transformer_count > 0 else unet_config.get("transformer_depth_middle", None)
     else:
+        transformer_depth = unet_config["transformer_depth"][:]
+        transformer_depth_output = unet_config["transformer_depth_output"][:]
+        transformers_mid = unet_config.get("transformer_depth_middle", None)
         transformer_counts = None
         output_transformer_counts = None
     UNET_MAP_RESNET = {"in_layers.2.weight": "conv1.weight", "in_layers.2.bias": "conv1.bias", "emb_layers.1.weight": "time_emb_proj.weight", "emb_layers.1.bias": "time_emb_proj.bias", "out_layers.3.weight": "conv2.weight", "out_layers.3.bias": "conv2.bias", "skip_connection.weight": "conv_shortcut.weight", "skip_connection.bias": "conv_shortcut.bias", "in_layers.0.weight": "norm1.weight", "in_layers.0.bias": "norm1.bias", "out_layers.0.weight": "norm2.weight", "out_layers.0.bias": "norm2.bias"}
@@ -201,7 +178,8 @@ def unet_to_diffusers_mapping(unet_config, state_dict, key_prefix="model.diffusi
         n = 1 + (num_res_blocks[x] + 1) * x
         for i in range(num_res_blocks[x]):
             for b in UNET_MAP_RESNET: diffusers_unet_map["down_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "input_blocks.{}.0.{}".format(n, b)
-            num_transformers = transformer_counts.get(n, 0) if transformer_counts is not None else (transformer_depth.pop(0) if transformer_depth else 0)
+            if transformer_counts is not None: num_transformers = transformer_counts.get(n, 0)
+            else: num_transformers = transformer_depth.pop(0) if transformer_depth else 0
             if num_transformers > 0:
                 for b in UNET_MAP_ATTENTIONS: diffusers_unet_map["down_blocks.{}.attentions.{}.{}".format(x, i, b)] = "input_blocks.{}.1.{}".format(n, b)
                 for t in range(num_transformers):
@@ -220,9 +198,13 @@ def unet_to_diffusers_mapping(unet_config, state_dict, key_prefix="model.diffusi
         n = (num_res_blocks_rev[x] + 1) * x
         l = num_res_blocks_rev[x] + 1
         for i in range(l):
+            c = 0
             for b in UNET_MAP_RESNET: diffusers_unet_map["up_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "output_blocks.{}.0.{}".format(n, b)
-            num_transformers = output_transformer_counts.get(n, 0) if output_transformer_counts is not None else (transformer_depth_output.pop() if transformer_depth_output else 0)
+            c += 1
+            if output_transformer_counts is not None: num_transformers = output_transformer_counts.get(n, 0)
+            else: num_transformers = transformer_depth_output.pop() if transformer_depth_output else 0
             if num_transformers > 0:
+                c += 1
                 for b in UNET_MAP_ATTENTIONS: diffusers_unet_map["up_blocks.{}.attentions.{}.{}".format(x, i, b)] = "output_blocks.{}.1.{}".format(n, b)
                 for t in range(num_transformers):
                     for b in TRANSFORMER_BLOCKS: diffusers_unet_map["up_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "output_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
@@ -256,68 +238,92 @@ def load_unet_from_safetensors(path, device="cuda"):
     m, u = pipeline.unet.load_state_dict(new_state_dict, strict=False)
     return pipeline, state_dict, comfyui_to_diffusers_map
 
-
-# --- Dual Monitor (identical to V1.3) ---
+# --- Dual Monitor: Sensitivity & Importance ---
 class DualMonitor:
     def __init__(self):
+        # For Sensitivity (Output Variance)
+        # Accumulate in FP32/Double to avoid overflow
         self.output_sum = 0.0
         self.output_sq_sum = 0.0
         self.count = 0
-        self.channel_importance = None
-
+        
+        # For Importance (Input Activation)
+        self.channel_importance = None # [Input_Channels]
+    
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
-            out_detached = output_tensor.detach().float()
-            self.output_sum += out_detached.mean().item()
-            self.output_sq_sum += (out_detached ** 2).mean().item()
+            # 1. Sensitivity Update (Output Variance)
+            # output_tensor: (Batch, Channels, H, W) or (Batch, Tokens, Channels)
+            
+            out_detached = output_tensor.detach().float()  # cast to FP32
+            # mean and mean of squares
+            batch_mean = out_detached.mean().item()
+            batch_sq_mean = (out_detached ** 2).mean().item()
+            
+            self.output_sum += batch_mean
+            self.output_sq_sum += batch_sq_mean
+            
+            # 2. Importance Update (Input Activation)
+            # V1.1: 2D input support
             inp_detached = input_tensor.detach()
-            if inp_detached.dim() == 4:
-                current_imp = inp_detached.abs().mean(dim=(0, 2, 3))
-            elif inp_detached.dim() == 3:
-                current_imp = inp_detached.abs().mean(dim=(0, 1))
-            elif inp_detached.dim() == 2:
-                current_imp = inp_detached.abs().mean(dim=0)
+            if inp_detached.dim() == 4: # Conv2d: (B, C, H, W)
+                current_imp = inp_detached.abs().mean(dim=(0, 2, 3))  # -> (C,)
+            elif inp_detached.dim() == 3: # Transformer: (B, T, C)
+                current_imp = inp_detached.abs().mean(dim=(0, 1))     # -> (C,)
+            elif inp_detached.dim() == 2:  # Linear/embedding: (B, C) e.g. time_embedding
+                current_imp = inp_detached.abs().mean(dim=0)          # -> (C,)
             else:
+                # 1D or less: fallback (uniform weight); should not occur in practice
                 current_imp = torch.ones(1, device=inp_detached.device, dtype=inp_detached.dtype)
+                
             if self.channel_importance is None:
                 self.channel_importance = current_imp
             else:
                 self.channel_importance = (self.channel_importance * self.count + current_imp) / (self.count + 1)
+            
             self.count += 1
 
     def get_sensitivity(self):
-        if self.count == 0:
-            return 0.0
+        # variance = E[X^2] - (E[X])^2
+        if self.count == 0: return 0.0
         mean = self.output_sum / self.count
         sq_mean = self.output_sq_sum / self.count
-        return sq_mean - mean ** 2
-
+        variance = sq_mean - mean ** 2
+        return variance
 
 dual_monitors = {}
 
 def hook_fn(module, input, output, name):
     if name not in dual_monitors:
         dual_monitors[name] = DualMonitor()
-    dual_monitors[name].update(input[0], output)
+    
+    # input is tuple (tensor, ...)
+    inp = input[0]
+    # output is tensor
+    out = output
+    
+    dual_monitors[name].update(inp, out)
+
+# --- HSWQ module integration ---
+# Weighted histogram MSE optimization is in weighted_histogram_mse_fast.py
+# HSWQWeightedHistogramOptimizer (Fast) performs full weighted MSE optimization
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SDXL FP8 Quantization (HSWQ V1.4)")
-    parser.add_argument("--input",               type=str,   required=True)
-    parser.add_argument("--output",              type=str,   required=True)
-    parser.add_argument("--calib_file",          type=str,   required=True)
-    parser.add_argument("--num_calib_samples",   type=int,   default=256)
-    parser.add_argument("--num_inference_steps", type=int,   default=20)
-    parser.add_argument("--keep_ratio",          type=float, default=0.25,
-                        help="Ratio of layers to keep in FP16 (typical 0.05-0.25)")
+    parser = argparse.ArgumentParser(description="SDXL FP8 Quantization (HSWQ V1.3: GPU Accelerated, Fast histogram)")
+    parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
+    parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
+    parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
+    parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples (HSWQ recommended: 256)")
+    parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
+    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL/ZIT)")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
-
+    
     pipeline, original_state_dict, comfyui_to_diffusers_map = load_unet_from_safetensors(args.input, device)
 
-    # --- Calibration (identical to V1.3) ---
     print("Preparing calibration (registering Dual Monitor hooks)...")
     handles = []
     target_modules = []
@@ -336,9 +342,11 @@ def main():
         prompts = prompts[:args.num_calib_samples]
 
     print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps)...")
+    print("Measuring Sensitivity and Importance (input activation) simultaneously...")
+    
     pipeline.set_progress_bar_config(disable=False)
     generator = torch.Generator(device=device).manual_seed(42)
-
+    
     for i, prompt in enumerate(prompts):
         print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
         with torch.no_grad():
@@ -352,257 +360,140 @@ def main():
             gc.collect()
             torch.cuda.empty_cache()
 
-    for h in handles:
-        h.remove()
-
-    # --- Sensitivity ranking (identical to V1.3) ---
+    # Remove hooks
+    for h in handles: h.remove()
+    
     print("\nRunning layer sensitivity analysis...")
     layer_sensitivities = []
     for name in target_modules:
         if name in dual_monitors:
             sensitivity = dual_monitors[name].get_sensitivity()
             layer_sensitivities.append((name, sensitivity))
-
+    
+    # Sort by sensitivity (descending)
     layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
+    
+    # Top N% to keep in FP16
     num_keep = int(len(layer_sensitivities) * args.keep_ratio)
-    keep_layers = set(x[0] for x in layer_sensitivities[:num_keep])
-
-    # Hard VETO (on top of keep_ratio)
-    hard_veto_layers = {name for name in target_modules if is_hard_veto(name)}
-    keep_layers |= hard_veto_layers
-
+    keep_layers = set([x[0] for x in layer_sensitivities[:num_keep]])
+    
     print(f"Total layers: {len(layer_sensitivities)}")
-    print(f"FP16-kept (sensitivity): {num_keep} (Top {args.keep_ratio*100:.1f}%)")
-    print(f"FP16-kept (VETO):        {len(hard_veto_layers)}")
-    print("Top 5 Sensitive:")
+    print(f"FP16-kept layers: {len(keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
+    print("Top 5 Sensitive Layers:")
     for i in range(min(5, len(layer_sensitivities))):
         print(f"  {i+1}. {layer_sensitivities[i][0]}: {layer_sensitivities[i][1]:.4f}")
 
-    # =====================================================================
-    # HSWQ Pass 1: compute optimal amax AND MSE for every quantizable layer
-    # =====================================================================
-    print("\n" + "=" * 70)
-    print("[HSWQ V1.4] Pass 1: Computing optimal amax + MSE for all layers...")
-    print("=" * 70)
-
-    # V1.3 used default search_range=(0.5, 1.0). Restoring to allow proper outlier clipping!
-    SDXL_SEARCH_RANGE = (0.99, 1.0)
-
+    print("\n[HSWQ] Starting weighted MSE analysis and quantization parameter computation...")
+    print("HSWQ module: FP8 E4M3 exact-grid MSE optimization.")
+    print("Compatibility mode (scaled=False): finding optimal clipping threshold to minimize error...")
+    weight_amax_dict = {}
+    
+    # HSWQ optimizer: bins=4096, 200 candidates, 3 refinement iterations
     hswq_optimizer = HSWQWeightedHistogramOptimizer(
         bins=4096,
         num_candidates=200,
         refinement_iterations=3,
-        device=device,
+        device=device
     )
-
-    # Collect amax and MSE for every non-keep layer
-    layer_results = {}  # name -> {"amax": float, "mse": float}
-
-    for name, module in tqdm(pipeline.unet.named_modules(), desc="Pass 1: Amax + MSE"):
+    
+    for name, module in tqdm(pipeline.unet.named_modules(), desc="Analyzing"):
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
+            # Skip FP16-kept layers (no amax needed)
             if name in keep_layers:
                 continue
-
-            importance = dual_monitors[name].channel_importance if name in dual_monitors else None
-
-            wh = WeightedHistogramOptimized(bins=hswq_optimizer.bins, device=device)
-            wh.build(module.weight.data, importance)
-
-            optimal_amax = hswq_optimizer.mse_optimizer.find_optimal_amax(
-                wh,
-                num_candidates=hswq_optimizer.num_candidates,
-                search_range=SDXL_SEARCH_RANGE,
-                refinement_iterations=hswq_optimizer.refinement_iterations,
-                scaled=False,
+                
+            # Get importance
+            importance = None
+            if name in dual_monitors:
+                importance = dual_monitors[name].channel_importance
+            
+            # HSWQ: full weighted MSE via module; scaled=False for compatibility
+            optimal_amax = hswq_optimizer.compute_optimal_amax(
+                module.weight.data, 
+                importance,
+                scaled=False,  # compatibility mode
+                search_range=(0.99, 1.0),
+                use_svd_leverage=False
             )
-
-            # Measure actual MSE at this amax
-            histogram = wh.get_histogram()
-            bin_centers = wh.get_bin_centers()
-            mse = hswq_optimizer.mse_optimizer.compute_weighted_mse(
-                histogram, bin_centers, optimal_amax, scaled=False
-            )
-
-            # Cast to float to detach from graph and prevent VRAM leak!
-            layer_results[name] = {
-                "amax": float(optimal_amax), 
-                "mse": float(mse)
-            }
+            weight_amax_dict[name + ".weight"] = optimal_amax
+            
             torch.cuda.empty_cache()
 
-    # =====================================================================
-    # Auto-protect: detect MSE outliers and promote to FP16
-    # =====================================================================
-    all_mses = [r["mse"] for r in layer_results.values()]
-
-    if all_mses:
-        threshold = compute_auto_protect_threshold(all_mses)
-        arr = np.array(sorted(all_mses))
-        q1 = np.percentile(arr, 25)
-        median = np.percentile(arr, 50)
-        q3 = np.percentile(arr, 75)
-        iqr = q3 - q1
-
-        print(f"\n{'=' * 70}")
-        print(f"[Auto-Protect] MSE Distribution Analysis")
-        print(f"{'=' * 70}")
-        print(f"  Layers analyzed : {len(all_mses)}")
-        print(f"  MSE Q1          : {q1:.6e}")
-        print(f"  MSE Median      : {median:.6e}")
-        print(f"  MSE Q3          : {q3:.6e}")
-        print(f"  MSE IQR         : {iqr:.6e}")
-        print(f"  Auto threshold  : {threshold:.6e}  (Q3 + 1.5*IQR)")
-
-        # Identify and promote outlier layers
-        auto_promoted = set()
-        promoted_details = []
-        for name, result in layer_results.items():
-            if result["mse"] > threshold:
-                auto_promoted.add(name)
-                promoted_details.append((name, result["mse"]))
-
-        promoted_details.sort(key=lambda x: x[1], reverse=True)
-
-        if auto_promoted:
-            print(f"\n  Auto-promoted to FP16: {len(auto_promoted)} layers")
-            for name, mse in promoted_details:
-                print(f"    PROMOTE: {name:50} MSE={mse:.6e}")
-            keep_layers |= auto_promoted
-        else:
-            print(f"\n  No outlier layers detected. All layers within normal MSE range.")
-
-    # =====================================================================
-    # Build final amax dict (excluding all keep_layers)
-    # =====================================================================
-    weight_amax_dict = {}
-    for name, result in layer_results.items():
-        if name not in keep_layers:
-            weight_amax_dict[name + ".weight"] = result["amax"]
-
-    fp8_count = len(weight_amax_dict)
-    fp16_count = len(keep_layers)
-
-    print(f"\n{'=' * 70}")
-    print(f"[Final Summary]")
-    print(f"  FP16 (sensitivity) : {num_keep}")
-    print(f"  FP16 (VETO)        : {len(hard_veto_layers)}")
-    print(f"  FP16 (auto-protect): {len(auto_promoted) if 'auto_promoted' in locals() else 0}")
-    print(f"  FP16 total         : {fp16_count}")
-    print(f"  FP8 total          : {fp8_count}")
-    print(f"  FP16 ratio         : {fp16_count/(fp8_count+fp16_count)*100:.1f}%")
-    print(f"{'=' * 70}")
-
-    # =====================================================================
-    # Dump full analysis log to JSON
-    # =====================================================================
-    import json
-    log_file_path = args.output.rsplit(".", 1)[0] + "_hswq_log.json"
-    print(f"\nSaving full analysis log to: {log_file_path}")
-    log_data = {
-        "summary": {
-            "total_quantizable_layers": fp8_count + fp16_count,
-            "fp16_count": fp16_count,
-            "fp8_count": fp8_count,
-            "fp16_ratio": fp16_count / max(1, fp8_count + fp16_count),
-            "keep_ratio_target": args.keep_ratio,
-            "auto_protect_threshold": float(threshold) if 'threshold' in locals() else None,
-        },
-        "layers": {}
-    }
-
-    # Aggregate layer info
-    sensitivity_dict = {name: sens for name, sens in layer_sensitivities}
+    print(f"Layers to quantize: {len(weight_amax_dict)}")
     
-    for name in target_modules:
-        status = "FP8"
-        reason = ""
-        if name in hard_veto_layers:
-            status = "FP16"
-            reason = "Hard VETO"
-        elif 'auto_promoted' in locals() and name in auto_promoted:
-            status = "FP16"
-            reason = "Auto-Protect (High MSE)"
-        elif name in keep_layers:
-            status = "FP16"
-            reason = f"Sensitivity Top {args.keep_ratio*100:.1f}%"
-        
-        log_data["layers"][name] = {
-            "status": status,
-            "reason": reason,
-            "sensitivity": sensitivity_dict.get(name, 0.0),
-            "mse": layer_results.get(name, {}).get("mse", None),
-            "optimal_amax": layer_results.get(name, {}).get("amax", None)
-        }
-
-    with open(log_file_path, "w", encoding="utf-8") as f:
-        json.dump(log_data, f, indent=4)
-
-    # =====================================================================
-    # GPU conversion (identical to V1.3)
-    # =====================================================================
-    print("\n[VRAM Optimization] Preparing for GPU conversion...")
+    # === VRAM Optimization ===
+    # 1. Delete pipeline and optimizer to free VRAM
+    # 2. Move original_state_dict to GPU
+    # 3. Run clamp/cast on GPU
+    
+    print("\n[VRAM Optimization] Preparing for high-speed GPU conversion...")
     del pipeline
     del hswq_optimizer
+    # comfyui_to_diffusers_map is string dict, stays on CPU
     gc.collect()
     torch.cuda.empty_cache()
-
+    
     print(f"[VRAM Optimization] Moving source weights to {device}...")
+    # Move original_state_dict to GPU; iterate by key to avoid memory doubling
     input_keys = list(original_state_dict.keys())
     for k in tqdm(input_keys, desc="Loading to VRAM"):
         original_state_dict[k] = original_state_dict[k].to(device)
-
+    
     print(f"Saving quantized model: {args.output}")
     output_state_dict = {}
     converted_count = 0
     kept_count = 0
-
+    
     print("Converting weights (GPU accelerated)...")
-    keys = list(original_state_dict.keys())
-    for key in tqdm(keys, desc="Converting"):
-        value = original_state_dict.pop(key)
-        
+    for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         diffusers_key = None
-        if key in comfyui_to_diffusers_map:
-            diffusers_key = comfyui_to_diffusers_map[key]
+        if key in comfyui_to_diffusers_map: diffusers_key = comfyui_to_diffusers_map[key]
         elif key.startswith("model.diffusion_model."):
-            if key in comfyui_to_diffusers_map:
-                diffusers_key = comfyui_to_diffusers_map[key]
-
+            if key in comfyui_to_diffusers_map: diffusers_key = comfyui_to_diffusers_map[key]
+        
+        # Resolve module name from diffusers_key (strip .weight)
         module_name = None
-        if diffusers_key and diffusers_key.endswith(".weight"):
-            module_name = diffusers_key[:-7]
-
+        if diffusers_key:
+            if diffusers_key.endswith(".weight"):
+                module_name = diffusers_key[:-7]
+            
+        # Conversion decision
         if module_name and module_name in keep_layers:
+            # Keep FP16 (leave on GPU)
             new_value = value
             kept_count += 1
         elif diffusers_key:
-            weight_key = diffusers_key if diffusers_key.endswith(".weight") else diffusers_key + ".weight"
+            # Quantize
+            weight_key = diffusers_key + ".weight"
+            if diffusers_key.endswith(".weight"): weight_key = diffusers_key
+            
             if weight_key in weight_amax_dict:
                 amax = weight_amax_dict[weight_key]
-                # Run on GPU (1.3 style)
+                # Run on GPU
                 clamped_value = torch.clamp(value, -amax, amax)
                 new_value = clamped_value.to(torch.float8_e4m3fn)
                 converted_count += 1
-                del clamped_value
             else:
                 new_value = value
         else:
             new_value = value
-
+            
+        # Store in output dict (safetensors may move to CPU on save)
         output_state_dict[key] = new_value
 
-    print(f"  FP8 layers : {converted_count}")
-    print(f"  FP16 kept  : {kept_count}")
-
+    print("Conversion done:")
+    print(f"  FP8 layers: {converted_count}")
+    print(f"  FP16-kept layers: {kept_count}")
+    
+    # save_file accepts GPU tensors and moves to CPU on save; fallback below if needed
     try:
         save_file(output_state_dict, args.output)
     except Exception as e:
-        print(f"[Save Warning] {e}. Moving to CPU...")
+        print(f"[Save Warning] GPU Tensor save failed ({e}). Moving to CPU explicitly...")
         cpu_dict = {k: v.cpu() for k, v in output_state_dict.items()}
         save_file(cpu_dict, args.output)
-
+        
     print("Saved.")
-
 
 if __name__ == "__main__":
     main()
