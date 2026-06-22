@@ -541,11 +541,6 @@ def main():
     gc.collect()
     torch.cuda.empty_cache()
 
-    print(f"Moving source weights to {device}...")
-    input_keys = list(original_state_dict.keys())
-    for k in tqdm(input_keys, desc="Loading to VRAM"):
-        original_state_dict[k] = original_state_dict[k].to(device)
-
     print(f"Saving quantized model: {args.output}")
     output_state_dict = {}
     converted_count = 0
@@ -570,8 +565,13 @@ def main():
             weight_key = diffusers_key if diffusers_key.endswith(".weight") else diffusers_key + ".weight"
             if weight_key in weight_amax_dict:
                 amax = weight_amax_dict[weight_key]
-                new_value = torch.clamp(value, -amax, amax).to(torch.float8_e4m3fn)
+                if amax == 0: amax = 1e-6
+                
+                val_gpu = value.float().to(device)
+                clamped_value = torch.clamp(val_gpu, -amax, amax)
+                new_value = clamped_value.to(torch.float8_e4m3fn).cpu()
                 converted_count += 1
+                del val_gpu, clamped_value
             else:
                 new_value = value
         else:
