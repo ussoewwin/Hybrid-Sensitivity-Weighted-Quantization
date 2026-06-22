@@ -1074,7 +1074,7 @@ def main():
     parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples")
     parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL)")
-    parser.add_argument("--veto_ratio", type=float, default=0.12, help="Max ratio of layers for autonomous VETO (0=original 5-layer only, 0.12=~12%% budget cap)")
+    parser.add_argument("--veto_ratio", type=float, default=0.10, help="Max ratio of layers for autonomous VETO (0=original 5-layer only, 0.10=~10%% budget cap)")
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     args = parser.parse_args()
