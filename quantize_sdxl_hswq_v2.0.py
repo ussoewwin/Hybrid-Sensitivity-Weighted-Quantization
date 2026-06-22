@@ -1158,16 +1158,18 @@ def main():
         mod = _module_dict_sens.get(name)
         if prof and mod is not None and hasattr(mod, "weight"):
             drift = _weight_profile_drift(mod.weight.data, prof)
-        # V2.0 fix: use fixed weights for stable ranking (zib-proven: k + o*2 + m*0.5)
-        # instead of dynamic score_o_weight/score_m_weight that are unstable on SDXL
-        if prof:
+        # V2.0 SDXL fix: For SDXL, static weight profile ranking (k + o*2) picks the wrong layers,
+        # creating a checkerboard precision that drops SSIM. We MUST prioritize actual calibration 
+        # (DualMonitor) for dynamic ranking when available.
+        if name in dual_monitors:
+            score = dual_monitors[name].get_sensitivity()
+            ranking_source = "dualmonitor_calibration"
+        elif prof:
             k = prof.get("kurtosis", 0) or 0
             o = prof.get("outlier_ratio", 0) or 0
             m = prof.get("abs_max", 0) or 0
             score = k + o * 2.0 + m * 0.5 + drift * veto_tunables.drift_score_mult
-        elif name in dual_monitors:
-            score = dual_monitors[name].get_sensitivity()
-            ranking_source = "dualmonitor_fallback"
+            ranking_source = "profile_score_fallback"
         else:
             continue
         layer_sensitivities.append((name, score))
