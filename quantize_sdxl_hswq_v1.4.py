@@ -556,7 +556,10 @@ def main():
     kept_count = 0
 
     print("Converting weights (GPU accelerated)...")
-    for key, value in tqdm(original_state_dict.items(), desc="Converting"):
+    keys = list(original_state_dict.keys())
+    for key in tqdm(keys, desc="Converting"):
+        value = original_state_dict.pop(key)
+        
         diffusers_key = None
         if key in comfyui_to_diffusers_map:
             diffusers_key = comfyui_to_diffusers_map[key]
