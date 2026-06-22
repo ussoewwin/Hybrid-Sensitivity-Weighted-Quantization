@@ -541,11 +541,17 @@ def main():
     gc.collect()
     torch.cuda.empty_cache()
 
+    print(f"[VRAM Optimization] Moving source weights to {device}...")
+    input_keys = list(original_state_dict.keys())
+    for k in tqdm(input_keys, desc="Loading to VRAM"):
+        original_state_dict[k] = original_state_dict[k].to(device)
+
     print(f"Saving quantized model: {args.output}")
     output_state_dict = {}
     converted_count = 0
     kept_count = 0
 
+    print("Converting weights (GPU accelerated)...")
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         diffusers_key = None
         if key in comfyui_to_diffusers_map:
@@ -565,13 +571,11 @@ def main():
             weight_key = diffusers_key if diffusers_key.endswith(".weight") else diffusers_key + ".weight"
             if weight_key in weight_amax_dict:
                 amax = weight_amax_dict[weight_key]
-                if amax == 0: amax = 1e-6
-                
-                val_gpu = value.float().to(device)
-                clamped_value = torch.clamp(val_gpu, -amax, amax)
-                new_value = clamped_value.to(torch.float8_e4m3fn).cpu()
+                # Run on GPU (1.3 style)
+                clamped_value = torch.clamp(value, -amax, amax)
+                new_value = clamped_value.to(torch.float8_e4m3fn)
                 converted_count += 1
-                del val_gpu, clamped_value
+                del clamped_value
             else:
                 new_value = value
         else:
