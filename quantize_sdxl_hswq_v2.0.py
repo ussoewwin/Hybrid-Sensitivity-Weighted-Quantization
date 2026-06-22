@@ -1037,7 +1037,8 @@ def main():
         profile_path = os.path.join(script_dir, f"{input_root}_distribution_profile.json")
         is_auto = True
     
-    should_run_analysis = is_auto or not os.path.exists(profile_path)
+    # Skip re-analysis if the auto-detected profile already exists on disk
+    should_run_analysis = not os.path.exists(profile_path)
     
     if should_run_analysis:
         if os.path.exists(analyze_script):
