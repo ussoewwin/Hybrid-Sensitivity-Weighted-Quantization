@@ -450,22 +450,21 @@ def _ff2_selective_veto_hit(
     live_o: float,
     tunables: SdxlVetoTunables,
 ) -> tuple[bool, str]:
-    """Selective ff.net.2 VETO: class-relative profile_score and outlier (not blanket)."""
-    # V2.0 fix: floor thresholds to prevent SDXL's uniform distribution from
-    # deriving thresholds so low that selective == full-class.
-    score_cut = max(tunables.ff2_profile_score_cutoff, 2.5)
-    outlier_cut = max(tunables.ff2_profile_outlier, 40.0)
-    live_cut = max(tunables.ff2_outlier_live, 40.0)
+    """Selective ff.net.2 VETO: class-relative profile_score and outlier."""
+    # Use profile-derived thresholds directly (no ZIB floor overrides).
+    score_cut = tunables.ff2_profile_score_cutoff
+    outlier_cut = tunables.ff2_profile_outlier
+    live_cut = tunables.ff2_outlier_live
     if prof:
         score = _profile_score_from_entry(prof, tunables=tunables)
         o = float(prof.get("outlier_ratio", 0) or 0)
         if score >= score_cut:
-            return True, f"profile_score={score:.2f}>={score_cut}"
+            return True, f"profile_score={score:.2f}>={score_cut:.2f}"
         if o >= outlier_cut:
-            return True, f"profile_o={o:.1f}>={outlier_cut}"
+            return True, f"profile_o={o:.1f}>={outlier_cut:.1f}"
         return False, ""
     if live_o > live_cut:
-        return True, f"live_o={live_o:.1f}>{live_cut}"
+        return True, f"live_o={live_o:.1f}>{live_cut:.1f}"
     return False, ""
 
 
@@ -506,14 +505,18 @@ def _compute_sdxl_keypattern_veto(
             print(f"    [Key-Pattern VETO] {_n} (boundary)")
             continue
         if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
-            # V2.0 fix: skip full-class auto (inflates file size on SDXL);
-            # selective VETO below handles individual outlier ff2 layers.
-            prof = (norm_profile or {}).get(_n, {})
-            _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
-            hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
-            if hit:
+            if tunables.ff2_auto_full_class:
+                # Full-class auto: all ff.net.2 layers are VETO'd
                 added.add(_n)
-                print(f"    [Key-Pattern VETO] {_n} (ff2 auto {reason})")
+                print(f"    [Key-Pattern VETO] {_n} (ff2 full-class auto)")
+            else:
+                # Selective VETO: only individual outlier ff2 layers
+                prof = (norm_profile or {}).get(_n, {})
+                _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
+                hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
+                if hit:
+                    added.add(_n)
+                    print(f"    [Key-Pattern VETO] {_n} (ff2 auto {reason})")
     if added:
         print(f"  [Key-Pattern VETO] Added {len(added)} layers.")
     return added
@@ -581,14 +584,14 @@ def _compute_sdxl_per_projection_attn_veto(
         _k, _o, _amax = _profile_layer_stats(prof, _m.weight.detach())
         src = "profile" if prof else "live"
         if is_toout:
-            hit = _amax >= max(tunables.attn_toout_absmax, 4.5) or _o >= max(tunables.attn_toout_outlier, 40.0)
+            hit = _amax >= tunables.attn_toout_absmax or _o >= tunables.attn_toout_outlier
             thresh_msg = (
-                f"to_out amax>={tunables.attn_toout_absmax}, o>={tunables.attn_toout_outlier}"
+                f"to_out amax>={tunables.attn_toout_absmax:.3f}, o>={tunables.attn_toout_outlier:.1f}"
             )
         else:
-            hit = _amax >= max(tunables.attn_qkv_absmax, 4.5) or _o >= max(tunables.attn_qkv_outlier, 40.0)
+            hit = _amax >= tunables.attn_qkv_absmax or _o >= tunables.attn_qkv_outlier
             thresh_msg = (
-                f"q/k/v amax>={tunables.attn_qkv_absmax}, o>={tunables.attn_qkv_outlier}"
+                f"q/k/v amax>={tunables.attn_qkv_absmax:.3f}, o>={tunables.attn_qkv_outlier:.1f}"
             )
         if hit:
             proj_veto.add(_n)
@@ -928,11 +931,10 @@ def derive_hswq_strategy(model_profile, veto_tunables: SdxlVetoTunables | None =
                 k = prof.get("kurtosis", 0)
                 m = prof.get("abs_max", 0)
                 o = prof.get("outlier_ratio", 0)
-                # V2.0 fix: floor thresholds at zib-proven values to prevent
-                # Tukey upper fence from over-triggering on SDXL's uniform distribution
-                is_extreme_divergence = o > max(veto_tunables.extreme_outlier, 40.0)
-                is_extreme_kurtosis = k > max(veto_tunables.extreme_kurtosis, 20.0)
-                is_huge_magnitude = m > max(veto_tunables.huge_magnitude, 20.0)
+                # Use profile-derived thresholds directly (no ZIB floor overrides)
+                is_extreme_divergence = o > veto_tunables.extreme_outlier
+                is_extreme_kurtosis = k > veto_tunables.extreme_kurtosis
+                is_huge_magnitude = m > veto_tunables.huge_magnitude
                 if is_extreme_divergence or is_extreme_kurtosis or is_huge_magnitude:
                     layer_base_name = name.replace(".weight", "") if name.endswith(".weight") else name
                     hard_veto_layers.add(layer_base_name)
@@ -1158,18 +1160,15 @@ def main():
         mod = _module_dict_sens.get(name)
         if prof and mod is not None and hasattr(mod, "weight"):
             drift = _weight_profile_drift(mod.weight.data, prof)
-        # V2.0 SDXL fix: For SDXL, static weight profile ranking (k + o*2) picks the wrong layers,
-        # creating a checkerboard precision that drops SSIM. We MUST prioritize actual calibration 
-        # (DualMonitor) for dynamic ranking when available.
-        if name in dual_monitors:
-            score = dual_monitors[name].get_sensitivity()
-            ranking_source = "dualmonitor_calibration"
-        elif prof:
+        # V2.0 fix: use fixed weights for stable ranking (zib-proven: k + o*2 + m*0.5)
+        if prof:
             k = prof.get("kurtosis", 0) or 0
             o = prof.get("outlier_ratio", 0) or 0
             m = prof.get("abs_max", 0) or 0
             score = k + o * 2.0 + m * 0.5 + drift * veto_tunables.drift_score_mult
-            ranking_source = "profile_score_fallback"
+        elif name in dual_monitors:
+            score = dual_monitors[name].get_sensitivity()
+            ranking_source = "dualmonitor_fallback"
         else:
             continue
         layer_sensitivities.append((name, score))
@@ -1245,7 +1244,7 @@ def main():
             )
             optimal_amax = hswq_optimizer.compute_optimal_amax(
                 module.weight.data, 
-                None,  # FIXED: Do NOT pass importance here for SDXL, it ruins the histogram!
+                importance, 
                 use_svd_leverage=False,  # V2.0 SDXL fix: SVD leverage harms uniform distribution
                 scaled=False, 
                 search_range=layer_search_range,
