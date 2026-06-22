@@ -7,6 +7,7 @@ V2.0 features:
 - DualMonitor: simultaneous sensitivity + importance (input activation) measurement
 - HSWQWeightedHistogramOptimizerV5: exact FP8 E4M3 grid with Cosine Loss amax search
 - Autonomous VETO engine: SDXL key-pattern, per-projection attn (no QKV fuse), gray-zone cosine-loss reassessment
+- Wide VETO budget: all sources scored in one pool; strict veto_ratio cap after calibration (incl. supplemental)
 - ComfyUI-compatible output: scaled=False, weight_scale=1.0, comfy_quant metadata
 
 Profiling: analyze/analyze_sdxl_distribution.py (auto-generated from template if missing).
@@ -242,6 +243,16 @@ _SDXL_ATTN_PROJ_SUFFIXES = (".to_q", ".to_k", ".to_v")
 _SDXL_ATTN_TOOUT_SUFFIX = ".to_out.0"
 _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 
+# Unified VETO budget tiers (lower = higher retention priority in wide budget competition)
+_VETO_TIER_STATIC_EXTREME = 0
+_VETO_TIER_KP_EMBEDDING = 1
+_VETO_TIER_KP_BOUNDARY_IO = 2
+_VETO_TIER_STRUCTURAL = 3
+_VETO_TIER_ATTN_PROJ = 4
+_VETO_TIER_KP_FF2 = 5
+_VETO_TIER_KP_TOOUT = 6
+_VETO_TIER_SUPPLEMENTAL = 7
+
 
 @dataclass(frozen=True)
 class SdxlVetoTunables:
@@ -343,6 +354,63 @@ class SdxlVetoTunables:
             "mse_p75_multiplier": self.mse_p75_multiplier,
             "ff2_suffix_min_count": self.ff2_suffix_min_count,
         }
+
+
+def _veto_profile_severity_score(
+    prof: dict,
+    drift: float = 0.0,
+    tunables: SdxlVetoTunables | None = None,
+) -> float:
+    k = float(prof.get("kurtosis", 0) or 0)
+    o = float(prof.get("outlier_ratio", 0) or 0)
+    m = float(prof.get("abs_max", 0) or 0)
+    mult = tunables.drift_score_mult if tunables else 1.0
+    return k + o * 2.0 + m * 0.5 + drift * mult
+
+
+def _sdxl_keypattern_layer_tier(name: str) -> int:
+    if any(name.startswith(p) for p in _SDXL_KP_PREFIXES):
+        return _VETO_TIER_KP_EMBEDDING
+    if name.endswith(".conv_in") or name.endswith(".conv_out"):
+        return _VETO_TIER_KP_BOUNDARY_IO
+    if name.endswith(_SDXL_ATTN_TOOUT_SUFFIX):
+        return _VETO_TIER_KP_TOOUT
+    return _VETO_TIER_KP_FF2
+
+
+def _register_veto_candidate(
+    pool: dict[str, tuple[int, float, str]],
+    name: str,
+    tier: int,
+    score: float,
+    source: str,
+) -> None:
+    """Merge duplicate names; keep lowest tier, then highest severity score."""
+    prev = pool.get(name)
+    if prev is None or tier < prev[0] or (tier == prev[0] and score > prev[1]):
+        pool[name] = (tier, score, source)
+
+
+def _apply_unified_veto_budget_cap(
+    pool: dict[str, tuple[int, float, str]],
+    total_modules: int,
+    veto_ratio: float,
+) -> tuple[set[str], list[tuple[str, int, float, str]], int]:
+    """Wide budget: single scored pool; veto_ratio is a strict ceiling (no mandatory floor)."""
+    if not pool:
+        return set(), [], 0
+    if veto_ratio <= 0:
+        return set(pool.keys()), [], len(pool)
+    veto_budget = max(int(total_modules * veto_ratio), 0)
+    ranked = sorted(pool.items(), key=lambda item: (item[1][0], -item[1][1], item[0]))
+    if len(pool) <= veto_budget:
+        return set(pool.keys()), [], veto_budget
+    kept_names = {name for name, _ in ranked[:veto_budget]}
+    trimmed = [
+        (name, tier, score, source)
+        for name, (tier, score, source) in ranked[veto_budget:]
+    ]
+    return kept_names, trimmed, veto_budget
 
 
 def resolve_veto_tunables(
@@ -1080,67 +1148,60 @@ def main():
         veto_tunables,
     )
 
-    print("  [V2.0 SDXL Autonomous VETO] Structural + per-projection attn + key-pattern + supplemental.")
-    # --- Mandatory VETOs (always kept regardless of budget) ---
-    mandatory_veto = set(hard_veto_layers)  # Static Profile VETO (extreme k/o/m)
-    structural_veto = _compute_structural_veto(model, hard_veto_layers, _norm_profile)
-    if structural_veto:
-        mandatory_veto = mandatory_veto.union(structural_veto)
-        hard_veto_layers = hard_veto_layers.union(structural_veto)
-        print(f"  [Structural VETO] Added {len(structural_veto)} unique-shape layers (total VETO: {len(hard_veto_layers)}).")
+    print("  [V2.0 SDXL Autonomous VETO] Wide budget: all sources -> scored pool -> single cap after calibration.")
+    total_modules = sum(
+        1 for _, m in model.named_modules() if isinstance(m, (torch.nn.Conv2d, torch.nn.Linear))
+    )
+    veto_pool: dict[str, tuple[int, float, str]] = {}
+    veto_considered: set[str] = set()
 
-    # --- Soft VETOs (subject to budget cap) ---
-    soft_veto_scored = []  # list of (name, severity_score)
+    static_profile_veto = set(hard_veto_layers)
+    for sn in static_profile_veto:
+        prof = _norm_profile.get(sn, _norm_profile.get(sn + ".weight", {}))
+        score = _veto_profile_severity_score(prof, tunables=veto_tunables)
+        _register_veto_candidate(veto_pool, sn, _VETO_TIER_STATIC_EXTREME, score, "static_extreme")
+        veto_considered.add(sn)
+
+    structural_veto = _compute_structural_veto(model, veto_considered, _norm_profile)
+    if structural_veto:
+        for sn in structural_veto:
+            prof = _norm_profile.get(sn, {})
+            score = _veto_profile_severity_score(prof, tunables=veto_tunables)
+            _register_veto_candidate(veto_pool, sn, _VETO_TIER_STRUCTURAL, score, "structural")
+            veto_considered.add(sn)
+        print(f"  [Structural VETO] Discovered {len(structural_veto)} unique-shape layers (pool: {len(veto_pool)}).")
+
     proj_veto = _compute_sdxl_per_projection_attn_veto(
         model,
-        hard_veto_layers,
+        veto_considered,
         veto_tunables,
         _norm_profile,
     )
     if proj_veto:
         for pn in proj_veto:
             prof = _norm_profile.get(pn, {})
-            _k = float(prof.get("kurtosis", 0) or 0)
-            _o = float(prof.get("outlier_ratio", 0) or 0)
-            _m = float(prof.get("abs_max", 0) or 0)
-            soft_veto_scored.append((pn, _k + _o * 2.0 + _m * 0.5, "attn"))
-        hard_veto_layers = hard_veto_layers.union(proj_veto)
-        print(f"  [Per-Projection VETO] Added {len(proj_veto)} attn layers (total VETO: {len(hard_veto_layers)}).")
+            score = _veto_profile_severity_score(prof, tunables=veto_tunables)
+            _register_veto_candidate(veto_pool, pn, _VETO_TIER_ATTN_PROJ, score, "attn_proj")
+            veto_considered.add(pn)
+        print(f"  [Per-Projection VETO] Discovered {len(proj_veto)} attn layers (pool: {len(veto_pool)}).")
+
     keypattern_veto = _compute_sdxl_keypattern_veto(
-        model, hard_veto_layers, veto_tunables, _norm_profile
+        model, veto_considered, veto_tunables, _norm_profile
     )
     if keypattern_veto:
-        # Separate embedding/boundary (mandatory) from ff2 (soft)
-        kp_mandatory = set()
         for kn in keypattern_veto:
-            if any(kn.startswith(p) for p in _SDXL_KP_PREFIXES) or kn.endswith(_SDXL_KP_BOUNDARY_SUFFIXES):
-                kp_mandatory.add(kn)
-            else:
-                prof = _norm_profile.get(kn, {})
-                _k = float(prof.get("kurtosis", 0) or 0)
-                _o = float(prof.get("outlier_ratio", 0) or 0)
-                _m = float(prof.get("abs_max", 0) or 0)
-                soft_veto_scored.append((kn, _k + _o * 2.0 + _m * 0.5, "ff2"))
-        mandatory_veto = mandatory_veto.union(kp_mandatory)
-        hard_veto_layers = hard_veto_layers.union(keypattern_veto)
-        print(f"  [Key-Pattern VETO] hard_veto total: {len(hard_veto_layers)}.")
+            tier = _sdxl_keypattern_layer_tier(kn)
+            prof = _norm_profile.get(kn, {})
+            score = _veto_profile_severity_score(prof, tunables=veto_tunables)
+            _register_veto_candidate(veto_pool, kn, tier, score, "keypattern")
+            veto_considered.add(kn)
+        print(f"  [Key-Pattern VETO] Discovered {len(keypattern_veto)} layers (pool: {len(veto_pool)}).")
 
-    # --- Budget Cap ---
-    total_modules = sum(1 for _, m in model.named_modules() if isinstance(m, (torch.nn.Conv2d, torch.nn.Linear)))
-    veto_budget = int(total_modules * args.veto_ratio) if args.veto_ratio > 0 else len(mandatory_veto)
-    veto_budget = max(veto_budget, len(mandatory_veto))  # mandatory always survives
-
-    if len(hard_veto_layers) > veto_budget:
-        # Sort soft VETOs by severity (highest first), trim to fit budget
-        soft_veto_scored.sort(key=lambda x: x[1], reverse=True)
-        available_slots = veto_budget - len(mandatory_veto)
-        kept_soft = set(s[0] for s in soft_veto_scored[:max(available_slots, 0)])
-        trimmed = hard_veto_layers - mandatory_veto - kept_soft
-        hard_veto_layers = mandatory_veto.union(kept_soft)
-        print(f"  [VETO Budget Cap] Trimmed {len(trimmed)} soft VETOs to fit budget {veto_budget}/{total_modules} ({args.veto_ratio:.1%}).")
-        print(f"  [VETO Budget Cap] Final: {len(mandatory_veto)} mandatory + {len(kept_soft)} soft = {len(hard_veto_layers)} total.")
-    else:
-        print(f"  [VETO Budget] {len(hard_veto_layers)}/{total_modules} layers ({len(hard_veto_layers)/total_modules:.1%}) — within budget.")
+    print(
+        f"  [VETO Pool] Pre-calibration candidates: {len(veto_pool)} "
+        f"(budget target {int(total_modules * args.veto_ratio)}/{total_modules} "
+        f"at veto_ratio={args.veto_ratio:.1%})"
+    )
 
     print("Preparing calibration (Dual Monitor hooks)...")
     dual_monitors.clear()
@@ -1180,10 +1241,45 @@ def main():
 
     print("\nAnalyzing layer sensitivity (profile_score + drift)...")
 
-    _supp = _autonomous_supplemental_veto(model, hard_veto_layers, _norm_profile, veto_tunables)
+    _module_dict_pre = dict(model.named_modules())
+    _supp = _autonomous_supplemental_veto(model, veto_considered, _norm_profile, veto_tunables)
     if _supp:
-        hard_veto_layers = hard_veto_layers.union(_supp)
-        print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
+        for sn in _supp:
+            prof = _norm_profile.get(sn, {})
+            mod = _module_dict_pre.get(sn)
+            drift = 0.0
+            if prof and mod is not None and hasattr(mod, "weight"):
+                drift = _weight_profile_drift(mod.weight.data, prof)
+            score = _veto_profile_severity_score(prof, drift=drift, tunables=veto_tunables)
+            _register_veto_candidate(
+                veto_pool, sn, _VETO_TIER_SUPPLEMENTAL, score, "supplemental"
+            )
+            veto_considered.add(sn)
+        print(f"  [Supplemental VETO] Discovered {len(_supp)} layers (pool: {len(veto_pool)}).")
+
+    hard_veto_layers, trimmed_veto, veto_budget = _apply_unified_veto_budget_cap(
+        veto_pool, total_modules, args.veto_ratio
+    )
+    if trimmed_veto:
+        print(
+            f"  [VETO Budget Cap] Trimmed {len(trimmed_veto)} layers to fit "
+            f"budget {veto_budget}/{total_modules} ({args.veto_ratio:.1%})."
+        )
+        by_source: dict[str, int] = {}
+        for _n, _t, _s, src in trimmed_veto:
+            by_source[src] = by_source.get(src, 0) + 1
+        print(f"  [VETO Budget Cap] Trimmed by source: {dict(sorted(by_source.items()))}")
+        for _n, _t, _s, src in trimmed_veto[:15]:
+            print(f"    [trimmed] {_n} tier={_t} score={_s:.2f} src={src}")
+        if len(trimmed_veto) > 15:
+            print(f"    ... and {len(trimmed_veto) - 15} more trimmed layers")
+    else:
+        print(
+            f"  [VETO Budget] {len(hard_veto_layers)}/{total_modules} layers "
+            f"({len(hard_veto_layers) / max(total_modules, 1):.1%}) — within budget "
+            f"{veto_budget}/{total_modules}."
+        )
+    print(f"  [VETO Budget Cap] Final: {len(hard_veto_layers)} layers kept.")
 
     # Exclude VETO layers from the Dynamic pool (they are always FP16, so Dynamic budget goes elsewhere)
     _module_dict_sens = dict(model.named_modules())
