@@ -505,18 +505,13 @@ def _compute_sdxl_keypattern_veto(
             print(f"    [Key-Pattern VETO] {_n} (boundary)")
             continue
         if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
-            if tunables.ff2_auto_full_class:
-                # Full-class auto: all ff.net.2 layers are VETO'd
+            # Selective VETO: only individual outlier ff2 layers (profile-derived thresholds)
+            prof = (norm_profile or {}).get(_n, {})
+            _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
+            hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
+            if hit:
                 added.add(_n)
-                print(f"    [Key-Pattern VETO] {_n} (ff2 full-class auto)")
-            else:
-                # Selective VETO: only individual outlier ff2 layers
-                prof = (norm_profile or {}).get(_n, {})
-                _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
-                hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
-                if hit:
-                    added.add(_n)
-                    print(f"    [Key-Pattern VETO] {_n} (ff2 auto {reason})")
+                print(f"    [Key-Pattern VETO] {_n} (ff2 auto {reason})")
     if added:
         print(f"  [Key-Pattern VETO] Added {len(added)} layers.")
     return added
