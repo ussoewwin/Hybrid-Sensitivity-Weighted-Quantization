@@ -5,8 +5,8 @@ Hybrid Sensitivity Weighted Quantization for Stable Diffusion XL (UNet only).
 
 V2.0 features:
 - DualMonitor: simultaneous sensitivity + importance (input activation) measurement
-- HSWQWeightedHistogramOptimizerV4: exact FP8 E4M3 grid MSE optimization
-- Autonomous VETO engine: SDXL key-pattern, per-projection attn (no QKV fuse), gray-zone MSE
+- HSWQWeightedHistogramOptimizerV5: exact FP8 E4M3 grid with Cosine Loss amax search
+- Autonomous VETO engine: SDXL key-pattern, per-projection attn (no QKV fuse), gray-zone cosine-loss reassessment
 - ComfyUI-compatible output: scaled=False, weight_scale=1.0, comfy_quant metadata
 
 Profiling: analyze/analyze_sdxl_distribution.py (auto-generated from template if missing).
@@ -679,12 +679,12 @@ def _mse_grayzone_veto_reassessment(
     device: str,
     tunables: SdxlVetoTunables,
 ) -> tuple[set, set]:
-    """Gray-zone VETO release via trial MSE (SDXL V2.0)."""
+    """Gray-zone VETO release via trial Cosine loss (SDXL V2.0)."""
     if not outlier_only_veto:
         return hard_veto_layers, keep_layers
 
     print(
-        f"\n  [{scope_label} MSE-Guided Reassessment] {len(outlier_only_veto)} VETO layers "
+        f"\n  [{scope_label} Cosine-Loss Reassessment] {len(outlier_only_veto)} VETO layers "
         f"are outlier-only (o>{tunables.mse_release_o_min:.2f}, "
         f"k<={tunables.mse_release_k_max:.2f}, m<={tunables.mse_release_m_max:.2f})."
     )
@@ -692,7 +692,7 @@ def _mse_grayzone_veto_reassessment(
 
     trial_optimizer = HSWQWeightedHistogramOptimizerV5(
         bins=8192, num_candidates=1000, refinement_iterations=10,
-        device=device, alpha=alpha, beta=beta
+        device=device, alpha=alpha, beta=beta, loss_type="cosine",
     )
 
     safe_mses = []
@@ -714,23 +714,23 @@ def _mse_grayzone_veto_reassessment(
         sw = smod.weight.data
         try:
             sresult = trial_optimizer.compute_optimal_amax_with_stats(
-                sw, importance=None, use_svd_leverage=True, scaled=False
+                sw, importance=None, use_svd_leverage=True, scaled=False, loss_type="cosine",
             )
-            safe_mses.append(sresult["estimated_mse"])
+            safe_mses.append(sresult["estimated_loss"])
         except Exception as e:
-            print(f"    [MSE ERROR] Failed safe layer {sname}: {e}")
+            print(f"    [COSINE ERROR] Failed safe layer {sname}: {e}")
         torch.cuda.empty_cache()
 
     if not safe_mses:
-        print(f"  [{scope_label} MSE-Guided Reassessment] No safe baseline available, skipping.")
+        print(f"  [{scope_label} Cosine-Loss Reassessment] No safe baseline available, skipping.")
         return hard_veto_layers, keep_layers
 
     safe_mses.sort()
     p75_idx = int(len(safe_mses) * 0.75)
     mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * max(tunables.mse_p75_multiplier, 2.0)
     print(
-        f"  [MSE Baseline] Safe layers sampled: {len(safe_mses)}, "
-        f"P75 MSE: {safe_mses[p75_idx]:.8f}, "
+        f"  [Cosine Baseline] Safe layers sampled: {len(safe_mses)}, "
+        f"P75 loss: {safe_mses[p75_idx]:.8f}, "
         f"Threshold ({tunables.mse_p75_multiplier:.2f}xP75): {mse_threshold:.8f}"
     )
 
@@ -744,20 +744,20 @@ def _mse_grayzone_veto_reassessment(
         vw = vmod.weight.data
         try:
             vresult = trial_optimizer.compute_optimal_amax_with_stats(
-                vw, importance=None, use_svd_leverage=True, scaled=False
+                vw, importance=None, use_svd_leverage=True, scaled=False, loss_type="cosine",
             )
-            vmse = vresult["estimated_mse"]
+            vmse = vresult["estimated_loss"]
             vprof = _norm_profile.get(vname, {})
             vor = vprof.get("outlier_ratio", 0)
             if vmse <= mse_threshold:
                 released.add(vname)
                 print(
-                    f"    RELEASED: {vname} | MSE={vmse:.8f} <= threshold={mse_threshold:.8f} "
+                    f"    RELEASED: {vname} | cosine_loss={vmse:.8f} <= threshold={mse_threshold:.8f} "
                     f"| o={vor:.1f} | amax={vresult['optimal_amax']:.4f}"
                 )
             else:
                 print(
-                    f"    KEPT:     {vname} | MSE={vmse:.8f} >  threshold={mse_threshold:.8f} "
+                    f"    KEPT:     {vname} | cosine_loss={vmse:.8f} >  threshold={mse_threshold:.8f} "
                     f"| o={vor:.1f}"
                 )
         except Exception as e:
@@ -768,12 +768,12 @@ def _mse_grayzone_veto_reassessment(
         hard_veto_layers = hard_veto_layers - released
         keep_layers = keep_layers - released
         print(
-            f"  [{scope_label} MSE-Guided Reassessment] Released {len(released)} layers from VETO. "
+            f"  [{scope_label} Cosine-Loss Reassessment] Released {len(released)} layers from VETO. "
             f"Remaining VETO: {len(hard_veto_layers)}."
         )
         print(f"  Updated FP16 kept layers: {len(keep_layers)}")
     else:
-        print(f"  [{scope_label} MSE-Guided Reassessment] No layers released (all exceeded MSE threshold).")
+        print(f"  [{scope_label} Cosine-Loss Reassessment] No layers released (all exceeded loss threshold).")
 
     return hard_veto_layers, keep_layers
 
@@ -1217,7 +1217,7 @@ def main():
     # [V1.92 Exclusive Protection] VETO (always FP16) + Dynamic (additional FP16) with no overlap for maximum coverage
     keep_layers = dynamic_keep_layers.union(hard_veto_layers)
     
-    # [V2.0 SDXL MSE-Guided VETO Reassessment] outlier-only VETO release candidates
+    # [V2.0 SDXL Cosine-Loss VETO Reassessment] outlier-only VETO release candidates
     release_cands = _collect_mse_release_candidates(
         hard_veto_layers, structural_veto, _norm_profile, model, veto_tunables
     )
@@ -1266,6 +1266,7 @@ def main():
         device=device,
         alpha=alpha,
         beta=beta,
+        loss_type="cosine",
     )
     
     for name, module in tqdm(model.named_modules(), desc="Analyzing"):
@@ -1285,6 +1286,7 @@ def main():
                 use_svd_leverage=False,  # V2.0 SDXL fix: SVD leverage harms uniform distribution
                 scaled=False, 
                 search_range=layer_search_range,
+                loss_type="cosine",
             )
             weight_amax_dict[name + ".weight"] = optimal_amax
             torch.cuda.empty_cache()
