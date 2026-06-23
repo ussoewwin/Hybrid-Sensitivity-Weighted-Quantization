@@ -14,12 +14,12 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | waiREALISM_v10 | r0.1 | 10.72 | **0.9538** |
 | waiREALCN_v150 | r0.15 | 31.20 | 0.9317 |
 | waiIllustriousSDXL_v160 | r0.1 | 19.05 | 0.9333 |
-| waiIllustriousSDXL_v170 | r0 | 23.87 | 0.9330 |
+| waiIllustriousSDXL_v170 | r0.0 | 23.87 | 0.9330 |
 | waiANIPONYXL_v140 | r0.15 | 15.64 | 0.9361 |
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 0.9233 |
 | uwazumimixILL_v50 | r0 | 13.76 | **0.9641** |
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | 0.9336 |
-| unholyDesireMixSinister_v80 | r0.1 | 31.80 | 0.9116 |
+| unholyDesireMixSinister_v80 | r0 | 10.14 | 0.9536 |
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | 0.9452 |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | **0.9751** |
 | realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 0.9367 |
@@ -60,12 +60,12 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | waiREALISM_v10 | r0.1 | 10.72 | 13.90 | +3.18 | 0.9538 | 0.9317 | −0.0221 | HSWQ |
 | waiREALCN_v150 | r0.15 | 31.20 | 51.18 | +19.98 | 0.9317 | 0.9371 | +0.0054 | — |
 | waiIllustriousSDXL_v160 | r0.1 | 19.05 | 46.93 | +27.88 | 0.9333 | 0.8864 | −0.0469 | HSWQ |
-| waiIllustriousSDXL_v170 | r0 | 23.87 | 40.11 | +16.24 | 0.9330 | 0.9040 | −0.0290 | HSWQ |
+| waiIllustriousSDXL_v170 | r0.0 | 23.87 | 40.11 | +16.24 | 0.9330 | 0.9040 | −0.0290 | HSWQ |
 | waiANIPONYXL_v140 | r0.15 | 15.64 | 23.00 | +7.36 | 0.9361 | 0.9306 | −0.0055 | HSWQ |
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 20.49 | +2.00 | 0.9233 | 0.9364 | +0.0131 | — |
 | uwazumimixILL_v50 | r0 | 13.76 | 11.80 | −1.96 | 0.9641 | 0.9542 | −0.0099 | — |
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | 39.70 | +29.41 | 0.9336 | 0.8694 | −0.0642 | HSWQ |
-| unholyDesireMixSinister_v80 | r0.1 | 31.80 | 67.74 | +35.93 | 0.9116 | 0.8988 | −0.0128 | HSWQ |
+| unholyDesireMixSinister_v80 | r0 | 10.14 | 15.16 | +5.02 | 0.9536 | 0.9430 | −0.0106 | HSWQ |
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | 69.70 | +10.89 | 0.9452 | 0.9377 | −0.0075 | HSWQ |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | 31.09 | −2.45 | 0.9751 | 0.9558 | −0.0193 | — |
 | realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 44.62 | +29.47 | 0.9367 | 0.8888 | −0.0479 | HSWQ |
@@ -78,20 +78,20 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | luminarqmixV8Noobaixl_v82 | r0.1 | 10.84 | 11.63 | +0.79 | 0.9683 | 0.9604 | −0.0079 | HSWQ |
 | koronemixVpred_v20 | r0.1 | 13.77 | 14.55 | +0.78 | 0.9622 | 0.9590 | −0.0032 | HSWQ |
 | koronemixIllustrious_v70 | r0.15 | 12.76 | 27.09 | +14.33 | 0.9735 | 0.9610 | −0.0125 | HSWQ |
-| JANKUTrainedNoobaiRouwei_v69 | r0.25 | 10.97 | 94.81 | +83.83 | 0.9614 | 0.8872 | −0.0742 | HSWQ |
+| JANKUTrainedNoobaiRouwei_v69 | r0.25 | 10.97 | 94.81 | +83.84 | 0.9614 | 0.8872 | −0.0742 | HSWQ |
 | JANKUTrainedChenkinNoobai_v777 | r0.1 | 19.83 | 26.37 | +6.54 | 0.9575 | 0.9546 | −0.0029 | HSWQ |
-| harukiMIX_ponyV40 | r0.15 | 14.49 | 23.65 | +9.17 | 0.9645 | 0.9301 | −0.0344 | HSWQ |
+| harukiMIX_ponyV40 | r0.15 | 14.49 | 23.65 | +9.16 | 0.9645 | 0.9301 | −0.0344 | HSWQ |
 | harukiMIX_illustriousV40 | r0.1 | 6.79 | 9.32 | +2.53 | 0.9715 | 0.9685 | −0.0030 | HSWQ |
-| epicrealismXL_pureFix | r0.1 | 6.82 | 26.79 | +19.96 | 0.9783 | 0.9579 | −0.0204 | HSWQ |
+| epicrealismXL_pureFix | r0.1 | 6.82 | 26.79 | +19.97 | 0.9783 | 0.9579 | −0.0204 | HSWQ |
 | ebaraPonyXL_v21 | r0.1 | 30.14 | 33.50 | +3.36 | 0.9349 | 0.9203 | −0.0146 | HSWQ |
 | cyberrealistic_v100Redux | r0.1 | 29.09 | 79.72 | +50.63 | 0.9749 | 0.9322 | −0.0427 | HSWQ |
-| cottonnoob_v50 | r0.1 | 6.46 | 22.28 | +15.83 | 0.9877 | 0.9524 | −0.0353 | HSWQ |
+| cottonnoob_v50 | r0.1 | 6.46 | 22.28 | +15.82 | 0.9877 | 0.9524 | −0.0353 | HSWQ |
 | bluePencilXL_v031 | r0.1 | 24.48 | 41.67 | +17.19 | 0.9006 | 0.8808 | −0.0198 | HSWQ |
 | asianRealismByStable_v30FP16 | r0.1 | 30.26 | 12.00 | −18.26 | 0.9129 | 0.9432 | +0.0303 | Official FP8 |
 | animagineXLV31_v30 | r0.1 | 18.25 | 51.77 | +33.52 | 0.9101 | 0.8775 | −0.0326 | HSWQ |
-| animemix_v80 | r0.1 | 17.80 | 11.15 | −6.66 | 0.9297 | 0.9512 | +0.0215 | Native |
-| novaAnimeXL_ilV190 | r0.1 | 18.97 | 25.78 | +6.82 | 0.9315 | 0.9181 | −0.0134 | HSWQ |
-| oneObsession_v21Anime | r0.1 | 23.09 | 27.77 | +4.67 | 0.9109 | 0.9084 | −0.0025 | HSWQ |
+| animemix_v80 | r0.1 | 17.80 | 11.15 | −6.65 | 0.9297 | 0.9512 | +0.0215 | Native |
+| novaAnimeXL_ilV190 | r0.1 | 18.97 | 25.78 | +6.81 | 0.9315 | 0.9181 | −0.0134 | HSWQ |
+| oneObsession_v21Anime | r0.1 | 23.09 | 27.77 | +4.68 | 0.9109 | 0.9084 | −0.0025 | HSWQ |
 
 **Winner** = better on both MSE and SSIM. For asianRealismByStable_v30FP16, the publisher distributes an official FP8 version; that official FP8 outperforms HSWQ.
 
