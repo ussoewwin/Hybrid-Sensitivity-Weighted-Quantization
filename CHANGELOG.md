@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1
+
+**SDXL benchmark: transformers 5.6+ CLIP compatibility** — Upgrading `transformers` to 5.6+ broke `benchmark/fp8bench.py` and `benchmark/fp8bench_enhanced.py` during `StableDiffusionXLPipeline.from_single_file()` with `AttributeError: 'CLIPTextModel' object has no attribute 'text_model'`. Added `benchmark/transformers_clip_compat.py` (applied before diffusers import): restores a `text_model` property, flattens legacy `text_model.*` state-dict keys on load, and skips `logit_scale`. Same remapping idea as Forge-Nunchaku `loader.py`. Guide: `md/SDXL_Bench_Transformers_56_CLIP_Compat_Fix.md`.
+Release notes: [v1.2.1](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v1.2.1)
+
 ## 1.2.0
 
 **Z Image quantizer V2.0 (`quantize_zib_hswq_v1.92.py` → `quantize_zib_hswq_v2.0.py`)** — Renamed the interim v1.93 autonomous engine to V2.0. On the default fused-key NextDiT path, V2.0 adds structural VETO, per-projection qkv VETO, selective key-pattern VETO, drift scoring, supplemental live VETO, and MSE gray-zone reassessment—without filename flags or hardcoded layer lists. Profile Hard VETO, HSWQ V4, V1 FP8 format, and `--keep_ratio` CLI behavior are unchanged. Developed after moodyRealMix V7 at `--keep_ratio 0.05` fell to ~0.88 SSIM under V1.92 while V6 stayed at 0.99; V2.0 targets high SSIM at acceptable FP8 file size on the shared NextDiT stack.
