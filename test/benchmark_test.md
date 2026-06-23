@@ -19,7 +19,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | waiANIPONYXL_v11 | r0.15 | 18.49 | 0.9233 |
 | uwazumimixILL_v50 | r0 | 13.76 | **0.9641** |
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | 0.9336 |
-| unholyDesireMixSinister_v80 | r0 | 10.14 | 0.9536 |
+| unholyDesireMixSinister_v80 | r0 | 10.14 | **0.9536** |
 | realvisxlV50_v50Bakedvae | r0.1 | 58.81 | 0.9452 |
 | realvisxlV50_v40Bakedvae | r0.1 | 33.54 | **0.9751** |
 | realvisxlV30_v30TurboBakedvae | r0.1 | 15.15 | 0.9367 |
