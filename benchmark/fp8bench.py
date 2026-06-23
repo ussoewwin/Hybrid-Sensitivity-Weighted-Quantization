@@ -1,5 +1,10 @@
 import argparse
 import torch
+
+import transformers_clip_compat
+
+transformers_clip_compat.apply()
+
 from diffusers import StableDiffusionXLPipeline
 import numpy as np
 from PIL import Image, ImageChops
