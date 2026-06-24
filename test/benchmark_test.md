@@ -15,8 +15,8 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | waiREALCN_v150 | r0.15 | 31.20 | 0.9317 |
 | waiIllustriousSDXL_v170 | r0.0 | 23.87 | 0.9330 |
 | waiIllustriousSDXL_v160 | r0.1 | 19.05 | 0.9333 |
+| waiANIPONYXL_v90 | r0 | 11.89 | **0.9587** |
 | waiANIPONYXL_v140 | r0 | 12.88 | **0.9561** |
-| waiANIPONYXL_v11 | r0.15 | 18.49 | 0.9233 |
 | uwazumimixILL_v50 | r0 | 13.76 | **0.9641** |
 | unholyDesireMixSinister_v80 | r0 | 10.00 | **0.9553** |
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | 0.9336 |
@@ -61,8 +61,8 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | waiREALCN_v150 | r0.15 | 31.20 | 51.18 | +19.98 | 0.9317 | 0.9371 | +0.0054 | — |
 | waiIllustriousSDXL_v170 | r0.0 | 23.87 | 40.11 | +16.24 | 0.9330 | 0.9040 | −0.0290 | HSWQ |
 | waiIllustriousSDXL_v160 | r0.1 | 19.05 | 46.93 | +27.88 | 0.9333 | 0.8864 | −0.0469 | HSWQ |
+| waiANIPONYXL_v90 | r0 | 11.89 | 16.86 | +4.97 | 0.9587 | 0.9479 | −0.0108 | HSWQ |
 | waiANIPONYXL_v140 | r0 | 12.88 | 18.70 | +5.82 | 0.9561 | 0.9574 | +0.0013 | — |
-| waiANIPONYXL_v11 | r0.15 | 18.49 | 20.49 | +2.00 | 0.9233 | 0.9364 | +0.0131 | — |
 | uwazumimixILL_v50 | r0 | 13.76 | 11.80 | −1.96 | 0.9641 | 0.9542 | −0.0099 | — |
 | unholyDesireMixSinister_v80 | r0 | 10.00 | 14.54 | +4.54 | 0.9553 | 0.9425 | −0.0128 | HSWQ |
 | unholyDesireMixSinister_v60 | r0.15 | 10.29 | 39.70 | +29.41 | 0.9336 | 0.8694 | −0.0642 | HSWQ |
