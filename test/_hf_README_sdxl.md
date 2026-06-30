@@ -115,8 +115,9 @@ HSWQ V1 gives a clear gain over Naive FP8 with full compatibility; V2 targets ma
 | `novaAnimeXL_ilV190_hswq_r32_r0.1_v1.safetensors` | [Nova Anime XL](https://civitai.red/models/376130?modelVersionId=2940478) | Illustrious v19.0 | Illustrious License |
 | `novaAsianXL_illustriousV70_r32_r0.1.safetensors` | [Nova Asian XL](https://civitai.red/models/641919/nova-asian-xl) | Illustrious v7.0 | Illustrious License |
 | `oneObsession_v21Anime_hswq_r32_r0.1_v1.safetensors` | [One obsession](https://civitai.red/models/1318945?modelVersionId=2823418) | v21_Anime | Illustrious License |
+| `oneObsession_v22.safetensors_hswq_r32_r0_v1.safetensors` | [One obsession](https://civitai.red/models/1318945?modelVersionId=2823418) | v22 | Illustrious License |
 | `perfectionAsianILXL_v10_r32_r0.1.safetensors` | [Perfection Asian [ILXL / Illustrious XL]](https://civitai.red/models/1518448/perfection-asian-ilxl-illustrious-xl--sfw-checkpoint) | v1.0 | Illustrious License |
-| `perfectionRealisticILXL_60_r32_r0.1.safetensors` | [Perfection Realistic [ILXL / Illustrious XL]](https://civitai.red/models/1257570) | v6.0 | Illustrious License |
+| `perfectionRealisticILXL_80_hswq_r32_r0.1_v1.safetensors` | [Perfection Realistic [ILXL / Illustrious XL]](https://civitai.red/models/1257570) | v8.0 | Illustrious License |
 | `prefectIllustriousXL_v70_r32_r0.1.safetensors` | [Prefect illustrious XL](https://civitai.red/models/1224788) | v7.0 | Illustrious License |
 | `prefectIllustriousXL_v8_hswq_r32_r0.1_v1.safetensors` | [Prefect illustrious XL](https://civitai.red/models/1224788) | v8.0 | Illustrious License |
 | `uwazumimixILL_v50_hswq_r32_r0_v1.safetensors` | [UwazumiMix_ILL](https://civitai.red/models/1590659) | v5.0 | Illustrious License |
