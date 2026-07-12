@@ -88,6 +88,44 @@ class FP8E4M3Quantizer:
         return result * signs
 
 
+class INT8Quantizer:
+    """Symmetric per-tensor INT8 quantize/dequantize simulator.
+
+    Uses a uniform grid with 254 positive levels (1..127 plus zero, symmetric
+    negative). This matches the ComfyUI `TensorWiseINT8Layout` recipe:
+      storage_t = torch.int8, parameters = {weight_scale}, no zero-point.
+    The dequantize step is `q * scale` where scale = amax / 127.
+
+    Compared to FP8E4M3, the grid is *uniform* (linear) so HSWQ's outlier-aware
+    clipping is even more important: zero-near resolution is constant, while
+    large values can be represented up to amax (no 448 cap).
+    """
+
+    INT8_MAX = 127
+
+    def __init__(self, device: str = "cuda"):
+        self.device = device
+        self.max_representable = float(self.INT8_MAX)
+
+    def quantize_dequantize(self, values: torch.Tensor, amax: float, scaled: bool = True) -> torch.Tensor:
+        """Full quantize-then-dequantize q(x, delta).
+
+        For INT8 symmetric per-tensor:
+          scale = amax / 127
+          q = round(x / scale).clamp(-127, 127)
+          x_dq = q * scale
+        `scaled` arg is accepted for signature parity with FP8Quantizer; for
+        INT8 the path is identical in both modes because the grid is uniform.
+        """
+        if amax <= 0:
+            return torch.zeros_like(values)
+        scale = amax / self.INT8_MAX
+        if scale <= 0:
+            return torch.zeros_like(values)
+        scaled_vals = (values / scale).round().clamp(-self.INT8_MAX, self.INT8_MAX)
+        return scaled_vals * scale
+
+
 class WeightedHistogram:
     """
     HSWQ-compliant weighted histogram (SVD 2D/4D importance).
@@ -175,11 +213,12 @@ class WeightedHistogram:
 
 class MSEOptimizer:
     """MSE optimizer."""
-    
-    def __init__(self, device: str = "cuda"):
+
+    def __init__(self, device: str = "cuda", quantizer: Optional[torch.nn.Module] = None):
         self.device = device
-        self.fp8_quantizer = FP8E4M3Quantizer(device)
-    
+        # Allow caller to inject INT8Quantizer; default to FP8E4M3 for full back-compat.
+        self.fp8_quantizer = quantizer if quantizer is not None else FP8E4M3Quantizer(device)
+
     def compute_weighted_mse(self, histogram: torch.Tensor, bin_centers: torch.Tensor, amax: float, scaled: bool = True) -> float:
         dequantized = self.fp8_quantizer.quantize_dequantize(bin_centers.float(), amax, scaled=scaled).double()
         error_sq = (dequantized - bin_centers) ** 2
@@ -295,16 +334,20 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
 class HSWQWeightedHistogramOptimizerV4:
     """
     HSWQ weighted histogram optimizer (V4: SVD-Magnitude Hybrid).
+
+    `quantizer` arg allows switching between FP8E4M3 (default) and INT8
+    (symmetric per-tensor) quantize/dequantize simulators. The amax search
+    loop is identical; only the quantize/dequantize kernel changes.
     """
-    
-    def __init__(self, bins: int = 8192, num_candidates: int = 1000, refinement_iterations: int = 10, device: str = "cuda", alpha: float = 0.7, beta: float = 0.3):
+
+    def __init__(self, bins: int = 8192, num_candidates: int = 1000, refinement_iterations: int = 10, device: str = "cuda", alpha: float = 0.7, beta: float = 0.3, quantizer=None):
         self.bins = bins
         self.num_candidates = num_candidates
         self.refinement_iterations = refinement_iterations
         self.device = device
         self.alpha = alpha
         self.beta = beta
-        self.mse_optimizer = MSEOptimizer(device)
+        self.mse_optimizer = MSEOptimizer(device, quantizer=quantizer)
     
     def compute_optimal_amax(self, weight: torch.Tensor, importance: Optional[torch.Tensor] = None, use_svd_leverage: bool = True, search_range: Tuple[float, float] = (0.5, 1.0), scaled: bool = True) -> float:
         """

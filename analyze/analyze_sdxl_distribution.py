@@ -348,6 +348,157 @@ def derive_veto_tunables(profile: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _derive_engine_tunables_int8(
+    all_k: List[float],
+    all_o: List[float],
+    all_m: List[float],
+    k_sorted: List[float],
+    o_sorted: List[float],
+    m_sorted: List[float],
+) -> Dict[str, float]:
+    """INT8-specific engine tunables.
+
+    INT8 symmetric per-tensor has 127 positive levels (uniform grid) vs
+    FP8E4M3's non-linear grid with ~240 positive levels concentrated near 0.
+    Key differences vs FP8:
+      1. max_representable = 127 (not 448) → outlier_ratio thresholds are
+         scaled by 127/448 ≈ 0.283. A weight with abs_max=448 that was at
+         the FP8 ceiling is now 3.5x the INT8 ceiling, so VETO must trigger
+         at proportionally lower abs_max.
+      2. Zero-near resolution is constant (linear grid), so HSWQ's
+         outlier-clipping is more valuable: clipping tight outliers yields
+         uniform resolution gain across the whole range.
+      3. Dynamic range is effectively wider for in-distribution weights
+         (no 448 cap), so search_low can be more aggressive for clean
+         layers, but gray-zone layers (moderate outliers) need stricter
+         protection than FP8 because the resolution loss near zero is
+         absolute, not relative.
+    """
+    n = len(all_k)
+    k_q1, k_med, k_q3 = _quartile_bounds(k_sorted)
+    o_q1, o_med, o_q3 = _quartile_bounds(o_sorted)
+    m_q1, m_med, m_q3 = _quartile_bounds(m_sorted)
+    iqr_k = k_q3 - k_q1
+    iqr_o = o_q3 - o_q1
+    iqr_m = m_q3 - m_q1
+
+    # INT8 scale factor: 127 / 448 ≈ 0.2835
+    int8_scale_factor = 127.0 / 448.0
+
+    drift_veto_thresh = (o_q3 - o_med) / max(o_med, 1e-9) if o_med > 0 else 0.5
+    drift_score_mult = max(iqr_k + iqr_o + iqr_m, 1.0)
+
+    mse_p75_mult = 1.0 + (iqr_o / max(o_q1, 1e-9)) if o_q1 > 0 else 2.0
+    mse_p75_mult = min(max(mse_p75_mult, 1.25), 3.0)
+
+    k_scale = 1.0 / max(k_q3, 1e-9)
+    o_scale = 1.0 / max(o_q3, 1e-9)
+    m_scale = 1.0 / max(m_q3, 1e-9)
+    penalty_cap = min(iqr_k / max(k_q3, 1e-9), 0.49)
+
+    return {
+        "drift_veto_thresh": float(min(max(drift_veto_thresh, 0.1), 1.0)),
+        "drift_score_mult": float(drift_score_mult),
+        # INT8: outlier VETO release at lower o (dynamic range is wider, so
+        # moderate outliers are less damaging). Scale o_min by int8 factor.
+        "mse_release_o_min": float(max(o_q3, o_med + iqr_o * 0.5) * int8_scale_factor * 1.2),
+        "mse_release_k_max": float(k_q3),
+        "mse_release_m_max": float(m_q3 * int8_scale_factor),
+        "mse_p75_multiplier": float(mse_p75_mult),
+        "k_scale": float(k_scale),
+        "o_scale": float(o_scale),
+        "m_scale": float(m_scale),
+        "k_gray_lo": float(k_q1),
+        "k_gray_hi": float(k_q3),
+        "o_gray_lo": float(o_q1 * int8_scale_factor),
+        "o_gray_hi": float(o_q3 * int8_scale_factor),
+        "m_gray_lo": float(m_q1 * int8_scale_factor),
+        "m_gray_hi": float(m_q3 * int8_scale_factor),
+        "search_low_floor": float(m_q1 / max(m_q3, 1e-9)) if m_q3 > 0 else 0.5,
+        "search_low_penalty_cap": float(penalty_cap),
+        "search_low_clip_max": float(min(1.0, 0.5 + o_scale * o_med)),
+        "search_low_gray_clip_max": float(min(0.99, 0.5 + k_scale * k_med)),
+        "alpha_floor": float(min(0.5 + k_scale * k_med, 0.99)),
+        "alpha_clip_max": 0.99,
+        "beta_floor": float(min(0.5 + o_scale * o_med, 0.99)),
+        "beta_clip_max": 0.99,
+        "ff2_suffix_min_count": max(1, (n + 19) // 20),
+        "score_o_weight": float(iqr_o / max(o_q1, 1e-9)) if o_q1 > 0 else 1.0,
+        "score_m_weight": float(iqr_m / max(m_q1, 1e-9)) if m_q1 > 0 else 0.5,
+    }
+
+
+def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
+    """INT8-specific VETO tunables for SDXL V3.0.
+
+    Reuses the FP8 `derive_veto_tunables` shape but replaces the engine block
+    with INT8-tuned thresholds (scaled by 127/448 for outlier/magnitude).
+    Also tightens per-class attn gates because INT8's uniform grid loses
+    near-zero resolution that FP8E4M3 had natively.
+    """
+    profile = _normalize_profile(profile)
+    layers = profile.get("layers", {})
+    if not layers:
+        raise ValueError("profile has no layers")
+
+    base = derive_veto_tunables(profile)
+
+    all_k: List[float] = []
+    all_o: List[float] = []
+    all_m: List[float] = []
+    by_class: Dict[str, List[Dict[str, float]]] = defaultdict(list)
+    for name, entry in layers.items():
+        k = float(entry.get("kurtosis", 0))
+        o = float(entry.get("outlier_ratio", entry.get("abs_max", 0)))
+        m = float(entry.get("abs_max", 0))
+        all_k.append(k)
+        all_o.append(o)
+        all_m.append(m)
+        cls = classify_layer(name)
+        by_class[cls].append({"k": k, "o": o, "m": m, "name": name})
+
+    k_sorted = _sorted_pool(all_k)
+    o_sorted = _sorted_pool(all_o)
+    m_sorted = _sorted_pool(all_m)
+
+    int8_engine = _derive_engine_tunables_int8(
+        all_k, all_o, all_m, k_sorted, o_sorted, m_sorted
+    )
+
+    int8_scale_factor = 127.0 / 448.0
+
+    def _class_attn_gate_int8(entries: List[Dict[str, float]], pool_m: List[float]) -> float:
+        if not entries:
+            return _tukey_upper(pool_m) * int8_scale_factor
+        am = _sorted_pool([e["m"] for e in entries])
+        return _tukey_upper(am) * int8_scale_factor
+
+    def _class_outlier_gate_int8(entries: List[Dict[str, float]], pool_o: List[float]) -> float:
+        if not entries:
+            return _tukey_upper(pool_o) * int8_scale_factor
+        oo = _sorted_pool([e["o"] for e in entries])
+        return _tukey_upper(oo) * int8_scale_factor
+
+    qkv_gate_i = _class_attn_gate_int8(by_class.get("qkv", []), all_m)
+    toout_gate_i = _class_attn_gate_int8(by_class.get("toout", []), all_m)
+    ff2_gate_i = _class_attn_gate_int8(by_class.get("ff2", []), all_m)
+    qkv_o_gate_i = _class_outlier_gate_int8(by_class.get("qkv", []), all_o)
+    toout_o_gate_i = _class_outlier_gate_int8(by_class.get("toout", []), all_o)
+
+    base.update({
+        "attn_qkv_absmax": float(qkv_gate_i),
+        "attn_qkv_outlier": float(qkv_o_gate_i),
+        "attn_toout_absmax": float(toout_gate_i),
+        "attn_toout_outlier": float(toout_o_gate_i),
+        "attn_ff2_absmax": float(ff2_gate_i),
+        "extreme_outlier": float(base["extreme_outlier"] * int8_scale_factor),
+        "huge_magnitude": float(base["huge_magnitude"] * int8_scale_factor),
+        "quant_format": "int8_tensorwise",
+    })
+    base.update(int8_engine)
+    return base
+
+
 def enrich_profile_with_derived(profile: Dict[str, Any]) -> Dict[str, Any]:
     """Recompute per-layer profile_score and attach veto_tunables + summary."""
     layers = profile.get("layers", {})
