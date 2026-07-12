@@ -15,38 +15,46 @@ def convert_to_int8(input_path, output_path):
     converted_count = 0
     skipped_count = 0
 
-    print("Converting UNet weights to INT8 (tensorwise, amax/127)...")
+    print("Converting UNet Linear/Conv weights to INT8 (tensorwise, amax/127)...")
 
     for key, tensor in tqdm(state_dict.items()):
-        # Target only the SDXL UNet portion (model.diffusion_model)
-        # Same scope as native_convert_fp8.py; CLIP / VAE stay as-is.
-        if key.startswith("model.diffusion_model") and key.endswith(".weight"):
-            if tensor.dtype in [torch.float16, torch.float32, torch.bfloat16]:
-                # Symmetric per-tensor INT8 (ComfyUI int8_tensorwise):
-                #   scale = amax / 127
-                #   q = round(x / scale).clamp(-127, 127).to(int8)
-                w = tensor.float()
-                amax = w.abs().max().item()
-                amax = max(amax, 1e-6)
-                scale = amax / 127.0
-                q = (w / scale).round().clamp(-127, 127).to(torch.int8)
+        # Target only SDXL UNet Linear/Conv weights (ndim >= 2).
+        # Do NOT INT8 1D .weight (GroupNorm / LayerNorm): those modules are not
+        # MixedPrecisionOps and would load int8 as float without applying
+        # weight_scale, destroying SSIM (e.g. ~0.0003). HSWQ only touches
+        # nn.Linear / nn.Conv2d for the same reason.
+        is_unet_matmul_weight = (
+            key.startswith("model.diffusion_model")
+            and key.endswith(".weight")
+            and tensor.ndim >= 2
+        )
+        if is_unet_matmul_weight and tensor.dtype in [
+            torch.float16,
+            torch.float32,
+            torch.bfloat16,
+        ]:
+            # Symmetric per-tensor INT8 (ComfyUI int8_tensorwise):
+            #   scale = amax / 127
+            #   q = round(x / scale).clamp(-127, 127).to(int8)
+            w = tensor.float()
+            amax = w.abs().max().item()
+            amax = max(amax, 1e-6)
+            scale = amax / 127.0
+            q = (w / scale).round().clamp(-127, 127).to(torch.int8)
 
-                module_key = key[: -len(".weight")]
-                new_state_dict[key] = q
-                new_state_dict[f"{module_key}.weight_scale"] = torch.tensor(
-                    scale, dtype=torch.float32
-                )
-                new_state_dict[f"{module_key}.comfy_quant"] = torch.tensor(
-                    list(json.dumps({"format": "int8_tensorwise"}).encode("utf-8")),
-                    dtype=torch.uint8,
-                )
-                quant_meta_layers[module_key] = {"format": "int8_tensorwise"}
-                converted_count += 1
-            else:
-                new_state_dict[key] = tensor
-                skipped_count += 1
+            module_key = key[: -len(".weight")]
+            new_state_dict[key] = q
+            new_state_dict[f"{module_key}.weight_scale"] = torch.tensor(
+                scale, dtype=torch.float32
+            )
+            new_state_dict[f"{module_key}.comfy_quant"] = torch.tensor(
+                list(json.dumps({"format": "int8_tensorwise"}).encode("utf-8")),
+                dtype=torch.uint8,
+            )
+            quant_meta_layers[module_key] = {"format": "int8_tensorwise"}
+            converted_count += 1
         else:
-            # Keep biases, CLIP (conditioner), VAE (first_stage_model), etc.
+            # Keep norms, biases, CLIP, VAE, and non-float tensors as-is.
             new_state_dict[key] = tensor
             skipped_count += 1
 
