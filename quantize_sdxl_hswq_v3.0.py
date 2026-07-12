@@ -985,7 +985,7 @@ def _mse_grayzone_veto_reassessment(
             print(f"    [MSE SKIP] safe {sname}: no DualMonitor importance (calib incomplete)")
             continue
         try:
-            sresult = trial_optimizer.compute_optimal_amax_with_stats(
+            sresult = trial_optimizer.compute_optimal_amax_with_stats_int8_range(
                 sw,
                 importance=simp,
                 use_svd_leverage=True,
@@ -1024,7 +1024,7 @@ def _mse_grayzone_veto_reassessment(
             print(f"    KEPT(no-calib-imp): {vname} | DualMonitor importance missing")
             continue
         try:
-            vresult = trial_optimizer.compute_optimal_amax_with_stats(
+            vresult = trial_optimizer.compute_optimal_amax_with_stats_int8_range(
                 vw,
                 importance=vimp,
                 use_svd_leverage=True,
@@ -1079,7 +1079,7 @@ def _measure_v4_mse_absmax_int8(
     optimizer: HSWQWeightedHistogramOptimizerV4,
 ) -> float:
     """INT8-only: V4 estimated_mse at absmax pack with DualMonitor importance."""
-    result = optimizer.compute_optimal_amax_with_stats(
+    result = optimizer.compute_optimal_amax_with_stats_int8_range(
         weight,
         importance=importance,
         use_svd_leverage=True,
