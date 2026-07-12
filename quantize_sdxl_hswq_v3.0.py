@@ -350,6 +350,9 @@ class SdxlVetoTunables:
     fp16_budget_bytes: int = 314572800
     n_unet_layers: int = 0
     autonomous: bool = False
+    # V4 histogram SVD-vs-calibration mix, derived from THIS profile's
+    # kurtosis distribution (median <= 0 → 0.0; heavier tail → higher).
+    alpha_auto: float = 0.0
 
     @classmethod
     def from_dict(cls, d: dict) -> "SdxlVetoTunables":
@@ -405,6 +408,7 @@ class SdxlVetoTunables:
             fp16_budget_bytes=int(d.get("fp16_budget_bytes", 300 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=bool(d.get("autonomous", False)),
+            alpha_auto=float(d.get("alpha_auto", 0.0)),
         )
 
     def as_dict(self) -> dict:
@@ -1305,14 +1309,12 @@ def _apply_fp16_budget_cap(
 
         measured.append((name, dm_sens, v4_mse, severity, extra))
 
-    # ---- Autonomous priority combinator (no fixed product/sum rule) ----
-    # Derive the FORM (product / weighted_sum / uniform), axis weights, and
-    # reference values from the MEASURED three-axis distribution for THIS
-    # checkpoint (sens / sev / mse). No fixed rule.
+    # ---- Autonomous priority combinator (continuous; no fixed rule) ----
+    # Axis weights + refs derived from the MEASURED three-axis distribution
+    # for THIS checkpoint (sens / sev / mse) via weighted geometric mean.
     sens_meas = [row[1] for row in measured if row[1] > 0]
     sev_meas = [row[3] for row in measured]
     mse_meas = [row[2] for row in measured if row[2] > 0]
-    combinator = derive_priority_combinator(s_iqr, v_iqr, m_iqr, s_p50, v_p50, m_p50)
     s_p50 = _safe_percentile(sens_meas, 50.0) if len(sens_meas) >= 2 else 0.0
     s_iqr = _robust_iqr(sens_meas) if len(sens_meas) >= 4 else 0.0
     v_p50 = _safe_percentile(sev_meas, 50.0) if len(sev_meas) >= 2 else 0.0
@@ -1631,22 +1633,21 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
         avg_o = np.mean(all_o) if all_o else 0
         avg_m = np.mean(all_m) if all_m else 0
         print(f"  [Profile Stats INT8] Avg Kurtosis: {avg_k:.2f}, Avg OutlierRatio: {avg_o:.2f}, Avg AbsMax: {avg_m:.2f}")
-        vt = veto_tunables
-        alpha_floor_safe = max(vt.alpha_floor, 0.5)
-        alpha = float(
-            np.clip(alpha_floor_safe + avg_k * vt.k_scale, alpha_floor_safe, min(vt.alpha_clip_max, 0.80))
-        )
-        beta = 1.0 - alpha
-    else:
-        print("  [Profile Stats INT8] No profile loaded. Using default alpha/beta.")
-        alpha, beta = 0.5, 0.5
-    # V3.0 INT8: SVD leverage is counterproductive on SDXL's uniform weight distribution.
-    # Force alpha=0 (pure calibration magnitude importance) for stable SSIM.
-    # Same finding as V2.1 FP8; INT8 does not change this conclusion.
-    alpha = 0.0
-    beta = 1.0
 
-    print(f"  [Dynamic Alpha/Beta INT8] alpha={alpha:.3f}, beta={beta:.3f}")
+    # alpha (SVD leverage vs calibration magnitude) is derived from THIS
+    # profile's kurtosis distribution shape by derive_int8_autonomous_tunables
+    # (alpha_auto): median kurtosis <= 0 → flat/uniform weights → 0.0 (pure
+    # calibration importance; matches V2.1 SDXL measurement and the 7599974
+    # SSIM 0.98 anchor, whose profiles have negative median kurtosis).
+    # Heavier-tailed profiles rise continuously (k_p50/k_p99). No fixed 0.0,
+    # no model-name rule.
+    alpha = float(veto_tunables.alpha_auto)
+    beta = 1.0 - alpha
+
+    print(
+        f"  [Dynamic Alpha/Beta INT8] alpha={alpha:.3f}, beta={beta:.3f} "
+        f"(alpha_auto from kurtosis distribution shape)"
+    )
 
     hard_veto_layers = set()
     if model_profile:
