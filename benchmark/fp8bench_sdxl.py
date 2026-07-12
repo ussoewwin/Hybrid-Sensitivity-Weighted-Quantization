@@ -46,42 +46,42 @@ COMFY_PATH = _resolve_comfy_path()
 
 
 def _ensure_comfy_complete():
-    """Cloud checkouts of ComfyUI-master often ship a truncated comfy/ dir.
-    If ANY root .py file or subpackage is missing, clone upstream ComfyUI
-    into a sibling dir and replace the entire comfy/ tree, then overlay
-    our patched ops.py on top so INT8 Conv2d support is preserved."""
+    """Cloud checkouts of ComfyUI-master often ship a truncated tree.
+    Restore missing root .py files and the entire comfy/ tree from upstream,
+    then overlay our patched ops.py for INT8 Conv2d support."""
     comfy_dir = os.path.join(COMFY_PATH, "comfy")
-    # Always ensure comfy/__init__.py exists first — without it Python won't
-    # treat comfy/ as a package and every `from comfy.X import Y` fails with
-    # a misleading ModuleNotFoundError.
+    # Always ensure comfy/__init__.py exists first.
     init_path = os.path.join(comfy_dir, "__init__.py")
     if not os.path.isfile(init_path):
         try:
             with open(init_path, "w") as _f:
                 _f.write("")
-            print(f"[BENCH] created comfy/__init__.py")
         except Exception as e:
             print(f"[BENCH] create comfy/__init__.py failed: {e}")
-    # Pick a few sentinel files; if any missing, we treat the dir as broken.
-    sentinels = ("model_management.py", "memory_management.py", "quant_ops.py",
-                 "model_patcher.py", "sd.py", "sample.py", "utils.py",
-                 "cli_args.py", "options.py", "samplers.py", "lora.py",
-                 "hooks.py", "latent_formats.py", "model_base.py",
-                 "model_detection.py", "model_sampling.py",
-                 "supported_models.py", "supported_models_base.py",
-                 "clip_vision.py", "clip_model.py", "sd1_clip.py",
-                 "sdxl_clip.py", "diffusers_convert.py", "diffusers_load.py",
-                 "float.py", "gligen.py", "pinned_memory.py",
-                 "patcher_extension.py", "rmsnorm.py", "nested_tensor.py",
-                 "pixel_space_convert.py", "multigpu.py",
-                 "model_prefetch.py", "sampler_helpers.py",
-                 "deploy_environment.py", "comfy_api_env.py",
-                 "lora_convert.py", "audio_encoders")
-    missing = [f for f in sentinels
-               if not os.path.exists(os.path.join(comfy_dir, f))]
-    if not missing:
+    # Root-level sentinels (node_helpers.py etc. are required by comfy.sd).
+    root_sentinels = ("node_helpers.py", "nodes.py", "main.py", "folder_paths.py",
+                      "app.py", "server.py", "types.py")
+    root_missing = [f for f in root_sentinels
+                    if not os.path.isfile(os.path.join(COMFY_PATH, f))]
+    comfy_sentinels = ("model_management.py", "memory_management.py",
+                       "quant_ops.py", "model_patcher.py", "sd.py", "sample.py",
+                       "utils.py", "cli_args.py", "options.py", "samplers.py",
+                       "lora.py", "hooks.py", "latent_formats.py", "model_base.py",
+                       "model_detection.py", "model_sampling.py",
+                       "supported_models.py", "supported_models_base.py",
+                       "clip_vision.py", "clip_model.py", "sd1_clip.py",
+                       "sdxl_clip.py", "diffusers_convert.py", "diffusers_load.py",
+                       "float.py", "gligen.py", "pinned_memory.py",
+                       "patcher_extension.py", "rmsnorm.py", "nested_tensor.py",
+                       "pixel_space_convert.py", "multigpu.py",
+                       "model_prefetch.py", "sampler_helpers.py",
+                       "deploy_environment.py", "comfy_api_env.py",
+                       "lora_convert.py", "audio_encoders")
+    comfy_missing = [f for f in comfy_sentinels
+                     if not os.path.exists(os.path.join(comfy_dir, f))]
+    if not root_missing and not comfy_missing:
         return
-    print(f"[BENCH] comfy/ incomplete (missing {len(missing)} sentinels: {missing[:5]}...); self-repairing...")
+    print(f"[BENCH] ComfyUI incomplete (root missing {len(root_missing)}, comfy missing {len(comfy_missing)}); self-repairing...")
     sibling = os.path.join(os.path.dirname(COMFY_PATH), "_comfyui_full")
     if not os.path.isdir(os.path.join(sibling, "comfy")):
         import subprocess as _sp
@@ -93,46 +93,47 @@ def _ensure_comfy_complete():
         except Exception as e:
             print(f"[BENCH] Clone failed: {e}; cannot self-repair.")
             return
-    src_comfy = os.path.join(sibling, "comfy")
-    if not os.path.isdir(src_comfy):
-        print(f"[BENCH] {src_comfy} missing after clone; cannot self-repair.")
-        return
-    # Back up our patched ops.py so we can restore it after the full overlay.
     import shutil as _sh
-    patched_ops = None
-    ops_path = os.path.join(comfy_dir, "ops.py")
-    if os.path.isfile(ops_path):
-        import tempfile as _tf
-        patched_ops = _tf.mkstemp(suffix="_ops.py")[1]
-        _sh.copy2(ops_path, patched_ops)
-        print(f"[BENCH] backed up patched ops.py ({os.path.getsize(ops_path)} bytes)")
-    # Wipe the broken comfy/ tree entirely and re-copy from upstream.
-    try:
-        if os.path.isdir(comfy_dir):
-            _sh.rmtree(comfy_dir)
-    except Exception as e:
-        print(f"[BENCH] rmtree failed: {e}")
-    try:
-        _sh.copytree(src_comfy, comfy_dir)
-        print(f"[BENCH] restored full comfy/ from upstream ({len(os.listdir(comfy_dir))} entries)")
-    except Exception as e:
-        print(f"[BENCH] copytree failed: {e}")
+    # Restore missing root .py files from upstream root.
+    for f in root_missing:
+        src = os.path.join(sibling, f)
+        dst = os.path.join(COMFY_PATH, f)
+        if os.path.isfile(src):
+            try:
+                _sh.copy2(src, dst)
+                print(f"[BENCH] restored root/{f}")
+            except Exception as e:
+                print(f"[BENCH] restore root/{f} failed: {e}")
+    if comfy_missing:
+        src_comfy = os.path.join(sibling, "comfy")
+        if not os.path.isdir(src_comfy):
+            print(f"[BENCH] {src_comfy} missing; cannot repair comfy/.")
+            return
+        # Back up patched ops.py.
+        patched_ops = None
+        ops_path = os.path.join(comfy_dir, "ops.py")
+        if os.path.isfile(ops_path):
+            import tempfile as _tf
+            patched_ops = _tf.mkstemp(suffix="_ops.py")[1]
+            _sh.copy2(ops_path, patched_ops)
+        try:
+            if os.path.isdir(comfy_dir):
+                _sh.rmtree(comfy_dir)
+            _sh.copytree(src_comfy, comfy_dir)
+            print(f"[BENCH] restored full comfy/ from upstream")
+        except Exception as e:
+            print(f"[BENCH] copytree failed: {e}")
+            if patched_ops and os.path.isfile(patched_ops):
+                os.unlink(patched_ops)
+            return
         if patched_ops and os.path.isfile(patched_ops):
+            _sh.copy2(patched_ops, ops_path)
             os.unlink(patched_ops)
-        return
-    # Restore our patched ops.py (INT8 Conv2d support).
-    if patched_ops and os.path.isfile(patched_ops):
-        _sh.copy2(patched_ops, ops_path)
-        os.unlink(patched_ops)
-        print(f"[BENCH] restored patched ops.py ({os.path.getsize(ops_path)} bytes)")
-    # Ensure __init__.py exists (upstream ComfyUI ships comfy/ without it
-    # because ComfyUI's main.py adds comfy/ to sys.path; for our standalone
-    # bench we need an explicit package marker).
-    init_path = os.path.join(comfy_dir, "__init__.py")
-    if not os.path.isfile(init_path):
-        with open(init_path, "w") as _f:
-            _f.write("")
-        print(f"[BENCH] created comfy/__init__.py")
+            print(f"[BENCH] restored patched ops.py")
+        if not os.path.isfile(init_path):
+            with open(init_path, "w") as _f:
+                _f.write("")
+            print(f"[BENCH] created comfy/__init__.py")
 
 
 _ensure_comfy_complete()
@@ -324,30 +325,7 @@ finally:
     sys.argv = _saved_argv
 
 if _comfy_import_error is not None and "comfy.ops" not in dir():
-    # Diagnose: print full comfy/ listing and git HEAD so we can see what's missing
     print(f"Error: Could not import ComfyUI comfy package from {COMFY_PATH}: {type(_comfy_import_error).__name__}: {_comfy_import_error}")
-    comfy_dir = os.path.join(COMFY_PATH, "comfy")
-    if os.path.isdir(comfy_dir):
-        try:
-            listing = sorted(os.listdir(comfy_dir))
-            print(f"comfy/ listing ({len(listing)} entries): {listing}")
-            for key in ("__init__.py", "options.py", "cli_args.py", "model_management.py", "ops.py", "sd.py", "sample.py", "utils.py"):
-                p = os.path.join(comfy_dir, key)
-                print(f"  {key}: exists={os.path.isfile(p)} size={os.path.getsize(p) if os.path.isfile(p) else 0}")
-        except Exception as ex:
-            print(f"Failed to list comfy/: {ex}")
-    else:
-        print(f"comfy/ dir does not exist at: {comfy_dir}")
-        if os.path.isdir(COMFY_PATH):
-            print(f"COMFY_PATH listing: {os.listdir(COMFY_PATH)[:20]}")
-        else:
-            print(f"COMFY_PATH does not exist: {COMFY_PATH}")
-    try:
-        import subprocess as _sp
-        head = _sp.check_output(["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "log", "-1", "--oneline"], text=True, stderr=_sp.DEVNULL).strip()
-        print(f"Repo HEAD: {head}")
-    except Exception:
-        pass
     print("Ensure ComfyUI-master/comfy is present, or set COMFYUI_PATH.")
     sys.exit(1)
 
