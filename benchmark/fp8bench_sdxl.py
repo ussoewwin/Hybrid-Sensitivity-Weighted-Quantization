@@ -14,32 +14,41 @@ import gc
 import time
 import sys
 
-# ComfyUI-native checkpoint loader so HSWQ weight_scale / comfy_quant sidecars
-# are interpreted by comfy/quant_ops.py (QUANT_ALGOS float8_e4m3fn / int8_tensorwise).
-COMFY_PATH = os.environ.get(
-    "COMFYUI_PATH",
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ComfyUI-master")),
-)
-_NODES_PY = os.path.join(COMFY_PATH, "nodes.py")
-if not os.path.isfile(_NODES_PY):
-    print(f"Error: nodes.py not found at {_NODES_PY}")
-    print("Ensure ComfyUI-master is present at the repo root, or set COMFYUI_PATH.")
-    sys.exit(1)
+# ComfyUI-native load via comfy.sd (QUANT_ALGOS float8_e4m3fn / int8_tensorwise).
+# Do NOT require nodes.py — cloud checkouts of ComfyUI-master may lack root .py
+# files while still shipping the comfy/ package (ops.py, sd.py, sample.py).
+import logging
+import types as _types
+
+logging.getLogger("comfy").setLevel(logging.WARNING)
+
+
+def _resolve_comfy_path():
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    candidates = []
+    env = os.environ.get("COMFYUI_PATH")
+    if env:
+        candidates.append(os.path.abspath(env))
+    candidates.append(os.path.join(repo_root, "ComfyUI-master"))
+    candidates.append(os.path.join(repo_root, "ComfyUI"))
+    candidates.append(os.path.abspath("ComfyUI-master"))
+    seen = set()
+    for path in candidates:
+        if path in seen:
+            continue
+        seen.add(path)
+        if os.path.isdir(os.path.join(path, "comfy")):
+            return path
+    return candidates[0]
+
+
+COMFY_PATH = _resolve_comfy_path()
 if COMFY_PATH not in sys.path:
     sys.path.insert(0, COMFY_PATH)
 
-import logging
-logging.getLogger("comfy").setLevel(logging.WARNING)
-
-import types as _types
-
 
 def _install_comfy_aimdo_stub():
-    """ComfyUI-master hard-imports comfy_aimdo.*; cloud envs often lack it.
-
-    Must be a real package (__path__) with host_buffer / model_vbar / torch /
-    vram_buffer / model_mmap / control submodules, or `import nodes` fails mid-chain.
-    """
+    """ComfyUI-master hard-imports comfy_aimdo.*; cloud envs often lack it."""
     try:
         import comfy_aimdo.host_buffer  # noqa: F401
         return False
@@ -135,15 +144,13 @@ def _install_comfy_aimdo_stub():
 _AIMDO_STUBBED = _install_comfy_aimdo_stub()
 
 try:
-    import nodes
-    import folder_paths
     import comfy.model_management
     import comfy.ops
+    import comfy.sample
+    import comfy.sd
     import comfy.utils
 
     # Normalize comfy_quant after json.loads (bare str / double-encoded JSON).
-    # Patch comfy.ops.json.loads so stock _load_quantized_module still pops a
-    # uint8 tensor — do not replace the tensor with a dict in state_dict.
     _ops_json_loads = comfy.ops.json.loads
 
     def _normalize_comfy_quant_loads(s, *args, **kwargs):
@@ -159,12 +166,21 @@ try:
 
     comfy.ops.json.loads = _normalize_comfy_quant_loads
 
+    print(f"[BENCH] COMFY_PATH: {COMFY_PATH}")
     print(f"[BENCH] comfy.ops: {comfy.ops.__file__}")
     print(f"[BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+    print(f"[BENCH] MixedPrecisionOps.Conv2d: {hasattr(comfy.ops.mixed_precision_ops(), 'Conv2d')}")
     print(f"[BENCH] comfy_aimdo stubbed: {_AIMDO_STUBBED}")
 except ImportError as e:
-    print(f"Error: Could not import ComfyUI from {COMFY_PATH}: {e}")
-    print(f"nodes.py present: {os.path.isfile(_NODES_PY)}")
+    print(f"Error: Could not import ComfyUI comfy package from {COMFY_PATH}: {e}")
+    if os.path.isdir(COMFY_PATH):
+        try:
+            print(f"Directory listing: {os.listdir(COMFY_PATH)[:20]}")
+        except Exception:
+            pass
+    else:
+        print(f"COMFY_PATH does not exist: {COMFY_PATH}")
+    print("Ensure ComfyUI-master/comfy is present, or set COMFYUI_PATH.")
     sys.exit(1)
 
 # Enforce deterministic behavior for reproducibility
@@ -174,45 +190,58 @@ torch.backends.cudnn.benchmark = False
 def load_pipeline(path, device="cuda"):
     print(f"Loading model: {os.path.basename(path)}...")
     try:
-        # Register the checkpoint's directory with ComfyUI so CheckpointLoaderSimple can find it.
-        directory = os.path.dirname(os.path.abspath(path))
-        folder_paths.add_model_folder_path("checkpoints", directory)
-
-        loader = nodes.CheckpointLoaderSimple()
-        model, clip, vae = loader.load_checkpoint(ckpt_name=os.path.basename(path))
+        ckpt_path = os.path.abspath(path)
+        out = comfy.sd.load_checkpoint_guess_config(
+            ckpt_path,
+            output_vae=True,
+            output_clip=True,
+            embedding_directory=None,
+        )
+        model, clip, vae = out[0], out[1], out[2]
         return model, clip, vae
     except Exception as e:
         print(f"Error loading model: {e}")
         sys.exit(1)
 
 def generate_image_fixed(model, clip, vae, prompt, seed, steps):
-    # Create fixed-seed generator
-    generator = torch.Generator("cuda").manual_seed(seed)
+    # CLIP encode (same as nodes.CLIPTextEncode — no nodes.py required)
+    positive = clip.encode_from_tokens_scheduled(clip.tokenize(prompt))
+    negative = clip.encode_from_tokens_scheduled(clip.tokenize(""))
 
-    # Prompt encoding via ComfyUI CLIPTextEncode
-    enc = nodes.CLIPTextEncode()
-    positive = enc.encode(clip=clip, text=prompt)[0]
-    negative = enc.encode(clip=clip, text="")[0]
-
-    # Empty latent
-    empty = nodes.EmptyLatentImage()
-    latent = empty.generate(width=1024, height=1024, batch_size=1)[0]
-
-    # KSampler
-    sampler = nodes.KSampler()
+    # Empty latent 1024x1024 SDXL
+    latent_image = torch.zeros(
+        [1, 4, 1024 // 8, 1024 // 8],
+        device=comfy.model_management.intermediate_device(),
+        dtype=comfy.model_management.intermediate_dtype(),
+    )
+    latent = {"samples": latent_image, "downscale_ratio_spacial": 8}
+    latent_image = comfy.sample.fix_empty_latent_channels(
+        model, latent["samples"], latent.get("downscale_ratio_spacial", None), None
+    )
+    noise = comfy.sample.prepare_noise(latent_image, seed, None)
 
     start_time = time.time()
-    samples = sampler.sample(
-        model, seed, steps, 7.0,
-        "dpmpp_2m", "karras",
-        positive, negative, latent, denoise=1.0
-    )[0]
+    samples = comfy.sample.sample(
+        model,
+        noise,
+        steps,
+        7.0,
+        "dpmpp_2m",
+        "karras",
+        positive,
+        negative,
+        latent_image,
+        denoise=1.0,
+        callback=None,
+        disable_pbar=True,
+        seed=seed,
+    )
     end_time = time.time()
 
-    # Decode
-    dec = nodes.VAEDecode()
-    image_tensor = dec.decode(vae=vae, samples=samples)[0]
-    img_array = 255.0 * image_tensor[0].cpu().numpy()
+    images = vae.decode(samples)
+    if len(images.shape) == 5:
+        images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+    img_array = 255.0 * images[0].cpu().numpy()
     image = Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
 
     return image, end_time - start_time
