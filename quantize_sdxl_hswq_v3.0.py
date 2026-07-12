@@ -1240,17 +1240,12 @@ def _apply_fp16_budget_cap(
 ) -> tuple[set, set, dict]:
     """Auto-optimal FP16 under budget_mb from THIS checkpoint.
 
-    Inputs (ALL included in the candidate pool — none dropped before ranking):
-      1) V4-calib FP16 candidates (histogram V4 on calibration DualMonitor)
-         passed in via keep_layers
-      2) Analyze VETO candidates (hard_veto_layers)
-      3) Analyze fence-crossers (severity >= 1) from THIS model character
+    Pool (nothing dropped before ranking):
+      V4-calib FP16 cands U analyze VETO U fence-crossers U DualMonitor-sensitive
 
-    Ranking (automatic optimal settings):
-      priority = V4 estimated_mse @ absmax * (1 + analyze fence severity)
-
-    No model-name hardcode. FP8 must not call this.
-    unet_inputs / grad_second_moments: call-site compat only (unused).
+    Ranking: per-checkpoint autonomous combinator from measured
+    DualMonitor sens / analyze severity / V4 MSE distributions
+    (weighted geometric mean). NO fixed V4*(1+sev).
     """
     _ = unet_inputs, grad_second_moments
     analyze_dir = os.path.join(current_dir, "analyze")
@@ -1260,6 +1255,9 @@ def _apply_fp16_budget_cap(
         build_int8_analyze_character_table,
         int8_fp16_budget_analyze_severity,
         int8_fp16_budget_priority,
+        derive_priority_combinator,
+        _safe_percentile,
+        _robust_iqr,
     )
 
     if str(veto_tunables.quant_format) != "int8_tensorwise":
@@ -1269,8 +1267,8 @@ def _apply_fp16_budget_cap(
         )
     if not dual_monitors:
         raise ValueError(
-            "[FP16 budget] DualMonitor maps required for V4 MSE ranking; "
-            "refusing profile_score / sensitivity fallback."
+            "[FP16 budget] DualMonitor maps required for Sensitivity + "
+            "V4 Importance; refusing fixed-formula / profile_score fallback."
         )
 
     tunables_dict = veto_tunables.as_dict()
@@ -1292,8 +1290,20 @@ def _apply_fp16_budget_cap(
     module_dict = dict(model.named_modules())
     pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
 
+    sens_by_name: dict[str, float] = {}
+    for name, mon in dual_monitors.items():
+        if name not in module_dict or not hasattr(module_dict[name], "weight"):
+            continue
+        try:
+            s = float(mon.get_sensitivity())
+        except Exception:
+            s = 0.0
+        if s > 0.0 and math.isfinite(s):
+            sens_by_name[name] = s
+            pool.add(name)
+
     cache = dict(mse_cache or {})
-    candidates: list[tuple[float, float, float, int, str]] = []
+    measured: list[tuple[str, float, float, float, int]] = []
     skipped_no_weight = []
     skipped_no_v4 = []
     measured_fresh = 0
@@ -1302,9 +1312,10 @@ def _apply_fp16_budget_cap(
     trial_optimizer = None
     if need_fresh:
         print(
-            f"  [FP16 budget] FULL priority over entire pool: "
-            f"analyze_char={len(char_table)} pool={len(pool)} | "
-            f"V4xseverity rank {len(need_fresh)} fresh (cache={len(cache)}; no early stop)..."
+            f"  [FP16 budget] THIS-model pool measure: "
+            f"analyze={len(char_table)} pool={len(pool)} "
+            f"dm_sens={len(sens_by_name)} | V4 fresh={len(need_fresh)} "
+            f"(cache={len(cache)})..."
         )
         trial_optimizer = HSWQWeightedHistogramOptimizerV4(
             bins=8192, num_candidates=1000, refinement_iterations=10,
@@ -1313,8 +1324,9 @@ def _apply_fp16_budget_cap(
         )
     else:
         print(
-            f"  [FP16 budget] auto from analysis: analyze table={len(char_table)} "
-            f"pool={len(pool)} | V4 MSE fully cached ({len(cache)})"
+            f"  [FP16 budget] THIS-model pool: "
+            f"analyze={len(char_table)} pool={len(pool)} "
+            f"dm_sens={len(sens_by_name)} | V4 cached ({len(cache)})"
         )
 
     for name in sorted(pool):
@@ -1322,6 +1334,7 @@ def _apply_fp16_budget_cap(
         if mod is None or not hasattr(mod, "weight") or mod.weight is None:
             skipped_no_weight.append(name)
             continue
+        dm_sens = float(sens_by_name.get(name, 0.0))
         extra = _fp16_extra_bytes_vs_int8(mod.weight.data)
         row = char_table.get(name, {})
         prof = norm_profile.get(name, {}) if isinstance(norm_profile.get(name), dict) else {}
@@ -1343,10 +1356,10 @@ def _apply_fp16_budget_cap(
         if name in cache:
             v4_mse = float(cache[name])
         else:
-            imp = _dualmonitor_channel_importance(dual_monitors, name)
-            if imp is None or trial_optimizer is None:
+            if trial_optimizer is None:
                 skipped_no_v4.append(name)
                 continue
+            imp = _dualmonitor_channel_importance(dual_monitors, name)
             try:
                 v4_mse = _measure_v4_mse_absmax_int8(
                     weight=mod.weight.data,
@@ -1356,27 +1369,52 @@ def _apply_fp16_budget_cap(
                 cache[name] = v4_mse
                 measured_fresh += 1
             except Exception as e:
-                print(f"    [FP16 budget] V4 MSE failed {name}: {e} -> demote to INT8")
+                print(f"    [FP16 budget] V4 MSE failed {name}: {e} -> INT8")
                 skipped_no_v4.append(name)
                 continue
             torch.cuda.empty_cache()
 
-        priority = int8_fp16_budget_priority(v4_mse, severity)
-        candidates.append((priority, v4_mse, severity, extra, name))
+        measured.append((name, dm_sens, v4_mse, severity, extra))
 
-    candidates.sort(key=lambda x: (-x[0], x[3]))
+    # Per-checkpoint combinator from MEASURED sens/sev/mse (not a fixed formula).
+    sens_meas = [row[1] for row in measured if row[1] > 0]
+    sev_meas = [row[3] for row in measured]
+    mse_meas = [row[2] for row in measured if row[2] > 0]
+    s_p50 = _safe_percentile(sens_meas, 50.0) if len(sens_meas) >= 2 else 0.0
+    s_iqr = _robust_iqr(sens_meas) if len(sens_meas) >= 4 else 0.0
+    v_p50 = _safe_percentile(sev_meas, 50.0) if len(sev_meas) >= 2 else 0.0
+    v_iqr = _robust_iqr(sev_meas) if len(sev_meas) >= 4 else 0.0
+    m_p50 = _safe_percentile(mse_meas, 50.0) if len(mse_meas) >= 2 else 0.0
+    m_iqr = _robust_iqr(mse_meas) if len(mse_meas) >= 4 else 0.0
+    combinator = derive_priority_combinator(s_iqr, v_iqr, m_iqr, s_p50, v_p50, m_p50)
+    print(
+        f"  [Autonomous priority] form={combinator['form']} "
+        f"w(sens/sev/mse)={combinator['w_sens']:.3f}/"
+        f"{combinator['w_sev']:.3f}/{combinator['w_mse']:.3f} "
+        f"refs=({combinator['sens_ref']:.4g}/"
+        f"{combinator['sev_ref']:.4g}/{combinator['mse_ref']:.4g})"
+    )
+
+    candidates: list[tuple[float, float, float, float, int, str]] = []
+    for name, dm_sens, v4_mse, severity, extra in measured:
+        priority = int8_fp16_budget_priority(
+            dm_sens, v4_mse, severity, combinator=combinator,
+        )
+        candidates.append((priority, v4_mse, severity, dm_sens, extra, name))
+
+    candidates.sort(key=lambda x: (-x[0], x[4]))
 
     selected: set = set()
     used = 0
-    dropped: list[tuple[str, int, float, float, float]] = []
-    kept_detail: list[tuple[str, int, float, float, float]] = []
-    for priority, v4_mse, severity, extra, name in candidates:
+    dropped: list[tuple[str, int, float, float, float, float]] = []
+    kept_detail: list[tuple[str, int, float, float, float, float]] = []
+    for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         if used + extra <= budget_bytes:
             selected.add(name)
             used += extra
-            kept_detail.append((name, extra, priority, v4_mse, severity))
+            kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
         else:
-            dropped.append((name, extra, priority, v4_mse, severity))
+            dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
 
     demoted_veto = hard_veto_layers - selected
     hard_veto_out = hard_veto_layers & selected
@@ -1390,18 +1428,26 @@ def _apply_fp16_budget_cap(
         "candidates": len(candidates),
         "pool": len(pool),
         "analyze_character_layers": len(char_table),
+        "dm_sensitivity_layers": len(sens_by_name),
         "kept": len(keep_out),
         "dropped": len(dropped),
         "demoted_veto": len(demoted_veto),
         "skipped_no_weight": len(skipped_no_weight),
         "skipped_no_v4": len(skipped_no_v4),
         "measured_fresh_v4": measured_fresh,
-        "ranking": "v4_mse_x_analyze_character_int8",
+        "priority_form": combinator["form"],
+        "priority_weights": {
+            "sens": combinator["w_sens"],
+            "sev": combinator["w_sev"],
+            "mse": combinator["w_mse"],
+        },
+        "ranking": "autonomous_combinator_from_sens_sev_mse_distribution",
         "dropped_detail": dropped[:40],
         "kept_detail": kept_detail[:40],
         "mse_cache_size": len(cache),
     }
     return keep_out, hard_veto_out, stats
+
 
 
 
