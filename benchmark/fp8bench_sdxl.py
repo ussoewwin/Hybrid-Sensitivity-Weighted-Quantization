@@ -43,6 +43,56 @@ def _resolve_comfy_path():
 
 
 COMFY_PATH = _resolve_comfy_path()
+
+
+def _ensure_comfy_complete():
+    """Cloud checkouts of ComfyUI-master often ship a truncated comfy/ dir
+    (only __init__.py + ops.py). If model_management.py / sd.py / sample.py
+    are missing, clone upstream ComfyUI into a sibling dir and overlay our
+    patched ops.py on top, so the bench can import the full package."""
+    comfy_dir = os.path.join(COMFY_PATH, "comfy")
+    required = ("model_management.py", "sd.py", "sample.py", "utils.py", "cli_args.py", "options.py")
+    missing = [f for f in required if not os.path.isfile(os.path.join(comfy_dir, f))]
+    if not missing:
+        return
+    print(f"[BENCH] comfy/ incomplete (missing {missing}); self-repairing...")
+    sibling = os.path.join(os.path.dirname(COMFY_PATH), "_comfyui_full")
+    if not os.path.isdir(os.path.join(sibling, "comfy")):
+        import subprocess as _sp
+        try:
+            _sp.check_call(["git", "clone", "--depth", "1",
+                            "https://github.com/comfyanonymous/ComfyUI.git", sibling],
+                           stdout=_sp.DEVNULL, stderr=_sp.STDOUT)
+            print(f"[BENCH] Cloned upstream ComfyUI -> {sibling}")
+        except Exception as e:
+            print(f"[BENCH] Clone failed: {e}; falling back to partial comfy/")
+            return
+    # Overlay: copy missing files from sibling, but keep our patched ops.py
+    src_comfy = os.path.join(sibling, "comfy")
+    import shutil as _sh
+    for f in missing:
+        src = os.path.join(src_comfy, f)
+        dst = os.path.join(comfy_dir, f)
+        if os.path.isfile(src):
+            try:
+                _sh.copy2(src, dst)
+                print(f"[BENCH] restored comfy/{f}")
+            except Exception as e:
+                print(f"[BENCH] restore comfy/{f} failed: {e}")
+    # Also copy any missing subpackages (comfy/ldm, comfy/text_encoders, etc.)
+    for entry in os.listdir(src_comfy):
+        src_entry = os.path.join(src_comfy, entry)
+        dst_entry = os.path.join(comfy_dir, entry)
+        if os.path.isdir(src_entry) and not os.path.isdir(dst_entry):
+            try:
+                _sh.copytree(src_entry, dst_entry)
+                print(f"[BENCH] restored comfy/{entry}/")
+            except Exception as e:
+                print(f"[BENCH] restore comfy/{entry}/ failed: {e}")
+
+
+_ensure_comfy_complete()
+
 if COMFY_PATH not in sys.path:
     sys.path.insert(0, COMFY_PATH)
 
