@@ -639,8 +639,10 @@ def int8_fp16_budget_analyze_severity(
     if mad_floor > 0.0 and mad > 0.0:
         severity += max(mad / mad_floor, 0.0)
 
-    if is_hard_veto:
-        severity *= 1.5
+    # No fixed Hard-VETO class boost. Analyze VETO is a pool candidate;
+    # severity is THIS checkpoint's character vs THIS checkpoint's fences.
+    # DualMonitor sens and V4 MSE compete in the same auto combinator.
+    _ = is_hard_veto
     return float(severity)
 
 
@@ -774,7 +776,9 @@ def build_int8_analyze_character_table(
 
 
 # ---------------------------------------------------------------------------
-# Fully autonomous tunable derivation (no constants except fp16_budget_mb).
+# Fully autonomous tunable derivation.
+# Owner hard ceiling fp16_budget_mb=300 MiB is NOT a thinking-stop recipe:
+# auto knobs fill inside that frame and must never exceed it.
 # Every knob below is derived from THIS checkpoint's profile + DualMonitor
 # sensitivity distribution. Covers degenerate / tiny / huge / skewed cases.
 # ---------------------------------------------------------------------------
@@ -813,11 +817,11 @@ def derive_int8_autonomous_tunables(
 ) -> Dict[str, Any]:
     """Derive EVERY INT8 knob from this checkpoint + calibration.
 
-    Only fp16_budget_mb is a fixed external constraint (VRAM budget).
-    Everything else — Hard VETO fences, percentile promotions, dynamic
-    ranking weights, MSE release gates, bias_correction scope, gray-zone
-    clips, alpha/beta, search_low, sens_veto percentile — comes from the
-    profile + DualMonitor sensitivity distribution.
+    Owner hard ceiling: fp16_budget_mb must be exactly 300 MiB.
+    Inside that frame: THIS model's auto analysis → extreme auto-optimal
+    settings (Hard VETO fences, ranking weights, MSE release, BC scope,
+    gray-zone, alpha/beta, search_low, sens_veto percentile).
+    Never redefine/exceed 300; never treat 300 as a removable recipe.
 
     Degenerate-input safe:
       - empty / single-layer profile
@@ -826,6 +830,13 @@ def derive_int8_autonomous_tunables(
       - extreme outliers dominating max
       - tiny UNet (<50 layers) or huge (>5000)
     """
+    if abs(float(fp16_budget_mb) - 300.0) > 1e-6:
+        raise ValueError(
+            f"fp16_budget_mb must be exactly 300.0 MiB "
+            f"(owner hard ceiling; got {fp16_budget_mb})"
+        )
+    fp16_budget_mb = 300.0
+
     profile = _normalize_profile(profile)
     profile = _unet_only_profile(profile)
     layers = profile.get("layers", {})
@@ -943,26 +954,16 @@ def derive_int8_autonomous_tunables(
         base["attn_mad_from_profile"] = 0.0
     base["attn_mad_gap_o_max"] = float(max(eo, 1e-9))
 
-    # ---- DualMonitor Hidden Killer promotion threshold (no fixed 90/75) ----
-    # The promotion fence is the Tukey upper fence (Q3 + IQR) of THIS
-    # calibration's sensitivity distribution — the same estimator used for
-    # every Hard VETO fence in this file. The stored percentile is the
-    # EMPIRICAL rank of that fence within the distribution (continuous):
-    #   flat sens  → fence ≈ Q3      → percentile ≈ 75 → more promoted
-    #   heavy tail → fence far right → percentile → 95+ → only true killers
-    # No 90-vs-75 switching rule; the distribution's own shape decides.
+    # DualMonitor = FP16 candidates; analyze = VETO candidates.
+    # Quantize fills THIS model's extreme auto-optimal FP16 set inside the
+    # 300 MiB hard ceiling (measured sens/sev/mse combinator). keep_ratio r0.
+    # DualMonitor is never renamed Hard VETO and never invents keep_ratio.
     sens = dualmonitor_sensitivities or {}
     sens_values = [float(v) for v in sens.values()
                    if v is not None and math.isfinite(float(v)) and float(v) > 0]
-    if len(sens_values) >= 4:
-        s_sorted = _sorted_pool(sens_values)
-        s_fence = _tukey_upper(s_sorted)
-        s_rank = _rank_fraction(s_fence, s_sorted)  # empirical CDF at fence
-        base["sens_veto_percentile"] = float(min(max(s_rank * 100.0, 0.0), 100.0))
-    else:
-        # No calibration: disable sens veto (keep_ratio handles it).
-        base["sens_veto_percentile"] = 100.0
-    base["sens_veto_keep_ratio_gate"] = 0.0  # only active at keep_ratio==0
+    base["sens_veto_percentile"] = 100.0  # no DualMonitor→analyze-VETO rename
+    base["sens_veto_keep_ratio_gate"] = 0.0
+    base["auto_keep_ratio"] = 0.0  # r0
 
     # ---- bias_correction scope (continuous; no fixed 5×median / 0.5) ----
     # BC is beneficial on every layer whose calibration statistics are sound
@@ -982,27 +983,9 @@ def derive_int8_autonomous_tunables(
     else:
         base["bias_correction_top_ratio"] = 1.0
 
-    # ---- FP16 budget (the ONE fixed external constraint) ----
-    base["fp16_budget_mb"] = float(fp16_budget_mb)
-    budget_bytes = int(float(fp16_budget_mb) * 1024 * 1024)
-    base["fp16_budget_bytes"] = budget_bytes
-
-    # ---- Autonomous keep_ratio (if user does not override) ----
-    # Derived from how many layers truly need FP16 (Hard VETO + sens tail).
-    # Count Hard VETO candidates from this profile.
-    hv_count = 0
-    for k, o, m in zip(all_k, all_o, all_m):
-        if k > ek or o > eo or m > hm:
-            hv_count += 1
-    # Sens tail count (if calibration available)
-    sens_tail = 0
-    if sens_values and len(sens_values) >= 4:
-        s_thr = _safe_percentile(sens_values, base["sens_veto_percentile"])
-        sens_tail = sum(1 for v in sens_values if v > s_thr)
-    # keep_ratio = (hv + sens_tail) / n, clamped to [0, 0.5]
-    # (0.5 is a physical cap: beyond that, interface mismatch dominates)
-    auto_kr = (hv_count + sens_tail) / max(n_layers, 1)
-    base["auto_keep_ratio"] = float(min(max(auto_kr, 0.0), 0.5))
+    # ---- FP16 hard ceiling 300 MiB (owner); auto settings fill inside ----
+    base["fp16_budget_mb"] = 300.0
+    base["fp16_budget_bytes"] = int(300.0 * 1024 * 1024)
 
 
     # Autonomous priority combinator seed (analyze severity axis only here;
