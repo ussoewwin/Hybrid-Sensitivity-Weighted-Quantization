@@ -644,6 +644,20 @@ def int8_fp16_budget_analyze_severity(
     return float(severity)
 
 
+def int8_fp16_budget_priority(
+    v4_estimated_mse: float,
+    analyze_severity: float,
+) -> float:
+    """INT8-only combined priority: V4 MSE primary x analyze severity.
+
+    priority = estimated_mse * (1 + severity)
+    Automatic analysis ranking for FP16 budget. FP8 must not use this.
+    """
+    mse = max(float(v4_estimated_mse), 0.0)
+    sev = max(float(analyze_severity), 0.0)
+    return mse * (1.0 + sev)
+
+
 def build_int8_analyze_character_table(
     profile: Dict[str, Any],
     tunables: Dict[str, Any],
