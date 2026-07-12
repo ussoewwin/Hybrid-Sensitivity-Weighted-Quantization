@@ -48,9 +48,12 @@ from comfy_api_nodes.util import (
     upload_image_to_comfyapi,
     upload_video_to_comfyapi,
     validate_audio_duration,
+    validate_image_aspect_ratio,
+    validate_image_dimensions,
     validate_string,
     validate_video_duration,
 )
+
 
 RES_IN_PARENS = re.compile(r"\((\d+)\s*[x×]\s*(\d+)\)")
 
@@ -61,7 +64,7 @@ class WanTextToImageApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanTextToImageApi",
             display_name="Wan Text to Image",
-            category="api node/image/Wan",
+            category="partner/image/Wan",
             description="Generates an image based on a text prompt.",
             inputs=[
                 IO.Combo.Input(
@@ -184,7 +187,7 @@ class WanImageToImageApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanImageToImageApi",
             display_name="Wan Image to Image",
-            category="api node/image/Wan",
+            category="partner/image/Wan",
             description="Generates an image from one or two input images and a text prompt. "
             "The output image is currently fixed at 1.6 MP, and its aspect ratio matches the input image(s).",
             inputs=[
@@ -312,7 +315,7 @@ class WanTextToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanTextToVideoApi",
             display_name="Wan Text to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Generates a video based on a text prompt.",
             inputs=[
                 IO.Combo.Input(
@@ -495,7 +498,7 @@ class WanImageToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanImageToVideoApi",
             display_name="Wan Image to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Generates a video from the first frame and a text prompt.",
             inputs=[
                 IO.Combo.Input(
@@ -674,7 +677,7 @@ class WanReferenceVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="WanReferenceVideoApi",
             display_name="Wan Reference to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Use the character and voice from input videos, combined with a prompt, "
             "to generate a new video that maintains character consistency.",
             inputs=[
@@ -828,7 +831,7 @@ class Wan2TextToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2TextToVideoApi",
             display_name="Wan 2.7 Text to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Generates a video based on a text prompt using the Wan 2.7 model.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -981,7 +984,7 @@ class Wan2ImageToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2ImageToVideoApi",
             display_name="Wan 2.7 Image to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Generate a video from a first-frame image, with optional last-frame image and audio.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -1152,7 +1155,7 @@ class Wan2VideoContinuationApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2VideoContinuationApi",
             display_name="Wan 2.7 Video Continuation",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Continue a video from where it left off, with optional last-frame control.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -1319,7 +1322,7 @@ class Wan2VideoEditApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2VideoEditApi",
             display_name="Wan 2.7 Video Edit",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Edit a video using text instructions, reference images, or style transfer.",
             inputs=[
                 IO.DynamicCombo.Input(
@@ -1477,7 +1480,7 @@ class Wan2ReferenceVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="Wan2ReferenceVideoApi",
             display_name="Wan 2.7 Reference to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Generate a video featuring a person or object from reference materials. "
             "Supports single-character performances and multi-character interactions.",
             inputs=[
@@ -1651,12 +1654,50 @@ class HappyHorseTextToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="HappyHorseTextToVideoApi",
             display_name="HappyHorse Text to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Generates a video based on a text prompt using the HappyHorse model.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "happyhorse-1.1-t2v",
+                            [
+                                IO.String.Input(
+                                    "prompt",
+                                    multiline=True,
+                                    default="",
+                                    tooltip="Prompt describing the elements and visual features. "
+                                    "Supports English and Chinese.",
+                                ),
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720P", "1080P"],
+                                ),
+                                IO.Combo.Input(
+                                    "ratio",
+                                    options=[
+                                        "16:9",
+                                        "9:16",
+                                        "1:1",
+                                        "4:3",
+                                        "3:4",
+                                        "21:9",
+                                        "9:21",
+                                        "5:4",
+                                        "4:5",
+                                    ],
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=3,
+                                    max=15,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.number,
+                                ),
+                            ],
+                        ),
                         IO.DynamicCombo.Option(
                             "happyhorse-1.0-t2v",
                             [
@@ -1719,7 +1760,9 @@ class HappyHorseTextToVideoApi(IO.ComfyNode):
                 (
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $ppsTable := { "720p": 0.14, "1080p": 0.24 };
+                  $ppsTable := $contains(widgets.model, "1.1")
+                    ? { "720p": 0.2002, "1080p": 0.2574 }
+                    : { "720p": 0.14, "1080p": 0.24 };
                   $pps := $lookup($ppsTable, $res);
                   { "type": "usd", "usd": $pps * $dur }
                 )
@@ -1775,12 +1818,36 @@ class HappyHorseImageToVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="HappyHorseImageToVideoApi",
             display_name="HappyHorse Image to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Generate a video from a first-frame image using the HappyHorse model.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "happyhorse-1.1-i2v",
+                            [
+                                IO.String.Input(
+                                    "prompt",
+                                    multiline=True,
+                                    default="",
+                                    tooltip="Prompt describing the elements and visual features. "
+                                    "Supports English and Chinese.",
+                                ),
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720P", "1080P"],
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=3,
+                                    max=15,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.number,
+                                ),
+                            ],
+                        ),
                         IO.DynamicCombo.Option(
                             "happyhorse-1.0-i2v",
                             [
@@ -1843,7 +1910,9 @@ class HappyHorseImageToVideoApi(IO.ComfyNode):
                 (
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $ppsTable := { "720p": 0.14, "1080p": 0.24 };
+                  $ppsTable := $contains(widgets.model, "1.1")
+                    ? { "720p": 0.2002, "1080p": 0.2574 }
+                    : { "720p": 0.14, "1080p": 0.24 };
                   $pps := $lookup($ppsTable, $res);
                   { "type": "usd", "usd": $pps * $dur }
                 )
@@ -1859,6 +1928,8 @@ class HappyHorseImageToVideoApi(IO.ComfyNode):
         seed: int,
         watermark: bool,
     ):
+        validate_image_dimensions(first_frame, min_width=300, min_height=300)
+        validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1), strict=False)
         media = [
             Wan27MediaItem(
                 type="first_frame",
@@ -1905,7 +1976,7 @@ class HappyHorseVideoEditApi(IO.ComfyNode):
         return IO.Schema(
             node_id="HappyHorseVideoEditApi",
             display_name="HappyHorse Video Edit",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Edit a video using text instructions or reference images with the HappyHorse model. "
             "Output duration is 3-15s and matches the input video; inputs longer than 15s are truncated.",
             inputs=[
@@ -2046,13 +2117,69 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
         return IO.Schema(
             node_id="HappyHorseReferenceVideoApi",
             display_name="HappyHorse Reference to Video",
-            category="api node/video/Wan",
+            category="partner/video/Wan",
             description="Generate a video featuring a person or object from reference materials with the HappyHorse "
             "model. Supports single-character performances and multi-character interactions.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "happyhorse-1.1-r2v",
+                            [
+                                IO.String.Input(
+                                    "prompt",
+                                    multiline=True,
+                                    default="",
+                                    tooltip="Prompt describing the video. Use identifiers such as 'character1' and "
+                                    "'character2' to refer to the reference characters.",
+                                ),
+                                IO.Combo.Input(
+                                    "resolution",
+                                    options=["720P", "1080P"],
+                                ),
+                                IO.Combo.Input(
+                                    "ratio",
+                                    options=[
+                                        "16:9",
+                                        "9:16",
+                                        "1:1",
+                                        "4:3",
+                                        "3:4",
+                                        "21:9",
+                                        "9:21",
+                                        "5:4",
+                                        "4:5",
+                                    ],
+                                ),
+                                IO.Int.Input(
+                                    "duration",
+                                    default=5,
+                                    min=3,
+                                    max=15,
+                                    step=1,
+                                    display_mode=IO.NumberDisplay.number,
+                                ),
+                                IO.Autogrow.Input(
+                                    "reference_images",
+                                    template=IO.Autogrow.TemplateNames(
+                                        IO.Image.Input("reference_image"),
+                                        names=[
+                                            "image1",
+                                            "image2",
+                                            "image3",
+                                            "image4",
+                                            "image5",
+                                            "image6",
+                                            "image7",
+                                            "image8",
+                                            "image9",
+                                        ],
+                                        min=1,
+                                    ),
+                                ),
+                            ],
+                        ),
                         IO.DynamicCombo.Option(
                             "happyhorse-1.0-r2v",
                             [
@@ -2133,7 +2260,9 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
                 (
                   $res := $lookup(widgets, "model.resolution");
                   $dur := $lookup(widgets, "model.duration");
-                  $ppsTable := { "720p": 0.14, "1080p": 0.24 };
+                  $ppsTable := $contains(widgets.model, "1.1")
+                    ? { "720p": 0.2002, "1080p": 0.2574 }
+                    : { "720p": 0.14, "1080p": 0.24 };
                   $pps := $lookup($ppsTable, $res);
                   { "type": "usd", "usd": $pps * $dur }
                 )
@@ -2149,8 +2278,11 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
         watermark: bool,
     ):
         validate_string(model["prompt"], strip_whitespace=False, min_length=1)
-        media = []
         reference_images = model.get("reference_images", {})
+        for key in reference_images:
+            validate_image_dimensions(reference_images[key], min_width=400, min_height=400)
+            validate_image_aspect_ratio(reference_images[key], (1, 2.5), (2.5, 1), strict=False)
+        media = []
         for key in reference_images:
             media.append(
                 Wan27MediaItem(
@@ -2159,7 +2291,7 @@ class HappyHorseReferenceVideoApi(IO.ComfyNode):
                 )
             )
         if not media:
-            raise ValueError("At least one reference reference image must be provided.")
+            raise ValueError("At least one reference image must be provided.")
 
         initial_response = await sync_op(
             cls,
