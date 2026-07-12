@@ -972,6 +972,7 @@ def _mse_grayzone_veto_reassessment(
     device: str,
     tunables: SdxlVetoTunables,
     dual_monitors: dict | None = None,
+    mse_cache: dict | None = None,
 ) -> tuple[set, set, dict]:
     """Gray-zone VETO release via V4 weighted-histogram MSE (SDXL V3.0 INT8).
 
@@ -986,8 +987,9 @@ def _mse_grayzone_veto_reassessment(
 
     Returns (hard_veto, keep, mse_cache) where mse_cache maps layer name →
     V4 estimated_mse at absmax (for INT8 FP16-budget priority; not profile_score).
+    Reuses the caller's mse_cache (V4 calib scores); never wipes it.
     """
-    mse_cache: dict = {}
+    mse_cache = dict(mse_cache or {})
     if not outlier_only_veto:
         return hard_veto_layers, keep_layers, mse_cache
 
@@ -1145,6 +1147,81 @@ def _measure_v4_mse_absmax_int8(
     return float(result["estimated_mse"])
 
 
+
+def _build_v4_calib_fp16_candidates(
+    model: torch.nn.Module,
+    dual_monitors: dict,
+    target_modules: list,
+    *,
+    hard_veto_layers: set,
+    mse_cache: dict | None,
+    alpha: float,
+    beta: float,
+    device: str,
+) -> tuple[set, dict]:
+    """Score FP16-related layers with histogram V4 on THIS calibration.
+
+    Measures V4 estimated_mse @ absmax (DualMonitor Importance) for every
+    target layer that has calibration Importance — including layers that are
+    also analyze VETO (so the later full-pool priority sees one V4 number).
+
+    Returns (all_v4_scored_names, mse_cache). Does NOT truncate by keep_ratio:
+    truncation is only the FP16 budget pass over the FULL priority order of
+    (V4-scored U analyze VETO U fence-crossers). Pre-cutting here is the
+    hand-wave that collapses quality (~0.92).
+    """
+    cache = dict(mse_cache or {})
+    module_dict = dict(model.named_modules())
+    scored: set = set()
+    need = []
+    for name in target_modules:
+        mod = module_dict.get(name)
+        if mod is None or not hasattr(mod, "weight") or mod.weight is None:
+            continue
+        if name in cache:
+            scored.add(name)
+        else:
+            need.append(name)
+
+    trial_optimizer = None
+    if need:
+        print(
+            f"  [V4 FP16 candidates] measuring V4 MSE @ absmax for "
+            f"{len(need)} calib layers (cache hit={len(scored)}; "
+            f"analyze VETO={len(hard_veto_layers)}; NO keep_ratio pre-cut)..."
+        )
+        trial_optimizer = HSWQWeightedHistogramOptimizerV4(
+            bins=8192, num_candidates=1000, refinement_iterations=10,
+            device=device, alpha=alpha, beta=beta,
+            quantizer=INT8Quantizer(device=device),
+        )
+    for name in need:
+        mod = module_dict[name]
+        imp = _dualmonitor_channel_importance(dual_monitors, name)
+        if imp is None or trial_optimizer is None:
+            continue
+        try:
+            v4_mse = _measure_v4_mse_absmax_int8(
+                weight=mod.weight.data,
+                importance=imp,
+                optimizer=trial_optimizer,
+            )
+            cache[name] = float(v4_mse)
+            scored.add(name)
+        except Exception as e:
+            print(f"    [V4 FP16 candidates] skip {name}: {e}")
+            continue
+        torch.cuda.empty_cache()
+
+    print(
+        f"  [V4 FP16 candidates] V4-scored={len(scored)} | "
+        f"analyze VETO={len(hard_veto_layers)} | "
+        f"union goes to FULL priority (budget only truncates)."
+    )
+    return scored, cache
+
+
+
 def _apply_fp16_budget_cap(
     model: torch.nn.Module,
     keep_layers: set,
@@ -1161,31 +1238,28 @@ def _apply_fp16_budget_cap(
     unet_inputs: list | None = None,
     grad_second_moments: dict | None = None,
 ) -> tuple[set, set, dict]:
-    """Auto-set optimal FP16 set for THIS checkpoint under budget_mb.
+    """Auto-optimal FP16 under budget_mb from THIS checkpoint.
 
-    Full per-model analysis (no axis discarded, no fixed combination formula):
-      1) DualMonitor Sensitivity — FP16 protection selection
-      2) V4 weighted-histogram estimated_mse — FP16-protection candidate damage
-         (Importance from DualMonitor feeds the histogram)
-      3) analyze fence severity — VETO / distribution character (THIS model)
-      4) **Measured per-layer damage** from gradient-based replay:
-         damage_l ≈ sum_{o,i} ΔW[o,i]^2 · E[x_i^2] · E[g_o^2]
-         where E[x_i^2] is accumulated by DualMonitor during calibration and
-         E[g_o^2] is accumulated by GradSecondMoment via Hutchinson probing on
-         captured UNet inputs. This is a physically-grounded, model-specific
-         measurement — no fixed formula, no per-model hand-tuning.
+    Inputs (ALL included in the candidate pool — none dropped before ranking):
+      1) V4-calib FP16 candidates (histogram V4 on calibration DualMonitor)
+         passed in via keep_layers
+      2) Analyze VETO candidates (hard_veto_layers)
+      3) Analyze fence-crossers (severity >= 1) from THIS model character
 
-    Final FP16 set = 0/1 knapsack solution maximizing total avoided damage
-    within budget_mb. Hard VETO layers are candidates like any other; they
-    survive because their measured damage is naturally high. No Hard-VETO
-    absolute lock; no profile_score. FP8 must not call this.
+    Ranking (automatic optimal settings):
+      priority = V4 estimated_mse @ absmax * (1 + analyze fence severity)
+
+    No model-name hardcode. FP8 must not call this.
+    unet_inputs / grad_second_moments: call-site compat only (unused).
     """
+    _ = unet_inputs, grad_second_moments
     analyze_dir = os.path.join(current_dir, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import (
         build_int8_analyze_character_table,
         int8_fp16_budget_analyze_severity,
+        int8_fp16_budget_priority,
     )
 
     if str(veto_tunables.quant_format) != "int8_tensorwise":
@@ -1195,8 +1269,8 @@ def _apply_fp16_budget_cap(
         )
     if not dual_monitors:
         raise ValueError(
-            "[FP16 budget] DualMonitor maps required for Sensitivity + "
-            "V4-histogram Importance; refusing profile_score."
+            "[FP16 budget] DualMonitor maps required for V4 MSE ranking; "
+            "refusing profile_score / sensitivity fallback."
         )
 
     tunables_dict = veto_tunables.as_dict()
@@ -1204,49 +1278,22 @@ def _apply_fp16_budget_cap(
     if budget_bytes <= 0:
         raise ValueError(f"fp16_budget_mb must be > 0 (got {budget_mb})")
 
-    # Pool = ALL Conv2d and Linear layers are candidates for knapsack.
-    # Hard VETO, analyze character, and DualMonitor-sensitive layers are
-    # still surfaced (for reporting and as guaranteed candidates), but the
-    # knapsack will consider every quantizable weight layer — VETO layers
-    # survive because their measured damage is naturally high, not because
-    # of an absolute lock.
     char_table = build_int8_analyze_character_table(
         {"layers": norm_profile},
         tunables_dict,
         hard_veto_names=hard_veto_layers,
     )
 
-    module_dict = dict(model.named_modules())
-    # Start from explicit keep/VETO, analyze character, DM-sensitive...
-    seed_pool = set(keep_layers) | set(hard_veto_layers)
+    pool = set(keep_layers) | set(hard_veto_layers)
     for name, row in char_table.items():
-        if float(row.get("severity", 0.0)) > 0.0:
-            seed_pool.add(name)
-
-    sens_by_name: dict[str, float] = {}
-    for name, mon in dual_monitors.items():
-        if name not in module_dict or not hasattr(module_dict[name], "weight"):
-            continue
-        try:
-            s = float(mon.get_sensitivity())
-        except Exception:
-            s = 0.0
-        if s > 0.0 and math.isfinite(s):
-            sens_by_name[name] = s
-            seed_pool.add(name)
-
-    # ...then expand to ALL Conv2d/Linear layers with weights — the knapsack
-    # must be free to pick any layer whose measured damage justifies FP16.
-    pool = set(seed_pool)
-    for name, mod in module_dict.items():
-        if isinstance(mod, (torch.nn.Conv2d, torch.nn.Linear)) and hasattr(mod, "weight") and mod.weight is not None:
+        if float(row.get("severity", 0.0)) >= 1.0:
             pool.add(name)
+
+    module_dict = dict(model.named_modules())
     pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
 
     cache = dict(mse_cache or {})
-    # Pass 1: V4 histogram MSE for every pool member (FP16-protection candidates).
-    measured: list[tuple[str, float, float, float, int]] = []
-    # (name, dm_sensitivity, v4_mse, severity, extra_bytes)
+    candidates: list[tuple[float, float, float, int, str]] = []
     skipped_no_weight = []
     skipped_no_v4 = []
     measured_fresh = 0
@@ -1255,11 +1302,9 @@ def _apply_fp16_budget_cap(
     trial_optimizer = None
     if need_fresh:
         print(
-            f"  [FP16 budget] optimal THIS model: "
-            f"DM_Sens + V4_hist FP16-cand + analyze_VETO + grad-damage knapsack | "
-            f"analyze={len(char_table)} pool={len(pool)} "
-            f"dm_sens={len(sens_by_name)} | V4 MSE for {len(need_fresh)} "
-            f"(cache hit={len(cache)})..."
+            f"  [FP16 budget] FULL priority over entire pool: "
+            f"analyze_char={len(char_table)} pool={len(pool)} | "
+            f"V4xseverity rank {len(need_fresh)} fresh (cache={len(cache)}; no early stop)..."
         )
         trial_optimizer = HSWQWeightedHistogramOptimizerV4(
             bins=8192, num_candidates=1000, refinement_iterations=10,
@@ -1268,10 +1313,8 @@ def _apply_fp16_budget_cap(
         )
     else:
         print(
-            f"  [FP16 budget] optimal THIS model: "
-            f"DM_Sens + V4_hist FP16-cand + analyze_VETO + grad-damage knapsack | "
-            f"analyze={len(char_table)} pool={len(pool)} "
-            f"dm_sens={len(sens_by_name)} | V4 MSE cached ({len(cache)})"
+            f"  [FP16 budget] auto from analysis: analyze table={len(char_table)} "
+            f"pool={len(pool)} | V4 MSE fully cached ({len(cache)})"
         )
 
     for name in sorted(pool):
@@ -1279,7 +1322,6 @@ def _apply_fp16_budget_cap(
         if mod is None or not hasattr(mod, "weight") or mod.weight is None:
             skipped_no_weight.append(name)
             continue
-        dm_sens = float(sens_by_name.get(name, 0.0))
         extra = _fp16_extra_bytes_vs_int8(mod.weight.data)
         row = char_table.get(name, {})
         prof = norm_profile.get(name, {}) if isinstance(norm_profile.get(name), dict) else {}
@@ -1288,7 +1330,6 @@ def _apply_fp16_budget_cap(
         o = float(row.get("outlier_ratio", prof.get("outlier_ratio", 0)) or 0)
         m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
         mad = float(row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0)
-        # Analyze VETO / distribution character for THIS checkpoint.
         severity = int8_fp16_budget_analyze_severity(
             kurtosis=k,
             outlier_ratio=o,
@@ -1302,12 +1343,10 @@ def _apply_fp16_budget_cap(
         if name in cache:
             v4_mse = float(cache[name])
         else:
-            # V4 histogram FP16-protection candidate analysis (must not discard).
-            # Missing Importance → SVD hybrid; never skip V4 for pool members.
-            if trial_optimizer is None:
+            imp = _dualmonitor_channel_importance(dual_monitors, name)
+            if imp is None or trial_optimizer is None:
                 skipped_no_v4.append(name)
                 continue
-            imp = _dualmonitor_channel_importance(dual_monitors, name)
             try:
                 v4_mse = _measure_v4_mse_absmax_int8(
                     weight=mod.weight.data,
@@ -1317,161 +1356,31 @@ def _apply_fp16_budget_cap(
                 cache[name] = v4_mse
                 measured_fresh += 1
             except Exception as e:
-                print(f"    [FP16 budget] V4 histogram MSE failed {name}: {e} → INT8")
+                print(f"    [FP16 budget] V4 MSE failed {name}: {e} -> demote to INT8")
                 skipped_no_v4.append(name)
                 continue
             torch.cuda.empty_cache()
 
-        measured.append((name, dm_sens, v4_mse, severity, extra))
+        priority = int8_fp16_budget_priority(v4_mse, severity)
+        candidates.append((priority, v4_mse, severity, extra, name))
 
-    # ---- Per-model measured damage (gradient-based, no fixed formula) ----
-    # For each layer l, the damage of INT8-quantizing l (vs keeping FP16) is:
-    #   damage_l ≈ sum_{o,i} ΔW[o,i]^2 · E[x_i^2] · E[g_o^2]
-    # where:
-    #   ΔW      = W_int8(amax*) - W_fp16  (per-tensor symmetric INT8 error at
-    #                                     the V4-optimized amax for this layer)
-    #   E[x_i^2] = per-input-channel second moment of activations, accumulated
-    #              by DualMonitor during calibration (this model, this data)
-    #   E[g_o^2] = per-output-channel squared gradient w.r.t. this layer's
-    #              output, accumulated by GradSecondMoment via Hutchinson
-    #              probing on captured UNet inputs (this model, this data)
-    # This is the measured contribution of the layer to the final latent MSE.
-    # No sensitivity×mse×(1+sev) heuristic, no fixed combination formula —
-    # the damage itself is physically measured for THIS model.
-    candidates: list[tuple[float, float, float, float, int, str, float]] = []
-    # (damage, v4_mse, severity, dm_sensitivity, extra_bytes, name, delta_w_sq_mean)
-    have_grad_damage = bool(grad_second_moments)
-    grad_damage_count = 0
-    fallback_count = 0
-    for name, dm_sens, v4_mse, severity, extra in measured:
-        mod = module_dict.get(name)
-        damage = 0.0
-        delta_w_sq_mean = 0.0
-        if mod is not None and hasattr(mod, "weight") and mod.weight is not None:
-            ex2 = None
-            if dual_monitors is not None and name in dual_monitors:
-                try:
-                    ex2 = dual_monitors[name].get_input_second_moment()
-                except Exception:
-                    ex2 = None
-            eg2 = None
-            if grad_second_moments is not None:
-                gsm = grad_second_moments.get(name)
-                if gsm is not None:
-                    try:
-                        eg2 = gsm.get_output_grad_second_moment()
-                    except Exception:
-                        eg2 = None
-            if ex2 is not None and eg2 is not None:
-                try:
-                    w_fp16 = mod.weight.data.detach().float()
-                    amax = float(w_fp16.abs().max().item())
-                    if amax > 0.0 and math.isfinite(amax):
-                        scale = amax / 127.0
-                        w_int8 = torch.round(w_fp16 / scale).clamp(-127.0, 127.0)
-                        delta_w = w_fp16 - (w_int8 * scale)
-                        delta_w_sq_mean = float((delta_w ** 2).mean().item())
-                        # delta_w shape: [O, I(*k)] for Linear / Conv2d (weight)
-                        # ex2 shape: [I] (per-input-channel E[x_i^2])
-                        # eg2 shape: [O] (per-output-channel E[g_o^2])
-                        # damage ≈ sum_{o,i} delta_w[o,i]^2 · E[x_i^2] · E[g_o^2]
-                        #   = (eg2[:,None] * delta_w^2 @ ex2[None,:]).sum()
-                        dw_sq = (delta_w ** 2)
-                        if dw_sq.dim() == 4:
-                            # Conv2d weight [O, I, kH, kW] -> reduce over kH,kW
-                            # and fold kernel into I for channel-wise E[x_i^2].
-                            # Per-input-channel contribution:
-                            #   sum_k delta_w[o,i,k]^2 * E[x_i^2]
-                            # => collapse kernel dims, multiply by ex2[i], sum over I.
-                            # This is exact for per-channel E[x_i^2] when kernels
-                            # are treated as independent contributions to channel i.
-                            ex2_use = ex2.to(dw_sq.device).float()
-                            # dw_sq_chan[o,i] = sum_{kH,kW} dw[o,i,kH,kW]^2
-                            dw_sq_chan = dw_sq.sum(dim=(2, 3))
-                            # per-input-channel damage: dw_sq_chan * ex2 -> [O,I]
-                            per_in = dw_sq_chan * ex2_use.unsqueeze(0)
-                            # sum over I, then weight by eg2[o] and sum over O
-                            sum_in = per_in.sum(dim=1)  # [O]
-                            eg2_use = eg2.to(sum_in.device).float()
-                            damage = float((sum_in * eg2_use).sum().item())
-                        elif dw_sq.dim() == 2:
-                            ex2_use = ex2.to(dw_sq.device).float()
-                            per_in = dw_sq * ex2_use.unsqueeze(0)
-                            sum_in = per_in.sum(dim=1)  # [O]
-                            eg2_use = eg2.to(sum_in.device).float()
-                            damage = float((sum_in * eg2_use).sum().item())
-                        else:
-                            damage = float((dw_sq.sum() * ex2.sum() * eg2.sum()).item())
-                        if not math.isfinite(damage) or damage < 0.0:
-                            damage = 0.0
-                        else:
-                            grad_damage_count += 1
-                except Exception:
-                    damage = 0.0
-        if damage == 0.0:
-            # Fallback: when grad-second-moment unavailable for this layer
-            # (e.g. calibration did not exercise it or grad phase skipped),
-            # approximate damage from V4 estimated MSE × extra_bytes (bytes-proportional
-            # proxy). This preserves ordering among layers without grad data.
-            damage = v4_mse * float(extra) if v4_mse > 0.0 else 0.0
-            fallback_count += 1
-        candidates.append((damage, v4_mse, severity, dm_sens, extra, name, delta_w_sq_mean))
-
-    # ---- 0/1 knapsack: maximize total avoided damage within budget_bytes ----
-    # Greedy density-by-damage, then local swap optimization. This is the
-    # optimal solution of "minimize total model damage subject to 300 MiB
-    # budget". No fixed priority formula, no ref normalization — every factor
-    # is a measured analysis result of this model.
-    for c in candidates:
-        pass  # candidates already sorted below
-    candidates.sort(key=lambda x: (- (x[0] / x[4] if x[4] > 0 else 0.0), x[4]))
+    candidates.sort(key=lambda x: (-x[0], x[3]))
 
     selected: set = set()
     used = 0
-    dropped: list[tuple[str, int, float, float, float, float]] = []
-    kept_detail: list[tuple[str, int, float, float, float, float]] = []
-    for damage, v4_mse, severity, dm_sens, extra, name, delta_w_sq_mean in candidates:
+    dropped: list[tuple[str, int, float, float, float]] = []
+    kept_detail: list[tuple[str, int, float, float, float]] = []
+    for priority, v4_mse, severity, extra, name in candidates:
         if used + extra <= budget_bytes:
             selected.add(name)
             used += extra
-            kept_detail.append((name, extra, damage, v4_mse, severity, dm_sens))
+            kept_detail.append((name, extra, priority, v4_mse, severity))
         else:
-            dropped.append((name, extra, damage, v4_mse, severity, dm_sens))
-
-    # Local swap optimization: try to replace a kept layer with a dropped one
-    # if the net damage reduction improves. Greedy density is good but not
-    # always optimal when bytes are tight; a few swap passes improve quality
-    # without a full DP (which would be O(n*bytes) and memory-heavy here).
-    improved = True
-    swap_passes = 0
-    max_swap_passes = 5
-    kept_list = list(kept_detail)
-    dropped_list = list(dropped)
-    while improved and swap_passes < max_swap_passes:
-        improved = False
-        swap_passes += 1
-        for i, (kn, ke, kd, km, ks, ksen) in enumerate(kept_list):
-            for j, (dn, de, dd, dm2, ds, dsen) in enumerate(dropped_list):
-                # swap kn <-> dn if it fits and damage improves
-                if (used - ke + de) <= budget_bytes and dd > kd:
-                    used = used - ke + de
-                    kept_list[i] = (dn, de, dd, dm2, ds, dsen)
-                    dropped_list[j] = (kn, ke, kd, km, ks, ksen)
-                    improved = True
-                    break
-            if improved:
-                break
-
-    selected = set(x[0] for x in kept_list)
-    dropped = dropped_list
+            dropped.append((name, extra, priority, v4_mse, severity))
 
     demoted_veto = hard_veto_layers - selected
     hard_veto_out = hard_veto_layers & selected
     keep_out = selected
-
-    ranking_str = "knapsack(measured_grad_damage)"
-    if not have_grad_damage:
-        ranking_str = "knapsack(v4_mse_proxy, no_grad_data)"
 
     stats = {
         "budget_mb": float(budget_mb),
@@ -1481,93 +1390,19 @@ def _apply_fp16_budget_cap(
         "candidates": len(candidates),
         "pool": len(pool),
         "analyze_character_layers": len(char_table),
-        "dm_sensitivity_layers": len(sens_by_name),
         "kept": len(keep_out),
         "dropped": len(dropped),
         "demoted_veto": len(demoted_veto),
         "skipped_no_weight": len(skipped_no_weight),
         "skipped_no_v4": len(skipped_no_v4),
         "measured_fresh_v4": measured_fresh,
-        "ranking": ranking_str,
-        "grad_damage_count": grad_damage_count,
-        "fallback_count": fallback_count,
-        "swap_passes": swap_passes,
+        "ranking": "v4_mse_x_analyze_character_int8",
         "dropped_detail": dropped[:40],
         "kept_detail": kept_detail[:40],
         "mse_cache_size": len(cache),
     }
     return keep_out, hard_veto_out, stats
 
-
-class DualMonitor:
-    def __init__(self):
-        self.output_sum = 0.0
-        self.output_sq_sum = 0.0
-        self.count = 0
-        self.channel_importance = None
-        # Signed per-channel input mean for INT8 bias correction:
-        #   bias_delta ≈ (W_q - W) @ E[x]
-        self.channel_act_mean = None
-        # Per-input-channel second moment E[x_i^2] for damage calculation:
-        #   damage_l ≈ sum_i (ΔW^2)[*,i,*] · E[x_i^2]  (pre-grad factor)
-        self.channel_act_sq_mean = None
-
-    def update(self, input_tensor, output_tensor):
-        with torch.no_grad():
-            out_detached = output_tensor.detach().float()
-            out_clamped = torch.clamp(out_detached, -65504.0, 65504.0)
-            mean_val = out_clamped.mean().item()
-            sq_mean_val = (out_clamped ** 2).mean().item()
-            import math
-            if math.isfinite(mean_val) and math.isfinite(sq_mean_val):
-                self.output_sum += mean_val
-                self.output_sq_sum += sq_mean_val
-            inp_detached = input_tensor.detach().float()
-            if inp_detached.dim() == 4:
-                current_imp = inp_detached.abs().mean(dim=(0, 2, 3))
-                current_act = inp_detached.mean(dim=(0, 2, 3))
-                current_sq = (inp_detached ** 2).mean(dim=(0, 2, 3))
-            elif inp_detached.dim() == 3:
-                current_imp = inp_detached.abs().mean(dim=(0, 1))
-                current_act = inp_detached.mean(dim=(0, 1))
-                current_sq = (inp_detached ** 2).mean(dim=(0, 1))
-            elif inp_detached.dim() == 2:
-                current_imp = inp_detached.abs().mean(dim=0)
-                current_act = inp_detached.mean(dim=0)
-                current_sq = (inp_detached ** 2).mean(dim=0)
-            else:
-                current_imp = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
-                current_act = torch.zeros(1, device=inp_detached.device, dtype=torch.float32)
-                current_sq = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
-            if self.channel_importance is None:
-                self.channel_importance = current_imp
-                self.channel_act_mean = current_act
-                self.channel_act_sq_mean = current_sq
-            else:
-                self.channel_importance = (
-                    self.channel_importance * self.count + current_imp
-                ) / (self.count + 1)
-                self.channel_act_mean = (
-                    self.channel_act_mean * self.count + current_act
-                ) / (self.count + 1)
-                self.channel_act_sq_mean = (
-                    self.channel_act_sq_mean * self.count + current_sq
-                ) / (self.count + 1)
-            self.count += 1
-
-    def get_sensitivity(self):
-        if self.count == 0:
-            return 0.0
-        mean = self.output_sum / self.count
-        variance = (self.output_sq_sum / self.count) - mean ** 2
-        import math
-        return variance if math.isfinite(variance) else 0.0
-
-    def get_input_second_moment(self):
-        """Per-input-channel E[x_i^2] accumulated during calibration (float32, CPU)."""
-        if self.count == 0 or self.channel_act_sq_mean is None:
-            return None
-        return self.channel_act_sq_mean.detach().float().cpu()
 
 
 class GradSecondMoment:
@@ -2253,106 +2088,32 @@ def main():
     pipeline.set_progress_bar_config(disable=False)
     generator = torch.Generator(device=device).manual_seed(42)
 
-    # ---- Capture UNet inputs for gradient-based damage measurement ----
-    # Reservoir sampling over the calibration prompts: keep a fixed-size
-    # set of (sample, step_idx) latent/timestep/encoder_hidden_states tuples
-    # so that the gradient-measurement phase can replay representative inputs.
-    # cap_k captures across *all* steps (uniform reservoir), which is the
-    # unbiased estimator of the calibration data distribution.
-    cap_k = 8  # reservoir size (captures). Memory-bounded; enough for Hutchinson.
-    unet_inputs: list = []  # list of dicts: {latent, timestep, enc_hs, add_text}
-    rng_capture = torch.Generator(device="cpu").manual_seed(123)
-    _unet_ref = pipeline.unet
-    _orig_unet_forward = _unet_ref.forward
-
-    def _capturing_unet_forward(sample, timestep, encoder_hidden_states, *args_cap, **kwargs_cap):
-        # Reservoir-sample this (sample, timestep) tuple.
-        nonlocal unet_inputs, cap_k, rng_capture
-        try:
-            j = len(unet_inputs)
-            if j < cap_k:
-                unet_inputs.append({
-                    "sample": sample.detach().to("cpu", copy=True).float(),
-                    "timestep": int(timestep.item()) if torch.is_tensor(timestep) else int(timestep),
-                    "encoder_hidden_states": (
-                        encoder_hidden_states.detach().to("cpu", copy=True).float()
-                        if torch.is_tensor(encoder_hidden_states) else None
-                    ),
-                })
-            else:
-                r = int(torch.randint(0, j + 1, (1,), generator=rng_capture).item())
-                if r < cap_k:
-                    unet_inputs[r] = {
-                        "sample": sample.detach().to("cpu", copy=True).float(),
-                        "timestep": int(timestep.item()) if torch.is_tensor(timestep) else int(timestep),
-                        "encoder_hidden_states": (
-                            encoder_hidden_states.detach().to("cpu", copy=True).float()
-                            if torch.is_tensor(encoder_hidden_states) else None
-                        ),
-                    }
-        except Exception:
-            pass
-        return _orig_unet_forward(sample, timestep, encoder_hidden_states, *args_cap, **kwargs_cap)
-
-    _unet_ref.forward = _capturing_unet_forward
-    try:
-        for i, prompt in enumerate(prompts):
-            print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
-            with torch.no_grad():
-                pipeline(
-                    prompt=prompt,
-                    num_inference_steps=args.num_inference_steps,
-                    output_type="latent",
-                    generator=generator,
-                )
-            if (i + 1) % 10 == 0:
-                gc.collect()
-                torch.cuda.empty_cache()
-    finally:
-        _unet_ref.forward = _orig_unet_forward
+    # Calibration for DualMonitor Importance only (V4 ranking). No UNet
+    # reservoir / grad-damage capture — that path was the priority hand-wave.
+    for i, prompt in enumerate(prompts):
+        print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
+        with torch.no_grad():
+            pipeline(
+                prompt=prompt,
+                num_inference_steps=args.num_inference_steps,
+                output_type="latent",
+                generator=generator,
+            )
+        if (i + 1) % 10 == 0:
+            gc.collect()
+            torch.cuda.empty_cache()
     for h in handles:
         h.remove()
 
-    print(f"  [Capture] Reservoir-sampled {len(unet_inputs)} UNet inputs for gradient damage measurement.")
+    print("  [Calib] DualMonitor Importance ready for V4 full-pool priority.")
 
-    # ---- Gradient-based per-layer damage measurement phase ----
-    # Replay captured UNet inputs with gradients enabled, using Hutchinson
-    # probing + gradient checkpointing. For each target Conv2d/Linear layer,
-    # accumulate E[g_o^2] (per-output-channel squared gradient w.r.t. that
-    # layer's output) via a random projection of the final latent output.
-    grad_second_moments: dict = {}
-    _have_grad = False
-    if unet_inputs and len(target_modules) > 0:
-        try:
-            grad_second_moments = _measure_grad_second_moments(
-                model=pipeline.unet,
-                unet_inputs=unet_inputs,
-                target_layer_names=set(target_modules),
-                device=device,
-                num_hutchinson_probes=4,
-            )
-            _have_grad = bool(grad_second_moments)
-            print(
-                f"  [GradDamage] Measured E[g_o^2] for "
-                f"{len(grad_second_moments)}/{len(target_modules)} layers."
-            )
-        except Exception as e:
-            print(f"  [GradDamage] Gradient measurement failed ({e}); falling back to V4 proxy.")
-            grad_second_moments = {}
-    else:
-        print("  [GradDamage] No captured UNet inputs; falling back to V4 proxy.")
-
-
-    print("\nAnalyzing layer sensitivity (profile_score + drift) [INT8]...")
+    print("\nAnalyzing layer sensitivity [INT8] — V4 calib FP16 cands + analyze VETO...")
 
     _supp = _autonomous_supplemental_veto(model, hard_veto_layers, _norm_profile, veto_tunables)
     if _supp:
         hard_veto_layers = hard_veto_layers.union(_supp)
         print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
 
-    # INT8 r0: DualMonitor Hidden Killers → Hard VETO (auto from this calib).
-    # Percentile is autonomous (from sensitivity distribution iqr via
-    # derive_int8_autonomous_tunables). No fixed 90.0.
     sens_veto = _compute_int8_sensitivity_hard_veto_promotion(
         dual_monitors,
         hard_veto_layers,
@@ -2366,42 +2127,23 @@ def main():
             f"{len(hard_veto_layers)}."
         )
 
-    # Exclude VETO layers from the Dynamic pool (they are always FP16, so Dynamic budget goes elsewhere)
-    _module_dict_sens = dict(model.named_modules())
-    layer_sensitivities = []
-    ranking_source = "profile_score"
-    for name in target_modules:
-        if name in hard_veto_layers:
-            continue
-        prof = _norm_profile.get(name, {})
-        drift = 0.0
-        mod = _module_dict_sens.get(name)
-        if prof and mod is not None and hasattr(mod, "weight"):
-            drift = _weight_profile_drift(mod.weight.data, prof)
-        # V3.0 INT8: autonomous weights from derive_int8_autonomous_tunables
-        # (IQR-normalized per axis; no fixed 2.0 / 0.5).
-        if prof:
-            k = prof.get("kurtosis", 0) or 0
-            o = prof.get("outlier_ratio", 0) or 0
-            m = prof.get("abs_max", 0) or 0
-            score = (
-                k * veto_tunables.score_k_weight
-                + o * veto_tunables.score_o_weight
-                + m * veto_tunables.score_m_weight
-                + drift * veto_tunables.drift_score_mult
-            )
-        elif name in dual_monitors:
-            score = dual_monitors[name].get_sensitivity()
-            ranking_source = "dualmonitor_fallback"
-        else:
-            continue
-        layer_sensitivities.append((name, score))
+    # V4 scores EVERY calib layer (no keep_ratio pre-cut). Analyze VETO stays full.
+    # FULL union -> _apply_fp16_budget_cap ranks ALL by V4 x analyze severity.
+    mse_cache: dict = {}
+    dynamic_keep_layers, mse_cache = _build_v4_calib_fp16_candidates(
+        model=model,
+        dual_monitors=dual_monitors,
+        target_modules=target_modules,
+        hard_veto_layers=hard_veto_layers,
+        mse_cache=mse_cache,
+        alpha=alpha,
+        beta=beta,
+        device=device,
+    )
+    ranking_source = "v4_histogram_calib"
+    num_keep_dynamic = len(dynamic_keep_layers)  # report only; not a pre-cut
 
-    layer_sensitivities.sort(key=lambda x: x[1], reverse=True)
-    num_keep_dynamic = int(len(layer_sensitivities) * args.keep_ratio)
-    dynamic_keep_layers = set([x[0] for x in layer_sensitivities[:num_keep_dynamic]])
-
-    # [V3.0 Exclusive Protection] VETO (always FP16) + Dynamic (additional FP16) with no overlap for maximum coverage
+    # ALL: V4-calib-scored U analyze VETO -> full priority in budget pass.
     keep_layers = dynamic_keep_layers.union(hard_veto_layers)
 
     # [V3.0 SDXL INT8 MSE-Guided VETO Reassessment] outlier-only VETO release candidates
@@ -2410,7 +2152,7 @@ def main():
     )
     if keypattern_veto:
         release_cands -= keypattern_veto
-    mse_cache: dict = {}
+    # Reuse V4 calib mse_cache; grayzone may extend it (do not wipe).
     if release_cands:
         hard_veto_layers, keep_layers, mse_cache = _mse_grayzone_veto_reassessment(
             scope_label="V3.0 SDXL INT8",
@@ -2426,10 +2168,12 @@ def main():
             device=device,
             tunables=veto_tunables,
             dual_monitors=dual_monitors,
+            mse_cache=mse_cache,
         )
 
     # Hard ceiling: FP16 overhead vs all-INT8 must stay within budget.
-    # Optimal set for THIS model = DualMonitor Sens × V4 hist FP16-cand × analyze VETO.
+    # Auto-optimal over ALL of: V4-calib FP16 candidates U analyze VETO
+    # U analyze fence-crossers (priority = V4 MSE x analyze severity).
     keep_before_budget = len(keep_layers)
     veto_before_budget = len(hard_veto_layers)
     keep_layers, hard_veto_layers, budget_stats = _apply_fp16_budget_cap(
@@ -2444,8 +2188,8 @@ def main():
         alpha=alpha,
         beta=beta,
         device=device,
-        unet_inputs=unet_inputs,
-        grad_second_moments=grad_second_moments,
+        unet_inputs=None,
+        grad_second_moments=None,
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
     print(
