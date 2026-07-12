@@ -39,12 +39,11 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
 - _quantization_metadata embedded in safetensors metadata for ComfyUI loader.
-- FP16 keep budget (default +300 MB vs all-INT8): per-model optimal ranking
-  from ALL of DualMonitor Sensitivity (FP16 selection), V4 weighted-histogram
-  estimated_mse (FP16-protection candidates; Importance feeds histogram), and
-  analyze VETO/fence severity (THIS checkpoint). Truncated so overhead stays
-  within `--fp16_budget_mb` (extra = 1 byte/elem vs INT8). Not profile_score.
-  FP8 scripts untouched.
+- FP16 keep hard ceiling: exactly +300 MiB vs all-INT8 (owner non-negotiable).
+  Per-model auto analysis / auto-optimal settings run ONLY inside that frame.
+  DualMonitor FP16 cands + analyze VETO + V4 MSE → priority fill under 300 MiB.
+  Never exceed 300. Never treat 300 as a removable "thinking-stop" constant.
+  keep_ratio is r0. DualMonitor never invents keep_ratio. FP8 untouched.
 
 ComfyUI compatibility:
   ComfyUI >= master with comfy_kitchen + TensorWiseINT8Layout can load these
@@ -72,6 +71,22 @@ from dataclasses import dataclass
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
+
+# Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
+# optimize INSIDE this frame. Not a thinking-stop formula constant.
+FP16_BUDGET_MB_HARD = 300.0
+
+
+def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
+    """Refuse any fp16_budget_mb other than the owner hard ceiling (300)."""
+    b = float(budget_mb)
+    if abs(b - FP16_BUDGET_MB_HARD) > 1e-6:
+        raise ValueError(
+            f"fp16_budget_mb must be exactly {FP16_BUDGET_MB_HARD:g} MiB "
+            f"(owner hard ceiling; auto-optimal settings are inside this "
+            f"frame only — never outside). Got {b}."
+        )
+    return FP16_BUDGET_MB_HARD
 
 # Ensure histogram modules are importable regardless of clone path / CWD
 histogram_dir = os.path.join(current_dir, "histogram")
@@ -290,9 +305,10 @@ _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 # Hard VETO fences and mse_release_* come from analyze weight-space Tukey —
 # do NOT scale those gates by this ratio (collapses V4-histogram VETO candidates).
 _INT8_SCALE_FACTOR = 127.0 / 448.0
-# DualMonitor Hidden-Killer promotion: percentile is derived per-checkpoint
-# by derive_int8_autonomous_tunables (from sensitivity distribution iqr).
-# No fixed 90.0 constant — flat sens → P75, skewed → P90.
+# DualMonitor Sensitivity → FP16 candidates; analyze → VETO candidates.
+# Both enter ONE per-model ranking in _apply_fp16_budget_cap (with V4 MSE).
+# Budget winners = final FP16 protection. Analyze VETO is not renamed.
+# keep_ratio is r0; DualMonitor must not invent or gate that flag.
 _INT8_MAD_OUTLIER_PCT_FLOOR = 0.0  # disabled; analyze derives from profile or 0
 
 
@@ -441,7 +457,7 @@ def resolve_veto_tunables(
     profile_summary: dict | None = None,
     *,
     dual_monitors: dict | None = None,
-    fp16_budget_mb: float = 300.0,
+    fp16_budget_mb: float = FP16_BUDGET_MB_HARD,
 ) -> SdxlVetoTunables:
     """Load INT8 veto_tunables via fully autonomous derivation.
 
@@ -449,9 +465,11 @@ def resolve_veto_tunables(
     weights, MSE release gates, bias_correction scope, sens_veto percentile,
     alpha/beta, search_low) come from derive_int8_autonomous_tunables,
     which uses THIS checkpoint's profile + DualMonitor sensitivity
-    distribution. Only fp16_budget_mb is a fixed external constraint.
-    No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 constants.
+    distribution. fp16_budget_mb is the owner hard ceiling (300 MiB) —
+    auto settings fill that frame; they do not redefine or exceed it.
+    No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
+    fp16_budget_mb = _require_fp16_budget_mb_hard(fp16_budget_mb)
     analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
@@ -822,60 +840,18 @@ def _compute_sdxl_int8_mad_attn_veto(
 def _compute_int8_sensitivity_hard_veto_promotion(
     dual_monitors: dict,
     hard_veto_layers: set,
-    keep_ratio: float,
     *,
     percentile: float = 100.0,
 ) -> set:
-    """INT8-only: promote DualMonitor-sensitive layers to Hard VETO when r0.
+    """Obsolete — do not call.
 
-    Static VETO (kurtosis / abs_max/std / MAD%) misses Hidden Killers:
-    clean weight stats but high output variance under calibration.
-    At keep_ratio==0 there is no dynamic keep budget, so DualMonitor
-    sensitivity is force-promoted into hard_veto instead.
-
-    `percentile` comes from derive_int8_autonomous_tunables (per-checkpoint
-    sensitivity distribution iqr → P75 or P90). No fixed 90.0.
-
-    Uses DualMonitor.get_sensitivity() only — NOT profile_score ranking
-    (profile_score correlates with the same weight stats as static VETO).
+    DualMonitor produces FP16 candidates; analyze produces VETO candidates.
+    Those two pools are synthesized in _apply_fp16_budget_cap for final FP16
+    protection. Do not force DualMonitor into analyze VETO, and do not rename
+    budget winners as Hard VETO.
     """
-    if keep_ratio != 0.0 or percentile >= 100.0:
-        return set()
-    dm_scores: list[tuple[str, float]] = []
-    for name, mon in dual_monitors.items():
-        if name in hard_veto_layers:
-            continue
-        sens = float(mon.get_sensitivity())
-        if sens > 0.0 and math.isfinite(sens):
-            dm_scores.append((name, sens))
-    if not dm_scores:
-        print(
-            "  [INT8 Sensitivity VETO] No DualMonitor scores "
-            "(keep_ratio=0; nothing to promote)."
-        )
-        return set()
-    scores = [s for _, s in dm_scores]
-    threshold = float(np.percentile(scores, percentile))
-    promoted: set = set()
-    print(
-        f"\n  [INT8 Sensitivity VETO] DualMonitor Hidden Killers "
-        f"(r0; p{percentile:.0f} threshold={threshold:.6g}; "
-        f"candidates={len(dm_scores)})..."
-    )
-    for name, sens in sorted(dm_scores, key=lambda x: x[1], reverse=True):
-        if sens > threshold:
-            promoted.add(name)
-            print(
-                f"    [PROMOTED] {name} | DualMonitor sens={sens:.6g} "
-                f"(stat VETO miss → Hard VETO)"
-            )
-    if promoted:
-        print(
-            f"  [INT8 Sensitivity VETO] Promoted {len(promoted)} layers to Hard VETO."
-        )
-    else:
-        print("  [INT8 Sensitivity VETO] No additional layers promoted.")
-    return promoted
+    _ = dual_monitors, hard_veto_layers, percentile
+    return set()
 
 
 def _autonomous_supplemental_veto(
@@ -1227,7 +1203,7 @@ def _apply_fp16_budget_cap(
     keep_layers: set,
     hard_veto_layers: set,
     *,
-    budget_mb: float = 300.0,
+    budget_mb: float = FP16_BUDGET_MB_HARD,
     norm_profile: dict,
     veto_tunables: SdxlVetoTunables,
     dual_monitors: dict | None,
@@ -1238,16 +1214,23 @@ def _apply_fp16_budget_cap(
     unet_inputs: list | None = None,
     grad_second_moments: dict | None = None,
 ) -> tuple[set, set, dict]:
-    """Auto-optimal FP16 under budget_mb from THIS checkpoint.
+    """Per-model auto analysis → auto-optimal FP16 set inside 300 MiB.
 
-    Pool (nothing dropped before ranking):
-      V4-calib FP16 cands U analyze VETO U fence-crossers U DualMonitor-sensitive
+    Owner hard ceiling: fp16_budget_mb == 300 exactly. Auto settings fill
+    that frame; they never redefine it and never exceed it.
 
-    Ranking: per-checkpoint autonomous combinator from measured
-    DualMonitor sens / analyze severity / V4 MSE distributions
-    (weighted geometric mean). NO fixed V4*(1+sev).
+    Inputs (both required; neither is discarded):
+      DualMonitor FP16 candidates (calibration sensitivity)
+      Analyze VETO candidates (THIS checkpoint fences / character)
+
+    Auto-optimal settings (inside the 300 MiB frame):
+      Measure DualMonitor sens + analyze severity + V4 MSE on the union pool.
+      Derive priority combinator from THIS run's measured distributions.
+      Sort by priority; fill until 300 MiB. Analyze VETO that lose are
+      demoted; DualMonitor winners stay FP16 keep (not renamed VETO).
     """
     _ = unet_inputs, grad_second_moments
+    budget_mb = _require_fp16_budget_mb_hard(budget_mb)
     analyze_dir = os.path.join(current_dir, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
@@ -1272,9 +1255,7 @@ def _apply_fp16_budget_cap(
         )
 
     tunables_dict = veto_tunables.as_dict()
-    budget_bytes = int(float(budget_mb) * 1024 * 1024)
-    if budget_bytes <= 0:
-        raise ValueError(f"fp16_budget_mb must be > 0 (got {budget_mb})")
+    budget_bytes = int(budget_mb * 1024 * 1024)
 
     char_table = build_int8_analyze_character_table(
         {"layers": norm_profile},
@@ -1404,6 +1385,9 @@ def _apply_fp16_budget_cap(
 
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
+    # Extreme fill inside the 300 MiB hard ceiling: priority order; if a
+    # layer does not fit, skip and keep packing smaller remaining layers
+    # (THIS model's auto-optimal set under the owner frame).
     selected: set = set()
     used = 0
     dropped: list[tuple[str, int, float, float, float, float]] = []
@@ -1417,8 +1401,17 @@ def _apply_fp16_budget_cap(
             dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
 
     demoted_veto = hard_veto_layers - selected
+    # Auto-optimal FP16 set for THIS model (DualMonitor + analyze + V4).
+    # Analyze VETO that win stay labeled VETO; DualMonitor winners are keep.
     hard_veto_out = hard_veto_layers & selected
-    keep_out = selected
+    keep_out = set(selected)
+
+    if used > budget_bytes:
+        raise RuntimeError(
+            f"[FP16 budget] selected set exceeds hard ceiling "
+            f"{budget_mb:g} MiB: used={used / (1024 * 1024):.3f} MiB "
+            f"({used} bytes > {budget_bytes}). Refusing to proceed."
+        )
 
     stats = {
         "budget_mb": float(budget_mb),
@@ -1441,7 +1434,10 @@ def _apply_fp16_budget_cap(
             "sev": combinator["w_sev"],
             "mse": combinator["w_mse"],
         },
-        "ranking": "autonomous_combinator_from_sens_sev_mse_distribution",
+        "ranking": "per_model_auto_extreme_fill_inside_300mib",
+        "hard_ceiling_mb": FP16_BUDGET_MB_HARD,
+        "slack_bytes": max(budget_bytes - used, 0),
+        "slack_mb": max(budget_bytes - used, 0) / (1024 * 1024),
         "dropped_detail": dropped[:40],
         "kept_detail": kept_detail[:40],
         "mse_cache_size": len(cache),
@@ -1790,10 +1786,10 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
             )
 
     if veto_tunables is None:
-        # fp16_budget_mb default: 300 (only fixed external constraint)
+        # Owner hard ceiling 300 MiB — auto knobs fill inside this frame.
         veto_tunables = resolve_veto_tunables(
             model_profile or {},
-            fp16_budget_mb=300.0,
+            fp16_budget_mb=FP16_BUDGET_MB_HARD,
         )
 
     print(
@@ -1909,18 +1905,19 @@ def main():
     parser.add_argument(
         "--keep_ratio",
         type=float,
-        default=None,
-        help="Ratio of layers to keep in FP16. Default: None = autonomous "
-             "(derive_int8_autonomous_tunables computes from Hard VETO + sens "
-             "tail count). Override only for manual tuning.",
+        default=0.0,
+        help="Must be 0 (r0). FP16 protection is selected by --fp16_budget_mb "
+             "ranking (DualMonitor sensitivity + V4 MSE + analyze severity). "
+             "DualMonitor is NEVER used to invent or gate this flag.",
     )
     parser.add_argument(
         "--fp16_budget_mb",
         type=float,
-        default=300.0,
-        help="Max FP16 overhead vs all-INT8 in MiB (FIXED default 300). "
-             "VETO+dynamic keep are ranked by autonomous priority and "
-             "truncated to fit. Extra cost = 1 byte per weight element.",
+        default=FP16_BUDGET_MB_HARD,
+        help="Owner hard ceiling: must be exactly 300 MiB FP16 overhead vs "
+             "all-INT8. Per-model auto analysis / auto-optimal settings fill "
+             "this frame only — never redefine or exceed it. "
+             "Extra cost = 1 byte per weight element.",
     )
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
@@ -1967,11 +1964,25 @@ def main():
         )
         sys.exit(1)
 
-    # Autonomous keep_ratio: if user did not override, use auto_keep_ratio from
-    # derive_int8_autonomous_tunables (computed from Hard VETO + sens tail).
-    # Will be filled after veto_tunables is resolved.
-    _keep_ratio_override = args.keep_ratio
+    # 300 MiB hard ceiling: auto analysis / auto-optimal settings only inside.
+    try:
+        args.fp16_budget_mb = _require_fp16_budget_mb_hard(args.fp16_budget_mb)
+    except ValueError as e:
+        print(f"[FATAL] {e}")
+        sys.exit(1)
+
+    # r0 fixed. DualMonitor sensitivity is used ONLY in
+    # _apply_fp16_budget_cap (extreme fill inside 300 MiB) — never to
+    # invent or gate keep_ratio.
     _bc_top_override = args.bias_correction_top_ratio
+    if abs(float(args.keep_ratio)) > 1e-12:
+        print(
+            f"[FATAL] keep_ratio must be 0 (r0); got {args.keep_ratio}. "
+            f"FP16 protection = per-model auto analysis inside "
+            f"{FP16_BUDGET_MB_HARD:g} MiB hard ceiling."
+        )
+        sys.exit(1)
+    args.keep_ratio = 0.0
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     raw_input_arg = args.input
@@ -2059,13 +2070,7 @@ def main():
         dual_monitors=None,  # sens computed later after calibration
         fp16_budget_mb=float(args.fp16_budget_mb),
     )
-    # Fill autonomous keep_ratio / bc_top if user did not override.
-    if _keep_ratio_override is None:
-        args.keep_ratio = float(veto_tunables.auto_keep_ratio)
-        print(
-            f"  [Autonomous keep_ratio] {args.keep_ratio:.4f} "
-            f"(from Hard VETO + sens tail count; override with --keep_ratio)"
-        )
+    # Fill autonomous bc_top if user did not override.
     if _bc_top_override is None:
         args.bias_correction_top_ratio = float(veto_tunables.bias_correction_top_ratio)
         print(
@@ -2160,21 +2165,21 @@ def main():
         hard_veto_layers = hard_veto_layers.union(_supp)
         print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
 
-    sens_veto = _compute_int8_sensitivity_hard_veto_promotion(
-        dual_monitors,
-        hard_veto_layers,
-        float(args.keep_ratio),
-        percentile=float(veto_tunables.sens_veto_percentile),
+    # DualMonitor FP16 cands + analyze VETO → per-model auto-optimal FP16.
+    # Re-derive autonomous knobs now that DualMonitor calibration exists.
+    veto_tunables = resolve_veto_tunables(
+        _norm_profile,
+        profile_summary,
+        dual_monitors=dual_monitors,
+        fp16_budget_mb=float(args.fp16_budget_mb),
     )
-    if sens_veto:
-        hard_veto_layers = hard_veto_layers.union(sens_veto)
+    if _bc_top_override is None:
+        args.bias_correction_top_ratio = float(veto_tunables.bias_correction_top_ratio)
         print(
-            f"  [INT8 Sensitivity VETO] total VETO after promotion: "
-            f"{len(hard_veto_layers)}."
+            f"  [Autonomous bias_correction_top_ratio after DualMonitor] "
+            f"{args.bias_correction_top_ratio:.2f}"
         )
 
-    # V4 scores EVERY calib layer (no keep_ratio pre-cut). Analyze VETO stays full.
-    # FULL union -> _apply_fp16_budget_cap ranks ALL by V4 x analyze severity.
     mse_cache: dict = {}
     dynamic_keep_layers, mse_cache = _build_v4_calib_fp16_candidates(
         model=model,
@@ -2240,8 +2245,9 @@ def main():
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
     print(
         f"\n  [FP16 budget] ranking={budget_stats.get('ranking')} "
-        f"cap={budget_stats['budget_mb']:.1f} MiB "
+        f"hard_ceiling={budget_stats['budget_mb']:.1f} MiB "
         f"(extra vs all-INT8); used={budget_stats['used_mb']:.1f} MiB "
+        f"slack={budget_stats.get('slack_mb', 0):.2f} MiB "
         f"| pool={budget_stats.get('pool', budget_stats['candidates'])} "
         f"| analyze_char={budget_stats.get('analyze_character_layers', '?')} "
         f"| keep {keep_before_budget}→{budget_stats['kept']} "
@@ -2272,15 +2278,28 @@ def main():
 
     non_veto_total = len([n for n in target_modules if n not in hard_veto_layers])
     print(f"\nTotal layers: {len(target_modules)} (Non-VETO pool: {non_veto_total})")
-    print(f"Dynamic ranking: {ranking_source} (V3.0 INT8)")
-    print(f"Dynamic kept (from non-VETO pool): {len(dynamic_keep_layers)} (Top {args.keep_ratio*100:.1f}%)")
-    print(f"Static kept (Hard VETO): {len(hard_veto_layers)} (Always FP16)")
-    print(f"Final FP16 kept layers: {len(keep_layers)} (VETO {len(hard_veto_layers)} + Dynamic {len(dynamic_keep_layers)})")
+    print(
+        f"FP16 protection: DualMonitor + analyze + V4 → "
+        f"per-model auto analysis / extreme auto-optimal keep "
+        f"({ranking_source}); r0; hard_ceiling="
+        f"{FP16_BUDGET_MB_HARD:g} MiB "
+        f"(used={budget_stats['used_mb']:.1f} MiB, "
+        f"slack={budget_stats.get('slack_mb', 0):.2f} MiB)"
+    )
+    print(f"Analyze Hard VETO (survived budget): {len(hard_veto_layers)}")
+    print(
+        f"DualMonitor/dynamic FP16 (in keep, not analyze VETO): "
+        f"{len(dynamic_keep_layers - hard_veto_layers)}"
+    )
+    print(f"Final FP16 kept layers: {len(keep_layers)}")
 
-    print("\n--- Hard VETO Layers Detail ---")
+    print("\n--- Analyze Hard VETO Layers (FP16 after budget) ---")
     for veto_name in sorted(hard_veto_layers):
-        in_dynamic = '(+Dynamic)' if veto_name in dynamic_keep_layers else '(VETO only)'
-        print(f"  FP16 {in_dynamic}: {veto_name}")
+        print(f"  FP16 [analyze VETO]: {veto_name}")
+
+    print("\n--- DualMonitor / dynamic FP16 (not analyze VETO) ---")
+    for dyn_name in sorted(dynamic_keep_layers - hard_veto_layers):
+        print(f"  FP16 [DualMonitor/dynamic]: {dyn_name}")
 
     print("\nTop 10 Sensitive Layers (Dynamic):")
     for i in range(min(10, len(layer_sensitivities))):
