@@ -39,11 +39,12 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
 - _quantization_metadata embedded in safetensors metadata for ComfyUI loader.
-- FP16 keep budget (default +300 MB vs all-INT8): VETO + keep_ratio candidates
-  are ranked by INT8 double — V4 estimated_mse @ absmax (primary) ×
-  analyze_sdxl_distribution int8 fence severity (secondary) — then truncated
-  so overhead stays within `--fp16_budget_mb` (extra = 1 byte/elem vs INT8).
-  Not profile_score / DualMonitor sensitivity ranking. FP8 scripts untouched.
+- FP16 keep budget (default +300 MB vs all-INT8): per-model optimal ranking
+  from ALL of DualMonitor Sensitivity (FP16 selection), V4 weighted-histogram
+  estimated_mse (FP16-protection candidates; Importance feeds histogram), and
+  analyze VETO/fence severity (THIS checkpoint). Truncated so overhead stays
+  within `--fp16_budget_mb` (extra = 1 byte/elem vs INT8). Not profile_score.
+  FP8 scripts untouched.
 
 ComfyUI compatibility:
   ComfyUI >= master with comfy_kitchen + TensorWiseINT8Layout can load these
@@ -289,13 +290,10 @@ _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 # Hard VETO fences and mse_release_* come from analyze weight-space Tukey —
 # do NOT scale those gates by this ratio (collapses V4-histogram VETO candidates).
 _INT8_SCALE_FACTOR = 127.0 / 448.0
-# Fallback MAD% floor only when profile lacks mad_outlier_pct (old JSON).
-# Live path uses attn_mad_pct_floor from derive_veto_tunables_int8 (per-checkpoint
-# Tukey fence on attn MAD%). No model-name / per-model setting branches.
-_INT8_MAD_OUTLIER_PCT_FLOOR = 15.0
-# DualMonitor Hidden-Killer promotion at r0: percentile of THIS run's
-# sensitivity scores (auto per calibration). FP8 scripts untouched.
-_INT8_SENS_VETO_PERCENTILE = 90.0
+# DualMonitor Hidden-Killer promotion: percentile is derived per-checkpoint
+# by derive_int8_autonomous_tunables (from sensitivity distribution iqr).
+# No fixed 90.0 constant — flat sens → P75, skewed → P90.
+_INT8_MAD_OUTLIER_PCT_FLOOR = 0.0  # disabled; analyze derives from profile or 0
 
 
 @dataclass(frozen=True)
@@ -313,36 +311,45 @@ class SdxlVetoTunables:
     ff2_auto_full_class: bool = False
     drift_veto_thresh: float = 0.5
     drift_score_mult: float = 1.0
-    mse_release_o_min: float = 40.0
-    mse_release_k_max: float = 20.0
-    mse_release_m_max: float = 20.0
-    mse_p75_multiplier: float = 2.0
+    mse_release_o_min: float = 0.0
+    mse_release_k_max: float = 0.0
+    mse_release_m_max: float = 0.0
+    mse_p75_multiplier: float = 1.0
     k_scale: float = 0.01
     o_scale: float = 0.016
     m_scale: float = 0.05
-    k_gray_lo: float = 10.0
-    k_gray_hi: float = 20.0
-    o_gray_lo: float = 30.0
-    o_gray_hi: float = 40.0
-    m_gray_lo: float = 5.0
-    m_gray_hi: float = 20.0
-    search_low_floor: float = 0.5
-    search_low_penalty_cap: float = 0.49
-    search_low_clip_max: float = 0.99
-    search_low_gray_clip_max: float = 0.9
+    k_gray_lo: float = 0.0
+    k_gray_hi: float = 0.0
+    o_gray_lo: float = 0.0
+    o_gray_hi: float = 0.0
+    m_gray_lo: float = 0.0
+    m_gray_hi: float = 0.0
+    search_low_floor: float = 1.0
+    search_low_penalty_cap: float = 0.0
+    search_low_clip_max: float = 1.0
+    search_low_gray_clip_max: float = 1.0
     alpha_floor: float = 0.5
     alpha_clip_max: float = 0.99
     beta_floor: float = 0.5
     beta_clip_max: float = 0.99
     ff2_suffix_min_count: int = 4
-    score_o_weight: float = 2.0
-    score_m_weight: float = 0.5
+    score_o_weight: float = 1.0
+    score_m_weight: float = 1.0
+    score_k_weight: float = 1.0
     quant_format: str = "int8_tensorwise"
-    # Auto from derive_veto_tunables_int8 (profile MAD% distribution).
-    attn_mad_pct_floor: float = _INT8_MAD_OUTLIER_PCT_FLOOR
-    attn_mad_q3: float = _INT8_MAD_OUTLIER_PCT_FLOOR
-    attn_mad_gap_o_max: float = 40.0
+    attn_mad_pct_floor: float = 0.0
+    attn_mad_q3: float = 0.0
+    attn_mad_gap_o_max: float = 0.0
     attn_mad_from_profile: float = 0.0
+    # Autonomous (from derive_int8_autonomous_tunables):
+    sens_veto_percentile: float = 100.0
+    sens_veto_keep_ratio_gate: float = 0.0
+    bias_correction_top_ratio: float = 1.0
+    auto_keep_ratio: float = 0.0
+    fp16_budget_mb: float = 300.0
+    fp16_budget_bytes: int = 314572800
+    n_unet_layers: int = 0
+    autonomous: bool = False
 
     @classmethod
     def from_dict(cls, d: dict) -> "SdxlVetoTunables":
@@ -360,37 +367,44 @@ class SdxlVetoTunables:
             ff2_auto_full_class=bool(d.get("ff2_auto_full_class", False)),
             drift_veto_thresh=float(d.get("drift_veto_thresh", 0.5)),
             drift_score_mult=float(d.get("drift_score_mult", 1.0)),
-            mse_release_o_min=float(d.get("mse_release_o_min", 40.0)),
-            mse_release_k_max=float(d.get("mse_release_k_max", 20.0)),
-            mse_release_m_max=float(d.get("mse_release_m_max", 20.0)),
-            mse_p75_multiplier=float(d.get("mse_p75_multiplier", 2.0)),
+            mse_release_o_min=float(d.get("mse_release_o_min", 0.0)),
+            mse_release_k_max=float(d.get("mse_release_k_max", 0.0)),
+            mse_release_m_max=float(d.get("mse_release_m_max", 0.0)),
+            mse_p75_multiplier=float(d.get("mse_p75_multiplier", 1.0)),
             k_scale=float(d.get("k_scale", 0.01)),
             o_scale=float(d.get("o_scale", 0.016)),
             m_scale=float(d.get("m_scale", 0.05)),
-            k_gray_lo=float(d.get("k_gray_lo", 10.0)),
-            k_gray_hi=float(d.get("k_gray_hi", 20.0)),
-            o_gray_lo=float(d.get("o_gray_lo", 30.0)),
-            o_gray_hi=float(d.get("o_gray_hi", 40.0)),
-            m_gray_lo=float(d.get("m_gray_lo", 5.0)),
-            m_gray_hi=float(d.get("m_gray_hi", 20.0)),
-            search_low_floor=float(d.get("search_low_floor", 0.5)),
-            search_low_penalty_cap=float(d.get("search_low_penalty_cap", 0.49)),
-            search_low_clip_max=float(d.get("search_low_clip_max", 0.99)),
-            search_low_gray_clip_max=float(d.get("search_low_gray_clip_max", 0.9)),
+            k_gray_lo=float(d.get("k_gray_lo", 0.0)),
+            k_gray_hi=float(d.get("k_gray_hi", 0.0)),
+            o_gray_lo=float(d.get("o_gray_lo", 0.0)),
+            o_gray_hi=float(d.get("o_gray_hi", 0.0)),
+            m_gray_lo=float(d.get("m_gray_lo", 0.0)),
+            m_gray_hi=float(d.get("m_gray_hi", 0.0)),
+            search_low_floor=float(d.get("search_low_floor", 1.0)),
+            search_low_penalty_cap=float(d.get("search_low_penalty_cap", 0.0)),
+            search_low_clip_max=float(d.get("search_low_clip_max", 1.0)),
+            search_low_gray_clip_max=float(d.get("search_low_gray_clip_max", 1.0)),
             alpha_floor=float(d.get("alpha_floor", 0.5)),
             alpha_clip_max=float(d.get("alpha_clip_max", 0.99)),
             beta_floor=float(d.get("beta_floor", 0.5)),
             beta_clip_max=float(d.get("beta_clip_max", 0.99)),
             ff2_suffix_min_count=int(d.get("ff2_suffix_min_count", 4)),
-            score_o_weight=float(d.get("score_o_weight", 2.0)),
-            score_m_weight=float(d.get("score_m_weight", 0.5)),
+            score_o_weight=float(d.get("score_o_weight", 1.0)),
+            score_m_weight=float(d.get("score_m_weight", 1.0)),
+            score_k_weight=float(d.get("score_k_weight", 1.0)),
             quant_format=str(d.get("quant_format", "int8_tensorwise")),
-            attn_mad_pct_floor=float(
-                d.get("attn_mad_pct_floor", _INT8_MAD_OUTLIER_PCT_FLOOR)
-            ),
-            attn_mad_q3=float(d.get("attn_mad_q3", _INT8_MAD_OUTLIER_PCT_FLOOR)),
-            attn_mad_gap_o_max=float(d.get("attn_mad_gap_o_max", 40.0)),
+            attn_mad_pct_floor=float(d.get("attn_mad_pct_floor", 0.0)),
+            attn_mad_q3=float(d.get("attn_mad_q3", 0.0)),
+            attn_mad_gap_o_max=float(d.get("attn_mad_gap_o_max", 0.0)),
             attn_mad_from_profile=float(d.get("attn_mad_from_profile", 0.0)),
+            sens_veto_percentile=float(d.get("sens_veto_percentile", 100.0)),
+            sens_veto_keep_ratio_gate=float(d.get("sens_veto_keep_ratio_gate", 0.0)),
+            bias_correction_top_ratio=float(d.get("bias_correction_top_ratio", 1.0)),
+            auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
+            fp16_budget_mb=float(d.get("fp16_budget_mb", 300.0)),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 300 * 1024 * 1024)),
+            n_unet_layers=int(d.get("n_unet_layers", 0)),
+            autonomous=bool(d.get("autonomous", False)),
         )
 
     def as_dict(self) -> dict:
@@ -421,19 +435,39 @@ class SdxlVetoTunables:
 def resolve_veto_tunables(
     norm_profile: dict,
     profile_summary: dict | None = None,
+    *,
+    dual_monitors: dict | None = None,
+    fp16_budget_mb: float = 300.0,
 ) -> SdxlVetoTunables:
-    """Load INT8 veto_tunables from profile summary or derive from normalized layer stats.
+    """Load INT8 veto_tunables via fully autonomous derivation.
 
-    V3.0 uses derive_veto_tunables_int8 (INT8-tuned thresholds) instead of
-    the FP8 derive_veto_tunables.
+    All knobs (Hard VETO fences, percentile promotions, dynamic ranking
+    weights, MSE release gates, bias_correction scope, sens_veto percentile,
+    alpha/beta, search_low) come from derive_int8_autonomous_tunables,
+    which uses THIS checkpoint's profile + DualMonitor sensitivity
+    distribution. Only fp16_budget_mb is a fixed external constraint.
+    No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 constants.
     """
     analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
-    from analyze_sdxl_distribution import derive_veto_tunables_int8
+    from analyze_sdxl_distribution import derive_int8_autonomous_tunables
 
     if norm_profile:
-        derived = derive_veto_tunables_int8(norm_profile)
+        sens_map: dict[str, float] = {}
+        if dual_monitors:
+            for name, mon in dual_monitors.items():
+                try:
+                    s = float(mon.get_sensitivity())
+                except Exception:
+                    s = 0.0
+                if s > 0.0 and math.isfinite(s):
+                    sens_map[name] = s
+        derived = derive_int8_autonomous_tunables(
+            norm_profile,
+            dualmonitor_sensitivities=sens_map if sens_map else None,
+            fp16_budget_mb=fp16_budget_mb,
+        )
         if derived.get("ff2_auto_full_class"):
             print(
                 "  [Auto FF2 INT8] full-class protection: "
@@ -443,9 +477,9 @@ def resolve_veto_tunables(
             )
         print(
             "  [Auto INT8 MAD] "
-            f"floor={derived.get('attn_mad_pct_floor', _INT8_MAD_OUTLIER_PCT_FLOOR):.3f}, "
-            f"q3={derived.get('attn_mad_q3', _INT8_MAD_OUTLIER_PCT_FLOOR):.3f}, "
-            f"gap_o_max={derived.get('attn_mad_gap_o_max', 40.0):.3f}, "
+            f"floor={derived.get('attn_mad_pct_floor', 0.0):.3f}, "
+            f"q3={derived.get('attn_mad_q3', 0.0):.3f}, "
+            f"gap_o_max={derived.get('attn_mad_gap_o_max', 0.0):.3f}, "
             f"from_profile={bool(derived.get('attn_mad_from_profile', 0))}"
         )
         print(
@@ -453,8 +487,17 @@ def resolve_veto_tunables(
             f"mse_release o>{derived.get('mse_release_o_min', 0):.3f} "
             f"k<={derived.get('mse_release_k_max', 0):.3f} "
             f"m<={derived.get('mse_release_m_max', 0):.3f} "
-            f"p75×{derived.get('mse_p75_multiplier', 2.0):.2f} | "
+            f"p75×{derived.get('mse_p75_multiplier', 1.0):.2f} | "
             f"pack absmax search_low={derived.get('search_low_floor', 1.0):.3f}"
+        )
+        print(
+            "  [Autonomous INT8] "
+            f"sens_veto_pct={derived.get('sens_veto_percentile', 100.0):.1f} "
+            f"bc_top={derived.get('bias_correction_top_ratio', 1.0):.2f} "
+            f"w(k/o/m)={derived.get('score_k_weight', 1.0):.3f}/"
+            f"{derived.get('score_o_weight', 1.0):.3f}/"
+            f"{derived.get('score_m_weight', 1.0):.3f} "
+            f"auto_kr={derived.get('auto_keep_ratio', 0.0):.3f}"
         )
         return SdxlVetoTunables.from_dict(derived)
     if profile_summary and isinstance(profile_summary.get("veto_tunables"), dict):
@@ -722,13 +765,13 @@ def _compute_sdxl_int8_mad_attn_veto(
     mad_floor = (
         float(tunables.attn_mad_pct_floor)
         if tunables is not None
-        else _INT8_MAD_OUTLIER_PCT_FLOOR
+        else 0.0
     )
-    mad_q3 = float(tunables.attn_mad_q3) if tunables is not None else mad_floor
+    mad_q3 = float(tunables.attn_mad_q3) if tunables is not None else 0.0
     gap_o_max = (
         float(tunables.attn_mad_gap_o_max)
         if tunables is not None
-        else 40.0
+        else 0.0
     )
     prof = norm_profile or {}
     added = set()
@@ -750,6 +793,10 @@ def _compute_sdxl_int8_mad_attn_veto(
         o = float(entry.get("outlier_ratio", 0) or 0)
         if o <= 0.0 and hasattr(_m, "weight"):
             _, o, _ = _layer_weight_stats(_m.weight.data)
+        # If analyze-derived floor is 0 (old profile, no MAD%), skip MAD path
+        # rather than use a fixed 15.0 — avoids VETO explosion on WAI17.
+        if mad_floor <= 0.0:
+            continue
         extreme = mad_pct >= mad_floor
         gap = (mad_pct >= mad_q3) and (o < gap_o_max)
         if extreme or gap:
@@ -772,7 +819,8 @@ def _compute_int8_sensitivity_hard_veto_promotion(
     dual_monitors: dict,
     hard_veto_layers: set,
     keep_ratio: float,
-    percentile: float = _INT8_SENS_VETO_PERCENTILE,
+    *,
+    percentile: float = 100.0,
 ) -> set:
     """INT8-only: promote DualMonitor-sensitive layers to Hard VETO when r0.
 
@@ -781,10 +829,13 @@ def _compute_int8_sensitivity_hard_veto_promotion(
     At keep_ratio==0 there is no dynamic keep budget, so DualMonitor
     sensitivity is force-promoted into hard_veto instead.
 
+    `percentile` comes from derive_int8_autonomous_tunables (per-checkpoint
+    sensitivity distribution iqr → P75 or P90). No fixed 90.0.
+
     Uses DualMonitor.get_sensitivity() only — NOT profile_score ranking
     (profile_score correlates with the same weight stats as static VETO).
     """
-    if keep_ratio != 0.0:
+    if keep_ratio != 0.0 or percentile >= 100.0:
         return set()
     dm_scores: list[tuple[str, float]] = []
     for name, mon in dual_monitors.items():
@@ -981,14 +1032,12 @@ def _mse_grayzone_veto_reassessment(
             continue
         sw = smod.weight.data
         simp = _dualmonitor_channel_importance(dual_monitors, sname)
-        if simp is None:
-            print(f"    [MSE SKIP] safe {sname}: no DualMonitor importance (calib incomplete)")
-            continue
         try:
+            # Importance → V4 hist weight; missing → SVD hybrid (never skip V4).
             sresult = trial_optimizer.compute_optimal_amax_with_stats_int8_range(
                 sw,
                 importance=simp,
-                use_svd_leverage=True,
+                use_svd_leverage=(simp is None),
                 scaled=False,
                 search_range=_veto_search_range,
             )
@@ -1020,14 +1069,11 @@ def _mse_grayzone_veto_reassessment(
             continue
         vw = vmod.weight.data
         vimp = _dualmonitor_channel_importance(dual_monitors, vname)
-        if vimp is None:
-            print(f"    KEPT(no-calib-imp): {vname} | DualMonitor importance missing")
-            continue
         try:
             vresult = trial_optimizer.compute_optimal_amax_with_stats_int8_range(
                 vw,
                 importance=vimp,
-                use_svd_leverage=True,
+                use_svd_leverage=(vimp is None),
                 scaled=False,
                 search_range=_veto_search_range,
             )
@@ -1075,14 +1121,20 @@ def _fp16_extra_bytes_vs_int8(weight: torch.Tensor) -> int:
 def _measure_v4_mse_absmax_int8(
     *,
     weight: torch.Tensor,
-    importance: torch.Tensor,
+    importance: torch.Tensor | None,
     optimizer: HSWQWeightedHistogramOptimizerV4,
 ) -> float:
-    """INT8-only: V4 estimated_mse at absmax pack with DualMonitor importance."""
+    """INT8-only: V4 estimated_mse at absmax pack (FP16-protection candidate).
+
+    DualMonitor Importance present → histogram weight from Importance
+    (use_svd_leverage=False; SDXL quality path).
+    Importance missing → V4 SVD hybrid alone (never skip V4).
+    """
+    use_svd = importance is None
     result = optimizer.compute_optimal_amax_with_stats_int8_range(
         weight,
         importance=importance,
-        use_svd_leverage=True,
+        use_svd_leverage=use_svd,
         scaled=False,
         search_range=(1.0, 1.0),
     )
@@ -1103,12 +1155,18 @@ def _apply_fp16_budget_cap(
     beta: float = 0.5,
     device: str = "cuda",
 ) -> tuple[set, set, dict]:
-    """Hard-cap FP16 keep so overhead vs all-INT8 stays within budget_mb.
+    """Auto-set optimal FP16 set for THIS checkpoint under budget_mb.
 
-    INT8-only priority (NOT profile_score / DualMonitor sensitivity):
-      priority = V4 estimated_mse @ absmax × (1 + analyze fence severity)
-    analyze = derive_veto_tunables_int8 fences via int8_fp16_budget_*.
-    FP8 scripts must not call this ranking.
+    Full per-model analysis (no axis discarded):
+      1) DualMonitor Sensitivity — FP16 protection selection
+      2) V4 weighted-histogram estimated_mse — FP16-protection candidate damage
+         (Importance from DualMonitor feeds the histogram)
+      3) analyze fence severity — VETO / distribution character (THIS model)
+
+      priority = (1 + sens/sens_ref) * (1 + severity) * (1 + mse/mse_ref)
+
+    Final FP16 set = top of this ranking that fits budget_mb.
+    No Hard-VETO absolute lock; no profile_score. FP8 must not call this.
     """
     analyze_dir = os.path.join(current_dir, "analyze")
     if analyze_dir not in sys.path:
@@ -1126,8 +1184,8 @@ def _apply_fp16_budget_cap(
         )
     if not dual_monitors:
         raise ValueError(
-            "[FP16 budget] DualMonitor maps required for V4 MSE ranking; "
-            "refusing profile_score / sensitivity fallback."
+            "[FP16 budget] DualMonitor maps required for Sensitivity + "
+            "V4-histogram Importance; refusing profile_score."
         )
 
     tunables_dict = veto_tunables.as_dict()
@@ -1135,28 +1193,38 @@ def _apply_fp16_budget_cap(
     if budget_bytes <= 0:
         raise ValueError(f"fp16_budget_mb must be > 0 (got {budget_mb})")
 
-    # Full analyze character of THIS checkpoint (not a crude k+o*2 score).
-    # _norm_profile is flat name→stats; wrap for analyze API.
     char_table = build_int8_analyze_character_table(
         {"layers": norm_profile},
         tunables_dict,
         hard_veto_names=hard_veto_layers,
     )
 
-    # Candidate pool = keep ∪ hard_veto ∪ analyze fence-crossers (severity>=1).
-    # keep_ratio alone must not hide layers this model marks as dangerous.
+    # Pool = keep ∪ Hard VETO ∪ analyze character ∪ DualMonitor-sensitive.
+    # V4 histogram then scores every member as an FP16-protection candidate.
     pool = set(keep_layers) | set(hard_veto_layers)
     for name, row in char_table.items():
-        if float(row.get("severity", 0.0)) >= 1.0:
+        if float(row.get("severity", 0.0)) > 0.0:
             pool.add(name)
 
     module_dict = dict(model.named_modules())
-    # Only modules that exist on the live UNet.
     pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
 
+    sens_by_name: dict[str, float] = {}
+    for name, mon in dual_monitors.items():
+        if name not in module_dict or not hasattr(module_dict[name], "weight"):
+            continue
+        try:
+            s = float(mon.get_sensitivity())
+        except Exception:
+            s = 0.0
+        if s > 0.0 and math.isfinite(s):
+            sens_by_name[name] = s
+            pool.add(name)
+
     cache = dict(mse_cache or {})
-    candidates: list[tuple[float, float, float, int, str]] = []
-    # (priority, v4_mse, severity, extra_bytes, name)
+    # Pass 1: V4 histogram MSE for every pool member (FP16-protection candidates).
+    measured: list[tuple[str, float, float, float, int]] = []
+    # (name, dm_sensitivity, v4_mse, severity, extra_bytes)
     skipped_no_weight = []
     skipped_no_v4 = []
     measured_fresh = 0
@@ -1165,9 +1233,11 @@ def _apply_fp16_budget_cap(
     trial_optimizer = None
     if need_fresh:
         print(
-            f"  [FP16 budget] model character: analyze table={len(char_table)} "
-            f"pool={len(pool)} | measuring V4 MSE @ absmax for "
-            f"{len(need_fresh)} layers (cache hit={len(cache)})..."
+            f"  [FP16 budget] optimal THIS model: "
+            f"DM_Sens + V4_hist FP16-cand + analyze_VETO | "
+            f"analyze={len(char_table)} pool={len(pool)} "
+            f"dm_sens={len(sens_by_name)} | V4 MSE for {len(need_fresh)} "
+            f"(cache hit={len(cache)})..."
         )
         trial_optimizer = HSWQWeightedHistogramOptimizerV4(
             bins=8192, num_candidates=1000, refinement_iterations=10,
@@ -1176,8 +1246,10 @@ def _apply_fp16_budget_cap(
         )
     else:
         print(
-            f"  [FP16 budget] model character: analyze table={len(char_table)} "
-            f"pool={len(pool)} | V4 MSE fully cached ({len(cache)})"
+            f"  [FP16 budget] optimal THIS model: "
+            f"DM_Sens + V4_hist FP16-cand + analyze_VETO | "
+            f"analyze={len(char_table)} pool={len(pool)} "
+            f"dm_sens={len(sens_by_name)} | V4 MSE cached ({len(cache)})"
         )
 
     for name in sorted(pool):
@@ -1185,6 +1257,7 @@ def _apply_fp16_budget_cap(
         if mod is None or not hasattr(mod, "weight") or mod.weight is None:
             skipped_no_weight.append(name)
             continue
+        dm_sens = float(sens_by_name.get(name, 0.0))
         extra = _fp16_extra_bytes_vs_int8(mod.weight.data)
         row = char_table.get(name, {})
         prof = norm_profile.get(name, {}) if isinstance(norm_profile.get(name), dict) else {}
@@ -1193,6 +1266,7 @@ def _apply_fp16_budget_cap(
         o = float(row.get("outlier_ratio", prof.get("outlier_ratio", 0)) or 0)
         m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
         mad = float(row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0)
+        # Analyze VETO / distribution character for THIS checkpoint.
         severity = int8_fp16_budget_analyze_severity(
             kurtosis=k,
             outlier_ratio=o,
@@ -1206,10 +1280,12 @@ def _apply_fp16_budget_cap(
         if name in cache:
             v4_mse = float(cache[name])
         else:
-            imp = _dualmonitor_channel_importance(dual_monitors, name)
-            if imp is None or trial_optimizer is None:
+            # V4 histogram FP16-protection candidate analysis (must not discard).
+            # Missing Importance → SVD hybrid; never skip V4 for pool members.
+            if trial_optimizer is None:
                 skipped_no_v4.append(name)
                 continue
+            imp = _dualmonitor_channel_importance(dual_monitors, name)
             try:
                 v4_mse = _measure_v4_mse_absmax_int8(
                     weight=mod.weight.data,
@@ -1219,28 +1295,45 @@ def _apply_fp16_budget_cap(
                 cache[name] = v4_mse
                 measured_fresh += 1
             except Exception as e:
-                print(f"    [FP16 budget] V4 MSE failed {name}: {e} → demote to INT8")
+                print(f"    [FP16 budget] V4 histogram MSE failed {name}: {e} → INT8")
                 skipped_no_v4.append(name)
                 continue
             torch.cuda.empty_cache()
 
-        priority = int8_fp16_budget_priority(v4_mse, severity)
-        candidates.append((priority, v4_mse, severity, extra, name))
+        measured.append((name, dm_sens, v4_mse, severity, extra))
 
-    # Highest V4×analyze damage first; same priority → smaller layer (fit more).
-    candidates.sort(key=lambda x: (-x[0], x[3]))
+    sens_ref = max((row[1] for row in measured), default=0.0)
+    if sens_ref <= 0.0:
+        sens_ref = 1.0
+    mse_ref = max((row[2] for row in measured), default=0.0)
+    if mse_ref <= 0.0:
+        mse_ref = 1.0
+
+    candidates: list[tuple[float, float, float, float, int, str]] = []
+    # (priority, v4_mse, severity, dm_sensitivity, extra_bytes, name)
+    for name, dm_sens, v4_mse, severity, extra in measured:
+        priority = int8_fp16_budget_priority(
+            dm_sens,
+            v4_mse,
+            severity,
+            sensitivity_ref=sens_ref,
+            v4_mse_ref=mse_ref,
+        )
+        candidates.append((priority, v4_mse, severity, dm_sens, extra, name))
+
+    candidates.sort(key=lambda x: (-x[0], x[4]))
 
     selected: set = set()
     used = 0
-    dropped: list[tuple[str, int, float, float, float]] = []
-    kept_detail: list[tuple[str, int, float, float, float]] = []
-    for priority, v4_mse, severity, extra, name in candidates:
+    dropped: list[tuple[str, int, float, float, float, float]] = []
+    kept_detail: list[tuple[str, int, float, float, float, float]] = []
+    for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         if used + extra <= budget_bytes:
             selected.add(name)
             used += extra
-            kept_detail.append((name, extra, priority, v4_mse, severity))
+            kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
         else:
-            dropped.append((name, extra, priority, v4_mse, severity))
+            dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
 
     demoted_veto = hard_veto_layers - selected
     hard_veto_out = hard_veto_layers & selected
@@ -1254,13 +1347,16 @@ def _apply_fp16_budget_cap(
         "candidates": len(candidates),
         "pool": len(pool),
         "analyze_character_layers": len(char_table),
+        "dm_sensitivity_layers": len(sens_by_name),
         "kept": len(keep_out),
         "dropped": len(dropped),
         "demoted_veto": len(demoted_veto),
         "skipped_no_weight": len(skipped_no_weight),
         "skipped_no_v4": len(skipped_no_v4),
         "measured_fresh_v4": measured_fresh,
-        "ranking": "v4_mse_x_analyze_character_int8",
+        "sensitivity_ref": sens_ref,
+        "v4_mse_ref": mse_ref,
+        "ranking": "dm_sens_x_v4_hist_fp16cand_x_analyze_veto_int8",
         "dropped_detail": dropped[:40],
         "kept_detail": kept_detail[:40],
         "mse_cache_size": len(cache),
@@ -1484,7 +1580,11 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
             )
 
     if veto_tunables is None:
-        veto_tunables = resolve_veto_tunables(model_profile or {})
+        # fp16_budget_mb default: 300 (only fixed external constraint)
+        veto_tunables = resolve_veto_tunables(
+            model_profile or {},
+            fp16_budget_mb=300.0,
+        )
 
     print(
         "  [INT8 pack] absmax (search_low=1.0); "
@@ -1597,14 +1697,21 @@ def main():
         default=25,
         help="Denoising steps per calibration sample (How-to example: 25)",
     )
-    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05-0.25; 0.05-0.10 often sufficient for SDXL)")
+    parser.add_argument(
+        "--keep_ratio",
+        type=float,
+        default=None,
+        help="Ratio of layers to keep in FP16. Default: None = autonomous "
+             "(derive_int8_autonomous_tunables computes from Hard VETO + sens "
+             "tail count). Override only for manual tuning.",
+    )
     parser.add_argument(
         "--fp16_budget_mb",
         type=float,
         default=300.0,
-        help="Max FP16 overhead vs all-INT8 in MiB (default: 300). "
-             "VETO+dynamic keep are ranked by sensitivity and truncated to fit. "
-             "Extra cost = 1 byte per weight element (FP16 2B vs INT8 1B).",
+        help="Max FP16 overhead vs all-INT8 in MiB (FIXED default 300). "
+             "VETO+dynamic keep are ranked by autonomous priority and "
+             "truncated to fit. Extra cost = 1 byte per weight element.",
     )
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
@@ -1618,11 +1725,11 @@ def main():
     parser.add_argument(
         "--bias_correction_top_ratio",
         type=float,
-        default=1.0,
+        default=None,
         help="Fraction of INT8 layers (by DualMonitor sensitivity, highest first) "
-             "that receive bias correction. Default 1.0 = all INT8 layers "
-             "(SSIM 0.9753 at d1290df). Values < 1 enable Approach A; 0.5 was "
-             "measured to hurt SSIM (0.9678) — not recommended for quality.",
+             "that receive bias correction. Default: None = autonomous "
+             "(derive_int8_autonomous_tunables: 1.0 normally, 0.5 if sensitivity "
+             "iqr > 5×median to avoid DC injection on noisy layers).",
     )
     parser.add_argument(
         "--asymmetric_int8",
@@ -1650,6 +1757,12 @@ def main():
             "are mutually exclusive. Disable one of them."
         )
         sys.exit(1)
+
+    # Autonomous keep_ratio: if user did not override, use auto_keep_ratio from
+    # derive_int8_autonomous_tunables (computed from Hard VETO + sens tail).
+    # Will be filled after veto_tunables is resolved.
+    _keep_ratio_override = args.keep_ratio
+    _bc_top_override = args.bias_correction_top_ratio
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     raw_input_arg = args.input
@@ -1732,7 +1845,25 @@ def main():
     model_profile = _remap_profile_to_diffusers(model_profile, comfyui_to_diffusers_map)
     model = pipeline.unet
     _norm_profile = {k: v for k, v in model_profile.items() if isinstance(v, dict)}
-    veto_tunables = resolve_veto_tunables(_norm_profile, profile_summary)
+    veto_tunables = resolve_veto_tunables(
+        _norm_profile, profile_summary,
+        dual_monitors=None,  # sens computed later after calibration
+        fp16_budget_mb=float(args.fp16_budget_mb),
+    )
+    # Fill autonomous keep_ratio / bc_top if user did not override.
+    if _keep_ratio_override is None:
+        args.keep_ratio = float(veto_tunables.auto_keep_ratio)
+        print(
+            f"  [Autonomous keep_ratio] {args.keep_ratio:.4f} "
+            f"(from Hard VETO + sens tail count; override with --keep_ratio)"
+        )
+    if _bc_top_override is None:
+        args.bias_correction_top_ratio = float(veto_tunables.bias_correction_top_ratio)
+        print(
+            f"  [Autonomous bias_correction_top_ratio] "
+            f"{args.bias_correction_top_ratio:.2f} "
+            f"(1.0 unless sens iqr > 5×median)"
+        )
     print(f"  [Veto Tunables INT8] {veto_tunables.as_dict()}")
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy_int8(
         model_profile,
@@ -1817,11 +1948,13 @@ def main():
         print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
 
     # INT8 r0: DualMonitor Hidden Killers → Hard VETO (auto from this calib).
+    # Percentile is autonomous (from sensitivity distribution iqr via
+    # derive_int8_autonomous_tunables). No fixed 90.0.
     sens_veto = _compute_int8_sensitivity_hard_veto_promotion(
         dual_monitors,
         hard_veto_layers,
         float(args.keep_ratio),
-        percentile=_INT8_SENS_VETO_PERCENTILE,
+        percentile=float(veto_tunables.sens_veto_percentile),
     )
     if sens_veto:
         hard_veto_layers = hard_veto_layers.union(sens_veto)
@@ -1842,12 +1975,18 @@ def main():
         mod = _module_dict_sens.get(name)
         if prof and mod is not None and hasattr(mod, "weight"):
             drift = _weight_profile_drift(mod.weight.data, prof)
-        # V3.0 INT8: use fixed weights for stable ranking (same as V2.1 FP8)
+        # V3.0 INT8: autonomous weights from derive_int8_autonomous_tunables
+        # (IQR-normalized per axis; no fixed 2.0 / 0.5).
         if prof:
             k = prof.get("kurtosis", 0) or 0
             o = prof.get("outlier_ratio", 0) or 0
             m = prof.get("abs_max", 0) or 0
-            score = k + o * 2.0 + m * 0.5 + drift * veto_tunables.drift_score_mult
+            score = (
+                k * veto_tunables.score_k_weight
+                + o * veto_tunables.score_o_weight
+                + m * veto_tunables.score_m_weight
+                + drift * veto_tunables.drift_score_mult
+            )
         elif name in dual_monitors:
             score = dual_monitors[name].get_sensitivity()
             ranking_source = "dualmonitor_fallback"
@@ -1887,7 +2026,7 @@ def main():
         )
 
     # Hard ceiling: FP16 overhead vs all-INT8 must stay within budget.
-    # Ranking = V4 estimated_mse × analyze character (THIS checkpoint) — not profile_score.
+    # Optimal set for THIS model = DualMonitor Sens × V4 hist FP16-cand × analyze VETO.
     keep_before_budget = len(keep_layers)
     veto_before_budget = len(hard_veto_layers)
     keep_layers, hard_veto_layers, budget_stats = _apply_fp16_budget_cap(
@@ -1918,18 +2057,22 @@ def main():
         f"no_v4={budget_stats.get('skipped_no_v4', 0)})"
     )
     if budget_stats.get("kept_detail"):
-        print("  [FP16 budget] top kept (name | MiB | priority | V4_mse | analyze_sev):")
-        for _kn, _kextra, _kp, _kmse, _ksev in budget_stats["kept_detail"][:15]:
+        print("  [FP16 budget] top kept (name | MiB | priority | V4_mse | analyze_sev | dm_sens):")
+        for row in budget_stats["kept_detail"][:15]:
+            _kn, _kextra, _kp, _kmse, _ksev = row[0], row[1], row[2], row[3], row[4]
+            _ksens = row[5] if len(row) > 5 else 0.0
             print(
                 f"    KEEP {_kn} | {_kextra / (1024*1024):.2f} MiB | "
-                f"prio={_kp:.6g} | mse={_kmse:.6g} | sev={_ksev:.3f}"
+                f"prio={_kp:.6g} | mse={_kmse:.6g} | sev={_ksev:.3f} | dm_sens={_ksens:.6g}"
             )
     if budget_stats.get("dropped_detail"):
-        print("  [FP16 budget] lowest-priority drops (name | MiB | priority | V4_mse | analyze_sev):")
-        for _dn, _dextra, _dp, _dmse, _dsev in budget_stats["dropped_detail"][:20]:
+        print("  [FP16 budget] lowest-priority drops (name | MiB | priority | V4_mse | analyze_sev | dm_sens):")
+        for row in budget_stats["dropped_detail"][:20]:
+            _dn, _dextra, _dp, _dmse, _dsev = row[0], row[1], row[2], row[3], row[4]
+            _dsens = row[5] if len(row) > 5 else 0.0
             print(
                 f"    DROP {_dn} | {_dextra / (1024*1024):.2f} MiB | "
-                f"prio={_dp:.6g} | mse={_dmse:.6g} | sev={_dsev:.3f}"
+                f"prio={_dp:.6g} | mse={_dmse:.6g} | sev={_dsev:.3f} | dm_sens={_dsens:.6g}"
             )
 
     non_veto_total = len([n for n in target_modules if n not in hard_veto_layers])
