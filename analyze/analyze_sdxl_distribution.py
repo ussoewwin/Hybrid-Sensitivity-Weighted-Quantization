@@ -652,41 +652,40 @@ def derive_priority_combinator(
     sev_p50: float,
     mse_p50: float,
 ) -> Dict[str, Any]:
-    """Derive the priority COMBINATOR (form + axis weights + refs) from THIS
-    checkpoint's three-axis distribution.
+    """Derive the priority COMBINATOR (axis weights + refs) from THIS
+    checkpoint's three-axis distribution — fully continuous, NO discrete
+    form choice, NO threshold constants.
 
-    No fixed product / fixed sum / fixed equal-weight form. The shape of the
-    combinator is selected from the distribution itself:
+    Weights: each axis weighted by its own relative IQR spread
+    (iqr / p50). A flat axis (iqr→0) continuously fades to weight 0;
+    a spread axis gains weight. Normalized to sum 1.
 
-      - iqr == 0 on an axis → that axis has no discriminating power → weight 0
-      - one axis dominates (iqr >> others) → weighted-sum, dominant axis only
-      - two axes comparable, third flat → weighted-sum of the two
-      - all three comparable → product (each axis must independently matter)
-      - degenerate (all iqr == 0) → uniform priority (budget fills by size)
+    Combination: weighted geometric mean of (1 + x_i / ref_i):
 
-    Reference values (sens_ref / sev_ref / mse_ref) are also derived:
-      - P75 of the axis distribution if it has spread, else max
-      - This keeps priority scale per-checkpoint, not a global constant.
+        priority = exp( Σ_i w_i · ln(1 + x_i / ref_i) )
 
-    Returns a dict consumed by int8_fp16_budget_priority:
-      {
-        "form": "product" | "weighted_sum" | "uniform",
-        "w_sens": float, "w_sev": float, "w_mse": float,
-        "sens_ref": float, "sev_ref": float, "mse_ref": float,
-      }
+    This is continuous over the whole weight simplex:
+      - one axis w→1  → priority ≡ (1 + x_that_axis / ref)  (single-axis)
+      - equal weights → monotone-equivalent to the 3-axis product
+      - axis w→0      → that axis smoothly stops contributing
+      - all w = 0     → constant 1.0 (uniform; budget fills by size)
+
+    No 0.10 / 0.85 / product-vs-sum switching rule exists — the geometry
+    of THIS checkpoint's measured distribution IS the rule.
+
+    References are the per-checkpoint P50 of each axis (never a global
+    constant), so priority scale is model-relative.
     """
     eps = 1e-12
     s_i = max(float(sens_iqr), 0.0)
     v_i = max(float(sev_iqr), 0.0)
     m_i = max(float(mse_iqr), 0.0)
 
-    # Axis weights from IQR spread (flat → 0). Normalized to sum ~1.
     w_s = s_i / max(sens_p50, eps) if sens_p50 > 0 else 0.0
     w_v = v_i / max(sev_p50, eps) if sev_p50 > 0 else 0.0
     w_m = m_i / max(mse_p50, eps) if mse_p50 > 0 else 0.0
     w_sum = w_s + w_v + w_m
     if w_sum < eps:
-        # All three axes flat → no discriminating power → uniform.
         return {
             "form": "uniform",
             "w_sens": 0.0, "w_sev": 0.0, "w_mse": 0.0,
@@ -698,30 +697,14 @@ def derive_priority_combinator(
     w_v /= w_sum
     w_m /= w_sum
 
-    # Form selection: how concentrated is the weight?
-    # If the top axis carries > 0.85 → weighted_sum (dominant axis drives).
-    # If all three carry > 0.10 each → product (independent contribution).
-    # In between → weighted_sum (product over-weights weak axes).
-    wmax = max(w_s, w_v, w_m)
-    n_above = sum(1 for w in (w_s, w_v, w_m) if w > 0.10)
-    if n_above >= 3:
-        form = "product"
-    else:
-        form = "weighted_sum"
-
-    # Reference = P75 if spread exists, else P50 (both per-checkpoint).
-    sens_ref = max(float(sens_p50), eps)
-    sev_ref = max(float(sev_p50), eps)
-    mse_ref = max(float(mse_p50), eps)
-
     return {
-        "form": form,
+        "form": "weighted_geometric",
         "w_sens": float(w_s),
         "w_sev": float(w_v),
         "w_mse": float(w_m),
-        "sens_ref": float(sens_ref),
-        "sev_ref": float(sev_ref),
-        "mse_ref": float(mse_ref),
+        "sens_ref": max(float(sens_p50), eps),
+        "sev_ref": max(float(sev_p50), eps),
+        "mse_ref": max(float(mse_p50), eps),
     }
 
 
@@ -737,11 +720,9 @@ def int8_fp16_budget_priority(
 ) -> float:
     """Per-checkpoint optimal FP16 priority (INT8-only; FP8 must not call).
 
-    If `combinator` is None → legacy fixed-product form (DEPRECATED, kept only
-    for backward compatibility; callers should pass derive_priority_combinator
-    output). When `combinator` is provided, the FORM (product / weighted_sum /
-    uniform) and axis weights come from THIS checkpoint's distribution — no
-    fixed rule.
+    `combinator` MUST come from derive_priority_combinator (per-checkpoint
+    weights + refs; continuous weighted geometric mean — no fixed form).
+    combinator=None is a legacy compatibility path only.
 
     All three analyses are required — none may be discarded:
       - DualMonitor Sensitivity → FP16 protection selection signal
@@ -759,7 +740,6 @@ def int8_fp16_budget_priority(
         mref = max(float(v4_mse_ref), 1e-30)
         return (1.0 + sens / sref) * (1.0 + sev) * (1.0 + mse / mref)
 
-    form = str(combinator.get("form", "product"))
     w_s = float(combinator.get("w_sens", 0.0))
     w_v = float(combinator.get("w_sev", 0.0))
     w_m = float(combinator.get("w_mse", 0.0))
@@ -767,13 +747,17 @@ def int8_fp16_budget_priority(
     vref = max(float(combinator.get("sev_ref", severity_ref)), 1e-30)
     mref = max(float(combinator.get("mse_ref", v4_mse_ref)), 1e-30)
 
-    if form == "uniform":
-        # No axis discriminates → return constant; budget fills by size.
+    if str(combinator.get("form", "")) == "uniform":
+        # No axis discriminates → constant; budget fills by size.
         return 1.0
-    if form == "weighted_sum":
-        return w_s * (sens / sref) + w_v * (sev / vref) + w_m * (mse / mref)
-    # product (default when combinator present)
-    return (1.0 + w_s * (sens / sref)) * (1.0 + w_v * (sev / vref)) * (1.0 + w_m * (mse / mref))
+
+    # Weighted geometric mean of (1 + x/ref): continuous over the weight
+    # simplex; each axis contributes exactly per its measured spread.
+    return math.exp(
+        w_s * math.log1p(sens / sref)
+        + w_v * math.log1p(sev / vref)
+        + w_m * math.log1p(mse / mref)
+    )
 
 
 def build_int8_analyze_character_table(
@@ -943,11 +927,13 @@ def derive_int8_autonomous_tunables(
     base["mse_release_o_min"] = float(max(o_p75, o_p50 + iqr_o * 0.5))
     base["mse_release_k_max"] = float(k_p75)
     base["mse_release_m_max"] = float(m_p75)
-    # MSE P75 multiplier: 1 + (outlier dispersion). Clip only to physical
-    # bounds [1.0, 10.0] — 1.0 means "release nothing above P75", 10 means
-    # "extremely permissive". Derive, don't hardcode 2.0.
-    mse_mult = 1.0 + (iqr_o / max(o_p50, 1e-9)) if o_p50 > 0 else 2.0
-    base["mse_p75_multiplier"] = float(min(max(mse_mult, 1.0), 10.0))
+    # MSE P75 multiplier: 1 + (outlier dispersion of THIS profile).
+    # Lower bound 1.0 is logical (below it, release threshold sits under the
+    # safe baseline → releases nothing meaningful). Upper cap is NOT a fixed
+    # 10.0 — it is this profile's own tail extent: 1 + P99/P75 of outlier.
+    mse_mult = 1.0 + (iqr_o / max(o_p50, 1e-9)) if o_p50 > 0 else 1.0
+    mse_mult_cap = 1.0 + (o_p99 / max(o_p75, 1e-9)) if o_p75 > 0 else mse_mult
+    base["mse_p75_multiplier"] = float(min(max(mse_mult, 1.0), max(mse_mult_cap, 1.0)))
 
     # ---- alpha / beta (V4 histogram weights) ----
     # Derived from kurtosis / outlier central mass. Floor at 0.5 (quality
@@ -956,6 +942,18 @@ def derive_int8_autonomous_tunables(
     base["beta_floor"] = float(min(max(0.5 + (1.0 / max(o_p75, 1e-9)) * o_p50, 0.5), 0.99))
     base["alpha_clip_max"] = 0.99
     base["beta_clip_max"] = 0.99
+
+    # ---- alpha_auto: V4 histogram SVD-vs-calibration mix from THIS profile ----
+    # SVD leverage helps heavy-tailed weight distributions (structured
+    # principal subspace) and harms flat/uniform ones. The signal is the
+    # kurtosis distribution itself: median kurtosis <= 0 → flat/uniform
+    # profile → alpha 0 (pure calibration-magnitude importance). Positive
+    # median → alpha rises continuously with tail dominance (k_med / k_p99),
+    # capped only by the physical V4 bound 0.99. No model-name rule.
+    if k_p50 > 0.0 and k_p99 > 0.0:
+        base["alpha_auto"] = float(min(max(k_p50 / k_p99, 0.0), 0.99))
+    else:
+        base["alpha_auto"] = 0.0
 
     # ---- search_low: INT8 pack is absmax (1.0). No clipping. ----
     base["search_low_floor"] = 1.0
@@ -977,39 +975,42 @@ def derive_int8_autonomous_tunables(
         base["attn_mad_from_profile"] = 0.0
     base["attn_mad_gap_o_max"] = float(max(eo, 1e-9))
 
-    # ---- DualMonitor Hidden Killer promotion percentile (no fixed 90.0) ----
+    # ---- DualMonitor Hidden Killer promotion threshold (no fixed 90/75) ----
+    # The promotion fence is the Tukey upper fence (Q3 + IQR) of THIS
+    # calibration's sensitivity distribution — the same estimator used for
+    # every Hard VETO fence in this file. The stored percentile is the
+    # EMPIRICAL rank of that fence within the distribution (continuous):
+    #   flat sens  → fence ≈ Q3      → percentile ≈ 75 → more promoted
+    #   heavy tail → fence far right → percentile → 95+ → only true killers
+    # No 90-vs-75 switching rule; the distribution's own shape decides.
     sens = dualmonitor_sensitivities or {}
     sens_values = [float(v) for v in sens.values()
                    if v is not None and math.isfinite(float(v)) and float(v) > 0]
     if len(sens_values) >= 4:
-        # Promote top tail: P90 of THIS calibration's sensitivity distribution.
-        # If sensitivities are nearly uniform (iqr small), P90 ≈ P75 → more
-        # layers promoted (catches borderline killers). If heavy-tailed, P90
-        # is high → fewer promoted (only true killers).
-        s_p75 = _safe_percentile(sens_values, 75.0)
-        s_p90 = _safe_percentile(sens_values, 90.0)
-        s_iqr = _robust_iqr(sens_values)
-        # Adaptive: if iqr is large (skewed), use P90; if flat, use P75.
-        sens_pct = 90.0 if s_iqr > max(s_p75 * 0.1, 1e-12) else 75.0
-        base["sens_veto_percentile"] = float(sens_pct)
+        s_sorted = _sorted_pool(sens_values)
+        s_fence = _tukey_upper(s_sorted)
+        s_rank = _rank_fraction(s_fence, s_sorted)  # empirical CDF at fence
+        base["sens_veto_percentile"] = float(min(max(s_rank * 100.0, 0.0), 100.0))
     else:
         # No calibration: disable sens veto (keep_ratio handles it).
         base["sens_veto_percentile"] = 100.0
     base["sens_veto_keep_ratio_gate"] = 0.0  # only active at keep_ratio==0
 
-    # ---- bias_correction scope (no fixed top_ratio) ----
-    # Bias correction is ON for all INT8 layers by default (d1290df measured
-    # SSIM 0.9753 with full BC; top 0.5 dropped to 0.9678). Scope = 1.0
-    # unless calibration sensitivity is extremely skewed (iqr > 5× median),
-    # in which case limit BC to top half to avoid DC injection on noisy
-    # low-sensitivity layers.
+    # ---- bias_correction scope (continuous; no fixed 5×median / 0.5) ----
+    # BC is beneficial on every layer whose calibration statistics are sound
+    # (d1290df: full BC SSIM 0.9753 > top-0.5 0.9678). The only layers to
+    # exclude are noise-floor layers whose sensitivity sits BELOW the Tukey
+    # lower fence (Q1 - IQR) of THIS calibration — their act-mean estimate is
+    # dominated by noise and BC would inject DC. Scope ratio is therefore
+    # the measured fraction of layers at or above that fence (continuous).
     if sens_values and len(sens_values) >= 4:
-        s_med = _safe_percentile(sens_values, 50.0)
-        s_iqr_val = _robust_iqr(sens_values)
-        if s_med > 0 and s_iqr_val > 5.0 * s_med:
-            base["bias_correction_top_ratio"] = 0.5
-        else:
-            base["bias_correction_top_ratio"] = 1.0
+        s_sorted_bc = _sorted_pool(sens_values)
+        q1_bc, _, q3_bc = _quartile_bounds(s_sorted_bc)
+        lower_fence = q1_bc - (q3_bc - q1_bc)
+        noisy = sum(1 for v in s_sorted_bc if v < lower_fence)
+        base["bias_correction_top_ratio"] = float(
+            min(max(1.0 - noisy / max(len(s_sorted_bc), 1), 0.0), 1.0)
+        )
     else:
         base["bias_correction_top_ratio"] = 1.0
 
@@ -1035,22 +1036,19 @@ def derive_int8_autonomous_tunables(
     auto_kr = (hv_count + sens_tail) / max(n_layers, 1)
     base["auto_keep_ratio"] = float(min(max(auto_kr, 0.0), 0.5))
 
-    # ---- Autonomous priority combinator (no fixed product/sum rule) ----
-    # The FORM (product / weighted_sum / uniform), axis weights, and reference
-    # values for the FP16 budget ranking all come from THIS checkpoint's
-    # three-axis (sens / sev / mse) distribution. No fixed rule.
-    # At profile time we only have analyze-side severity (from Hard VETO
-    # fences); sens and mse come from calibration+V4 at quantize time.
-    # We seed the combinator from the analyze distribution (k/o/m IQR) and
-    # let quantize refine it once sens + mse are measured.
+    # ---- Autonomous priority combinator (continuous; no fixed rule) ----
+    # Axis weights + refs for the FP16 budget ranking come from THIS
+    # checkpoint's three-axis (sens / sev / mse) distribution via a weighted
+    # geometric mean — no product/sum switching, no threshold constants.
+    # At profile time only analyze-side severity exists (Hard VETO fences);
+    # sens and mse are measured at quantize time (calibration + V4), where
+    # _apply_fp16_budget_cap re-derives the combinator from the real
+    # three-axis distribution. This seed is analyze-only (w_sens = w_mse = 0).
     sev_proxy_values = []
     for k, o, m in zip(all_k, all_o, all_m):
         sev_proxy_values.append(max(o / eo, 0.0) + max(k / ek, 0.0) + max(m / hm, 0.0))
     sev_p50 = _safe_percentile(sev_proxy_values, 50.0)
     sev_iqr = _robust_iqr(sev_proxy_values)
-    # Sens and MSE will be filled at quantize time from calibration/V4; seed
-    # with zeros → combinator falls back to analyze-only (weighted_sum with
-    # w_sens=0). Quantize refines via derive_priority_combinator with real dist.
     base["priority_combinator"] = derive_priority_combinator(
         sens_iqr=0.0, sev_iqr=sev_iqr, mse_iqr=0.0,
         sens_p50=0.0, sev_p50=sev_p50, mse_p50=0.0,
