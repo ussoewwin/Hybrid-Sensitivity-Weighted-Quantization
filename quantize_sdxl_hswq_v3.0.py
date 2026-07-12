@@ -25,9 +25,16 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
   as default. Anchor: d1290df0d2b8624ee8fc317c0a44ebec9e10400f.
 - Optional asymmetric INT8 pack (--asymmetric_int8, default off): map
   [w_min, w_max] via mid; loader still int8_tensorwise; mid absorbed by BC.
+- Card 3 per-channel INT8 (--per_channel_int8, DEFAULT OFF): per-out-channel
+  amax; weight_scale saved as (O,1) Linear / (O,1,1,1) Conv for kitchen
+  dequantize_int8_simple broadcast. Format tag stays int8_tensorwise.
+  Mutually exclusive with Card 2. When OFF, analyze/convert/pack path is the
+  unchanged commit 7599974 baseline (symmetric per-tensor absmax at convert).
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
 - _quantization_metadata embedded in safetensors metadata for ComfyUI loader.
+- Best reproduced baseline (Card 3 OFF): commit 7599974705c1fe667df5743b06e64592f4a42b4c
+  MSE 12.3015 / SSIM 0.9798.
 
 ComfyUI compatibility:
   ComfyUI >= master with comfy_kitchen + TensorWiseINT8Layout can load these
@@ -944,6 +951,47 @@ def pack_int8_tensorwise(weight, asymmetric: bool = True):
     return q, scale, 0.0
 
 
+def pack_int8_channelwise(weight, amax=None):
+    """Pack weight to int8 + per-out-channel scale (Card 3).
+
+    Metadata format stays ``int8_tensorwise``. Scale is stored in a shape that
+    broadcasts with weight under kitchen ``dequantize_int8_simple`` (``q * scale``):
+
+    - Linear ``(O, I)`` → ``weight_scale`` shape ``(O, 1)``
+    - Conv2d ``(O, C, H, W)`` → ``weight_scale`` shape ``(O, 1, 1, 1)``
+
+    A flat ``(O,)`` scale is NOT safe for 4D weights: PyTorch aligns from the
+    right, so ``(O,C,H,W) * (O,)`` collides on the last dim.
+    """
+    w = weight.float()
+    if amax is None:
+        reduce_dims = tuple(range(1, w.dim()))
+        amax = w.abs().amax(dim=reduce_dims)
+    else:
+        amax = amax.float().to(device=w.device)
+        if amax.ndim == 0:
+            amax = amax.reshape(1).expand(w.shape[0])
+        elif amax.numel() == 1 and w.shape[0] > 1:
+            amax = amax.reshape(1).expand(w.shape[0])
+        elif amax.numel() != w.shape[0]:
+            raise ValueError(
+                f"channelwise amax numel={amax.numel()} != out_channels={w.shape[0]}"
+            )
+    amax = torch.clamp(amax.reshape(-1), min=1e-6)
+    scale = amax / 127.0
+    if w.dim() == 4:
+        scale_view = scale.view(-1, 1, 1, 1)
+        amax_view = amax.view(-1, 1, 1, 1)
+    elif w.dim() == 2:
+        scale_view = scale.view(-1, 1)
+        amax_view = amax.view(-1, 1)
+    else:
+        raise ValueError(f"unsupported weight ndim={w.dim()} for channelwise INT8")
+    clamped = torch.clamp(w, -amax_view, amax_view)
+    q = (clamped / scale_view).round().clamp(-127, 127).to(torch.int8)
+    return q, scale_view, scale_view
+
+
 dual_monitors = {}
 
 
@@ -1139,9 +1187,26 @@ def main():
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Pack INT8 around (min+max)/2 (default: off). Still int8_tensorwise; "
-             "mid is absorbed by bias correction when enabled.",
+             "mid is absorbed by bias correction when enabled. "
+             "Mutually exclusive with --per_channel_int8.",
+    )
+    parser.add_argument(
+        "--per_channel_int8",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Card 3 (DEFAULT OFF). Per-output-channel amax; weight_scale "
+             "(Out,1) Linear / (Out,1,1,1) Conv; format tag stays int8_tensorwise. "
+             "Default OFF = exact commit 7599974 per-tensor path. "
+             "Mutually exclusive with --asymmetric_int8.",
     )
     args = parser.parse_args()
+
+    if args.asymmetric_int8 and args.per_channel_int8:
+        print(
+            "[FATAL] --asymmetric_int8 (Card 2) and --per_channel_int8 (Card 3) "
+            "are mutually exclusive. Disable one of them."
+        )
+        sys.exit(1)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     raw_input_arg = args.input
@@ -1369,6 +1434,17 @@ def main():
 
     print("\n[HSWQ V3.0 SDXL INT8] Starting Optimization...")
     weight_amax_dict = {}
+    weight_channel_amax_dict = {}  # Card 3 only; unused when per_channel OFF
+    if args.per_channel_int8:
+        print(
+            "[Card 3] Per-channel INT8: scale (Out,1)/(Out,1,1,1); "
+            "format tag remains int8_tensorwise."
+        )
+    else:
+        print(
+            "[Card 3 OFF] Using commit 7599974 path: "
+            "per-tensor absmax at convert (pack_int8_tensorwise)."
+        )
     int8_quantizer = INT8Quantizer(device=device)
     hswq_optimizer = HSWQWeightedHistogramOptimizerV4(
         bins=8192,
@@ -1387,6 +1463,26 @@ def main():
             importance = dual_monitors[name].channel_importance if name in dual_monitors else None
             layer_search_low = get_layer_search_low(name, module.weight.data)
             layer_search_range = (layer_search_low, 1.0)
+            weight_key = name + ".weight"
+
+            if args.per_channel_int8:
+                # Card 3: per-output-channel amax (O,). No HSWQ amax clip.
+                reduce_dims = tuple(range(1, module.weight.data.dim()))
+                optimal_amax_tensor = module.weight.data.abs().amax(dim=reduce_dims)
+                optimal_amax_tensor = torch.clamp(optimal_amax_tensor, min=1e-6)
+                print(
+                    f"  [HSWQ-INT8 Card3] {name:50} | per-channel amax | "
+                    f"out={int(optimal_amax_tensor.numel())} "
+                    f"amax_mean={float(optimal_amax_tensor.mean()):.4f} "
+                    f"amax_max={float(optimal_amax_tensor.max()):.4f}"
+                )
+                weight_channel_amax_dict[weight_key] = (
+                    optimal_amax_tensor.detach().float().cpu()
+                )
+                torch.cuda.empty_cache()
+                continue
+
+            # Commit 7599974 path — verbatim body (Card 3 OFF).
             print(
                 f"  [HSWQ-INT8] {name:50} | Pure Data-Driven | "
                 f"search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}"
@@ -1419,8 +1515,12 @@ def main():
                 act_mean_dict[name] = mon.channel_act_mean.detach().float().cpu()
             sens_dict[name] = float(mon.get_sensitivity())
         # Approach A: only top-ratio INT8 layers by sensitivity get BC.
+        if args.per_channel_int8:
+            _int8_dict = weight_channel_amax_dict
+        else:
+            _int8_dict = weight_amax_dict
         int8_module_names = [
-            wk[:-7] for wk in weight_amax_dict.keys() if wk.endswith(".weight")
+            wk[:-7] for wk in _int8_dict.keys() if wk.endswith(".weight")
         ]
         top_ratio = float(args.bias_correction_top_ratio)
         top_ratio = 0.0 if top_ratio < 0.0 else (1.0 if top_ratio > 1.0 else top_ratio)
@@ -1503,7 +1603,35 @@ def main():
             kept_count += 1
         elif module_name:
             weight_key = module_name + ".weight"
-            if weight_key in weight_amax_dict:
+            if args.per_channel_int8 and weight_key in weight_channel_amax_dict:
+                # Card 3: broadcastable weight_scale; format int8_tensorwise.
+                amax_cpu = weight_channel_amax_dict[weight_key]
+                int8_quantized, scale_view, _ = pack_int8_channelwise(
+                    value, amax=amax_cpu
+                )
+                new_value = int8_quantized
+                comfy_module = key[:-7] if key.endswith(".weight") else key
+                output_state_dict[f"{comfy_module}.weight_scale"] = (
+                    scale_view.detach().cpu().to(torch.float32).contiguous()
+                )
+                _emit_int8_quant_meta(output_state_dict, comfy_module)
+                quant_meta_layers[comfy_module] = "int8_tensorwise"
+                converted_count += 1
+
+                if args.bias_correction:
+                    if bc_allowed_modules is not None and module_name not in bc_allowed_modules:
+                        bias_corr_skipped_low_sens += 1
+                    else:
+                        act_mean = act_mean_dict.get(module_name)
+                        if act_mean is None:
+                            bias_corr_skipped_no_act += 1
+                        else:
+                            weight_dq = int8_quantized.float() * scale_view
+                            delta = compute_int8_bias_delta(value, weight_dq, act_mean)
+                            if delta is not None:
+                                bias_corr_pending[comfy_module] = (-delta).detach().float().cpu()
+            elif weight_key in weight_amax_dict:
+                # Commit 7599974 path — pack absmax at CONVERT time; do not rewrite.
                 # INT8 pack: asymmetric (Card 2) or classic absmax symmetric.
                 # Format stays int8_tensorwise (q * weight_scale at load time).
                 int8_quantized, scale, mid = pack_int8_tensorwise(
@@ -1559,6 +1687,7 @@ def main():
     print("Conversion done:")
     print(f"  INT8 layers: {converted_count}")
     print(f"  FP16-kept layers: {kept_count}")
+    print(f"  Per-channel INT8 (Card 3): {args.per_channel_int8}")
     print(f"  Asymmetric INT8 pack: {args.asymmetric_int8}")
     if args.bias_correction:
         print(f"  Bias-corrected layers: {bias_corr_applied}")
@@ -1581,8 +1710,12 @@ def main():
     print(f"  Format: int8_tensorwise (ComfyUI QUANT_ALGOS compatible)")
     print(f"  Quantized layers: {converted_count}")
     print(f"  FP16 kept layers: {kept_count}")
-    print(f"  Asymmetric pack: {args.asymmetric_int8} | Bias correction: {args.bias_correction} "
-          f"(top_ratio={args.bias_correction_top_ratio})")
+    print(
+        f"  Per-channel (Card 3): {args.per_channel_int8} | "
+        f"Asymmetric pack: {args.asymmetric_int8} | "
+        f"Bias correction: {args.bias_correction} "
+        f"(top_ratio={args.bias_correction_top_ratio})"
+    )
 
 if __name__ == "__main__":
     main()
