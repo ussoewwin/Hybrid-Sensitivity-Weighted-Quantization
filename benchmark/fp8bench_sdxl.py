@@ -439,7 +439,7 @@ def generate_image_fixed(model, clip, vae, prompt, seed, steps):
     images = vae.decode(samples)
     if len(images.shape) == 5:
         images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
-    img_array = 255.0 * images[0].cpu().numpy()
+    img_array = 255.0 * images[0].detach().cpu().numpy()
     image = Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
 
     return image, end_time - start_time
