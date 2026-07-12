@@ -12,8 +12,10 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - derive_veto_tunables_int8: VETO thresholds re-derived for INT8's wider
   dynamic range (no 448 cap) but coarser near-zero resolution. Outlier/magnitude
   thresholds scaled by 127/448; gray-zone layers get stricter protection.
-- INT8 amax search is forced to absmax (no clipping): uniform INT8 grids lose
-  SSIM when amax is clipped below absmax; HSWQ gain is FP16 keep / VETO only.
+- search_low: per-layer adaptive from derive_veto_tunables_int8 (HSWQ md §3.5
+  floor / penalty_cap / clip_max / gray / drift). Auto analysis → auto optimal
+  amax range for V4. V4 + INT8Quantizer still run every INT8 layer.
+  VETO / keep also from derive_veto_tunables_int8.
 - Bias correction (Card 1): after INT8 pack, cancel systematic output bias
   E[(W_q - W) x] ≈ (W_q - W) @ mean(x) into the layer bias. Uses DualMonitor
   signed per-channel activation means from calibration. No format change,
@@ -30,6 +32,10 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
   dequantize_int8_simple broadcast. Format tag stays int8_tensorwise.
   Mutually exclusive with Card 2. When OFF, analyze/convert/pack path is the
   unchanged commit 7599974 baseline (symmetric per-tensor absmax at convert).
+- INT8 MAD attn VETO (this script only): MAD% floors are auto-derived from
+  analyze_sdxl_distribution profile (Tukey / Q3 on attn mad_outlier_pct).
+  Same path for every checkpoint — no per-model settings. FP8 scripts and
+  derive_veto_tunables (FP8) are not modified.
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
 - _quantization_metadata embedded in safetensors metadata for ComfyUI loader.
@@ -46,6 +52,7 @@ Profiling: analyze/analyze_sdxl_distribution.py (reused; INT8 tunables derived
   from the same profile JSON via derive_veto_tunables_int8).
 """
 import argparse
+import math
 import torch
 import torch.nn as nn
 from diffusers import StableDiffusionXLPipeline
@@ -279,6 +286,13 @@ _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 # vs FP8E4M3's 448 max representable. This ratio scales all magnitude/outlier
 # thresholds so VETO triggers at proportionally lower values for INT8.
 _INT8_SCALE_FACTOR = 127.0 / 448.0
+# Fallback MAD% floor only when profile lacks mad_outlier_pct (old JSON).
+# Live path uses attn_mad_pct_floor from derive_veto_tunables_int8 (per-checkpoint
+# Tukey fence on attn MAD%). No model-name / per-model setting branches.
+_INT8_MAD_OUTLIER_PCT_FLOOR = 15.0
+# DualMonitor Hidden-Killer promotion at r0: percentile of THIS run's
+# sensitivity scores (auto per calibration). FP8 scripts untouched.
+_INT8_SENS_VETO_PERCENTILE = 90.0
 
 
 @dataclass(frozen=True)
@@ -321,6 +335,11 @@ class SdxlVetoTunables:
     score_o_weight: float = 2.0
     score_m_weight: float = 0.5
     quant_format: str = "int8_tensorwise"
+    # Auto from derive_veto_tunables_int8 (profile MAD% distribution).
+    attn_mad_pct_floor: float = _INT8_MAD_OUTLIER_PCT_FLOOR
+    attn_mad_q3: float = _INT8_MAD_OUTLIER_PCT_FLOOR
+    attn_mad_gap_o_max: float = 40.0 * _INT8_SCALE_FACTOR
+    attn_mad_from_profile: float = 0.0
 
     @classmethod
     def from_dict(cls, d: dict) -> "SdxlVetoTunables":
@@ -363,6 +382,14 @@ class SdxlVetoTunables:
             score_o_weight=float(d.get("score_o_weight", 2.0)),
             score_m_weight=float(d.get("score_m_weight", 0.5)),
             quant_format=str(d.get("quant_format", "int8_tensorwise")),
+            attn_mad_pct_floor=float(
+                d.get("attn_mad_pct_floor", _INT8_MAD_OUTLIER_PCT_FLOOR)
+            ),
+            attn_mad_q3=float(d.get("attn_mad_q3", _INT8_MAD_OUTLIER_PCT_FLOOR)),
+            attn_mad_gap_o_max=float(
+                d.get("attn_mad_gap_o_max", 40.0 * _INT8_SCALE_FACTOR)
+            ),
+            attn_mad_from_profile=float(d.get("attn_mad_from_profile", 0.0)),
         )
 
     def as_dict(self) -> dict:
@@ -383,6 +410,10 @@ class SdxlVetoTunables:
             "mse_p75_multiplier": self.mse_p75_multiplier,
             "ff2_suffix_min_count": self.ff2_suffix_min_count,
             "quant_format": self.quant_format,
+            "attn_mad_pct_floor": self.attn_mad_pct_floor,
+            "attn_mad_q3": self.attn_mad_q3,
+            "attn_mad_gap_o_max": self.attn_mad_gap_o_max,
+            "attn_mad_from_profile": self.attn_mad_from_profile,
         }
 
 
@@ -409,6 +440,13 @@ def resolve_veto_tunables(
                 f"span={derived.get('ff2_class_outlier_span', 0):.3f}, "
                 f"profile_o>={derived['ff2_profile_outlier']:.2f}"
             )
+        print(
+            "  [Auto INT8 MAD] "
+            f"floor={derived.get('attn_mad_pct_floor', _INT8_MAD_OUTLIER_PCT_FLOOR):.3f}, "
+            f"q3={derived.get('attn_mad_q3', _INT8_MAD_OUTLIER_PCT_FLOOR):.3f}, "
+            f"gap_o_max={derived.get('attn_mad_gap_o_max', 40.0 * _INT8_SCALE_FACTOR):.3f}, "
+            f"from_profile={bool(derived.get('attn_mad_from_profile', 0))}"
+        )
         return SdxlVetoTunables.from_dict(derived)
     if profile_summary and isinstance(profile_summary.get("veto_tunables"), dict):
         return SdxlVetoTunables.from_dict(profile_summary["veto_tunables"])
@@ -423,6 +461,17 @@ def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
     k = calculate_kurtosis(x)
     o = amax / std if std > 0 else 0.0
     return k, o, amax
+
+
+def _mad_outlier_pct(tensor: torch.Tensor, zthr: float = 3.0) -> float:
+    """INT8-only robust outlier fraction (%). Not used by FP8 VETO paths."""
+    xf = tensor.detach().float().reshape(-1)
+    if xf.numel() < 4:
+        return 0.0
+    med = xf.median()
+    mad = (xf - med).abs().median().clamp_min(1e-12)
+    z = (xf - med).abs() / (1.4826 * mad)
+    return float((z > zthr).float().mean().item() * 100.0)
 
 
 def _profile_score_from_entry(
@@ -496,12 +545,10 @@ def _ff2_selective_veto_hit(
     tunables: SdxlVetoTunables,
 ) -> tuple[bool, str]:
     """Selective ff.net.2 VETO: class-relative profile_score and outlier (not blanket)."""
-    # V3.0 INT8: floor thresholds prevent SDXL's uniform distribution from
-    # deriving thresholds so low that selective == full-class. INT8 scales
-    # outlier thresholds by 127/448 (wider dynamic range).
-    score_cut = max(tunables.ff2_profile_score_cutoff, 2.5)
-    outlier_cut = max(tunables.ff2_profile_outlier, 40.0 * _INT8_SCALE_FACTOR)
-    live_cut = max(tunables.ff2_outlier_live, 40.0 * _INT8_SCALE_FACTOR)
+    # Cuts = derive_veto_tunables_int8 only (no hardcoded floors).
+    score_cut = tunables.ff2_profile_score_cutoff
+    outlier_cut = tunables.ff2_profile_outlier
+    live_cut = tunables.ff2_outlier_live
     if prof:
         score = _profile_score_from_entry(prof, tunables=tunables)
         o = float(prof.get("outlier_ratio", 0) or 0)
@@ -612,14 +659,11 @@ def _compute_sdxl_per_projection_attn_veto(
 ) -> set:
     """VETO attn projections when profile (or live) abs_max / outlier_ratio exceeds thresholds.
 
-    V3.0 INT8: thresholds are pre-scaled by derive_veto_tunables_int8
-    (127/448 factor), so no additional scaling here. The floor values are
-    also scaled to match INT8's narrower representable range.
+    V3.0 INT8: thresholds come only from derive_veto_tunables_int8
+    (analyze_sdxl_distribution). No additional hardcoded floors.
     """
     proj_veto = set()
-    # INT8 floor for abs_max: 4.5 * 127/448 ≈ 1.27
-    absmax_floor_int8 = max(4.5 * _INT8_SCALE_FACTOR, 1.0)
-    outlier_floor_int8 = max(40.0 * _INT8_SCALE_FACTOR, 10.0)
+    # Thresholds = derive_veto_tunables_int8 only (no hardcoded INT8 floors).
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
             continue
@@ -635,12 +679,12 @@ def _compute_sdxl_per_projection_attn_veto(
         _k, _o, _amax = _profile_layer_stats(prof, _m.weight.detach())
         src = "profile" if prof else "live"
         if is_toout:
-            hit = _amax >= max(tunables.attn_toout_absmax, absmax_floor_int8) or _o >= max(tunables.attn_toout_outlier, outlier_floor_int8)
+            hit = _amax >= tunables.attn_toout_absmax or _o >= tunables.attn_toout_outlier
             thresh_msg = (
                 f"to_out amax>={tunables.attn_toout_absmax:.3f}, o>={tunables.attn_toout_outlier:.3f}"
             )
         else:
-            hit = _amax >= max(tunables.attn_qkv_absmax, absmax_floor_int8) or _o >= max(tunables.attn_qkv_outlier, outlier_floor_int8)
+            hit = _amax >= tunables.attn_qkv_absmax or _o >= tunables.attn_qkv_outlier
             thresh_msg = (
                 f"q/k/v amax>={tunables.attn_qkv_absmax:.3f}, o>={tunables.attn_qkv_outlier:.3f}"
             )
@@ -651,6 +695,123 @@ def _compute_sdxl_per_projection_attn_veto(
                 f"({src} amax={_amax:.2f}, outlier={_o:.1f}; {thresh_msg})"
             )
     return proj_veto
+
+
+def _compute_sdxl_int8_mad_attn_veto(
+    model: nn.Module,
+    hard_veto_layers: set,
+    tunables: SdxlVetoTunables | None = None,
+    norm_profile: dict | None = None,
+) -> set:
+    """INT8-only key-pattern + MAD% VETO for attn projections.
+
+    Floors come from derive_veto_tunables_int8 (this checkpoint's MAD%
+    Tukey / Q3). Gap fill: MAD >= Q3 while abs_max/std (o) stays below the
+    auto outlier gate. No hard-coded layer names, no per-model settings.
+    FP8 scripts / derive_veto_tunables (FP8) untouched.
+    """
+    mad_floor = (
+        float(tunables.attn_mad_pct_floor)
+        if tunables is not None
+        else _INT8_MAD_OUTLIER_PCT_FLOOR
+    )
+    mad_q3 = float(tunables.attn_mad_q3) if tunables is not None else mad_floor
+    gap_o_max = (
+        float(tunables.attn_mad_gap_o_max)
+        if tunables is not None
+        else (40.0 * _INT8_SCALE_FACTOR)
+    )
+    prof = norm_profile or {}
+    added = set()
+    for _n, _m in model.named_modules():
+        if not isinstance(_m, torch.nn.Linear):
+            continue
+        if _n in hard_veto_layers:
+            continue
+        if ".attn1" not in _n and ".attn2" not in _n:
+            continue
+        is_qkv = any(_n.endswith(s) for s in _SDXL_ATTN_PROJ_SUFFIXES)
+        is_toout = _n.endswith(_SDXL_ATTN_TOOUT_SUFFIX)
+        if not is_qkv and not is_toout:
+            continue
+        entry = prof.get(_n, {}) if isinstance(prof.get(_n, {}), dict) else {}
+        mad_pct = float(entry.get("mad_outlier_pct", entry.get("mad_pct", 0)) or 0)
+        if mad_pct <= 0.0:
+            mad_pct = _mad_outlier_pct(_m.weight)
+        o = float(entry.get("outlier_ratio", 0) or 0)
+        if o <= 0.0 and hasattr(_m, "weight"):
+            _, o, _ = _layer_weight_stats(_m.weight.data)
+        extreme = mad_pct >= mad_floor
+        gap = (mad_pct >= mad_q3) and (o < gap_o_max)
+        if extreme or gap:
+            added.add(_n)
+            why = "tukey" if extreme else "gap(q3+o_miss)"
+            print(
+                f"    [INT8 MAD VETO] {_n} "
+                f"(MAD%={mad_pct:.2f}, o={o:.2f}, floor={mad_floor:.2f}, "
+                f"q3={mad_q3:.2f}, gate_o={gap_o_max:.2f}; {why})"
+            )
+    if added:
+        print(
+            f"  [INT8 MAD VETO] Added {len(added)} attn layers "
+            f"(auto floor={mad_floor:.2f}, q3={mad_q3:.2f})."
+        )
+    return added
+
+
+def _compute_int8_sensitivity_hard_veto_promotion(
+    dual_monitors: dict,
+    hard_veto_layers: set,
+    keep_ratio: float,
+    percentile: float = _INT8_SENS_VETO_PERCENTILE,
+) -> set:
+    """INT8-only: promote DualMonitor-sensitive layers to Hard VETO when r0.
+
+    Static VETO (kurtosis / abs_max/std / MAD%) misses Hidden Killers:
+    clean weight stats but high output variance under calibration.
+    At keep_ratio==0 there is no dynamic keep budget, so DualMonitor
+    sensitivity is force-promoted into hard_veto instead.
+
+    Uses DualMonitor.get_sensitivity() only — NOT profile_score ranking
+    (profile_score correlates with the same weight stats as static VETO).
+    """
+    if keep_ratio != 0.0:
+        return set()
+    dm_scores: list[tuple[str, float]] = []
+    for name, mon in dual_monitors.items():
+        if name in hard_veto_layers:
+            continue
+        sens = float(mon.get_sensitivity())
+        if sens > 0.0 and math.isfinite(sens):
+            dm_scores.append((name, sens))
+    if not dm_scores:
+        print(
+            "  [INT8 Sensitivity VETO] No DualMonitor scores "
+            "(keep_ratio=0; nothing to promote)."
+        )
+        return set()
+    scores = [s for _, s in dm_scores]
+    threshold = float(np.percentile(scores, percentile))
+    promoted: set = set()
+    print(
+        f"\n  [INT8 Sensitivity VETO] DualMonitor Hidden Killers "
+        f"(r0; p{percentile:.0f} threshold={threshold:.6g}; "
+        f"candidates={len(dm_scores)})..."
+    )
+    for name, sens in sorted(dm_scores, key=lambda x: x[1], reverse=True):
+        if sens > threshold:
+            promoted.add(name)
+            print(
+                f"    [PROMOTED] {name} | DualMonitor sens={sens:.6g} "
+                f"(stat VETO miss → Hard VETO)"
+            )
+    if promoted:
+        print(
+            f"  [INT8 Sensitivity VETO] Promoted {len(promoted)} layers to Hard VETO."
+        )
+    else:
+        print("  [INT8 Sensitivity VETO] No additional layers promoted.")
+    return promoted
 
 
 def _autonomous_supplemental_veto(
@@ -678,7 +839,7 @@ def _autonomous_supplemental_veto(
             if hit:
                 added.add(_n)
                 print(f"    [Supplemental VETO] {_n} (ff.net.2 {reason})")
-        elif any(_n.startswith(p) for p in _SDXL_KP_PREFIXES) and drift > max(tunables.drift_veto_thresh, 0.5):
+        elif any(_n.startswith(p) for p in _SDXL_KP_PREFIXES) and drift > tunables.drift_veto_thresh:
             added.add(_n)
             print(
                 f"    [Supplemental VETO] {_n} "
@@ -696,11 +857,8 @@ def _collect_mse_release_candidates(
 ) -> set:
     """Outlier-only profile VETO with low drift and non-structural — MSE release candidates.
 
-    V3.0 INT8: mse_release_o_min is pre-scaled by derive_veto_tunables_int8
-    (127/448 factor with 1.2x margin), so we use the tunables value directly
-    without additional scaling. This allows more outlier layers to be
-    released from VETO since INT8's wider dynamic range handles moderate
-    outliers better than FP8's 448 cap.
+    V3.0 INT8: mse_release_* come only from derive_veto_tunables_int8
+    (analyze_sdxl_distribution). No hardcoded min/max floors.
     """
     candidates = set()
     _module_dict = dict(model.named_modules())
@@ -712,14 +870,14 @@ def _collect_mse_release_candidates(
         m = float(prof.get("abs_max", 0) or 0)
         o = float(prof.get("outlier_ratio", 0) or 0)
         if (
-            o > min(tunables.mse_release_o_min, 40.0 * _INT8_SCALE_FACTOR * 1.2)
-            and k <= max(tunables.mse_release_k_max, 20.0)
-            and m <= max(tunables.mse_release_m_max, 20.0 * _INT8_SCALE_FACTOR)
+            o > tunables.mse_release_o_min
+            and k <= tunables.mse_release_k_max
+            and m <= tunables.mse_release_m_max
         ):
             vmod = _module_dict.get(vname)
             if vmod is not None and hasattr(vmod, "weight"):
                 drift = _weight_profile_drift(vmod.weight.data, prof)
-                if drift < max(tunables.drift_veto_thresh, 0.5):
+                if drift < tunables.drift_veto_thresh:
                     candidates.add(vname)
     return candidates
 
@@ -793,7 +951,7 @@ def _mse_grayzone_veto_reassessment(
 
     safe_mses.sort()
     p75_idx = int(len(safe_mses) * 0.75)
-    mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * max(tunables.mse_p75_multiplier, 2.0)
+    mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * tunables.mse_p75_multiplier
     print(
         f"  [MSE Baseline INT8] Safe layers sampled: {len(safe_mses)}, "
         f"P75 MSE: {safe_mses[p75_idx]:.8f}, "
@@ -924,8 +1082,12 @@ def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
     return None
 
 
-def pack_int8_tensorwise(weight, asymmetric: bool = True):
+def pack_int8_tensorwise(weight, asymmetric: bool = True, amax: float | None = None):
     """Pack a weight tensor to symmetric storage int8 + scalar scale.
+
+    `amax` (float) is the HSWQ V4 optimal amax from compute_optimal_amax.
+    When provided, it is used as the clip target instead of recomputing
+    absmax — V4 must not be bypassed at pack time.
 
     asymmetric=True (Card 2):
       mid = (w_min + w_max) / 2
@@ -934,7 +1096,8 @@ def pack_int8_tensorwise(weight, asymmetric: bool = True):
       Loader reconstructs q*scale; mid is recovered via bias correction.
 
     asymmetric=False:
-      scale = absmax / 127, q = round(W / scale).clamp(-127, 127)  (classic)
+      amax_eff = amax if provided else absmax
+      scale = amax_eff / 127, q = round(W / scale).clamp(-127, 127)  (classic)
     """
     w = weight.float()
     if asymmetric:
@@ -945,8 +1108,11 @@ def pack_int8_tensorwise(weight, asymmetric: bool = True):
         scale = (half / 127.0).item()
         q = ((w - mid) / scale).round().clamp(-127, 127).to(torch.int8)
         return q, scale, mid.item()
-    amax = w.abs().max().clamp_min(1e-6)
-    scale = (amax / 127.0).item()
+    if amax is None:
+        amax = float(w.abs().max().clamp_min(1e-6).item())
+    else:
+        amax = float(max(abs(amax), 1e-6))
+    scale = (amax / 127.0)
     q = (w / scale).round().clamp(-127, 127).to(torch.int8)
     return q, scale, 0.0
 
@@ -1026,14 +1192,13 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
     """
     SDXL V3.0 INT8: Alpha/Beta from profile + per-layer search_low (SDXL-only).
 
-    V3.0 INT8 differences from V2.1 FP8:
-    - search_low: INT8's uniform grid has coarser near-zero resolution, so
-      outlier layers (o>40 * 127/448 ≈ 11.3) get a wider search down to 0.92
-      (vs 0.95 for FP8) to allow tighter clipping and recover resolution.
-      Clean layers stay at 0.99 (absmax) like FP8.
-    - alpha/beta: SVD leverage is forced off for SDXL (same as V2.1) because
-      SDXL's uniform weight distribution makes SVD scores counterproductive.
-    - hard_veto: thresholds use INT8-scaled values from derive_veto_tunables_int8.
+    search_low comes from analyze_sdxl_distribution / derive_veto_tunables_int8
+    (floor, penalty_cap, clip_max, gray bounds, drift) — HSWQ md §3.5 formula
+    with INT8-scaled gray/o/m. Weighted histogram MSE then picks amax in
+    [search_low, 1.0] * absmax.
+
+    - alpha/beta: SVD leverage forced off for SDXL (same as V2.1).
+    - hard_veto: INT8-scaled thresholds from derive_veto_tunables_int8.
     """
     if model_profile:
         sample_key = next(iter(model_profile))
@@ -1058,17 +1223,53 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
     if veto_tunables is None:
         veto_tunables = resolve_veto_tunables(model_profile or {})
 
+    print(
+        f"  [search_low INT8 from analyze] floor={veto_tunables.search_low_floor:.4f} "
+        f"pen_cap={veto_tunables.search_low_penalty_cap:.4f} "
+        f"clip_max={veto_tunables.search_low_clip_max:.4f} "
+        f"gray_clip={veto_tunables.search_low_gray_clip_max:.4f} "
+        f"drift_thresh={veto_tunables.drift_veto_thresh:.4f}"
+    )
+
     def get_dynamic_search_low(name, weight_tensor):
-        # V3.0 INT8 (revised): do NOT clip. INT8 is a uniform grid, so unlike
-        # FP8 (where clipping outliers reduces E4M3 quantization error), any
-        # amax < abs_max causes clamped outliers to be squashed into a narrower
-        # int8 range, *increasing* both bulk and outlier error and dropping
-        # SSIM below the naive (amax = absmax) baseline.
-        #
-        # HSWQ INT8 therefore keeps the naive amax = absmax quantization
-        # (search_range low = 1.0 = high) and uses ONLY the sensitivity-driven
-        # FP16 keep path to improve quality over native INT8.
-        return 1.0
+        # HSWQ adaptive search_low from THIS checkpoint analyze profile
+        # (derive_veto_tunables_int8). No model-name branches.
+        vt = veto_tunables
+        profile_key = name + ".weight"
+        prof = (
+            model_profile.get(profile_key, model_profile.get(name, {}))
+            if model_profile
+            else {}
+        )
+        if prof:
+            k_stat = float(prof.get("kurtosis", 0) or 0)
+            o_ratio = float(prof.get("outlier_ratio", 0) or 0)
+            m_stat = float(prof.get("abs_max", 0) or 0)
+        else:
+            k_stat, o_ratio, m_stat = _layer_weight_stats(weight_tensor)
+
+        floor = float(vt.search_low_floor)
+        floor = min(max(floor, 0.50), 0.99)
+        pen_cap = float(vt.search_low_penalty_cap)
+        pen_cap = min(max(pen_cap, 0.0), 0.49)
+        k_penalty = min(k_stat / 100.0, pen_cap)
+        o_penalty = min(o_ratio / 60.0, pen_cap)
+
+        upper_clip = float(vt.search_low_clip_max)
+        upper_clip = min(max(upper_clip, floor), 1.0)
+        drift = _weight_profile_drift(weight_tensor, prof) if prof else 0.0
+        in_gray = (
+            (vt.k_gray_lo < k_stat <= vt.k_gray_hi)
+            or (vt.o_gray_lo < o_ratio <= vt.o_gray_hi)
+            or (vt.m_gray_lo < m_stat <= vt.m_gray_hi)
+        )
+        if in_gray or drift > float(vt.drift_veto_thresh):
+            gray_clip = float(vt.search_low_gray_clip_max)
+            upper_clip = min(upper_clip, max(gray_clip, floor))
+
+        return float(
+            np.clip(floor + max(k_penalty, o_penalty), floor, upper_clip)
+        )
 
     if model_profile:
         all_k = [p.get("kurtosis", 0) for p in model_profile.values() if isinstance(p, dict)]
@@ -1102,12 +1303,11 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
                 k = prof.get("kurtosis", 0)
                 m = prof.get("abs_max", 0)
                 o = prof.get("outlier_ratio", 0)
-                # V3.0 INT8: floor thresholds at INT8-scaled zib-proven values.
-                # INT8's wider dynamic range (no 448 cap) means outlier_ratio
-                # and abs_max thresholds are scaled by 127/448.
-                is_extreme_divergence = o > max(veto_tunables.extreme_outlier, 40.0 * _INT8_SCALE_FACTOR)
-                is_extreme_kurtosis = k > max(veto_tunables.extreme_kurtosis, 20.0)
-                is_huge_magnitude = m > max(veto_tunables.huge_magnitude, 20.0 * _INT8_SCALE_FACTOR)
+                # VETO thresholds = analyze_sdxl_distribution.derive_veto_tunables_int8
+                # only (this checkpoint's distribution). No hardcoded floors.
+                is_extreme_divergence = o > veto_tunables.extreme_outlier
+                is_extreme_kurtosis = k > veto_tunables.extreme_kurtosis
+                is_huge_magnitude = m > veto_tunables.huge_magnitude
                 if is_extreme_divergence or is_extreme_kurtosis or is_huge_magnitude:
                     layer_base_name = name.replace(".weight", "") if name.endswith(".weight") else name
                     hard_veto_layers.add(layer_base_name)
@@ -1310,6 +1510,13 @@ def main():
     if proj_veto:
         hard_veto_layers = hard_veto_layers.union(proj_veto)
         print(f"  [Per-Projection VETO] Added {len(proj_veto)} attn layers (total VETO: {len(hard_veto_layers)}).")
+    # INT8-only: MAD floors auto from profile distribution (no per-model settings).
+    mad_veto = _compute_sdxl_int8_mad_attn_veto(
+        model, hard_veto_layers, veto_tunables, _norm_profile
+    )
+    if mad_veto:
+        hard_veto_layers = hard_veto_layers.union(mad_veto)
+        print(f"  [INT8 MAD VETO] total VETO after MAD fill: {len(hard_veto_layers)}.")
     keypattern_veto = _compute_sdxl_keypattern_veto(
         model, hard_veto_layers, veto_tunables, _norm_profile
     )
@@ -1359,6 +1566,20 @@ def main():
     if _supp:
         hard_veto_layers = hard_veto_layers.union(_supp)
         print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
+
+    # INT8 r0: DualMonitor Hidden Killers → Hard VETO (auto from this calib).
+    sens_veto = _compute_int8_sensitivity_hard_veto_promotion(
+        dual_monitors,
+        hard_veto_layers,
+        float(args.keep_ratio),
+        percentile=_INT8_SENS_VETO_PERCENTILE,
+    )
+    if sens_veto:
+        hard_veto_layers = hard_veto_layers.union(sens_veto)
+        print(
+            f"  [INT8 Sensitivity VETO] total VETO after promotion: "
+            f"{len(hard_veto_layers)}."
+        )
 
     # Exclude VETO layers from the Dynamic pool (they are always FP16, so Dynamic budget goes elsewhere)
     _module_dict_sens = dict(model.named_modules())
@@ -1443,7 +1664,7 @@ def main():
     else:
         print(
             "[Card 3 OFF] Using commit 7599974 path: "
-            "per-tensor absmax at convert (pack_int8_tensorwise)."
+            "per-tensor HSWQ V4 amax + pack_int8_tensorwise."
         )
     int8_quantizer = INT8Quantizer(device=device)
     hswq_optimizer = HSWQWeightedHistogramOptimizerV4(
@@ -1482,26 +1703,19 @@ def main():
                 torch.cuda.empty_cache()
                 continue
 
-            # Commit 7599974 path — verbatim body (Card 3 OFF).
+            # Card 3 OFF: HSWQWeightedHistogramOptimizerV4 + INT8Quantizer.
+            # search_low from analyze profile; MSE picks amax in the range.
             print(
                 f"  [HSWQ-INT8] {name:50} | Pure Data-Driven | "
                 f"search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}"
             )
-            # When search_range = (1.0, 1.0), skip the histogram search and use
-            # amax = absmax directly. This is the naive-INT8 quantization point
-            # (same as native_convert_int8.py). The HSWQ benefit for INT8 comes
-            # from the FP16 keep path, not from clipping amax.
-            if layer_search_low >= 1.0:
-                optimal_amax = module.weight.data.abs().max().item()
-                optimal_amax = max(optimal_amax, 1e-6)
-            else:
-                optimal_amax = hswq_optimizer.compute_optimal_amax(
-                    module.weight.data,
-                    importance,
-                    use_svd_leverage=False,  # V3.0 SDXL INT8: SVD leverage harms uniform distribution (same as V2.1)
-                    scaled=False,
-                    search_range=layer_search_range,
-                )
+            optimal_amax = hswq_optimizer.compute_optimal_amax(
+                module.weight.data,
+                importance,
+                use_svd_leverage=False,  # V3.0 SDXL INT8: same as V2.1 SDXL
+                scaled=False,
+                search_range=layer_search_range,
+            )
             weight_amax_dict[name + ".weight"] = optimal_amax
             torch.cuda.empty_cache()
 
@@ -1631,11 +1845,11 @@ def main():
                             if delta is not None:
                                 bias_corr_pending[comfy_module] = (-delta).detach().float().cpu()
             elif weight_key in weight_amax_dict:
-                # Commit 7599974 path — pack absmax at CONVERT time; do not rewrite.
-                # INT8 pack: asymmetric (Card 2) or classic absmax symmetric.
-                # Format stays int8_tensorwise (q * weight_scale at load time).
+                # V4 optimal_amax MUST flow into pack — never recompute absmax here.
+                # search_low from analyze; V4 weighted histogram MSE owns amax.
+                v4_amax = float(weight_amax_dict[weight_key])
                 int8_quantized, scale, mid = pack_int8_tensorwise(
-                    value, asymmetric=args.asymmetric_int8
+                    value, asymmetric=args.asymmetric_int8, amax=v4_amax
                 )
                 new_value = int8_quantized
                 comfy_module = key[:-7] if key.endswith(".weight") else key
