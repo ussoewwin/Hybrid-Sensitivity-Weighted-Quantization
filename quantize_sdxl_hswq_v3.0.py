@@ -18,11 +18,11 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
   E[(W_q - W) x] ≈ (W_q - W) @ mean(x) into the layer bias. Uses DualMonitor
   signed per-channel activation means from calibration. No format change,
   no extra FP16 keep, no loader change.
-- Bias correction scope (Approach A): do NOT correct every INT8 layer. Only
-  the top fraction of INT8 layers by DualMonitor output-variance sensitivity
-  receive the bias delta. Low-sensitivity layers keep raw INT8 bias so MSE
-  is not inflated by noisy corrections while SSIM gains on structural layers
-  are preserved. Controlled by --bias_correction_top_ratio (default 0.5).
+- Bias correction scope: default is ALL INT8 layers (same as commit d1290df,
+  measured SSIM 0.9753). Optional Approach A (--bias_correction_top_ratio < 1)
+  limits BC to the top fraction by DualMonitor sensitivity; top_ratio=0.5 was
+  measured to raise MSE quality but DROP SSIM (0.9753 -> 0.9678) — do not use
+  as default. Anchor: d1290df0d2b8624ee8fc317c0a44ebec9e10400f.
 - Optional asymmetric INT8 pack (--asymmetric_int8, default off): map
   [w_min, w_max] via mid; loader still int8_tensorwise; mid absorbed by BC.
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
@@ -1128,10 +1128,11 @@ def main():
     parser.add_argument(
         "--bias_correction_top_ratio",
         type=float,
-        default=0.5,
-        help="Approach A: fraction of INT8 layers (by DualMonitor sensitivity, "
-             "highest first) that receive bias correction. Default 0.5. "
-             "Use 1.0 to correct all INT8 layers (legacy Card-1 behavior).",
+        default=1.0,
+        help="Fraction of INT8 layers (by DualMonitor sensitivity, highest first) "
+             "that receive bias correction. Default 1.0 = all INT8 layers "
+             "(SSIM 0.9753 at d1290df). Values < 1 enable Approach A; 0.5 was "
+             "measured to hurt SSIM (0.9678) — not recommended for quality.",
     )
     parser.add_argument(
         "--asymmetric_int8",
