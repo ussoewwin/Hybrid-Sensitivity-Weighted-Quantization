@@ -644,18 +644,88 @@ def int8_fp16_budget_analyze_severity(
     return float(severity)
 
 
+def derive_priority_combinator(
+    sens_iqr: float,
+    sev_iqr: float,
+    mse_iqr: float,
+    sens_p50: float,
+    sev_p50: float,
+    mse_p50: float,
+) -> Dict[str, Any]:
+    """Derive priority axis weights + refs from THIS checkpoint's 3-axis
+    distribution (DualMonitor sens / analyze severity / V4 MSE).
+
+    Continuous weighted geometric mean — NO fixed product, NO fixed
+    V4*(1+sev), NO discrete form switch. Flat axes fade to weight 0.
+    """
+    eps = 1e-12
+    s_i = max(float(sens_iqr), 0.0)
+    v_i = max(float(sev_iqr), 0.0)
+    m_i = max(float(mse_iqr), 0.0)
+
+    w_s = s_i / max(sens_p50, eps) if sens_p50 > 0 else 0.0
+    w_v = v_i / max(sev_p50, eps) if sev_p50 > 0 else 0.0
+    w_m = m_i / max(mse_p50, eps) if mse_p50 > 0 else 0.0
+    w_sum = w_s + w_v + w_m
+    if w_sum < eps:
+        return {
+            "form": "uniform",
+            "w_sens": 0.0, "w_sev": 0.0, "w_mse": 0.0,
+            "sens_ref": max(float(sens_p50), eps),
+            "sev_ref": max(float(sev_p50), eps),
+            "mse_ref": max(float(mse_p50), eps),
+        }
+    w_s /= w_sum
+    w_v /= w_sum
+    w_m /= w_sum
+    return {
+        "form": "weighted_geometric",
+        "w_sens": float(w_s),
+        "w_sev": float(w_v),
+        "w_mse": float(w_m),
+        "sens_ref": max(float(sens_p50), eps),
+        "sev_ref": max(float(sev_p50), eps),
+        "mse_ref": max(float(mse_p50), eps),
+    }
+
+
 def int8_fp16_budget_priority(
+    dualmonitor_sensitivity: float,
     v4_estimated_mse: float,
     analyze_severity: float,
+    *,
+    combinator: Dict[str, Any],
 ) -> float:
-    """INT8-only combined priority: V4 MSE primary x analyze severity.
+    """Per-checkpoint FP16 priority via THIS model's autonomous combinator.
 
-    priority = estimated_mse * (1 + severity)
-    Automatic analysis ranking for FP16 budget. FP8 must not use this.
+    combinator MUST be derive_priority_combinator(...) from measured
+    sens/sev/mse distributions. Fixed formulas are forbidden.
     """
-    mse = max(float(v4_estimated_mse), 0.0)
+    if combinator is None:
+        raise ValueError(
+            "int8_fp16_budget_priority requires per-checkpoint combinator "
+            "(derive_priority_combinator); fixed formulas are forbidden"
+        )
+    sens = max(float(dualmonitor_sensitivity), 0.0)
     sev = max(float(analyze_severity), 0.0)
-    return mse * (1.0 + sev)
+    mse = max(float(v4_estimated_mse), 0.0)
+
+    w_s = float(combinator.get("w_sens", 0.0))
+    w_v = float(combinator.get("w_sev", 0.0))
+    w_m = float(combinator.get("w_mse", 0.0))
+    sref = max(float(combinator.get("sens_ref", 1.0)), 1e-30)
+    vref = max(float(combinator.get("sev_ref", 1.0)), 1e-30)
+    mref = max(float(combinator.get("mse_ref", 1.0)), 1e-30)
+
+    if str(combinator.get("form", "")) == "uniform":
+        return 1.0
+
+    return math.exp(
+        w_s * math.log1p(sens / sref)
+        + w_v * math.log1p(sev / vref)
+        + w_m * math.log1p(mse / mref)
+    )
+
 
 
 def build_int8_analyze_character_table(
@@ -933,6 +1003,21 @@ def derive_int8_autonomous_tunables(
     # (0.5 is a physical cap: beyond that, interface mismatch dominates)
     auto_kr = (hv_count + sens_tail) / max(n_layers, 1)
     base["auto_keep_ratio"] = float(min(max(auto_kr, 0.0), 0.5))
+
+
+    # Autonomous priority combinator seed (analyze severity axis only here;
+    # quantize re-derives from measured sens/sev/mse after calibration).
+    sev_proxy_values = []
+    for k, o, m in zip(all_k, all_o, all_m):
+        sev_proxy_values.append(max(o / eo, 0.0) + max(k / ek, 0.0) + max(m / hm, 0.0))
+    sev_p50 = _safe_percentile(sev_proxy_values, 50.0)
+    sev_iqr = _robust_iqr(sev_proxy_values)
+    base["priority_combinator"] = derive_priority_combinator(
+        sens_iqr=0.0, sev_iqr=sev_iqr, mse_iqr=0.0,
+        sens_p50=0.0, sev_p50=sev_p50, mse_p50=0.0,
+    )
+    base["_sev_p50"] = float(sev_p50)
+    base["_sev_iqr"] = float(sev_iqr)
 
     base["n_unet_layers"] = n_layers
     base["autonomous"] = True
