@@ -16,7 +16,10 @@ import sys
 
 # ComfyUI-native checkpoint loader so HSWQ weight_scale / comfy_quant sidecars
 # are interpreted by comfy/quant_ops.py (QUANT_ALGOS float8_e4m3fn / int8_tensorwise).
-COMFY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ComfyUI-master"))
+COMFY_PATH = os.environ.get(
+    "COMFYUI_PATH",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ComfyUI-master")),
+)
 if COMFY_PATH not in sys.path:
     sys.path.insert(0, COMFY_PATH)
 
@@ -29,7 +32,7 @@ try:
     import comfy.model_management
 except ImportError as e:
     print(f"Error: Could not import ComfyUI modules from {COMFY_PATH}: {e}")
-    print("Ensure ComfyUI-master is present at the repo root.")
+    print("Ensure ComfyUI-master is present at the repo root, or set COMFYUI_PATH.")
     sys.exit(1)
 
 # Enforce deterministic behavior for reproducibility
