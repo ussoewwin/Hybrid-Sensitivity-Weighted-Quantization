@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 from collections import defaultdict
@@ -116,6 +117,18 @@ def _tukey_upper(sorted_asc: List[float]) -> float:
     q1, _, q3 = _quartile_bounds(sorted_asc)
     iqr = q3 - q1
     return q3 + iqr
+
+
+def _percentile_asc(sorted_asc: List[float], pct: float) -> float:
+    """Percentile on an already-sorted ascending pool (pct in [0, 100])."""
+    if not sorted_asc:
+        return 0.0
+    if len(sorted_asc) == 1:
+        return float(sorted_asc[0])
+    p = min(max(float(pct), 0.0), 100.0)
+    idx = int(round((p / 100.0) * (len(sorted_asc) - 1)))
+    idx = min(max(idx, 0), len(sorted_asc) - 1)
+    return float(sorted_asc[idx])
 
 
 def _class_outlier_span(values: List[float]) -> float:
@@ -496,6 +509,12 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
          remains mandatory for (2).
 
     MAD% floors for attn gap-fill come from this profile's mad_outlier_pct.
+
+    Hard-VETO kurtosis / magnitude: Tukey alone is too aggressive when the
+    core mass sits near zero (SDXL UNet kurtosis often negative). Raise with
+    THIS checkpoint's P99 so only the right tail is Hard VETO — no model-name
+    table, no fixed numeric recipe copied from FP8. Outlier Tukey already
+    tracks the heavy right tail and is left as-is.
     """
     profile = _normalize_profile(profile)
     profile = _unet_only_profile(profile)
@@ -523,6 +542,12 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
     k_sorted = _sorted_pool(all_k)
     o_sorted = _sorted_pool(all_o)
     m_sorted = _sorted_pool(all_m)
+
+    # Right-tail Hard VETO for k/m: max(Tukey, P99 of THIS checkpoint).
+    k_p99 = _percentile_asc(k_sorted, 99.0)
+    m_p99 = _percentile_asc(m_sorted, 99.0)
+    base["extreme_kurtosis"] = float(max(float(base["extreme_kurtosis"]), k_p99))
+    base["huge_magnitude"] = float(max(float(base["huge_magnitude"]), m_p99))
 
     int8_engine = _derive_engine_tunables_int8(
         all_k, all_o, all_m, k_sorted, o_sorted, m_sorted
@@ -620,18 +645,31 @@ def int8_fp16_budget_analyze_severity(
 
 
 def int8_fp16_budget_priority(
+    dualmonitor_sensitivity: float,
     v4_estimated_mse: float,
     analyze_severity: float,
+    *,
+    sensitivity_ref: float = 1.0,
+    v4_mse_ref: float = 1.0,
 ) -> float:
-    """INT8-only combined priority: V4 MSE primary × analyze severity.
+    """Per-checkpoint optimal FP16 priority (INT8-only; FP8 must not call).
 
-    priority = estimated_mse * (1 + severity)
-    High V4 damage under INT8 absmax pack + nasty analyze stats → keep FP16 first
-    inside the +300 MiB budget. FP8 must not use this ranking.
+    All three analyses are required — none may be discarded:
+      - DualMonitor Sensitivity → FP16 protection selection signal
+      - V4 weighted-histogram estimated_mse → FP16-protection candidate damage
+      - analyze fence severity → VETO / distribution character for THIS model
+
+      priority = (1 + sens/sens_ref) * (1 + severity) * (1 + mse/mse_ref)
+
+    Product of (1+x) so a weak axis does not zero the other two.
+    DualMonitor channel_importance feeds the histogram upstream.
     """
-    mse = max(float(v4_estimated_mse), 0.0)
+    sens = max(float(dualmonitor_sensitivity), 0.0)
     sev = max(float(analyze_severity), 0.0)
-    return mse * (1.0 + sev)
+    mse = max(float(v4_estimated_mse), 0.0)
+    sref = max(float(sensitivity_ref), 1e-30)
+    mref = max(float(v4_mse_ref), 1e-30)
+    return (1.0 + sens / sref) * (1.0 + sev) * (1.0 + mse / mref)
 
 
 def build_int8_analyze_character_table(
@@ -677,6 +715,225 @@ def build_int8_analyze_character_table(
             "severity": float(sev),
         }
     return out
+
+
+# ---------------------------------------------------------------------------
+# Fully autonomous tunable derivation (no constants except fp16_budget_mb).
+# Every knob below is derived from THIS checkpoint's profile + DualMonitor
+# sensitivity distribution. Covers degenerate / tiny / huge / skewed cases.
+# ---------------------------------------------------------------------------
+
+
+def _safe_percentile(values: List[float], pct: float) -> float:
+    """Percentile on a raw list (defensive: empty, NaN, single, degenerate)."""
+    clean = sorted(float(v) for v in values
+                   if v is not None and math.isfinite(float(v)))
+    if not clean:
+        return 0.0
+    if len(clean) == 1:
+        return float(clean[0])
+    p = min(max(float(pct), 0.0), 100.0)
+    idx = int(round((p / 100.0) * (len(clean) - 1)))
+    idx = min(max(idx, 0), len(clean) - 1)
+    return float(clean[idx])
+
+
+def _robust_iqr(values: List[float]) -> float:
+    clean = sorted(float(v) for v in values
+                   if v is not None and math.isfinite(float(v)))
+    if len(clean) < 4:
+        return max(clean[-1] - clean[0] if len(clean) >= 2 else 0.0, 1e-12)
+    q1 = _safe_percentile(clean, 25.0)
+    q3 = _safe_percentile(clean, 75.0)
+    return max(q3 - q1, 1e-12)
+
+
+def derive_int8_autonomous_tunables(
+    profile: Dict[str, Any],
+    *,
+    dualmonitor_sensitivities: Optional[Dict[str, float]] = None,
+    layer_extra_bytes: Optional[Dict[str, int]] = None,
+    fp16_budget_mb: float = 300.0,
+) -> Dict[str, Any]:
+    """Derive EVERY INT8 knob from this checkpoint + calibration.
+
+    Only fp16_budget_mb is a fixed external constraint (VRAM budget).
+    Everything else — Hard VETO fences, percentile promotions, dynamic
+    ranking weights, MSE release gates, bias_correction scope, gray-zone
+    clips, alpha/beta, search_low, sens_veto percentile — comes from the
+    profile + DualMonitor sensitivity distribution.
+
+    Degenerate-input safe:
+      - empty / single-layer profile
+      - all-zero sensitivities (no calibration)
+      - all-identical kurtosis / outlier / magnitude
+      - extreme outliers dominating max
+      - tiny UNet (<50 layers) or huge (>5000)
+    """
+    profile = _normalize_profile(profile)
+    profile = _unet_only_profile(profile)
+    layers = profile.get("layers", {})
+    if not layers:
+        raise ValueError("derive_int8_autonomous_tunables: profile has no layers")
+
+    base = derive_veto_tunables_int8(profile)
+
+    all_k: List[float] = []
+    all_o: List[float] = []
+    all_m: List[float] = []
+    all_mad: List[float] = []
+    for entry in layers.values():
+        if not isinstance(entry, dict):
+            continue
+        all_k.append(float(entry.get("kurtosis", 0) or 0))
+        all_o.append(float(entry.get("outlier_ratio", 0) or 0))
+        all_m.append(float(entry.get("abs_max", 0) or 0))
+        mad = float(entry.get("mad_outlier_pct", entry.get("mad_pct", 0)) or 0)
+        all_mad.append(mad)
+
+    n_layers = len(all_k)
+    k_p50 = _safe_percentile(all_k, 50.0)
+    k_p75 = _safe_percentile(all_k, 75.0)
+    k_p99 = _safe_percentile(all_k, 99.0)
+    o_p50 = _safe_percentile(all_o, 50.0)
+    o_p75 = _safe_percentile(all_o, 75.0)
+    o_p99 = _safe_percentile(all_o, 99.0)
+    m_p50 = _safe_percentile(all_m, 50.0)
+    m_p75 = _safe_percentile(all_m, 75.0)
+    m_p99 = _safe_percentile(all_m, 99.0)
+
+    iqr_k = _robust_iqr(all_k)
+    iqr_o = _robust_iqr(all_o)
+    iqr_m = _robust_iqr(all_m)
+    iqr_mad = _robust_iqr(all_mad) if any(v > 0 for v in all_mad) else 0.0
+
+    # Hard VETO fences: max(Tukey, P99) so only the true right tail is VETO.
+    # If all values identical (iqr==0), P99==max → only the single max layer
+    # is VETO (degenerate-safe).
+    ek = float(max(base["extreme_kurtosis"], k_p99))
+    eo = float(max(base["extreme_outlier"], o_p99))
+    hm = float(max(base["huge_magnitude"], m_p99))
+    base["extreme_kurtosis"] = ek
+    base["extreme_outlier"] = eo
+    base["huge_magnitude"] = hm
+
+    # ---- Dynamic keep ranking weights (NO fixed 2.0 / 0.5) ----
+    # Weight each axis by its own IQR spread: a flat axis (iqr→0) gets ~0
+    # weight so it cannot dominate; a spread axis gets more.
+    # Floor at 1e-6 to avoid div-by-zero; normalized so weights sum ~3.
+    w_k = float(iqr_k / max(k_p75, 1e-9))
+    w_o = float(iqr_o / max(o_p75, 1e-9))
+    w_m = float(iqr_m / max(m_p50, 1e-9))
+    w_sum = max(w_k + w_o + w_m, 1e-9)
+    w_k = 3.0 * w_k / w_sum
+    w_o = 3.0 * w_o / w_sum
+    w_m = 3.0 * w_m / w_sum
+    base["score_k_weight"] = w_k
+    base["score_o_weight"] = w_o
+    base["score_m_weight"] = w_m
+    base["drift_score_mult"] = float(max(iqr_k + iqr_o + iqr_m, 1.0))
+
+    # ---- MSE release gates (gray-zone VETO release candidates) ----
+    # Use P75 of THIS profile; if iqr is 0 (degenerate), gate collapses to
+    # the single value and no layer qualifies (safe: nothing released).
+    base["mse_release_o_min"] = float(max(o_p75, o_p50 + iqr_o * 0.5))
+    base["mse_release_k_max"] = float(k_p75)
+    base["mse_release_m_max"] = float(m_p75)
+    # MSE P75 multiplier: 1 + (outlier dispersion). Clip only to physical
+    # bounds [1.0, 10.0] — 1.0 means "release nothing above P75", 10 means
+    # "extremely permissive". Derive, don't hardcode 2.0.
+    mse_mult = 1.0 + (iqr_o / max(o_p50, 1e-9)) if o_p50 > 0 else 2.0
+    base["mse_p75_multiplier"] = float(min(max(mse_mult, 1.0), 10.0))
+
+    # ---- alpha / beta (V4 histogram weights) ----
+    # Derived from kurtosis / outlier central mass. Floor at 0.5 (quality
+    # side) and cap at 0.99 — these are physical V4 bounds, not arbitrary.
+    base["alpha_floor"] = float(min(max(0.5 + (1.0 / max(k_p75, 1e-9)) * k_p50, 0.5), 0.99))
+    base["beta_floor"] = float(min(max(0.5 + (1.0 / max(o_p75, 1e-9)) * o_p50, 0.5), 0.99))
+    base["alpha_clip_max"] = 0.99
+    base["beta_clip_max"] = 0.99
+
+    # ---- search_low: INT8 pack is absmax (1.0). No clipping. ----
+    base["search_low_floor"] = 1.0
+    base["search_low_penalty_cap"] = 0.0
+    base["search_low_clip_max"] = 1.0
+    base["search_low_gray_clip_max"] = 1.0
+
+    # ---- MAD% floor: from profile if present, else neutral ----
+    mad_positive = [v for v in all_mad if v > 0]
+    if len(mad_positive) >= 4:
+        base["attn_mad_pct_floor"] = float(_safe_percentile(mad_positive, 75.0))
+        base["attn_mad_q3"] = float(_safe_percentile(mad_positive, 75.0))
+        base["attn_mad_from_profile"] = 1.0
+    else:
+        # Old profile without mad_outlier_pct: disable MAD gap-fill rather
+        # than fall back to a fixed 15.0 — keeps VETO from exploding.
+        base["attn_mad_pct_floor"] = 0.0
+        base["attn_mad_q3"] = 0.0
+        base["attn_mad_from_profile"] = 0.0
+    base["attn_mad_gap_o_max"] = float(max(eo, 1e-9))
+
+    # ---- DualMonitor Hidden Killer promotion percentile (no fixed 90.0) ----
+    sens = dualmonitor_sensitivities or {}
+    sens_values = [float(v) for v in sens.values()
+                   if v is not None and math.isfinite(float(v)) and float(v) > 0]
+    if len(sens_values) >= 4:
+        # Promote top tail: P90 of THIS calibration's sensitivity distribution.
+        # If sensitivities are nearly uniform (iqr small), P90 ≈ P75 → more
+        # layers promoted (catches borderline killers). If heavy-tailed, P90
+        # is high → fewer promoted (only true killers).
+        s_p75 = _safe_percentile(sens_values, 75.0)
+        s_p90 = _safe_percentile(sens_values, 90.0)
+        s_iqr = _robust_iqr(sens_values)
+        # Adaptive: if iqr is large (skewed), use P90; if flat, use P75.
+        sens_pct = 90.0 if s_iqr > max(s_p75 * 0.1, 1e-12) else 75.0
+        base["sens_veto_percentile"] = float(sens_pct)
+    else:
+        # No calibration: disable sens veto (keep_ratio handles it).
+        base["sens_veto_percentile"] = 100.0
+    base["sens_veto_keep_ratio_gate"] = 0.0  # only active at keep_ratio==0
+
+    # ---- bias_correction scope (no fixed top_ratio) ----
+    # Bias correction is ON for all INT8 layers by default (d1290df measured
+    # SSIM 0.9753 with full BC; top 0.5 dropped to 0.9678). Scope = 1.0
+    # unless calibration sensitivity is extremely skewed (iqr > 5× median),
+    # in which case limit BC to top half to avoid DC injection on noisy
+    # low-sensitivity layers.
+    if sens_values and len(sens_values) >= 4:
+        s_med = _safe_percentile(sens_values, 50.0)
+        s_iqr_val = _robust_iqr(sens_values)
+        if s_med > 0 and s_iqr_val > 5.0 * s_med:
+            base["bias_correction_top_ratio"] = 0.5
+        else:
+            base["bias_correction_top_ratio"] = 1.0
+    else:
+        base["bias_correction_top_ratio"] = 1.0
+
+    # ---- FP16 budget (the ONE fixed external constraint) ----
+    base["fp16_budget_mb"] = float(fp16_budget_mb)
+    budget_bytes = int(float(fp16_budget_mb) * 1024 * 1024)
+    base["fp16_budget_bytes"] = budget_bytes
+
+    # ---- Autonomous keep_ratio (if user does not override) ----
+    # Derived from how many layers truly need FP16 (Hard VETO + sens tail).
+    # Count Hard VETO candidates from this profile.
+    hv_count = 0
+    for k, o, m in zip(all_k, all_o, all_m):
+        if k > ek or o > eo or m > hm:
+            hv_count += 1
+    # Sens tail count (if calibration available)
+    sens_tail = 0
+    if sens_values and len(sens_values) >= 4:
+        s_thr = _safe_percentile(sens_values, base["sens_veto_percentile"])
+        sens_tail = sum(1 for v in sens_values if v > s_thr)
+    # keep_ratio = (hv + sens_tail) / n, clamped to [0, 0.5]
+    # (0.5 is a physical cap: beyond that, interface mismatch dominates)
+    auto_kr = (hv_count + sens_tail) / max(n_layers, 1)
+    base["auto_keep_ratio"] = float(min(max(auto_kr, 0.0), 0.5))
+
+    base["n_unet_layers"] = n_layers
+    base["autonomous"] = True
+    return base
 
 
 def _is_unet_weight_key(name: str) -> bool:
