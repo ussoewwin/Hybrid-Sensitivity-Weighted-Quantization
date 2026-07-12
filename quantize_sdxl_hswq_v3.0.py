@@ -12,6 +12,12 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - derive_veto_tunables_int8: VETO thresholds re-derived for INT8's wider
   dynamic range (no 448 cap) but coarser near-zero resolution. Outlier/magnitude
   thresholds scaled by 127/448; gray-zone layers get stricter protection.
+- INT8 amax search is forced to absmax (no clipping): uniform INT8 grids lose
+  SSIM when amax is clipped below absmax; HSWQ gain is FP16 keep / VETO only.
+- Bias correction (Card 1): after INT8 pack, cancel systematic output bias
+  E[(W_q - W) x] ≈ (W_q - W) @ mean(x) into the layer bias. Uses DualMonitor
+  signed per-channel activation means from calibration. No format change,
+  no extra FP16 keep, no loader change.
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
 - _quantization_metadata embedded in safetensors metadata for ComfyUI loader.
@@ -830,6 +836,9 @@ class DualMonitor:
         self.output_sq_sum = 0.0
         self.count = 0
         self.channel_importance = None
+        # Signed per-channel input mean for INT8 bias correction:
+        #   bias_delta ≈ (W_q - W) @ E[x]
+        self.channel_act_mean = None
 
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
@@ -841,20 +850,28 @@ class DualMonitor:
             if math.isfinite(mean_val) and math.isfinite(sq_mean_val):
                 self.output_sum += mean_val
                 self.output_sq_sum += sq_mean_val
-            inp_detached = input_tensor.detach()
+            inp_detached = input_tensor.detach().float()
             if inp_detached.dim() == 4:
                 current_imp = inp_detached.abs().mean(dim=(0, 2, 3))
+                current_act = inp_detached.mean(dim=(0, 2, 3))
             elif inp_detached.dim() == 3:
                 current_imp = inp_detached.abs().mean(dim=(0, 1))
+                current_act = inp_detached.mean(dim=(0, 1))
             elif inp_detached.dim() == 2:
                 current_imp = inp_detached.abs().mean(dim=0)
+                current_act = inp_detached.mean(dim=0)
             else:
-                current_imp = torch.ones(1, device=inp_detached.device, dtype=inp_detached.dtype)
+                current_imp = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
+                current_act = torch.zeros(1, device=inp_detached.device, dtype=torch.float32)
             if self.channel_importance is None:
                 self.channel_importance = current_imp
+                self.channel_act_mean = current_act
             else:
                 self.channel_importance = (
                     self.channel_importance * self.count + current_imp
+                ) / (self.count + 1)
+                self.channel_act_mean = (
+                    self.channel_act_mean * self.count + current_act
                 ) / (self.count + 1)
             self.count += 1
 
@@ -865,6 +882,32 @@ class DualMonitor:
         variance = (self.output_sq_sum / self.count) - mean ** 2
         import math
         return variance if math.isfinite(variance) else 0.0
+
+
+def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
+    """Bias correction delta for one INT8 layer.
+
+    Cancels systematic output shift E[(W_q - W) x] ≈ (W_q - W) contracted with
+    per-input-channel mean activation from calibration.
+
+    Linear  weight (O, I):     delta[o] = sum_i err[o,i] * mu[i]
+    Conv2d  weight (O, I, K, K): delta[o] = sum_{i,k,h} err[o,i,kh,kw] * mu[i]
+    """
+    if act_mean is None:
+        return None
+    err = (weight_dq.float() - weight_fp.float())
+    mu = act_mean.float().to(device=err.device)
+    if err.ndim == 2:
+        # Linear: (O, I) @ (I,) -> (O,)
+        if mu.numel() != err.shape[1]:
+            return None
+        return err @ mu
+    if err.ndim == 4:
+        # Conv2d: sum over in/spatial with per-in-channel mu
+        if mu.numel() != err.shape[1]:
+            return None
+        return (err * mu.view(1, -1, 1, 1)).sum(dim=(1, 2, 3))
+    return None
 
 
 dual_monitors = {}
@@ -1041,6 +1084,13 @@ def main():
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05-0.25; 0.05-0.10 often sufficient for SDXL)")
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
+    parser.add_argument(
+        "--bias_correction",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply activation-mean bias correction to INT8 layers (default: on). "
+             "Cancels E[(W_q-W)x] into bias; no extra FP16 keep, format unchanged.",
+    )
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1309,6 +1359,17 @@ def main():
             weight_amax_dict[name + ".weight"] = optimal_amax
             torch.cuda.empty_cache()
 
+    # Snapshot signed activation means before tearing down DualMonitor / model.
+    # Diffusers module names match keep_layers / weight_amax_dict keys.
+    act_mean_dict = {}
+    if args.bias_correction:
+        for name, mon in dual_monitors.items():
+            if mon.channel_act_mean is not None:
+                act_mean_dict[name] = mon.channel_act_mean.detach().float().cpu()
+        print(f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers.")
+    else:
+        print("  [Bias Correction] Disabled (--no-bias_correction).")
+
     print(f"Saving quantized model (INT8): {args.output}")
 
     print("\n[VRAM Optimization] Preparing for high-speed GPU conversion...")
@@ -1327,6 +1388,10 @@ def main():
     quant_meta_layers = {}  # layer_name -> format string for _quantization_metadata
     converted_count = 0
     kept_count = 0
+    bias_corr_pending = {}  # comfy module prefix -> float32 bias delta (O,)
+    bias_corr_applied = 0
+    bias_corr_skipped_no_bias = 0
+    bias_corr_skipped_no_act = 0
 
     def _emit_int8_quant_meta(out_dict, comfy_module_key):
         """Emit ComfyUI int8_tensorwise metadata.
@@ -1369,6 +1434,17 @@ def main():
                 _emit_int8_quant_meta(output_state_dict, comfy_module)
                 quant_meta_layers[comfy_module] = "int8_tensorwise"
                 converted_count += 1
+
+                if args.bias_correction:
+                    act_mean = act_mean_dict.get(module_name)
+                    if act_mean is None:
+                        bias_corr_skipped_no_act += 1
+                    else:
+                        weight_dq = int8_quantized.float() * scale
+                        delta = compute_int8_bias_delta(value, weight_dq, act_mean)
+                        if delta is not None:
+                            # Negate: add -E[(W_q-W)x] to bias so output mean matches FP.
+                            bias_corr_pending[comfy_module] = (-delta).detach().float().cpu()
             else:
                 new_value = value
         else:
@@ -1376,9 +1452,27 @@ def main():
 
         output_state_dict[key] = new_value
 
+    if args.bias_correction and bias_corr_pending:
+        print(f"\n[Bias Correction] Applying deltas to {len(bias_corr_pending)} INT8 layers...")
+        for comfy_module, delta in bias_corr_pending.items():
+            bias_key = f"{comfy_module}.bias"
+            if bias_key not in output_state_dict:
+                bias_corr_skipped_no_bias += 1
+                continue
+            bias = output_state_dict[bias_key]
+            corrected = bias.float() + delta.to(device=bias.device, dtype=torch.float32)
+            output_state_dict[bias_key] = corrected.to(dtype=bias.dtype)
+            bias_corr_applied += 1
+        print(
+            f"  [Bias Correction] applied={bias_corr_applied}, "
+            f"no_bias={bias_corr_skipped_no_bias}, no_act={bias_corr_skipped_no_act}"
+        )
+
     print("Conversion done:")
     print(f"  INT8 layers: {converted_count}")
     print(f"  FP16-kept layers: {kept_count}")
+    if args.bias_correction:
+        print(f"  Bias-corrected layers: {bias_corr_applied}")
 
     # Build _quantization_metadata for ComfyUI loader (QUANTIZATION.md format)
     quantization_metadata = {
