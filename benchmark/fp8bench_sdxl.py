@@ -26,13 +26,59 @@ if COMFY_PATH not in sys.path:
 import logging
 logging.getLogger("comfy").setLevel(logging.WARNING)
 
+import types as _types
+
+# Stub comfy_aimdo if missing (cloud envs without aimdo)
+try:
+    import comfy_aimdo
+except ImportError:
+    _aimdo = _types.ModuleType("comfy_aimdo")
+    _aimdo.torch = _types.SimpleNamespace(aimdo_to_tensor=lambda *a, **kw: None)
+    _mv = _types.ModuleType("comfy_aimdo.model_vbar")
+    _mv.vbar_fault = lambda *a, **kw: None
+    _mv.vbar_signature_compare = lambda *a, **kw: False
+    _mv.vbar_unpin = lambda *a, **kw: None
+    _aimdo.model_vbar = _mv
+    sys.modules["comfy_aimdo"] = _aimdo
+    sys.modules["comfy_aimdo.model_vbar"] = _mv
+    sys.modules["comfy_aimdo.torch"] = _aimdo.torch
+
 try:
     import nodes
     import folder_paths
     import comfy.model_management
+    import comfy.ops
+    import comfy.utils
+
+    # Monkey-patch: normalize comfy_quant conf that may be a bare str or
+    # double-encoded JSON (per Comfy-Org fix 1a510f0). Applied at bench level
+    # so ComfyUI-master stays unmodified.
+    _orig_load_quantized = comfy.ops._load_quantized_module
+
+    def _patched_load_quantized(module, super_load, state_dict, prefix, local_metadata, strict,
+                                missing_keys, unexpected_keys, error_msgs, load_extra_params=False):
+        _cq_key = f"{prefix}comfy_quant"
+        _raw = state_dict.get(_cq_key, None)
+        if _raw is not None and not isinstance(_raw, (dict,)):
+            import json as _json
+            try:
+                _decoded = _json.loads(_raw.numpy().tobytes())
+                if isinstance(_decoded, str):
+                    _decoded = _json.loads(_decoded)
+                if not isinstance(_decoded, dict):
+                    _decoded = {"format": str(_decoded)}
+                state_dict[_cq_key] = _decoded
+            except Exception:
+                pass
+        return _orig_load_quantized(module, super_load, state_dict, prefix, local_metadata, strict,
+                                   missing_keys, unexpected_keys, error_msgs, load_extra_params=load_extra_params)
+
+    comfy.ops._load_quantized_module = _patched_load_quantized
+
+    print(f"[BENCH] comfy.ops: {comfy.ops.__file__}")
+    print(f"[BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
 except ImportError as e:
-    print(f"Error: Could not import ComfyUI modules from {COMFY_PATH}: {e}")
-    print("Ensure ComfyUI-master is present at the repo root, or set COMFYUI_PATH.")
+    print(f"Error: Could not import ComfyUI from {COMFY_PATH}: {e}")
     sys.exit(1)
 
 # Enforce deterministic behavior for reproducibility
