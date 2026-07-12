@@ -44,7 +44,7 @@ def load_pipeline(path, device="cuda"):
         folder_paths.add_model_folder_path("checkpoints", directory)
 
         loader = nodes.CheckpointLoaderSimple()
-        model, clip, vae, _ = loader.load_checkpoint(ckpt_name=os.path.basename(path))
+        model, clip, vae = loader.load_checkpoint(ckpt_name=os.path.basename(path))
         return model, clip, vae
     except Exception as e:
         print(f"Error loading model: {e}")
