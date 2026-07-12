@@ -934,18 +934,16 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
         veto_tunables = resolve_veto_tunables(model_profile or {})
 
     def get_dynamic_search_low(name, weight_tensor):
-        profile_key = name + ".weight"
-        prof = model_profile.get(profile_key, model_profile.get(name, {})) if model_profile else {}
-        if prof:
-            o_ratio = float(prof.get("outlier_ratio", 0) or 0)
-        else:
-            _, o_ratio, _ = _layer_weight_stats(weight_tensor)
-        # V3.0 INT8: outlier threshold scaled by 127/448.
-        # INT8's uniform grid loses near-zero resolution, so outlier layers
-        # get a wider search (down to 0.92) to allow tighter clipping.
-        if o_ratio > 40.0 * _INT8_SCALE_FACTOR:
-            return 0.92
-        return 0.99
+        # V3.0 INT8 (revised): do NOT clip. INT8 is a uniform grid, so unlike
+        # FP8 (where clipping outliers reduces E4M3 quantization error), any
+        # amax < abs_max causes clamped outliers to be squashed into a narrower
+        # int8 range, *increasing* both bulk and outlier error and dropping
+        # SSIM below the naive (amax = absmax) baseline.
+        #
+        # HSWQ INT8 therefore keeps the naive amax = absmax quantization
+        # (search_range low = 1.0 = high) and uses ONLY the sensitivity-driven
+        # FP16 keep path to improve quality over native INT8.
+        return 1.0
 
     if model_profile:
         all_k = [p.get("kurtosis", 0) for p in model_profile.values() if isinstance(p, dict)]
@@ -1293,13 +1291,21 @@ def main():
                 f"  [HSWQ-INT8] {name:50} | Pure Data-Driven | "
                 f"search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}"
             )
-            optimal_amax = hswq_optimizer.compute_optimal_amax(
-                module.weight.data,
-                importance,
-                use_svd_leverage=False,  # V3.0 SDXL INT8: SVD leverage harms uniform distribution (same as V2.1)
-                scaled=False,
-                search_range=layer_search_range,
-            )
+            # When search_range = (1.0, 1.0), skip the histogram search and use
+            # amax = absmax directly. This is the naive-INT8 quantization point
+            # (same as native_convert_int8.py). The HSWQ benefit for INT8 comes
+            # from the FP16 keep path, not from clipping amax.
+            if layer_search_low >= 1.0:
+                optimal_amax = module.weight.data.abs().max().item()
+                optimal_amax = max(optimal_amax, 1e-6)
+            else:
+                optimal_amax = hswq_optimizer.compute_optimal_amax(
+                    module.weight.data,
+                    importance,
+                    use_svd_leverage=False,  # V3.0 SDXL INT8: SVD leverage harms uniform distribution (same as V2.1)
+                    scaled=False,
+                    search_range=layer_search_range,
+                )
             weight_amax_dict[name + ".weight"] = optimal_amax
             torch.cuda.empty_cache()
 
