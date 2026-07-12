@@ -204,6 +204,7 @@ _PSUTIL_STUBBED = _install_psutil_stub()
 # sys.argv so ComfyUI parses an empty arg list, then restore it.
 _saved_argv = list(sys.argv)
 sys.argv = [sys.argv[0]] if sys.argv else []
+_comfy_import_error = None
 try:
     import comfy.options
     # Force ComfyUI to NOT parse our argv (belt-and-suspenders).
@@ -213,8 +214,48 @@ try:
     import comfy.sample
     import comfy.sd
     import comfy.utils
+except Exception as _e:
+    _comfy_import_error = _e
+    # Fall back to direct import without the options pre-import (some checkouts
+    # ship comfy.model_management without a separate comfy.options module).
+    try:
+        import comfy.model_management
+        import comfy.ops
+        import comfy.sample
+        import comfy.sd
+        import comfy.utils
+    except Exception:
+        pass
 finally:
     sys.argv = _saved_argv
+
+if _comfy_import_error is not None and "comfy.ops" not in dir():
+    # Diagnose: print full comfy/ listing and git HEAD so we can see what's missing
+    print(f"Error: Could not import ComfyUI comfy package from {COMFY_PATH}: {type(_comfy_import_error).__name__}: {_comfy_import_error}")
+    comfy_dir = os.path.join(COMFY_PATH, "comfy")
+    if os.path.isdir(comfy_dir):
+        try:
+            listing = sorted(os.listdir(comfy_dir))
+            print(f"comfy/ listing ({len(listing)} entries): {listing}")
+            for key in ("__init__.py", "options.py", "cli_args.py", "model_management.py", "ops.py", "sd.py", "sample.py", "utils.py"):
+                p = os.path.join(comfy_dir, key)
+                print(f"  {key}: exists={os.path.isfile(p)} size={os.path.getsize(p) if os.path.isfile(p) else 0}")
+        except Exception as ex:
+            print(f"Failed to list comfy/: {ex}")
+    else:
+        print(f"comfy/ dir does not exist at: {comfy_dir}")
+        if os.path.isdir(COMFY_PATH):
+            print(f"COMFY_PATH listing: {os.listdir(COMFY_PATH)[:20]}")
+        else:
+            print(f"COMFY_PATH does not exist: {COMFY_PATH}")
+    try:
+        import subprocess as _sp
+        head = _sp.check_output(["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "log", "-1", "--oneline"], text=True, stderr=_sp.DEVNULL).strip()
+        print(f"Repo HEAD: {head}")
+    except Exception:
+        pass
+    print("Ensure ComfyUI-master/comfy is present, or set COMFYUI_PATH.")
+    sys.exit(1)
 
 
 try:
