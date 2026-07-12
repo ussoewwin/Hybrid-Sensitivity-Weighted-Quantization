@@ -818,7 +818,7 @@ def measure_v4_int8_mse_at_absmax(
             w = w.to(device)
             imp = imp.to(device)
         try:
-            result = optimizer.compute_optimal_amax_with_stats(
+            result = optimizer.compute_optimal_amax_with_stats_int8_range(
                 w,
                 importance=imp,
                 use_svd_leverage=True,
@@ -885,7 +885,7 @@ def measure_v4_int8_mse_at_absmax(
             w = w.to(device)
             imp = imp.to(device)
         try:
-            result = optimizer.compute_optimal_amax_with_stats(
+            result = optimizer.compute_optimal_amax_with_stats_int8_range(
                 w,
                 importance=imp,
                 use_svd_leverage=True,

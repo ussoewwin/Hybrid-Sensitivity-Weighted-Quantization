@@ -406,23 +406,8 @@ class HSWQWeightedHistogramOptimizerV4:
         
         return optimal_amax
     
-    def compute_optimal_amax_with_stats(
-        self,
-        weight: torch.Tensor,
-        importance: Optional[torch.Tensor] = None,
-        use_svd_leverage: bool = True,
-        scaled: bool = True,
-        search_range: Tuple[float, float] = (0.5, 1.0),
-    ) -> dict:
-        # search_range forwarded so callers (e.g. INT8 VETO at absmax) can
-        # measure estimated_mse at the same operating amax used for pack.
-        optimal_amax = self.compute_optimal_amax(
-            weight,
-            importance,
-            use_svd_leverage=use_svd_leverage,
-            scaled=scaled,
-            search_range=search_range,
-        )
+    def compute_optimal_amax_with_stats(self, weight: torch.Tensor, importance: Optional[torch.Tensor] = None, use_svd_leverage: bool = True, scaled: bool = True) -> dict:
+        optimal_amax = self.compute_optimal_amax(weight, importance, use_svd_leverage=use_svd_leverage, scaled=scaled)
         
         # SVD importance (for display/verification)
         combined_importance = None
@@ -439,6 +424,49 @@ class HSWQWeightedHistogramOptimizerV4:
         bin_centers = weighted_hist.get_bin_centers()
         estimated_mse = self.mse_optimizer.compute_weighted_mse(histogram, bin_centers, optimal_amax, scaled=scaled)
         
+        return {
+            'optimal_amax': optimal_amax,
+            'max_val': weighted_hist.max_val,
+            'compression_ratio': optimal_amax / weighted_hist.max_val if weighted_hist.max_val > 0 else 1.0,
+            'estimated_mse': estimated_mse
+        }
+
+    def compute_optimal_amax_with_stats_int8_range(
+        self,
+        weight: torch.Tensor,
+        importance: Optional[torch.Tensor] = None,
+        use_svd_leverage: bool = True,
+        scaled: bool = True,
+        search_range: Tuple[float, float] = (1.0, 1.0),
+    ) -> dict:
+        """INT8-only: estimated_mse at an explicit search_range (typically absmax).
+
+        FP8 scripts must keep calling compute_optimal_amax_with_stats / compute_optimal_amax.
+        Default search_range is (1.0, 1.0) = absmax pack operating point for INT8 VETO.
+        Requires MSEOptimizer.quantizer = INT8Quantizer (injected by INT8 callers).
+        """
+        optimal_amax = self.compute_optimal_amax(
+            weight,
+            importance,
+            use_svd_leverage=use_svd_leverage,
+            scaled=scaled,
+            search_range=search_range,
+        )
+
+        combined_importance = None
+        if use_svd_leverage and weight.ndim >= 2:
+            hybrid_importance = compute_hybrid_leverage_scores(weight, alpha=self.alpha, beta=self.beta)
+            combined_importance = hybrid_importance
+        else:
+            combined_importance = importance
+
+        weighted_hist = WeightedHistogram(bins=self.bins, device=self.device)
+        weighted_hist.build(weight, combined_importance)
+
+        histogram = weighted_hist.get_histogram()
+        bin_centers = weighted_hist.get_bin_centers()
+        estimated_mse = self.mse_optimizer.compute_weighted_mse(histogram, bin_centers, optimal_amax, scaled=scaled)
+
         return {
             'optimal_amax': optimal_amax,
             'max_val': weighted_hist.max_val,
