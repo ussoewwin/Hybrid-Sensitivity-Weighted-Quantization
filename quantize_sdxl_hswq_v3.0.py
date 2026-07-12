@@ -1175,6 +1175,9 @@ def _apply_fp16_budget_cap(
         build_int8_analyze_character_table,
         int8_fp16_budget_analyze_severity,
         int8_fp16_budget_priority,
+        derive_priority_combinator,
+        _safe_percentile,
+        _robust_iqr,
     )
 
     if str(veto_tunables.quant_format) != "int8_tensorwise":
@@ -1302,12 +1305,28 @@ def _apply_fp16_budget_cap(
 
         measured.append((name, dm_sens, v4_mse, severity, extra))
 
-    sens_ref = max((row[1] for row in measured), default=0.0)
-    if sens_ref <= 0.0:
-        sens_ref = 1.0
-    mse_ref = max((row[2] for row in measured), default=0.0)
-    if mse_ref <= 0.0:
-        mse_ref = 1.0
+    # ---- Autonomous priority combinator (no fixed product/sum rule) ----
+    # Derive the FORM (product / weighted_sum / uniform), axis weights, and
+    # reference values from the MEASURED three-axis distribution for THIS
+    # checkpoint (sens / sev / mse). No fixed rule.
+    sens_meas = [row[1] for row in measured if row[1] > 0]
+    sev_meas = [row[3] for row in measured]
+    mse_meas = [row[2] for row in measured if row[2] > 0]
+    combinator = derive_priority_combinator(s_iqr, v_iqr, m_iqr, s_p50, v_p50, m_p50)
+    s_p50 = _safe_percentile(sens_meas, 50.0) if len(sens_meas) >= 2 else 0.0
+    s_iqr = _robust_iqr(sens_meas) if len(sens_meas) >= 4 else 0.0
+    v_p50 = _safe_percentile(sev_meas, 50.0) if len(sev_meas) >= 2 else 0.0
+    v_iqr = _robust_iqr(sev_meas) if len(sev_meas) >= 4 else 0.0
+    m_p50 = _safe_percentile(mse_meas, 50.0) if len(mse_meas) >= 2 else 0.0
+    m_iqr = _robust_iqr(mse_meas) if len(mse_meas) >= 4 else 0.0
+    combinator = derive_priority_combinator(s_iqr, v_iqr, m_iqr, s_p50, v_p50, m_p50)
+    print(
+        f"  [Autonomous priority] form={combinator['form']} "
+        f"w(sens/sev/mse)={combinator['w_sens']:.3f}/"
+        f"{combinator['w_sev']:.3f}/{combinator['w_mse']:.3f} "
+        f"refs=({combinator['sens_ref']:.4g}/"
+        f"{combinator['sev_ref']:.4g}/{combinator['mse_ref']:.4g})"
+    )
 
     candidates: list[tuple[float, float, float, float, int, str]] = []
     # (priority, v4_mse, severity, dm_sensitivity, extra_bytes, name)
@@ -1316,8 +1335,10 @@ def _apply_fp16_budget_cap(
             dm_sens,
             v4_mse,
             severity,
-            sensitivity_ref=sens_ref,
-            v4_mse_ref=mse_ref,
+            sensitivity_ref=combinator["sens_ref"],
+            v4_mse_ref=combinator["mse_ref"],
+            combinator=combinator,
+            severity_ref=combinator["sev_ref"],
         )
         candidates.append((priority, v4_mse, severity, dm_sens, extra, name))
 
@@ -1354,9 +1375,16 @@ def _apply_fp16_budget_cap(
         "skipped_no_weight": len(skipped_no_weight),
         "skipped_no_v4": len(skipped_no_v4),
         "measured_fresh_v4": measured_fresh,
-        "sensitivity_ref": sens_ref,
-        "v4_mse_ref": mse_ref,
-        "ranking": "dm_sens_x_v4_hist_fp16cand_x_analyze_veto_int8",
+        "sensitivity_ref": combinator["sens_ref"],
+        "v4_mse_ref": combinator["mse_ref"],
+        "severity_ref": combinator["sev_ref"],
+        "priority_form": combinator["form"],
+        "priority_weights": {
+            "sens": combinator["w_sens"],
+            "sev": combinator["w_sev"],
+            "mse": combinator["w_mse"],
+        },
+        "ranking": "autonomous_combinator_from_sens_sev_mse_distribution",
         "dropped_detail": dropped[:40],
         "kept_detail": kept_detail[:40],
         "mse_cache_size": len(cache),
@@ -1373,7 +1401,7 @@ class DualMonitor:
         # Signed per-channel input mean for INT8 bias correction:
         #   bias_delta ≈ (W_q - W) @ E[x]
         self.channel_act_mean = None
-
+    
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
             out_detached = output_tensor.detach().float()
@@ -2187,18 +2215,18 @@ def main():
         print("  [Bias Correction] Disabled (--no-bias_correction).")
 
     print(f"Saving quantized model (INT8): {args.output}")
-
+    
     print("\n[VRAM Optimization] Preparing for high-speed GPU conversion...")
     del pipeline
     del model
     gc.collect()
     torch.cuda.empty_cache()
-
+    
     print(f"[VRAM Optimization] Moving source weights to {device}...")
     input_keys = list(original_state_dict.keys())
     for k in tqdm(input_keys, desc="Loading to VRAM"):
         original_state_dict[k] = original_state_dict[k].to(device)
-
+    
     output_state_dict = {}
     quant_meta_layers = {}  # layer_name -> format string for _quantization_metadata
     converted_count = 0
@@ -2228,8 +2256,8 @@ def main():
         diffusers_key = comfyui_to_diffusers_map.get(key)
         module_name = None
         if diffusers_key and diffusers_key.endswith(".weight"):
-            module_name = diffusers_key[:-7]
-
+                module_name = diffusers_key[:-7]
+            
         if module_name and module_name in keep_layers:
             new_value = value.to(torch.float16) if value.dtype != torch.float16 else value
             kept_count += 1
@@ -2295,7 +2323,7 @@ def main():
                 new_value = value
         else:
             new_value = value
-
+            
         output_state_dict[key] = new_value
 
     if args.bias_correction and bias_corr_pending:
