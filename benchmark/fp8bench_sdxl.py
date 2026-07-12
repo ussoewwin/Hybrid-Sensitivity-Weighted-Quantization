@@ -46,16 +46,31 @@ COMFY_PATH = _resolve_comfy_path()
 
 
 def _ensure_comfy_complete():
-    """Cloud checkouts of ComfyUI-master often ship a truncated comfy/ dir
-    (only __init__.py + ops.py). If model_management.py / sd.py / sample.py
-    are missing, clone upstream ComfyUI into a sibling dir and overlay our
-    patched ops.py on top, so the bench can import the full package."""
+    """Cloud checkouts of ComfyUI-master often ship a truncated comfy/ dir.
+    If ANY root .py file or subpackage is missing, clone upstream ComfyUI
+    into a sibling dir and replace the entire comfy/ tree, then overlay
+    our patched ops.py on top so INT8 Conv2d support is preserved."""
     comfy_dir = os.path.join(COMFY_PATH, "comfy")
-    required = ("model_management.py", "sd.py", "sample.py", "utils.py", "cli_args.py", "options.py")
-    missing = [f for f in required if not os.path.isfile(os.path.join(comfy_dir, f))]
+    # Pick a few sentinel files; if any missing, we treat the dir as broken.
+    sentinels = ("model_management.py", "memory_management.py", "quant_ops.py",
+                 "model_patcher.py", "sd.py", "sample.py", "utils.py",
+                 "cli_args.py", "options.py", "samplers.py", "lora.py",
+                 "hooks.py", "latent_formats.py", "model_base.py",
+                 "model_detection.py", "model_sampling.py",
+                 "supported_models.py", "supported_models_base.py",
+                 "clip_vision.py", "clip_model.py", "sd1_clip.py",
+                 "sdxl_clip.py", "diffusers_convert.py", "diffusers_load.py",
+                 "float.py", "gligen.py", "pinned_memory.py",
+                 "patcher_extension.py", "rmsnorm.py", "nested_tensor.py",
+                 "pixel_space_convert.py", "multigpu.py",
+                 "model_prefetch.py", "sampler_helpers.py",
+                 "deploy_environment.py", "comfy_api_env.py",
+                 "lora_convert.py", "audio_encoders")
+    missing = [f for f in sentinels
+               if not os.path.exists(os.path.join(comfy_dir, f))]
     if not missing:
         return
-    print(f"[BENCH] comfy/ incomplete (missing {missing}); self-repairing...")
+    print(f"[BENCH] comfy/ incomplete (missing {len(missing)} sentinels: {missing[:5]}...); self-repairing...")
     sibling = os.path.join(os.path.dirname(COMFY_PATH), "_comfyui_full")
     if not os.path.isdir(os.path.join(sibling, "comfy")):
         import subprocess as _sp
@@ -65,30 +80,40 @@ def _ensure_comfy_complete():
                            stdout=_sp.DEVNULL, stderr=_sp.STDOUT)
             print(f"[BENCH] Cloned upstream ComfyUI -> {sibling}")
         except Exception as e:
-            print(f"[BENCH] Clone failed: {e}; falling back to partial comfy/")
+            print(f"[BENCH] Clone failed: {e}; cannot self-repair.")
             return
-    # Overlay: copy missing files from sibling, but keep our patched ops.py
     src_comfy = os.path.join(sibling, "comfy")
+    if not os.path.isdir(src_comfy):
+        print(f"[BENCH] {src_comfy} missing after clone; cannot self-repair.")
+        return
+    # Back up our patched ops.py so we can restore it after the full overlay.
     import shutil as _sh
-    for f in missing:
-        src = os.path.join(src_comfy, f)
-        dst = os.path.join(comfy_dir, f)
-        if os.path.isfile(src):
-            try:
-                _sh.copy2(src, dst)
-                print(f"[BENCH] restored comfy/{f}")
-            except Exception as e:
-                print(f"[BENCH] restore comfy/{f} failed: {e}")
-    # Also copy any missing subpackages (comfy/ldm, comfy/text_encoders, etc.)
-    for entry in os.listdir(src_comfy):
-        src_entry = os.path.join(src_comfy, entry)
-        dst_entry = os.path.join(comfy_dir, entry)
-        if os.path.isdir(src_entry) and not os.path.isdir(dst_entry):
-            try:
-                _sh.copytree(src_entry, dst_entry)
-                print(f"[BENCH] restored comfy/{entry}/")
-            except Exception as e:
-                print(f"[BENCH] restore comfy/{entry}/ failed: {e}")
+    patched_ops = None
+    ops_path = os.path.join(comfy_dir, "ops.py")
+    if os.path.isfile(ops_path):
+        import tempfile as _tf
+        patched_ops = _tf.mkstemp(suffix="_ops.py")[1]
+        _sh.copy2(ops_path, patched_ops)
+        print(f"[BENCH] backed up patched ops.py ({os.path.getsize(ops_path)} bytes)")
+    # Wipe the broken comfy/ tree entirely and re-copy from upstream.
+    try:
+        if os.path.isdir(comfy_dir):
+            _sh.rmtree(comfy_dir)
+    except Exception as e:
+        print(f"[BENCH] rmtree failed: {e}")
+    try:
+        _sh.copytree(src_comfy, comfy_dir)
+        print(f"[BENCH] restored full comfy/ from upstream ({len(os.listdir(comfy_dir))} entries)")
+    except Exception as e:
+        print(f"[BENCH] copytree failed: {e}")
+        if patched_ops and os.path.isfile(patched_ops):
+            os.unlink(patched_ops)
+        return
+    # Restore our patched ops.py (INT8 Conv2d support).
+    if patched_ops and os.path.isfile(patched_ops):
+        _sh.copy2(patched_ops, ops_path)
+        os.unlink(patched_ops)
+        print(f"[BENCH] restored patched ops.py ({os.path.getsize(ops_path)} bytes)")
 
 
 _ensure_comfy_complete()
