@@ -1340,6 +1340,178 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
             def _apply(self, fn, recurse=True):  # This is to get torch.compile + moving weights to another device working
                 return _quantized_apply(self, fn, recurse)
 
+        class Conv2d(torch.nn.Module, CastWeightBiasOp):
+            """Quantized Conv2d for HSWQ/INT8 (and other QUANT_ALGOS) checkpoints.
+
+            MixedPrecisionOps previously only overrode Linear, so Conv2d layers that
+            carry ``comfy_quant`` (e.g. int8_tensorwise) fell through to
+            ``manual_cast.Conv2d`` and never ran ``_load_quantized_module``.
+            """
+
+            _disabled_formats = disabled
+
+            def __init__(
+                self,
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride=1,
+                padding=0,
+                dilation=1,
+                groups=1,
+                bias=True,
+                padding_mode="zeros",
+                device=None,
+                dtype=None,
+            ):
+                super().__init__()
+
+                def _pair(v):
+                    if isinstance(v, (tuple, list)):
+                        return tuple(v)
+                    return (v, v)
+
+                self.factory_kwargs = {"device": device, "dtype": MixedPrecisionOps._compute_dtype}
+                self.in_channels = in_channels
+                self.out_channels = out_channels
+                self.kernel_size = _pair(kernel_size)
+                self.stride = _pair(stride)
+                self.padding = padding if isinstance(padding, str) else _pair(padding)
+                self.dilation = _pair(dilation)
+                self.groups = groups
+                self.padding_mode = padding_mode
+                if isinstance(self.padding, str):
+                    self._reversed_padding_repeated_twice = (0, 0) * len(self.kernel_size)
+                else:
+                    ph, pw = self.padding
+                    self._reversed_padding_repeated_twice = (pw, pw, ph, ph)
+                self._orig_shape = (
+                    out_channels,
+                    in_channels // groups,
+                    self.kernel_size[0],
+                    self.kernel_size[1],
+                )
+                if bias:
+                    self.bias = torch.nn.Parameter(torch.empty(out_channels, **self.factory_kwargs))
+                else:
+                    self.register_parameter("bias", None)
+
+                self.tensor_class = None
+                self._full_precision_mm = MixedPrecisionOps._full_precision_mm
+                self._full_precision_mm_config = False
+
+            def reset_parameters(self):
+                return None
+
+            def _load_from_state_dict(self, *args):
+                _load_quantized_module(self, super()._load_from_state_dict, *args, load_extra_params=False)
+
+            def state_dict(self, *args, destination=None, prefix="", **kwargs):
+                sd = destination if destination is not None else {}
+                return _quantized_weight_state_dict(self, sd, prefix)
+
+            def _conv_forward(self, input, weight, bias):
+                if self.padding_mode != "zeros":
+                    return torch.nn.functional.conv2d(
+                        torch.nn.functional.pad(
+                            input, self._reversed_padding_repeated_twice, mode=self.padding_mode
+                        ),
+                        weight,
+                        bias,
+                        self.stride,
+                        (0, 0),
+                        self.dilation,
+                        self.groups,
+                    )
+                return torch.nn.functional.conv2d(
+                    input, weight, bias, self.stride, self.padding, self.dilation, self.groups
+                )
+
+            def forward_comfy_cast_weights(
+                self,
+                input,
+                compute_dtype=None,
+                want_requant=False,
+                weight_only_quant=False,
+            ):
+                # int8_tensorwise is weight-only (quantize_input=False); match Linear.
+                if weight_only_quant:
+                    weight, bias, offload_stream = cast_bias_weight(
+                        self,
+                        input=None,
+                        dtype=self.weight.dtype,
+                        device=input.device,
+                        bias_dtype=input.dtype,
+                        offloadable=True,
+                        compute_dtype=compute_dtype,
+                        want_requant=True,
+                    )
+                    weight = weight.to(dtype=input.dtype)
+                else:
+                    weight, bias, offload_stream = cast_bias_weight(
+                        self,
+                        input,
+                        offloadable=True,
+                        compute_dtype=compute_dtype,
+                        want_requant=want_requant,
+                    )
+                x = self._conv_forward(input, weight, bias)
+                uncast_bias_weight(self, weight, bias, offload_stream)
+                return x
+
+            def forward(self, input, *args, **kwargs):
+                run_every_op()
+                compute_dtype = input.dtype
+                _use_quantized = (
+                    getattr(self, "layout_type", None) is not None
+                    and not isinstance(input, QuantizedTensor)
+                    and not self._full_precision_mm
+                    and not getattr(self, "comfy_force_cast_weights", False)
+                    and len(self.weight_function) == 0
+                    and len(self.bias_function) == 0
+                )
+                quantize_input = QUANT_ALGOS.get(getattr(self, "quant_format", None), {}).get(
+                    "quantize_input", True
+                )
+                weight_only_quant = (
+                    _use_quantized and not quantize_input and isinstance(self.weight, QuantizedTensor)
+                )
+                if (
+                    weight_only_quant
+                    or getattr(self, "layout_type", None) is not None
+                    or getattr(self, "comfy_cast_weights", False)
+                    or len(self.weight_function) > 0
+                    or len(self.bias_function) > 0
+                ):
+                    return self.forward_comfy_cast_weights(
+                        input,
+                        compute_dtype,
+                        want_requant=isinstance(input, QuantizedTensor),
+                        weight_only_quant=weight_only_quant,
+                    )
+                return self._conv_forward(input, self.weight, self.bias)
+
+            def convert_weight(self, weight, inplace=False, **kwargs):
+                if isinstance(weight, QuantizedTensor):
+                    return weight.dequantize()
+                else:
+                    return weight
+
+            def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
+                if getattr(self, "layout_type", None) is not None:
+                    weight = self.weight.requantize_from_float(
+                        weight, scale="recalculate", stochastic_rounding=seed, inplace_ops=True
+                    ).to(self.weight.dtype)
+                else:
+                    weight = weight.to(self.weight.dtype)
+                if return_weight:
+                    return weight
+                assert inplace_update is False
+                self.weight = torch.nn.Parameter(weight, requires_grad=False)
+
+            def _apply(self, fn, recurse=True):
+                return _quantized_apply(self, fn, recurse)
+
         class MoEExperts(torch.nn.Module, CastWeightBiasOp):
             """Container for E quantized expert weights, indexed via expert_weight(i).
 

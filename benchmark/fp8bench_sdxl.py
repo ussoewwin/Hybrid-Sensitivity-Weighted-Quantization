@@ -20,6 +20,11 @@ COMFY_PATH = os.environ.get(
     "COMFYUI_PATH",
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ComfyUI-master")),
 )
+_NODES_PY = os.path.join(COMFY_PATH, "nodes.py")
+if not os.path.isfile(_NODES_PY):
+    print(f"Error: nodes.py not found at {_NODES_PY}")
+    print("Ensure ComfyUI-master is present at the repo root, or set COMFYUI_PATH.")
+    sys.exit(1)
 if COMFY_PATH not in sys.path:
     sys.path.insert(0, COMFY_PATH)
 
@@ -28,20 +33,106 @@ logging.getLogger("comfy").setLevel(logging.WARNING)
 
 import types as _types
 
-# Stub comfy_aimdo if missing (cloud envs without aimdo)
-try:
-    import comfy_aimdo
-except ImportError:
-    _aimdo = _types.ModuleType("comfy_aimdo")
-    _aimdo.torch = _types.SimpleNamespace(aimdo_to_tensor=lambda *a, **kw: None)
-    _mv = _types.ModuleType("comfy_aimdo.model_vbar")
-    _mv.vbar_fault = lambda *a, **kw: None
-    _mv.vbar_signature_compare = lambda *a, **kw: False
-    _mv.vbar_unpin = lambda *a, **kw: None
-    _aimdo.model_vbar = _mv
-    sys.modules["comfy_aimdo"] = _aimdo
-    sys.modules["comfy_aimdo.model_vbar"] = _mv
-    sys.modules["comfy_aimdo.torch"] = _aimdo.torch
+
+def _install_comfy_aimdo_stub():
+    """ComfyUI-master hard-imports comfy_aimdo.*; cloud envs often lack it.
+
+    Must be a real package (__path__) with host_buffer / model_vbar / torch /
+    vram_buffer / model_mmap / control submodules, or `import nodes` fails mid-chain.
+    """
+    try:
+        import comfy_aimdo.host_buffer  # noqa: F401
+        return False
+    except Exception:
+        pass
+
+    class _HostBuffer:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_raw_address(self):
+            return 0
+
+        def read_file_slice(self, *args, **kwargs):
+            return None
+
+    class _ModelVBAR:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def loaded_size(self):
+            return 0
+
+    class _VRAMBuffer:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get(self, *args, **kwargs):
+            return None
+
+    class _ModelMMAP:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("comfy_aimdo stub: ModelMMAP is unavailable (aimdo disabled)")
+
+        def get(self):
+            return 0
+
+        def get_file_handle(self):
+            return None
+
+    pkg = _types.ModuleType("comfy_aimdo")
+    pkg.__path__ = []
+
+    host_buffer = _types.ModuleType("comfy_aimdo.host_buffer")
+    host_buffer.HostBuffer = _HostBuffer
+    host_buffer.read_file_to_device = lambda *a, **k: None
+
+    model_vbar = _types.ModuleType("comfy_aimdo.model_vbar")
+    model_vbar.ModelVBAR = _ModelVBAR
+    model_vbar.vbar_fault = lambda *a, **k: None
+    model_vbar.vbar_signature_compare = lambda *a, **k: False
+    model_vbar.vbar_unpin = lambda *a, **k: None
+    model_vbar.vbars_analyze = lambda *a, **k: 0
+    model_vbar.vbars_reset_watermark_limits = lambda *a, **k: None
+
+    torch_mod = _types.ModuleType("comfy_aimdo.torch")
+    torch_mod.aimdo_to_tensor = lambda *a, **k: None
+    torch_mod.hostbuf_to_tensor = lambda *a, **k: None
+
+    vram_buffer = _types.ModuleType("comfy_aimdo.vram_buffer")
+    vram_buffer.VRAMBuffer = _VRAMBuffer
+
+    model_mmap = _types.ModuleType("comfy_aimdo.model_mmap")
+    model_mmap.ModelMMAP = _ModelMMAP
+
+    control = _types.ModuleType("comfy_aimdo.control")
+    control.init = lambda *a, **k: False
+    control.init_devices = lambda *a, **k: False
+    control.analyze = lambda *a, **k: None
+    control.set_log_debug = lambda *a, **k: None
+    control.set_log_critical = lambda *a, **k: None
+    control.set_log_error = lambda *a, **k: None
+    control.set_log_warning = lambda *a, **k: None
+    control.set_log_info = lambda *a, **k: None
+
+    pkg.host_buffer = host_buffer
+    pkg.model_vbar = model_vbar
+    pkg.torch = torch_mod
+    pkg.vram_buffer = vram_buffer
+    pkg.model_mmap = model_mmap
+    pkg.control = control
+
+    sys.modules["comfy_aimdo"] = pkg
+    sys.modules["comfy_aimdo.host_buffer"] = host_buffer
+    sys.modules["comfy_aimdo.model_vbar"] = model_vbar
+    sys.modules["comfy_aimdo.torch"] = torch_mod
+    sys.modules["comfy_aimdo.vram_buffer"] = vram_buffer
+    sys.modules["comfy_aimdo.model_mmap"] = model_mmap
+    sys.modules["comfy_aimdo.control"] = control
+    return True
+
+
+_AIMDO_STUBBED = _install_comfy_aimdo_stub()
 
 try:
     import nodes
@@ -50,35 +141,30 @@ try:
     import comfy.ops
     import comfy.utils
 
-    # Monkey-patch: normalize comfy_quant conf that may be a bare str or
-    # double-encoded JSON (per Comfy-Org fix 1a510f0). Applied at bench level
-    # so ComfyUI-master stays unmodified.
-    _orig_load_quantized = comfy.ops._load_quantized_module
+    # Normalize comfy_quant after json.loads (bare str / double-encoded JSON).
+    # Patch comfy.ops.json.loads so stock _load_quantized_module still pops a
+    # uint8 tensor — do not replace the tensor with a dict in state_dict.
+    _ops_json_loads = comfy.ops.json.loads
 
-    def _patched_load_quantized(module, super_load, state_dict, prefix, local_metadata, strict,
-                                missing_keys, unexpected_keys, error_msgs, load_extra_params=False):
-        _cq_key = f"{prefix}comfy_quant"
-        _raw = state_dict.get(_cq_key, None)
-        if _raw is not None and not isinstance(_raw, (dict,)):
-            import json as _json
+    def _normalize_comfy_quant_loads(s, *args, **kwargs):
+        obj = _ops_json_loads(s, *args, **kwargs)
+        if isinstance(obj, str):
             try:
-                _decoded = _json.loads(_raw.numpy().tobytes())
-                if isinstance(_decoded, str):
-                    _decoded = _json.loads(_decoded)
-                if not isinstance(_decoded, dict):
-                    _decoded = {"format": str(_decoded)}
-                state_dict[_cq_key] = _decoded
+                obj = _ops_json_loads(obj)
             except Exception:
-                pass
-        return _orig_load_quantized(module, super_load, state_dict, prefix, local_metadata, strict,
-                                   missing_keys, unexpected_keys, error_msgs, load_extra_params=load_extra_params)
+                obj = {"format": obj}
+        if not isinstance(obj, dict):
+            obj = {"format": str(obj)}
+        return obj
 
-    comfy.ops._load_quantized_module = _patched_load_quantized
+    comfy.ops.json.loads = _normalize_comfy_quant_loads
 
     print(f"[BENCH] comfy.ops: {comfy.ops.__file__}")
     print(f"[BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+    print(f"[BENCH] comfy_aimdo stubbed: {_AIMDO_STUBBED}")
 except ImportError as e:
     print(f"Error: Could not import ComfyUI from {COMFY_PATH}: {e}")
+    print(f"nodes.py present: {os.path.isfile(_NODES_PY)}")
     sys.exit(1)
 
 # Enforce deterministic behavior for reproducibility
