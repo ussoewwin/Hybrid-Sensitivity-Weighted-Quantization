@@ -431,7 +431,7 @@ def generate_image_fixed(model, clip, vae, prompt, seed, steps):
         latent_image,
         denoise=1.0,
         callback=None,
-        disable_pbar=True,
+        disable_pbar=False,
         seed=seed,
     )
     end_time = time.time()
