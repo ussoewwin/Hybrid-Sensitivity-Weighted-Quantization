@@ -406,8 +406,23 @@ class HSWQWeightedHistogramOptimizerV4:
         
         return optimal_amax
     
-    def compute_optimal_amax_with_stats(self, weight: torch.Tensor, importance: Optional[torch.Tensor] = None, use_svd_leverage: bool = True, scaled: bool = True) -> dict:
-        optimal_amax = self.compute_optimal_amax(weight, importance, use_svd_leverage=use_svd_leverage, scaled=scaled)
+    def compute_optimal_amax_with_stats(
+        self,
+        weight: torch.Tensor,
+        importance: Optional[torch.Tensor] = None,
+        use_svd_leverage: bool = True,
+        scaled: bool = True,
+        search_range: Tuple[float, float] = (0.5, 1.0),
+    ) -> dict:
+        # search_range forwarded so callers (e.g. INT8 VETO at absmax) can
+        # measure estimated_mse at the same operating amax used for pack.
+        optimal_amax = self.compute_optimal_amax(
+            weight,
+            importance,
+            use_svd_leverage=use_svd_leverage,
+            scaled=scaled,
+            search_range=search_range,
+        )
         
         # SVD importance (for display/verification)
         combined_importance = None
