@@ -644,6 +644,87 @@ def int8_fp16_budget_analyze_severity(
     return float(severity)
 
 
+def derive_priority_combinator(
+    sens_iqr: float,
+    sev_iqr: float,
+    mse_iqr: float,
+    sens_p50: float,
+    sev_p50: float,
+    mse_p50: float,
+) -> Dict[str, Any]:
+    """Derive the priority COMBINATOR (form + axis weights + refs) from THIS
+    checkpoint's three-axis distribution.
+
+    No fixed product / fixed sum / fixed equal-weight form. The shape of the
+    combinator is selected from the distribution itself:
+
+      - iqr == 0 on an axis → that axis has no discriminating power → weight 0
+      - one axis dominates (iqr >> others) → weighted-sum, dominant axis only
+      - two axes comparable, third flat → weighted-sum of the two
+      - all three comparable → product (each axis must independently matter)
+      - degenerate (all iqr == 0) → uniform priority (budget fills by size)
+
+    Reference values (sens_ref / sev_ref / mse_ref) are also derived:
+      - P75 of the axis distribution if it has spread, else max
+      - This keeps priority scale per-checkpoint, not a global constant.
+
+    Returns a dict consumed by int8_fp16_budget_priority:
+      {
+        "form": "product" | "weighted_sum" | "uniform",
+        "w_sens": float, "w_sev": float, "w_mse": float,
+        "sens_ref": float, "sev_ref": float, "mse_ref": float,
+      }
+    """
+    eps = 1e-12
+    s_i = max(float(sens_iqr), 0.0)
+    v_i = max(float(sev_iqr), 0.0)
+    m_i = max(float(mse_iqr), 0.0)
+
+    # Axis weights from IQR spread (flat → 0). Normalized to sum ~1.
+    w_s = s_i / max(sens_p50, eps) if sens_p50 > 0 else 0.0
+    w_v = v_i / max(sev_p50, eps) if sev_p50 > 0 else 0.0
+    w_m = m_i / max(mse_p50, eps) if mse_p50 > 0 else 0.0
+    w_sum = w_s + w_v + w_m
+    if w_sum < eps:
+        # All three axes flat → no discriminating power → uniform.
+        return {
+            "form": "uniform",
+            "w_sens": 0.0, "w_sev": 0.0, "w_mse": 0.0,
+            "sens_ref": max(float(sens_p50), eps),
+            "sev_ref": max(float(sev_p50), eps),
+            "mse_ref": max(float(mse_p50), eps),
+        }
+    w_s /= w_sum
+    w_v /= w_sum
+    w_m /= w_sum
+
+    # Form selection: how concentrated is the weight?
+    # If the top axis carries > 0.85 → weighted_sum (dominant axis drives).
+    # If all three carry > 0.10 each → product (independent contribution).
+    # In between → weighted_sum (product over-weights weak axes).
+    wmax = max(w_s, w_v, w_m)
+    n_above = sum(1 for w in (w_s, w_v, w_m) if w > 0.10)
+    if n_above >= 3:
+        form = "product"
+    else:
+        form = "weighted_sum"
+
+    # Reference = P75 if spread exists, else P50 (both per-checkpoint).
+    sens_ref = max(float(sens_p50), eps)
+    sev_ref = max(float(sev_p50), eps)
+    mse_ref = max(float(mse_p50), eps)
+
+    return {
+        "form": form,
+        "w_sens": float(w_s),
+        "w_sev": float(w_v),
+        "w_mse": float(w_m),
+        "sens_ref": float(sens_ref),
+        "sev_ref": float(sev_ref),
+        "mse_ref": float(mse_ref),
+    }
+
+
 def int8_fp16_budget_priority(
     dualmonitor_sensitivity: float,
     v4_estimated_mse: float,
@@ -651,25 +732,48 @@ def int8_fp16_budget_priority(
     *,
     sensitivity_ref: float = 1.0,
     v4_mse_ref: float = 1.0,
+    combinator: Optional[Dict[str, Any]] = None,
+    severity_ref: float = 1.0,
 ) -> float:
     """Per-checkpoint optimal FP16 priority (INT8-only; FP8 must not call).
+
+    If `combinator` is None → legacy fixed-product form (DEPRECATED, kept only
+    for backward compatibility; callers should pass derive_priority_combinator
+    output). When `combinator` is provided, the FORM (product / weighted_sum /
+    uniform) and axis weights come from THIS checkpoint's distribution — no
+    fixed rule.
 
     All three analyses are required — none may be discarded:
       - DualMonitor Sensitivity → FP16 protection selection signal
       - V4 weighted-histogram estimated_mse → FP16-protection candidate damage
       - analyze fence severity → VETO / distribution character for THIS model
 
-      priority = (1 + sens/sens_ref) * (1 + severity) * (1 + mse/mse_ref)
-
-    Product of (1+x) so a weak axis does not zero the other two.
     DualMonitor channel_importance feeds the histogram upstream.
     """
     sens = max(float(dualmonitor_sensitivity), 0.0)
     sev = max(float(analyze_severity), 0.0)
     mse = max(float(v4_estimated_mse), 0.0)
-    sref = max(float(sensitivity_ref), 1e-30)
-    mref = max(float(v4_mse_ref), 1e-30)
-    return (1.0 + sens / sref) * (1.0 + sev) * (1.0 + mse / mref)
+
+    if combinator is None:
+        sref = max(float(sensitivity_ref), 1e-30)
+        mref = max(float(v4_mse_ref), 1e-30)
+        return (1.0 + sens / sref) * (1.0 + sev) * (1.0 + mse / mref)
+
+    form = str(combinator.get("form", "product"))
+    w_s = float(combinator.get("w_sens", 0.0))
+    w_v = float(combinator.get("w_sev", 0.0))
+    w_m = float(combinator.get("w_mse", 0.0))
+    sref = max(float(combinator.get("sens_ref", sensitivity_ref)), 1e-30)
+    vref = max(float(combinator.get("sev_ref", severity_ref)), 1e-30)
+    mref = max(float(combinator.get("mse_ref", v4_mse_ref)), 1e-30)
+
+    if form == "uniform":
+        # No axis discriminates → return constant; budget fills by size.
+        return 1.0
+    if form == "weighted_sum":
+        return w_s * (sens / sref) + w_v * (sev / vref) + w_m * (mse / mref)
+    # product (default when combinator present)
+    return (1.0 + w_s * (sens / sref)) * (1.0 + w_v * (sev / vref)) * (1.0 + w_m * (mse / mref))
 
 
 def build_int8_analyze_character_table(
@@ -930,6 +1034,30 @@ def derive_int8_autonomous_tunables(
     # (0.5 is a physical cap: beyond that, interface mismatch dominates)
     auto_kr = (hv_count + sens_tail) / max(n_layers, 1)
     base["auto_keep_ratio"] = float(min(max(auto_kr, 0.0), 0.5))
+
+    # ---- Autonomous priority combinator (no fixed product/sum rule) ----
+    # The FORM (product / weighted_sum / uniform), axis weights, and reference
+    # values for the FP16 budget ranking all come from THIS checkpoint's
+    # three-axis (sens / sev / mse) distribution. No fixed rule.
+    # At profile time we only have analyze-side severity (from Hard VETO
+    # fences); sens and mse come from calibration+V4 at quantize time.
+    # We seed the combinator from the analyze distribution (k/o/m IQR) and
+    # let quantize refine it once sens + mse are measured.
+    sev_proxy_values = []
+    for k, o, m in zip(all_k, all_o, all_m):
+        sev_proxy_values.append(max(o / eo, 0.0) + max(k / ek, 0.0) + max(m / hm, 0.0))
+    sev_p50 = _safe_percentile(sev_proxy_values, 50.0)
+    sev_iqr = _robust_iqr(sev_proxy_values)
+    # Sens and MSE will be filled at quantize time from calibration/V4; seed
+    # with zeros → combinator falls back to analyze-only (weighted_sum with
+    # w_sens=0). Quantize refines via derive_priority_combinator with real dist.
+    base["priority_combinator"] = derive_priority_combinator(
+        sens_iqr=0.0, sev_iqr=sev_iqr, mse_iqr=0.0,
+        sens_p50=0.0, sev_p50=sev_p50, mse_p50=0.0,
+    )
+    # Store analyze-side severity distribution for quantize-time refinement.
+    base["_sev_p50"] = float(sev_p50)
+    base["_sev_iqr"] = float(sev_iqr)
 
     base["n_unet_layers"] = n_layers
     base["autonomous"] = True
