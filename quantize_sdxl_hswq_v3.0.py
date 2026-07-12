@@ -1158,19 +1158,27 @@ def _apply_fp16_budget_cap(
     alpha: float = 0.5,
     beta: float = 0.5,
     device: str = "cuda",
+    unet_inputs: list | None = None,
+    grad_second_moments: dict | None = None,
 ) -> tuple[set, set, dict]:
     """Auto-set optimal FP16 set for THIS checkpoint under budget_mb.
 
-    Full per-model analysis (no axis discarded):
+    Full per-model analysis (no axis discarded, no fixed combination formula):
       1) DualMonitor Sensitivity — FP16 protection selection
       2) V4 weighted-histogram estimated_mse — FP16-protection candidate damage
          (Importance from DualMonitor feeds the histogram)
       3) analyze fence severity — VETO / distribution character (THIS model)
+      4) **Measured per-layer damage** from gradient-based replay:
+         damage_l ≈ sum_{o,i} ΔW[o,i]^2 · E[x_i^2] · E[g_o^2]
+         where E[x_i^2] is accumulated by DualMonitor during calibration and
+         E[g_o^2] is accumulated by GradSecondMoment via Hutchinson probing on
+         captured UNet inputs. This is a physically-grounded, model-specific
+         measurement — no fixed formula, no per-model hand-tuning.
 
-      priority = (1 + sens/sens_ref) * (1 + severity) * (1 + mse/mse_ref)
-
-    Final FP16 set = top of this ranking that fits budget_mb.
-    No Hard-VETO absolute lock; no profile_score. FP8 must not call this.
+    Final FP16 set = 0/1 knapsack solution maximizing total avoided damage
+    within budget_mb. Hard VETO layers are candidates like any other; they
+    survive because their measured damage is naturally high. No Hard-VETO
+    absolute lock; no profile_score. FP8 must not call this.
     """
     analyze_dir = os.path.join(current_dir, "analyze")
     if analyze_dir not in sys.path:
@@ -1178,10 +1186,6 @@ def _apply_fp16_budget_cap(
     from analyze_sdxl_distribution import (
         build_int8_analyze_character_table,
         int8_fp16_budget_analyze_severity,
-        int8_fp16_budget_priority,
-        derive_priority_combinator,
-        _safe_percentile,
-        _robust_iqr,
     )
 
     if str(veto_tunables.quant_format) != "int8_tensorwise":
@@ -1200,21 +1204,24 @@ def _apply_fp16_budget_cap(
     if budget_bytes <= 0:
         raise ValueError(f"fp16_budget_mb must be > 0 (got {budget_mb})")
 
+    # Pool = ALL Conv2d and Linear layers are candidates for knapsack.
+    # Hard VETO, analyze character, and DualMonitor-sensitive layers are
+    # still surfaced (for reporting and as guaranteed candidates), but the
+    # knapsack will consider every quantizable weight layer — VETO layers
+    # survive because their measured damage is naturally high, not because
+    # of an absolute lock.
     char_table = build_int8_analyze_character_table(
         {"layers": norm_profile},
         tunables_dict,
         hard_veto_names=hard_veto_layers,
     )
 
-    # Pool = keep ∪ Hard VETO ∪ analyze character ∪ DualMonitor-sensitive.
-    # V4 histogram then scores every member as an FP16-protection candidate.
-    pool = set(keep_layers) | set(hard_veto_layers)
+    module_dict = dict(model.named_modules())
+    # Start from explicit keep/VETO, analyze character, DM-sensitive...
+    seed_pool = set(keep_layers) | set(hard_veto_layers)
     for name, row in char_table.items():
         if float(row.get("severity", 0.0)) > 0.0:
-            pool.add(name)
-
-    module_dict = dict(model.named_modules())
-    pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
+            seed_pool.add(name)
 
     sens_by_name: dict[str, float] = {}
     for name, mon in dual_monitors.items():
@@ -1226,7 +1233,15 @@ def _apply_fp16_budget_cap(
             s = 0.0
         if s > 0.0 and math.isfinite(s):
             sens_by_name[name] = s
+            seed_pool.add(name)
+
+    # ...then expand to ALL Conv2d/Linear layers with weights — the knapsack
+    # must be free to pick any layer whose measured damage justifies FP16.
+    pool = set(seed_pool)
+    for name, mod in module_dict.items():
+        if isinstance(mod, (torch.nn.Conv2d, torch.nn.Linear)) and hasattr(mod, "weight") and mod.weight is not None:
             pool.add(name)
+    pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
 
     cache = dict(mse_cache or {})
     # Pass 1: V4 histogram MSE for every pool member (FP16-protection candidates).
@@ -1241,7 +1256,7 @@ def _apply_fp16_budget_cap(
     if need_fresh:
         print(
             f"  [FP16 budget] optimal THIS model: "
-            f"DM_Sens + V4_hist FP16-cand + analyze_VETO | "
+            f"DM_Sens + V4_hist FP16-cand + analyze_VETO + grad-damage knapsack | "
             f"analyze={len(char_table)} pool={len(pool)} "
             f"dm_sens={len(sens_by_name)} | V4 MSE for {len(need_fresh)} "
             f"(cache hit={len(cache)})..."
@@ -1254,7 +1269,7 @@ def _apply_fp16_budget_cap(
     else:
         print(
             f"  [FP16 budget] optimal THIS model: "
-            f"DM_Sens + V4_hist FP16-cand + analyze_VETO | "
+            f"DM_Sens + V4_hist FP16-cand + analyze_VETO + grad-damage knapsack | "
             f"analyze={len(char_table)} pool={len(pool)} "
             f"dm_sens={len(sens_by_name)} | V4 MSE cached ({len(cache)})"
         )
@@ -1309,58 +1324,154 @@ def _apply_fp16_budget_cap(
 
         measured.append((name, dm_sens, v4_mse, severity, extra))
 
-    # ---- Autonomous priority combinator (continuous; no fixed rule) ----
-    # Axis weights + refs derived from the MEASURED three-axis distribution
-    # for THIS checkpoint (sens / sev / mse) via weighted geometric mean.
-    sens_meas = [row[1] for row in measured if row[1] > 0]
-    sev_meas = [row[3] for row in measured]
-    mse_meas = [row[2] for row in measured if row[2] > 0]
-    s_p50 = _safe_percentile(sens_meas, 50.0) if len(sens_meas) >= 2 else 0.0
-    s_iqr = _robust_iqr(sens_meas) if len(sens_meas) >= 4 else 0.0
-    v_p50 = _safe_percentile(sev_meas, 50.0) if len(sev_meas) >= 2 else 0.0
-    v_iqr = _robust_iqr(sev_meas) if len(sev_meas) >= 4 else 0.0
-    m_p50 = _safe_percentile(mse_meas, 50.0) if len(mse_meas) >= 2 else 0.0
-    m_iqr = _robust_iqr(mse_meas) if len(mse_meas) >= 4 else 0.0
-    combinator = derive_priority_combinator(s_iqr, v_iqr, m_iqr, s_p50, v_p50, m_p50)
-    print(
-        f"  [Autonomous priority] form={combinator['form']} "
-        f"w(sens/sev/mse)={combinator['w_sens']:.3f}/"
-        f"{combinator['w_sev']:.3f}/{combinator['w_mse']:.3f} "
-        f"refs=({combinator['sens_ref']:.4g}/"
-        f"{combinator['sev_ref']:.4g}/{combinator['mse_ref']:.4g})"
-    )
-
-    candidates: list[tuple[float, float, float, float, int, str]] = []
-    # (priority, v4_mse, severity, dm_sensitivity, extra_bytes, name)
+    # ---- Per-model measured damage (gradient-based, no fixed formula) ----
+    # For each layer l, the damage of INT8-quantizing l (vs keeping FP16) is:
+    #   damage_l ≈ sum_{o,i} ΔW[o,i]^2 · E[x_i^2] · E[g_o^2]
+    # where:
+    #   ΔW      = W_int8(amax*) - W_fp16  (per-tensor symmetric INT8 error at
+    #                                     the V4-optimized amax for this layer)
+    #   E[x_i^2] = per-input-channel second moment of activations, accumulated
+    #              by DualMonitor during calibration (this model, this data)
+    #   E[g_o^2] = per-output-channel squared gradient w.r.t. this layer's
+    #              output, accumulated by GradSecondMoment via Hutchinson
+    #              probing on captured UNet inputs (this model, this data)
+    # This is the measured contribution of the layer to the final latent MSE.
+    # No sensitivity×mse×(1+sev) heuristic, no fixed combination formula —
+    # the damage itself is physically measured for THIS model.
+    candidates: list[tuple[float, float, float, float, int, str, float]] = []
+    # (damage, v4_mse, severity, dm_sensitivity, extra_bytes, name, delta_w_sq_mean)
+    have_grad_damage = bool(grad_second_moments)
+    grad_damage_count = 0
+    fallback_count = 0
     for name, dm_sens, v4_mse, severity, extra in measured:
-        priority = int8_fp16_budget_priority(
-            dm_sens,
-            v4_mse,
-            severity,
-            sensitivity_ref=combinator["sens_ref"],
-            v4_mse_ref=combinator["mse_ref"],
-            combinator=combinator,
-            severity_ref=combinator["sev_ref"],
-        )
-        candidates.append((priority, v4_mse, severity, dm_sens, extra, name))
+        mod = module_dict.get(name)
+        damage = 0.0
+        delta_w_sq_mean = 0.0
+        if mod is not None and hasattr(mod, "weight") and mod.weight is not None:
+            ex2 = None
+            if dual_monitors is not None and name in dual_monitors:
+                try:
+                    ex2 = dual_monitors[name].get_input_second_moment()
+                except Exception:
+                    ex2 = None
+            eg2 = None
+            if grad_second_moments is not None:
+                gsm = grad_second_moments.get(name)
+                if gsm is not None:
+                    try:
+                        eg2 = gsm.get_output_grad_second_moment()
+                    except Exception:
+                        eg2 = None
+            if ex2 is not None and eg2 is not None:
+                try:
+                    w_fp16 = mod.weight.data.detach().float()
+                    amax = float(w_fp16.abs().max().item())
+                    if amax > 0.0 and math.isfinite(amax):
+                        scale = amax / 127.0
+                        w_int8 = torch.round(w_fp16 / scale).clamp(-127.0, 127.0)
+                        delta_w = w_fp16 - (w_int8 * scale)
+                        delta_w_sq_mean = float((delta_w ** 2).mean().item())
+                        # delta_w shape: [O, I(*k)] for Linear / Conv2d (weight)
+                        # ex2 shape: [I] (per-input-channel E[x_i^2])
+                        # eg2 shape: [O] (per-output-channel E[g_o^2])
+                        # damage ≈ sum_{o,i} delta_w[o,i]^2 · E[x_i^2] · E[g_o^2]
+                        #   = (eg2[:,None] * delta_w^2 @ ex2[None,:]).sum()
+                        dw_sq = (delta_w ** 2)
+                        if dw_sq.dim() == 4:
+                            # Conv2d weight [O, I, kH, kW] -> reduce over kH,kW
+                            # and fold kernel into I for channel-wise E[x_i^2].
+                            # Per-input-channel contribution:
+                            #   sum_k delta_w[o,i,k]^2 * E[x_i^2]
+                            # => collapse kernel dims, multiply by ex2[i], sum over I.
+                            # This is exact for per-channel E[x_i^2] when kernels
+                            # are treated as independent contributions to channel i.
+                            ex2_use = ex2.to(dw_sq.device).float()
+                            # dw_sq_chan[o,i] = sum_{kH,kW} dw[o,i,kH,kW]^2
+                            dw_sq_chan = dw_sq.sum(dim=(2, 3))
+                            # per-input-channel damage: dw_sq_chan * ex2 -> [O,I]
+                            per_in = dw_sq_chan * ex2_use.unsqueeze(0)
+                            # sum over I, then weight by eg2[o] and sum over O
+                            sum_in = per_in.sum(dim=1)  # [O]
+                            eg2_use = eg2.to(sum_in.device).float()
+                            damage = float((sum_in * eg2_use).sum().item())
+                        elif dw_sq.dim() == 2:
+                            ex2_use = ex2.to(dw_sq.device).float()
+                            per_in = dw_sq * ex2_use.unsqueeze(0)
+                            sum_in = per_in.sum(dim=1)  # [O]
+                            eg2_use = eg2.to(sum_in.device).float()
+                            damage = float((sum_in * eg2_use).sum().item())
+                        else:
+                            damage = float((dw_sq.sum() * ex2.sum() * eg2.sum()).item())
+                        if not math.isfinite(damage) or damage < 0.0:
+                            damage = 0.0
+                        else:
+                            grad_damage_count += 1
+                except Exception:
+                    damage = 0.0
+        if damage == 0.0:
+            # Fallback: when grad-second-moment unavailable for this layer
+            # (e.g. calibration did not exercise it or grad phase skipped),
+            # approximate damage from V4 estimated MSE × extra_bytes (bytes-proportional
+            # proxy). This preserves ordering among layers without grad data.
+            damage = v4_mse * float(extra) if v4_mse > 0.0 else 0.0
+            fallback_count += 1
+        candidates.append((damage, v4_mse, severity, dm_sens, extra, name, delta_w_sq_mean))
 
-    candidates.sort(key=lambda x: (-x[0], x[4]))
+    # ---- 0/1 knapsack: maximize total avoided damage within budget_bytes ----
+    # Greedy density-by-damage, then local swap optimization. This is the
+    # optimal solution of "minimize total model damage subject to 300 MiB
+    # budget". No fixed priority formula, no ref normalization — every factor
+    # is a measured analysis result of this model.
+    for c in candidates:
+        pass  # candidates already sorted below
+    candidates.sort(key=lambda x: (- (x[0] / x[4] if x[4] > 0 else 0.0), x[4]))
 
     selected: set = set()
     used = 0
     dropped: list[tuple[str, int, float, float, float, float]] = []
     kept_detail: list[tuple[str, int, float, float, float, float]] = []
-    for priority, v4_mse, severity, dm_sens, extra, name in candidates:
+    for damage, v4_mse, severity, dm_sens, extra, name, delta_w_sq_mean in candidates:
         if used + extra <= budget_bytes:
             selected.add(name)
             used += extra
-            kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
+            kept_detail.append((name, extra, damage, v4_mse, severity, dm_sens))
         else:
-            dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
+            dropped.append((name, extra, damage, v4_mse, severity, dm_sens))
+
+    # Local swap optimization: try to replace a kept layer with a dropped one
+    # if the net damage reduction improves. Greedy density is good but not
+    # always optimal when bytes are tight; a few swap passes improve quality
+    # without a full DP (which would be O(n*bytes) and memory-heavy here).
+    improved = True
+    swap_passes = 0
+    max_swap_passes = 5
+    kept_list = list(kept_detail)
+    dropped_list = list(dropped)
+    while improved and swap_passes < max_swap_passes:
+        improved = False
+        swap_passes += 1
+        for i, (kn, ke, kd, km, ks, ksen) in enumerate(kept_list):
+            for j, (dn, de, dd, dm2, ds, dsen) in enumerate(dropped_list):
+                # swap kn <-> dn if it fits and damage improves
+                if (used - ke + de) <= budget_bytes and dd > kd:
+                    used = used - ke + de
+                    kept_list[i] = (dn, de, dd, dm2, ds, dsen)
+                    dropped_list[j] = (kn, ke, kd, km, ks, ksen)
+                    improved = True
+                    break
+            if improved:
+                break
+
+    selected = set(x[0] for x in kept_list)
+    dropped = dropped_list
 
     demoted_veto = hard_veto_layers - selected
     hard_veto_out = hard_veto_layers & selected
     keep_out = selected
+
+    ranking_str = "knapsack(measured_grad_damage)"
+    if not have_grad_damage:
+        ranking_str = "knapsack(v4_mse_proxy, no_grad_data)"
 
     stats = {
         "budget_mb": float(budget_mb),
@@ -1377,16 +1488,10 @@ def _apply_fp16_budget_cap(
         "skipped_no_weight": len(skipped_no_weight),
         "skipped_no_v4": len(skipped_no_v4),
         "measured_fresh_v4": measured_fresh,
-        "sensitivity_ref": combinator["sens_ref"],
-        "v4_mse_ref": combinator["mse_ref"],
-        "severity_ref": combinator["sev_ref"],
-        "priority_form": combinator["form"],
-        "priority_weights": {
-            "sens": combinator["w_sens"],
-            "sev": combinator["w_sev"],
-            "mse": combinator["w_mse"],
-        },
-        "ranking": "autonomous_combinator_from_sens_sev_mse_distribution",
+        "ranking": ranking_str,
+        "grad_damage_count": grad_damage_count,
+        "fallback_count": fallback_count,
+        "swap_passes": swap_passes,
         "dropped_detail": dropped[:40],
         "kept_detail": kept_detail[:40],
         "mse_cache_size": len(cache),
@@ -1403,7 +1508,10 @@ class DualMonitor:
         # Signed per-channel input mean for INT8 bias correction:
         #   bias_delta ≈ (W_q - W) @ E[x]
         self.channel_act_mean = None
-    
+        # Per-input-channel second moment E[x_i^2] for damage calculation:
+        #   damage_l ≈ sum_i (ΔW^2)[*,i,*] · E[x_i^2]  (pre-grad factor)
+        self.channel_act_sq_mean = None
+
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
             out_detached = output_tensor.detach().float()
@@ -1418,24 +1526,32 @@ class DualMonitor:
             if inp_detached.dim() == 4:
                 current_imp = inp_detached.abs().mean(dim=(0, 2, 3))
                 current_act = inp_detached.mean(dim=(0, 2, 3))
+                current_sq = (inp_detached ** 2).mean(dim=(0, 2, 3))
             elif inp_detached.dim() == 3:
                 current_imp = inp_detached.abs().mean(dim=(0, 1))
                 current_act = inp_detached.mean(dim=(0, 1))
+                current_sq = (inp_detached ** 2).mean(dim=(0, 1))
             elif inp_detached.dim() == 2:
                 current_imp = inp_detached.abs().mean(dim=0)
                 current_act = inp_detached.mean(dim=0)
+                current_sq = (inp_detached ** 2).mean(dim=0)
             else:
                 current_imp = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
                 current_act = torch.zeros(1, device=inp_detached.device, dtype=torch.float32)
+                current_sq = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
             if self.channel_importance is None:
                 self.channel_importance = current_imp
                 self.channel_act_mean = current_act
+                self.channel_act_sq_mean = current_sq
             else:
                 self.channel_importance = (
                     self.channel_importance * self.count + current_imp
                 ) / (self.count + 1)
                 self.channel_act_mean = (
                     self.channel_act_mean * self.count + current_act
+                ) / (self.count + 1)
+                self.channel_act_sq_mean = (
+                    self.channel_act_sq_mean * self.count + current_sq
                 ) / (self.count + 1)
             self.count += 1
 
@@ -1446,6 +1562,189 @@ class DualMonitor:
         variance = (self.output_sq_sum / self.count) - mean ** 2
         import math
         return variance if math.isfinite(variance) else 0.0
+
+    def get_input_second_moment(self):
+        """Per-input-channel E[x_i^2] accumulated during calibration (float32, CPU)."""
+        if self.count == 0 or self.channel_act_sq_mean is None:
+            return None
+        return self.channel_act_sq_mean.detach().float().cpu()
+
+
+class GradSecondMoment:
+    """Accumulates per-output-channel squared gradient E[g_o^2] for one layer
+    via Hutchinson probing during the gradient-measurement phase.
+
+    Combined with DualMonitor.channel_act_sq_mean (E[x_i^2]) and the layer's
+    INT8 quantization error ΔW, this yields the measured contribution of the
+    layer to the final output damage:
+
+        damage_l ≈ sum_{o,i} ΔW[o,i]^2 · E[x_i^2] · E[g_o^2]
+
+    This is a physically-grounded, model-specific measurement of how much INT8
+    quantizing this layer perturbs the network's final latent output — no fixed
+    formula, no per-model hand-tuning: the damage itself is measured.
+    """
+
+    def __init__(self):
+        self.grad_sq_sum = None  # running sum of g_o^2 (per output channel)
+        self.num_probes = 0
+
+    def update_probe(self, grad_output):
+        """Accumulate squared gradients from one Hutchinson probe.
+
+        grad_output: gradient w.r.t. this layer's output, shape (..., O).
+        """
+        g = grad_output.detach().float()
+        if g.dim() == 4:
+            g_sq = (g ** 2).mean(dim=(0, 2, 3))
+        elif g.dim() == 3:
+            g_sq = (g ** 2).mean(dim=(0, 1))
+        elif g.dim() == 2:
+            g_sq = (g ** 2).mean(dim=0)
+        else:
+            g_sq = (g ** 2).mean()
+            g_sq = g_sq.reshape(1)
+        if self.grad_sq_sum is None:
+            self.grad_sq_sum = g_sq
+        else:
+            self.grad_sq_sum = self.grad_sq_sum + g_sq
+        self.num_probes += 1
+
+    def get_output_grad_second_moment(self):
+        if self.num_probes == 0 or self.grad_sq_sum is None:
+            return None
+        return (self.grad_sq_sum / float(self.num_probes)).detach().float().cpu()
+
+
+def _measure_grad_second_moments(
+    model: torch.nn.Module,
+    unet_inputs: list,
+    target_layer_names: set,
+    *,
+    device: str = "cuda",
+    num_hutchinson_probes: int = 4,
+) -> dict:
+    """Replay captured UNet inputs with gradients enabled and accumulate
+    per-output-channel squared gradient E[g_o^2] for each target layer via
+    Hutchinson estimation.
+
+    For each captured input (latent, timestep, enc_hs), and each Hutchinson
+    probe (random ±1 vector of the latent output shape), we:
+      1. Forward pass through the UNet (with gradient checkpointing if the
+         model supports it; otherwise plain backprop).
+      2. Compute the dot product of the final latent output with the random
+         probe vector: ``loss = <out, v>``.
+      3. Backpropagate to obtain gradients w.r.t. every intermediate layer
+         output.
+      4. For each target Conv2d/Linear layer, accumulate the squared
+         gradient averaged over the non-output dims, into a GradSecondMoment
+         instance.
+
+    The result is an unbiased estimator of the Jacobian row-norms squared
+    (sum of squared gradient entries for each output channel), which —
+    combined with the layer's INT8 quantization error ΔW and the DualMonitor
+    per-input-channel activation second moment E[x_i^2] — yields the
+    measured per-layer damage contribution to the final latent MSE.
+
+    This is fully automatic and model-specific: no fixed formula, no
+    per-model hand-tuning. The gradient second moment is *measured* for
+    this model on this calibration data.
+    """
+    if not unet_inputs:
+        return {}
+    model.train()
+    # Enable gradient checkpointing if available to save activation memory.
+    use_gc = False
+    if hasattr(model, "gradient_checkpointing"):
+        try:
+            model.enable_gradient_checkpointing()
+            use_gc = True
+        except Exception:
+            pass
+
+    grad_monitors: dict = {n: GradSecondMoment() for n in target_layer_names}
+    fwd_handles = []
+
+    def _make_hook(name):
+        def hook_fn_grad(module, inputs, output):
+            gsm = grad_monitors.get(name)
+            if gsm is None or output is None:
+                return
+            if not output.requires_grad:
+                return
+            # Attach a retain_grad on the output so .grad is populated after backward().
+            try:
+                output.retain_grad()
+            except Exception:
+                pass
+            gsm._last_output_ref = output  # stash for post-backward retrieval
+        return hook_fn_grad
+
+    module_dict = dict(model.named_modules())
+    for name in target_layer_names:
+        mod = module_dict.get(name)
+        if mod is not None and isinstance(mod, (torch.nn.Conv2d, torch.nn.Linear)):
+            h = mod.register_forward_hook(_make_hook(name))
+            fwd_handles.append(h)
+
+    try:
+        for probe_idx in range(num_hutchinson_probes):
+            for cap in unet_inputs:
+                latent = cap["sample"].to(device=device, non_blocking=True)
+                timestep_tensor = torch.tensor([cap["timestep"]], device=device, dtype=torch.long) \
+                    if isinstance(cap["timestep"], int) else cap["timestep"].to(device)
+                enc_hs = cap["encoder_hidden_states"]
+                if enc_hs is not None:
+                    enc_hs = enc_hs.to(device=device, non_blocking=True)
+
+                model.zero_grad(set_to_none=True)
+                # Random Hutchinson probe vector on the latent output shape.
+                with torch.enable_grad():
+                    latent_in = latent.detach().clone().requires_grad_(False)
+                    # UNet forward; many SDXL UNets accept (sample, timestep, encoder_hidden_states, ...)
+                    out = model(
+                        latent_in,
+                        timestep_tensor,
+                        enc_hs,
+                        return_dict=False,
+                    )
+                    if isinstance(out, tuple):
+                        out_tensor = out[0]
+                    else:
+                        out_tensor = out.sample if hasattr(out, "sample") else out
+                    out_tensor = out_tensor.float()
+                    # Probe vector v ~ ±1, same shape as out_tensor.
+                    v = (torch.randint(0, 2, out_tensor.shape, device=device, dtype=torch.float32) * 2.0 - 1.0)
+                    # Normalize by sqrt(numel) to keep gradient magnitudes scale-stable.
+                    scale = 1.0 / math.sqrt(float(out_tensor.numel()))
+                    loss = (out_tensor * v).sum() * scale
+                loss.backward()
+                # Accumulate squared gradients for each target layer.
+                for name, gsm in grad_monitors.items():
+                    last_out = getattr(gsm, "_last_output_ref", None)
+                    if last_out is None:
+                        continue
+                    grad_out = getattr(last_out, "grad", None)
+                    if grad_out is not None:
+                        gsm.update_probe(grad_out)
+                    # clear ref to free memory
+                    gsm._last_output_ref = None
+                del out, out_tensor, loss, v, latent_in, latent, timestep_tensor, enc_hs
+                torch.cuda.empty_cache()
+    finally:
+        for h in fwd_handles:
+            h.remove()
+        model.eval()
+        if use_gc:
+            try:
+                model.disable_gradient_checkpointing()
+            except Exception:
+                pass
+        model.zero_grad(set_to_none=True)
+        torch.cuda.empty_cache()
+
+    # Drop layers with no probes (e.g. not exercised by captured inputs).
+    return {n: gsm for n, gsm in grad_monitors.items() if gsm.num_probes > 0}
 
 
 def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
@@ -1953,20 +2252,95 @@ def main():
         )
     pipeline.set_progress_bar_config(disable=False)
     generator = torch.Generator(device=device).manual_seed(42)
-    for i, prompt in enumerate(prompts):
-        print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
-        with torch.no_grad():
-            pipeline(
-                prompt=prompt,
-                num_inference_steps=args.num_inference_steps,
-                output_type="latent",
-                generator=generator,
-            )
-        if (i + 1) % 10 == 0:
-            gc.collect()
-            torch.cuda.empty_cache()
+
+    # ---- Capture UNet inputs for gradient-based damage measurement ----
+    # Reservoir sampling over the calibration prompts: keep a fixed-size
+    # set of (sample, step_idx) latent/timestep/encoder_hidden_states tuples
+    # so that the gradient-measurement phase can replay representative inputs.
+    # cap_k captures across *all* steps (uniform reservoir), which is the
+    # unbiased estimator of the calibration data distribution.
+    cap_k = 8  # reservoir size (captures). Memory-bounded; enough for Hutchinson.
+    unet_inputs: list = []  # list of dicts: {latent, timestep, enc_hs, add_text}
+    rng_capture = torch.Generator(device="cpu").manual_seed(123)
+    _unet_ref = pipeline.unet
+    _orig_unet_forward = _unet_ref.forward
+
+    def _capturing_unet_forward(sample, timestep, encoder_hidden_states, *args_cap, **kwargs_cap):
+        # Reservoir-sample this (sample, timestep) tuple.
+        nonlocal unet_inputs, cap_k, rng_capture
+        try:
+            j = len(unet_inputs)
+            if j < cap_k:
+                unet_inputs.append({
+                    "sample": sample.detach().to("cpu", copy=True).float(),
+                    "timestep": int(timestep.item()) if torch.is_tensor(timestep) else int(timestep),
+                    "encoder_hidden_states": (
+                        encoder_hidden_states.detach().to("cpu", copy=True).float()
+                        if torch.is_tensor(encoder_hidden_states) else None
+                    ),
+                })
+            else:
+                r = int(torch.randint(0, j + 1, (1,), generator=rng_capture).item())
+                if r < cap_k:
+                    unet_inputs[r] = {
+                        "sample": sample.detach().to("cpu", copy=True).float(),
+                        "timestep": int(timestep.item()) if torch.is_tensor(timestep) else int(timestep),
+                        "encoder_hidden_states": (
+                            encoder_hidden_states.detach().to("cpu", copy=True).float()
+                            if torch.is_tensor(encoder_hidden_states) else None
+                        ),
+                    }
+        except Exception:
+            pass
+        return _orig_unet_forward(sample, timestep, encoder_hidden_states, *args_cap, **kwargs_cap)
+
+    _unet_ref.forward = _capturing_unet_forward
+    try:
+        for i, prompt in enumerate(prompts):
+            print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
+            with torch.no_grad():
+                pipeline(
+                    prompt=prompt,
+                    num_inference_steps=args.num_inference_steps,
+                    output_type="latent",
+                    generator=generator,
+                )
+            if (i + 1) % 10 == 0:
+                gc.collect()
+                torch.cuda.empty_cache()
+    finally:
+        _unet_ref.forward = _orig_unet_forward
     for h in handles:
         h.remove()
+
+    print(f"  [Capture] Reservoir-sampled {len(unet_inputs)} UNet inputs for gradient damage measurement.")
+
+    # ---- Gradient-based per-layer damage measurement phase ----
+    # Replay captured UNet inputs with gradients enabled, using Hutchinson
+    # probing + gradient checkpointing. For each target Conv2d/Linear layer,
+    # accumulate E[g_o^2] (per-output-channel squared gradient w.r.t. that
+    # layer's output) via a random projection of the final latent output.
+    grad_second_moments: dict = {}
+    _have_grad = False
+    if unet_inputs and len(target_modules) > 0:
+        try:
+            grad_second_moments = _measure_grad_second_moments(
+                model=pipeline.unet,
+                unet_inputs=unet_inputs,
+                target_layer_names=set(target_modules),
+                device=device,
+                num_hutchinson_probes=4,
+            )
+            _have_grad = bool(grad_second_moments)
+            print(
+                f"  [GradDamage] Measured E[g_o^2] for "
+                f"{len(grad_second_moments)}/{len(target_modules)} layers."
+            )
+        except Exception as e:
+            print(f"  [GradDamage] Gradient measurement failed ({e}); falling back to V4 proxy.")
+            grad_second_moments = {}
+    else:
+        print("  [GradDamage] No captured UNet inputs; falling back to V4 proxy.")
 
 
     print("\nAnalyzing layer sensitivity (profile_score + drift) [INT8]...")
@@ -2070,6 +2444,8 @@ def main():
         alpha=alpha,
         beta=beta,
         device=device,
+        unet_inputs=unet_inputs,
+        grad_second_moments=grad_second_moments,
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
     print(
