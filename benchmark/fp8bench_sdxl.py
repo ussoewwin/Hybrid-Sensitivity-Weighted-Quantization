@@ -114,6 +114,14 @@ def _ensure_comfy_complete():
         _sh.copy2(patched_ops, ops_path)
         os.unlink(patched_ops)
         print(f"[BENCH] restored patched ops.py ({os.path.getsize(ops_path)} bytes)")
+    # Ensure __init__.py exists (upstream ComfyUI ships comfy/ without it
+    # because ComfyUI's main.py adds comfy/ to sys.path; for our standalone
+    # bench we need an explicit package marker).
+    init_path = os.path.join(comfy_dir, "__init__.py")
+    if not os.path.isfile(init_path):
+        with open(init_path, "w") as _f:
+            _f.write("")
+        print(f"[BENCH] created comfy/__init__.py")
 
 
 _ensure_comfy_complete()
