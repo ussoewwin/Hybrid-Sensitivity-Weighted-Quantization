@@ -51,6 +51,17 @@ def _ensure_comfy_complete():
     into a sibling dir and replace the entire comfy/ tree, then overlay
     our patched ops.py on top so INT8 Conv2d support is preserved."""
     comfy_dir = os.path.join(COMFY_PATH, "comfy")
+    # Always ensure comfy/__init__.py exists first — without it Python won't
+    # treat comfy/ as a package and every `from comfy.X import Y` fails with
+    # a misleading ModuleNotFoundError.
+    init_path = os.path.join(comfy_dir, "__init__.py")
+    if not os.path.isfile(init_path):
+        try:
+            with open(init_path, "w") as _f:
+                _f.write("")
+            print(f"[BENCH] created comfy/__init__.py")
+        except Exception as e:
+            print(f"[BENCH] create comfy/__init__.py failed: {e}")
     # Pick a few sentinel files; if any missing, we treat the dir as broken.
     sentinels = ("model_management.py", "memory_management.py", "quant_ops.py",
                  "model_patcher.py", "sd.py", "sample.py", "utils.py",
