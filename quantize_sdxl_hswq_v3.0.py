@@ -18,6 +18,13 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
   E[(W_q - W) x] ≈ (W_q - W) @ mean(x) into the layer bias. Uses DualMonitor
   signed per-channel activation means from calibration. No format change,
   no extra FP16 keep, no loader change.
+- Bias correction scope (Approach A): do NOT correct every INT8 layer. Only
+  the top fraction of INT8 layers by DualMonitor output-variance sensitivity
+  receive the bias delta. Low-sensitivity layers keep raw INT8 bias so MSE
+  is not inflated by noisy corrections while SSIM gains on structural layers
+  are preserved. Controlled by --bias_correction_top_ratio (default 0.5).
+- Optional asymmetric INT8 pack (--asymmetric_int8, default off): map
+  [w_min, w_max] via mid; loader still int8_tensorwise; mid absorbed by BC.
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
 - _quantization_metadata embedded in safetensors metadata for ComfyUI loader.
@@ -910,6 +917,33 @@ def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
     return None
 
 
+def pack_int8_tensorwise(weight, asymmetric: bool = True):
+    """Pack a weight tensor to symmetric storage int8 + scalar scale.
+
+    asymmetric=True (Card 2):
+      mid = (w_min + w_max) / 2
+      scale = max(|w_max - mid|, |w_min - mid|) / 127
+      q = round((W - mid) / scale).clamp(-127, 127)
+      Loader reconstructs q*scale; mid is recovered via bias correction.
+
+    asymmetric=False:
+      scale = absmax / 127, q = round(W / scale).clamp(-127, 127)  (classic)
+    """
+    w = weight.float()
+    if asymmetric:
+        w_min = w.min()
+        w_max = w.max()
+        mid = 0.5 * (w_min + w_max)
+        half = torch.maximum(w_max - mid, mid - w_min).clamp_min(1e-6)
+        scale = (half / 127.0).item()
+        q = ((w - mid) / scale).round().clamp(-127, 127).to(torch.int8)
+        return q, scale, mid.item()
+    amax = w.abs().max().clamp_min(1e-6)
+    scale = (amax / 127.0).item()
+    q = (w / scale).round().clamp(-127, 127).to(torch.int8)
+    return q, scale, 0.0
+
+
 dual_monitors = {}
 
 
@@ -1090,6 +1124,21 @@ def main():
         default=True,
         help="Apply activation-mean bias correction to INT8 layers (default: on). "
              "Cancels E[(W_q-W)x] into bias; no extra FP16 keep, format unchanged.",
+    )
+    parser.add_argument(
+        "--bias_correction_top_ratio",
+        type=float,
+        default=0.5,
+        help="Approach A: fraction of INT8 layers (by DualMonitor sensitivity, "
+             "highest first) that receive bias correction. Default 0.5. "
+             "Use 1.0 to correct all INT8 layers (legacy Card-1 behavior).",
+    )
+    parser.add_argument(
+        "--asymmetric_int8",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Pack INT8 around (min+max)/2 (default: off). Still int8_tensorwise; "
+             "mid is absorbed by bias correction when enabled.",
     )
     args = parser.parse_args()
 
@@ -1359,14 +1408,47 @@ def main():
             weight_amax_dict[name + ".weight"] = optimal_amax
             torch.cuda.empty_cache()
 
-    # Snapshot signed activation means before tearing down DualMonitor / model.
-    # Diffusers module names match keep_layers / weight_amax_dict keys.
+    # Snapshot signed activation means + DualMonitor sensitivity before teardown.
     act_mean_dict = {}
+    sens_dict = {}
+    bc_allowed_modules = None  # None = all INT8 layers; set = Approach A filter
     if args.bias_correction:
         for name, mon in dual_monitors.items():
             if mon.channel_act_mean is not None:
                 act_mean_dict[name] = mon.channel_act_mean.detach().float().cpu()
-        print(f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers.")
+            sens_dict[name] = float(mon.get_sensitivity())
+        # Approach A: only top-ratio INT8 layers by sensitivity get BC.
+        int8_module_names = [
+            wk[:-7] for wk in weight_amax_dict.keys() if wk.endswith(".weight")
+        ]
+        top_ratio = float(args.bias_correction_top_ratio)
+        top_ratio = 0.0 if top_ratio < 0.0 else (1.0 if top_ratio > 1.0 else top_ratio)
+        ranked = sorted(
+            int8_module_names,
+            key=lambda n: sens_dict.get(n, 0.0),
+            reverse=True,
+        )
+        n_bc = int(len(ranked) * top_ratio + 1e-9)
+        if top_ratio > 0.0 and n_bc < 1 and ranked:
+            n_bc = 1
+        if top_ratio >= 1.0:
+            bc_allowed_modules = None
+            print(
+                f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers; "
+                f"scope=ALL {len(ranked)} INT8 layers (top_ratio=1.0)."
+            )
+        else:
+            bc_allowed_modules = set(ranked[:n_bc])
+            print(
+                f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers; "
+                f"Approach A scope=top {n_bc}/{len(ranked)} INT8 by DualMonitor "
+                f"sensitivity (top_ratio={top_ratio:.3f})."
+            )
+            if bc_allowed_modules:
+                top_show = ranked[: min(5, len(ranked))]
+                for i, n in enumerate(top_show):
+                    mark = "BC" if n in bc_allowed_modules else "--"
+                    print(f"    [{mark}] #{i+1} sens={sens_dict.get(n, 0.0):.6g}  {n}")
     else:
         print("  [Bias Correction] Disabled (--no-bias_correction).")
 
@@ -1392,6 +1474,7 @@ def main():
     bias_corr_applied = 0
     bias_corr_skipped_no_bias = 0
     bias_corr_skipped_no_act = 0
+    bias_corr_skipped_low_sens = 0
 
     def _emit_int8_quant_meta(out_dict, comfy_module_key):
         """Emit ComfyUI int8_tensorwise metadata.
@@ -1420,13 +1503,11 @@ def main():
         elif module_name:
             weight_key = module_name + ".weight"
             if weight_key in weight_amax_dict:
-                amax = max(weight_amax_dict[weight_key], 1e-6)
-                # INT8 symmetric per-tensor quantization:
-                #   scale = amax / 127
-                #   q = round(x / scale).clamp(-127, 127).to(int8)
-                scale = amax / 127.0
-                clamped_value = torch.clamp(value, -amax, amax)
-                int8_quantized = (clamped_value / scale).round().clamp(-127, 127).to(torch.int8)
+                # INT8 pack: asymmetric (Card 2) or classic absmax symmetric.
+                # Format stays int8_tensorwise (q * weight_scale at load time).
+                int8_quantized, scale, mid = pack_int8_tensorwise(
+                    value, asymmetric=args.asymmetric_int8
+                )
                 new_value = int8_quantized
                 comfy_module = key[:-7] if key.endswith(".weight") else key
                 # Store weight_scale as float32 scalar
@@ -1436,15 +1517,20 @@ def main():
                 converted_count += 1
 
                 if args.bias_correction:
-                    act_mean = act_mean_dict.get(module_name)
-                    if act_mean is None:
-                        bias_corr_skipped_no_act += 1
+                    if bc_allowed_modules is not None and module_name not in bc_allowed_modules:
+                        bias_corr_skipped_low_sens += 1
                     else:
-                        weight_dq = int8_quantized.float() * scale
-                        delta = compute_int8_bias_delta(value, weight_dq, act_mean)
-                        if delta is not None:
-                            # Negate: add -E[(W_q-W)x] to bias so output mean matches FP.
-                            bias_corr_pending[comfy_module] = (-delta).detach().float().cpu()
+                        act_mean = act_mean_dict.get(module_name)
+                        if act_mean is None:
+                            bias_corr_skipped_no_act += 1
+                        else:
+                            # Compare loader view (q*scale) to FP weight. For asymmetric
+                            # pack, this also absorbs mid into bias via act means.
+                            weight_dq = int8_quantized.float() * scale
+                            delta = compute_int8_bias_delta(value, weight_dq, act_mean)
+                            if delta is not None:
+                                # Negate: add -E[(W_q-W)x] to bias so output mean matches FP.
+                                bias_corr_pending[comfy_module] = (-delta).detach().float().cpu()
             else:
                 new_value = value
         else:
@@ -1465,12 +1551,14 @@ def main():
             bias_corr_applied += 1
         print(
             f"  [Bias Correction] applied={bias_corr_applied}, "
-            f"no_bias={bias_corr_skipped_no_bias}, no_act={bias_corr_skipped_no_act}"
+            f"no_bias={bias_corr_skipped_no_bias}, no_act={bias_corr_skipped_no_act}, "
+            f"low_sens_skip={bias_corr_skipped_low_sens}"
         )
 
     print("Conversion done:")
     print(f"  INT8 layers: {converted_count}")
     print(f"  FP16-kept layers: {kept_count}")
+    print(f"  Asymmetric INT8 pack: {args.asymmetric_int8}")
     if args.bias_correction:
         print(f"  Bias-corrected layers: {bias_corr_applied}")
 
@@ -1492,6 +1580,8 @@ def main():
     print(f"  Format: int8_tensorwise (ComfyUI QUANT_ALGOS compatible)")
     print(f"  Quantized layers: {converted_count}")
     print(f"  FP16 kept layers: {kept_count}")
+    print(f"  Asymmetric pack: {args.asymmetric_int8} | Bias correction: {args.bias_correction} "
+          f"(top_ratio={args.bias_correction_top_ratio})")
 
 if __name__ == "__main__":
     main()
