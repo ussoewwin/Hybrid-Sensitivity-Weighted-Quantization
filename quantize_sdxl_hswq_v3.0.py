@@ -9,13 +9,13 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
   replaces FP8E4M3's non-linear grid (240 positive levels, dense near zero).
 - HSWQWeightedHistogramOptimizerV4 receives INT8Quantizer via `quantizer=`
   injection; the SVD+RMS histogram MSE core is reused unchanged.
-- derive_veto_tunables_int8: VETO thresholds re-derived for INT8's wider
-  dynamic range (no 448 cap) but coarser near-zero resolution. Outlier/magnitude
-  thresholds scaled by 127/448; gray-zone layers get stricter protection.
-- search_low: per-layer adaptive from derive_veto_tunables_int8 (HSWQ md §3.5
-  floor / penalty_cap / clip_max / gray / drift). Auto analysis → auto optimal
-  amax range for V4. V4 + INT8Quantizer still run every INT8 layer.
-  VETO / keep also from derive_veto_tunables_int8.
+- derive_veto_tunables_int8: VETO fences from this checkpoint's distribution
+  (weight-space outlier_ratio / abs_max / kurtosis — not 127/448-collapsed).
+- Pack amax (Card 3 OFF): absmax (search_low = 1.0). Natural pack point for
+  symmetric INT8; deep amax clip drops SSIM.
+- V4 weighted histogram MSE drives INT8 VETO: HSWQWeightedHistogramOptimizerV4
+  + INT8Quantizer measure estimated_mse at the pack point; analyze mse_* select
+  candidates and the P75×mult threshold. Pack and histogram are separate jobs.
 - Bias correction (Card 1): after INT8 pack, cancel systematic output bias
   E[(W_q - W) x] ≈ (W_q - W) @ mean(x) into the layer bias. Uses DualMonitor
   signed per-channel activation means from calibration. No format change,
@@ -30,8 +30,8 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - Card 3 per-channel INT8 (--per_channel_int8, DEFAULT OFF): per-out-channel
   amax; weight_scale saved as (O,1) Linear / (O,1,1,1) Conv for kitchen
   dequantize_int8_simple broadcast. Format tag stays int8_tensorwise.
-  Mutually exclusive with Card 2. When OFF, analyze/convert/pack path is the
-  unchanged commit 7599974 baseline (symmetric per-tensor absmax at convert).
+  Mutually exclusive with Card 2. When OFF, pack amax = absmax; V4 histogram
+  still drives MSE-guided VETO reassessment (analyze mse_*).
 - INT8 MAD attn VETO (this script only): MAD% floors are auto-derived from
   analyze_sdxl_distribution profile (Tukey / Q3 on attn mad_outlier_pct).
   Same path for every checkpoint — no per-model settings. FP8 scripts and
@@ -39,8 +39,11 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
 - _quantization_metadata embedded in safetensors metadata for ComfyUI loader.
-- Best reproduced baseline (Card 3 OFF): commit 7599974705c1fe667df5743b06e64592f4a42b4c
-  MSE 12.3015 / SSIM 0.9798.
+- FP16 keep budget (default +300 MB vs all-INT8): VETO + keep_ratio candidates
+  are ranked by INT8 double — V4 estimated_mse @ absmax (primary) ×
+  analyze_sdxl_distribution int8 fence severity (secondary) — then truncated
+  so overhead stays within `--fp16_budget_mb` (extra = 1 byte/elem vs INT8).
+  Not profile_score / DualMonitor sensitivity ranking. FP8 scripts untouched.
 
 ComfyUI compatibility:
   ComfyUI >= master with comfy_kitchen + TensorWiseINT8Layout can load these
@@ -282,9 +285,9 @@ _SDXL_ATTN_PROJ_SUFFIXES = (".to_q", ".to_k", ".to_v")
 _SDXL_ATTN_TOOUT_SUFFIX = ".to_out.0"
 _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 
-# INT8 dynamic range constant: symmetric per-tensor INT8 has 127 positive levels
-# vs FP8E4M3's 448 max representable. This ratio scales all magnitude/outlier
-# thresholds so VETO triggers at proportionally lower values for INT8.
+# INT8 vs FP8E4M3 positive levels (documentation / legacy fallback defaults only).
+# Hard VETO fences and mse_release_* come from analyze weight-space Tukey —
+# do NOT scale those gates by this ratio (collapses V4-histogram VETO candidates).
 _INT8_SCALE_FACTOR = 127.0 / 448.0
 # Fallback MAD% floor only when profile lacks mad_outlier_pct (old JSON).
 # Live path uses attn_mad_pct_floor from derive_veto_tunables_int8 (per-checkpoint
@@ -338,7 +341,7 @@ class SdxlVetoTunables:
     # Auto from derive_veto_tunables_int8 (profile MAD% distribution).
     attn_mad_pct_floor: float = _INT8_MAD_OUTLIER_PCT_FLOOR
     attn_mad_q3: float = _INT8_MAD_OUTLIER_PCT_FLOOR
-    attn_mad_gap_o_max: float = 40.0 * _INT8_SCALE_FACTOR
+    attn_mad_gap_o_max: float = 40.0
     attn_mad_from_profile: float = 0.0
 
     @classmethod
@@ -386,9 +389,7 @@ class SdxlVetoTunables:
                 d.get("attn_mad_pct_floor", _INT8_MAD_OUTLIER_PCT_FLOOR)
             ),
             attn_mad_q3=float(d.get("attn_mad_q3", _INT8_MAD_OUTLIER_PCT_FLOOR)),
-            attn_mad_gap_o_max=float(
-                d.get("attn_mad_gap_o_max", 40.0 * _INT8_SCALE_FACTOR)
-            ),
+            attn_mad_gap_o_max=float(d.get("attn_mad_gap_o_max", 40.0)),
             attn_mad_from_profile=float(d.get("attn_mad_from_profile", 0.0)),
         )
 
@@ -444,8 +445,16 @@ def resolve_veto_tunables(
             "  [Auto INT8 MAD] "
             f"floor={derived.get('attn_mad_pct_floor', _INT8_MAD_OUTLIER_PCT_FLOOR):.3f}, "
             f"q3={derived.get('attn_mad_q3', _INT8_MAD_OUTLIER_PCT_FLOOR):.3f}, "
-            f"gap_o_max={derived.get('attn_mad_gap_o_max', 40.0 * _INT8_SCALE_FACTOR):.3f}, "
+            f"gap_o_max={derived.get('attn_mad_gap_o_max', 40.0):.3f}, "
             f"from_profile={bool(derived.get('attn_mad_from_profile', 0))}"
+        )
+        print(
+            "  [analyze↔V4 histogram] "
+            f"mse_release o>{derived.get('mse_release_o_min', 0):.3f} "
+            f"k<={derived.get('mse_release_k_max', 0):.3f} "
+            f"m<={derived.get('mse_release_m_max', 0):.3f} "
+            f"p75×{derived.get('mse_p75_multiplier', 2.0):.2f} | "
+            f"pack absmax search_low={derived.get('search_low_floor', 1.0):.3f}"
         )
         return SdxlVetoTunables.from_dict(derived)
     if profile_summary and isinstance(profile_summary.get("veto_tunables"), dict):
@@ -719,7 +728,7 @@ def _compute_sdxl_int8_mad_attn_veto(
     gap_o_max = (
         float(tunables.attn_mad_gap_o_max)
         if tunables is not None
-        else (40.0 * _INT8_SCALE_FACTOR)
+        else 40.0
     )
     prof = norm_profile or {}
     added = set()
@@ -882,6 +891,17 @@ def _collect_mse_release_candidates(
     return candidates
 
 
+def _dualmonitor_channel_importance(dual_monitors: dict, module_name: str):
+    """1D input-channel importance from DualMonitor (32-sample calib contract)."""
+    mon = dual_monitors.get(module_name) if dual_monitors else None
+    if mon is None:
+        return None
+    imp = getattr(mon, "channel_importance", None)
+    if imp is None:
+        return None
+    return imp.detach().float()
+
+
 def _mse_grayzone_veto_reassessment(
     *,
     scope_label: str,
@@ -896,21 +916,43 @@ def _mse_grayzone_veto_reassessment(
     beta: float,
     device: str,
     tunables: SdxlVetoTunables,
-) -> tuple[set, set]:
-    """Gray-zone VETO release via trial MSE (SDXL V3.0 INT8).
+    dual_monitors: dict | None = None,
+) -> tuple[set, set, dict]:
+    """Gray-zone VETO release via V4 weighted-histogram MSE (SDXL V3.0 INT8).
 
-    Uses INT8Quantizer for trial quantization so MSE estimates reflect
-    actual INT8 quantization error, not FP8E4M3 error.
+    Pack amax is absmax (natural INT8 pack point). This path runs
+    HSWQWeightedHistogramOptimizerV4 + INT8Quantizer estimated_mse at that
+    pack point. analyze mse_release_* / mse_p75_multiplier gate candidates
+    and the release threshold. The histogram decides VETO release/keep.
+
+    DualMonitor channel_importance from the 32-sample calibration MUST be
+    passed into V4 (importance=). Weight-only V4 (importance=None) is forbidden
+    on this path — same contract as How-to Samples:32 / r32.
+
+    Returns (hard_veto, keep, mse_cache) where mse_cache maps layer name →
+    V4 estimated_mse at absmax (for INT8 FP16-budget priority; not profile_score).
     """
+    mse_cache: dict = {}
     if not outlier_only_veto:
-        return hard_veto_layers, keep_layers
+        return hard_veto_layers, keep_layers, mse_cache
+
+    if not dual_monitors:
+        raise ValueError(
+            f"{scope_label}: V4-histogram VETO requires DualMonitor maps from "
+            "calibration (num_calib_samples=32 recipe). Refusing importance=None shortcut."
+        )
 
     print(
-        f"\n  [{scope_label} MSE-Guided Reassessment] {len(outlier_only_veto)} VETO layers "
-        f"are outlier-only (o>{tunables.mse_release_o_min:.2f}, "
+        f"\n  [{scope_label} V4-histogram VETO] {len(outlier_only_veto)} gray-zone "
+        f"candidates from analyze "
+        f"(o>{tunables.mse_release_o_min:.2f}, "
         f"k<={tunables.mse_release_k_max:.2f}, m<={tunables.mse_release_m_max:.2f})."
     )
-    print(f"  Trial-quantizing with INT8Quantizer to measure actual INT8 quantization error...")
+    print(
+        "  [V4-histogram VETO] HSWQWeightedHistogramOptimizerV4 + INT8Quantizer "
+        f"estimated_mse @ absmax pack; DualMonitor importance from calibration; "
+        f"release if MSE <= {tunables.mse_p75_multiplier:.2f}×P75(safe)."
+    )
 
     int8_quantizer = INT8Quantizer(device=device)
     trial_optimizer = HSWQWeightedHistogramOptimizerV4(
@@ -918,6 +960,8 @@ def _mse_grayzone_veto_reassessment(
         device=device, alpha=alpha, beta=beta,
         quantizer=int8_quantizer,
     )
+    # Pack uses absmax; VETO MSE must be measured at the same point.
+    _veto_search_range = (1.0, 1.0)
 
     safe_mses = []
     _module_dict = dict(model.named_modules())
@@ -936,18 +980,27 @@ def _mse_grayzone_veto_reassessment(
         if not hasattr(smod, "weight"):
             continue
         sw = smod.weight.data
+        simp = _dualmonitor_channel_importance(dual_monitors, sname)
+        if simp is None:
+            print(f"    [MSE SKIP] safe {sname}: no DualMonitor importance (calib incomplete)")
+            continue
         try:
             sresult = trial_optimizer.compute_optimal_amax_with_stats(
-                sw, importance=None, use_svd_leverage=True, scaled=False
+                sw,
+                importance=simp,
+                use_svd_leverage=True,
+                scaled=False,
+                search_range=_veto_search_range,
             )
             safe_mses.append(sresult["estimated_mse"])
+            mse_cache[sname] = float(sresult["estimated_mse"])
         except Exception as e:
             print(f"    [MSE ERROR] Failed safe layer {sname}: {e}")
         torch.cuda.empty_cache()
 
     if not safe_mses:
-        print(f"  [{scope_label} MSE-Guided Reassessment] No safe baseline available, skipping.")
-        return hard_veto_layers, keep_layers
+        print(f"  [{scope_label} V4-histogram VETO] No safe baseline available, skipping.")
+        return hard_veto_layers, keep_layers, mse_cache
 
     safe_mses.sort()
     p75_idx = int(len(safe_mses) * 0.75)
@@ -966,11 +1019,20 @@ def _mse_grayzone_veto_reassessment(
         if not hasattr(vmod, "weight"):
             continue
         vw = vmod.weight.data
+        vimp = _dualmonitor_channel_importance(dual_monitors, vname)
+        if vimp is None:
+            print(f"    KEPT(no-calib-imp): {vname} | DualMonitor importance missing")
+            continue
         try:
             vresult = trial_optimizer.compute_optimal_amax_with_stats(
-                vw, importance=None, use_svd_leverage=True, scaled=False
+                vw,
+                importance=vimp,
+                use_svd_leverage=True,
+                scaled=False,
+                search_range=_veto_search_range,
             )
             vmse = vresult["estimated_mse"]
+            mse_cache[vname] = float(vmse)
             vprof = _norm_profile.get(vname, {})
             vor = vprof.get("outlier_ratio", 0)
             if vmse <= mse_threshold:
@@ -992,14 +1054,218 @@ def _mse_grayzone_veto_reassessment(
         hard_veto_layers = hard_veto_layers - released
         keep_layers = keep_layers - released
         print(
-            f"  [{scope_label} MSE-Guided Reassessment] Released {len(released)} layers from VETO. "
-            f"Remaining VETO: {len(hard_veto_layers)}."
+            f"  [{scope_label} V4-histogram VETO] Released {len(released)} layers "
+            f"from VETO. Remaining VETO: {len(hard_veto_layers)}."
         )
         print(f"  Updated FP16 kept layers: {len(keep_layers)}")
     else:
-        print(f"  [{scope_label} MSE-Guided Reassessment] No layers released (all exceeded MSE threshold).")
+        print(
+            f"  [{scope_label} V4-histogram VETO] No layers released "
+            f"(all exceeded MSE threshold)."
+        )
 
-    return hard_veto_layers, keep_layers
+    return hard_veto_layers, keep_layers, mse_cache
+
+
+def _fp16_extra_bytes_vs_int8(weight: torch.Tensor) -> int:
+    """Extra bytes of keeping FP16 vs packing INT8 (2B/elem vs 1B/elem → +1B/elem)."""
+    return int(weight.numel())
+
+
+def _measure_v4_mse_absmax_int8(
+    *,
+    weight: torch.Tensor,
+    importance: torch.Tensor,
+    optimizer: HSWQWeightedHistogramOptimizerV4,
+) -> float:
+    """INT8-only: V4 estimated_mse at absmax pack with DualMonitor importance."""
+    result = optimizer.compute_optimal_amax_with_stats(
+        weight,
+        importance=importance,
+        use_svd_leverage=True,
+        scaled=False,
+        search_range=(1.0, 1.0),
+    )
+    return float(result["estimated_mse"])
+
+
+def _apply_fp16_budget_cap(
+    model: torch.nn.Module,
+    keep_layers: set,
+    hard_veto_layers: set,
+    *,
+    budget_mb: float = 300.0,
+    norm_profile: dict,
+    veto_tunables: SdxlVetoTunables,
+    dual_monitors: dict | None,
+    mse_cache: dict | None = None,
+    alpha: float = 0.5,
+    beta: float = 0.5,
+    device: str = "cuda",
+) -> tuple[set, set, dict]:
+    """Hard-cap FP16 keep so overhead vs all-INT8 stays within budget_mb.
+
+    INT8-only priority (NOT profile_score / DualMonitor sensitivity):
+      priority = V4 estimated_mse @ absmax × (1 + analyze fence severity)
+    analyze = derive_veto_tunables_int8 fences via int8_fp16_budget_*.
+    FP8 scripts must not call this ranking.
+    """
+    analyze_dir = os.path.join(current_dir, "analyze")
+    if analyze_dir not in sys.path:
+        sys.path.insert(0, analyze_dir)
+    from analyze_sdxl_distribution import (
+        build_int8_analyze_character_table,
+        int8_fp16_budget_analyze_severity,
+        int8_fp16_budget_priority,
+    )
+
+    if str(veto_tunables.quant_format) != "int8_tensorwise":
+        raise ValueError(
+            "_apply_fp16_budget_cap is INT8-only "
+            f"(got quant_format={veto_tunables.quant_format!r})"
+        )
+    if not dual_monitors:
+        raise ValueError(
+            "[FP16 budget] DualMonitor maps required for V4 MSE ranking; "
+            "refusing profile_score / sensitivity fallback."
+        )
+
+    tunables_dict = veto_tunables.as_dict()
+    budget_bytes = int(float(budget_mb) * 1024 * 1024)
+    if budget_bytes <= 0:
+        raise ValueError(f"fp16_budget_mb must be > 0 (got {budget_mb})")
+
+    # Full analyze character of THIS checkpoint (not a crude k+o*2 score).
+    # _norm_profile is flat name→stats; wrap for analyze API.
+    char_table = build_int8_analyze_character_table(
+        {"layers": norm_profile},
+        tunables_dict,
+        hard_veto_names=hard_veto_layers,
+    )
+
+    # Candidate pool = keep ∪ hard_veto ∪ analyze fence-crossers (severity>=1).
+    # keep_ratio alone must not hide layers this model marks as dangerous.
+    pool = set(keep_layers) | set(hard_veto_layers)
+    for name, row in char_table.items():
+        if float(row.get("severity", 0.0)) >= 1.0:
+            pool.add(name)
+
+    module_dict = dict(model.named_modules())
+    # Only modules that exist on the live UNet.
+    pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
+
+    cache = dict(mse_cache or {})
+    candidates: list[tuple[float, float, float, int, str]] = []
+    # (priority, v4_mse, severity, extra_bytes, name)
+    skipped_no_weight = []
+    skipped_no_v4 = []
+    measured_fresh = 0
+
+    need_fresh = [n for n in pool if n not in cache]
+    trial_optimizer = None
+    if need_fresh:
+        print(
+            f"  [FP16 budget] model character: analyze table={len(char_table)} "
+            f"pool={len(pool)} | measuring V4 MSE @ absmax for "
+            f"{len(need_fresh)} layers (cache hit={len(cache)})..."
+        )
+        trial_optimizer = HSWQWeightedHistogramOptimizerV4(
+            bins=8192, num_candidates=1000, refinement_iterations=10,
+            device=device, alpha=alpha, beta=beta,
+            quantizer=INT8Quantizer(device=device),
+        )
+    else:
+        print(
+            f"  [FP16 budget] model character: analyze table={len(char_table)} "
+            f"pool={len(pool)} | V4 MSE fully cached ({len(cache)})"
+        )
+
+    for name in sorted(pool):
+        mod = module_dict.get(name)
+        if mod is None or not hasattr(mod, "weight") or mod.weight is None:
+            skipped_no_weight.append(name)
+            continue
+        extra = _fp16_extra_bytes_vs_int8(mod.weight.data)
+        row = char_table.get(name, {})
+        prof = norm_profile.get(name, {}) if isinstance(norm_profile.get(name), dict) else {}
+        is_hv = name in hard_veto_layers
+        k = float(row.get("kurtosis", prof.get("kurtosis", 0)) or 0)
+        o = float(row.get("outlier_ratio", prof.get("outlier_ratio", 0)) or 0)
+        m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
+        mad = float(row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0)
+        severity = int8_fp16_budget_analyze_severity(
+            kurtosis=k,
+            outlier_ratio=o,
+            abs_max=m,
+            tunables=tunables_dict,
+            is_hard_veto=is_hv,
+            layer_name=name,
+            mad_outlier_pct=mad,
+        )
+
+        if name in cache:
+            v4_mse = float(cache[name])
+        else:
+            imp = _dualmonitor_channel_importance(dual_monitors, name)
+            if imp is None or trial_optimizer is None:
+                skipped_no_v4.append(name)
+                continue
+            try:
+                v4_mse = _measure_v4_mse_absmax_int8(
+                    weight=mod.weight.data,
+                    importance=imp,
+                    optimizer=trial_optimizer,
+                )
+                cache[name] = v4_mse
+                measured_fresh += 1
+            except Exception as e:
+                print(f"    [FP16 budget] V4 MSE failed {name}: {e} → demote to INT8")
+                skipped_no_v4.append(name)
+                continue
+            torch.cuda.empty_cache()
+
+        priority = int8_fp16_budget_priority(v4_mse, severity)
+        candidates.append((priority, v4_mse, severity, extra, name))
+
+    # Highest V4×analyze damage first; same priority → smaller layer (fit more).
+    candidates.sort(key=lambda x: (-x[0], x[3]))
+
+    selected: set = set()
+    used = 0
+    dropped: list[tuple[str, int, float, float, float]] = []
+    kept_detail: list[tuple[str, int, float, float, float]] = []
+    for priority, v4_mse, severity, extra, name in candidates:
+        if used + extra <= budget_bytes:
+            selected.add(name)
+            used += extra
+            kept_detail.append((name, extra, priority, v4_mse, severity))
+        else:
+            dropped.append((name, extra, priority, v4_mse, severity))
+
+    demoted_veto = hard_veto_layers - selected
+    hard_veto_out = hard_veto_layers & selected
+    keep_out = selected
+
+    stats = {
+        "budget_mb": float(budget_mb),
+        "budget_bytes": budget_bytes,
+        "used_bytes": used,
+        "used_mb": used / (1024 * 1024),
+        "candidates": len(candidates),
+        "pool": len(pool),
+        "analyze_character_layers": len(char_table),
+        "kept": len(keep_out),
+        "dropped": len(dropped),
+        "demoted_veto": len(demoted_veto),
+        "skipped_no_weight": len(skipped_no_weight),
+        "skipped_no_v4": len(skipped_no_v4),
+        "measured_fresh_v4": measured_fresh,
+        "ranking": "v4_mse_x_analyze_character_int8",
+        "dropped_detail": dropped[:40],
+        "kept_detail": kept_detail[:40],
+        "mse_cache_size": len(cache),
+    }
+    return keep_out, hard_veto_out, stats
 
 
 class DualMonitor:
@@ -1085,9 +1351,8 @@ def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
 def pack_int8_tensorwise(weight, asymmetric: bool = True, amax: float | None = None):
     """Pack a weight tensor to symmetric storage int8 + scalar scale.
 
-    `amax` (float) is the HSWQ V4 optimal amax from compute_optimal_amax.
-    When provided, it is used as the clip target instead of recomputing
-    absmax — V4 must not be bypassed at pack time.
+    `amax` (float) is the pack clip target (INT8: absmax). When provided, it
+    is used instead of recomputing absmax from the tensor.
 
     asymmetric=True (Card 2):
       mid = (w_min + w_max) / 2
@@ -1190,15 +1455,13 @@ def _remap_profile_to_diffusers(model_profile: dict, comfyui_to_diffusers_map: d
 
 def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | None = None):
     """
-    SDXL V3.0 INT8: Alpha/Beta from profile + per-layer search_low (SDXL-only).
+    SDXL V3.0 INT8: Alpha/Beta from profile + absmax pack + V4 histogram VETO.
 
-    search_low comes from analyze_sdxl_distribution / derive_veto_tunables_int8
-    (floor, penalty_cap, clip_max, gray bounds, drift) — HSWQ md §3.5 formula
-    with INT8-scaled gray/o/m. Weighted histogram MSE then picks amax in
-    [search_low, 1.0] * absmax.
-
+    - search_low: 1.0 → pack amax = absmax (natural for symmetric INT8).
+    - V4 weighted histogram: required for MSE-guided VETO reassessment
+      (estimated_mse at pack absmax with INT8Quantizer; analyze mse_* gates).
     - alpha/beta: SVD leverage forced off for SDXL (same as V2.1).
-    - hard_veto: INT8-scaled thresholds from derive_veto_tunables_int8.
+    - hard_veto: thresholds from derive_veto_tunables_int8 (this checkpoint).
     """
     if model_profile:
         sample_key = next(iter(model_profile))
@@ -1224,52 +1487,13 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
         veto_tunables = resolve_veto_tunables(model_profile or {})
 
     print(
-        f"  [search_low INT8 from analyze] floor={veto_tunables.search_low_floor:.4f} "
-        f"pen_cap={veto_tunables.search_low_penalty_cap:.4f} "
-        f"clip_max={veto_tunables.search_low_clip_max:.4f} "
-        f"gray_clip={veto_tunables.search_low_gray_clip_max:.4f} "
-        f"drift_thresh={veto_tunables.drift_veto_thresh:.4f}"
+        "  [INT8 pack] absmax (search_low=1.0); "
+        "[V4 histogram] MSE-guided VETO via analyze mse_*"
     )
 
     def get_dynamic_search_low(name, weight_tensor):
-        # HSWQ adaptive search_low from THIS checkpoint analyze profile
-        # (derive_veto_tunables_int8). No model-name branches.
-        vt = veto_tunables
-        profile_key = name + ".weight"
-        prof = (
-            model_profile.get(profile_key, model_profile.get(name, {}))
-            if model_profile
-            else {}
-        )
-        if prof:
-            k_stat = float(prof.get("kurtosis", 0) or 0)
-            o_ratio = float(prof.get("outlier_ratio", 0) or 0)
-            m_stat = float(prof.get("abs_max", 0) or 0)
-        else:
-            k_stat, o_ratio, m_stat = _layer_weight_stats(weight_tensor)
-
-        floor = float(vt.search_low_floor)
-        floor = min(max(floor, 0.50), 0.99)
-        pen_cap = float(vt.search_low_penalty_cap)
-        pen_cap = min(max(pen_cap, 0.0), 0.49)
-        k_penalty = min(k_stat / 100.0, pen_cap)
-        o_penalty = min(o_ratio / 60.0, pen_cap)
-
-        upper_clip = float(vt.search_low_clip_max)
-        upper_clip = min(max(upper_clip, floor), 1.0)
-        drift = _weight_profile_drift(weight_tensor, prof) if prof else 0.0
-        in_gray = (
-            (vt.k_gray_lo < k_stat <= vt.k_gray_hi)
-            or (vt.o_gray_lo < o_ratio <= vt.o_gray_hi)
-            or (vt.m_gray_lo < m_stat <= vt.m_gray_hi)
-        )
-        if in_gray or drift > float(vt.drift_veto_thresh):
-            gray_clip = float(vt.search_low_gray_clip_max)
-            upper_clip = min(upper_clip, max(gray_clip, floor))
-
-        return float(
-            np.clip(floor + max(k_penalty, o_penalty), floor, upper_clip)
-        )
+        # Natural INT8 pack point. Histogram V4 runs in gray-zone VETO.
+        return 1.0
 
     if model_profile:
         all_k = [p.get("kurtosis", 0) for p in model_profile.values() if isinstance(p, dict)]
@@ -1361,9 +1585,27 @@ def main():
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
     parser.add_argument("--output", type=str, required=True, help="Path to output safetensors model")
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
-    parser.add_argument("--num_calib_samples", type=int, default=256, help="Number of calibration samples")
-    parser.add_argument("--num_inference_steps", type=int, default=20, help="Number of inference steps")
+    parser.add_argument(
+        "--num_calib_samples",
+        type=int,
+        default=32,
+        help="Calibration samples (How-to / r32 recommended: 32)",
+    )
+    parser.add_argument(
+        "--num_inference_steps",
+        type=int,
+        default=25,
+        help="Denoising steps per calibration sample (How-to example: 25)",
+    )
     parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05-0.25; 0.05-0.10 often sufficient for SDXL)")
+    parser.add_argument(
+        "--fp16_budget_mb",
+        type=float,
+        default=300.0,
+        help="Max FP16 overhead vs all-INT8 in MiB (default: 300). "
+             "VETO+dynamic keep are ranked by sensitivity and truncated to fit. "
+             "Extra cost = 1 byte per weight element (FP16 2B vs INT8 1B).",
+    )
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
     parser.add_argument("--profile", type=str, help="Path to distribution profile JSON (optional, will auto-generate if missing)")
     parser.add_argument(
@@ -1396,7 +1638,8 @@ def main():
         default=False,
         help="Card 3 (DEFAULT OFF). Per-output-channel amax; weight_scale "
              "(Out,1) Linear / (Out,1,1,1) Conv; format tag stays int8_tensorwise. "
-             "Default OFF = exact commit 7599974 per-tensor path. "
+             "Default OFF = per-tensor absmax pack (analyze search_low=1.0); "
+             "V4 runs for MSE-guided VETO via derive_veto_tunables_int8. "
              "Mutually exclusive with --asymmetric_int8.",
     )
     args = parser.parse_args()
@@ -1542,6 +1785,12 @@ def main():
         prompts = prompts[:args.num_calib_samples]
 
     print(f"Running calibration ({args.num_calib_samples} samples, {args.num_inference_steps} steps)...")
+    if args.num_calib_samples != 32 or args.num_inference_steps != 25:
+        print(
+            "  [WARN] How-to / r32 recipe is num_calib_samples=32, "
+            "num_inference_steps=25. DualMonitor importance for V4 VETO "
+            "should follow that calibration; current args differ."
+        )
     pipeline.set_progress_bar_config(disable=False)
     generator = torch.Generator(device=device).manual_seed(42)
     for i, prompt in enumerate(prompts):
@@ -1619,8 +1868,9 @@ def main():
     )
     if keypattern_veto:
         release_cands -= keypattern_veto
+    mse_cache: dict = {}
     if release_cands:
-        hard_veto_layers, keep_layers = _mse_grayzone_veto_reassessment(
+        hard_veto_layers, keep_layers, mse_cache = _mse_grayzone_veto_reassessment(
             scope_label="V3.0 SDXL INT8",
             hard_veto_layers=hard_veto_layers,
             keep_layers=keep_layers,
@@ -1633,7 +1883,54 @@ def main():
             beta=beta,
             device=device,
             tunables=veto_tunables,
+            dual_monitors=dual_monitors,
         )
+
+    # Hard ceiling: FP16 overhead vs all-INT8 must stay within budget.
+    # Ranking = V4 estimated_mse × analyze character (THIS checkpoint) — not profile_score.
+    keep_before_budget = len(keep_layers)
+    veto_before_budget = len(hard_veto_layers)
+    keep_layers, hard_veto_layers, budget_stats = _apply_fp16_budget_cap(
+        model,
+        keep_layers,
+        hard_veto_layers,
+        budget_mb=float(args.fp16_budget_mb),
+        norm_profile=_norm_profile,
+        veto_tunables=veto_tunables,
+        dual_monitors=dual_monitors,
+        mse_cache=mse_cache,
+        alpha=alpha,
+        beta=beta,
+        device=device,
+    )
+    dynamic_keep_layers = dynamic_keep_layers & keep_layers
+    print(
+        f"\n  [FP16 budget] ranking={budget_stats.get('ranking')} "
+        f"cap={budget_stats['budget_mb']:.1f} MiB "
+        f"(extra vs all-INT8); used={budget_stats['used_mb']:.1f} MiB "
+        f"| pool={budget_stats.get('pool', budget_stats['candidates'])} "
+        f"| analyze_char={budget_stats.get('analyze_character_layers', '?')} "
+        f"| keep {keep_before_budget}→{budget_stats['kept']} "
+        f"| VETO {veto_before_budget}→{len(hard_veto_layers)} "
+        f"| dropped={budget_stats['dropped']} "
+        f"(demoted_veto={budget_stats['demoted_veto']}, "
+        f"v4_fresh={budget_stats.get('measured_fresh_v4', 0)}, "
+        f"no_v4={budget_stats.get('skipped_no_v4', 0)})"
+    )
+    if budget_stats.get("kept_detail"):
+        print("  [FP16 budget] top kept (name | MiB | priority | V4_mse | analyze_sev):")
+        for _kn, _kextra, _kp, _kmse, _ksev in budget_stats["kept_detail"][:15]:
+            print(
+                f"    KEEP {_kn} | {_kextra / (1024*1024):.2f} MiB | "
+                f"prio={_kp:.6g} | mse={_kmse:.6g} | sev={_ksev:.3f}"
+            )
+    if budget_stats.get("dropped_detail"):
+        print("  [FP16 budget] lowest-priority drops (name | MiB | priority | V4_mse | analyze_sev):")
+        for _dn, _dextra, _dp, _dmse, _dsev in budget_stats["dropped_detail"][:20]:
+            print(
+                f"    DROP {_dn} | {_dextra / (1024*1024):.2f} MiB | "
+                f"prio={_dp:.6g} | mse={_dmse:.6g} | sev={_dsev:.3f}"
+            )
 
     non_veto_total = len([n for n in target_modules if n not in hard_veto_layers])
     print(f"\nTotal layers: {len(target_modules)} (Non-VETO pool: {non_veto_total})")
@@ -1663,27 +1960,16 @@ def main():
         )
     else:
         print(
-            "[Card 3 OFF] Using commit 7599974 path: "
-            "per-tensor HSWQ V4 amax + pack_int8_tensorwise."
+            "[Card 3 OFF] pack amax = absmax; "
+            "V4 weighted histogram drives MSE-guided VETO (analyze mse_*)."
         )
-    int8_quantizer = INT8Quantizer(device=device)
-    hswq_optimizer = HSWQWeightedHistogramOptimizerV4(
-        bins=8192,
-        num_candidates=1000,
-        refinement_iterations=10,
-        device=device,
-        alpha=alpha,
-        beta=beta,
-        quantizer=int8_quantizer,
-    )
 
+    # Pack stores absmax. V4 weighted histogram already ran for VETO
+    # (_mse_grayzone_veto_reassessment) with analyze mse_* tunables.
     for name, module in tqdm(model.named_modules(), desc="Analyzing"):
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
             if name in keep_layers:
                 continue
-            importance = dual_monitors[name].channel_importance if name in dual_monitors else None
-            layer_search_low = get_layer_search_low(name, module.weight.data)
-            layer_search_range = (layer_search_low, 1.0)
             weight_key = name + ".weight"
 
             if args.per_channel_int8:
@@ -1703,20 +1989,10 @@ def main():
                 torch.cuda.empty_cache()
                 continue
 
-            # Card 3 OFF: HSWQWeightedHistogramOptimizerV4 + INT8Quantizer.
-            # search_low from analyze profile; MSE picks amax in the range.
-            print(
-                f"  [HSWQ-INT8] {name:50} | Pure Data-Driven | "
-                f"search_range={layer_search_range[0]:.3f}-{layer_search_range[1]:.3f}"
-            )
-            optimal_amax = hswq_optimizer.compute_optimal_amax(
-                module.weight.data,
-                importance,
-                use_svd_leverage=False,  # V3.0 SDXL INT8: same as V2.1 SDXL
-                scaled=False,
-                search_range=layer_search_range,
-            )
-            weight_amax_dict[name + ".weight"] = optimal_amax
+            # INT8 pack point = absmax (natural).
+            absmax = float(module.weight.data.abs().max().clamp_min(1e-6).item())
+            print(f"  [HSWQ-INT8] {name:50} | pack absmax={absmax:.4f}")
+            weight_amax_dict[weight_key] = absmax
             torch.cuda.empty_cache()
 
     # Snapshot signed activation means + DualMonitor sensitivity before teardown.
@@ -1771,7 +2047,6 @@ def main():
 
     print("\n[VRAM Optimization] Preparing for high-speed GPU conversion...")
     del pipeline
-    del hswq_optimizer
     del model
     gc.collect()
     torch.cuda.empty_cache()
@@ -1845,11 +2120,10 @@ def main():
                             if delta is not None:
                                 bias_corr_pending[comfy_module] = (-delta).detach().float().cpu()
             elif weight_key in weight_amax_dict:
-                # V4 optimal_amax MUST flow into pack — never recompute absmax here.
-                # search_low from analyze; V4 weighted histogram MSE owns amax.
-                v4_amax = float(weight_amax_dict[weight_key])
+                # Pack amax = absmax (analyze search_low=1.0). V4 ran for VETO only.
+                pack_amax = float(weight_amax_dict[weight_key])
                 int8_quantized, scale, mid = pack_int8_tensorwise(
-                    value, asymmetric=args.asymmetric_int8, amax=v4_amax
+                    value, asymmetric=args.asymmetric_int8, amax=pack_amax
                 )
                 new_value = int8_quantized
                 comfy_module = key[:-7] if key.endswith(".weight") else key
