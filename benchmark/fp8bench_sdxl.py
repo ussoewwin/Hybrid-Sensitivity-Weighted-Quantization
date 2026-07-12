@@ -143,13 +143,81 @@ def _install_comfy_aimdo_stub():
 
 _AIMDO_STUBBED = _install_comfy_aimdo_stub()
 
+
+def _install_psutil_stub():
+    """comfy.model_management imports psutil at module load. Cloud bench envs
+    may lack it; provide a minimal stub so import succeeds without forcing
+    a pip install."""
+    try:
+        import psutil  # noqa: F401
+        return False
+    except Exception:
+        pass
+
+    class _VMem:
+        def __init__(self):
+            self.total = 0
+            self.available = 0
+            self.percent = 0.0
+            self.used = 0
+            self.free = 0
+
+    class _Swap:
+        def __init__(self):
+            self.total = 0
+            self.used = 0
+            self.free = 0
+            self.percent = 0.0
+
+    class _PSUtilStub:
+        def virtual_memory(self):
+            return _VMem()
+
+        def swap_memory(self):
+            return _Swap()
+
+        def cpu_percent(self, *a, **k):
+            return 0.0
+
+        def cpu_count(self, *a, **k):
+            return 1
+
+        def disk_usage(self, *a, **k):
+            return None
+
+    import types as _t
+    mod = _t.ModuleType("psutil")
+    stub = _PSUtilStub()
+    mod.virtual_memory = stub.virtual_memory
+    mod.swap_memory = stub.swap_memory
+    mod.cpu_percent = stub.cpu_percent
+    mod.cpu_count = stub.cpu_count
+    mod.disk_usage = stub.disk_usage
+    sys.modules["psutil"] = mod
+    return True
+
+
+_PSUTIL_STUBBED = _install_psutil_stub()
+
+# ComfyUI's cli_args.py calls parser.parse_args() at import time, which would
+# swallow our bench argv (--fp16, --fp8, --prompt, ...). Temporarily clear
+# sys.argv so ComfyUI parses an empty arg list, then restore it.
+_saved_argv = list(sys.argv)
+sys.argv = [sys.argv[0]] if sys.argv else []
 try:
+    import comfy.options
+    # Force ComfyUI to NOT parse our argv (belt-and-suspenders).
+    comfy.options.args_parsing = False
     import comfy.model_management
     import comfy.ops
     import comfy.sample
     import comfy.sd
     import comfy.utils
+finally:
+    sys.argv = _saved_argv
 
+
+try:
     # Normalize comfy_quant after json.loads (bare str / double-encoded JSON).
     _ops_json_loads = comfy.ops.json.loads
 
@@ -171,15 +239,32 @@ try:
     print(f"[BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
     print(f"[BENCH] MixedPrecisionOps.Conv2d: {hasattr(comfy.ops.mixed_precision_ops(), 'Conv2d')}")
     print(f"[BENCH] comfy_aimdo stubbed: {_AIMDO_STUBBED}")
-except ImportError as e:
-    print(f"Error: Could not import ComfyUI comfy package from {COMFY_PATH}: {e}")
-    if os.path.isdir(COMFY_PATH):
+except Exception as e:
+    print(f"Error: Could not import ComfyUI comfy package from {COMFY_PATH}: {type(e).__name__}: {e}")
+    comfy_dir = os.path.join(COMFY_PATH, "comfy")
+    if os.path.isdir(comfy_dir):
         try:
-            print(f"Directory listing: {os.listdir(COMFY_PATH)[:20]}")
+            listing = sorted(os.listdir(comfy_dir))
+            print(f"comfy/ listing ({len(listing)} entries): {listing[:40]}")
+            for key in ("__init__.py", "model_management.py", "ops.py", "sd.py", "sample.py"):
+                p = os.path.join(comfy_dir, key)
+                print(f"  {key}: exists={os.path.isfile(p)} size={os.path.getsize(p) if os.path.isfile(p) else 0}")
+        except Exception as ex:
+            print(f"Failed to list comfy/: {ex}")
+    elif os.path.isdir(COMFY_PATH):
+        try:
+            print(f"COMFY_PATH listing: {os.listdir(COMFY_PATH)[:20]}")
         except Exception:
             pass
     else:
         print(f"COMFY_PATH does not exist: {COMFY_PATH}")
+    # Print git HEAD for checkout staleness diagnosis
+    try:
+        import subprocess as _sp
+        head = _sp.check_output(["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "log", "-1", "--oneline"], text=True, stderr=_sp.DEVNULL).strip()
+        print(f"Repo HEAD: {head}")
+    except Exception:
+        pass
     print("Ensure ComfyUI-master/comfy is present, or set COMFYUI_PATH.")
     sys.exit(1)
 
