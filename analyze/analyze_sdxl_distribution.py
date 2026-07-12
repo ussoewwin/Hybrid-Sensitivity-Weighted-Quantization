@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-SDXL UNet layer distribution analyzer for HSWQ V2.0.
+SDXL UNet layer distribution analyzer for HSWQ.
 
-Produces per-layer statistics and derive_veto_tunables() for quantize_sdxl_hswq_v2.0.py.
-All VETO thresholds are derived from profile layer distributions (no tuned magic constants).
+Produces per-layer statistics and:
+  - derive_veto_tunables()       → FP8 / quantize_sdxl_hswq_v2.x
+  - derive_veto_tunables_int8()  → INT8 / quantize_sdxl_hswq_v3.0
+    (hard VETO fences + mse_* that drive V4 MSE-guided VETO; pack search_low=1.0)
+
+All VETO / V4-link thresholds come from this checkpoint's layer distribution
+(no model-name hardcoding).
 """
 
 from __future__ import annotations
@@ -372,23 +377,18 @@ def _derive_engine_tunables_int8(
     o_sorted: List[float],
     m_sorted: List[float],
 ) -> Dict[str, float]:
-    """INT8-specific engine tunables.
+    """INT8 engine tunables linked to HSWQ V4 weighted histogram (VETO).
 
-    INT8 symmetric per-tensor has 127 positive levels (uniform grid) vs
-    FP8E4M3's non-linear grid with ~240 positive levels concentrated near 0.
-    Key differences vs FP8:
-      1. max_representable = 127 (not 448) → outlier_ratio thresholds are
-         scaled by 127/448 ≈ 0.283. A weight with abs_max=448 that was at
-         the FP8 ceiling is now 3.5x the INT8 ceiling, so VETO must trigger
-         at proportionally lower abs_max.
-      2. Zero-near resolution is constant (linear grid), so HSWQ's
-         outlier-clipping is more valuable: clipping tight outliers yields
-         uniform resolution gain across the whole range.
-      3. Dynamic range is effectively wider for in-distribution weights
-         (no 448 cap), so search_low can be more aggressive for clean
-         layers, but gray-zone layers (moderate outliers) need stricter
-         protection than FP8 because the resolution loss near zero is
-         absolute, not relative.
+    Profile stats (kurtosis / outlier_ratio / abs_max) are weight-space.
+    Do NOT multiply by 127/448 — that collapses mse_release / gray bands and
+    starves or floods V4-histogram VETO candidates.
+
+    Link contract with quantize_sdxl_hswq_v3.0.py:
+      - Pack amax = absmax (search_low_* = 1.0). Natural for symmetric INT8.
+      - V4 + INT8Quantizer estimated_mse is required for MSE-guided VETO.
+      - mse_release_o_min / k_max / m_max / mse_p75_multiplier select which
+        hard-VETO layers enter V4 histogram release, and the P75×mult
+        threshold. These must stay weight-space.
     """
     n = len(all_k)
     k_q1, k_med, k_q3 = _quartile_bounds(k_sorted)
@@ -398,45 +398,41 @@ def _derive_engine_tunables_int8(
     iqr_o = o_q3 - o_q1
     iqr_m = m_q3 - m_q1
 
-    # INT8 scale factor: 127 / 448 ≈ 0.2835
-    int8_scale_factor = 127.0 / 448.0
-
     drift_veto_thresh = (o_q3 - o_med) / max(o_med, 1e-9) if o_med > 0 else 0.5
     drift_score_mult = max(iqr_k + iqr_o + iqr_m, 1.0)
 
+    # V4-histogram VETO: baseline P75×mult from this checkpoint's outlier IQR.
     mse_p75_mult = 1.0 + (iqr_o / max(o_q1, 1e-9)) if o_q1 > 0 else 2.0
     mse_p75_mult = min(max(mse_p75_mult, 1.25), 3.0)
 
     k_scale = 1.0 / max(k_q3, 1e-9)
     o_scale = 1.0 / max(o_q3, 1e-9)
     m_scale = 1.0 / max(m_q3, 1e-9)
-    penalty_cap = min(iqr_k / max(k_q3, 1e-9), 0.49)
 
     return {
         "drift_veto_thresh": float(min(max(drift_veto_thresh, 0.1), 1.0)),
         "drift_score_mult": float(drift_score_mult),
-        # INT8: outlier VETO release at lower o (dynamic range is wider, so
-        # moderate outliers are less damaging). Scale o_min by int8 factor.
-        "mse_release_o_min": float(max(o_q3, o_med + iqr_o * 0.5) * int8_scale_factor * 1.2),
+        # Weight-space gray-zone gates for V4 histogram MSE release candidates
+        # (same units as profile outlier_ratio / abs_max / kurtosis).
+        "mse_release_o_min": float(max(o_q3, o_med + iqr_o * 0.5)),
         "mse_release_k_max": float(k_q3),
-        "mse_release_m_max": float(m_q3 * int8_scale_factor),
+        "mse_release_m_max": float(m_q3),
         "mse_p75_multiplier": float(mse_p75_mult),
         "k_scale": float(k_scale),
         "o_scale": float(o_scale),
         "m_scale": float(m_scale),
         "k_gray_lo": float(k_q1),
         "k_gray_hi": float(k_q3),
-        "o_gray_lo": float(o_q1 * int8_scale_factor),
-        "o_gray_hi": float(o_q3 * int8_scale_factor),
-        "m_gray_lo": float(m_q1 * int8_scale_factor),
-        "m_gray_hi": float(m_q3 * int8_scale_factor),
-        "search_low_floor": float(m_q1 / max(m_q3, 1e-9)) if m_q3 > 0 else 0.5,
-        "search_low_penalty_cap": float(penalty_cap),
-        "search_low_clip_max": float(min(1.0, 0.5 + o_scale * o_med)),
-        # k_med can be negative; clip must stay in [0.5, 0.99] for search_low.
-        "search_low_gray_clip_max": float(
-            min(0.99, max(0.5, 0.5 + k_scale * k_med))
-        ),
+        "o_gray_lo": float(o_q1),
+        "o_gray_hi": float(o_q3),
+        "m_gray_lo": float(m_q1),
+        "m_gray_hi": float(m_q3),
+        # INT8 pack point = absmax. V4 histogram still drives VETO MSE at that
+        # point (v3 search_range (1.0, 1.0) for estimated_mse).
+        "search_low_floor": 1.0,
+        "search_low_penalty_cap": 0.0,
+        "search_low_clip_max": 1.0,
+        "search_low_gray_clip_max": 1.0,
         "alpha_floor": float(min(max(0.5 + k_scale * k_med, 0.5), 0.99)),
         "alpha_clip_max": 0.99,
         "beta_floor": float(min(0.5 + o_scale * o_med, 0.99)),
@@ -488,19 +484,21 @@ def _derive_int8_attn_mad_tunables(
 
 
 def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
-    """INT8-specific VETO tunables for SDXL V3.0.
+    """INT8 VETO + V4-histogram link for SDXL V3.0.
 
-    Reuses the FP8 `derive_veto_tunables` shape but replaces the engine block
-    with INT8-tuned gray/search_low thresholds. extreme_outlier / huge_magnitude
-    stay in weight-space units (same as FP8 fences) — they are not 127/448-
-    scaled. Attn absmax gates still use int8_sf because those compare against
-    scaled gate paths. Also tightens per-class attn gates because INT8's
-    uniform grid loses near-zero resolution that FP8E4M3 had natively.
+    Single analyze → quantize contract:
+      1) Hard VETO fences (extreme_*/attn_*/ff2_*) from this checkpoint's
+         weight-space distribution (no 127/448 collapse).
+      2) Engine mse_release_* / mse_p75_multiplier drive which VETO layers
+         enter HSWQWeightedHistogramOptimizerV4 + INT8Quantizer estimated_mse
+         release, and the threshold the histogram uses.
+      3) search_low_* = 1.0 → pack amax is absmax (natural INT8); V4 histogram
+         remains mandatory for (2).
 
-    MAD% floors for attn gap-fill are derived from this profile's layer
-    mad_outlier_pct distribution (automatic per checkpoint, not named).
+    MAD% floors for attn gap-fill come from this profile's mad_outlier_pct.
     """
     profile = _normalize_profile(profile)
+    profile = _unet_only_profile(profile)
     layers = profile.get("layers", {})
     if not layers:
         raise ValueError("profile has no layers")
@@ -530,19 +528,18 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
         all_k, all_o, all_m, k_sorted, o_sorted, m_sorted
     )
 
-    int8_scale_factor = 127.0 / 448.0
-
+    # Weight-space Tukey gates (same units as live abs_max / outlier_ratio).
     def _class_attn_gate_int8(entries: List[Dict[str, float]], pool_m: List[float]) -> float:
         if not entries:
-            return _tukey_upper(pool_m) * int8_scale_factor
+            return _tukey_upper(pool_m)
         am = _sorted_pool([e["m"] for e in entries])
-        return _tukey_upper(am) * int8_scale_factor
+        return _tukey_upper(am)
 
     def _class_outlier_gate_int8(entries: List[Dict[str, float]], pool_o: List[float]) -> float:
         if not entries:
-            return _tukey_upper(pool_o) * int8_scale_factor
+            return _tukey_upper(pool_o)
         oo = _sorted_pool([e["o"] for e in entries])
-        return _tukey_upper(oo) * int8_scale_factor
+        return _tukey_upper(oo)
 
     qkv_gate_i = _class_attn_gate_int8(by_class.get("qkv", []), all_m)
     toout_gate_i = _class_attn_gate_int8(by_class.get("toout", []), all_m)
@@ -560,9 +557,6 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
         "attn_toout_absmax": float(toout_gate_i),
         "attn_toout_outlier": float(toout_o_gate_i),
         "attn_ff2_absmax": float(ff2_gate_i),
-        # outlier_ratio is dimensionless (abs_max/std); abs_max is weight-space.
-        # Do NOT multiply by 127/448 — that collapses fences and VETO-explodes
-        # (wai UNet: 778/794), destroying the SSIM 0.98 / MSE~12 path.
         "extreme_outlier": float(base["extreme_outlier"]),
         "huge_magnitude": float(base["huge_magnitude"]),
         "quant_format": "int8_tensorwise",
@@ -572,8 +566,483 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
     return base
 
 
-def enrich_profile_with_derived(profile: Dict[str, Any]) -> Dict[str, Any]:
-    """Recompute per-layer profile_score and attach veto_tunables + summary."""
+def int8_fp16_budget_analyze_severity(
+    *,
+    kurtosis: float,
+    outlier_ratio: float,
+    abs_max: float,
+    tunables: Dict[str, Any],
+    is_hard_veto: bool = False,
+    layer_name: str = "",
+    mad_outlier_pct: float = 0.0,
+) -> float:
+    """INT8-only: analyze-side severity = this checkpoint's character on one layer.
+
+    FP8 path must NOT call this. Denominators are derive_veto_tunables_int8
+    fences for THIS model (extreme_*, attn_* gates, attn_mad_pct_floor) —
+    not a fixed recipe. Higher = more FP16-deserving under --fp16_budget_mb.
+    """
+    if tunables.get("quant_format") != "int8_tensorwise":
+        raise ValueError(
+            "int8_fp16_budget_analyze_severity is INT8-only "
+            "(require quant_format=int8_tensorwise); FP8 must not call this"
+        )
+
+    ek = max(abs(float(tunables.get("extreme_kurtosis", 1e-6))), 1e-6)
+    eo = max(float(tunables.get("extreme_outlier", 1e-6)), 1e-6)
+    hm = max(float(tunables.get("huge_magnitude", 1e-6)), 1e-6)
+
+    k = float(kurtosis)
+    o = float(outlier_ratio)
+    m = float(abs_max)
+    # Excess over INT8 hard fences (1.0 == at fence).
+    severity = max(o / eo, 0.0) + max(k / ek, 0.0) + max(m / hm, 0.0)
+
+    # Attn-class character from the same INT8 tunables (model-specific gates).
+    name = str(layer_name or "")
+    if name.endswith((".to_q", ".to_k", ".to_v")):
+        aq = max(float(tunables.get("attn_qkv_absmax", hm)), 1e-6)
+        ao = max(float(tunables.get("attn_qkv_outlier", eo)), 1e-6)
+        severity += max(m / aq, 0.0) + max(o / ao, 0.0)
+    elif name.endswith(".to_out.0"):
+        aq = max(float(tunables.get("attn_toout_absmax", hm)), 1e-6)
+        ao = max(float(tunables.get("attn_toout_outlier", eo)), 1e-6)
+        severity += max(m / aq, 0.0) + max(o / ao, 0.0)
+
+    mad_floor = float(tunables.get("attn_mad_pct_floor", 0.0) or 0.0)
+    mad = float(mad_outlier_pct or 0.0)
+    if mad_floor > 0.0 and mad > 0.0:
+        severity += max(mad / mad_floor, 0.0)
+
+    if is_hard_veto:
+        severity *= 1.5
+    return float(severity)
+
+
+def int8_fp16_budget_priority(
+    v4_estimated_mse: float,
+    analyze_severity: float,
+) -> float:
+    """INT8-only combined priority: V4 MSE primary × analyze severity.
+
+    priority = estimated_mse * (1 + severity)
+    High V4 damage under INT8 absmax pack + nasty analyze stats → keep FP16 first
+    inside the +300 MiB budget. FP8 must not use this ranking.
+    """
+    mse = max(float(v4_estimated_mse), 0.0)
+    sev = max(float(analyze_severity), 0.0)
+    return mse * (1.0 + sev)
+
+
+def build_int8_analyze_character_table(
+    profile: Dict[str, Any],
+    tunables: Dict[str, Any],
+    *,
+    hard_veto_names: Optional[set] = None,
+) -> Dict[str, Dict[str, float]]:
+    """Per-layer INT8 analyze character for this checkpoint (FP8 must not call).
+
+    Returns {layer: {kurtosis, outlier_ratio, abs_max, mad_outlier_pct, severity}}.
+    Severity uses the same fences as int8_fp16_budget_analyze_severity.
+    """
+    if tunables.get("quant_format") != "int8_tensorwise":
+        raise ValueError(
+            "build_int8_analyze_character_table is INT8-only; FP8 must not call this"
+        )
+    profile = _unet_only_profile(profile)
+    layers = profile.get("layers", {})
+    hard = hard_veto_names or set()
+    out: Dict[str, Dict[str, float]] = {}
+    for name, entry in layers.items():
+        if not isinstance(entry, dict):
+            continue
+        k = float(entry.get("kurtosis", 0) or 0)
+        o = float(entry.get("outlier_ratio", 0) or 0)
+        m = float(entry.get("abs_max", 0) or 0)
+        mad = float(entry.get("mad_outlier_pct", 0) or 0)
+        sev = int8_fp16_budget_analyze_severity(
+            kurtosis=k,
+            outlier_ratio=o,
+            abs_max=m,
+            tunables=tunables,
+            is_hard_veto=name in hard,
+            layer_name=name,
+            mad_outlier_pct=mad,
+        )
+        out[name] = {
+            "kurtosis": k,
+            "outlier_ratio": o,
+            "abs_max": m,
+            "mad_outlier_pct": mad,
+            "severity": float(sev),
+        }
+    return out
+
+
+def _is_unet_weight_key(name: str) -> bool:
+    """Keep SDXL UNet weights; drop CLIP / VAE (full-checkpoint profiles)."""
+    if name.startswith(("conditioner.", "first_stage_model.", "text_encoder")):
+        return False
+    if "vae." in name or name.startswith("vae."):
+        return False
+    return True
+
+
+def _unet_only_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
+    profile = _normalize_profile(profile)
+    layers = profile.get("layers", {})
+    unet = {k: v for k, v in layers.items() if _is_unet_weight_key(k)}
+    out = dict(profile)
+    out["layers"] = unet if unet else layers
+    return out
+
+
+def measure_v4_int8_mse_at_absmax(
+    weight_tensors: Dict[str, torch.Tensor],
+    *,
+    device: Optional[str] = None,
+    max_safe_sample: int = 30,
+    max_veto_sample: int = 40,
+    tunables: Optional[Dict[str, Any]] = None,
+    importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
+) -> Dict[str, Any]:
+    """HSWQ V4 + INT8Quantizer estimated_mse at absmax (same contract as v3.0).
+
+    analyze derives mse_release_* / mse_p75_multiplier; this function measures
+    the histogram side on live weights so optimal INT8 settings are a double
+    of (analyze gates) × (V4 MSE).
+
+    importance_by_layer MUST come from DualMonitor after the SDXL r32
+    calibration recipe (num_calib_samples=32, num_inference_steps=25).
+    Weight-only calls (importance_by_layer=None) are incomplete and must not
+    be treated as final optimal settings.
+    """
+    hist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "histogram")
+    if hist_dir not in sys.path:
+        sys.path.insert(0, hist_dir)
+    from weighted_histogram_mse_v4 import (  # type: ignore
+        HSWQWeightedHistogramOptimizerV4,
+        INT8Quantizer,
+    )
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    if not importance_by_layer:
+        return {
+            "v4_ran": False,
+            "complete": False,
+            "reason": "dualmonitor_importance_required",
+            "calib_contract": {
+                "num_calib_samples": 32,
+                "num_inference_steps": 25,
+                "note": "How-to / r32: DualMonitor channel_importance after 32-sample calib",
+            },
+            "device": device,
+        }
+
+    tunables = tunables or {}
+    o_min = float(tunables.get("mse_release_o_min", 0.0))
+    k_max = float(tunables.get("mse_release_k_max", 1e9))
+    m_max = float(tunables.get("mse_release_m_max", 1e9))
+    p75_mult = float(tunables.get("mse_p75_multiplier", 2.0))
+    extreme_o = float(tunables.get("extreme_outlier", 1e9))
+    extreme_k = float(tunables.get("extreme_kurtosis", 1e9))
+    huge_m = float(tunables.get("huge_magnitude", 1e9))
+
+    # Keys may be module names or *.weight — normalize lookup for importance.
+    def _imp_for(name: str) -> Optional[torch.Tensor]:
+        base = name[:-7] if name.endswith(".weight") else name
+        for key in (name, base, base + ".weight"):
+            if key in importance_by_layer:
+                return importance_by_layer[key].detach().float()
+        return None
+
+    items = [(n, t) for n, t in weight_tensors.items() if isinstance(t, torch.Tensor)]
+    items = [(n, t) for n, t in items if t.ndim >= 2 and _is_unet_weight_key(n)]
+    if not items:
+        return {
+            "v4_ran": False,
+            "complete": False,
+            "reason": "no_unet_weight_tensors",
+            "device": device,
+        }
+
+    # Match v3.0: alpha=0, beta=1 → pure calibration magnitude × DualMonitor.
+    quantizer = INT8Quantizer(device=device)
+    optimizer = HSWQWeightedHistogramOptimizerV4(
+        bins=8192,
+        num_candidates=1000,
+        refinement_iterations=10,
+        device=device,
+        alpha=0.0,
+        beta=1.0,
+        quantizer=quantizer,
+    )
+    search_range = (1.0, 1.0)
+
+    layer_quick: List[Tuple[str, torch.Tensor, Dict[str, float]]] = []
+    for name, tensor in items:
+        stats = _layer_stats(tensor)
+        layer_quick.append((name, tensor, stats))
+
+    hard_veto = []
+    safe_pool = []
+    gray_pool = []
+    for name, tensor, st in layer_quick:
+        k, o, m = st["kurtosis"], st["outlier_ratio"], st["abs_max"]
+        is_hard = (o > extreme_o) or (k > extreme_k) or (m > huge_m)
+        if is_hard:
+            hard_veto.append(name)
+            if o > o_min and k <= k_max and m <= m_max:
+                gray_pool.append((name, tensor, st))
+        else:
+            safe_pool.append((name, tensor, st))
+
+    safe_ff = [(n, t, s) for n, t, s in safe_pool if classify_layer(n) == "ff2"]
+    safe_sample_src = safe_ff if len(safe_ff) >= 8 else safe_pool
+    step = max(1, len(safe_sample_src) // max_safe_sample)
+    safe_sample = safe_sample_src[::step][:max_safe_sample]
+
+    safe_mses: List[float] = []
+    safe_detail: List[Dict[str, Any]] = []
+    skipped_no_imp = 0
+    for name, tensor, st in safe_sample:
+        imp = _imp_for(name)
+        if imp is None:
+            skipped_no_imp += 1
+            safe_detail.append({"name": name, "error": "no DualMonitor importance"})
+            continue
+        w = tensor.detach().float()
+        if device != "cpu":
+            w = w.to(device)
+            imp = imp.to(device)
+        try:
+            result = optimizer.compute_optimal_amax_with_stats(
+                w,
+                importance=imp,
+                use_svd_leverage=True,
+                scaled=False,
+                search_range=search_range,
+            )
+            mse = float(result["estimated_mse"])
+            safe_mses.append(mse)
+            safe_detail.append({
+                "name": name,
+                "estimated_mse": mse,
+                "optimal_amax": float(result["optimal_amax"]),
+                "abs_max": float(st["abs_max"]),
+                "outlier_ratio": float(st["outlier_ratio"]),
+                "used_dualmonitor_importance": True,
+            })
+        except Exception as exc:  # noqa: BLE001
+            safe_detail.append({"name": name, "error": str(exc)})
+        if device != "cpu":
+            torch.cuda.empty_cache()
+
+    if not safe_mses:
+        return {
+            "v4_ran": True,
+            "complete": False,
+            "device": device,
+            "safe_sample_count": 0,
+            "skipped_no_importance": skipped_no_imp,
+            "hard_veto_count": len(hard_veto),
+            "gray_candidate_count": len(gray_pool),
+            "reason": "no_safe_mse_with_dualmonitor_importance",
+            "safe_detail": safe_detail,
+            "search_range": list(search_range),
+            "quantizer": "INT8Quantizer",
+            "optimizer": "HSWQWeightedHistogramOptimizerV4",
+            "calib_contract": {
+                "num_calib_samples": 32,
+                "num_inference_steps": 25,
+            },
+        }
+
+    safe_mses_sorted = sorted(safe_mses)
+    p75_idx = int(len(safe_mses_sorted) * 0.75)
+    p75_idx = min(p75_idx, len(safe_mses_sorted) - 1)
+    p75_mse = float(safe_mses_sorted[p75_idx])
+    mse_threshold = p75_mse * p75_mult
+
+    gray_sample = gray_pool[:max_veto_sample]
+    released = 0
+    kept = 0
+    gray_detail: List[Dict[str, Any]] = []
+    for name, tensor, st in gray_sample:
+        imp = _imp_for(name)
+        if imp is None:
+            kept += 1
+            gray_detail.append({
+                "name": name,
+                "decision": "KEEP",
+                "error": "no DualMonitor importance",
+            })
+            continue
+        w = tensor.detach().float()
+        if device != "cpu":
+            w = w.to(device)
+            imp = imp.to(device)
+        try:
+            result = optimizer.compute_optimal_amax_with_stats(
+                w,
+                importance=imp,
+                use_svd_leverage=True,
+                scaled=False,
+                search_range=search_range,
+            )
+            mse = float(result["estimated_mse"])
+            decision = "RELEASE" if mse <= mse_threshold else "KEEP"
+            if decision == "RELEASE":
+                released += 1
+            else:
+                kept += 1
+            gray_detail.append({
+                "name": name,
+                "estimated_mse": mse,
+                "decision": decision,
+                "optimal_amax": float(result["optimal_amax"]),
+                "abs_max": float(st["abs_max"]),
+                "outlier_ratio": float(st["outlier_ratio"]),
+                "kurtosis": float(st["kurtosis"]),
+                "used_dualmonitor_importance": True,
+            })
+        except Exception as exc:  # noqa: BLE001
+            gray_detail.append({"name": name, "error": str(exc)})
+        if device != "cpu":
+            torch.cuda.empty_cache()
+
+    return {
+        "v4_ran": True,
+        "complete": True,
+        "device": device,
+        "quantizer": "INT8Quantizer",
+        "optimizer": "HSWQWeightedHistogramOptimizerV4",
+        "search_range": list(search_range),
+        "bins": 8192,
+        "num_candidates": 1000,
+        "pack_point": "absmax",
+        "alpha": 0.0,
+        "beta": 1.0,
+        "dualmonitor_importance": True,
+        "calib_contract": {
+            "num_calib_samples": 32,
+            "num_inference_steps": 25,
+            "source": "md/How to quantize SDXL.md (Samples:32 / r32)",
+        },
+        "hard_veto_count": len(hard_veto),
+        "gray_candidate_count": len(gray_pool),
+        "safe_sample_count": len(safe_mses),
+        "skipped_no_importance": skipped_no_imp,
+        "safe_p75_mse": p75_mse,
+        "mse_p75_multiplier": p75_mult,
+        "mse_release_threshold": mse_threshold,
+        "gray_sampled": len(gray_sample),
+        "gray_released": released,
+        "gray_kept": kept,
+        "analyze_gates": {
+            "mse_release_o_min": o_min,
+            "mse_release_k_max": k_max,
+            "mse_release_m_max": m_max,
+            "extreme_outlier": extreme_o,
+            "extreme_kurtosis": extreme_k,
+            "huge_magnitude": huge_m,
+        },
+        "safe_detail": safe_detail,
+        "gray_detail": gray_detail,
+    }
+
+
+def compute_int8_optimal_settings(
+    profile: Dict[str, Any],
+    weight_tensors: Optional[Dict[str, torch.Tensor]] = None,
+    *,
+    device: Optional[str] = None,
+    importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
+) -> Dict[str, Any]:
+    """Auto optimal INT8 settings = analyze × V4 × DualMonitor (r32 calib).
+
+    Triple contract (no shortcuts):
+      1) analyze derive_veto_tunables_int8 (weight-space gates)
+      2) V4 + INT8Quantizer estimated_mse @ absmax
+      3) DualMonitor channel_importance from 32-sample / 25-step calibration
+    """
+    unet_prof = _unet_only_profile(profile)
+    tunables = derive_veto_tunables_int8(unet_prof)
+    layers = unet_prof.get("layers", {})
+
+    optimal: Dict[str, Any] = {
+        "quant_format": "int8_tensorwise",
+        "pack_amax": "absmax",
+        "search_low": 1.0,
+        "calib_contract": {
+            "num_calib_samples": 32,
+            "num_inference_steps": 25,
+            "required": True,
+            "source": "md/How to quantize SDXL.md Samples:32 / r32",
+        },
+        "analyze": {
+            "mse_release_o_min": float(tunables["mse_release_o_min"]),
+            "mse_release_k_max": float(tunables["mse_release_k_max"]),
+            "mse_release_m_max": float(tunables["mse_release_m_max"]),
+            "mse_p75_multiplier": float(tunables["mse_p75_multiplier"]),
+            "extreme_kurtosis": float(tunables["extreme_kurtosis"]),
+            "extreme_outlier": float(tunables["extreme_outlier"]),
+            "huge_magnitude": float(tunables["huge_magnitude"]),
+            "attn_qkv_absmax": float(tunables["attn_qkv_absmax"]),
+            "attn_toout_absmax": float(tunables["attn_toout_absmax"]),
+            "attn_ff2_absmax": float(tunables["attn_ff2_absmax"]),
+            "attn_mad_pct_floor": float(tunables.get("attn_mad_pct_floor", 15.0)),
+            "unet_layer_count": len(layers),
+        },
+        "v4": {
+            "required": True,
+            "role": "MSE-guided VETO at absmax with DualMonitor importance",
+            "quantizer": "INT8Quantizer",
+            "optimizer": "HSWQWeightedHistogramOptimizerV4",
+            "search_range": [1.0, 1.0],
+        },
+    }
+
+    if weight_tensors is not None:
+        v4 = measure_v4_int8_mse_at_absmax(
+            weight_tensors,
+            device=device,
+            tunables=tunables,
+            importance_by_layer=importance_by_layer,
+        )
+        optimal["v4"].update(v4)
+        if v4.get("complete") and "mse_release_threshold" in v4:
+            optimal["recommended_mse_release_threshold"] = float(
+                v4["mse_release_threshold"]
+            )
+            optimal["recommended_safe_p75_mse"] = float(v4["safe_p75_mse"])
+            optimal["complete"] = True
+        else:
+            optimal["complete"] = False
+    else:
+        optimal["v4"]["v4_ran"] = False
+        optimal["v4"]["complete"] = False
+        optimal["v4"]["reason"] = "no_weight_tensors_passed"
+        optimal["complete"] = False
+
+    return {"veto_tunables_int8": tunables, "optimal_settings_int8": optimal}
+
+
+def enrich_profile_with_derived(
+    profile: Dict[str, Any],
+    weight_tensors: Optional[Dict[str, torch.Tensor]] = None,
+    *,
+    device: Optional[str] = None,
+    importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
+) -> Dict[str, Any]:
+    """Recompute scores; attach FP8 + INT8 tunables; auto-optimal via analyze×V4×calib.
+
+    Full INT8 optimal (complete=True) requires DualMonitor channel_importance
+    from the How-to r32 recipe (32 samples / 25 steps). Without it, gates are
+    still written but optimal_settings_int8.complete stays False.
+    """
     layers = profile.get("layers", {})
     all_k = [float(e.get("kurtosis", 0)) for e in layers.values()]
     all_o = [
@@ -591,6 +1060,15 @@ def enrich_profile_with_derived(profile: Dict[str, Any]) -> Dict[str, Any]:
     tunables = derive_veto_tunables(profile)
     profile["veto_tunables"] = tunables
 
+    int8_bundle = compute_int8_optimal_settings(
+        profile,
+        weight_tensors=weight_tensors,
+        device=device,
+        importance_by_layer=importance_by_layer,
+    )
+    profile["veto_tunables_int8"] = int8_bundle["veto_tunables_int8"]
+    profile["optimal_settings_int8"] = int8_bundle["optimal_settings_int8"]
+
     extreme_k = tunables["extreme_kurtosis"]
     med_k = tunables["median_kurtosis"]
     extreme_o = tunables["extreme_outlier"]
@@ -607,6 +1085,9 @@ def enrich_profile_with_derived(profile: Dict[str, Any]) -> Dict[str, Any]:
             med_k_count += 1
 
     ff2_count = sum(1 for n in layers if classify_layer(n) == "ff2")
+    i8 = profile["veto_tunables_int8"]
+    opt = profile["optimal_settings_int8"]
+    v4opt = opt.get("v4", {})
     profile["summary"] = {
         "layer_count": len(layers),
         "high_kurtosis_layers": high_k,
@@ -620,6 +1101,16 @@ def enrich_profile_with_derived(profile: Dict[str, Any]) -> Dict[str, Any]:
         "ff2_count": ff2_count,
         "ff2_auto_full_class": tunables.get("ff2_auto_full_class", False),
         "ff2_selective_protected_count": tunables.get("ff2_selective_protected_count", 0),
+        "int8_search_low": float(i8.get("search_low_floor", 1.0)),
+        "int8_mse_release_o_min": float(i8.get("mse_release_o_min", 0.0)),
+        "int8_mse_p75_multiplier": float(i8.get("mse_p75_multiplier", 2.0)),
+        "int8_optimal_complete": bool(opt.get("complete", False)),
+        "calib_contract": opt.get("calib_contract"),
+        "v4_ran": bool(v4opt.get("v4_ran", False)),
+        "v4_complete": bool(v4opt.get("complete", False)),
+        "v4_reason": v4opt.get("reason"),
+        "v4_safe_p75_mse": v4opt.get("safe_p75_mse"),
+        "v4_mse_release_threshold": v4opt.get("mse_release_threshold"),
     }
     return profile
 
@@ -628,9 +1119,17 @@ def enrich_profile_with_derived(profile: Dict[str, Any]) -> Dict[str, Any]:
 # CLI: build profile from safetensors
 # ---------------------------------------------------------------------------
 
-def analyze_unet(path: str) -> Dict[str, Any]:
+def analyze_unet(path: str, *, run_v4: bool = True) -> Dict[str, Any]:
+    """Scan safetensors → layer stats → FP8/INT8 tunables → optional V4 stub.
+
+    Weight-only analyze cannot supply DualMonitor importance (needs the
+    32-sample / 25-step calib recipe). With run_v4=True, weights are still
+    passed so the contract is recorded, but optimal_settings_int8.complete
+    remains False until importance_by_layer is provided (quantize path).
+    """
     state = load_file(path)
     layers: Dict[str, Any] = {}
+    weight_tensors: Dict[str, torch.Tensor] = {}
     for name, tensor in state.items():
         if not name.endswith(".weight"):
             continue
@@ -638,8 +1137,14 @@ def analyze_unet(path: str) -> Dict[str, Any]:
             continue
         stats = _layer_stats(tensor)
         layers[name] = stats
+        if run_v4 and _is_unet_weight_key(name):
+            weight_tensors[name] = tensor
     profile: Dict[str, Any] = {"source": path, "layers": layers}
-    return enrich_profile_with_derived(profile)
+    return enrich_profile_with_derived(
+        profile,
+        weight_tensors=weight_tensors if run_v4 else None,
+        importance_by_layer=None,
+    )
 
 
 def generate_model_profile(input_path: str, output_path: str) -> Dict[str, Any]:
@@ -664,6 +1169,15 @@ def main() -> None:
     profile = generate_model_profile(src, args.output)
     print(f"Wrote {len(profile['layers'])} layers to {args.output}")
     print(f"ff2_auto_full_class={profile['summary'].get('ff2_auto_full_class')}")
+    summary = profile.get("summary", {})
+    print(
+        f"[analyze×V4 INT8] search_low={summary.get('int8_search_low')} "
+        f"mse_release_o_min={summary.get('int8_mse_release_o_min')} "
+        f"mse_p75_mult={summary.get('int8_mse_p75_multiplier')} "
+        f"v4_ran={summary.get('v4_ran')} "
+        f"v4_p75_mse={summary.get('v4_safe_p75_mse')} "
+        f"v4_threshold={summary.get('v4_mse_release_threshold')}"
+    )
 
 
 if __name__ == "__main__":
