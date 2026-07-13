@@ -13,6 +13,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 |-------|------------|----------------|-----------------|
 | waiIllustriousSDXL_v170 | r0 | 3.62 | **0.9830** |
 | prefectIllustriousXL_v8 | r0 | 36.10 | 0.9440 |
+| JANKUTrainedChenkinNoobai_v777 | r0 | 11.77 | **0.9801** |
 
 ---
 
@@ -26,6 +27,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 |-------|------|----------|--------------|-------|-----------|---------------|--------|--------|
 | waiIllustriousSDXL_v170 | r0 | 3.62 | 22.58 | +18.96 | 0.9830 | 0.9631 | −0.0199 | HSWQ |
 | prefectIllustriousXL_v8 | r0 | 36.10 | 35.84 | −0.26 | 0.9440 | 0.9161 | −0.0279 | — |
+| JANKUTrainedChenkinNoobai_v777 | r0 | 11.77 | 54.32 | +42.55 | 0.9801 | 0.9691 | −0.0110 | HSWQ |
 
 **Winner** = better on both MSE and SSIM.
 
