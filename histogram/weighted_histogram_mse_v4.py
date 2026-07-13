@@ -232,12 +232,19 @@ class MSEOptimizer:
         bin_centers = weighted_hist.get_bin_centers()
         max_val = weighted_hist.max_val
         
-        low = max_val * search_range[0]
-        high = max_val * search_range[1]
+        low = max_val * float(search_range[0])
+        high = max_val * float(search_range[1])
+
+        # Point search (e.g. INT8 absmax search_range=(1.0,1.0)): no grid.
+        if high <= low or abs(high - low) <= max_val * 1e-12:
+            return high if high > 0 else max_val
         
-        # [PROVE-OF-WORK] Log effective search range (avoid fake-looking bounds)
-        if max_val > 0:
-            print(f"  [MSE SEARCH DEBUG] max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f}")
+        # [PROVE-OF-WORK] Log only when a real interval is searched
+        print(
+            f"  [MSE SEARCH DEBUG] max_val: {max_val:.6f} | "
+            f"range: {search_range[0]:.3f}-{search_range[1]:.3f} | "
+            f"BOUNDS: {low:.6f} to {high:.6f}"
+        )
         
         best_amax = max_val
         min_mse = float('inf')
@@ -288,35 +295,39 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
     k = min(max_k, max(min_k, int(math.floor(top_p * max_rank))))
     k = min(k, max_rank)
 
-    # console log
-    if w_float.shape[0] > 100 or w_float.shape[1] > 100:
-        print(f"  [Hybrid Full-SVD/RMS] Executing torch.linalg.svd and RMS blending on shape {w_float.shape} [alpha={alpha}, beta={beta}]...")
-
-    # --- 1. SVD Leverage (full: σ^2 weighted) ---
-    # Use full SVD (linalg.svd), not low-rank approximation
-    U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
-    
-    # Full leverage formula with σ^2 weighting
-    # weighted_U_k = U * S
-    # leverage = (U_ik^2 * σ_k^2) * (V_jk^2)
-    S_sq = S ** 2
-    row_scores = (U ** 2) @ S_sq.unsqueeze(1)    # (M, k) @ (k, 1) -> (M, 1)
-    col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1) # (N, k) @ (k, 1) -> (N, 1)
-    leverage_2d = row_scores * col_scores.T      # (M, N)
-
-    # --- 2. RMS Magnitude ---
+    # --- RMS Magnitude (always) ---
     magnitude_2d = w_float ** 2  # (M, N)
-
-    # --- 3. L2 normalize (equal impact per score matrix) ---
-    lev_norm = torch.norm(leverage_2d, p=2)
     mag_norm = torch.norm(magnitude_2d, p=2)
-    
-    # Avoid division by zero
-    if lev_norm > 0: leverage_2d = leverage_2d / lev_norm
-    if mag_norm > 0: magnitude_2d = magnitude_2d / mag_norm
+    if mag_norm > 0:
+        magnitude_2d = magnitude_2d / mag_norm
 
-    # --- 4. Alpha/Beta blend ---
-    hybrid_importance = (alpha * leverage_2d) + (beta * magnitude_2d)
+    # alpha<=0: pure magnitude (alpha_auto=0 path). Skip Full-SVD.
+    if alpha <= 0.0:
+        if w_float.shape[0] > 100 or w_float.shape[1] > 100:
+            print(
+                f"  [Hybrid RMS-only] shape {w_float.shape} "
+                f"[alpha={alpha}, beta={beta}] (SVD skipped)"
+            )
+        hybrid_importance = beta * magnitude_2d if beta != 0.0 else magnitude_2d
+    else:
+        if w_float.shape[0] > 100 or w_float.shape[1] > 100:
+            print(
+                f"  [Hybrid Full-SVD/RMS] Executing torch.linalg.svd and RMS "
+                f"blending on shape {w_float.shape} [alpha={alpha}, beta={beta}]..."
+            )
+
+        # --- SVD Leverage (full: σ^2 weighted) ---
+        U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
+        S_sq = S ** 2
+        row_scores = (U ** 2) @ S_sq.unsqueeze(1)
+        col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1)
+        leverage_2d = row_scores * col_scores.T
+
+        lev_norm = torch.norm(leverage_2d, p=2)
+        if lev_norm > 0:
+            leverage_2d = leverage_2d / lev_norm
+
+        hybrid_importance = (alpha * leverage_2d) + (beta * magnitude_2d)
 
     # --- 5. Histogram scale normalization ---
     # Scale so mean ~1.0 and histogram area matches weight count
@@ -389,12 +400,16 @@ class HSWQWeightedHistogramOptimizerV4:
         weighted_hist = WeightedHistogram(bins=self.bins, device=self.device)
         weighted_hist.build(weight, combined_importance)
         
-        # Search for optimal amax
+        # Search for optimal amax (DEBUG only when interval is non-degenerate)
         max_val = weighted_hist.max_val
-        low = max_val * search_range[0]
-        high = max_val * search_range[1]
-        if max_val > 0:
-            print(f"  [HSWQ V4 DEBUG] max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f}")
+        low = max_val * float(search_range[0])
+        high = max_val * float(search_range[1])
+        if max_val > 0 and high > low and abs(high - low) > max_val * 1e-12:
+            print(
+                f"  [HSWQ V4 DEBUG] max_val: {max_val:.6f} | "
+                f"range: {search_range[0]:.3f}-{search_range[1]:.3f} | "
+                f"BOUNDS: {low:.6f} to {high:.6f}"
+            )
 
         optimal_amax = self.mse_optimizer.find_optimal_amax(
             weighted_hist,
@@ -442,36 +457,85 @@ class HSWQWeightedHistogramOptimizerV4:
         """INT8-only: estimated_mse at an explicit search_range (typically absmax).
 
         FP8 scripts must keep calling compute_optimal_amax_with_stats / compute_optimal_amax.
-        Default search_range is (1.0, 1.0) = absmax pack operating point for INT8 VETO.
+        Default search_range is (1.0, 1.0) = natural INT8 absmax pack point.
+        Callers use estimated_mse for FP16 protection candidate ranking
+        (pack amax stays absmax; this is not an amax search).
         Requires MSEOptimizer.quantizer = INT8Quantizer (injected by INT8 callers).
-        """
-        optimal_amax = self.compute_optimal_amax(
-            weight,
-            importance,
-            use_svd_leverage=use_svd_leverage,
-            scaled=scaled,
-            search_range=search_range,
-        )
 
+        Builds the hybrid importance + weighted histogram **once** (avoids the
+        previous double-SVD path that also spammed 1.000-1.000 DEBUG lines).
+        """
         combined_importance = None
         if use_svd_leverage and weight.ndim >= 2:
-            hybrid_importance = compute_hybrid_leverage_scores(weight, alpha=self.alpha, beta=self.beta)
-            combined_importance = hybrid_importance
+            hybrid_importance = compute_hybrid_leverage_scores(
+                weight, alpha=self.alpha, beta=self.beta
+            )
+            if importance is not None:
+                importance = importance.float().to(self.device)
+                if weight.ndim == 4:
+                    in_channels = weight.shape[1]
+                    pad_len = max(0, in_channels - importance.numel())
+                    imp_1d = torch.cat(
+                        [importance[:in_channels], torch.ones(pad_len, device=self.device)]
+                    )
+                    imp_expanded = imp_1d.view(1, -1, 1, 1).expand_as(weight)
+                elif weight.ndim == 2:
+                    in_features = weight.shape[1]
+                    pad_len = max(0, in_features - importance.numel())
+                    imp_1d = torch.cat(
+                        [importance[:in_features], torch.ones(pad_len, device=self.device)]
+                    )
+                    imp_expanded = imp_1d.view(1, -1).expand_as(weight)
+                else:
+                    imp_expanded = importance.expand_as(weight)
+                combined_importance = hybrid_importance * imp_expanded
+            else:
+                combined_importance = hybrid_importance
         else:
             combined_importance = importance
 
         weighted_hist = WeightedHistogram(bins=self.bins, device=self.device)
         weighted_hist.build(weight, combined_importance)
+        max_val = weighted_hist.max_val
+        if max_val <= 0:
+            return {
+                "optimal_amax": 0.0,
+                "max_val": 0.0,
+                "compression_ratio": 1.0,
+                "estimated_mse": 0.0,
+            }
+
+        sr0 = float(search_range[0])
+        sr1 = float(search_range[1])
+        low = max_val * sr0
+        high = max_val * sr1
+        if high <= low or abs(high - low) <= max_val * 1e-12:
+            # Absmax / point search — no candidate grid, no DEBUG spam.
+            optimal_amax = high if high > 0 else max_val
+        else:
+            print(
+                f"  [HSWQ V4 DEBUG] max_val: {max_val:.6f} | "
+                f"range: {sr0:.3f}-{sr1:.3f} | BOUNDS: {low:.6f} to {high:.6f}"
+            )
+            optimal_amax = self.mse_optimizer.find_optimal_amax(
+                weighted_hist,
+                num_candidates=self.num_candidates,
+                search_range=search_range,
+                refinement_iterations=self.refinement_iterations,
+                scaled=scaled,
+            )
 
         histogram = weighted_hist.get_histogram()
         bin_centers = weighted_hist.get_bin_centers()
-        estimated_mse = self.mse_optimizer.compute_weighted_mse(histogram, bin_centers, optimal_amax, scaled=scaled)
+        estimated_mse = self.mse_optimizer.compute_weighted_mse(
+            histogram, bin_centers, optimal_amax, scaled=scaled
+        )
 
         return {
-            'optimal_amax': optimal_amax,
-            'max_val': weighted_hist.max_val,
-            'compression_ratio': optimal_amax / weighted_hist.max_val if weighted_hist.max_val > 0 else 1.0,
-            'estimated_mse': estimated_mse
+            "optimal_amax": optimal_amax,
+            "max_val": max_val,
+            "compression_ratio": optimal_amax / max_val if max_val > 0 else 1.0,
+            "estimated_mse": estimated_mse,
         }
 
 

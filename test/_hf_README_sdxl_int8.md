@@ -29,7 +29,7 @@ High-fidelity INT8 quantization for diffusion models (SDXL). HSWQ uses **sensiti
 
 **How to quantize:** [md/HSWQ_ How to quantize SDXL.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL.md)
 
-**SDXL Benchmark Test Results:** [md/SDXL Benchmark Test Results.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_test.md)
+**SDXL Benchmark Test Results:** [test/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_sdxl_int8.md)
 
 ---
 
