@@ -600,12 +600,18 @@ def int8_fp16_budget_analyze_severity(
     is_hard_veto: bool = False,
     layer_name: str = "",
     mad_outlier_pct: float = 0.0,
+    profile_score: float = 0.0,
 ) -> float:
-    """INT8-only: analyze-side severity = this checkpoint's character on one layer.
+    """INT8-only: analyze-side severity = this checkpoint's danger character.
 
-    FP8 path must NOT call this. Denominators are derive_veto_tunables_int8
-    fences for THIS model (extreme_*, attn_* gates, attn_mad_pct_floor) —
-    not a fixed recipe. Higher = more FP16-deserving under --fp16_budget_mb.
+    FP8 path must NOT call this. Continuous score for
+    derive_priority_combinator → int8_fp16_budget_priority. Denominators are
+    derive_veto_tunables_int8 fences for THIS model — not a fixed recipe.
+    Higher = more FP16-deserving under --fp16_budget_mb.
+
+    Must NOT flatten Hard VETO to a constant (e.g. max(sev, 1.0)): that
+    erases relative danger, collapses sev IQR, and makes
+    derive_priority_combinator drop w_sev (thinking-stop on the judgment).
     """
     if tunables.get("quant_format") != "int8_tensorwise":
         raise ValueError(
@@ -620,7 +626,7 @@ def int8_fp16_budget_analyze_severity(
     k = float(kurtosis)
     o = float(outlier_ratio)
     m = float(abs_max)
-    # Excess over INT8 hard fences (1.0 == at fence).
+    # Excess over INT8 hard fences (1.0 == at fence). Keep continuous.
     severity = max(o / eo, 0.0) + max(k / ek, 0.0) + max(m / hm, 0.0)
 
     # Attn-class character from the same INT8 tunables (model-specific gates).
@@ -639,15 +645,18 @@ def int8_fp16_budget_analyze_severity(
     if mad_floor > 0.0 and mad > 0.0:
         severity += max(mad / mad_floor, 0.0)
 
-    # Analyze already classified Hard VETO for THIS checkpoint (fence /
-    # key-pattern / structural / MAD / …). Discarding that flag was
-    # hand-waving: key-pattern HV (e.g. time_embedding.*) can have mild
-    # kurtosis/outlier while analyze still requires FP16. On the excess
-    # scale, 1.0 == at fence — Hard VETO is at least that character, then
-    # keep any measured excess above it. Priority fill uses this severity
-    # in the same combinator (no separate pack-order rule).
+    # THIS-model composite rank [0, 3] from analyze (empirical ranks of k/o/m).
+    # Continuous relative danger inside the checkpoint — not a binary flag.
+    ps = max(float(profile_score or 0.0), 0.0)
+    if ps > 0.0:
+        severity += ps
+
+    # Analyze Hard VETO (fence / key-pattern / structural / MAD / …) is a
+    # measured decision for THIS checkpoint. Encode it as +1.0 on the same
+    # fence-excess scale (1.0 == crossed the unquantizable decision), ADDED
+    # to measured excess — never replace/flatten to a constant.
     if is_hard_veto:
-        severity = max(severity, 1.0)
+        severity += 1.0
     return float(severity)
 
 
@@ -761,6 +770,7 @@ def build_int8_analyze_character_table(
         o = float(entry.get("outlier_ratio", 0) or 0)
         m = float(entry.get("abs_max", 0) or 0)
         mad = float(entry.get("mad_outlier_pct", 0) or 0)
+        ps = float(entry.get("profile_score", 0) or 0)
         sev = int8_fp16_budget_analyze_severity(
             kurtosis=k,
             outlier_ratio=o,
@@ -769,12 +779,14 @@ def build_int8_analyze_character_table(
             is_hard_veto=name in hard,
             layer_name=name,
             mad_outlier_pct=mad,
+            profile_score=ps,
         )
         out[name] = {
             "kurtosis": k,
             "outlier_ratio": o,
             "abs_max": m,
             "mad_outlier_pct": mad,
+            "profile_score": ps,
             "severity": float(sev),
         }
     return out

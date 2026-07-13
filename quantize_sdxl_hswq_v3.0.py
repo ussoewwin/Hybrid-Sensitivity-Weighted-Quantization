@@ -1226,6 +1226,9 @@ def _apply_fp16_budget_cap(
     Auto-optimal settings (inside the fixed 300 MiB frame — never raise it):
       Per-model auto analysis measures DualMonitor sens + analyze severity
       + V4 MSE on the union pool for THIS checkpoint.
+      analyze severity MUST stay continuous danger character
+      (int8_fp16_budget_analyze_severity) so derive_priority_combinator can
+      weight the sev axis — flattening Hard VETO to a constant is forbidden.
       derive_priority_combinator builds THIS model's priority weights from
       those measured distributions (auto-optimal ranking — not a fixed order).
       Fill the 300 MiB frame by that ranking. Analyze VETO that lose are
@@ -1326,6 +1329,7 @@ def _apply_fp16_budget_cap(
         o = float(row.get("outlier_ratio", prof.get("outlier_ratio", 0)) or 0)
         m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
         mad = float(row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0)
+        ps = float(row.get("profile_score", prof.get("profile_score", 0)) or 0)
         severity = int8_fp16_budget_analyze_severity(
             kurtosis=k,
             outlier_ratio=o,
@@ -1334,6 +1338,7 @@ def _apply_fp16_budget_cap(
             is_hard_veto=is_hv,
             layer_name=name,
             mad_outlier_pct=mad,
+            profile_score=ps,
         )
 
         if name in cache:
