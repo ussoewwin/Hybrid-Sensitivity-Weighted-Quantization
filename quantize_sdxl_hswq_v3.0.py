@@ -1223,10 +1223,12 @@ def _apply_fp16_budget_cap(
       DualMonitor FP16 candidates (calibration sensitivity)
       Analyze VETO candidates (THIS checkpoint fences / character)
 
-    Auto-optimal settings (inside the 300 MiB frame):
-      Measure DualMonitor sens + analyze severity + V4 MSE on the union pool.
-      Derive priority combinator from THIS run's measured distributions.
-      Sort by priority; fill until 300 MiB. Analyze VETO that lose are
+    Auto-optimal settings (inside the fixed 300 MiB frame — never raise it):
+      Per-model auto analysis measures DualMonitor sens + analyze severity
+      + V4 MSE on the union pool for THIS checkpoint.
+      derive_priority_combinator builds THIS model's priority weights from
+      those measured distributions (auto-optimal ranking — not a fixed order).
+      Fill the 300 MiB frame by that ranking. Analyze VETO that lose are
       demoted; DualMonitor winners stay FP16 keep (not renamed VETO).
     """
     _ = unet_inputs, grad_second_moments
@@ -1357,7 +1359,8 @@ def _apply_fp16_budget_cap(
 
         measured.append((name, dm_sens, v4_mse, severity, extra))
 
-    # Per-checkpoint combinator from MEASURED sens/sev/mse (not a fixed formula).
+    # Per-checkpoint combinator from MEASURED sens/sev/mse for THIS model
+    # (auto analysis → auto-optimal priority weights; not a fixed formula).
     sens_meas = [row[1] for row in measured if row[1] > 0]
     sev_meas = [row[3] for row in measured]
     mse_meas = [row[2] for row in measured if row[2] > 0]
@@ -1434,7 +1437,7 @@ def _apply_fp16_budget_cap(
             "sev": combinator["w_sev"],
             "mse": combinator["w_mse"],
         },
-        "ranking": "per_model_auto_extreme_fill_inside_300mib",
+        "ranking": "per_model_auto_analysis_priority_inside_300mib",
         "hard_ceiling_mb": FP16_BUDGET_MB_HARD,
         "slack_bytes": max(budget_bytes - used, 0),
         "slack_mb": max(budget_bytes - used, 0) / (1024 * 1024),
@@ -1723,6 +1726,85 @@ def pack_int8_channelwise(weight, amax=None):
     clamped = torch.clamp(w, -amax_view, amax_view)
     q = (clamped / scale_view).round().clamp(-127, 127).to(torch.int8)
     return q, scale_view, scale_view
+
+
+# DualMonitor MUST be defined before calibration hooks (NameError if missing).
+# HEAD historically called the class from hook_fn without defining it.
+class DualMonitor:
+    """Per-layer calibration monitor for THIS checkpoint (auto analysis input).
+
+    Accumulates output variance (sensitivity), channel importance, and
+    activation moments used by V4 Importance and FP16 budget ranking.
+    """
+
+    def __init__(self):
+        self.output_sum = 0.0
+        self.output_sq_sum = 0.0
+        self.count = 0
+        self.channel_importance = None
+        # Signed per-channel input mean for INT8 bias correction:
+        #   bias_delta ≈ (W_q - W) @ E[x]
+        self.channel_act_mean = None
+        # Per-input-channel second moment E[x_i^2] for damage calculation:
+        #   damage_l ≈ sum_i (ΔW^2)[*,i,*] · E[x_i^2]  (pre-grad factor)
+        self.channel_act_sq_mean = None
+
+    def update(self, input_tensor, output_tensor):
+        with torch.no_grad():
+            out_detached = output_tensor.detach().float()
+            out_clamped = torch.clamp(out_detached, -65504.0, 65504.0)
+            mean_val = out_clamped.mean().item()
+            sq_mean_val = (out_clamped ** 2).mean().item()
+            import math
+            if math.isfinite(mean_val) and math.isfinite(sq_mean_val):
+                self.output_sum += mean_val
+                self.output_sq_sum += sq_mean_val
+            inp_detached = input_tensor.detach().float()
+            if inp_detached.dim() == 4:
+                current_imp = inp_detached.abs().mean(dim=(0, 2, 3))
+                current_act = inp_detached.mean(dim=(0, 2, 3))
+                current_sq = (inp_detached ** 2).mean(dim=(0, 2, 3))
+            elif inp_detached.dim() == 3:
+                current_imp = inp_detached.abs().mean(dim=(0, 1))
+                current_act = inp_detached.mean(dim=(0, 1))
+                current_sq = (inp_detached ** 2).mean(dim=(0, 1))
+            elif inp_detached.dim() == 2:
+                current_imp = inp_detached.abs().mean(dim=0)
+                current_act = inp_detached.mean(dim=0)
+                current_sq = (inp_detached ** 2).mean(dim=0)
+            else:
+                current_imp = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
+                current_act = torch.zeros(1, device=inp_detached.device, dtype=torch.float32)
+                current_sq = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
+            if self.channel_importance is None:
+                self.channel_importance = current_imp
+                self.channel_act_mean = current_act
+                self.channel_act_sq_mean = current_sq
+            else:
+                self.channel_importance = (
+                    self.channel_importance * self.count + current_imp
+                ) / (self.count + 1)
+                self.channel_act_mean = (
+                    self.channel_act_mean * self.count + current_act
+                ) / (self.count + 1)
+                self.channel_act_sq_mean = (
+                    self.channel_act_sq_mean * self.count + current_sq
+                ) / (self.count + 1)
+            self.count += 1
+
+    def get_sensitivity(self):
+        if self.count == 0:
+            return 0.0
+        mean = self.output_sum / self.count
+        variance = (self.output_sq_sum / self.count) - mean ** 2
+        import math
+        return variance if math.isfinite(variance) else 0.0
+
+    def get_input_second_moment(self):
+        """Per-input-channel E[x_i^2] accumulated during calibration (float32, CPU)."""
+        if self.count == 0 or self.channel_act_sq_mean is None:
+            return None
+        return self.channel_act_sq_mean.detach().float().cpu()
 
 
 dual_monitors = {}
