@@ -377,6 +377,7 @@ graph TD
 
 ## 8. Related Documents
 
+- **[HSWQ INT8 (SDXL V3.0) — Technical Overview](HSWQ_INT8_SDXL_Technical_Guide.md)** — Separate INT8 guide: absmax pack, V4 FP16 ranking, 300 MiB budget, r0, ComfyUI `int8_tensorwise` (`quantize_sdxl_hswq_v3.0.py`).
 - [Dual Monitor System — Technical Guide](Dual_Monitor_System_Technical_Guide.md)
 - [Weighted Histogram MSE — Technical Guide](Weighted_Histogram_MSE_Technical_Guide.md)
 - **[HSWQ V4 SVD-RMS — Technical Guide](HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)** — Full V4 optimizer reference: SVD leverage derivation, RMS magnitude, hybrid blending, line-by-line `compute_hybrid_leverage_scores`, integration with the V1.92 / V2.0 pipeline.
