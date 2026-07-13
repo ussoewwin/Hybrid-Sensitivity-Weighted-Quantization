@@ -13,6 +13,8 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 
 **SDXL models (FP8):** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
 
+**SDXL models (INT8):** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-INT8](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-INT8)
+
 **Z Image / Z-Anime models (FP8):** [Hugging Face — HSWQ-Z-Image-fp8e4m3](https://huggingface.co/ussoewwin/HSWQ-Z-Image-fp8e4m3)
 
 <p align="center">
