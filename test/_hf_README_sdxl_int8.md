@@ -50,6 +50,7 @@ High-fidelity INT8 quantization for diffusion models (SDXL). HSWQ uses **sensiti
 | `waiIllustriousSDXL_v170_hswq_r32_r0_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Illustrious License |
 | `prefectIllustriousXL_v8_hswq_r32_r0_int8.safetensors` | [Prefect illustrious XL](https://civitai.red/models/1224788) | v8.0 | Illustrious License |
 | `JANKUTrainedChenkinNoobai_v777_hswq_r32_r0_int8.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.red/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Illustrious License |
+| `unholyDesireMixSinister_v80_hswq_r32_r0_int8.safetensors` | [Unholy Desire Mix - Sinister Aesthetic (Illustrious)](https://civitai.red/models/1307857/unholy-desire-mix-sinister-aesthetic-illustrious) | v8.0 | Illustrious License |
 
 ---
 
@@ -64,5 +65,6 @@ These models are derivatives of their respective creators. All credit for aesthe
 - **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.red/user/WAI0731).
 - **Prefect illustrious XL**: Created by [Goofy_Ai](https://civitai.red/user/Goofy_Ai).
 - **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.red/user/janxd).
+- **Unholy Desire Mix - Sinister Aesthetic (Illustrious)**: Created by [UnholyDesiresStudio](https://civitai.red/user/UnholyDesiresStudio).
 
 ---
