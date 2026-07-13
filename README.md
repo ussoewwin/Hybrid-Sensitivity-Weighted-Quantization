@@ -42,7 +42,7 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (weights + `.scale` metadata) | INT8 weights + scale (`int8_tensorwise`) |
 | **Image quality (SSIM)** | **0.94–0.98** | Unmeasurable (no dedicated loader) | **0.94–0.98** |
 | **Mechanism** | Optimal clipping (smart clipping) | Full-range scaling (dynamic scaling) | Absmax pack + DualMonitor / V4 FP16 protect (r0) |
-| **Keep ratio** | Script-dependent (see How-to) | Script-dependent | **0 (fixed)** |
+| **Keep ratio** | 5–25% (see How-to; SDXL/ZIT often 10%) | 5–25% (see How-to) | **0 (fixed)** |
 | **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) | Measurable |
 | **Use case** | Distribution, general users | Unavailable until a dedicated loader exists | SDXL INT8 distribution / kitchen loaders |
 
@@ -53,7 +53,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 ## Architecture
 
 1. **Dual Monitor System** — During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ (INT8 path: keep ratio **0**; FP16 set comes from automatic analysis / budget ranking, not a keep-ratio %).
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ (**FP8:** top 5–25% by keep ratio; for SDXL and ZIT, 10% often gives sufficient quality. **INT8:** keep ratio **0**; FP16 set comes from automatic analysis / budget ranking, not a keep-ratio %).
    - **Importance:** V1 uses per-channel input mean-abs; V4 uses per-element SVD leverage × RMS magnitude hybrid → weights of the weighted histogram.
    **Technical details:** [Dual Monitor System — Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
@@ -86,7 +86,8 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 
 - **Samples:** 32 (recommended) — number of calibration samples (**same for FP8 and INT8**).
 - **Steps:** 25 — number of inference steps per sample during calibration (**same for FP8 and INT8**).
-- **Keep ratio:** **0 (fixed)** — do not use a non-zero keep-ratio percentage for the INT8 SDXL V3.0 path.
+- **Keep ratio (FP8):** 5–25% — keeps critical layers in FP16. For SDXL and ZIT, 10% often gives sufficient quality.
+- **Keep ratio (INT8):** **0 (fixed)** — do not use a non-zero keep-ratio percentage for the INT8 SDXL V3.0 path.
 - **Latent:** 32–256, default 128 — calibration latent size (H/W). Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity.
 
 ---
