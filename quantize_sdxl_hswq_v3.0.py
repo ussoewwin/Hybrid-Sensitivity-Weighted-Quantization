@@ -1601,7 +1601,7 @@ class DualMonitor:
         # Per-input-channel second moment E[x_i^2] for damage calculation:
         #   damage_l ≈ sum_i (ΔW^2)[*,i,*] · E[x_i^2]  (pre-grad factor)
         self.channel_act_sq_mean = None
-
+    
     def update(self, input_tensor, output_tensor):
         with torch.no_grad():
             out_detached = output_tensor.detach().float()
@@ -2074,7 +2074,7 @@ def main():
         )
     pipeline.set_progress_bar_config(disable=False)
     generator = torch.Generator(device=device).manual_seed(42)
-
+    
     # Calibration for DualMonitor Importance only (V4 ranking). No UNet
     # reservoir / grad-damage capture — that path was the priority hand-wave.
     for i, prompt in enumerate(prompts):
