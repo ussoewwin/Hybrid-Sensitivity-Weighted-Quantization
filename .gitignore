@@ -31,6 +31,7 @@ test/*
 !test/benchmark_sdxl_int8.md
 
 # Local / private
+反省文/
 .mailmap
 
 # Local push/tag scripts (excluded from repo)
