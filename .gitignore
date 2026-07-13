@@ -28,6 +28,7 @@ cache/
 test/*
 !test/benchmark_zit.md
 !test/benchmark_test.md
+!test/benchmark_sdxl_int8.md
 
 # Local / private
 .mailmap
