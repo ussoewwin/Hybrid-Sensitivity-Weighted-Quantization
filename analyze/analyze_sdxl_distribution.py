@@ -660,6 +660,45 @@ def int8_fp16_budget_analyze_severity(
     return float(severity)
 
 
+def _signed_veto_axis_effect(
+    values: List[float],
+    is_hard_veto: List[bool],
+) -> float:
+    """THIS-checkpoint effect size: mean(log1p|VETO) − mean(log1p|non).
+
+    Positive ⇒ higher axis values co-occur with analyze Hard VETO on THIS
+    model (axis is danger-aligned). Negative / near-zero ⇒ anti-aligned or
+    useless for ranking FP16 keep. Used only to auto-weight continuous
+    axes — never to reserve VETO slots or force a fixed sev>sens rule.
+    """
+    if len(values) != len(is_hard_veto) or len(values) < 4:
+        return 0.0
+    a = [
+        math.log1p(max(float(v), 0.0))
+        for v, f in zip(values, is_hard_veto)
+        if f
+    ]
+    b = [
+        math.log1p(max(float(v), 0.0))
+        for v, f in zip(values, is_hard_veto)
+        if not f
+    ]
+    if len(a) < 2 or len(b) < 2:
+        return 0.0
+    ma = sum(a) / len(a)
+    mb = sum(b) / len(b)
+    va = sum((x - ma) ** 2 for x in a) / max(len(a) - 1, 1)
+    vb = sum((x - mb) ** 2 for x in b) / max(len(b) - 1, 1)
+    # Pooled std (Cohen's d); tiny floor so a constant axis collapses to 0.
+    pooled = math.sqrt(
+        (va * (len(a) - 1) + vb * (len(b) - 1))
+        / max(len(a) + len(b) - 2, 1)
+    )
+    if pooled < 1e-12:
+        return 0.0
+    return float((ma - mb) / pooled)
+
+
 def derive_priority_combinator(
     sens_iqr: float,
     sev_iqr: float,
@@ -667,21 +706,65 @@ def derive_priority_combinator(
     sens_p50: float,
     sev_p50: float,
     mse_p50: float,
+    *,
+    sens_vals: Optional[List[float]] = None,
+    sev_vals: Optional[List[float]] = None,
+    mse_vals: Optional[List[float]] = None,
+    is_hard_veto: Optional[List[bool]] = None,
 ) -> Dict[str, Any]:
     """Derive priority axis weights + refs from THIS checkpoint's 3-axis
     distribution (DualMonitor sens / analyze severity / V4 MSE).
 
     Continuous weighted geometric mean — NO fixed product, NO fixed
-    V4*(1+sev), NO discrete form switch. Flat axes fade to weight 0.
+    V4*(1+sev), NO discrete form switch, NO Hard-VETO absolute reservation.
+
+    When per-layer measured triples + analyze Hard VETO masks are provided,
+    dispersion (IQR/median) is gated by THIS model's signed VETO alignment
+    per axis: anti-aligned axes (high DualMonitor sens / low V4 MSE on
+    demoted VETO layers, etc.) fade automatically so auto-optimal ranking
+    follows analyze danger character for THIS checkpoint.
     """
     eps = 1e-12
     s_i = max(float(sens_iqr), 0.0)
     v_i = max(float(sev_iqr), 0.0)
     m_i = max(float(mse_iqr), 0.0)
 
-    w_s = s_i / max(sens_p50, eps) if sens_p50 > 0 else 0.0
-    w_v = v_i / max(sev_p50, eps) if sev_p50 > 0 else 0.0
-    w_m = m_i / max(mse_p50, eps) if mse_p50 > 0 else 0.0
+    # Dispersion seed (spread / typical scale) — flat axes → 0.
+    d_s = s_i / max(sens_p50, eps) if sens_p50 > 0 else 0.0
+    d_v = v_i / max(sev_p50, eps) if sev_p50 > 0 else 0.0
+    d_m = m_i / max(mse_p50, eps) if mse_p50 > 0 else 0.0
+
+    align_s = align_v = align_m = None
+    form = "weighted_geometric"
+    if (
+        sens_vals is not None
+        and sev_vals is not None
+        and mse_vals is not None
+        and is_hard_veto is not None
+        and len(sens_vals) == len(sev_vals) == len(mse_vals) == len(is_hard_veto)
+        and sum(1 for f in is_hard_veto if f) >= 2
+        and sum(1 for f in is_hard_veto if not f) >= 2
+    ):
+        # Auto-optimal axis gate from THIS model: keep only positively
+        # VETO-aligned axes (Cohen's d on log1p). Anti-aligned fade to 0.
+        raw_s = _signed_veto_axis_effect(list(sens_vals), list(is_hard_veto))
+        raw_v = _signed_veto_axis_effect(list(sev_vals), list(is_hard_veto))
+        raw_m = _signed_veto_axis_effect(list(mse_vals), list(is_hard_veto))
+        align_s = max(raw_s, 0.0)
+        align_v = max(raw_v, 0.0)
+        align_m = max(raw_m, 0.0)
+        if (align_s + align_v + align_m) > eps:
+            # dispersion × alignment: noisy but aligned axes still compete;
+            # high-IQR anti-aligned DualMonitor sens cannot dominate.
+            w_s = d_s * align_s
+            w_v = d_v * align_v
+            w_m = d_m * align_m
+            form = "weighted_geometric_veto_aligned"
+        else:
+            w_s, w_v, w_m = d_s, d_v, d_m
+    else:
+        w_s, w_v, w_m = d_s, d_v, d_m
+
     w_sum = w_s + w_v + w_m
     if w_sum < eps:
         return {
@@ -690,18 +773,24 @@ def derive_priority_combinator(
             "sens_ref": max(float(sens_p50), eps),
             "sev_ref": max(float(sev_p50), eps),
             "mse_ref": max(float(mse_p50), eps),
+            "align_sens": float(align_s) if align_s is not None else None,
+            "align_sev": float(align_v) if align_v is not None else None,
+            "align_mse": float(align_m) if align_m is not None else None,
         }
     w_s /= w_sum
     w_v /= w_sum
     w_m /= w_sum
     return {
-        "form": "weighted_geometric",
+        "form": form,
         "w_sens": float(w_s),
         "w_sev": float(w_v),
         "w_mse": float(w_m),
         "sens_ref": max(float(sens_p50), eps),
         "sev_ref": max(float(sev_p50), eps),
         "mse_ref": max(float(mse_p50), eps),
+        "align_sens": float(align_s) if align_s is not None else None,
+        "align_sev": float(align_v) if align_v is not None else None,
+        "align_mse": float(align_m) if align_m is not None else None,
     }
 
 
