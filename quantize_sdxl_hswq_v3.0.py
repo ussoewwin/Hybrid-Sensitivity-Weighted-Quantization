@@ -307,7 +307,6 @@ _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 # Both enter ONE per-model ranking in _apply_fp16_budget_cap (with V4 MSE).
 # Budget winners = final FP16 protection. Analyze VETO is not renamed.
 # keep_ratio is r0; DualMonitor must not invent or gate that flag.
-_INT8_MAD_OUTLIER_PCT_FLOOR = 0.0  # disabled; analyze derives from profile or 0
 
 
 @dataclass(frozen=True)
@@ -837,23 +836,6 @@ def _compute_sdxl_int8_mad_attn_veto(
     return added
 
 
-def _compute_int8_sensitivity_hard_veto_promotion(
-    dual_monitors: dict,
-    hard_veto_layers: set,
-    *,
-    percentile: float = 100.0,
-) -> set:
-    """Obsolete — do not call.
-
-    DualMonitor produces FP16 candidates; analyze produces VETO candidates.
-    Those two pools are synthesized in _apply_fp16_budget_cap for final FP16
-    protection. Do not force DualMonitor into analyze VETO, and do not rename
-    budget winners as Hard VETO.
-    """
-    _ = dual_monitors, hard_veto_layers, percentile
-    return set()
-
-
 def _autonomous_supplemental_veto(
     model: nn.Module,
     hard_veto_layers: set,
@@ -1230,8 +1212,6 @@ def _apply_fp16_budget_cap(
     alpha: float = 0.5,
     beta: float = 0.5,
     device: str = "cuda",
-    unet_inputs: list | None = None,
-    grad_second_moments: dict | None = None,
 ) -> tuple[set, set, dict]:
     """Per-model auto analysis → auto-optimal FP16 set inside 300 MiB.
 
@@ -1253,7 +1233,6 @@ def _apply_fp16_budget_cap(
       Fill the 300 MiB frame by that ranking. Analyze VETO that lose are
       demoted; DualMonitor winners stay FP16 keep (not renamed VETO).
     """
-    _ = unet_inputs, grad_second_moments
     budget_mb = _require_fp16_budget_mb_hard(budget_mb)
     analyze_dir = os.path.join(current_dir, "analyze")
     if analyze_dir not in sys.path:
@@ -1499,185 +1478,6 @@ def _apply_fp16_budget_cap(
         "mse_cache_size": len(cache),
     }
     return keep_out, hard_veto_out, stats
-
-
-
-
-class GradSecondMoment:
-    """Accumulates per-output-channel squared gradient E[g_o^2] for one layer
-    via Hutchinson probing during the gradient-measurement phase.
-
-    Combined with DualMonitor.channel_act_sq_mean (E[x_i^2]) and the layer's
-    INT8 quantization error ΔW, this yields the measured contribution of the
-    layer to the final output damage:
-
-        damage_l ≈ sum_{o,i} ΔW[o,i]^2 · E[x_i^2] · E[g_o^2]
-
-    This is a physically-grounded, model-specific measurement of how much INT8
-    quantizing this layer perturbs the network's final latent output — no fixed
-    formula, no per-model hand-tuning: the damage itself is measured.
-    """
-
-    def __init__(self):
-        self.grad_sq_sum = None  # running sum of g_o^2 (per output channel)
-        self.num_probes = 0
-
-    def update_probe(self, grad_output):
-        """Accumulate squared gradients from one Hutchinson probe.
-
-        grad_output: gradient w.r.t. this layer's output, shape (..., O).
-        """
-        g = grad_output.detach().float()
-        if g.dim() == 4:
-            g_sq = (g ** 2).mean(dim=(0, 2, 3))
-        elif g.dim() == 3:
-            g_sq = (g ** 2).mean(dim=(0, 1))
-        elif g.dim() == 2:
-            g_sq = (g ** 2).mean(dim=0)
-        else:
-            g_sq = (g ** 2).mean()
-            g_sq = g_sq.reshape(1)
-        if self.grad_sq_sum is None:
-            self.grad_sq_sum = g_sq
-        else:
-            self.grad_sq_sum = self.grad_sq_sum + g_sq
-        self.num_probes += 1
-
-    def get_output_grad_second_moment(self):
-        if self.num_probes == 0 or self.grad_sq_sum is None:
-            return None
-        return (self.grad_sq_sum / float(self.num_probes)).detach().float().cpu()
-
-
-def _measure_grad_second_moments(
-    model: torch.nn.Module,
-    unet_inputs: list,
-    target_layer_names: set,
-    *,
-    device: str = "cuda",
-    num_hutchinson_probes: int = 4,
-) -> dict:
-    """Replay captured UNet inputs with gradients enabled and accumulate
-    per-output-channel squared gradient E[g_o^2] for each target layer via
-    Hutchinson estimation.
-
-    For each captured input (latent, timestep, enc_hs), and each Hutchinson
-    probe (random ±1 vector of the latent output shape), we:
-      1. Forward pass through the UNet (with gradient checkpointing if the
-         model supports it; otherwise plain backprop).
-      2. Compute the dot product of the final latent output with the random
-         probe vector: ``loss = <out, v>``.
-      3. Backpropagate to obtain gradients w.r.t. every intermediate layer
-         output.
-      4. For each target Conv2d/Linear layer, accumulate the squared
-         gradient averaged over the non-output dims, into a GradSecondMoment
-         instance.
-
-    The result is an unbiased estimator of the Jacobian row-norms squared
-    (sum of squared gradient entries for each output channel), which —
-    combined with the layer's INT8 quantization error ΔW and the DualMonitor
-    per-input-channel activation second moment E[x_i^2] — yields the
-    measured per-layer damage contribution to the final latent MSE.
-
-    This is fully automatic and model-specific: no fixed formula, no
-    per-model hand-tuning. The gradient second moment is *measured* for
-    this model on this calibration data.
-    """
-    if not unet_inputs:
-        return {}
-    model.train()
-    # Enable gradient checkpointing if available to save activation memory.
-    use_gc = False
-    if hasattr(model, "gradient_checkpointing"):
-        try:
-            model.enable_gradient_checkpointing()
-            use_gc = True
-        except Exception:
-            pass
-
-    grad_monitors: dict = {n: GradSecondMoment() for n in target_layer_names}
-    fwd_handles = []
-
-    def _make_hook(name):
-        def hook_fn_grad(module, inputs, output):
-            gsm = grad_monitors.get(name)
-            if gsm is None or output is None:
-                return
-            if not output.requires_grad:
-                return
-            # Attach a retain_grad on the output so .grad is populated after backward().
-            try:
-                output.retain_grad()
-            except Exception:
-                pass
-            gsm._last_output_ref = output  # stash for post-backward retrieval
-        return hook_fn_grad
-
-    module_dict = dict(model.named_modules())
-    for name in target_layer_names:
-        mod = module_dict.get(name)
-        if mod is not None and isinstance(mod, (torch.nn.Conv2d, torch.nn.Linear)):
-            h = mod.register_forward_hook(_make_hook(name))
-            fwd_handles.append(h)
-
-    try:
-        for probe_idx in range(num_hutchinson_probes):
-            for cap in unet_inputs:
-                latent = cap["sample"].to(device=device, non_blocking=True)
-                timestep_tensor = torch.tensor([cap["timestep"]], device=device, dtype=torch.long) \
-                    if isinstance(cap["timestep"], int) else cap["timestep"].to(device)
-                enc_hs = cap["encoder_hidden_states"]
-                if enc_hs is not None:
-                    enc_hs = enc_hs.to(device=device, non_blocking=True)
-
-                model.zero_grad(set_to_none=True)
-                # Random Hutchinson probe vector on the latent output shape.
-                with torch.enable_grad():
-                    latent_in = latent.detach().clone().requires_grad_(False)
-                    # UNet forward; many SDXL UNets accept (sample, timestep, encoder_hidden_states, ...)
-                    out = model(
-                        latent_in,
-                        timestep_tensor,
-                        enc_hs,
-                        return_dict=False,
-                    )
-                    if isinstance(out, tuple):
-                        out_tensor = out[0]
-                    else:
-                        out_tensor = out.sample if hasattr(out, "sample") else out
-                    out_tensor = out_tensor.float()
-                    # Probe vector v ~ ±1, same shape as out_tensor.
-                    v = (torch.randint(0, 2, out_tensor.shape, device=device, dtype=torch.float32) * 2.0 - 1.0)
-                    # Normalize by sqrt(numel) to keep gradient magnitudes scale-stable.
-                    scale = 1.0 / math.sqrt(float(out_tensor.numel()))
-                    loss = (out_tensor * v).sum() * scale
-                loss.backward()
-                # Accumulate squared gradients for each target layer.
-                for name, gsm in grad_monitors.items():
-                    last_out = getattr(gsm, "_last_output_ref", None)
-                    if last_out is None:
-                        continue
-                    grad_out = getattr(last_out, "grad", None)
-                    if grad_out is not None:
-                        gsm.update_probe(grad_out)
-                    # clear ref to free memory
-                    gsm._last_output_ref = None
-                del out, out_tensor, loss, v, latent_in, latent, timestep_tensor, enc_hs
-                torch.cuda.empty_cache()
-    finally:
-        for h in fwd_handles:
-            h.remove()
-        model.eval()
-        if use_gc:
-            try:
-                model.disable_gradient_checkpointing()
-            except Exception:
-                pass
-        model.zero_grad(set_to_none=True)
-        torch.cuda.empty_cache()
-
-    # Drop layers with no probes (e.g. not exercised by captured inputs).
-    return {n: gsm for n, gsm in grad_monitors.items() if gsm.num_probes > 0}
 
 
 def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
@@ -2376,8 +2176,6 @@ def main():
         alpha=alpha,
         beta=beta,
         device=device,
-        unet_inputs=None,
-        grad_second_moments=None,
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
 
