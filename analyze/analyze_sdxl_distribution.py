@@ -639,10 +639,15 @@ def int8_fp16_budget_analyze_severity(
     if mad_floor > 0.0 and mad > 0.0:
         severity += max(mad / mad_floor, 0.0)
 
-    # No fixed Hard-VETO class boost. Analyze VETO is a pool candidate;
-    # severity is THIS checkpoint's character vs THIS checkpoint's fences.
-    # DualMonitor sens and V4 MSE compete in the same auto combinator.
-    _ = is_hard_veto
+    # Analyze already classified Hard VETO for THIS checkpoint (fence /
+    # key-pattern / structural / MAD / …). Discarding that flag was
+    # hand-waving: key-pattern HV (e.g. time_embedding.*) can have mild
+    # kurtosis/outlier while analyze still requires FP16. On the excess
+    # scale, 1.0 == at fence — Hard VETO is at least that character, then
+    # keep any measured excess above it. Priority fill uses this severity
+    # in the same combinator (no separate pack-order rule).
+    if is_hard_veto:
+        severity = max(severity, 1.0)
     return float(severity)
 
 
