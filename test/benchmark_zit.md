@@ -64,7 +64,6 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 - **MSE (latent):** Mean squared error on raw latent tensors vs FP16 reference; 0 = perfect match.
 - **SSIM (0–255 view):** Structural similarity on normalized 0–255 preview images (`zit_bench`); 1.0 = perfect match.
 - **Keep ratio:** Fraction of layers kept in FP16 (e.g. r0.1 = 10%, r0.05 = 5%).
-- **Test environment (from logs):** Peak VRAM ~12.3 GB FP16 / ~7.3–7.5 GB HSWQ FP8 where applicable; see `score_zi.txt` blocks for per-run VRAM and inference time.
 - **Z-Anime row:** The Z-Anime MSE values in this table are from the 0–255 view block in `score_zi.txt` (not latent-space MSE).
 
 ---
