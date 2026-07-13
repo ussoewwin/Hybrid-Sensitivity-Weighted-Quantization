@@ -9,7 +9,8 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 - **FP8:** two modes — standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
 - **INT8 (SDXL V3.0):** ComfyUI-compatible `int8_tensorwise` pack with DualMonitor + V4 weighted-histogram ranking for FP16 protection under a fixed budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage.
 
-**Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
+**Technical details (FP8):** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)  
+**Technical details (INT8 SDXL V3.0):** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md)
 
 **SDXL models (FP8):** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
 
@@ -26,7 +27,7 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 ## How to quantize
 
 - **SDXL (FP8):** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md)
-- **SDXL (INT8):** `quantize_sdxl_hswq_v3.0.py` (keep ratio **0**; Card 3 `--per_channel_int8` optional)
+- **SDXL (INT8):** [HSWQ INT8 SDXL Technical Guide](md/HSWQ_INT8_SDXL_Technical_Guide.md) — `quantize_sdxl_hswq_v3.0.py` (keep ratio **0**; Card 3 `--per_channel_int8` optional)
 - **Z Image / Z-Anime (FP8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md)
 
 **Benchmark results:**
