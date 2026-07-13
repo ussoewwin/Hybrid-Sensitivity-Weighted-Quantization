@@ -1,6 +1,6 @@
 # HSWQ INT8 (SDXL V3.0) — Technical Overview
 
-**Document version:** 1.0  
+**Document version:** 1.1  
 **Date:** 2026-07-13  
 **Target:** Stable Diffusion XL UNet — `quantize_sdxl_hswq_v3.0.py`  
 **Companion (FP8 families):** [HSWQ: Hybrid Sensitivity Weighted Quantization — Technical Overview](HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
@@ -53,46 +53,48 @@ INT8 V3.0 **reuses** the V4 histogram MSE core unchanged; only the **quantizer g
 
 ```mermaid
 graph TD
-    A["Calibration prompts"] --> B["Diffusers SDXL Pipeline + hooks"]
-    B --> C{"DualMonitor"}
-    C --> C1["Sensitivity = Var(output)"]
-    C --> C2["Importance = Mean(abs X, channel)"]
-    C --> C3["Act mean / sq mean for bias correction"]
-
     W["FP16 UNet weights"] --> P["analyze_sdxl_distribution profile JSON"]
-    P --> T["resolve_veto_tunables → derive_int8_autonomous_tunables"]
-    T --> HV["Static Hard VETO k/o/m fences"]
-    HV --> S1["Structural VETO unique Linear shape"]
+    P --> T0["resolve_veto_tunables (pre-calib)"]
+    T0 --> HV["Static Hard VETO k/o/m"]
+    HV --> S1["Structural VETO"]
     S1 --> S2["Per-projection attn VETO"]
     S2 --> S3["INT8 MAD attn VETO"]
     S3 --> S4["Key-pattern VETO"]
-    S4 --> S5["Live supplemental VETO"]
 
-    C1 --> Pool["FP16 candidate pool"]
-    HV --> Pool
-    S5 --> Pool
+    A["Calibration prompts"] --> B["Diffusers SDXL + hooks"]
+    B --> C{"DualMonitor"}
+    C --> C1["Sensitivity = Var(y)"]
+    C --> C2["Importance = mean(|x|)"]
+    C --> C3["Act moments for BC"]
 
-    Pool --> V4["_build_v4_calib_fp16_candidates"]
+    S4 --> S5["Supplemental VETO (post-calib)"]
+    C --> S5
+    S5 --> T1["resolve_veto_tunables again (+ DualMonitor)"]
+    T1 --> V4["_build_v4_calib_fp16_candidates"]
+    C1 --> V4
     C2 --> V4
-    V4 --> MSE["estimated_mse @ absmax INT8Quantizer"]
+    HV --> V4
+    V4 --> MSE["estimated_mse @ absmax"]
     MSE --> GZ{"MSE gray-zone release?"}
-    GZ -- release --> INT8cand["Allow INT8"]
-    GZ -- keep --> Pool2["Updated hard_veto ∪ keep"]
+    GZ -- release --> Pool2["Updated hard_veto ∪ keep"]
+    GZ -- keep --> Pool2
 
     Pool2 --> Cap["_apply_fp16_budget_cap 300 MiB"]
     C1 --> Cap
     MSE --> Cap
-    T --> Cap
-    Cap --> Prio["derive_priority_combinator → priority"]
-    Prio --> Fill["Greedy fill by priority under 300 MiB"]
-
+    T1 --> Cap
+    Cap --> Prio["derive_priority_combinator"]
+    Prio --> Fill["Greedy fill ≤ 300 MiB"]
     Fill --> KFP16["Final FP16 set"]
     Fill --> Q["INT8 layers"]
     Q --> Pack["pack absmax / Card2 / Card3"]
     Pack --> BC["Bias correction Card1"]
+    C3 --> BC
     KFP16 --> Save["Safetensors + int8_tensorwise metadata"]
     BC --> Save
 ```
+
+**`main` call order (authoritative):** profile → first `resolve_veto_tunables` → `derive_hswq_strategy_int8` (static Hard VETO) → Structural → Per-projection → MAD → Key-pattern → **DualMonitor calibration (32×25)** → Supplemental → **second** `resolve_veto_tunables` (with DualMonitor) → V4 candidates → gray-zone → 300 MiB budget → pack → BC → save. Pre-calib VETO stages do **not** wait for DualMonitor; only Supplemental and the second tunables resolve do.
 
 ### 3.1 DualMonitor (calibration time)
 
@@ -106,7 +108,7 @@ During Diffusers SDXL latent inference, hooks accumulate:
 | **Importance** | Per-input-channel \(\mathrm{mean}(|x|)\) | V4 histogram weights when present (`use_svd_leverage=False`) |
 | **Act moments** | Signed channel mean / squared mean | Bias correction \(\delta b \approx (W_q-W)\,\mathbb{E}[x]\) |
 
-**Contract:** recommended **32 calibration samples × 25 inference steps** (same numbers as FP8 How-to). DualMonitor **never** invents `keep_ratio`. It feeds the **final** FP16 protection pass only.
+**Contract:** **32 calibration samples × 25 inference steps**, `generator` seed **42**, `output_type="latent"`. `main` prints `[WARN]` if samples/steps differ from 32×25 (recipe still runnable, but DualMonitor Importance for V4 ranking should follow that calibration). DualMonitor **never** invents `keep_ratio`. It feeds Supplemental / second tunables resolve / V4 ranking / budget / BC — not a keep-ratio engine.
 
 Full DualMonitor mathematics: [Dual Monitor System — Technical Guide](Dual_Monitor_System_Technical_Guide.md).
 
@@ -122,9 +124,11 @@ Per-layer weight-space stats (UNet keys):
 | `mad_outlier_pct` | Fraction of weights with MAD \(z > 3\) |
 | `profile_score` | Composite rank used inside severity |
 
-Layer class labels for gates (`classify_layer`): `qkv`, `toout`, `ff2`, `ff0`, `other` — key-pattern classification only.
+Layer class labels for gates (`analyze_sdxl_distribution._classify_layer_key`): `qkv`, `toout`, `ff2`, `ff0`, `other` — key-pattern / ff2 discovery only (not a keep_ratio engine).
 
 `main` always runs (or loads) a profile JSON (`{stem}_distribution_profile.json`) before strategy derivation. Comfy-style keys are remapped to Diffusers module names via `_remap_profile_to_diffusers`.
+
+Inside `derive_hswq_strategy_int8`, if profile keys start with `model.` or `model.diffusion_model.` (`_SDXL_PROFILE_PREFIXES`), those prefixes are stripped once so Hard VETO names align with Diffusers `named_modules` paths.
 
 ### 3.3 Tunables resolution
 
@@ -158,23 +162,25 @@ Fences from `derive_veto_tunables_int8`:
 
 ### 3.5 Autonomous VETO stack (after static Hard VETO)
 
-Applied in `main` after strategy + DualMonitor (order matches code):
+Order matches `main` (see mermaid note). Stages **Structural → Per-projection → MAD → Key-pattern** run **before** DualMonitor calibration. **Supplemental** runs **after** calibration.
 
-| Stage | Function | Rule |
-|---|---|---|
-| **Structural** | `_compute_structural_veto` | `Linear` weight shapes with uniqueness `1` (profile `shape_uniqueness` or live shape count) → FP16 candidate |
-| **Per-projection attn** | `_compute_sdxl_per_projection_attn_veto` | Split fused / sibling qkv projections; VETO if any chunk exceeds attn absmax/outlier tunables |
-| **MAD attn** | `_compute_sdxl_int8_mad_attn_veto` | Profile MAD% floors (Tukey / Q3) — INT8 script only; FP8 MAD path untouched |
-| **Key-pattern** | `_compute_sdxl_keypattern_veto` | Embedding prefixes, boundary suffixes, selective ff2 (not full-class auto — that inflates SDXL size) |
-| **Supplemental live** | `_autonomous_supplemental_veto` | Live stats / profile drift vs stored profile |
+| Stage | When | Function | Rule |
+|---|---|---|---|
+| **Structural** | Pre-calib | `_compute_structural_veto` | `Linear` shapes with uniqueness `1` (profile `shape_uniqueness` if present, else live shape count) → union into `hard_veto` |
+| **Per-projection attn** | Pre-calib | `_compute_sdxl_per_projection_attn_veto` | Diffusers SDXL separate projections: `.attn1`/`.attn2` modules ending in `.to_q`/`.to_k`/`.to_v` or `.to_out.0`. VETO if absmax/outlier exceeds class tunables (`attn_qkv_*` vs `attn_toout_*`). Thresholds from `derive_veto_tunables_int8` only — no extra hardcoded floors |
+| **MAD attn** | Pre-calib | `_compute_sdxl_int8_mad_attn_veto` | INT8-only. Extreme: `MAD% ≥ attn_mad_pct_floor` (Tukey). Gap fill: `MAD% ≥ attn_mad_q3` and `outlier < attn_mad_gap_o_max`. If floor is 0 (old profile without MAD%), **skip** MAD path (do not invent a fixed 15.0). FP8 MAD / FP8 `derive_veto_tunables` untouched |
+| **Key-pattern** | Pre-calib | `_compute_sdxl_keypattern_veto` | Prefixes `time_embedding.`, `add_embedding.`; suffixes `.conv_in`, `.conv_out`; selective ff2 via discovered suffixes + `_ff2_selective_veto_hit` (**not** full-class auto — that inflates SDXL size) |
+| **Supplemental** | Post-calib | `_autonomous_supplemental_veto` | (1) selective ff2 again; (2) embedding-prefix layers with `drift > drift_veto_thresh` |
 
-Drift (same spirit as FP8 V2.0):
+Drift (`_weight_profile_drift`, same spirit as FP8 V2.0):
 
 ```
 drift = max( |k_live−k_prof|/max(k_prof,1),
              |o_live−o_prof|/max(o_prof,1),
              |m_live−m_prof|/max(m_prof,1e-6) )
 ```
+
+After Supplemental, `main` calls **`resolve_veto_tunables` a second time** with DualMonitor maps (updates e.g. autonomous `bias_correction_top_ratio` unless the CLI overrode it).
 
 ### 3.6 Pack amax vs V4 ranking (critical split)
 
@@ -222,7 +228,7 @@ With `search_range=(1,1)`, Δ is fixed at absmax; only **J** is used as a damage
 | Present | `False` | Channel / broadcast Importance (SDXL quality path) |
 | Missing | `True` | V4 hybrid SVD×RMS (`alpha_auto`, `beta=1−alpha`) — **never skip V4** |
 
-`alpha_auto` from `derive_int8_autonomous_tunables`:
+`alpha_auto` from `derive_int8_autonomous_tunables` (consumed by `derive_hswq_strategy_int8` as `alpha` / `beta`):
 
 ```
 if k_P50 > 0 and k_P99 > 0:
@@ -231,6 +237,8 @@ else:
     alpha_auto = 0.0    # typical SDXL: non-positive median kurtosis → DualMonitor / RMS path
 beta = 1 - alpha_auto
 ```
+
+Note: the **docstring** of `derive_hswq_strategy_int8` still says “SVD leverage forced off”; the **body** uses `alpha_auto` as above. Runtime truth is the body + `_measure_v4_mse_absmax_int8` table — not that stale docstring line.
 
 Hybrid leverage (when SVD is on) — full derivation in [HSWQ V4 SVD-RMS — Technical Guide](HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md):
 
@@ -243,11 +251,12 @@ Score  = α · L̂ + β · |W|²̂
 
 ### 3.7 MSE gray-zone VETO reassessment
 
-1. `_collect_mse_release_candidates`: Hard VETO layers that are **outlier-dominated** under `mse_release_o_min` / `mse_release_k_max` / `mse_release_m_max`, non-structural, `drift < drift_veto_thresh`, not key-pattern locked.
-2. `_mse_grayzone_veto_reassessment`: sample safe non-keep feed-forward layers (up to 30), take `P75(estimated_mse)`, threshold = `mse_p75_multiplier × P75`.
-3. Trial V4 MSE on each candidate; **release** (remove from hard_veto / allow INT8) if `estimated_mse ≤ threshold`.
+1. `_collect_mse_release_candidates`: Hard VETO layers that are **outlier-dominated** under `mse_release_o_min` / `mse_release_k_max` / `mse_release_m_max`, **not** in `structural_veto`, `drift < drift_veto_thresh`. Gates come from `derive_veto_tunables_int8` only (no hardcoded min/max floors).
+2. `main` then subtracts `keypattern_veto` from candidates (`release_cands -= keypattern_veto`) so key-pattern locks are never soft-released.
+3. `_mse_grayzone_veto_reassessment`: **requires DualMonitor** (raises if missing). Prefer ff2-suffix safe non-keep layers; sample up to **30** (`step = max(1, len/30)`), take `P75(estimated_mse)`, threshold = `mse_p75_multiplier × P75`.
+4. Trial V4 MSE on each candidate; **release** (remove from hard_veto / allow INT8) if `estimated_mse ≤ threshold`. Reuses / extends the V4 calib `mse_cache` (never wipes it).
 
-Pack amax remains absmax. Gray-zone only changes **FP16 membership**, not scale search.
+Pack amax remains absmax (`search_range=(1,1)`). Gray-zone only changes **FP16 membership**, not scale search.
 
 ### 3.8 FP16 budget cap (300 MiB) — unified protection
 
@@ -303,7 +312,9 @@ After INT8 pack, cancel systematic output bias:
 δb[o] ≈ Σ_{i,kh,kw} err[o,i,…] · μ[i]   # Conv2d
 ```
 
-`μ_x` from DualMonitor signed channel means. Default: **all INT8 layers** (anchor commit `d1290df`, measured SSIM ~0.9753). Optional `--bias_correction_top_ratio < 1` (Approach A) was measured to **raise MSE quality but drop SSIM** (e.g. 0.9753 → 0.9678 at 0.5) — not the default.
+`μ_x` from DualMonitor signed channel means. Default scope: **all INT8 layers** when `bias_correction_top_ratio = 1.0` (anchor commit `d1290df`, measured SSIM ~0.9753).
+
+`bias_correction_top_ratio` is an **autonomous tunable** from `derive_int8_autonomous_tunables` (applied after both pre-calib and post-DualMonitor `resolve_veto_tunables`) unless the CLI explicitly overrides it. Optional `--bias_correction_top_ratio < 1` (Approach A) was measured to **raise MSE quality but drop SSIM** (e.g. 0.9753 → 0.9678 at 0.5) — not the production default. Disable entirely with `--no-bias_correction`.
 
 No format change, no extra FP16 keep, no custom loader.
 
@@ -353,8 +364,10 @@ There is no separate “scaled INT8 V2 loader” branch analogous to FP8 V2 High
 | Histogram | V4 + `INT8Quantizer` @ absmax for FP16 ranking |
 | Pack amax | absmax (`search_low=1.0`) |
 | Profile | **mandatory** (auto-generated) |
-| Bias correction | ON (all INT8 layers by default) |
-| `--asymmetric_int8` / `--per_channel_int8` | OFF unless experimenting (mutex) |
+| Bias correction | ON (default); `bias_correction_top_ratio` autonomous unless CLI override |
+| `--asymmetric_int8` / `--per_channel_int8` | OFF unless experimenting (mutex; both → `[FATAL]`) |
+| `--keep_ratio` | Must be `0`; any other value → `[FATAL]` |
+| `--fp16_budget_mb` | Must be `300`; any other value → raise / `[FATAL]` |
 
 Example:
 
@@ -394,8 +407,9 @@ FP8 SDXL / Z Image benches remain in [`test/benchmark_test.md`](../test/benchmar
 | Load UNet | `load_unet_from_safetensors` |
 | Tunables | `resolve_veto_tunables` → `SdxlVetoTunables` |
 | Strategy | `derive_hswq_strategy_int8` (static Hard VETO + `alpha_auto`) |
-| VETO stack | `_compute_structural_veto`, `_compute_sdxl_per_projection_attn_veto`, `_compute_sdxl_int8_mad_attn_veto`, `_compute_sdxl_keypattern_veto`, `_autonomous_supplemental_veto` |
-| Calibration | `DualMonitor` hooks; 32×25 Diffusers loop |
+| VETO stack (pre-calib) | `_compute_structural_veto` → `_compute_sdxl_per_projection_attn_veto` → `_compute_sdxl_int8_mad_attn_veto` → `_compute_sdxl_keypattern_veto` |
+| Calibration | `DualMonitor` hooks; 32×25 Diffusers loop (`latent` output); seed 42 |
+| VETO stack (post-calib) | `_autonomous_supplemental_veto`; then second `resolve_veto_tunables(..., dual_monitors=...)` |
 | V4 score | `_build_v4_calib_fp16_candidates`, `_measure_v4_mse_absmax_int8` |
 | Gray-zone | `_collect_mse_release_candidates`, `_mse_grayzone_veto_reassessment` |
 | Budget | `_apply_fp16_budget_cap` + `int8_fp16_budget_*` / `derive_priority_combinator` |
@@ -409,7 +423,7 @@ FP8 SDXL / Z Image benches remain in [`test/benchmark_test.md`](../test/benchmar
 | Symbol | Code / meaning |
 |---|---|
 | \(q,\; s=\mathrm{amax}/127\) | `INT8Quantizer.quantize_dequantize` |
-| \(\mathrm{outlier\_ratio}\) | `abs_max / std` in `_layer_stats` |
+| \(\mathrm{outlier\_ratio}\) | `abs_max / std` in `_layer_weight_stats` |
 | \(\mathrm{extra}=N\) | `_fp16_extra_bytes_vs_int8` |
 | \(\mathrm{sev}\) | `int8_fp16_budget_analyze_severity` |
 | \(w_s,w_v,w_m\) | `derive_priority_combinator` |
