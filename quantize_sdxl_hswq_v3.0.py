@@ -2388,6 +2388,11 @@ def main():
     for dyn_name in sorted(dynamic_keep_layers - hard_veto_layers):
         print(f"  FP16 [DualMonitor/dynamic]: {dyn_name}")
 
+    layer_sensitivities = sorted(
+        ((name, float(mon.get_sensitivity())) for name, mon in dual_monitors.items()),
+        key=lambda kv: kv[1],
+        reverse=True,
+    )
     print("\nTop 10 Sensitive Layers (Dynamic):")
     for i in range(min(10, len(layer_sensitivities))):
         name, sens = layer_sensitivities[i]
