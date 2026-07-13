@@ -28,8 +28,9 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 - **Z Image / Z-Anime (FP8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md)
 
 **Benchmark results:**
-- **SDXL:** [MSE / SSIM](test/benchmark_test.md)
-- **Z Image / Z-Anime:** [MSE / SSIM](test/benchmark_zit.md)
+- **SDXL (FP8):** [MSE / SSIM](test/benchmark_test.md)
+- **SDXL (INT8):** [MSE / SSIM](test/benchmark_sdxl_int8.md)
+- **Z Image / Z-Anime (FP8):** [MSE / SSIM](test/benchmark_zit.md)
 
 ---
 
