@@ -303,10 +303,6 @@ _SDXL_ATTN_PROJ_SUFFIXES = (".to_q", ".to_k", ".to_v")
 _SDXL_ATTN_TOOUT_SUFFIX = ".to_out.0"
 _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 
-# INT8 vs FP8E4M3 positive levels (documentation / legacy fallback defaults only).
-# Hard VETO fences and mse_release_* come from analyze weight-space Tukey —
-# do NOT scale those gates by this ratio (collapses V4 FP16-protect / gray-zone pool).
-_INT8_SCALE_FACTOR = 127.0 / 448.0
 # DualMonitor Sensitivity → FP16 candidates; analyze → VETO candidates.
 # Both enter ONE per-model ranking in _apply_fp16_budget_cap (with V4 MSE).
 # Budget winners = final FP16 protection. Analyze VETO is not renamed.
