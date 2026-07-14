@@ -1001,12 +1001,10 @@ def _mad_continuous_gates_from_live(
 ) -> tuple[float, float, float, float]:
     """Mirror analyze MAD fences on a live THIS-UNet list.
 
-    Returns (floor, soft_gap, collapse, iqr). Same as analyze
-    ``_mad_continuous_fences_from_positives``: hard=THIS MAD P75/Q3,
-    soft=collapse-blended P50↔Q3 (Soft-MAD; tip-heavy THIS must not open
-    soft≪Q3 and Soft-VETO the near-zero MAD mass); P99 tip/severity only —
-    never VETO floor (philosophy §1 / §14; tip-as-floor and Tukey-as-hard
-    raise the gate; raw soft=P50 on tip-heavy pools floods Soft-MAD).
+    Returns (floor, soft, collapse, iqr). Same as analyze
+    ``_mad_continuous_fences_from_positives``: hard=THIS MAD P75/Q3;
+    soft=collapse-shaped Soft band on THIS below-floor MAD mass
+    (not raw P50 flood; not (1-c)*P50+c*Q3 Soft death). P99 tip only.
     """
     live_sorted = sorted(float(v) for v in live_mads if float(v) > 0.0)
     n_live = len(live_sorted)
@@ -1020,7 +1018,6 @@ def _mad_continuous_gates_from_live(
     q1 = float(live_sorted[n_live // 4])
     q3 = float(live_sorted[(3 * n_live) // 4])
     iqr = float(max(q3 - q1, 0.0))
-    # P75 index matches analyze `_safe_percentile(..., 75)`.
     p75 = float(
         live_sorted[max(0, min(n_live - 1, int(round(0.75 * (n_live - 1)))))]
     )
@@ -1031,9 +1028,31 @@ def _mad_continuous_gates_from_live(
     tail_span = float(max(p99 - p50, 1e-12))
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
     mad_floor = float(p75)
-    mad_soft = float((1.0 - collapse) * p50 + collapse * p75)
+    below = [float(v) for v in live_sorted if float(v) < mad_floor]
+    if below:
+        tip_idx = max(
+            0, min(len(below) - 1, int(round(collapse * (len(below) - 1))))
+        )
+        soft_tip = float(below[tip_idx])
+        mad_soft = float((1.0 - collapse) * p50 + collapse * soft_tip)
+    else:
+        mad_soft = float(p50)
+    open_span = float(max(mad_floor - p50, 0.0))
+    band_w = float(
+        max(
+            open_span * max(1.0 - collapse, 0.15),
+            iqr * 0.1,
+            mad_floor * 1e-6,
+            1e-12,
+        )
+    )
+    mad_soft = float(min(mad_soft, mad_floor - band_w))
     if mad_soft >= mad_floor:
-        mad_soft = float(q1) if float(q1) < mad_floor else float(mad_floor)
+        mad_soft = float(q1) if float(q1) < mad_floor else float(p50)
+    if mad_soft >= mad_floor and below:
+        mad_soft = float(below[-1])
+    if mad_soft >= mad_floor:
+        mad_soft = float(mad_floor) - float(max(mad_floor, 1.0) * 1e-12)
     return mad_floor, mad_soft, collapse, iqr
 
 
@@ -1046,7 +1065,7 @@ def _compute_sdxl_int8_mad_attn_veto(
     """INT8-only key-pattern + MAD% VETO for attn projections.
 
     Floors / soft-gap from analyze continuous THIS-pool body fences
-    (hard=THIS MAD Q3/P75; soft=collapse-blended P50↔Q3; P99 tip-only).
+    (hard=THIS MAD Q3/P75; soft=below-floor collapse Soft band; P99 tip-only).
     If analyze left the MAD axis at 0.0, bootstrap the same fences from
     THIS UNet's live MAD pool (no fixed model literals, no tip-as-floor).
     """
