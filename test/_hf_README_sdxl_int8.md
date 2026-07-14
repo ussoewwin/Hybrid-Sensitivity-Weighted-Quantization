@@ -38,8 +38,8 @@ High-fidelity INT8 quantization for diffusion models (SDXL). HSWQ uses **sensiti
 | Model | SSIM (Avg) | File size | Compatibility |
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
-| Naive INT8 | 0.96 | 50% | High |
-| **HSWQ INT8** | **0.98** | 60% (FP16 mixed) | **High** |
+| Naive INT8 | 0.91-0.96 | 50% | High |
+| **HSWQ INT8** | **0.94-0.98** | 67% (FP16 mixed) | **High** |
 
 ---
 
