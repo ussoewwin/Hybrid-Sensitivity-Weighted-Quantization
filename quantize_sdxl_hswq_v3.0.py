@@ -225,44 +225,113 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
     UNET_MAP_ATTENTIONS = {"proj_in.weight", "proj_in.bias", "proj_out.weight", "proj_out.bias", "norm.weight", "norm.bias"}
     TRANSFORMER_BLOCKS = {"norm1.weight", "norm1.bias", "norm2.weight", "norm2.bias", "norm3.weight", "norm3.bias", "attn1.to_q.weight", "attn1.to_q.bias", "attn1.to_k.weight", "attn1.to_k.bias", "attn1.to_v.weight", "attn1.to_v.bias", "attn1.to_out.0.weight", "attn1.to_out.0.bias", "attn2.to_q.weight", "attn2.to_k.weight", "attn2.to_v.weight", "attn2.to_out.0.weight", "attn2.to_out.0.bias", "ff.net.0.proj.weight", "ff.net.0.proj.bias", "ff.net.2.weight", "ff.net.2.bias"}
     UNET_MAP_BASIC = {("label_emb.0.0.weight", "add_embedding.linear_1.weight"), ("label_emb.0.0.bias", "add_embedding.linear_1.bias"), ("label_emb.0.2.weight", "add_embedding.linear_2.weight"), ("label_emb.0.2.bias", "add_embedding.linear_2.bias"), ("input_blocks.0.0.weight", "conv_in.weight"), ("input_blocks.0.0.bias", "conv_in.bias"), ("out.0.weight", "conv_norm_out.weight"), ("out.0.bias", "conv_norm_out.bias"), ("out.2.weight", "conv_out.weight"), ("out.2.bias", "conv_out.bias"), ("time_embed.0.weight", "time_embedding.linear_1.weight"), ("time_embed.0.bias", "time_embedding.linear_1.bias"), ("time_embed.2.weight", "time_embedding.linear_2.weight"), ("time_embed.2.bias", "time_embedding.linear_2.bias")}
+    # Full map of tensors that exist in state_dict. Diffusers names are created
+    # only for those real Comfy keys — no invented Diffusers module names.
+    if state_dict is not None:
+        _sd_keys = set(state_dict.keys())
+        _comfy_bare = {
+            (k[len(key_prefix):] if k.startswith(key_prefix) else k)
+            for k in _sd_keys
+        }
+    else:
+        _sd_keys = None
+        _comfy_bare = None
+
+    def _comfy_present(comfy_bare: str) -> bool:
+        if _comfy_bare is None:
+            return True
+        return comfy_bare in _comfy_bare or f"{key_prefix}{comfy_bare}" in _sd_keys
+
+    def _map_put(diff_key: str, comfy_bare: str) -> None:
+        if _comfy_present(comfy_bare):
+            diffusers_unet_map[diff_key] = comfy_bare
+
     diffusers_unet_map = {}
     for x in range(num_blocks):
         n = 1 + (num_res_blocks[x] + 1) * x
         for i in range(num_res_blocks[x]):
-            for b in UNET_MAP_RESNET: diffusers_unet_map["down_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "input_blocks.{}.0.{}".format(n, b)
+            for b in UNET_MAP_RESNET:
+                _map_put(
+                    "down_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b]),
+                    "input_blocks.{}.0.{}".format(n, b),
+                )
             if transformer_counts is not None: num_transformers = transformer_counts.get(n, 0)
             else: num_transformers = transformer_depth.pop(0) if transformer_depth else 0
             if num_transformers > 0:
-                for b in UNET_MAP_ATTENTIONS: diffusers_unet_map["down_blocks.{}.attentions.{}.{}".format(x, i, b)] = "input_blocks.{}.1.{}".format(n, b)
+                for b in UNET_MAP_ATTENTIONS:
+                    _map_put(
+                        "down_blocks.{}.attentions.{}.{}".format(x, i, b),
+                        "input_blocks.{}.1.{}".format(n, b),
+                    )
                 for t in range(num_transformers):
-                    for b in TRANSFORMER_BLOCKS: diffusers_unet_map["down_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "input_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
+                    for b in TRANSFORMER_BLOCKS:
+                        _map_put(
+                            "down_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b),
+                            "input_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b),
+                        )
             n += 1
-        for k in ["weight", "bias"]: diffusers_unet_map["down_blocks.{}.downsamplers.0.conv.{}".format(x, k)] = "input_blocks.{}.0.op.{}".format(n, k)
+        # Last DownBlock has no downsampler in SDXL — register only if op exists.
+        if _comfy_present("input_blocks.{}.0.op.weight".format(n)):
+            for k in ["weight", "bias"]:
+                _map_put(
+                    "down_blocks.{}.downsamplers.0.conv.{}".format(x, k),
+                    "input_blocks.{}.0.op.{}".format(n, k),
+                )
     i = 0
-    for b in UNET_MAP_ATTENTIONS: diffusers_unet_map["mid_block.attentions.{}.{}".format(i, b)] = "middle_block.1.{}".format(b)
+    for b in UNET_MAP_ATTENTIONS:
+        _map_put("mid_block.attentions.{}.{}".format(i, b), "middle_block.1.{}".format(b))
     if transformers_mid:
         for t in range(transformers_mid):
-            for b in TRANSFORMER_BLOCKS: diffusers_unet_map["mid_block.attentions.{}.transformer_blocks.{}.{}".format(i, t, b)] = "middle_block.1.transformer_blocks.{}.{}".format(t, b)
+            for b in TRANSFORMER_BLOCKS:
+                _map_put(
+                    "mid_block.attentions.{}.transformer_blocks.{}.{}".format(i, t, b),
+                    "middle_block.1.transformer_blocks.{}.{}".format(t, b),
+                )
     for i, n in enumerate([0, 2]):
-        for b in UNET_MAP_RESNET: diffusers_unet_map["mid_block.resnets.{}.{}".format(i, UNET_MAP_RESNET[b])] = "middle_block.{}.{}".format(n, b)
+        for b in UNET_MAP_RESNET:
+            _map_put(
+                "mid_block.resnets.{}.{}".format(i, UNET_MAP_RESNET[b]),
+                "middle_block.{}.{}".format(n, b),
+            )
     num_res_blocks_rev = list(reversed(num_res_blocks))
     for x in range(num_blocks):
         n = (num_res_blocks_rev[x] + 1) * x
         l = num_res_blocks_rev[x] + 1
         for i in range(l):
             c = 0
-            for b in UNET_MAP_RESNET: diffusers_unet_map["up_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "output_blocks.{}.0.{}".format(n, b)
+            for b in UNET_MAP_RESNET:
+                _map_put(
+                    "up_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b]),
+                    "output_blocks.{}.0.{}".format(n, b),
+                )
             c += 1
             if output_transformer_counts is not None: num_transformers = output_transformer_counts.get(n, 0)
             else: num_transformers = transformer_depth_output.pop() if transformer_depth_output else 0
             if num_transformers > 0:
                 c += 1
-                for b in UNET_MAP_ATTENTIONS: diffusers_unet_map["up_blocks.{}.attentions.{}.{}".format(x, i, b)] = "output_blocks.{}.1.{}".format(n, b)
+                for b in UNET_MAP_ATTENTIONS:
+                    _map_put(
+                        "up_blocks.{}.attentions.{}.{}".format(x, i, b),
+                        "output_blocks.{}.1.{}".format(n, b),
+                    )
                 for t in range(num_transformers):
-                    for b in TRANSFORMER_BLOCKS: diffusers_unet_map["up_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "output_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
+                    for b in TRANSFORMER_BLOCKS:
+                        _map_put(
+                            "up_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b),
+                            "output_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b),
+                        )
+            # Upsample conv: map Diffusers upsamplers only when the Comfy
+            # output_blocks.{n}.{c}.conv tensors exist in state_dict.
+            if i == l - 1:
+                if _comfy_present("output_blocks.{}.{}.conv.weight".format(n, c)):
+                    for k in ["weight", "bias"]:
+                        _map_put(
+                            "up_blocks.{}.upsamplers.0.conv.{}".format(x, k),
+                            "output_blocks.{}.{}.conv.{}".format(n, c, k),
+                        )
             n += 1
-        for k in ["weight", "bias"]: diffusers_unet_map["up_blocks.{}.upsamplers.0.conv.{}".format(x, k)] = "output_blocks.{}.2.conv.{}".format(n, k)
-    for k, v in UNET_MAP_BASIC: diffusers_unet_map[v] = k
+    for k, v in UNET_MAP_BASIC:
+        _map_put(v, k)
     comfyui_to_diffusers_map = {v: k for k, v in diffusers_unet_map.items()}
     comfyui_to_diffusers_map = {f"{key_prefix}{k}": v for k, v in comfyui_to_diffusers_map.items()}
     return comfyui_to_diffusers_map
@@ -2163,6 +2232,33 @@ def main():
             mse_cache=mse_cache,
         )
 
+    # Map-integrity: modules come from the Comfy↔Diffusers map values
+    # (not a second lookup over the full ckpt). up_blocks.0/1.upsamplers.0.conv
+    # are in this set whenever output_blocks.*.*.conv was mapped — KEEP must
+    # remain FP16-savable and must not be stripped as orphan.
+    mapped_weight_modules = set()
+    for dk in comfyui_to_diffusers_map.values():
+        if isinstance(dk, str) and dk.endswith(".weight"):
+            mapped_weight_modules.add(dk[:-7])
+    for _ups in (
+        "up_blocks.0.upsamplers.0.conv",
+        "up_blocks.1.upsamplers.0.conv",
+    ):
+        if _ups in mapped_weight_modules:
+            print(f"  [Map integrity] {_ups} mapped → KEEP eligible for FP16 save")
+    orphan_before = keep_layers - mapped_weight_modules
+    if orphan_before:
+        print(
+            f"  [Map integrity] FATAL: {len(orphan_before)} keep name(s) not in "
+            f"Comfy↔diffusers map (must be 0 before budget):"
+        )
+        for n in sorted(orphan_before):
+            print(f"    unmapped: {n}")
+        raise RuntimeError(
+            f"Map integrity: {len(orphan_before)} unmapped keep layer(s); "
+            f"refusing to exclude — fix unet_to_diffusers_mapping"
+        )
+
     # Hard ceiling: FP16 overhead vs all-INT8 must stay within budget.
     # Auto-optimal over ALL of: V4-calib FP16 candidates U analyze VETO
     # U analyze fence-crossers (priority = V4 MSE x analyze severity).
@@ -2183,25 +2279,19 @@ def main():
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
 
-    # keep_layers uses diffusers module names; save path only sees Comfy weight
-    # keys that map through comfyui_to_diffusers_map. Drop orphans so
-    # "Final FP16 kept" matches "FP16-kept layers" at convert time.
-    mapped_weight_modules = set()
-    for comfy_key in original_state_dict.keys():
-        dk = comfyui_to_diffusers_map.get(comfy_key)
-        if dk and dk.endswith(".weight"):
-            mapped_weight_modules.add(dk[:-7])
     orphan_keep = keep_layers - mapped_weight_modules
     if orphan_keep:
         print(
-            f"  [FP16 keep] dropping {len(orphan_keep)} keep name(s) with no "
-            f"Comfy↔diffusers weight key (would not be saved as FP16):"
+            f"  [FP16 keep] FATAL map mismatch: {len(orphan_keep)} keep name(s) "
+            f"still unmapped after budget (must be 0; will not drop):"
         )
         for n in sorted(orphan_keep):
-            print(f"    drop: {n}")
-        keep_layers = keep_layers & mapped_weight_modules
-        hard_veto_layers = hard_veto_layers & keep_layers
-        dynamic_keep_layers = dynamic_keep_layers & keep_layers
+            print(f"    unmapped: {n}")
+        raise RuntimeError(
+            f"Map integrity: {len(orphan_keep)} keep layer(s) unmapped after budget; "
+            f"refusing to drop — fix unet_to_diffusers_mapping"
+        )
+    print("  [Map integrity] orphan_keep=0 (all FP16 keep names are Comfy-mapped).")
     print(
         f"\n  [FP16 budget] ranking={budget_stats.get('ranking')} "
         f"hard_ceiling={budget_stats['budget_mb']:.1f} MiB "
