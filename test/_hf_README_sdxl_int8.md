@@ -51,6 +51,9 @@ High-fidelity INT8 quantization for diffusion models (SDXL). HSWQ uses **sensiti
 | `prefectIllustriousXL_v8_hswq_r32_r0_int8.safetensors` | [Prefect illustrious XL](https://civitai.red/models/1224788) | v8.0 | Illustrious License |
 | `JANKUTrainedChenkinNoobai_v777_hswq_r32_r0_int8.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.red/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Illustrious License |
 | `unholyDesireMixSinister_v80_hswq_r32_r0_int8.safetensors` | [Unholy Desire Mix - Sinister Aesthetic (Illustrious)](https://civitai.red/models/1307857/unholy-desire-mix-sinister-aesthetic-illustrious) | v8.0 | Illustrious License |
+| `waiANIPONYXL_v140_hswq_r32_r0_int8.safetensors` | [WAI-ANI-PONYXL](https://civitai.red/models/404154) | v14.0 | Pony License |
+| `novaAnimeXL_ilV190_hswq_r32_r0_int8.safetensors` | [Nova Anime XL](https://civitai.red/models/376130?modelVersionId=2940478) | Illustrious v19.0 | Illustrious License |
+| `bluePencilXL_v031_hswq_r32_r0_int8.safetensors` | [blue_pencil-XL](https://civitai.red/models/119012) | v0.3.1 | CreativeML Open RAIL++-M |
 
 ---
 
@@ -62,9 +65,10 @@ We extend our deepest respect and gratitude to the **Nunchaku Team** for their g
 
 ### Base Models
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
-- **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.red/user/WAI0731).
+- **WAI-illustrious-SDXL / WAI-ANI-PONYXL**: Created by [WAI0731](https://civitai.red/user/WAI0731).
 - **Prefect illustrious XL**: Created by [Goofy_Ai](https://civitai.red/user/Goofy_Ai).
 - **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.red/user/janxd).
 - **Unholy Desire Mix - Sinister Aesthetic (Illustrious)**: Created by [UnholyDesiresStudio](https://civitai.red/user/UnholyDesiresStudio).
+- **Nova Anime XL**: Created by [Crody](https://civitai.red/user/Crody).
 
 ---
