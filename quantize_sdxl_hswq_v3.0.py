@@ -438,7 +438,7 @@ class SdxlVetoTunables:
     attn_mad_p99: float = 0.0
     attn_mad_gap_o_max: float = 0.0
     attn_mad_from_profile: float = 0.0
-    # Continuous MAD branch fingerprint (THIS pool IQR death → Tukey↔P99 blend).
+    # Continuous MAD branch fingerprint (THIS pool IQR death → soft→Tukey; P99 tip-only).
     attn_mad_collapse: float = 0.0
     attn_mad_iqr: float = 0.0
     # Autonomous (from derive_int8_autonomous_tunables):
@@ -999,10 +999,12 @@ def _compute_sdxl_per_projection_attn_veto(
 def _mad_continuous_gates_from_live(
     live_mads: list[float],
 ) -> tuple[float, float, float, float]:
-    """Mirror analyze MAD blend on a live THIS-UNet list.
+    """Mirror analyze MAD fences on a live THIS-UNet list.
 
-    Returns (floor, soft_gap, collapse, iqr). floor/soft are continuous
-    blends of THIS Tukey and THIS P99 by IQR death — same formula as analyze.
+    Returns (floor, soft_gap, collapse, iqr). Same as analyze
+    ``_mad_continuous_fences_from_positives``: hard=THIS Tukey; soft=Q3→Tukey
+    by IQR-death collapse; P99 tip/severity only — never VETO floor
+    (philosophy §1 / §14; tip-as-floor kills MAD branching).
     """
     live_sorted = sorted(float(v) for v in live_mads if float(v) > 0.0)
     n_live = len(live_sorted)
@@ -1022,9 +1024,9 @@ def _mad_continuous_gates_from_live(
     )
     tail_span = float(max(p99 - p50, 1e-12))
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
-    mad_floor = float((1.0 - collapse) * mad_tukey + collapse * p99)
+    mad_floor = float(mad_tukey)
     c2 = float(collapse * collapse)
-    mad_soft = float((1.0 - c2) * q3 + c2 * mad_floor)
+    mad_soft = float((1.0 - c2) * q3 + c2 * mad_tukey)
     mad_soft = float(min(mad_soft, mad_floor))
     return mad_floor, mad_soft, collapse, iqr
 
@@ -1037,9 +1039,10 @@ def _compute_sdxl_int8_mad_attn_veto(
 ) -> set:
     """INT8-only key-pattern + MAD% VETO for attn projections.
 
-    Floors / soft-gap from analyze continuous THIS-pool Tukey↔P99 blend.
-    If analyze left the MAD axis at 0.0, bootstrap the same blend from
-    THIS UNet's live MAD pool (no stale-body detector, no fixed ladder).
+    Floors / soft-gap from analyze continuous THIS-pool body fences
+    (hard=Tukey, soft=Q3→Tukey by collapse; P99 tip-only).
+    If analyze left the MAD axis at 0.0, bootstrap the same fences from
+    THIS UNet's live MAD pool (no fixed WAI numbers, no tip-as-floor).
     """
     mad_floor = (
         float(tunables.attn_mad_pct_floor)
@@ -1089,10 +1092,10 @@ def _compute_sdxl_int8_mad_attn_veto(
         if gap_o_max <= 0.0 and tunables is not None:
             gap_o_max = float(max(tunables.extreme_outlier, 1e-9))
         print(
-            f"  [INT8 MAD VETO] Continuous THIS-UNet MAD blend from "
+            f"  [INT8 MAD VETO] Continuous THIS-UNet MAD body fences from "
             f"{len(live_mads)} live samples "
             f"(floor={mad_floor:.2f}, soft={mad_q3:.2f}, "
-            f"collapse={collapse:.3f}, iqr={mad_iqr:.3f})"
+            f"collapse={collapse:.3f}, iqr={mad_iqr:.3f}; P99 tip-only)"
         )
 
     if mad_floor <= 0.0:
