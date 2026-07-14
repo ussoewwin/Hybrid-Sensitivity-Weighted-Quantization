@@ -12,7 +12,9 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | Model | Keep ratio | MSE (↓ better) | SSIM (↑ better) |
 |-------|------------|----------------|-----------------|
 | waiIllustriousSDXL_v170 | r0 | 3.62 | **0.9830** |
+| unholyDesireMixSinister_v80 | r0 | 16.62 | 0.9586 |
 | prefectIllustriousXL_v8 | r0 | 36.10 | 0.9440 |
+| novaAnimeXL_ilV190 | r0 | 8.14 | 0.9582 |
 | JANKUTrainedChenkinNoobai_v777 | r0 | 11.77 | **0.9801** |
 
 ---
@@ -26,7 +28,9 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | Model | Keep | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Winner |
 |-------|------|----------|--------------|-------|-----------|---------------|--------|--------|
 | waiIllustriousSDXL_v170 | r0 | 3.62 | 22.58 | +18.96 | 0.9830 | 0.9631 | −0.0199 | HSWQ |
+| unholyDesireMixSinister_v80 | r0 | 16.62 | 27.75 | +11.13 | 0.9586 | 0.9383 | −0.0203 | HSWQ |
 | prefectIllustriousXL_v8 | r0 | 36.10 | 35.84 | −0.26 | 0.9440 | 0.9161 | −0.0279 | — |
+| novaAnimeXL_ilV190 | r0 | 8.14 | 13.16 | +5.02 | 0.9582 | 0.9350 | −0.0232 | HSWQ |
 | JANKUTrainedChenkinNoobai_v777 | r0 | 11.77 | 54.32 | +42.55 | 0.9801 | 0.9691 | −0.0110 | HSWQ |
 
 **Winner** = better on both MSE and SSIM.
