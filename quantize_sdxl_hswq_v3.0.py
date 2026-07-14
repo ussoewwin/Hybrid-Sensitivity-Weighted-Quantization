@@ -1002,9 +1002,10 @@ def _mad_continuous_gates_from_live(
     """Mirror analyze MAD fences on a live THIS-UNet list.
 
     Returns (floor, soft_gap, collapse, iqr). Same as analyze
-    ``_mad_continuous_fences_from_positives``: hard=THIS Tukey; soft=Q3→Tukey
-    by IQR-death collapse; P99 tip/severity only — never VETO floor
-    (philosophy §1 / §14; tip-as-floor kills MAD branching).
+    ``_mad_continuous_fences_from_positives``: hard=soft=THIS MAD Q3/P75
+    (c5582eb SSIM≥0.98 gate); P99 tip/severity only — never VETO floor
+    (philosophy §1 / §14; tip-as-floor kills MAD branching; Tukey-as-hard
+    raised the gate and dropped SSIM to ~0.96).
     """
     live_sorted = sorted(float(v) for v in live_mads if float(v) > 0.0)
     n_live = len(live_sorted)
@@ -1017,17 +1018,18 @@ def _mad_continuous_gates_from_live(
     q1 = float(live_sorted[n_live // 4])
     q3 = float(live_sorted[(3 * n_live) // 4])
     iqr = float(max(q3 - q1, 0.0))
-    mad_tukey = float(q3 + iqr)
+    # P75 index matches analyze `_safe_percentile(..., 75)`.
+    p75 = float(
+        live_sorted[max(0, min(n_live - 1, int(round(0.75 * (n_live - 1)))))]
+    )
     p50 = float(live_sorted[n_live // 2])
     p99 = float(
         live_sorted[max(0, min(n_live - 1, int(round(0.99 * (n_live - 1)))))]
     )
     tail_span = float(max(p99 - p50, 1e-12))
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
-    mad_floor = float(mad_tukey)
-    c2 = float(collapse * collapse)
-    mad_soft = float((1.0 - c2) * q3 + c2 * mad_tukey)
-    mad_soft = float(min(mad_soft, mad_floor))
+    mad_floor = float(p75)
+    mad_soft = float(p75)
     return mad_floor, mad_soft, collapse, iqr
 
 
@@ -1040,7 +1042,7 @@ def _compute_sdxl_int8_mad_attn_veto(
     """INT8-only key-pattern + MAD% VETO for attn projections.
 
     Floors / soft-gap from analyze continuous THIS-pool body fences
-    (hard=Tukey, soft=Q3→Tukey by collapse; P99 tip-only).
+    (hard=soft=THIS MAD Q3/P75; P99 tip-only).
     If analyze left the MAD axis at 0.0, bootstrap the same fences from
     THIS UNet's live MAD pool (no fixed WAI numbers, no tip-as-floor).
     """
