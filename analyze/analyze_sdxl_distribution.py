@@ -237,7 +237,16 @@ def _derive_engine_tunables(
     o_sorted: List[float],
     m_sorted: List[float],
 ) -> Dict[str, float]:
-    """Quantize-side thresholds derived from global layer pools (no fixed constants)."""
+    """THIS-profile auto-optimal engine knobs (FP8 path).
+
+    Former accommodation boxes are not "deleted into empty". Each is replaced
+    by a continuous map from THIS checkpoint's measured pools:
+
+      drift box 0.1..1.0      → (o_q3 - o_med) / o_med
+      mse_mult box 1.25..3.0  → 1 + iqr_o / o_q1 (else o_med)
+      α/β box 0.5..0.99       → k_med/k_q3 .. 1.0 and o_med/o_q3 .. 1.0
+      mse_release half-IQR    → o_q3 / k_q3 / m_q3 (THIS Q3)
+    """
     n = len(all_k)
     k_q1, k_med, k_q3 = _quartile_bounds(k_sorted)
     o_q1, o_med, o_q3 = _quartile_bounds(o_sorted)
@@ -246,21 +255,45 @@ def _derive_engine_tunables(
     iqr_o = o_q3 - o_q1
     iqr_m = m_q3 - m_q1
 
-    drift_veto_thresh = (o_q3 - o_med) / max(o_med, 1e-9) if o_med > 0 else 0.5
+    # Auto-optimal drift: THIS upper-half relative to THIS median.
+    if o_med > 0:
+        drift_veto_thresh = (o_q3 - o_med) / max(o_med, 1e-9)
+    else:
+        drift_veto_thresh = 0.0
     drift_score_mult = max(iqr_k + iqr_o + iqr_m, 1.0)
 
-    mse_p75_mult = 1.0 + (iqr_o / max(o_q1, 1e-9)) if o_q1 > 0 else 2.0
-    mse_p75_mult = min(max(mse_p75_mult, 1.25), 3.0)
+    # Auto-optimal mse_p75_mult: THIS outlier IQR / THIS scale chain.
+    o_scale_den = next(
+        (x for x in (o_q1, o_med, o_q3, max(o_sorted) if o_sorted else 0.0) if x > 0),
+        0.0,
+    )
+    mse_p75_mult = 1.0 + (iqr_o / max(o_scale_den, 1e-9))
 
     k_scale = 1.0 / max(k_q3, 1e-9)
     o_scale = 1.0 / max(o_q3, 1e-9)
     m_scale = 1.0 / max(m_q3, 1e-9)
-    penalty_cap = min(iqr_k / max(k_q3, 1e-9), 0.49)
+    penalty_cap = iqr_k / max(k_q3, 1e-9)
+
+    # Auto-optimal α/β band: THIS med/Q3 ratios (floor ≤ clip_max always).
+    alpha_floor = max(k_scale * k_med, 0.0)
+    beta_floor = max(o_scale * o_med, 0.0)
+    alpha_clip_max = max(k_scale * k_q3, alpha_floor)
+    beta_clip_max = max(o_scale * o_q3, beta_floor)
+
+    o_w_den = next(
+        (x for x in (o_q1, o_med, o_q3, max(o_sorted) if o_sorted else 0.0) if x > 0),
+        1e-9,
+    )
+    m_w_den = next(
+        (x for x in (m_q1, m_med, m_q3, max(m_sorted) if m_sorted else 0.0) if x > 0),
+        1e-9,
+    )
 
     return {
-        "drift_veto_thresh": float(min(max(drift_veto_thresh, 0.1), 1.0)),
+        "drift_veto_thresh": float(drift_veto_thresh),
         "drift_score_mult": float(drift_score_mult),
-        "mse_release_o_min": float(max(o_q3, o_med + iqr_o * 0.5)),
+        # THIS Q3 only — no half-IQR accommodation rewrite of o_med.
+        "mse_release_o_min": float(o_q3),
         "mse_release_k_max": float(k_q3),
         "mse_release_m_max": float(m_q3),
         "mse_p75_multiplier": float(mse_p75_mult),
@@ -273,17 +306,17 @@ def _derive_engine_tunables(
         "o_gray_hi": float(o_q3),
         "m_gray_lo": float(m_q1),
         "m_gray_hi": float(m_q3),
-        "search_low_floor": float(m_q1 / max(m_q3, 1e-9)) if m_q3 > 0 else 0.5,
+        "search_low_floor": float(m_q1 / max(m_q3, 1e-9)) if m_q3 > 0 else 1.0,
         "search_low_penalty_cap": float(penalty_cap),
-        "search_low_clip_max": float(min(1.0, 0.5 + o_scale * o_med)),
-        "search_low_gray_clip_max": float(min(0.99, 0.5 + k_scale * k_med)),
-        "alpha_floor": float(min(0.5 + k_scale * k_med, 0.99)),
-        "alpha_clip_max": 0.99,
-        "beta_floor": float(min(0.5 + o_scale * o_med, 0.99)),
-        "beta_clip_max": 0.99,
+        "search_low_clip_max": float(max(o_scale * o_med, 0.0)),
+        "search_low_gray_clip_max": float(max(k_scale * k_med, 0.0)),
+        "alpha_floor": float(alpha_floor),
+        "alpha_clip_max": float(alpha_clip_max),
+        "beta_floor": float(beta_floor),
+        "beta_clip_max": float(beta_clip_max),
         "ff2_suffix_min_count": max(1, (n + 19) // 20),
-        "score_o_weight": float(iqr_o / max(o_q1, 1e-9)) if o_q1 > 0 else 1.0,
-        "score_m_weight": float(iqr_m / max(m_q1, 1e-9)) if m_q1 > 0 else 0.5,
+        "score_o_weight": float(iqr_o / max(o_w_den, 1e-9)),
+        "score_m_weight": float(iqr_m / max(m_w_den, 1e-9)),
     }
 
 
@@ -324,210 +357,30 @@ def derive_veto_tunables(profile: Dict[str, Any]) -> Dict[str, Any]:
     o_sorted = _sorted_pool(all_o)
     m_sorted = _sorted_pool(all_m)
 
-    extreme_k = _tukey_upper(k_sorted)
-    extreme_o = _tukey_upper(o_sorted)
-    extreme_m = _tukey_upper(m_sorted)
-    med_k = k_sorted[len(k_sorted) // 2] if k_sorted else 0.0
-
-    class_spans: Dict[str, float] = {}
-    for cls, entries in by_class.items():
-        class_spans[cls] = _class_outlier_span([e["o"] for e in entries])
-
-    ff2_entries = by_class.get("ff2", [])
-    ff2_o = [e["o"] for e in ff2_entries]
-    ff2_scores = [
-        composite_rank_score(e["k"], e["o"], e["m"], all_k, all_o, all_m)
-        for e in ff2_entries
-    ]
-    ff2_auto = _derive_ff2_auto_tunables(ff2_o, ff2_scores, all_o, class_spans)
-
-    def _class_attn_gate(entries: List[Dict[str, float]], pool_m: List[float]) -> float:
-        if not entries:
-            return _tukey_upper(pool_m)
-        am = _sorted_pool([e["m"] for e in entries])
-        return _tukey_upper(am)
-
-    def _class_outlier_gate(entries: List[Dict[str, float]], pool_o: List[float]) -> float:
-        if not entries:
-            return _tukey_upper(pool_o)
-        oo = _sorted_pool([e["o"] for e in entries])
-        return _tukey_upper(oo)
-
-    qkv_gate = _class_attn_gate(by_class.get("qkv", []), all_m)
-    toout_gate = _class_attn_gate(by_class.get("toout", []), all_m)
-    ff2_gate = _class_attn_gate(by_class.get("ff2", []), all_m)
-    qkv_o_gate = _class_outlier_gate(by_class.get("qkv", []), all_o)
-    toout_o_gate = _class_outlier_gate(by_class.get("toout", []), all_o)
-
+    fences = _derive_hard_veto_fence_bundle(
+        all_k, all_o, all_m, by_class, k_sorted, o_sorted, m_sorted
+    )
     engine = _derive_engine_tunables(all_k, all_o, all_m, k_sorted, o_sorted, m_sorted)
-
-    return {
-        "extreme_kurtosis": float(extreme_k),
-        "extreme_outlier": float(extreme_o),
-        "huge_magnitude": float(extreme_m),
-        "median_kurtosis": float(med_k),
-        "attn_qkv_absmax": float(qkv_gate),
-        "attn_qkv_outlier": float(qkv_o_gate),
-        "attn_toout_absmax": float(toout_gate),
-        "attn_toout_outlier": float(toout_o_gate),
-        "attn_ff2_absmax": float(ff2_gate),
-        "ff2_outlier_live": float(ff2_auto["ff2_live_o_cut"]),
-        "ff2_profile_outlier": float(ff2_auto["ff2_selective_o_cut"]),
-        "ff2_profile_score_cutoff": float(ff2_auto["ff2_selective_score_cut"]),
-        "ff2_class_count": len(ff2_entries),
-        "ff2_class_outlier_span": float(class_spans.get("ff2", 0.0)),
-        "class_outlier_spans": {k: float(v) for k, v in class_spans.items()},
-        **ff2_auto,
-        **engine,
-    }
-
-
-def _derive_engine_tunables_int8(
-    all_k: List[float],
-    all_o: List[float],
-    all_m: List[float],
-    k_sorted: List[float],
-    o_sorted: List[float],
-    m_sorted: List[float],
-) -> Dict[str, float]:
-    """INT8 engine tunables linked to HSWQ V4 weighted histogram (VETO).
-
-    Profile stats (kurtosis / outlier_ratio / abs_max) are weight-space.
-    Do NOT multiply by 127/448 — that collapses mse_release / gray bands and
-    starves or floods V4-histogram VETO candidates.
-
-    Link contract with quantize_sdxl_hswq_v3.0.py:
-      - Pack amax = absmax (search_low_* = 1.0). Natural for symmetric INT8.
-      - V4 + INT8Quantizer estimated_mse is required for MSE-guided VETO.
-      - mse_release_o_min / k_max / m_max / mse_p75_multiplier select which
-        hard-VETO layers enter V4 histogram release, and the P75×mult
-        threshold. These must stay weight-space.
-    """
-    n = len(all_k)
-    k_q1, k_med, k_q3 = _quartile_bounds(k_sorted)
-    o_q1, o_med, o_q3 = _quartile_bounds(o_sorted)
-    m_q1, m_med, m_q3 = _quartile_bounds(m_sorted)
-    iqr_k = k_q3 - k_q1
-    iqr_o = o_q3 - o_q1
-    iqr_m = m_q3 - m_q1
-
-    drift_veto_thresh = (o_q3 - o_med) / max(o_med, 1e-9) if o_med > 0 else 0.5
-    drift_score_mult = max(iqr_k + iqr_o + iqr_m, 1.0)
-
-    # V4-histogram VETO: baseline P75×mult from this checkpoint's outlier IQR.
-    mse_p75_mult = 1.0 + (iqr_o / max(o_q1, 1e-9)) if o_q1 > 0 else 2.0
-    mse_p75_mult = min(max(mse_p75_mult, 1.25), 3.0)
-
-    k_scale = 1.0 / max(k_q3, 1e-9)
-    o_scale = 1.0 / max(o_q3, 1e-9)
-    m_scale = 1.0 / max(m_q3, 1e-9)
-
-    return {
-        "drift_veto_thresh": float(min(max(drift_veto_thresh, 0.1), 1.0)),
-        "drift_score_mult": float(drift_score_mult),
-        # Weight-space gray-zone gates for V4 histogram MSE release candidates
-        # (same units as profile outlier_ratio / abs_max / kurtosis).
-        "mse_release_o_min": float(max(o_q3, o_med + iqr_o * 0.5)),
-        "mse_release_k_max": float(k_q3),
-        "mse_release_m_max": float(m_q3),
-        "mse_p75_multiplier": float(mse_p75_mult),
-        "k_scale": float(k_scale),
-        "o_scale": float(o_scale),
-        "m_scale": float(m_scale),
-        "k_gray_lo": float(k_q1),
-        "k_gray_hi": float(k_q3),
-        "o_gray_lo": float(o_q1),
-        "o_gray_hi": float(o_q3),
-        "m_gray_lo": float(m_q1),
-        "m_gray_hi": float(m_q3),
-        # INT8 pack point = absmax. V4 histogram still drives VETO MSE at that
-        # point (v3 search_range (1.0, 1.0) for estimated_mse).
-        "search_low_floor": 1.0,
-        "search_low_penalty_cap": 0.0,
-        "search_low_clip_max": 1.0,
-        "search_low_gray_clip_max": 1.0,
-        "alpha_floor": float(min(max(0.5 + k_scale * k_med, 0.5), 0.99)),
-        "alpha_clip_max": 0.99,
-        "beta_floor": float(min(0.5 + o_scale * o_med, 0.99)),
-        "beta_clip_max": 0.99,
-        "ff2_suffix_min_count": max(1, (n + 19) // 20),
-        "score_o_weight": float(iqr_o / max(o_q1, 1e-9)) if o_q1 > 0 else 1.0,
-        "score_m_weight": float(iqr_m / max(m_q1, 1e-9)) if m_q1 > 0 else 0.5,
-    }
-
-
-def _derive_int8_attn_mad_tunables(
-    by_class: Dict[str, List[Dict[str, float]]],
-    attn_qkv_outlier: float,
-    attn_toout_outlier: float,
-) -> Dict[str, float]:
-    """Auto MAD% VETO floors from this checkpoint's attn distribution.
-
-    abs_max/std (outlier_ratio) misses heavy-tailed attn on some SDXL UNets.
-    MAD% fences are derived from the same profile — no per-model constants,
-    no checkpoint-name branches. FP8 derive_veto_tunables does not call this.
-    """
-    attn_entries: List[Dict[str, float]] = []
-    for cls in ("qkv", "toout"):
-        attn_entries.extend(by_class.get(cls, []))
-
-    mad_vals = [float(e.get("mad", 0.0) or 0.0) for e in attn_entries]
-    mad_vals = [v for v in mad_vals if v > 0.0]
-    if len(mad_vals) < 4:
-        # Old profiles without mad_outlier_pct: safe neutral fallback until re-profile.
-        return {
-            "attn_mad_pct_floor": 15.0,
-            "attn_mad_q3": 15.0,
-            "attn_mad_p99": 15.0,
-            "attn_mad_gap_o_max": float(
-                max(attn_qkv_outlier, attn_toout_outlier, 1e-9)
-            ),
-            "attn_mad_from_profile": 0.0,
-        }
-
-    mad_sorted = _sorted_pool(mad_vals)
-    _, _, mad_q3 = _quartile_bounds(mad_sorted)
-    mad_floor = float(_tukey_upper(mad_sorted))
-    mad_p99 = float(_safe_percentile(mad_vals, 99.0))
-    # Character scale for severity must be ≥ gate so gate-crossing ≠ +dozens.
-    mad_p99 = float(max(mad_p99, mad_floor, mad_q3, 1e-9))
-    gap_o_max = float(max(attn_qkv_outlier, attn_toout_outlier, 1e-9))
-    return {
-        "attn_mad_pct_floor": mad_floor,
-        "attn_mad_q3": float(mad_q3),
-        "attn_mad_p99": mad_p99,
-        "attn_mad_gap_o_max": gap_o_max,
-        "attn_mad_from_profile": 1.0,
-    }
+    return {**fences, **engine}
 
 
 def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
     """INT8 VETO + V4-histogram link for SDXL V3.0.
 
-    Single analyze → quantize contract:
-      1) Hard VETO fences (extreme_*/attn_*/ff2_*) from this checkpoint's
-         weight-space distribution (no 127/448 collapse).
-      2) Engine mse_release_* / mse_p75_multiplier drive which VETO layers
-         enter HSWQWeightedHistogramOptimizerV4 + INT8Quantizer estimated_mse
-         release, and the threshold the histogram uses.
-      3) search_low_* = 1.0 → pack amax is absmax (natural INT8); V4 histogram
-         remains mandatory for (2).
+    Per-model auto analysis → continuous engine branch (infinite patterns):
+      1) Hard VETO fences from THIS checkpoint (shared fence helper; no FP8
+         engine inheritance).
+      2) INT8 engine from THIS weight-space pools → V4 histogram MSE-guided VETO.
+      3) search_low_* = 1.0 → pack amax is absmax; V4 remains mandatory.
 
-    MAD% floors for attn gap-fill come from this profile's mad_outlier_pct.
-
-    Hard-VETO kurtosis / magnitude: Tukey alone is too aggressive when the
-    core mass sits near zero (SDXL UNet kurtosis often negative). Raise with
-    THIS checkpoint's P99 so only the right tail is Hard VETO — no model-name
-    table, no fixed numeric recipe copied from FP8. Outlier Tukey already
-    tracks the heavy right tail and is left as-is.
+    Hard-VETO kurtosis / magnitude: max(Tukey, THIS P99) so only the right
+    tail is Hard VETO — continuous from THIS distribution, no model-name table.
     """
     profile = _normalize_profile(profile)
     profile = _unet_only_profile(profile)
     layers = profile.get("layers", {})
     if not layers:
         raise ValueError("profile has no layers")
-
-    base = derive_veto_tunables(profile)
 
     all_k: List[float] = []
     all_o: List[float] = []
@@ -548,6 +401,11 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
     o_sorted = _sorted_pool(all_o)
     m_sorted = _sorted_pool(all_m)
 
+    # THIS checkpoint fences only — never call derive_veto_tunables (FP8 engine).
+    base = _derive_hard_veto_fence_bundle(
+        all_k, all_o, all_m, by_class, k_sorted, o_sorted, m_sorted
+    )
+
     # Right-tail Hard VETO for k/m: max(Tukey, P99 of THIS checkpoint).
     k_p99 = _percentile_asc(k_sorted, 99.0)
     m_p99 = _percentile_asc(m_sorted, 99.0)
@@ -557,43 +415,251 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
     int8_engine = _derive_engine_tunables_int8(
         all_k, all_o, all_m, k_sorted, o_sorted, m_sorted
     )
-
-    # Weight-space Tukey gates (same units as live abs_max / outlier_ratio).
-    def _class_attn_gate_int8(entries: List[Dict[str, float]], pool_m: List[float]) -> float:
-        if not entries:
-            return _tukey_upper(pool_m)
-        am = _sorted_pool([e["m"] for e in entries])
-        return _tukey_upper(am)
-
-    def _class_outlier_gate_int8(entries: List[Dict[str, float]], pool_o: List[float]) -> float:
-        if not entries:
-            return _tukey_upper(pool_o)
-        oo = _sorted_pool([e["o"] for e in entries])
-        return _tukey_upper(oo)
-
-    qkv_gate_i = _class_attn_gate_int8(by_class.get("qkv", []), all_m)
-    toout_gate_i = _class_attn_gate_int8(by_class.get("toout", []), all_m)
-    ff2_gate_i = _class_attn_gate_int8(by_class.get("ff2", []), all_m)
-    qkv_o_gate_i = _class_outlier_gate_int8(by_class.get("qkv", []), all_o)
-    toout_o_gate_i = _class_outlier_gate_int8(by_class.get("toout", []), all_o)
-
     mad_tunables = _derive_int8_attn_mad_tunables(
-        by_class, qkv_o_gate_i, toout_o_gate_i
+        by_class,
+        float(base["attn_qkv_outlier"]),
+        float(base["attn_toout_outlier"]),
+    )
+    base.update(int8_engine)
+    base.update(mad_tunables)
+    base["quant_format"] = "int8_tensorwise"
+    return base
+
+
+def _derive_engine_tunables_int8(
+    all_k: List[float],
+    all_o: List[float],
+    all_m: List[float],
+    k_sorted: List[float],
+    o_sorted: List[float],
+    m_sorted: List[float],
+) -> Dict[str, float]:
+    """INT8 engine: THIS-profile auto-optimal knobs linked to V4 histogram VETO.
+
+    Replacement map (delete-without-replace is forbidden — philosophy §2 / §12):
+
+      former drift clip 0.1..1.0     → (o_q3 - o_med) / o_med
+      former mse_mult clip 1.25..3.0 → 1 + iqr_o / o_q1 (else o_med)
+      former α/β box 0.5..0.99       → k_med/k_q3 .. 1.0 , o_med/o_q3 .. 1.0
+      former mse_release half-IQR    → THIS o_q3 / k_q3 / m_q3
+      search_low                     → 1.0 (INT8 absmax; V4 still ranks @ absmax)
+
+    Profile stats are weight-space. Do NOT multiply by 127/448.
+    """
+    n = len(all_k)
+    k_q1, k_med, k_q3 = _quartile_bounds(k_sorted)
+    o_q1, o_med, o_q3 = _quartile_bounds(o_sorted)
+    m_q1, m_med, m_q3 = _quartile_bounds(m_sorted)
+    iqr_k = k_q3 - k_q1
+    iqr_o = o_q3 - o_q1
+    iqr_m = m_q3 - m_q1
+
+    if o_med > 0:
+        drift_veto_thresh = (o_q3 - o_med) / max(o_med, 1e-9)
+    else:
+        drift_veto_thresh = 0.0
+    drift_score_mult = max(iqr_k + iqr_o + iqr_m, 1.0)
+
+    o_scale_den = next(
+        (x for x in (o_q1, o_med, o_q3, max(o_sorted) if o_sorted else 0.0) if x > 0),
+        0.0,
+    )
+    mse_p75_mult = 1.0 + (iqr_o / max(o_scale_den, 1e-9))
+
+    k_scale = 1.0 / max(k_q3, 1e-9)
+    o_scale = 1.0 / max(o_q3, 1e-9)
+    m_scale = 1.0 / max(m_q3, 1e-9)
+
+    alpha_floor = max(k_scale * k_med, 0.0)
+    beta_floor = max(o_scale * o_med, 0.0)
+    alpha_clip_max = max(k_scale * k_q3, alpha_floor)
+    beta_clip_max = max(o_scale * o_q3, beta_floor)
+
+    o_w_den = next(
+        (x for x in (o_q1, o_med, o_q3, max(o_sorted) if o_sorted else 0.0) if x > 0),
+        1e-9,
+    )
+    m_w_den = next(
+        (x for x in (m_q1, m_med, m_q3, max(m_sorted) if m_sorted else 0.0) if x > 0),
+        1e-9,
+    )
+    k_w_den = next(
+        (x for x in (k_q1, k_med, k_q3, max(k_sorted) if k_sorted else 0.0) if x > 0),
+        1e-9,
     )
 
-    base.update({
-        "attn_qkv_absmax": float(qkv_gate_i),
-        "attn_qkv_outlier": float(qkv_o_gate_i),
-        "attn_toout_absmax": float(toout_gate_i),
-        "attn_toout_outlier": float(toout_o_gate_i),
-        "attn_ff2_absmax": float(ff2_gate_i),
-        "extreme_outlier": float(base["extreme_outlier"]),
-        "huge_magnitude": float(base["huge_magnitude"]),
-        "quant_format": "int8_tensorwise",
-        **mad_tunables,
-    })
-    base.update(int8_engine)
-    return base
+    return {
+        "drift_veto_thresh": float(drift_veto_thresh),
+        "drift_score_mult": float(drift_score_mult),
+        # Weight-space gray-zone gates for V4 histogram MSE release candidates
+        # (same units as profile outlier_ratio / abs_max / kurtosis).
+        # THIS Q3 only — continuous branch, no half-IQR accommodation.
+        "mse_release_o_min": float(o_q3),
+        "mse_release_k_max": float(k_q3),
+        "mse_release_m_max": float(m_q3),
+        "mse_p75_multiplier": float(mse_p75_mult),
+        "k_scale": float(k_scale),
+        "o_scale": float(o_scale),
+        "m_scale": float(m_scale),
+        "k_gray_lo": float(k_q1),
+        "k_gray_hi": float(k_q3),
+        "o_gray_lo": float(o_q1),
+        "o_gray_hi": float(o_q3),
+        "m_gray_lo": float(m_q1),
+        "m_gray_hi": float(m_q3),
+        # INT8 pack point = absmax. V4 histogram still drives VETO MSE at that
+        # point (v3 search_range (1.0, 1.0) for estimated_mse).
+        "search_low_floor": 1.0,
+        "search_low_penalty_cap": 0.0,
+        "search_low_clip_max": 1.0,
+        "search_low_gray_clip_max": 1.0,
+        # Continuous α/β from THIS quartiles — no 0.5 / 0.99 accommodation box.
+        "alpha_floor": float(alpha_floor),
+        "alpha_clip_max": float(alpha_clip_max),
+        "beta_floor": float(beta_floor),
+        "beta_clip_max": float(beta_clip_max),
+        "ff2_suffix_min_count": max(1, (n + 19) // 20),
+        "score_k_weight": float(iqr_k / max(k_w_den, 1e-9)),
+        "score_o_weight": float(iqr_o / max(o_w_den, 1e-9)),
+        "score_m_weight": float(iqr_m / max(m_w_den, 1e-9)),
+    }
+
+
+def _class_attn_gate_from_entries(
+    entries: List[Dict[str, float]], pool_m: List[float]
+) -> float:
+    if not entries:
+        return _tukey_upper(pool_m)
+    return _tukey_upper(_sorted_pool([e["m"] for e in entries]))
+
+
+def _class_outlier_gate_from_entries(
+    entries: List[Dict[str, float]], pool_o: List[float]
+) -> float:
+    if not entries:
+        return _tukey_upper(pool_o)
+    return _tukey_upper(_sorted_pool([e["o"] for e in entries]))
+
+
+def _derive_hard_veto_fence_bundle(
+    all_k: List[float],
+    all_o: List[float],
+    all_m: List[float],
+    by_class: Dict[str, List[Dict[str, float]]],
+    k_sorted: List[float],
+    o_sorted: List[float],
+    m_sorted: List[float],
+) -> Dict[str, Any]:
+    """Hard VETO fences + FF2 from THIS checkpoint pools only (no engine keys).
+
+    Shared continuous fence analysis for FP8 and INT8. Engine tunables are
+    attached by each format's own _derive_engine_tunables* so INT8 never
+    inherits FP8 accommodation soil.
+    """
+    extreme_k = _tukey_upper(k_sorted)
+    extreme_o = _tukey_upper(o_sorted)
+    extreme_m = _tukey_upper(m_sorted)
+    med_k = k_sorted[len(k_sorted) // 2] if k_sorted else 0.0
+
+    class_spans: Dict[str, float] = {}
+    for cls, entries in by_class.items():
+        class_spans[cls] = _class_outlier_span([e["o"] for e in entries])
+
+    ff2_entries = by_class.get("ff2", [])
+    ff2_o = [e["o"] for e in ff2_entries]
+    ff2_scores = [
+        composite_rank_score(e["k"], e["o"], e["m"], all_k, all_o, all_m)
+        for e in ff2_entries
+    ]
+    ff2_auto = _derive_ff2_auto_tunables(ff2_o, ff2_scores, all_o, class_spans)
+
+    qkv_gate = _class_attn_gate_from_entries(by_class.get("qkv", []), all_m)
+    toout_gate = _class_attn_gate_from_entries(by_class.get("toout", []), all_m)
+    ff2_gate = _class_attn_gate_from_entries(by_class.get("ff2", []), all_m)
+    qkv_o_gate = _class_outlier_gate_from_entries(by_class.get("qkv", []), all_o)
+    toout_o_gate = _class_outlier_gate_from_entries(by_class.get("toout", []), all_o)
+
+    return {
+        "extreme_kurtosis": float(extreme_k),
+        "extreme_outlier": float(extreme_o),
+        "huge_magnitude": float(extreme_m),
+        "median_kurtosis": float(med_k),
+        "attn_qkv_absmax": float(qkv_gate),
+        "attn_qkv_outlier": float(qkv_o_gate),
+        "attn_toout_absmax": float(toout_gate),
+        "attn_toout_outlier": float(toout_o_gate),
+        "attn_ff2_absmax": float(ff2_gate),
+        "ff2_outlier_live": float(ff2_auto["ff2_live_o_cut"]),
+        "ff2_profile_outlier": float(ff2_auto["ff2_selective_o_cut"]),
+        "ff2_profile_score_cutoff": float(ff2_auto["ff2_selective_score_cut"]),
+        "ff2_class_count": len(ff2_entries),
+        "ff2_class_outlier_span": float(class_spans.get("ff2", 0.0)),
+        "class_outlier_spans": {k: float(v) for k, v in class_spans.items()},
+        **ff2_auto,
+    }
+
+
+def _mad_tunables_from_positive_samples(
+    mad_vals: List[float],
+    gap_o_max: float,
+) -> Dict[str, float]:
+    """THIS-sample MAD% → auto-optimal floor/q3/p99 (any n≥1).
+
+    Deleting the old ×N floor and writing 0.0 when n<4 is forbidden
+    (philosophy §0 / 「固定をただ消すな」). With 1–3 positive samples, use
+    continuous order stats of the available pool; with ≥4 use Tukey.
+    Zero positive samples → axis off (no invent).
+    """
+    positives = [float(v) for v in mad_vals if float(v) > 0.0]
+    gap = float(max(gap_o_max, 1e-9))
+    if not positives:
+        return {
+            "attn_mad_pct_floor": 0.0,
+            "attn_mad_q3": 0.0,
+            "attn_mad_p99": 0.0,
+            "attn_mad_gap_o_max": gap,
+            "attn_mad_from_profile": 0.0,
+        }
+    mad_sorted = _sorted_pool(positives)
+    if len(positives) >= 4:
+        _, _, mad_q3 = _quartile_bounds(mad_sorted)
+        mad_floor = float(_tukey_upper(mad_sorted))
+        mad_p99 = float(_safe_percentile(positives, 99.0))
+    else:
+        # Continuous from available samples only (not a fixed recipe).
+        mad_q3 = float(_safe_percentile(positives, 50.0))
+        mad_floor = float(max(positives))
+        mad_p99 = float(max(positives))
+    mad_p99 = float(max(mad_p99, mad_floor, mad_q3, 1e-9))
+    return {
+        "attn_mad_pct_floor": float(mad_floor),
+        "attn_mad_q3": float(mad_q3),
+        "attn_mad_p99": mad_p99,
+        "attn_mad_gap_o_max": gap,
+        "attn_mad_from_profile": 1.0,
+    }
+
+
+def _derive_int8_attn_mad_tunables(
+    by_class: Dict[str, List[Dict[str, float]]],
+    attn_qkv_outlier: float,
+    attn_toout_outlier: float,
+) -> Dict[str, float]:
+    """Auto MAD% VETO floors from this checkpoint's attn distribution.
+
+    abs_max/std (outlier_ratio) misses heavy-tailed attn on some SDXL UNets.
+    MAD% fences are derived from the same profile — no per-model constants,
+    no checkpoint-name branches. FP8 derive_veto_tunables does not call this.
+    """
+    attn_entries: List[Dict[str, float]] = []
+    for cls in ("qkv", "toout"):
+        attn_entries.extend(by_class.get(cls, []))
+
+    mad_vals = [float(e.get("mad", 0.0) or 0.0) for e in attn_entries]
+    return _mad_tunables_from_positive_samples(
+        mad_vals,
+        float(max(attn_qkv_outlier, attn_toout_outlier, 1e-9)),
+    )
 
 
 def int8_fp16_budget_analyze_severity(
@@ -647,19 +713,11 @@ def int8_fp16_budget_analyze_severity(
 
     # MAD character on the SAME continuous scale as o/eo (1.0 == THIS model's
     # heavy MAD). attn_mad_pct_floor is only a VETO GATE (auto-derived).
-    # Dividing by the gate (often ≈ MAD Q3) was a fixed-scale mistake: Soft
-    # MAD scored +17..26 and displaced Static extreme Hard VETO with high
-    # V4 estimated_mse from the 300 MiB ranking → SSIM ~0.92 (§9).
-    # Denominator = THIS-profile attn_mad_p99 (auto analysis → auto scale).
+    # Denominator = THIS-profile attn_mad_p99 from analyze (auto analysis →
+    # auto scale). Former ×4 accommodation of q3/floor is forbidden: if p99
+    # is missing, MAD axis stays off (0.0) until analyze fills it — never invent.
     mad = float(mad_outlier_pct or 0.0)
     mad_ref = float(tunables.get("attn_mad_p99", 0.0) or 0.0)
-    if mad_ref <= 0.0:
-        # Legacy tunables without p99: span from THIS-model q3/floor, never
-        # a hardcoded absolute (and never reuse the gate as the scale).
-        mad_q3 = float(tunables.get("attn_mad_q3", 0.0) or 0.0)
-        mad_floor = float(tunables.get("attn_mad_pct_floor", 0.0) or 0.0)
-        seed = max(mad_q3, mad_floor, 0.0)
-        mad_ref = seed * 4.0 if seed > 0.0 else 0.0
     if mad_ref > 0.0 and mad > 0.0:
         severity += max(mad / mad_ref, 0.0)
 
@@ -1355,36 +1413,28 @@ def derive_int8_autonomous_tunables(
     base["drift_score_mult"] = float(max(iqr_k + iqr_o + iqr_m, 1.0))
 
     # ---- MSE release gates (gray-zone VETO release candidates) ----
-    # Use P75 of THIS profile; if iqr is 0 (degenerate), gate collapses to
-    # the single value and no layer qualifies (safe: nothing released).
-    base["mse_release_o_min"] = float(max(o_p75, o_p50 + iqr_o * 0.5))
+    # THIS P75 only — continuous from THIS profile (no half-IQR rewrite).
+    base["mse_release_o_min"] = float(o_p75)
     base["mse_release_k_max"] = float(k_p75)
     base["mse_release_m_max"] = float(m_p75)
-    # MSE P75 multiplier: 1 + (outlier dispersion of THIS profile).
-    # Lower bound 1.0 is logical (below it, release threshold sits under the
-    # safe baseline → releases nothing meaningful). Upper cap is NOT a fixed
-    # 10.0 — it is this profile's own tail extent: 1 + P99/P75 of outlier.
-    mse_mult = 1.0 + (iqr_o / max(o_p50, 1e-9)) if o_p50 > 0 else 1.0
-    mse_mult_cap = 1.0 + (o_p99 / max(o_p75, 1e-9)) if o_p75 > 0 else mse_mult
-    base["mse_p75_multiplier"] = float(min(max(mse_mult, 1.0), max(mse_mult_cap, 1.0)))
+    # MSE P75 multiplier: 1 + (outlier dispersion / THIS scale chain).
+    o_den = next((x for x in (o_p50, o_p75, o_p99, max(all_o) if all_o else 0.0) if x > 0), 0.0)
+    base["mse_p75_multiplier"] = float(1.0 + (iqr_o / max(o_den, 1e-9)))
 
-    # ---- alpha / beta (V4 histogram weights) ----
-    # Derived from kurtosis / outlier central mass. Floor at 0.5 (quality
-    # side) and cap at 0.99 — these are physical V4 bounds, not arbitrary.
-    base["alpha_floor"] = float(min(max(0.5 + (1.0 / max(k_p75, 1e-9)) * k_p50, 0.5), 0.99))
-    base["beta_floor"] = float(min(max(0.5 + (1.0 / max(o_p75, 1e-9)) * o_p50, 0.5), 0.99))
-    base["alpha_clip_max"] = 0.99
-    base["beta_clip_max"] = 0.99
+    # ---- alpha / beta — continuous from THIS P50/P75 (no 0.5 / 0.99 box) ----
+    k_scale_a = 1.0 / max(k_p75, 1e-9)
+    o_scale_a = 1.0 / max(o_p75, 1e-9)
+    alpha_floor = max(k_scale_a * k_p50, 0.0)
+    beta_floor = max(o_scale_a * o_p50, 0.0)
+    base["alpha_floor"] = float(alpha_floor)
+    base["beta_floor"] = float(beta_floor)
+    base["alpha_clip_max"] = float(max(k_scale_a * k_p99, alpha_floor))
+    base["beta_clip_max"] = float(max(o_scale_a * o_p99, beta_floor))
 
-    # ---- alpha_auto: V4 histogram SVD-vs-calibration mix from THIS profile ----
-    # SVD leverage helps heavy-tailed weight distributions (structured
-    # principal subspace) and harms flat/uniform ones. The signal is the
-    # kurtosis distribution itself: median kurtosis <= 0 → flat/uniform
-    # profile → alpha 0 (pure calibration-magnitude importance). Positive
-    # median → alpha rises continuously with tail dominance (k_med / k_p99),
-    # capped only by the physical V4 bound 0.99. No model-name rule.
+    # ---- alpha_auto: V4 mix from THIS kurtosis shape (ratio is continuous) ----
+    # median <= 0 → flat → 0.0; else k_p50/k_p99 of THIS profile (already ≤1).
     if k_p50 > 0.0 and k_p99 > 0.0:
-        base["alpha_auto"] = float(min(max(k_p50 / k_p99, 0.0), 0.99))
+        base["alpha_auto"] = float(max(k_p50 / k_p99, 0.0))
     else:
         base["alpha_auto"] = 0.0
 
@@ -1395,24 +1445,12 @@ def derive_int8_autonomous_tunables(
     base["search_low_gray_clip_max"] = 1.0
 
     # ---- MAD% gate + character scale: from THIS profile if present ----
-    # floor/q3 = VETO gate; p99 = severity denominator (o/eo-style, 1.0 =
-    # heavy MAD on THIS checkpoint). Never use the gate as severity scale.
-    mad_positive = [v for v in all_mad if v > 0]
-    if len(mad_positive) >= 4:
-        mad_q3 = float(_safe_percentile(mad_positive, 75.0))
-        mad_p99 = float(_safe_percentile(mad_positive, 99.0))
-        base["attn_mad_pct_floor"] = mad_q3
-        base["attn_mad_q3"] = mad_q3
-        base["attn_mad_p99"] = float(max(mad_p99, mad_q3, 1e-9))
-        base["attn_mad_from_profile"] = 1.0
-    else:
-        # Old profile without mad_outlier_pct: disable MAD gap-fill rather
-        # than fall back to a fixed 15.0 — keeps VETO from exploding.
-        base["attn_mad_pct_floor"] = 0.0
-        base["attn_mad_q3"] = 0.0
-        base["attn_mad_p99"] = 0.0
-        base["attn_mad_from_profile"] = 0.0
-    base["attn_mad_gap_o_max"] = float(max(eo, 1e-9))
+    # Any positive MAD sample → continuous replace (n≥1). Zero samples → off.
+    # Writing 0.0 when 1≤n<4 after deleting ×N floors is forbidden.
+    mad_bundle = _mad_tunables_from_positive_samples(
+        all_mad, float(max(eo, 1e-9))
+    )
+    base.update(mad_bundle)
 
     # DualMonitor = FP16 candidates; analyze = VETO candidates.
     # Quantize fills THIS model's extreme auto-optimal FP16 set inside the
@@ -1464,7 +1502,87 @@ def derive_int8_autonomous_tunables(
 
     base["n_unet_layers"] = n_layers
     base["autonomous"] = True
+    _assert_int8_auto_optimal_complete(base)
     return base
+
+
+# Keys that MUST be filled by auto analysis → auto-optimal (never silent
+# dataclass holes after deleting accommodation clips — philosophy §0 / §1).
+_INT8_AUTO_OPTIMAL_REQUIRED = (
+    "extreme_kurtosis",
+    "extreme_outlier",
+    "huge_magnitude",
+    "drift_veto_thresh",
+    "drift_score_mult",
+    "mse_release_o_min",
+    "mse_release_k_max",
+    "mse_release_m_max",
+    "mse_p75_multiplier",
+    "k_scale",
+    "o_scale",
+    "m_scale",
+    "k_gray_lo",
+    "k_gray_hi",
+    "o_gray_lo",
+    "o_gray_hi",
+    "m_gray_lo",
+    "m_gray_hi",
+    "alpha_floor",
+    "alpha_clip_max",
+    "beta_floor",
+    "beta_clip_max",
+    "alpha_auto",
+    "search_low_floor",
+    "search_low_penalty_cap",
+    "search_low_clip_max",
+    "search_low_gray_clip_max",
+    "attn_mad_pct_floor",
+    "attn_mad_q3",
+    "attn_mad_p99",
+    "attn_mad_gap_o_max",
+    "attn_mad_from_profile",
+    "bias_correction_top_ratio",
+    "score_k_weight",
+    "score_o_weight",
+    "score_m_weight",
+    "quant_format",
+    "autonomous",
+    "fp16_budget_mb",
+)
+
+
+def _assert_int8_auto_optimal_complete(d: Dict[str, Any]) -> None:
+    """Fail loud if a former accommodation clip was deleted without replace."""
+    missing = [k for k in _INT8_AUTO_OPTIMAL_REQUIRED if k not in d]
+    if missing:
+        raise ValueError(
+            "INT8 auto-optimal incomplete after analyze — missing keys "
+            f"{missing}. Do not fill deleted clip holes with defaults; "
+            "re-run derive_int8_autonomous_tunables."
+        )
+    if str(d.get("quant_format")) != "int8_tensorwise":
+        raise ValueError("INT8 auto-optimal requires quant_format=int8_tensorwise")
+    if abs(float(d.get("fp16_budget_mb", 0.0)) - 300.0) > 1e-6:
+        raise ValueError("INT8 auto-optimal requires fp16_budget_mb=300.0")
+    if not bool(d.get("autonomous")):
+        raise ValueError("INT8 auto-optimal requires autonomous=True from derive")
+    # Finite / non-NaN on continuous auto knobs.
+    for k in (
+        "mse_p75_multiplier",
+        "mse_release_o_min",
+        "drift_veto_thresh",
+        "alpha_auto",
+        "alpha_floor",
+        "alpha_clip_max",
+        "attn_mad_p99",
+    ):
+        v = float(d[k])
+        if not math.isfinite(v):
+            raise ValueError(f"INT8 auto-optimal key {k} is not finite: {v}")
+    if float(d["mse_p75_multiplier"]) <= 0.0:
+        raise ValueError("mse_p75_multiplier must be > 0 (THIS-profile replace)")
+    if float(d["search_low_floor"]) != 1.0:
+        raise ValueError("INT8 search_low_floor must be 1.0 (absmax pack replace)")
 
 
 def _is_unet_weight_key(name: str) -> bool:
@@ -1533,7 +1651,7 @@ def measure_v4_int8_mse_at_absmax(
     o_min = float(tunables.get("mse_release_o_min", 0.0))
     k_max = float(tunables.get("mse_release_k_max", 1e9))
     m_max = float(tunables.get("mse_release_m_max", 1e9))
-    p75_mult = float(tunables.get("mse_p75_multiplier", 2.0))
+    p75_mult = float(tunables.get("mse_p75_multiplier", 1.0))
     extreme_o = float(tunables.get("extreme_outlier", 1e9))
     extreme_k = float(tunables.get("extreme_kurtosis", 1e9))
     huge_m = float(tunables.get("huge_magnitude", 1e9))
@@ -1781,7 +1899,7 @@ def compute_int8_optimal_settings(
             "attn_qkv_absmax": float(tunables["attn_qkv_absmax"]),
             "attn_toout_absmax": float(tunables["attn_toout_absmax"]),
             "attn_ff2_absmax": float(tunables["attn_ff2_absmax"]),
-            "attn_mad_pct_floor": float(tunables.get("attn_mad_pct_floor", 15.0)),
+            "attn_mad_pct_floor": float(tunables.get("attn_mad_pct_floor", 0.0)),
             "attn_mad_p99": float(tunables.get("attn_mad_p99", 0.0)),
             "unet_layer_count": len(layers),
         },
@@ -1892,7 +2010,7 @@ def enrich_profile_with_derived(
         "ff2_selective_protected_count": tunables.get("ff2_selective_protected_count", 0),
         "int8_search_low": float(i8.get("search_low_floor", 1.0)),
         "int8_mse_release_o_min": float(i8.get("mse_release_o_min", 0.0)),
-        "int8_mse_p75_multiplier": float(i8.get("mse_p75_multiplier", 2.0)),
+        "int8_mse_p75_multiplier": float(i8.get("mse_p75_multiplier", 1.0)),
         "int8_optimal_complete": bool(opt.get("complete", False)),
         "calib_contract": opt.get("calib_contract"),
         "v4_ran": bool(v4opt.get("v4_ran", False)),
