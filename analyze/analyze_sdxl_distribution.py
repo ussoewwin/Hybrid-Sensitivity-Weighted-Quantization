@@ -812,9 +812,9 @@ def derive_priority_combinator(
     }
 
 
-# Key-pattern families where DualMonitor may under-measure one sibling while
-# another of the SAME architectural key is measured high on THIS checkpoint.
-# Ranking repair only — not a fixed KEEP / force-complete recipe.
+# Architectural key-pattern suffixes (structure only — not a KEEP table).
+# Sibling DualMonitor under-measure is repaired by continuous THIS-model
+# branches below, never by a unified median/geom floor recipe.
 _KEYPATTERN_FAMILY_SENS_SUFFIXES = (
     ".upsamplers.0.conv",
     ".downsamplers.0.conv",
@@ -823,71 +823,323 @@ _KEYPATTERN_FAMILY_SENS_SUFFIXES = (
 )
 
 
-def apply_keypattern_family_sens_floor(
-    measured: List[Tuple[str, float, float, float, int]],
-    *,
-    family_suffixes: Sequence[str] = _KEYPATTERN_FAMILY_SENS_SUFFIXES,
-) -> Tuple[List[Tuple[str, float, float, float, int]], List[Dict[str, Any]]]:
-    """Floor DualMonitor ranking_sens within a key-pattern family on THIS pool.
+def _true_median(vals: List[float]) -> float:
+    if not vals:
+        return 0.0
+    s = sorted(float(v) for v in vals)
+    n = len(s)
+    if n % 2 == 1:
+        return float(s[n // 2])
+    return 0.5 * float(s[n // 2 - 1] + s[n // 2])
 
-    For each architectural suffix with ≥2 measured members: if THIS family's
-    DualMonitor range is skewed relative to its own median
-    `(max − min) ≥ family_median`, members below that median use
-    `ranking_sens = max(dm_sens, family_median)`. Derived from THIS
-    checkpoint's measured DualMonitor values only — no model-name map,
-    no absolute KEEP, no fixed density-greedy refill.
+
+def derive_fp16_infinite_branch_profile(
+    measured: List[Tuple[str, float, float, float, int]],
+    is_hard_veto: Sequence[bool],
+) -> Dict[str, Any]:
+    """Derive continuous FP16-ranking branch knobs from THIS measured pool.
+
+    Every knob is a real from THIS checkpoint's DualMonitor / severity / V4
+    MSE / Hard-VETO mask. There is no discrete on/off family-floor mode and
+    no unified recipe shared across models — differently shaped pools yield
+    different knob vectors (infinite continuous branches).
+    """
+    eps = 1e-30
+    if not measured:
+        return {
+            "cv_sens": 0.0, "cv_sev": 0.0, "cv_mse": 0.0,
+            "align_sens": 0.0, "align_sev": 0.0, "align_mse": 0.0,
+            "dm_starvation": 0.0,
+            "gamma_sibling": 0.0, "gamma_blend": 0.0,
+            "mismatch_gain": 0.0,
+            "prio_sibling_gamma": 0.0, "prio_blend_gamma": 0.0,
+            "sens_ref": eps, "sev_ref": eps, "mse_ref": eps,
+            "n_measured": 0, "n_hard_veto": 0,
+        }
+    if len(is_hard_veto) != len(measured):
+        raise ValueError(
+            "derive_fp16_infinite_branch_profile: is_hard_veto length "
+            f"{len(is_hard_veto)} != measured {len(measured)}"
+        )
+    sens = [max(float(r[1]), 0.0) for r in measured]
+    mse = [max(float(r[2]), 0.0) for r in measured]
+    sev = [max(float(r[3]), 0.0) for r in measured]
+    veto = [bool(f) for f in is_hard_veto]
+
+    s_pos = [v for v in sens if v > 0.0]
+    m_pos = [v for v in mse if v > 0.0]
+    s_p50 = _true_median(s_pos) if s_pos else 0.0
+    v_p50 = _true_median(sev) if sev else 0.0
+    m_p50 = _true_median(m_pos) if m_pos else 0.0
+    s_iqr = _robust_iqr(s_pos) if len(s_pos) >= 2 else 0.0
+    v_iqr = _robust_iqr(sev) if len(sev) >= 2 else 0.0
+    m_iqr = _robust_iqr(m_pos) if len(m_pos) >= 2 else 0.0
+    cv_s = float(s_iqr / max(s_p50, eps))
+    cv_v = float(v_iqr / max(v_p50, eps))
+    cv_m = float(m_iqr / max(m_p50, eps))
+
+    raw_s = _signed_veto_axis_effect(sens, veto)
+    raw_v = _signed_veto_axis_effect(sev, veto)
+    raw_m = _signed_veto_axis_effect(mse, veto)
+    # Keep signs: anti-aligned DualMonitor (negative) drives starvation.
+    align_s = float(raw_s)
+    align_v = float(raw_v)
+    align_m = float(raw_m)
+    # DM starvation: analyze danger axes align while DualMonitor does not.
+    dm_starvation = float(
+        max(max(align_v, 0.0) + max(align_m, 0.0) - max(align_s, 0.0), 0.0)
+    )
+    # Continuous gammas — each checkpoint gets a unique pair.
+    gamma_sibling = float((1.0 + dm_starvation) * (1.0 + cv_s))
+    gamma_blend = float(
+        (1.0 + dm_starvation) * (1.0 + cv_v + cv_m + max(-align_s, 0.0))
+    )
+    align_pos_sum = max(align_v, 0.0) + max(align_m, 0.0) + max(align_s, 0.0)
+    mismatch_gain = float(
+        (max(align_v, 0.0) + max(align_m, 0.0)) / max(align_pos_sum, eps)
+    )
+    prio_sibling_gamma = float((1.0 + dm_starvation) * (1.0 + cv_v + cv_m))
+    prio_blend_gamma = float((1.0 + dm_starvation) * (1.0 + cv_s))
+
+    return {
+        "cv_sens": cv_s,
+        "cv_sev": cv_v,
+        "cv_mse": cv_m,
+        "align_sens": align_s,
+        "align_sev": align_v,
+        "align_mse": align_m,
+        "dm_starvation": dm_starvation,
+        "gamma_sibling": gamma_sibling,
+        "gamma_blend": gamma_blend,
+        "mismatch_gain": mismatch_gain,
+        "prio_sibling_gamma": prio_sibling_gamma,
+        "prio_blend_gamma": prio_blend_gamma,
+        "sens_ref": float(max(s_p50, eps)),
+        "sev_ref": float(max(v_p50, eps)),
+        "mse_ref": float(max(m_p50, eps)),
+        "n_measured": int(len(measured)),
+        "n_hard_veto": int(sum(1 for f in veto if f)),
+    }
+
+
+def apply_fp16_infinite_ranking_branches(
+    measured: List[Tuple[str, float, float, float, int]],
+    is_hard_veto: Sequence[bool],
+    *,
+    branch_profile: Optional[Dict[str, Any]] = None,
+    family_suffixes: Sequence[str] = _KEYPATTERN_FAMILY_SENS_SUFFIXES,
+) -> Tuple[
+    List[Tuple[str, float, float, float, int]],
+    List[Dict[str, Any]],
+    Dict[str, Any],
+]:
+    """Continuous infinite ranking branches for THIS checkpoint's measured pool.
+
+    Replaces the banned unified family floor (fixed median / geom gate).
+
+    Branch A — key-pattern siblings: for every architectural suffix with ≥2
+    members, skew = span/family_p50 (continuous). Strength and blend are
+    ``1 - exp(-skew * gamma_*)`` with gammas from ``branch_profile`` (THIS
+    model). skew→0 ⇒ identity (wai-like balanced families). Large skew +
+    DualMonitor starvation ⇒ strong pull toward a p50↔max continuous target.
+
+    Branch B — axis mismatch: layers whose analyze severity / V4 MSE exceed
+    DualMonitor sens (relative to THIS refs) get a continuous ranking_sens
+    lift scaled by ``mismatch_gain`` from THIS VETO-alignment character.
+
+    No binary skew gate. No model-name map. No absolute KEEP.
     """
     if not measured:
-        return list(measured), []
+        empty_p = branch_profile or derive_fp16_infinite_branch_profile(
+            [], [],
+        )
+        return [], [], empty_p
+    if len(is_hard_veto) != len(measured):
+        raise ValueError(
+            "apply_fp16_infinite_ranking_branches: is_hard_veto length mismatch"
+        )
+    profile = branch_profile or derive_fp16_infinite_branch_profile(
+        measured, is_hard_veto,
+    )
+    eps = 1e-30
+    out = [list(row) for row in measured]
+    details: List[Dict[str, Any]] = []
+
     by_suf: Dict[str, List[int]] = {}
-    for i, row in enumerate(measured):
+    for i, row in enumerate(out):
         name = str(row[0])
         for suf in family_suffixes:
             if name.endswith(suf):
                 by_suf.setdefault(suf, []).append(i)
                 break
-    out = [list(row) for row in measured]
-    repairs: List[Dict[str, Any]] = []
+
+    g_sib = float(profile.get("gamma_sibling", 0.0) or 0.0)
+    g_blend = float(profile.get("gamma_blend", 0.0) or 0.0)
     for suf, idxs in by_suf.items():
         if len(idxs) < 2:
             continue
         sens = [max(float(out[i][1]), 0.0) for i in idxs]
         s_max = max(sens)
         s_min = min(sens)
-        _sorted = sorted(sens)
-        _n = len(_sorted)
-        if _n % 2 == 1:
-            fam_p50 = float(_sorted[_n // 2])
-        else:
-            fam_p50 = 0.5 * float(_sorted[_n // 2 - 1] + _sorted[_n // 2])
-        if fam_p50 <= 0.0:
+        fam_p50 = _true_median(sens)
+        if fam_p50 <= 0.0 or s_max <= 0.0:
             continue
-        # Skew from THIS family's own median scale only (no fixed ratio gate).
         span = float(s_max - s_min)
-        if span < fam_p50:
-            continue
+        skew = float(span / max(fam_p50, eps))
+        # Continuous — never "if skew < 1: skip" unified gate.
+        strength = 1.0 - math.exp(-skew * g_sib)
+        blend = 1.0 - math.exp(-skew * g_blend)
+        target = float(fam_p50 * (1.0 - blend) + s_max * blend)
         for i, s in zip(idxs, sens):
-            if s >= fam_p50:
+            if target <= s or strength <= 0.0:
                 continue
-            ranking = max(s, fam_p50)
+            ranking = float(s + strength * (target - s))
             if ranking <= s:
                 continue
             out[i][1] = ranking
-            repairs.append({
+            details.append({
+                "branch": "keypattern_sibling_continuous",
                 "name": str(out[i][0]),
                 "suffix": suf,
                 "dm_sens": float(s),
                 "ranking_sens": float(ranking),
+                "skew": skew,
+                "strength": float(strength),
+                "blend": float(blend),
+                "target": float(target),
                 "family_p50": float(fam_p50),
                 "family_max": float(s_max),
                 "family_min": float(s_min),
-                "skew_span": span,
             })
+
+    sref = float(profile.get("sens_ref", eps) or eps)
+    vref = float(profile.get("sev_ref", eps) or eps)
+    mref = float(profile.get("mse_ref", eps) or eps)
+    mg = float(profile.get("mismatch_gain", 0.0) or 0.0)
+    aw = max(float(profile.get("align_sev", 0.0) or 0.0), 0.0)
+    am = max(float(profile.get("align_mse", 0.0) or 0.0), 0.0)
+    as_ = max(float(profile.get("align_sens", 0.0) or 0.0), 0.0)
+    wsum = aw + am + as_
+    if wsum < eps:
+        wv, wm, ws = 1.0, 1.0, 1.0
+    else:
+        wv, wm, ws = aw / wsum, am / wsum, as_ / wsum
+    for i, row in enumerate(out):
+        s = max(float(row[1]), 0.0)
+        mse = max(float(row[2]), 0.0)
+        sev = max(float(row[3]), 0.0)
+        rs = s / sref
+        rv = sev / vref
+        rm = mse / mref
+        excess = float(wv * rv + wm * rm - ws * rs)
+        if excess <= 0.0 or mg <= 0.0:
+            continue
+        # Soft continuous lift — unique per layer × THIS profile.
+        lift = float(mg * math.log1p(excess))
+        ranking = float(s * (1.0 + lift))
+        if ranking <= s:
+            continue
+        out[i][1] = ranking
+        details.append({
+            "branch": "axis_mismatch_continuous",
+            "name": str(out[i][0]),
+            "dm_sens": float(s),
+            "ranking_sens": float(ranking),
+            "excess": excess,
+            "lift": lift,
+            "severity": float(sev),
+            "v4_mse": float(mse),
+        })
+
     restored = [
         (str(r[0]), float(r[1]), float(r[2]), float(r[3]), int(r[4]))
         for r in out
     ]
-    return restored, repairs
+    return restored, details, profile
+
+
+def apply_fp16_infinite_priority_branches(
+    candidates: List[Tuple[float, float, float, float, int, str]],
+    branch_profile: Dict[str, Any],
+    *,
+    family_suffixes: Sequence[str] = _KEYPATTERN_FAMILY_SENS_SUFFIXES,
+) -> Tuple[
+    List[Tuple[float, float, float, float, int, str]],
+    List[Dict[str, Any]],
+]:
+    """Continuous priority-space sibling branch (THIS family's priorities).
+
+    ``candidates``: ``(priority, v4_mse, severity, dm_sens, extra, name)``.
+    Same continuous skew×gamma form as sens branches — not ``max(p, p50)``
+    unified priority floor. Strength→0 when THIS family is balanced.
+    """
+    if not candidates:
+        return [], []
+    eps = 1e-30
+    g_sib = float(branch_profile.get("prio_sibling_gamma", 0.0) or 0.0)
+    g_blend = float(branch_profile.get("prio_blend_gamma", 0.0) or 0.0)
+    out = [list(row) for row in candidates]
+    by_suf: Dict[str, List[int]] = {}
+    for i, row in enumerate(out):
+        name = str(row[5])
+        for suf in family_suffixes:
+            if name.endswith(suf):
+                by_suf.setdefault(suf, []).append(i)
+                break
+    details: List[Dict[str, Any]] = []
+    for suf, idxs in by_suf.items():
+        if len(idxs) < 2:
+            continue
+        sens = [max(float(out[i][3]), 0.0) for i in idxs]
+        prios = [max(float(out[i][0]), 0.0) for i in idxs]
+        s_max = max(sens)
+        s_min = min(sens)
+        fam_p50 = _true_median(sens)
+        if fam_p50 <= 0.0:
+            continue
+        span = float(s_max - s_min)
+        skew = float(span / max(fam_p50, eps))
+        strength = 1.0 - math.exp(-skew * g_sib)
+        blend = 1.0 - math.exp(-skew * g_blend)
+        p_p50 = _true_median(prios)
+        p_max = max(prios)
+        if p_p50 <= 0.0 and p_max <= 0.0:
+            continue
+        target_p = float(p_p50 * (1.0 - blend) + p_max * blend)
+        for i, s, p in zip(idxs, sens, prios):
+            # Under-measured DM siblings only (continuous strength still
+            # scales with family skew even when p is already high).
+            if s >= fam_p50 or target_p <= p or strength <= 0.0:
+                continue
+            new_p = float(p + strength * (target_p - p))
+            if new_p <= p:
+                continue
+            out[i][0] = new_p
+            details.append({
+                "branch": "keypattern_priority_continuous",
+                "name": str(out[i][5]),
+                "suffix": suf,
+                "priority_before": float(p),
+                "priority_after": float(new_p),
+                "skew": skew,
+                "strength": float(strength),
+                "blend": float(blend),
+                "target_priority": float(target_p),
+                "dm_sens": float(s),
+                "family_p50_sens": float(fam_p50),
+            })
+    restored = [
+        (
+            float(r[0]),
+            float(r[1]),
+            float(r[2]),
+            float(r[3]),
+            int(r[4]),
+            str(r[5]),
+        )
+        for r in out
+    ]
+    return restored, details
 
 
 def int8_fp16_budget_priority(
