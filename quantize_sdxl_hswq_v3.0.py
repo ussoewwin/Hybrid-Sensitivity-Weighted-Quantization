@@ -438,6 +438,9 @@ class SdxlVetoTunables:
     attn_mad_p99: float = 0.0
     attn_mad_gap_o_max: float = 0.0
     attn_mad_from_profile: float = 0.0
+    # Continuous MAD branch fingerprint (THIS pool IQR death → Tukey↔P99 blend).
+    attn_mad_collapse: float = 0.0
+    attn_mad_iqr: float = 0.0
     # Autonomous (from derive_int8_autonomous_tunables):
     sens_veto_percentile: float = 100.0
     sens_veto_keep_ratio_gate: float = 0.0
@@ -568,6 +571,8 @@ class SdxlVetoTunables:
             attn_mad_p99=float(d["attn_mad_p99"]),
             attn_mad_gap_o_max=float(d["attn_mad_gap_o_max"]),
             attn_mad_from_profile=float(d["attn_mad_from_profile"]),
+            attn_mad_collapse=float(d.get("attn_mad_collapse", 0.0)),
+            attn_mad_iqr=float(d.get("attn_mad_iqr", 0.0)),
             sens_veto_percentile=float(d.get("sens_veto_percentile", 100.0)),
             sens_veto_keep_ratio_gate=float(d.get("sens_veto_keep_ratio_gate", 0.0)),
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
@@ -626,6 +631,8 @@ class SdxlVetoTunables:
             "attn_mad_p99": self.attn_mad_p99,
             "attn_mad_gap_o_max": self.attn_mad_gap_o_max,
             "attn_mad_from_profile": self.attn_mad_from_profile,
+            "attn_mad_collapse": self.attn_mad_collapse,
+            "attn_mad_iqr": self.attn_mad_iqr,
             "sens_veto_percentile": self.sens_veto_percentile,
             "sens_veto_keep_ratio_gate": self.sens_veto_keep_ratio_gate,
             "bias_correction_top_ratio": self.bias_correction_top_ratio,
@@ -685,8 +692,10 @@ def resolve_veto_tunables(
         print(
             "  [Auto INT8 MAD] "
             f"floor={derived.get('attn_mad_pct_floor', 0.0):.3f}, "
-            f"q3={derived.get('attn_mad_q3', 0.0):.3f}, "
+            f"soft={derived.get('attn_mad_q3', 0.0):.3f}, "
             f"p99={derived.get('attn_mad_p99', 0.0):.3f}, "
+            f"collapse={derived.get('attn_mad_collapse', 0.0):.3f}, "
+            f"iqr={derived.get('attn_mad_iqr', 0.0):.3f}, "
             f"gap_o_max={derived.get('attn_mad_gap_o_max', 0.0):.3f}, "
             f"from_profile={bool(derived.get('attn_mad_from_profile', 0))}"
         )
@@ -986,6 +995,39 @@ def _compute_sdxl_per_projection_attn_veto(
     return proj_veto
 
 
+def _mad_continuous_gates_from_live(
+    live_mads: list[float],
+) -> tuple[float, float, float, float]:
+    """Mirror analyze MAD blend on a live THIS-UNet list.
+
+    Returns (floor, soft_gap, collapse, iqr). floor/soft are continuous
+    blends of THIS Tukey and THIS P99 by IQR death — same formula as analyze.
+    """
+    live_sorted = sorted(float(v) for v in live_mads if float(v) > 0.0)
+    n_live = len(live_sorted)
+    if n_live < 1:
+        return 0.0, 0.0, 0.0, 0.0
+    if n_live < 4:
+        peak = float(live_sorted[-1])
+        body = float(live_sorted[n_live // 2])
+        return peak, body, 1.0, 0.0
+    q1 = float(live_sorted[n_live // 4])
+    q3 = float(live_sorted[(3 * n_live) // 4])
+    iqr = float(max(q3 - q1, 0.0))
+    mad_tukey = float(q3 + iqr)
+    p50 = float(live_sorted[n_live // 2])
+    p99 = float(
+        live_sorted[max(0, min(n_live - 1, int(round(0.99 * (n_live - 1)))))]
+    )
+    tail_span = float(max(p99 - p50, 1e-12))
+    collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
+    mad_floor = float((1.0 - collapse) * mad_tukey + collapse * p99)
+    c2 = float(collapse * collapse)
+    mad_soft = float((1.0 - c2) * q3 + c2 * mad_floor)
+    mad_soft = float(min(mad_soft, mad_floor))
+    return mad_floor, mad_soft, collapse, iqr
+
+
 def _compute_sdxl_int8_mad_attn_veto(
     model: nn.Module,
     hard_veto_layers: set,
@@ -994,10 +1036,9 @@ def _compute_sdxl_int8_mad_attn_veto(
 ) -> set:
     """INT8-only key-pattern + MAD% VETO for attn projections.
 
-    Floors come from analyze (THIS checkpoint MAD% Tukey / order stats).
-    If analyze left the MAD axis at 0.0 but THIS UNet has live MAD% > 0,
-    bootstrap continuous floor/q3/gap from THIS model's live MAD pool — never
-    skip the axis after deleting a fixed 15.0, and never invent 15.0.
+    Floors / soft-gap from analyze continuous THIS-pool Tukey↔P99 blend.
+    If analyze left the MAD axis at 0.0, bootstrap the same blend from
+    THIS UNet's live MAD pool (no stale-body detector, no fixed ladder).
     """
     mad_floor = (
         float(tunables.attn_mad_pct_floor)
@@ -1010,6 +1051,8 @@ def _compute_sdxl_int8_mad_attn_veto(
         if tunables is not None
         else 0.0
     )
+    collapse = float(tunables.attn_mad_collapse) if tunables is not None else 0.0
+    mad_iqr = float(tunables.attn_mad_iqr) if tunables is not None else 0.0
     if tunables is not None and gap_o_max <= 0.0:
         gap_o_max = float(max(tunables.extreme_outlier, 1e-9))
     prof = norm_profile or {}
@@ -1038,24 +1081,17 @@ def _compute_sdxl_int8_mad_attn_veto(
         if mad_pct > 0.0:
             live_mads.append(mad_pct)
 
-    # Replace deleted fixed floor: live THIS-UNet MAD pool → continuous gates.
     if mad_floor <= 0.0 and live_mads:
-        live_sorted = sorted(live_mads)
-        n_live = len(live_sorted)
-        if n_live >= 4:
-            q1 = live_sorted[n_live // 4]
-            q3 = live_sorted[(3 * n_live) // 4]
-            iqr = q3 - q1
-            mad_floor = float(q3 + 1.5 * iqr)
-            mad_q3 = float(q3)
-        else:
-            mad_floor = float(max(live_sorted))
-            mad_q3 = float(live_sorted[n_live // 2])
+        mad_floor, mad_q3, collapse, mad_iqr = _mad_continuous_gates_from_live(
+            live_mads
+        )
         if gap_o_max <= 0.0 and tunables is not None:
             gap_o_max = float(max(tunables.extreme_outlier, 1e-9))
         print(
-            f"  [INT8 MAD VETO] Bootstrapped THIS-UNet MAD gates from "
-            f"{n_live} live samples (floor={mad_floor:.2f}, q3={mad_q3:.2f})"
+            f"  [INT8 MAD VETO] Continuous THIS-UNet MAD blend from "
+            f"{len(live_mads)} live samples "
+            f"(floor={mad_floor:.2f}, soft={mad_q3:.2f}, "
+            f"collapse={collapse:.3f}, iqr={mad_iqr:.3f})"
         )
 
     if mad_floor <= 0.0:
@@ -1063,20 +1099,29 @@ def _compute_sdxl_int8_mad_attn_veto(
 
     added = set()
     for _n, mad_pct, o in candidates:
-        extreme = mad_pct >= mad_floor
-        gap = (mad_pct >= mad_q3) and (o < gap_o_max)
-        if extreme or gap:
+        hard = mad_pct >= mad_floor
+        soft = (
+            mad_q3 > 0.0
+            and mad_pct >= mad_q3
+            and mad_pct < mad_floor
+            and o < gap_o_max
+        )
+        if hard or soft:
             added.add(_n)
-            why = "tukey" if extreme else "gap(q3+o_miss)"
+            kind = "hard" if hard else "soft"
+            o_note = "o_miss" if o < gap_o_max else "o_hit"
             print(
                 f"    [INT8 MAD VETO] {_n} "
                 f"(MAD%={mad_pct:.2f}, o={o:.2f}, floor={mad_floor:.2f}, "
-                f"q3={mad_q3:.2f}, gate_o={gap_o_max:.2f}; {why})"
+                f"soft={mad_q3:.2f}, collapse={collapse:.3f}, "
+                f"iqr={mad_iqr:.3f}, gate_o={gap_o_max:.2f}; "
+                f"{kind}/{o_note})"
             )
     if added:
         print(
             f"  [INT8 MAD VETO] Added {len(added)} attn layers "
-            f"(auto floor={mad_floor:.2f}, q3={mad_q3:.2f})."
+            f"(floor={mad_floor:.2f}, soft={mad_q3:.2f}, "
+            f"collapse={collapse:.3f}, iqr={mad_iqr:.3f})."
         )
     return added
 

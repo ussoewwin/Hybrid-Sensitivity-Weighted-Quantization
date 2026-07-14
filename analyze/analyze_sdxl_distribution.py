@@ -599,15 +599,52 @@ def _derive_hard_veto_fence_bundle(
     }
 
 
+def _mad_continuous_fences_from_positives(
+    positives: List[float],
+) -> Tuple[float, float, float, float, float]:
+    """THIS-pool MAD% → (floor, soft_gap, p99, collapse, iqr).
+
+    Infinite-branch (§14): gates are a continuous blend of THIS Tukey and
+    THIS P99, weighted by how dead THIS IQR is vs THIS upper-tail span.
+    No shared percentile ladder (75+24×collapse), no max(Tukey,P99) glue.
+
+      collapse = 1 - IQR / (IQR + (P99−P50))   ∈ [0, 1]
+      floor    = (1−collapse)·Tukey + collapse·P99
+      soft     = (1−collapse²)·Q3 + collapse²·floor
+
+    Healthy IQR → floor≈Tukey, soft≈Q3. Dead IQR → floor≈soft≈P99
+    (soft cannot flood). Different MAD shapes ⇒ different continuous knobs.
+    """
+    mad_sorted = _sorted_pool(positives)
+    n = len(positives)
+    if n < 4:
+        peak = float(max(positives))
+        body = float(_safe_percentile(positives, 50.0))
+        return peak, body, peak, 1.0, 0.0
+    q1, _med, q3_raw = _quartile_bounds(mad_sorted)
+    mad_tukey = float(_tukey_upper(mad_sorted))
+    mad_p99 = float(_safe_percentile(positives, 99.0))
+    mad_p50 = float(_safe_percentile(positives, 50.0))
+    iqr = float(max(q3_raw - q1, 0.0))
+    tail_span = float(max(mad_p99 - mad_p50, 1e-12))
+    collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
+    mad_floor = float((1.0 - collapse) * mad_tukey + collapse * mad_p99)
+    c2 = float(collapse * collapse)
+    mad_soft = float((1.0 - c2) * q3_raw + c2 * mad_floor)
+    mad_soft = float(min(mad_soft, mad_floor))
+    return mad_floor, mad_soft, mad_p99, collapse, iqr
+
+
 def _mad_tunables_from_positive_samples(
     mad_vals: List[float],
     gap_o_max: float,
 ) -> Dict[str, float]:
-    """THIS-sample MAD% → auto-optimal floor/q3/p99 (any n≥1).
+    """THIS-sample MAD% → auto-optimal floor/soft/p99 (any n≥1).
 
     Deleting the old ×N floor and writing 0.0 when n<4 is forbidden
-    (philosophy §0 / 「固定をただ消すな」). With 1–3 positive samples, use
-    continuous order stats of the available pool; with ≥4 use Tukey.
+    (philosophy §0 / 「固定をただ消すな」). Soft-gap thresh is stored in
+    ``attn_mad_q3`` (continuous blend; NOT raw Q3 when IQR is dead).
+
     Zero positive samples → axis off (no invent).
     """
     positives = [float(v) for v in mad_vals if float(v) > 0.0]
@@ -619,24 +656,21 @@ def _mad_tunables_from_positive_samples(
             "attn_mad_p99": 0.0,
             "attn_mad_gap_o_max": gap,
             "attn_mad_from_profile": 0.0,
+            "attn_mad_collapse": 0.0,
+            "attn_mad_iqr": 0.0,
         }
-    mad_sorted = _sorted_pool(positives)
-    if len(positives) >= 4:
-        _, _, mad_q3 = _quartile_bounds(mad_sorted)
-        mad_floor = float(_tukey_upper(mad_sorted))
-        mad_p99 = float(_safe_percentile(positives, 99.0))
-    else:
-        # Continuous from available samples only (not a fixed recipe).
-        mad_q3 = float(_safe_percentile(positives, 50.0))
-        mad_floor = float(max(positives))
-        mad_p99 = float(max(positives))
-    mad_p99 = float(max(mad_p99, mad_floor, mad_q3, 1e-9))
+    mad_floor, mad_soft, mad_p99, collapse, iqr = (
+        _mad_continuous_fences_from_positives(positives)
+    )
+    mad_p99 = float(max(mad_p99, 1e-9))
     return {
         "attn_mad_pct_floor": float(mad_floor),
-        "attn_mad_q3": float(mad_q3),
+        "attn_mad_q3": float(mad_soft),
         "attn_mad_p99": mad_p99,
         "attn_mad_gap_o_max": gap,
         "attn_mad_from_profile": 1.0,
+        "attn_mad_collapse": float(collapse),
+        "attn_mad_iqr": float(iqr),
     }
 
 
@@ -1541,6 +1575,8 @@ _INT8_AUTO_OPTIMAL_REQUIRED = (
     "attn_mad_p99",
     "attn_mad_gap_o_max",
     "attn_mad_from_profile",
+    "attn_mad_collapse",
+    "attn_mad_iqr",
     "bias_correction_top_ratio",
     "score_k_weight",
     "score_o_weight",
