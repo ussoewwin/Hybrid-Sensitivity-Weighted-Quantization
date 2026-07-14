@@ -699,16 +699,18 @@ def _mad_continuous_fences_from_positives(
 ) -> Tuple[float, float, float, float, float]:
     """THIS-pool MAD% → (floor, soft_gap, p99, collapse, iqr).
 
-    Infinite-branch (§14): gates are a continuous blend of THIS Tukey and
-    THIS P99, weighted by how dead THIS IQR is vs THIS upper-tail span.
-    No shared percentile ladder (75+24×collapse), no max(Tukey,P99) glue.
+    Philosophy §1 / §14: auto analysis → infinite-branch auto-optimal.
+    Not a fixed Tukey recipe, not tip-as-floor (that kills MAD branching).
 
-      collapse = 1 - IQR / (IQR + (P99−P50))   ∈ [0, 1]
-      floor    = (1−collapse)·Tukey + collapse·P99
-      soft     = (1−collapse²)·Q3 + collapse²·floor
+    Role split (THIS continuous, recomputed every checkpoint):
+      collapse = 1 - IQR / (IQR + (P99−P50))   ∈ [0, 1]  (shape fingerprint)
+      floor    = THIS Tukey body fence          (never P99)
+      soft     = (1−collapse²)·Q3 + collapse²·Tukey
+      P99      = tip / severity reference only
 
-    Healthy IQR → floor≈Tukey, soft≈Q3. Dead IQR → floor≈soft≈P99
-    (soft cannot flood). Different MAD shapes ⇒ different continuous knobs.
+    Healthy IQR → soft≈Q3, hard=Tukey. Dead IQR → soft→Tukey (more body-fence
+    capture) while mid-MAD% layers still branch into Auton. hard VETO.
+    Different MAD shapes ⇒ different Tukey/Q3/collapse vectors.
     """
     mad_sorted = _sorted_pool(positives)
     n = len(positives)
@@ -723,9 +725,10 @@ def _mad_continuous_fences_from_positives(
     iqr = float(max(q3_raw - q1, 0.0))
     tail_span = float(max(mad_p99 - mad_p50, 1e-12))
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
-    mad_floor = float((1.0 - collapse) * mad_tukey + collapse * mad_p99)
+    # Hard: THIS Tukey only — P99 tip must not become the VETO floor.
+    mad_floor = float(mad_tukey)
     c2 = float(collapse * collapse)
-    mad_soft = float((1.0 - c2) * q3_raw + c2 * mad_floor)
+    mad_soft = float((1.0 - c2) * q3_raw + c2 * mad_tukey)
     mad_soft = float(min(mad_soft, mad_floor))
     return mad_floor, mad_soft, mad_p99, collapse, iqr
 
@@ -738,7 +741,8 @@ def _mad_tunables_from_positive_samples(
 
     Deleting the old ×N floor and writing 0.0 when n<4 is forbidden
     (philosophy §0 / 「固定をただ消すな」). Soft-gap thresh is stored in
-    ``attn_mad_q3`` (continuous blend; NOT raw Q3 when IQR is dead).
+    ``attn_mad_q3`` (Q3→Tukey by collapse; NOT raw Q3 when IQR is dead).
+    Hard floor is THIS Tukey (NOT tip-as-floor). P99 = severity ref only.
 
     Zero positive samples → axis off (no invent).
     """
@@ -1775,10 +1779,18 @@ def measure_v4_int8_mse_at_absmax(
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     if not importance_by_layer:
+        # Weight-only analyze: V4 MSE not final yet. Full-SVD stays scheduled ON
+        # for the DualMonitor path (philosophy §4/§5 — never cut SVD). Do not
+        # print svd=None as if SVD failed; Imp is what is deferred.
+        a0 = float((tunables or {}).get("alpha_auto", 0.0) or 0.0)
+        a0 = float(min(max(a0, 0.0), 1.0))
         return {
             "v4_ran": False,
             "complete": False,
             "reason": "dualmonitor_importance_required",
+            "svd_enabled": True,
+            "alpha": a0,
+            "beta": float(1.0 - a0),
             "calib_contract": {
                 "num_calib_samples": 32,
                 "num_inference_steps": 25,
@@ -2075,6 +2087,15 @@ def compute_int8_optimal_settings(
             importance_by_layer=importance_by_layer,
         )
         optimal["v4"].update(v4)
+        # Full-SVD schedule is ON even when Imp is deferred (never svd=None handwave).
+        if "svd_enabled" in v4:
+            optimal["svd_enabled"] = bool(v4.get("svd_enabled", True))
+            tunables["v4_svd_enabled"] = bool(v4.get("svd_enabled", True))
+        if "alpha" in v4:
+            optimal["v4_alpha"] = float(v4.get("alpha", 0.0))
+            optimal["v4_beta"] = float(v4.get("beta", 1.0))
+            tunables["v4_alpha"] = float(v4.get("alpha", 0.0))
+            tunables["v4_beta"] = float(v4.get("beta", 1.0))
         if v4.get("complete") and "mse_release_threshold" in v4:
             # SVD-aware V4 MSE → auto-optimal release / priority seed.
             p75 = float(v4["safe_p75_mse"])
@@ -2268,16 +2289,23 @@ def main() -> None:
     print(f"Wrote {len(profile['layers'])} layers to {args.output}")
     print(f"ff2_auto_full_class={profile['summary'].get('ff2_auto_full_class')}")
     summary = profile.get("summary", {})
+    v4_ran = summary.get("v4_ran")
+    v4_reason = summary.get("v4_reason")
+    defer = ""
+    if (not v4_ran) and v4_reason == "dualmonitor_importance_required":
+        defer = " (V4 MSE deferred until DualMonitor Imp; Full-SVD scheduled ON)"
     print(
         f"[analyze×V4 INT8] search_low={summary.get('int8_search_low')} "
         f"mse_release_o_min={summary.get('int8_mse_release_o_min')} "
         f"mse_p75_mult={summary.get('int8_mse_p75_multiplier')} "
-        f"v4_ran={summary.get('v4_ran')} "
+        f"v4_ran={v4_ran} "
+        f"v4_reason={v4_reason} "
         f"v4_p75_mse={summary.get('v4_safe_p75_mse')} "
         f"v4_threshold={summary.get('v4_mse_release_threshold')} "
         f"svd={summary.get('v4_svd_enabled')} "
         f"alpha_auto={summary.get('alpha_auto')} "
         f"v4_α/β={summary.get('v4_alpha')}/{summary.get('v4_beta')}"
+        f"{defer}"
     )
 
 
