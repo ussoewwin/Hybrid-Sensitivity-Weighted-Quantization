@@ -405,15 +405,15 @@ class SdxlVetoTunables:
     ff2_profile_outlier: float
     ff2_profile_score_cutoff: float
     ff2_auto_full_class: bool = False
-    drift_veto_thresh: float = 0.5
+    drift_veto_thresh: float = 0.0
     drift_score_mult: float = 1.0
     mse_release_o_min: float = 0.0
     mse_release_k_max: float = 0.0
     mse_release_m_max: float = 0.0
     mse_p75_multiplier: float = 1.0
-    k_scale: float = 0.01
-    o_scale: float = 0.016
-    m_scale: float = 0.05
+    k_scale: float = 0.0
+    o_scale: float = 0.0
+    m_scale: float = 0.0
     k_gray_lo: float = 0.0
     k_gray_hi: float = 0.0
     o_gray_lo: float = 0.0
@@ -424,10 +424,10 @@ class SdxlVetoTunables:
     search_low_penalty_cap: float = 0.0
     search_low_clip_max: float = 1.0
     search_low_gray_clip_max: float = 1.0
-    alpha_floor: float = 0.5
-    alpha_clip_max: float = 0.99
-    beta_floor: float = 0.5
-    beta_clip_max: float = 0.99
+    alpha_floor: float = 0.0
+    alpha_clip_max: float = 0.0
+    beta_floor: float = 0.0
+    beta_clip_max: float = 0.0
     ff2_suffix_min_count: int = 4
     score_o_weight: float = 1.0
     score_m_weight: float = 1.0
@@ -451,8 +451,78 @@ class SdxlVetoTunables:
     # kurtosis distribution (median <= 0 → 0.0; heavier tail → higher).
     alpha_auto: float = 0.0
 
+    # Required from derive_int8_autonomous_tunables — no silent default holes
+    # after deleting accommodation clips (auto analysis → auto-optimal).
+    _FROM_DICT_REQUIRED = (
+        "extreme_kurtosis",
+        "extreme_outlier",
+        "huge_magnitude",
+        "attn_qkv_absmax",
+        "attn_qkv_outlier",
+        "attn_toout_absmax",
+        "attn_toout_outlier",
+        "ff2_outlier_live",
+        "ff2_profile_outlier",
+        "drift_veto_thresh",
+        "drift_score_mult",
+        "mse_release_o_min",
+        "mse_release_k_max",
+        "mse_release_m_max",
+        "mse_p75_multiplier",
+        "k_scale",
+        "o_scale",
+        "m_scale",
+        "k_gray_lo",
+        "k_gray_hi",
+        "o_gray_lo",
+        "o_gray_hi",
+        "m_gray_lo",
+        "m_gray_hi",
+        "alpha_floor",
+        "alpha_clip_max",
+        "beta_floor",
+        "beta_clip_max",
+        "alpha_auto",
+        "search_low_floor",
+        "search_low_penalty_cap",
+        "search_low_clip_max",
+        "search_low_gray_clip_max",
+        "attn_mad_pct_floor",
+        "attn_mad_q3",
+        "attn_mad_p99",
+        "attn_mad_gap_o_max",
+        "attn_mad_from_profile",
+        "bias_correction_top_ratio",
+        "score_k_weight",
+        "score_o_weight",
+        "score_m_weight",
+        "quant_format",
+        "autonomous",
+        "fp16_budget_mb",
+    )
+
     @classmethod
     def from_dict(cls, d: dict) -> "SdxlVetoTunables":
+        missing = [k for k in cls._FROM_DICT_REQUIRED if k not in d]
+        if missing:
+            raise ValueError(
+                "SdxlVetoTunables.from_dict missing auto-optimal keys "
+                f"{missing}. Run derive_int8_autonomous_tunables — do not "
+                "fill deleted clip holes with dataclass defaults."
+            )
+        if not bool(d["autonomous"]):
+            raise ValueError(
+                "SdxlVetoTunables.from_dict requires autonomous=True "
+                "(THIS-profile auto analysis → auto-optimal)"
+            )
+        if str(d["quant_format"]) != "int8_tensorwise":
+            raise ValueError("INT8 SdxlVetoTunables requires quant_format=int8_tensorwise")
+        if abs(float(d["fp16_budget_mb"]) - 300.0) > 1e-6:
+            raise ValueError("fp16_budget_mb must be 300.0")
+        if float(d["search_low_floor"]) != 1.0:
+            raise ValueError("INT8 search_low_floor must be 1.0 (absmax auto-optimal)")
+        if float(d["mse_p75_multiplier"]) <= 0.0:
+            raise ValueError("mse_p75_multiplier must be > 0 from THIS profile")
         return cls(
             extreme_kurtosis=float(d["extreme_kurtosis"]),
             extreme_outlier=float(d["extreme_outlier"]),
@@ -465,48 +535,48 @@ class SdxlVetoTunables:
             ff2_profile_outlier=float(d["ff2_profile_outlier"]),
             ff2_profile_score_cutoff=float(d.get("ff2_profile_score_cutoff", 0.0)),
             ff2_auto_full_class=bool(d.get("ff2_auto_full_class", False)),
-            drift_veto_thresh=float(d.get("drift_veto_thresh", 0.5)),
-            drift_score_mult=float(d.get("drift_score_mult", 1.0)),
-            mse_release_o_min=float(d.get("mse_release_o_min", 0.0)),
-            mse_release_k_max=float(d.get("mse_release_k_max", 0.0)),
-            mse_release_m_max=float(d.get("mse_release_m_max", 0.0)),
-            mse_p75_multiplier=float(d.get("mse_p75_multiplier", 1.0)),
-            k_scale=float(d.get("k_scale", 0.01)),
-            o_scale=float(d.get("o_scale", 0.016)),
-            m_scale=float(d.get("m_scale", 0.05)),
-            k_gray_lo=float(d.get("k_gray_lo", 0.0)),
-            k_gray_hi=float(d.get("k_gray_hi", 0.0)),
-            o_gray_lo=float(d.get("o_gray_lo", 0.0)),
-            o_gray_hi=float(d.get("o_gray_hi", 0.0)),
-            m_gray_lo=float(d.get("m_gray_lo", 0.0)),
-            m_gray_hi=float(d.get("m_gray_hi", 0.0)),
-            search_low_floor=float(d.get("search_low_floor", 1.0)),
-            search_low_penalty_cap=float(d.get("search_low_penalty_cap", 0.0)),
-            search_low_clip_max=float(d.get("search_low_clip_max", 1.0)),
-            search_low_gray_clip_max=float(d.get("search_low_gray_clip_max", 1.0)),
-            alpha_floor=float(d.get("alpha_floor", 0.5)),
-            alpha_clip_max=float(d.get("alpha_clip_max", 0.99)),
-            beta_floor=float(d.get("beta_floor", 0.5)),
-            beta_clip_max=float(d.get("beta_clip_max", 0.99)),
+            drift_veto_thresh=float(d["drift_veto_thresh"]),
+            drift_score_mult=float(d["drift_score_mult"]),
+            mse_release_o_min=float(d["mse_release_o_min"]),
+            mse_release_k_max=float(d["mse_release_k_max"]),
+            mse_release_m_max=float(d["mse_release_m_max"]),
+            mse_p75_multiplier=float(d["mse_p75_multiplier"]),
+            k_scale=float(d["k_scale"]),
+            o_scale=float(d["o_scale"]),
+            m_scale=float(d["m_scale"]),
+            k_gray_lo=float(d["k_gray_lo"]),
+            k_gray_hi=float(d["k_gray_hi"]),
+            o_gray_lo=float(d["o_gray_lo"]),
+            o_gray_hi=float(d["o_gray_hi"]),
+            m_gray_lo=float(d["m_gray_lo"]),
+            m_gray_hi=float(d["m_gray_hi"]),
+            search_low_floor=float(d["search_low_floor"]),
+            search_low_penalty_cap=float(d["search_low_penalty_cap"]),
+            search_low_clip_max=float(d["search_low_clip_max"]),
+            search_low_gray_clip_max=float(d["search_low_gray_clip_max"]),
+            alpha_floor=float(d["alpha_floor"]),
+            alpha_clip_max=float(d["alpha_clip_max"]),
+            beta_floor=float(d["beta_floor"]),
+            beta_clip_max=float(d["beta_clip_max"]),
             ff2_suffix_min_count=int(d.get("ff2_suffix_min_count", 4)),
-            score_o_weight=float(d.get("score_o_weight", 1.0)),
-            score_m_weight=float(d.get("score_m_weight", 1.0)),
-            score_k_weight=float(d.get("score_k_weight", 1.0)),
-            quant_format=str(d.get("quant_format", "int8_tensorwise")),
-            attn_mad_pct_floor=float(d.get("attn_mad_pct_floor", 0.0)),
-            attn_mad_q3=float(d.get("attn_mad_q3", 0.0)),
-            attn_mad_p99=float(d.get("attn_mad_p99", 0.0)),
-            attn_mad_gap_o_max=float(d.get("attn_mad_gap_o_max", 0.0)),
-            attn_mad_from_profile=float(d.get("attn_mad_from_profile", 0.0)),
+            score_o_weight=float(d["score_o_weight"]),
+            score_m_weight=float(d["score_m_weight"]),
+            score_k_weight=float(d["score_k_weight"]),
+            quant_format=str(d["quant_format"]),
+            attn_mad_pct_floor=float(d["attn_mad_pct_floor"]),
+            attn_mad_q3=float(d["attn_mad_q3"]),
+            attn_mad_p99=float(d["attn_mad_p99"]),
+            attn_mad_gap_o_max=float(d["attn_mad_gap_o_max"]),
+            attn_mad_from_profile=float(d["attn_mad_from_profile"]),
             sens_veto_percentile=float(d.get("sens_veto_percentile", 100.0)),
             sens_veto_keep_ratio_gate=float(d.get("sens_veto_keep_ratio_gate", 0.0)),
-            bias_correction_top_ratio=float(d.get("bias_correction_top_ratio", 1.0)),
+            bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
-            fp16_budget_mb=float(d.get("fp16_budget_mb", 300.0)),
+            fp16_budget_mb=float(d["fp16_budget_mb"]),
             fp16_budget_bytes=int(d.get("fp16_budget_bytes", 300 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
-            autonomous=bool(d.get("autonomous", False)),
-            alpha_auto=float(d.get("alpha_auto", 0.0)),
+            autonomous=True,
+            alpha_auto=float(d["alpha_auto"]),
         )
 
     def as_dict(self) -> dict:
@@ -524,14 +594,46 @@ class SdxlVetoTunables:
             "ff2_auto_full_class": self.ff2_auto_full_class,
             "drift_veto_thresh": self.drift_veto_thresh,
             "drift_score_mult": self.drift_score_mult,
+            "mse_release_o_min": self.mse_release_o_min,
+            "mse_release_k_max": self.mse_release_k_max,
+            "mse_release_m_max": self.mse_release_m_max,
             "mse_p75_multiplier": self.mse_p75_multiplier,
+            "k_scale": self.k_scale,
+            "o_scale": self.o_scale,
+            "m_scale": self.m_scale,
+            "k_gray_lo": self.k_gray_lo,
+            "k_gray_hi": self.k_gray_hi,
+            "o_gray_lo": self.o_gray_lo,
+            "o_gray_hi": self.o_gray_hi,
+            "m_gray_lo": self.m_gray_lo,
+            "m_gray_hi": self.m_gray_hi,
+            "search_low_floor": self.search_low_floor,
+            "search_low_penalty_cap": self.search_low_penalty_cap,
+            "search_low_clip_max": self.search_low_clip_max,
+            "search_low_gray_clip_max": self.search_low_gray_clip_max,
+            "alpha_floor": self.alpha_floor,
+            "alpha_clip_max": self.alpha_clip_max,
+            "beta_floor": self.beta_floor,
+            "beta_clip_max": self.beta_clip_max,
+            "alpha_auto": self.alpha_auto,
             "ff2_suffix_min_count": self.ff2_suffix_min_count,
+            "score_k_weight": self.score_k_weight,
+            "score_o_weight": self.score_o_weight,
+            "score_m_weight": self.score_m_weight,
             "quant_format": self.quant_format,
             "attn_mad_pct_floor": self.attn_mad_pct_floor,
             "attn_mad_q3": self.attn_mad_q3,
             "attn_mad_p99": self.attn_mad_p99,
             "attn_mad_gap_o_max": self.attn_mad_gap_o_max,
             "attn_mad_from_profile": self.attn_mad_from_profile,
+            "sens_veto_percentile": self.sens_veto_percentile,
+            "sens_veto_keep_ratio_gate": self.sens_veto_keep_ratio_gate,
+            "bias_correction_top_ratio": self.bias_correction_top_ratio,
+            "auto_keep_ratio": self.auto_keep_ratio,
+            "fp16_budget_mb": self.fp16_budget_mb,
+            "fp16_budget_bytes": self.fp16_budget_bytes,
+            "n_unet_layers": self.n_unet_layers,
+            "autonomous": self.autonomous,
         }
 
 
@@ -607,10 +709,32 @@ def resolve_veto_tunables(
             f"{derived.get('score_m_weight', 1.0):.3f} "
             f"auto_kr={derived.get('auto_keep_ratio', 0.0):.3f}"
         )
+        print(
+            "  [Auto-optimal replace] "
+            f"drift={(derived.get('drift_veto_thresh', 0)):.4f} "
+            f"(was 0.1..1.0 box → THIS (o_q3-o_med)/o_med) "
+            f"mse_mult={derived.get('mse_p75_multiplier', 0):.4f} "
+            f"(was 1.25..3.0 box → 1+IQR/o) "
+            f"alpha_auto={derived.get('alpha_auto', 0):.4f} "
+            f"α[{derived.get('alpha_floor', 0):.4f}..{derived.get('alpha_clip_max', 0):.4f}] "
+            f"(was 0.5..0.99 box → THIS k ratios) "
+            f"mad_p99={derived.get('attn_mad_p99', 0):.4f} "
+            f"(was ×4 q3 box → THIS attn MAD P99)"
+        )
         return SdxlVetoTunables.from_dict(derived)
-    if profile_summary and isinstance(profile_summary.get("veto_tunables"), dict):
-        return SdxlVetoTunables.from_dict(profile_summary["veto_tunables"])
-    raise ValueError("resolve_veto_tunables: no layer profile available")
+    # Stale precomputed veto_tunables without live layer profile = deleted-clip
+    # hole risk. Always demand layers + re-derive.
+    if profile_summary and isinstance(profile_summary.get("layers"), dict):
+        return resolve_veto_tunables(
+            profile_summary["layers"],
+            dual_monitors=dual_monitors,
+            fp16_budget_mb=fp16_budget_mb,
+        )
+    raise ValueError(
+        "resolve_veto_tunables: need THIS checkpoint layer profile for "
+        "derive_int8_autonomous_tunables (auto analysis → auto-optimal). "
+        "Refuse stale veto_tunables-only load after accommodation-clip purge."
+    )
 
 
 def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
@@ -870,10 +994,10 @@ def _compute_sdxl_int8_mad_attn_veto(
 ) -> set:
     """INT8-only key-pattern + MAD% VETO for attn projections.
 
-    Floors come from derive_veto_tunables_int8 (this checkpoint's MAD%
-    Tukey / Q3). Gap fill: MAD >= Q3 while abs_max/std (o) stays below the
-    auto outlier gate. No hard-coded layer names, no per-model settings.
-    FP8 scripts / derive_veto_tunables (FP8) untouched.
+    Floors come from analyze (THIS checkpoint MAD% Tukey / order stats).
+    If analyze left the MAD axis at 0.0 but THIS UNet has live MAD% > 0,
+    bootstrap continuous floor/q3/gap from THIS model's live MAD pool — never
+    skip the axis after deleting a fixed 15.0, and never invent 15.0.
     """
     mad_floor = (
         float(tunables.attn_mad_pct_floor)
@@ -886,8 +1010,12 @@ def _compute_sdxl_int8_mad_attn_veto(
         if tunables is not None
         else 0.0
     )
+    if tunables is not None and gap_o_max <= 0.0:
+        gap_o_max = float(max(tunables.extreme_outlier, 1e-9))
     prof = norm_profile or {}
-    added = set()
+
+    candidates: list[tuple[str, float, float]] = []
+    live_mads: list[float] = []
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
             continue
@@ -906,10 +1034,35 @@ def _compute_sdxl_int8_mad_attn_veto(
         o = float(entry.get("outlier_ratio", 0) or 0)
         if o <= 0.0 and hasattr(_m, "weight"):
             _, o, _ = _layer_weight_stats(_m.weight.data)
-        # If analyze-derived floor is 0 (old profile, no MAD%), skip MAD path
-        # rather than use a fixed 15.0 — avoids VETO explosion on WAI17.
-        if mad_floor <= 0.0:
-            continue
+        candidates.append((_n, mad_pct, o))
+        if mad_pct > 0.0:
+            live_mads.append(mad_pct)
+
+    # Replace deleted fixed floor: live THIS-UNet MAD pool → continuous gates.
+    if mad_floor <= 0.0 and live_mads:
+        live_sorted = sorted(live_mads)
+        n_live = len(live_sorted)
+        if n_live >= 4:
+            q1 = live_sorted[n_live // 4]
+            q3 = live_sorted[(3 * n_live) // 4]
+            iqr = q3 - q1
+            mad_floor = float(q3 + 1.5 * iqr)
+            mad_q3 = float(q3)
+        else:
+            mad_floor = float(max(live_sorted))
+            mad_q3 = float(live_sorted[n_live // 2])
+        if gap_o_max <= 0.0 and tunables is not None:
+            gap_o_max = float(max(tunables.extreme_outlier, 1e-9))
+        print(
+            f"  [INT8 MAD VETO] Bootstrapped THIS-UNet MAD gates from "
+            f"{n_live} live samples (floor={mad_floor:.2f}, q3={mad_q3:.2f})"
+        )
+
+    if mad_floor <= 0.0:
+        return set()
+
+    added = set()
+    for _n, mad_pct, o in candidates:
         extreme = mad_pct >= mad_floor
         gap = (mad_pct >= mad_q3) and (o < gap_o_max)
         if extreme or gap:
@@ -1301,8 +1454,8 @@ def _apply_fp16_budget_cap(
     veto_tunables: SdxlVetoTunables,
     dual_monitors: dict | None,
     mse_cache: dict | None = None,
-    alpha: float = 0.5,
-    beta: float = 0.5,
+    alpha: float,
+    beta: float,
     device: str = "cuda",
 ) -> tuple[set, set, dict]:
     """Per-model auto analysis → auto-optimal FP16 set inside 300 MiB.
@@ -1310,21 +1463,14 @@ def _apply_fp16_budget_cap(
     Owner hard ceiling: fp16_budget_mb == 300 exactly. Auto settings fill
     that frame; they never redefine it and never exceed it.
 
-    Inputs (both required; neither is discarded):
-      DualMonitor FP16 candidates (calibration sensitivity)
-      Analyze VETO candidates (THIS checkpoint fences / character)
-
-    Auto-optimal settings (inside the fixed 300 MiB frame — never raise it):
-      Per-model auto analysis measures DualMonitor sens + analyze severity
-      + V4 MSE on the union pool for THIS checkpoint.
-      analyze severity MUST stay continuous danger character
-      (int8_fp16_budget_analyze_severity) so derive_priority_combinator can
-      weight the sev axis — flattening Hard VETO to a constant is forbidden.
-      derive_priority_combinator builds THIS model's priority weights from
-      those measured distributions (auto-optimal ranking — not a fixed order).
-      Fill the 300 MiB frame by that ranking. Analyze VETO that lose are
-      demoted; DualMonitor winners stay FP16 keep (not renamed VETO).
+    alpha/beta MUST be THIS-profile auto-optimal (caller passes
+    veto_tunables.alpha_auto mix). Fixed 0.5/0.5 defaults are forbidden.
     """
+    if not math.isfinite(float(alpha)) or not math.isfinite(float(beta)):
+        raise ValueError(
+            f"_apply_fp16_budget_cap: alpha/beta must be finite auto-optimal "
+            f"(got alpha={alpha}, beta={beta})"
+        )
     budget_mb = _require_fp16_budget_mb_hard(budget_mb)
     analyze_dir = os.path.join(current_dir, "analyze")
     if analyze_dir not in sys.path:
@@ -2031,8 +2177,8 @@ def main():
         default=None,
         help="Fraction of INT8 layers (by DualMonitor sensitivity, highest first) "
              "that receive bias correction. Default: None = autonomous "
-             "(derive_int8_autonomous_tunables: 1.0 normally, 0.5 if sensitivity "
-             "iqr > 5×median to avoid DC injection on noisy layers).",
+             "(derive_int8_autonomous_tunables: Tukey lower fence of THIS "
+             "DualMonitor sensitivity — scope = fraction at/above fence).",
     )
     parser.add_argument(
         "--asymmetric_int8",
@@ -2173,7 +2319,7 @@ def main():
         print(
             f"  [Autonomous bias_correction_top_ratio] "
             f"{args.bias_correction_top_ratio:.2f} "
-            f"(1.0 unless sens iqr > 5×median)"
+            f"(THIS DualMonitor Tukey lower-fence scope — auto-optimal)"
         )
     print(f"  [Veto Tunables INT8] {veto_tunables.as_dict()}")
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy_int8(
