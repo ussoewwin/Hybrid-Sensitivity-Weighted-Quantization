@@ -700,17 +700,16 @@ def _mad_continuous_fences_from_positives(
     """THIS-pool MAD% → (floor, soft_gap, p99, collapse, iqr).
 
     Philosophy §1 / §14: auto analysis → infinite-branch auto-optimal.
-    Not a fixed Tukey recipe, not tip-as-floor (that kills MAD branching).
+    Restores the WAI SSIM≥0.98 MAD gate fingerprint continuously:
+      hard floor = THIS MAD P75 / Q3   (never tip-as-floor, never fixed 0.59)
+      soft       = same Q3            (soft band unused when floor==soft)
+      P99        = tip / severity reference only
+      Tukey/IQR  = shape fingerprint (collapse) — not the VETO hard gate
 
-    Role split (THIS continuous, recomputed every checkpoint):
-      collapse = 1 - IQR / (IQR + (P99−P50))   ∈ [0, 1]  (shape fingerprint)
-      floor    = THIS Tukey body fence          (never P99)
-      soft     = (1−collapse²)·Q3 + collapse²·Tukey
-      P99      = tip / severity reference only
-
-    Healthy IQR → soft≈Q3, hard=Tukey. Dead IQR → soft→Tukey (more body-fence
-    capture) while mid-MAD% layers still branch into Auton. hard VETO.
-    Different MAD shapes ⇒ different Tukey/Q3/collapse vectors.
+    Raising hard to Tukey (q3+iqr) lifted the gate above the body mass and
+    dropped measured SSIM to ~0.96 on the same pool that hit floor=Q3≈0.588
+    at the 0.98 path (log/wai17_c5582eb…). Different MAD shapes ⇒ different
+    THIS Q3 floors (infinite branch), no hardcoded WAI literals.
     """
     mad_sorted = _sorted_pool(positives)
     n = len(positives)
@@ -719,17 +718,16 @@ def _mad_continuous_fences_from_positives(
         body = float(_safe_percentile(positives, 50.0))
         return peak, body, peak, 1.0, 0.0
     q1, _med, q3_raw = _quartile_bounds(mad_sorted)
-    mad_tukey = float(_tukey_upper(mad_sorted))
+    # Prefer P75 for hard gate — matches c5582eb derive_veto_tunables_int8.
+    mad_q3 = float(_safe_percentile(positives, 75.0))
     mad_p99 = float(_safe_percentile(positives, 99.0))
     mad_p50 = float(_safe_percentile(positives, 50.0))
     iqr = float(max(q3_raw - q1, 0.0))
     tail_span = float(max(mad_p99 - mad_p50, 1e-12))
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
-    # Hard: THIS Tukey only — P99 tip must not become the VETO floor.
-    mad_floor = float(mad_tukey)
-    c2 = float(collapse * collapse)
-    mad_soft = float((1.0 - c2) * q3_raw + c2 * mad_tukey)
-    mad_soft = float(min(mad_soft, mad_floor))
+    # Hard = THIS body mass (Q3). P99 / Tukey must not become the VETO floor.
+    mad_floor = float(mad_q3)
+    mad_soft = float(mad_q3)
     return mad_floor, mad_soft, mad_p99, collapse, iqr
 
 
@@ -740,9 +738,9 @@ def _mad_tunables_from_positive_samples(
     """THIS-sample MAD% → auto-optimal floor/soft/p99 (any n≥1).
 
     Deleting the old ×N floor and writing 0.0 when n<4 is forbidden
-    (philosophy §0 / 「固定をただ消すな」). Soft-gap thresh is stored in
-    ``attn_mad_q3`` (Q3→Tukey by collapse; NOT raw Q3 when IQR is dead).
-    Hard floor is THIS Tukey (NOT tip-as-floor). P99 = severity ref only.
+    (philosophy §0 / 「固定をただ消すな」). Hard floor and soft-gap thresh
+    are THIS MAD Q3/P75 (c5582eb 0.98 path). P99 = severity tip only —
+    never tip-as-floor, never fixed WAI numbers.
 
     Zero positive samples → axis off (no invent).
     """
