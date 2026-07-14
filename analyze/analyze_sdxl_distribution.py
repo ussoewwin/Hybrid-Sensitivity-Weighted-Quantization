@@ -426,6 +426,75 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
     return base
 
 
+def _alpha_auto_from_kurtosis_order(
+    k_p50: float, k_p75: float, k_p99: float
+) -> float:
+    """Kurtosis-order component of Full-SVD×RMS mix (THIS profile only).
+
+    Positive median → classical body/tail ratio. Non-positive median with
+    positive P99 → continuous upper-mass share. Forced 0 is reserved for
+    a truly empty kurtosis axis — callers blend other THIS axes so SVD is
+    not thought-stopped by a single dead median.
+    """
+    k_p50 = float(k_p50)
+    k_p75 = float(k_p75)
+    k_p99 = float(k_p99)
+    if k_p99 <= 1e-12:
+        return 0.0
+    if k_p50 > 0.0:
+        return float(min(max(k_p50 / k_p99, 0.0), 1.0))
+    if k_p75 > 0.0:
+        return float(min(max(k_p75 / k_p99, 0.0), 1.0))
+    body_gap = float(abs(k_p50))
+    upper = float(max(k_p99, 0.0))
+    return float(min(max(upper / (upper + body_gap + 1e-12), 0.0), 1.0))
+
+
+def _alpha_auto_from_this_character(
+    *,
+    k_p50: float,
+    k_p75: float,
+    k_p99: float,
+    o_p50: float,
+    o_p75: float,
+    o_p99: float,
+    m_p50: float,
+    m_p75: float,
+    m_p99: float,
+    iqr_k: float,
+    iqr_o: float,
+    iqr_m: float,
+) -> float:
+    """Full-SVD×RMS mix from THIS multi-axis analyze character (continuous).
+
+    Uses kurtosis order + outlier + magnitude dispersion of THIS checkpoint.
+    Axis weights = THIS IQR / THIS scale (same spirit as score_*_weight).
+    Infinite pattern space: every checkpoint gets its own alpha_auto; no
+    fixed 0.7 / forced-off recipe. When the profile is degenerate (all axes
+    flat), alpha_auto may resolve to 0.0 — this only scales the SVD-leverage
+    contribution to zero in the mix; it NEVER skips Full-SVD computation
+    (philosophy §0/§4/§5: never skip V4). weighted_histogram_mse_v4 always
+    runs torch.linalg.svd regardless of alpha so DualMonitor / V4 MSE /
+    ranking see real structural leverage, not RMS-only handwave.
+    """
+    s_k = _alpha_auto_from_kurtosis_order(k_p50, k_p75, k_p99)
+    if float(o_p99) > 1e-12:
+        s_o = float(min(max(float(iqr_o) / max(float(o_p99), 1e-12), 0.0), 1.0))
+    else:
+        s_o = 0.0
+    if float(m_p99) > 1e-12:
+        s_m = float(min(max(float(iqr_m) / max(float(m_p99), 1e-12), 0.0), 1.0))
+    else:
+        s_m = 0.0
+
+    w_k = float(iqr_k) / max(abs(float(k_p75)), 1e-9)
+    w_o = float(iqr_o) / max(float(o_p75), 1e-9)
+    w_m = float(iqr_m) / max(float(m_p50), 1e-9)
+    w_sum = max(w_k + w_o + w_m, 1e-9)
+    alpha = (w_k * s_k + w_o * s_o + w_m * s_m) / w_sum
+    return float(min(max(alpha, 0.0), 1.0))
+
+
 def _derive_engine_tunables_int8(
     all_k: List[float],
     all_o: List[float],
@@ -488,6 +557,31 @@ def _derive_engine_tunables_int8(
         1e-9,
     )
 
+    # Full-SVD×RMS mix from THIS multi-axis character (kurtosis∪outlier∪mag).
+    k_p50 = float(k_med)
+    k_p75 = float(k_q3)
+    k_p99 = float(_percentile_asc(k_sorted, 99.0))
+    o_p50 = float(o_med)
+    o_p75 = float(o_q3)
+    o_p99 = float(_percentile_asc(o_sorted, 99.0))
+    m_p50 = float(m_med)
+    m_p75 = float(m_q3)
+    m_p99 = float(_percentile_asc(m_sorted, 99.0))
+    alpha_auto = _alpha_auto_from_this_character(
+        k_p50=k_p50,
+        k_p75=k_p75,
+        k_p99=k_p99,
+        o_p50=o_p50,
+        o_p75=o_p75,
+        o_p99=o_p99,
+        m_p50=m_p50,
+        m_p75=m_p75,
+        m_p99=m_p99,
+        iqr_k=iqr_k,
+        iqr_o=iqr_o,
+        iqr_m=iqr_m,
+    )
+
     return {
         "drift_veto_thresh": float(drift_veto_thresh),
         "drift_score_mult": float(drift_score_mult),
@@ -518,6 +612,7 @@ def _derive_engine_tunables_int8(
         "alpha_clip_max": float(alpha_clip_max),
         "beta_floor": float(beta_floor),
         "beta_clip_max": float(beta_clip_max),
+        "alpha_auto": float(alpha_auto),
         "ff2_suffix_min_count": max(1, (n + 19) // 20),
         "score_k_weight": float(iqr_k / max(k_w_den, 1e-9)),
         "score_o_weight": float(iqr_o / max(o_w_den, 1e-9)),
@@ -1465,12 +1560,21 @@ def derive_int8_autonomous_tunables(
     base["alpha_clip_max"] = float(max(k_scale_a * k_p99, alpha_floor))
     base["beta_clip_max"] = float(max(o_scale_a * o_p99, beta_floor))
 
-    # ---- alpha_auto: V4 mix from THIS kurtosis shape (ratio is continuous) ----
-    # median <= 0 → flat → 0.0; else k_p50/k_p99 of THIS profile (already ≤1).
-    if k_p50 > 0.0 and k_p99 > 0.0:
-        base["alpha_auto"] = float(max(k_p50 / k_p99, 0.0))
-    else:
-        base["alpha_auto"] = 0.0
+    # ---- alpha_auto: Full-SVD×RMS from THIS multi-axis analyze character ----
+    base["alpha_auto"] = _alpha_auto_from_this_character(
+        k_p50=k_p50,
+        k_p75=k_p75,
+        k_p99=k_p99,
+        o_p50=o_p50,
+        o_p75=o_p75,
+        o_p99=o_p99,
+        m_p50=m_p50,
+        m_p75=m_p75,
+        m_p99=m_p99,
+        iqr_k=iqr_k,
+        iqr_o=iqr_o,
+        iqr_m=iqr_m,
+    )
 
     # ---- search_low: INT8 pack is absmax (1.0). No clipping. ----
     base["search_low_floor"] = 1.0
@@ -1710,15 +1814,18 @@ def measure_v4_int8_mse_at_absmax(
             "device": device,
         }
 
-    # Match v3.0: alpha=0, beta=1 → pure calibration magnitude × DualMonitor.
+    # alpha_auto from THIS profile → Full-SVD×RMS; DualMonitor Imp multiplies.
+    alpha = float(tunables.get("alpha_auto", 0.0))
+    alpha = float(min(max(alpha, 0.0), 1.0))
+    beta = 1.0 - alpha
     quantizer = INT8Quantizer(device=device)
     optimizer = HSWQWeightedHistogramOptimizerV4(
         bins=8192,
         num_candidates=1000,
         refinement_iterations=10,
         device=device,
-        alpha=0.0,
-        beta=1.0,
+        alpha=alpha,
+        beta=beta,
         quantizer=quantizer,
     )
     search_range = (1.0, 1.0)
@@ -1865,8 +1972,15 @@ def measure_v4_int8_mse_at_absmax(
         "bins": 8192,
         "num_candidates": 1000,
         "pack_point": "absmax",
-        "alpha": 0.0,
-        "beta": 1.0,
+        "alpha": alpha,
+        "beta": beta,
+        "use_svd_leverage": True,
+        # NEVER report svd_enabled=False (philosophy §0/§4/§5: never skip V4).
+        # weighted_histogram_mse_v4.compute_hybrid_leverage_scores ALWAYS runs
+        # torch.linalg.svd regardless of alpha; alpha only scales the SVD-leverage
+        # contribution in the SVD×RMS mix. bool(alpha > 0.0) would be a lying
+        # "SVD skipped" flag — sacrilege. Full-SVD always executes.
+        "svd_enabled": True,
         "dualmonitor_importance": True,
         "calib_contract": {
             "num_calib_samples": 32,
@@ -1903,15 +2017,15 @@ def compute_int8_optimal_settings(
     device: Optional[str] = None,
     importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
 ) -> Dict[str, Any]:
-    """Auto optimal INT8 settings = analyze × V4 × DualMonitor (r32 calib).
+    """Auto optimal INT8 settings = analyze × V4 SVD×Imp × DualMonitor (r32).
 
     Triple contract (no shortcuts):
-      1) analyze derive_veto_tunables_int8 (weight-space gates)
-      2) V4 + INT8Quantizer estimated_mse @ absmax
+      1) analyze derive_int8_autonomous_tunables (weight-space + alpha_auto)
+      2) V4 Full-SVD×RMS + INT8Quantizer estimated_mse @ absmax
       3) DualMonitor channel_importance from 32-sample / 25-step calibration
     """
     unet_prof = _unet_only_profile(profile)
-    tunables = derive_veto_tunables_int8(unet_prof)
+    tunables = derive_int8_autonomous_tunables(unet_prof)
     layers = unet_prof.get("layers", {})
 
     optimal: Dict[str, Any] = {
@@ -1937,14 +2051,19 @@ def compute_int8_optimal_settings(
             "attn_ff2_absmax": float(tunables["attn_ff2_absmax"]),
             "attn_mad_pct_floor": float(tunables.get("attn_mad_pct_floor", 0.0)),
             "attn_mad_p99": float(tunables.get("attn_mad_p99", 0.0)),
+            "alpha_auto": float(tunables.get("alpha_auto", 0.0)),
             "unet_layer_count": len(layers),
         },
         "v4": {
             "required": True,
-            "role": "MSE-guided VETO at absmax with DualMonitor importance",
+            "role": (
+                "MSE-guided VETO @ absmax: Full-SVD×RMS "
+                "(alpha_auto) × DualMonitor importance"
+            ),
             "quantizer": "INT8Quantizer",
             "optimizer": "HSWQWeightedHistogramOptimizerV4",
             "search_range": [1.0, 1.0],
+            "use_svd_leverage": True,
         },
     }
 
@@ -1957,10 +2076,42 @@ def compute_int8_optimal_settings(
         )
         optimal["v4"].update(v4)
         if v4.get("complete") and "mse_release_threshold" in v4:
-            optimal["recommended_mse_release_threshold"] = float(
-                v4["mse_release_threshold"]
-            )
-            optimal["recommended_safe_p75_mse"] = float(v4["safe_p75_mse"])
+            # SVD-aware V4 MSE → auto-optimal release / priority seed.
+            p75 = float(v4["safe_p75_mse"])
+            thr = float(v4["mse_release_threshold"])
+            optimal["recommended_mse_release_threshold"] = thr
+            optimal["recommended_safe_p75_mse"] = p75
+            optimal["svd_enabled"] = bool(v4.get("svd_enabled", True))
+            optimal["v4_alpha"] = float(v4.get("alpha", 0.0))
+            optimal["v4_beta"] = float(v4.get("beta", 1.0))
+            tunables["recommended_mse_release_threshold"] = thr
+            tunables["recommended_safe_p75_mse"] = p75
+            tunables["v4_svd_enabled"] = bool(v4.get("svd_enabled", True))
+            tunables["v4_alpha"] = float(v4.get("alpha", 0.0))
+            tunables["v4_beta"] = float(v4.get("beta", 1.0))
+            # Re-seed priority MSE axis from THIS SVD V4 safe sample.
+            mse_vals = [
+                float(d["estimated_mse"])
+                for d in (v4.get("safe_detail") or [])
+                if isinstance(d, dict) and "estimated_mse" in d
+            ]
+            if len(mse_vals) >= 4:
+                m_p50 = float(_safe_percentile(mse_vals, 50.0))
+                m_iqr = float(_robust_iqr(mse_vals))
+                sev_p50 = float(tunables.get("_sev_p50", 0.0) or 0.0)
+                sev_iqr = float(tunables.get("_sev_iqr", 0.0) or 0.0)
+                combinator = derive_priority_combinator(
+                    sens_iqr=0.0,
+                    sev_iqr=sev_iqr,
+                    mse_iqr=m_iqr,
+                    sens_p50=0.0,
+                    sev_p50=sev_p50,
+                    mse_p50=m_p50,
+                )
+                tunables["priority_combinator"] = combinator
+                optimal["priority_combinator"] = combinator
+                optimal["v4_mse_p50"] = m_p50
+                optimal["v4_mse_iqr"] = m_iqr
             optimal["complete"] = True
         else:
             optimal["complete"] = False
@@ -2054,6 +2205,10 @@ def enrich_profile_with_derived(
         "v4_reason": v4opt.get("reason"),
         "v4_safe_p75_mse": v4opt.get("safe_p75_mse"),
         "v4_mse_release_threshold": v4opt.get("mse_release_threshold"),
+        "v4_svd_enabled": v4opt.get("svd_enabled"),
+        "v4_alpha": v4opt.get("alpha"),
+        "v4_beta": v4opt.get("beta"),
+        "alpha_auto": float(i8.get("alpha_auto", 0.0)),
     }
     return profile
 
@@ -2119,7 +2274,10 @@ def main() -> None:
         f"mse_p75_mult={summary.get('int8_mse_p75_multiplier')} "
         f"v4_ran={summary.get('v4_ran')} "
         f"v4_p75_mse={summary.get('v4_safe_p75_mse')} "
-        f"v4_threshold={summary.get('v4_mse_release_threshold')}"
+        f"v4_threshold={summary.get('v4_mse_release_threshold')} "
+        f"svd={summary.get('v4_svd_enabled')} "
+        f"alpha_auto={summary.get('alpha_auto')} "
+        f"v4_α/β={summary.get('v4_alpha')}/{summary.get('v4_beta')}"
     )
 
 
