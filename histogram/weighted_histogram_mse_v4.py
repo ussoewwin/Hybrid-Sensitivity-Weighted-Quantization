@@ -301,33 +301,31 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
     if mag_norm > 0:
         magnitude_2d = magnitude_2d / mag_norm
 
-    # alpha<=0: pure magnitude (alpha_auto=0 path). Skip Full-SVD.
-    if alpha <= 0.0:
-        if w_float.shape[0] > 100 or w_float.shape[1] > 100:
-            print(
-                f"  [Hybrid RMS-only] shape {w_float.shape} "
-                f"[alpha={alpha}, beta={beta}] (SVD skipped)"
-            )
-        hybrid_importance = beta * magnitude_2d if beta != 0.0 else magnitude_2d
-    else:
-        if w_float.shape[0] > 100 or w_float.shape[1] > 100:
-            print(
-                f"  [Hybrid Full-SVD/RMS] Executing torch.linalg.svd and RMS "
-                f"blending on shape {w_float.shape} [alpha={alpha}, beta={beta}]..."
-            )
+    # NEVER skip V4 / never skip Full-SVD×RMS (philosophy §0, §4, §5).
+    # alpha is the MIX WEIGHT between SVD leverage and RMS magnitude, NOT a
+    # switch that turns SVD on/off. Even when alpha_auto degenerates to 0.0
+    # (flat k∪o∪m profile), Full-SVD still executes — its contribution is
+    # simply scaled to zero by alpha, but the structural-leverage path is
+    # always computed so DualMonitor / V4 MSE / ranking see real structure.
+    # No "RMS-only shortcut", no "alpha<=0 skip" handwave.
+    if w_float.shape[0] > 100 or w_float.shape[1] > 100:
+        print(
+            f"  [Hybrid Full-SVD×RMS] Executing torch.linalg.svd and RMS "
+            f"blending on shape {w_float.shape} [alpha={alpha}, beta={beta}]..."
+        )
 
-        # --- SVD Leverage (full: σ^2 weighted) ---
-        U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
-        S_sq = S ** 2
-        row_scores = (U ** 2) @ S_sq.unsqueeze(1)
-        col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1)
-        leverage_2d = row_scores * col_scores.T
+    # --- SVD Leverage (full: σ^2 weighted) ---
+    U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
+    S_sq = S ** 2
+    row_scores = (U ** 2) @ S_sq.unsqueeze(1)
+    col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1)
+    leverage_2d = row_scores * col_scores.T
 
-        lev_norm = torch.norm(leverage_2d, p=2)
-        if lev_norm > 0:
-            leverage_2d = leverage_2d / lev_norm
+    lev_norm = torch.norm(leverage_2d, p=2)
+    if lev_norm > 0:
+        leverage_2d = leverage_2d / lev_norm
 
-        hybrid_importance = (alpha * leverage_2d) + (beta * magnitude_2d)
+    hybrid_importance = (alpha * leverage_2d) + (beta * magnitude_2d)
 
     # --- 5. Histogram scale normalization ---
     # Scale so mean ~1.0 and histogram area matches weight count
