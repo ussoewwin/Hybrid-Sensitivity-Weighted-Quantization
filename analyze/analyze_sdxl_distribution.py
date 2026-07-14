@@ -19,7 +19,7 @@ import math
 import os
 import sys
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -810,6 +810,84 @@ def derive_priority_combinator(
         "align_sev": float(align_v) if align_v is not None else None,
         "align_mse": float(align_m) if align_m is not None else None,
     }
+
+
+# Key-pattern families where DualMonitor may under-measure one sibling while
+# another of the SAME architectural key is measured high on THIS checkpoint.
+# Ranking repair only — not a fixed KEEP / force-complete recipe.
+_KEYPATTERN_FAMILY_SENS_SUFFIXES = (
+    ".upsamplers.0.conv",
+    ".downsamplers.0.conv",
+    ".conv_in",
+    ".conv_out",
+)
+
+
+def apply_keypattern_family_sens_floor(
+    measured: List[Tuple[str, float, float, float, int]],
+    *,
+    family_suffixes: Sequence[str] = _KEYPATTERN_FAMILY_SENS_SUFFIXES,
+) -> Tuple[List[Tuple[str, float, float, float, int]], List[Dict[str, Any]]]:
+    """Floor DualMonitor ranking_sens within a key-pattern family on THIS pool.
+
+    For each architectural suffix with ≥2 measured members: if THIS family's
+    DualMonitor range is skewed relative to its own median
+    `(max − min) ≥ family_median`, members below that median use
+    `ranking_sens = max(dm_sens, family_median)`. Derived from THIS
+    checkpoint's measured DualMonitor values only — no model-name map,
+    no absolute KEEP, no fixed density-greedy refill.
+    """
+    if not measured:
+        return list(measured), []
+    by_suf: Dict[str, List[int]] = {}
+    for i, row in enumerate(measured):
+        name = str(row[0])
+        for suf in family_suffixes:
+            if name.endswith(suf):
+                by_suf.setdefault(suf, []).append(i)
+                break
+    out = [list(row) for row in measured]
+    repairs: List[Dict[str, Any]] = []
+    for suf, idxs in by_suf.items():
+        if len(idxs) < 2:
+            continue
+        sens = [max(float(out[i][1]), 0.0) for i in idxs]
+        s_max = max(sens)
+        s_min = min(sens)
+        _sorted = sorted(sens)
+        _n = len(_sorted)
+        if _n % 2 == 1:
+            fam_p50 = float(_sorted[_n // 2])
+        else:
+            fam_p50 = 0.5 * float(_sorted[_n // 2 - 1] + _sorted[_n // 2])
+        if fam_p50 <= 0.0:
+            continue
+        # Skew from THIS family's own median scale only (no fixed ratio gate).
+        span = float(s_max - s_min)
+        if span < fam_p50:
+            continue
+        for i, s in zip(idxs, sens):
+            if s >= fam_p50:
+                continue
+            ranking = max(s, fam_p50)
+            if ranking <= s:
+                continue
+            out[i][1] = ranking
+            repairs.append({
+                "name": str(out[i][0]),
+                "suffix": suf,
+                "dm_sens": float(s),
+                "ranking_sens": float(ranking),
+                "family_p50": float(fam_p50),
+                "family_max": float(s_max),
+                "family_min": float(s_min),
+                "skew_span": span,
+            })
+    restored = [
+        (str(r[0]), float(r[1]), float(r[2]), float(r[3]), int(r[4]))
+        for r in out
+    ]
+    return restored, repairs
 
 
 def int8_fp16_budget_priority(

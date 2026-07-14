@@ -225,26 +225,26 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
     UNET_MAP_ATTENTIONS = {"proj_in.weight", "proj_in.bias", "proj_out.weight", "proj_out.bias", "norm.weight", "norm.bias"}
     TRANSFORMER_BLOCKS = {"norm1.weight", "norm1.bias", "norm2.weight", "norm2.bias", "norm3.weight", "norm3.bias", "attn1.to_q.weight", "attn1.to_q.bias", "attn1.to_k.weight", "attn1.to_k.bias", "attn1.to_v.weight", "attn1.to_v.bias", "attn1.to_out.0.weight", "attn1.to_out.0.bias", "attn2.to_q.weight", "attn2.to_k.weight", "attn2.to_v.weight", "attn2.to_out.0.weight", "attn2.to_out.0.bias", "ff.net.0.proj.weight", "ff.net.0.proj.bias", "ff.net.2.weight", "ff.net.2.bias"}
     UNET_MAP_BASIC = {("label_emb.0.0.weight", "add_embedding.linear_1.weight"), ("label_emb.0.0.bias", "add_embedding.linear_1.bias"), ("label_emb.0.2.weight", "add_embedding.linear_2.weight"), ("label_emb.0.2.bias", "add_embedding.linear_2.bias"), ("input_blocks.0.0.weight", "conv_in.weight"), ("input_blocks.0.0.bias", "conv_in.bias"), ("out.0.weight", "conv_norm_out.weight"), ("out.0.bias", "conv_norm_out.bias"), ("out.2.weight", "conv_out.weight"), ("out.2.bias", "conv_out.bias"), ("time_embed.0.weight", "time_embedding.linear_1.weight"), ("time_embed.0.bias", "time_embedding.linear_1.bias"), ("time_embed.2.weight", "time_embedding.linear_2.weight"), ("time_embed.2.bias", "time_embedding.linear_2.bias")}
-    # Full map of tensors that exist in state_dict. Diffusers names are created
-    # only for those real Comfy keys — no invented Diffusers module names.
-    if state_dict is not None:
-        _sd_keys = set(state_dict.keys())
-        _comfy_bare = {
-            (k[len(key_prefix):] if k.startswith(key_prefix) else k)
-            for k in _sd_keys
-        }
-    else:
-        _sd_keys = None
-        _comfy_bare = None
+    # Map only tensors present in this checkpoint's state_dict (auto from weights).
+    # No invented Diffusers names, no fixed KEEP list, no inject.
+    if state_dict is None:
+        raise RuntimeError(
+            "unet_to_diffusers_mapping requires state_dict; refuse maps without "
+            "Comfy presence checks"
+        )
+    _sd_keys = set(state_dict.keys())
+    _comfy_bare = {
+        (k[len(key_prefix):] if k.startswith(key_prefix) else k)
+        for k in _sd_keys
+    }
 
     def _comfy_present(comfy_bare: str) -> bool:
-        if _comfy_bare is None:
-            return True
         return comfy_bare in _comfy_bare or f"{key_prefix}{comfy_bare}" in _sd_keys
 
     def _map_put(diff_key: str, comfy_bare: str) -> None:
-        if _comfy_present(comfy_bare):
-            diffusers_unet_map[diff_key] = comfy_bare
+        if not _comfy_present(comfy_bare):
+            return
+        diffusers_unet_map[diff_key] = comfy_bare
 
     diffusers_unet_map = {}
     for x in range(num_blocks):
@@ -320,21 +320,27 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
                             "up_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b),
                             "output_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b),
                         )
-            # Upsample conv: map Diffusers upsamplers only when the Comfy
-            # output_blocks.{n}.{c}.conv tensors exist in state_dict.
+            # Upsample: only if this checkpoint has that Comfy conv (presence).
+            # Missing tensor → no Diffusers entry.
             if i == l - 1:
-                if _comfy_present("output_blocks.{}.{}.conv.weight".format(n, c)):
-                    for k in ["weight", "bias"]:
-                        _map_put(
-                            "up_blocks.{}.upsamplers.0.conv.{}".format(x, k),
-                            "output_blocks.{}.{}.conv.{}".format(n, c, k),
-                        )
+                for k in ["weight", "bias"]:
+                    _map_put(
+                        "up_blocks.{}.upsamplers.0.conv.{}".format(x, k),
+                        "output_blocks.{}.{}.conv.{}".format(n, c, k),
+                    )
             n += 1
     for k, v in UNET_MAP_BASIC:
         _map_put(v, k)
+    for _dk, _ck in diffusers_unet_map.items():
+        if not _comfy_present(_ck):
+            raise RuntimeError(
+                f"Map integrity FATAL: mapped Comfy key {_ck!r} absent in checkpoint"
+            )
     comfyui_to_diffusers_map = {v: k for k, v in diffusers_unet_map.items()}
     comfyui_to_diffusers_map = {f"{key_prefix}{k}": v for k, v in comfyui_to_diffusers_map.items()}
+
     return comfyui_to_diffusers_map
+
 
 def load_unet_from_safetensors(path, device="cuda"):
     print(f"Loading model: {path}")
@@ -366,7 +372,15 @@ def calculate_kurtosis(tensor):
     return torch.mean(((tensor - mean) / std) ** 4).item()
 
 # --- V3.0 SDXL INT8 autonomous engine tunables ---
-_SDXL_KP_BOUNDARY_SUFFIXES = (".conv_in", ".conv_out")
+# Architectural boundary Conv2d keys (not Linear). Resolution resample is the
+# same class of unet boundary as conv_in/conv_out; Linear-only walk previously
+# made documented .conv_in/.conv_out key-pattern dead code (手抜き).
+_SDXL_KP_BOUNDARY_SUFFIXES = (
+    ".conv_in",
+    ".conv_out",
+    ".upsamplers.0.conv",
+    ".downsamplers.0.conv",
+)
 _SDXL_KP_PREFIXES = ("time_embedding.", "add_embedding.")
 _SDXL_ATTN_PROJ_SUFFIXES = (".to_q", ".to_k", ".to_v")
 _SDXL_ATTN_TOOUT_SUFFIX = ".to_out.0"
@@ -728,21 +742,26 @@ def _compute_sdxl_keypattern_veto(
     tunables: SdxlVetoTunables,
     norm_profile: dict | None = None,
 ) -> set:
-    """SDXL key-pattern VETO: embeddings, boundaries, profile-tuned ff2 class."""
+    """SDXL key-pattern VETO: embeddings, boundary Conv2d, profile-tuned ff2.
+
+    Boundary suffixes apply to Conv2d (and any module whose name ends with the
+    suffix). Linear-only iteration previously never reached .conv_in/.conv_out
+    or resolution resample — that dead path is forbidden hand-waving.
+    """
     added = set()
     ff2_suffixes = _discover_ff2_suffixes(norm_profile)
     for _n, _m in model.named_modules():
-        if not isinstance(_m, torch.nn.Linear):
-            continue
         if _n in hard_veto_layers:
+            continue
+        if isinstance(_m, torch.nn.Conv2d) and _n.endswith(_SDXL_KP_BOUNDARY_SUFFIXES):
+            added.add(_n)
+            print(f"    [Key-Pattern VETO] {_n} (boundary Conv2d)")
+            continue
+        if not isinstance(_m, torch.nn.Linear):
             continue
         if any(_n.startswith(p) for p in _SDXL_KP_PREFIXES):
             added.add(_n)
             print(f"    [Key-Pattern VETO] {_n} (embedding)")
-            continue
-        if _n.endswith(_SDXL_KP_BOUNDARY_SUFFIXES):
-            added.add(_n)
-            print(f"    [Key-Pattern VETO] {_n} (boundary)")
             continue
         if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
             # V3.0 INT8: skip full-class auto (inflates file size on SDXL);
@@ -1311,6 +1330,7 @@ def _apply_fp16_budget_cap(
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import (
+        apply_keypattern_family_sens_floor,
         build_int8_analyze_character_table,
         int8_fp16_budget_analyze_severity,
         int8_fp16_budget_priority,
@@ -1435,6 +1455,24 @@ def _apply_fp16_budget_cap(
 
         measured.append((name, dm_sens, v4_mse, severity, extra))
 
+    # Within key-pattern families on THIS measured pool: DualMonitor can
+    # under-rank one sibling (e.g. ups.1) while another (ups.0) is live.
+    # Floor ranking_sens to family_p50 when THIS family is skewed — analysis
+    # of DualMonitor values only (not density-greedy / not force KEEP).
+    measured, family_sens_repairs = apply_keypattern_family_sens_floor(measured)
+    if family_sens_repairs:
+        print(
+            f"  [Family sens floor] repaired {len(family_sens_repairs)} "
+            f"DualMonitor under-measures within key-pattern families:"
+        )
+        for _r in family_sens_repairs[:12]:
+            print(
+                f"    {_r['name']}: dm={_r['dm_sens']:.6g} → "
+                f"rank={_r['ranking_sens']:.6g} "
+                f"(family_p50={_r['family_p50']:.6g}, "
+                f"span={_r.get('skew_span', float('nan')):.6g})"
+            )
+
     # Per-checkpoint combinator from MEASURED sens/sev/mse for THIS model
     # (auto analysis → auto-optimal priority weights; not a fixed formula).
     # Pass Hard VETO masks so anti-aligned axes (e.g. DualMonitor sens that
@@ -1543,6 +1581,8 @@ def _apply_fp16_budget_cap(
             "mse": combinator.get("align_mse"),
         },
         "ranking": "per_model_auto_analysis_priority_inside_300mib",
+        "family_sens_floor_repairs": len(family_sens_repairs),
+        "family_sens_floor_detail": family_sens_repairs[:32],
         "hard_ceiling_mb": FP16_BUDGET_MB_HARD,
         "slack_bytes": max(budget_bytes - used, 0),
         "slack_mb": max(budget_bytes - used, 0) / (1024 * 1024),
@@ -2232,20 +2272,24 @@ def main():
             mse_cache=mse_cache,
         )
 
-    # Map-integrity: modules come from the Comfy↔Diffusers map values
-    # (not a second lookup over the full ckpt). up_blocks.0/1.upsamplers.0.conv
-    # are in this set whenever output_blocks.*.*.conv was mapped — KEEP must
-    # remain FP16-savable and must not be stripped as orphan.
+    # Map integrity: KEEP names must be Comfy-mapped. Live Diffusers
+    # upsamplers.0.conv come from this UNet (not a hardcoded layer list).
     mapped_weight_modules = set()
     for dk in comfyui_to_diffusers_map.values():
         if isinstance(dk, str) and dk.endswith(".weight"):
             mapped_weight_modules.add(dk[:-7])
-    for _ups in (
-        "up_blocks.0.upsamplers.0.conv",
-        "up_blocks.1.upsamplers.0.conv",
-    ):
-        if _ups in mapped_weight_modules:
-            print(f"  [Map integrity] {_ups} mapped → KEEP eligible for FP16 save")
+    for _name, _mod in model.named_modules():
+        if not _name.endswith("upsamplers.0.conv"):
+            continue
+        if not isinstance(_mod, torch.nn.Conv2d):
+            continue
+        if _name not in mapped_weight_modules:
+            raise RuntimeError(
+                f"Map integrity FATAL: Diffusers module {_name!r} exists on UNet "
+                f"but has no Comfy map entry — fix unet_to_diffusers_mapping "
+                f"(refuse invent / refuse leave unmapped)"
+            )
+        print(f"  [Map integrity] {_name} mapped")
     orphan_before = keep_layers - mapped_weight_modules
     if orphan_before:
         print(
@@ -2256,7 +2300,7 @@ def main():
             print(f"    unmapped: {n}")
         raise RuntimeError(
             f"Map integrity: {len(orphan_before)} unmapped keep layer(s); "
-            f"refusing to exclude — fix unet_to_diffusers_mapping"
+            f"refuse exclude — fix unet_to_diffusers_mapping"
         )
 
     # Hard ceiling: FP16 overhead vs all-INT8 must stay within budget.
