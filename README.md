@@ -27,7 +27,6 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 ## How to quantize
 
 - **SDXL (FP8):** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md)
-- **SDXL (INT8):** [HSWQ INT8 SDXL Technical Guide](md/HSWQ_INT8_SDXL_Technical_Guide.md) — `quantize_sdxl_hswq_v3.0.py` (keep ratio **0**; Card 3 `--per_channel_int8` optional)
 - **Z Image / Z-Anime (FP8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md)
 
 **Benchmark results:**
