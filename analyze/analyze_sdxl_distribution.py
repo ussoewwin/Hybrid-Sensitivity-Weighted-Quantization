@@ -478,6 +478,7 @@ def _derive_int8_attn_mad_tunables(
         return {
             "attn_mad_pct_floor": 15.0,
             "attn_mad_q3": 15.0,
+            "attn_mad_p99": 15.0,
             "attn_mad_gap_o_max": float(
                 max(attn_qkv_outlier, attn_toout_outlier, 1e-9)
             ),
@@ -487,10 +488,14 @@ def _derive_int8_attn_mad_tunables(
     mad_sorted = _sorted_pool(mad_vals)
     _, _, mad_q3 = _quartile_bounds(mad_sorted)
     mad_floor = float(_tukey_upper(mad_sorted))
+    mad_p99 = float(_safe_percentile(mad_vals, 99.0))
+    # Character scale for severity must be ≥ gate so gate-crossing ≠ +dozens.
+    mad_p99 = float(max(mad_p99, mad_floor, mad_q3, 1e-9))
     gap_o_max = float(max(attn_qkv_outlier, attn_toout_outlier, 1e-9))
     return {
         "attn_mad_pct_floor": mad_floor,
         "attn_mad_q3": float(mad_q3),
+        "attn_mad_p99": mad_p99,
         "attn_mad_gap_o_max": gap_o_max,
         "attn_mad_from_profile": 1.0,
     }
@@ -629,7 +634,7 @@ def int8_fp16_budget_analyze_severity(
     # Excess over INT8 hard fences (1.0 == at fence). Keep continuous.
     severity = max(o / eo, 0.0) + max(k / ek, 0.0) + max(m / hm, 0.0)
 
-    # Attn-class character from the same INT8 tunables (model-specific gates).
+    # Attn-class character from the same INT8 tunables (THIS-model gates).
     name = str(layer_name or "")
     if name.endswith((".to_q", ".to_k", ".to_v")):
         aq = max(float(tunables.get("attn_qkv_absmax", hm)), 1e-6)
@@ -640,10 +645,23 @@ def int8_fp16_budget_analyze_severity(
         ao = max(float(tunables.get("attn_toout_outlier", eo)), 1e-6)
         severity += max(m / aq, 0.0) + max(o / ao, 0.0)
 
-    mad_floor = float(tunables.get("attn_mad_pct_floor", 0.0) or 0.0)
+    # MAD character on the SAME continuous scale as o/eo (1.0 == THIS model's
+    # heavy MAD). attn_mad_pct_floor is only a VETO GATE (auto-derived).
+    # Dividing by the gate (often ≈ MAD Q3) was a fixed-scale mistake: Soft
+    # MAD scored +17..26 and displaced Static extreme Hard VETO with high
+    # V4 estimated_mse from the 300 MiB ranking → SSIM ~0.92 (§9).
+    # Denominator = THIS-profile attn_mad_p99 (auto analysis → auto scale).
     mad = float(mad_outlier_pct or 0.0)
-    if mad_floor > 0.0 and mad > 0.0:
-        severity += max(mad / mad_floor, 0.0)
+    mad_ref = float(tunables.get("attn_mad_p99", 0.0) or 0.0)
+    if mad_ref <= 0.0:
+        # Legacy tunables without p99: span from THIS-model q3/floor, never
+        # a hardcoded absolute (and never reuse the gate as the scale).
+        mad_q3 = float(tunables.get("attn_mad_q3", 0.0) or 0.0)
+        mad_floor = float(tunables.get("attn_mad_pct_floor", 0.0) or 0.0)
+        seed = max(mad_q3, mad_floor, 0.0)
+        mad_ref = seed * 4.0 if seed > 0.0 else 0.0
+    if mad_ref > 0.0 and mad > 0.0:
+        severity += max(mad / mad_ref, 0.0)
 
     # THIS-model composite rank [0, 3] from analyze (empirical ranks of k/o/m).
     # Continuous relative danger inside the checkpoint — not a binary flag.
@@ -1046,17 +1064,23 @@ def derive_int8_autonomous_tunables(
     base["search_low_clip_max"] = 1.0
     base["search_low_gray_clip_max"] = 1.0
 
-    # ---- MAD% floor: from profile if present, else neutral ----
+    # ---- MAD% gate + character scale: from THIS profile if present ----
+    # floor/q3 = VETO gate; p99 = severity denominator (o/eo-style, 1.0 =
+    # heavy MAD on THIS checkpoint). Never use the gate as severity scale.
     mad_positive = [v for v in all_mad if v > 0]
     if len(mad_positive) >= 4:
-        base["attn_mad_pct_floor"] = float(_safe_percentile(mad_positive, 75.0))
-        base["attn_mad_q3"] = float(_safe_percentile(mad_positive, 75.0))
+        mad_q3 = float(_safe_percentile(mad_positive, 75.0))
+        mad_p99 = float(_safe_percentile(mad_positive, 99.0))
+        base["attn_mad_pct_floor"] = mad_q3
+        base["attn_mad_q3"] = mad_q3
+        base["attn_mad_p99"] = float(max(mad_p99, mad_q3, 1e-9))
         base["attn_mad_from_profile"] = 1.0
     else:
         # Old profile without mad_outlier_pct: disable MAD gap-fill rather
         # than fall back to a fixed 15.0 — keeps VETO from exploding.
         base["attn_mad_pct_floor"] = 0.0
         base["attn_mad_q3"] = 0.0
+        base["attn_mad_p99"] = 0.0
         base["attn_mad_from_profile"] = 0.0
     base["attn_mad_gap_o_max"] = float(max(eo, 1e-9))
 
@@ -1428,6 +1452,7 @@ def compute_int8_optimal_settings(
             "attn_toout_absmax": float(tunables["attn_toout_absmax"]),
             "attn_ff2_absmax": float(tunables["attn_ff2_absmax"]),
             "attn_mad_pct_floor": float(tunables.get("attn_mad_pct_floor", 15.0)),
+            "attn_mad_p99": float(tunables.get("attn_mad_p99", 0.0)),
             "unet_layer_count": len(layers),
         },
         "v4": {
