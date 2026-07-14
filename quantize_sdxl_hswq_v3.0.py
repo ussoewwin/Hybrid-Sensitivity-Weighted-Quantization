@@ -352,6 +352,7 @@ class SdxlVetoTunables:
     quant_format: str = "int8_tensorwise"
     attn_mad_pct_floor: float = 0.0
     attn_mad_q3: float = 0.0
+    attn_mad_p99: float = 0.0
     attn_mad_gap_o_max: float = 0.0
     attn_mad_from_profile: float = 0.0
     # Autonomous (from derive_int8_autonomous_tunables):
@@ -411,6 +412,7 @@ class SdxlVetoTunables:
             quant_format=str(d.get("quant_format", "int8_tensorwise")),
             attn_mad_pct_floor=float(d.get("attn_mad_pct_floor", 0.0)),
             attn_mad_q3=float(d.get("attn_mad_q3", 0.0)),
+            attn_mad_p99=float(d.get("attn_mad_p99", 0.0)),
             attn_mad_gap_o_max=float(d.get("attn_mad_gap_o_max", 0.0)),
             attn_mad_from_profile=float(d.get("attn_mad_from_profile", 0.0)),
             sens_veto_percentile=float(d.get("sens_veto_percentile", 100.0)),
@@ -444,6 +446,7 @@ class SdxlVetoTunables:
             "quant_format": self.quant_format,
             "attn_mad_pct_floor": self.attn_mad_pct_floor,
             "attn_mad_q3": self.attn_mad_q3,
+            "attn_mad_p99": self.attn_mad_p99,
             "attn_mad_gap_o_max": self.attn_mad_gap_o_max,
             "attn_mad_from_profile": self.attn_mad_from_profile,
         }
@@ -498,6 +501,7 @@ def resolve_veto_tunables(
             "  [Auto INT8 MAD] "
             f"floor={derived.get('attn_mad_pct_floor', 0.0):.3f}, "
             f"q3={derived.get('attn_mad_q3', 0.0):.3f}, "
+            f"p99={derived.get('attn_mad_p99', 0.0):.3f}, "
             f"gap_o_max={derived.get('attn_mad_gap_o_max', 0.0):.3f}, "
             f"from_profile={bool(derived.get('attn_mad_from_profile', 0))}"
         )
