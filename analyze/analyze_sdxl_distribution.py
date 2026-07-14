@@ -709,9 +709,10 @@ def _mad_continuous_fences_from_positives(
       soft=raw P50 → Soft-MAD flood on tip-heavy near-zero MAD mass
       soft=(1-c)*P50+c*Q3 → soft≈hard on tip-heavy → Soft-MAD band dead
     Soft must stay strictly below hard. Tip-heavy pulls soft toward the
-    upper quantile of THIS values *below* floor, then caps soft by a
-    THIS span/IQR Soft-band width so Soft≠dead while soft rises off P50.
-    Body-balanced keeps soft near P50. No fixed model literals.
+    upper quantile of THIS values *below* floor, then caps soft by THIS
+    band_w (floor−P50)×max(1−collapse, 0.15) and IQR×0.1 so Soft≠dead
+    while soft rises off P50. Body-balanced keeps soft near P50.
+    Forbidden substitute: tip_headroom/tip_step-only (soft≈floor Soft死).
     """
     mad_sorted = _sorted_pool(positives)
     n = len(positives)
@@ -736,13 +737,14 @@ def _mad_continuous_fences_from_positives(
         soft_tip = float(_safe_percentile(below, 100.0 * collapse))
         mad_soft = float((1.0 - collapse) * mad_p50 + collapse * soft_tip)
     else:
+        soft_tip = float(mad_p50)
         mad_soft = float(mad_p50)
-    # Tip-heavy (collapse→1) drives soft_tip→floor; keep Soft band open via THIS span/IQR
-    # so Soft≠dead (soft≈hard) while soft still rises off raw P50 (no Soft flood).
-    open_span = float(max(mad_floor - mad_p50, 0.0))
+    # THIS Soft narrow band (reflection §3-1 / commit 8357425): tip-heavy
+    # keeps ~0.08 gap under floor (soft≈0.508 @ floor=0.588), Soft≠dead.
+    soft_span = float(max(mad_floor - mad_p50, 0.0))
     band_w = float(
         max(
-            open_span * max(1.0 - collapse, 0.15),
+            soft_span * float(max(1.0 - collapse, 0.15)),
             iqr * 0.1,
             mad_floor * 1e-6,
             1e-12,

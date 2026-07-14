@@ -1036,11 +1036,13 @@ def _mad_continuous_gates_from_live(
         soft_tip = float(below[tip_idx])
         mad_soft = float((1.0 - collapse) * p50 + collapse * soft_tip)
     else:
+        soft_tip = float(p50)
         mad_soft = float(p50)
-    open_span = float(max(mad_floor - p50, 0.0))
+    # Mirror analyze §3-1 / 8357425: Soft narrow band (not tip_headroom Soft死).
+    soft_span = float(max(mad_floor - p50, 0.0))
     band_w = float(
         max(
-            open_span * max(1.0 - collapse, 0.15),
+            soft_span * float(max(1.0 - collapse, 0.15)),
             iqr * 0.1,
             mad_floor * 1e-6,
             1e-12,
@@ -2795,9 +2797,10 @@ def main():
         original_state_dict[k] = original_state_dict[k].to(device)
     
     output_state_dict = {}
-    quant_meta_layers = {}  # layer_name -> format string for _quantization_metadata
+    quant_meta_layers = {}  # layer_name -> {"format": "int8_tensorwise"}
     converted_count = 0
     kept_count = 0
+    conv_fp16_count = 0  # Mag MixedPrecision quant-load is Linear-only
     bias_corr_pending = {}  # comfy module prefix -> float32 bias delta (O,)
     bias_corr_applied = 0
     bias_corr_skipped_no_bias = 0
@@ -2819,6 +2822,10 @@ def main():
         # and stored as float32 scalar alongside the int8 weight.
 
     print("Converting weights to INT8 (GPU accelerated)...")
+    print(
+        "  Mag MixedPrecisionOps: INT8 pack Linear (ndim==2) only; "
+        "Conv/other stay FP16 (no unexpected weight_scale)."
+    )
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         diffusers_key = comfyui_to_diffusers_map.get(key)
         module_name = None
@@ -2830,7 +2837,18 @@ def main():
             kept_count += 1
         elif module_name:
             weight_key = module_name + ".weight"
-            if args.per_channel_int8 and weight_key in weight_channel_amax_dict:
+            # Comfy MixedPrecisionOps overrides Linear (Embedding/MoE) load only.
+            # Conv2d inherits manual_cast load → .weight_scale/.comfy_quant unexpected
+            # → raw int8 without dequant → NaN / SSIM≈0 (THIS 2026-07-15 log).
+            if int(value.ndim) != 2:
+                new_value = (
+                    value.to(torch.float16)
+                    if value.dtype != torch.float16
+                    else value
+                )
+                conv_fp16_count += 1
+                kept_count += 1
+            elif args.per_channel_int8 and weight_key in weight_channel_amax_dict:
                 # Card 3: broadcastable weight_scale; format int8_tensorwise.
                 amax_cpu = weight_channel_amax_dict[weight_key]
                 int8_quantized, scale_view, _ = pack_int8_channelwise(
@@ -2842,7 +2860,7 @@ def main():
                     scale_view.detach().cpu().to(torch.float32).contiguous()
                 )
                 _emit_int8_quant_meta(output_state_dict, comfy_module)
-                quant_meta_layers[comfy_module] = "int8_tensorwise"
+                quant_meta_layers[comfy_module] = {"format": "int8_tensorwise"}
                 converted_count += 1
 
                 if args.bias_correction:
@@ -2868,7 +2886,7 @@ def main():
                 # Store weight_scale as float32 scalar
                 output_state_dict[f"{comfy_module}.weight_scale"] = torch.tensor(scale, dtype=torch.float32)
                 _emit_int8_quant_meta(output_state_dict, comfy_module)
-                quant_meta_layers[comfy_module] = "int8_tensorwise"
+                quant_meta_layers[comfy_module] = {"format": "int8_tensorwise"}
                 converted_count += 1
 
                 if args.bias_correction:
@@ -2911,8 +2929,8 @@ def main():
         )
 
     print("Conversion done:")
-    print(f"  INT8 layers: {converted_count}")
-    print(f"  FP16-kept layers: {kept_count}")
+    print(f"  INT8 layers (Linear ndim==2): {converted_count}")
+    print(f"  FP16-kept layers: {kept_count} (incl. non-Linear/Conv FP16={conv_fp16_count})")
     print(f"  Per-channel INT8 (Card 3): {args.per_channel_int8}")
     print(f"  Asymmetric INT8 pack: {args.asymmetric_int8}")
     if args.bias_correction:
