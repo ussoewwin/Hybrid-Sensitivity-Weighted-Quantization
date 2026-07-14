@@ -700,16 +700,16 @@ def _mad_continuous_fences_from_positives(
     """THIS-pool MAD% → (floor, soft_gap, p99, collapse, iqr).
 
     Philosophy §1 / §14: auto analysis → infinite-branch auto-optimal.
-    Hard and soft are BOTH body-mass fences from THIS MAD pool:
       hard floor = THIS MAD P75 / Q3  (never tip-as-floor, never Tukey-as-hard)
-      soft       = THIS MAD P50       (strictly below hard when the body spreads)
+      soft       = collapse-blended P50↔Q3 (Soft-MAD band below hard)
       P99        = tip / severity reference only — never a VETO floor
-      collapse   = IQR fingerprint only — never mixes tip into the hard gate
+      collapse   = tip-heaviness fingerprint (also shapes soft)
 
-    soft==hard zeroed the Soft-MAD branch (mad in [soft, floor)). Body mid
-    (P50) below Q3 restores that continuous Soft-MAD branch without raising
-    the hard gate to Tukey / tip (those lifts shrink MAD keep).
-    Different THIS shapes ⇒ different floors/softs — no fixed model literals.
+    Raw soft=P50 on tip-heavy MAD pools (mass near 0, tip at P99) opens
+    Soft-MAD on almost every attn layer (soft≪Q3) and poisons the 300 MiB
+    keep → SSIM collapse. Tip-heavy THIS (high collapse) pulls soft toward
+    Q3 so Soft-MAD stays an upper-body band; body-balanced THIS keeps soft
+    near P50. No fixed model literals.
     """
     mad_sorted = _sorted_pool(positives)
     n = len(positives)
@@ -728,9 +728,9 @@ def _mad_continuous_fences_from_positives(
     iqr = float(max(q3_raw - q1, 0.0))
     tail_span = float(max(mad_p99 - mad_p50, 1e-12))
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
-    # Hard = THIS body mass (Q3). Soft = THIS body mid (P50) for Soft-MAD.
+    # Hard = THIS body mass (Q3). Soft = continuous P50↔Q3 via THIS collapse.
     mad_floor = float(mad_q3)
-    mad_soft = float(mad_p50)
+    mad_soft = float((1.0 - collapse) * mad_p50 + collapse * mad_q3)
     if mad_soft >= mad_floor:
         # Flat / degenerate THIS: drop soft to Q1 if still below hard.
         mad_soft = float(q1) if float(q1) < mad_floor else float(mad_floor)
@@ -745,7 +745,7 @@ def _mad_tunables_from_positive_samples(
 
     Deleting the old ×N floor and writing 0.0 when n<4 is forbidden
     (philosophy §0 / 「固定をただ消すな」). Hard = THIS MAD Q3/P75;
-    soft = THIS MAD P50 (Soft-MAD branch). P99 = severity tip only —
+    soft = collapse-blended P50↔Q3 (Soft-MAD). P99 = severity tip only —
     never tip-as-floor, never fixed model-name literals.
 
     Zero positive samples → axis off (no invent).

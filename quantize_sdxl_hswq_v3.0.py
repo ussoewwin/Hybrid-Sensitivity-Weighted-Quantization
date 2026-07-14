@@ -1003,9 +1003,10 @@ def _mad_continuous_gates_from_live(
 
     Returns (floor, soft_gap, collapse, iqr). Same as analyze
     ``_mad_continuous_fences_from_positives``: hard=THIS MAD P75/Q3,
-    soft=THIS MAD P50 (Soft-MAD band below hard); P99 tip/severity only —
-    never VETO floor (philosophy §1 / §14; tip-as-floor and soft==hard both
-    kill MAD / Soft-MAD branching; Tukey-as-hard raises the gate).
+    soft=collapse-blended P50↔Q3 (Soft-MAD; tip-heavy THIS must not open
+    soft≪Q3 and Soft-VETO the near-zero MAD mass); P99 tip/severity only —
+    never VETO floor (philosophy §1 / §14; tip-as-floor and Tukey-as-hard
+    raise the gate; raw soft=P50 on tip-heavy pools floods Soft-MAD).
     """
     live_sorted = sorted(float(v) for v in live_mads if float(v) > 0.0)
     n_live = len(live_sorted)
@@ -1030,7 +1031,7 @@ def _mad_continuous_gates_from_live(
     tail_span = float(max(p99 - p50, 1e-12))
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
     mad_floor = float(p75)
-    mad_soft = float(p50)
+    mad_soft = float((1.0 - collapse) * p50 + collapse * p75)
     if mad_soft >= mad_floor:
         mad_soft = float(q1) if float(q1) < mad_floor else float(mad_floor)
     return mad_floor, mad_soft, collapse, iqr
@@ -1045,7 +1046,7 @@ def _compute_sdxl_int8_mad_attn_veto(
     """INT8-only key-pattern + MAD% VETO for attn projections.
 
     Floors / soft-gap from analyze continuous THIS-pool body fences
-    (hard=THIS MAD Q3/P75; soft=THIS MAD P50; P99 tip-only).
+    (hard=THIS MAD Q3/P75; soft=collapse-blended P50↔Q3; P99 tip-only).
     If analyze left the MAD axis at 0.0, bootstrap the same fences from
     THIS UNet's live MAD pool (no fixed model literals, no tip-as-floor).
     """
@@ -1054,7 +1055,8 @@ def _compute_sdxl_int8_mad_attn_veto(
         if tunables is not None
         else 0.0
     )
-    mad_q3 = float(tunables.attn_mad_q3) if tunables is not None else 0.0
+    # attn_mad_q3 field stores Soft-MAD soft edge (analyze write), not Q3.
+    mad_soft = float(tunables.attn_mad_q3) if tunables is not None else 0.0
     gap_o_max = (
         float(tunables.attn_mad_gap_o_max)
         if tunables is not None
@@ -1091,15 +1093,21 @@ def _compute_sdxl_int8_mad_attn_veto(
             live_mads.append(mad_pct)
 
     if mad_floor <= 0.0 and live_mads:
-        mad_floor, mad_q3, collapse, mad_iqr = _mad_continuous_gates_from_live(
+        mad_floor, mad_soft, collapse, mad_iqr = _mad_continuous_gates_from_live(
             live_mads
         )
+        if tunables is not None:
+            tunables.attn_mad_pct_floor = float(mad_floor)
+            tunables.attn_mad_q3 = float(mad_soft)
+            tunables.attn_mad_collapse = float(collapse)
+            tunables.attn_mad_iqr = float(mad_iqr)
+            tunables.attn_mad_from_profile = 0.0
         if gap_o_max <= 0.0 and tunables is not None:
             gap_o_max = float(max(tunables.extreme_outlier, 1e-9))
         print(
             f"  [INT8 MAD VETO] Continuous THIS-UNet MAD body fences from "
             f"{len(live_mads)} live samples "
-            f"(floor={mad_floor:.2f}, soft={mad_q3:.2f}, "
+            f"(floor={mad_floor:.2f}, soft={mad_soft:.2f}, "
             f"collapse={collapse:.3f}, iqr={mad_iqr:.3f}; P99 tip-only)"
         )
 
@@ -1110,8 +1118,8 @@ def _compute_sdxl_int8_mad_attn_veto(
     for _n, mad_pct, o in candidates:
         hard = mad_pct >= mad_floor
         soft = (
-            mad_q3 > 0.0
-            and mad_pct >= mad_q3
+            mad_soft > 0.0
+            and mad_pct >= mad_soft
             and mad_pct < mad_floor
             and o < gap_o_max
         )
@@ -1122,14 +1130,14 @@ def _compute_sdxl_int8_mad_attn_veto(
             print(
                 f"    [INT8 MAD VETO] {_n} "
                 f"(MAD%={mad_pct:.2f}, o={o:.2f}, floor={mad_floor:.2f}, "
-                f"soft={mad_q3:.2f}, collapse={collapse:.3f}, "
+                f"soft={mad_soft:.2f}, collapse={collapse:.3f}, "
                 f"iqr={mad_iqr:.3f}, gate_o={gap_o_max:.2f}; "
                 f"{kind}/{o_note})"
             )
     if added:
         print(
             f"  [INT8 MAD VETO] Added {len(added)} attn layers "
-            f"(floor={mad_floor:.2f}, soft={mad_q3:.2f}, "
+            f"(floor={mad_floor:.2f}, soft={mad_soft:.2f}, "
             f"collapse={collapse:.3f}, iqr={mad_iqr:.3f})."
         )
     return added
