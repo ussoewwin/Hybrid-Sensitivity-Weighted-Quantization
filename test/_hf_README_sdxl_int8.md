@@ -25,7 +25,7 @@ library_name: nunchaku
 
 High-fidelity INT8 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
 
-**Technical details:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
+**Technical details:** [md/HSWQ_INT8_SDXL_Technical_Guide.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_INT8_SDXL_Technical_Guide.md)
 
 **How to quantize:** [md/HSWQ_ How to quantize SDXL.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL.md)
 
