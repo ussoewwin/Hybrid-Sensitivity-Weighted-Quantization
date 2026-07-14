@@ -450,8 +450,9 @@ class SdxlVetoTunables:
     fp16_budget_bytes: int = 314572800
     n_unet_layers: int = 0
     autonomous: bool = False
-    # V4 histogram SVD-vs-calibration mix, derived from THIS profile's
-    # kurtosis distribution (median <= 0 → 0.0; heavier tail → higher).
+    # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
+    # (kurtosis∪outlier∪magnitude). alpha scales SVD leverage in the mix;
+    # Full-SVD always runs even when alpha_auto resolves to 0.0.
     alpha_auto: float = 0.0
 
     # Required from derive_int8_autonomous_tunables — no silent default holes
@@ -726,7 +727,7 @@ def resolve_veto_tunables(
             f"(was 1.25..3.0 box → 1+IQR/o) "
             f"alpha_auto={derived.get('alpha_auto', 0):.4f} "
             f"α[{derived.get('alpha_floor', 0):.4f}..{derived.get('alpha_clip_max', 0):.4f}] "
-            f"(was 0.5..0.99 box → THIS k ratios) "
+            f"(was 0.5..0.99 box → THIS k∪o∪m character; SVD always runs) "
             f"mad_p99={derived.get('attn_mad_p99', 0):.4f} "
             f"(was ×4 q3 box → THIS attn MAD P99)"
         )
@@ -1231,7 +1232,8 @@ def _mse_grayzone_veto_reassessment(
 
     Pack amax stays absmax — V4 does not choose pack scale.
 
-    DualMonitor importance preferred; missing → SVD hybrid (never skip V4).
+    DualMonitor importance preferred when present; always Full-SVD×RMS
+    via alpha_auto (missing Imp never skips V4 or SVD).
 
     Returns (hard_veto, keep, mse_cache) where mse_cache maps layer name →
     V4 estimated_mse at absmax (FP16-budget priority; not profile_score).
@@ -1287,11 +1289,11 @@ def _mse_grayzone_veto_reassessment(
         sw = smod.weight.data
         simp = _dualmonitor_channel_importance(dual_monitors, sname)
         try:
-            # Importance → V4 hist weight; missing → SVD hybrid (never skip V4).
+            # Full-SVD×RMS always; DualMonitor Importance multiplies when present.
             sresult = trial_optimizer.compute_optimal_amax_with_stats_int8_range(
                 sw,
                 importance=simp,
-                use_svd_leverage=(simp is None),
+                use_svd_leverage=True,
                 scaled=False,
                 search_range=_veto_search_range,
             )
@@ -1330,7 +1332,7 @@ def _mse_grayzone_veto_reassessment(
             vresult = trial_optimizer.compute_optimal_amax_with_stats_int8_range(
                 vw,
                 importance=vimp,
-                use_svd_leverage=(vimp is None),
+                use_svd_leverage=True,
                 scaled=False,
                 search_range=_veto_search_range,
             )
@@ -1388,15 +1390,14 @@ def _measure_v4_mse_absmax_int8(
     That MSE is the damage score used to decide FP16 keep — it is NOT used
     to choose a pack amax (pack stays absmax for INT8).
 
-    DualMonitor Importance present → histogram weight from Importance
-    (use_svd_leverage=False; SDXL quality path).
-    Importance missing → V4 SVD hybrid alone (never skip V4).
+    Always runs V4 Full-SVD×RMS hybrid (use_svd_leverage=True). When
+    DualMonitor channel Importance is present it multiplies the hybrid map;
+    when missing, hybrid alone. Cutting SVD because Imp exists is forbidden.
     """
-    use_svd = importance is None
     result = optimizer.compute_optimal_amax_with_stats_int8_range(
         weight,
         importance=importance,
-        use_svd_leverage=use_svd,
+        use_svd_leverage=True,
         scaled=False,
         search_range=(1.0, 1.0),
     )
@@ -1421,7 +1422,7 @@ def _build_v4_calib_fp16_candidates(
     later 300 MiB budget can rank which layers stay FP16. Pack amax remains
     absmax separately — V4 does not search pack scale.
 
-    DualMonitor Importance preferred; missing Importance → SVD hybrid.
+    Always Full-SVD×RMS hybrid; DualMonitor Importance multiplies when present.
     Never skip a measurable layer (skipping collapses FP16 selection).
 
     Returns (all_v4_scored_names, mse_cache). Does NOT truncate by keep_ratio:
@@ -1443,8 +1444,8 @@ def _build_v4_calib_fp16_candidates(
             need.append(name)
 
     trial_optimizer = None
-    n_with_imp = 0
-    n_svd_fallback = 0
+    n_svd_x_imp = 0
+    n_svd_only = 0
     if need:
         print(
             f"  [V4→FP16 protect] measuring V4 estimated_mse @ absmax for "
@@ -1471,9 +1472,9 @@ def _build_v4_calib_fp16_candidates(
             cache[name] = float(v4_mse)
             scored.add(name)
             if imp is None:
-                n_svd_fallback += 1
+                n_svd_only += 1
             else:
-                n_with_imp += 1
+                n_svd_x_imp += 1
         except Exception as e:
             print(f"    [V4→FP16 protect] skip {name}: {e}")
             continue
@@ -1481,7 +1482,8 @@ def _build_v4_calib_fp16_candidates(
 
     print(
         f"  [V4→FP16 protect] V4-scored={len(scored)} "
-        f"(DualMonitor Imp={n_with_imp}, SVD fallback={n_svd_fallback}) | "
+        f"(SVD×Imp={n_svd_x_imp}, SVD-only={n_svd_only}; "
+        f"alpha={alpha:.3f}/beta={beta:.3f}) | "
         f"analyze VETO={len(hard_veto_layers)} | "
         f"union → FULL priority (budget only truncates)."
     )
@@ -2050,7 +2052,9 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
     - V4 weighted histogram: FP16 protection candidate ranking
       (estimated_mse @ absmax with INT8Quantizer; budget truncates).
       Soft gray-zone VETO release is secondary reuse of the same MSE.
-    - alpha/beta: SVD leverage forced off for SDXL (same as V2.1).
+    - alpha/beta: alpha_auto from THIS multi-axis analyze character
+      (kurtosis∪outlier∪magnitude → Full-SVD×RMS); DualMonitor Importance
+      multiplies the hybrid map when present. No fixed mix / no SVD off.
     - hard_veto: thresholds from derive_veto_tunables_int8 (this checkpoint).
     """
     if model_profile:
@@ -2098,19 +2102,16 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
         avg_m = np.mean(all_m) if all_m else 0
         print(f"  [Profile Stats INT8] Avg Kurtosis: {avg_k:.2f}, Avg OutlierRatio: {avg_o:.2f}, Avg AbsMax: {avg_m:.2f}")
 
-    # alpha (SVD leverage vs calibration magnitude) is derived from THIS
-    # profile's kurtosis distribution shape by derive_int8_autonomous_tunables
-    # (alpha_auto): median kurtosis <= 0 → flat/uniform weights → 0.0 (pure
-    # calibration importance; matches V2.1 SDXL measurement and the 7599974
-    # SSIM 0.98 anchor, whose profiles have negative median kurtosis).
-    # Heavier-tailed profiles rise continuously (k_p50/k_p99). No fixed 0.0,
-    # no model-name rule.
+    # alpha = SVD-leverage MIX WEIGHT from THIS multi-axis character (k∪o∪m).
+    # Full-SVD always executes (never skip V4); alpha only scales leverage vs
+    # RMS in the hybrid map. DualMonitor Imp multiplies that map when present.
+    # No fixed cut, no model-name rule, no "alpha>0 else skip SVD" thought-stop.
     alpha = float(veto_tunables.alpha_auto)
     beta = 1.0 - alpha
 
     print(
         f"  [Dynamic Alpha/Beta INT8] alpha={alpha:.3f}, beta={beta:.3f} "
-        f"(alpha_auto from kurtosis distribution shape)"
+        f"(analyze k∪o∪m → Full-SVD×RMS; Imp multiplies when present)"
     )
 
     hard_veto_layers = set()
@@ -2453,13 +2454,21 @@ def main():
         hard_veto_layers = hard_veto_layers.union(_supp)
         print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
 
-    # DualMonitor FP16 cands + analyze VETO → per-model auto-optimal FP16.
     # Re-derive autonomous knobs now that DualMonitor calibration exists.
+    # Refresh α/β from THIS multi-axis alpha_auto — never keep pre-calib
+    # stale mix (handwave that skips analyze character after Sensitivity).
     veto_tunables = resolve_veto_tunables(
         _norm_profile,
         profile_summary,
         dual_monitors=dual_monitors,
         fp16_budget_mb=float(args.fp16_budget_mb),
+    )
+    alpha = float(veto_tunables.alpha_auto)
+    beta = 1.0 - alpha
+    print(
+        f"  [Dynamic Alpha/Beta INT8 after DualMonitor] "
+        f"alpha={alpha:.4f}, beta={beta:.4f} "
+        f"(analyze k∪o∪m → Full-SVD×RMS; Imp×Sens×V4 MSE fill 300 MiB)"
     )
     if _bc_top_override is None:
         args.bias_correction_top_ratio = float(veto_tunables.bias_correction_top_ratio)
