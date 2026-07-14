@@ -1002,10 +1002,10 @@ def _mad_continuous_gates_from_live(
     """Mirror analyze MAD fences on a live THIS-UNet list.
 
     Returns (floor, soft_gap, collapse, iqr). Same as analyze
-    ``_mad_continuous_fences_from_positives``: hard=soft=THIS MAD Q3/P75
-    (c5582eb SSIM≥0.98 gate); P99 tip/severity only — never VETO floor
-    (philosophy §1 / §14; tip-as-floor kills MAD branching; Tukey-as-hard
-    raised the gate and dropped SSIM to ~0.96).
+    ``_mad_continuous_fences_from_positives``: hard=THIS MAD P75/Q3,
+    soft=THIS MAD P50 (Soft-MAD band below hard); P99 tip/severity only —
+    never VETO floor (philosophy §1 / §14; tip-as-floor and soft==hard both
+    kill MAD / Soft-MAD branching; Tukey-as-hard raises the gate).
     """
     live_sorted = sorted(float(v) for v in live_mads if float(v) > 0.0)
     n_live = len(live_sorted)
@@ -1014,7 +1014,8 @@ def _mad_continuous_gates_from_live(
     if n_live < 4:
         peak = float(live_sorted[-1])
         body = float(live_sorted[n_live // 2])
-        return peak, body, 1.0, 0.0
+        soft = float(min(body, peak))
+        return peak, soft, 1.0, 0.0
     q1 = float(live_sorted[n_live // 4])
     q3 = float(live_sorted[(3 * n_live) // 4])
     iqr = float(max(q3 - q1, 0.0))
@@ -1029,7 +1030,9 @@ def _mad_continuous_gates_from_live(
     tail_span = float(max(p99 - p50, 1e-12))
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
     mad_floor = float(p75)
-    mad_soft = float(p75)
+    mad_soft = float(p50)
+    if mad_soft >= mad_floor:
+        mad_soft = float(q1) if float(q1) < mad_floor else float(mad_floor)
     return mad_floor, mad_soft, collapse, iqr
 
 
@@ -1042,9 +1045,9 @@ def _compute_sdxl_int8_mad_attn_veto(
     """INT8-only key-pattern + MAD% VETO for attn projections.
 
     Floors / soft-gap from analyze continuous THIS-pool body fences
-    (hard=soft=THIS MAD Q3/P75; P99 tip-only).
+    (hard=THIS MAD Q3/P75; soft=THIS MAD P50; P99 tip-only).
     If analyze left the MAD axis at 0.0, bootstrap the same fences from
-    THIS UNet's live MAD pool (no fixed WAI numbers, no tip-as-floor).
+    THIS UNet's live MAD pool (no fixed model literals, no tip-as-floor).
     """
     mad_floor = (
         float(tunables.attn_mad_pct_floor)
