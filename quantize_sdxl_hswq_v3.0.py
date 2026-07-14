@@ -1330,7 +1330,8 @@ def _apply_fp16_budget_cap(
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import (
-        apply_keypattern_family_sens_floor,
+        apply_fp16_infinite_priority_branches,
+        apply_fp16_infinite_ranking_branches,
         build_int8_analyze_character_table,
         int8_fp16_budget_analyze_severity,
         int8_fp16_budget_priority,
@@ -1455,22 +1456,36 @@ def _apply_fp16_budget_cap(
 
         measured.append((name, dm_sens, v4_mse, severity, extra))
 
-    # Within key-pattern families on THIS measured pool: DualMonitor can
-    # under-rank one sibling (e.g. ups.1) while another (ups.0) is live.
-    # Floor ranking_sens to family_p50 when THIS family is skewed — analysis
-    # of DualMonitor values only (not density-greedy / not force KEEP).
-    measured, family_sens_repairs = apply_keypattern_family_sens_floor(measured)
-    if family_sens_repairs:
-        print(
-            f"  [Family sens floor] repaired {len(family_sens_repairs)} "
-            f"DualMonitor under-measures within key-pattern families:"
-        )
-        for _r in family_sens_repairs[:12]:
+    # Model-specific auto analysis → auto-optimal ranking branches.
+    # DualMonitor / analyze / V4 triples for THIS checkpoint drive continuous
+    # knobs (infinite branches). Unified family median/geom floors are banned.
+    veto_mask_pre = [name in hard_veto_layers for name, *_ in measured]
+    measured, branch_repairs, branch_profile = apply_fp16_infinite_ranking_branches(
+        measured, veto_mask_pre,
+    )
+    print(
+        f"  [Infinite branch profile] "
+        f"cv(s/v/m)={branch_profile['cv_sens']:.4g}/"
+        f"{branch_profile['cv_sev']:.4g}/{branch_profile['cv_mse']:.4g} "
+        f"align(s/v/m)={branch_profile['align_sens']:.3f}/"
+        f"{branch_profile['align_sev']:.3f}/{branch_profile['align_mse']:.3f} "
+        f"dm_starvation={branch_profile['dm_starvation']:.3f} "
+        f"γ_sib/blend={branch_profile['gamma_sibling']:.4g}/"
+        f"{branch_profile['gamma_blend']:.4g} "
+        f"mismatch_gain={branch_profile['mismatch_gain']:.4g} "
+        f"repairs={len(branch_repairs)}"
+    )
+    if branch_repairs:
+        for _r in branch_repairs[:16]:
             print(
-                f"    {_r['name']}: dm={_r['dm_sens']:.6g} → "
-                f"rank={_r['ranking_sens']:.6g} "
-                f"(family_p50={_r['family_p50']:.6g}, "
-                f"span={_r.get('skew_span', float('nan')):.6g})"
+                f"    [{_r.get('branch', '?')}] {_r['name']}: "
+                f"dm={_r.get('dm_sens', float('nan')):.6g} → "
+                f"rank={_r.get('ranking_sens', float('nan')):.6g}"
+                + (
+                    f" skew={_r['skew']:.4g} str={_r['strength']:.4g}"
+                    if "skew" in _r else
+                    f" excess={_r.get('excess', float('nan')):.4g}"
+                )
             )
 
     # Per-checkpoint combinator from MEASURED sens/sev/mse for THIS model
@@ -1523,6 +1538,23 @@ def _apply_fp16_budget_cap(
             dm_sens, v4_mse, severity, combinator=combinator,
         )
         candidates.append((priority, v4_mse, severity, dm_sens, extra, name))
+
+    # Priority continuous sibling branch from the SAME THIS-model profile
+    # (not a second unified floor).
+    candidates, prio_branch_repairs = apply_fp16_infinite_priority_branches(
+        candidates, branch_profile,
+    )
+    if prio_branch_repairs:
+        print(
+            f"  [Infinite priority branches] repaired "
+            f"{len(prio_branch_repairs)} under THIS family priority space:"
+        )
+        for _r in prio_branch_repairs[:12]:
+            print(
+                f"    {_r['name']}: prio {_r['priority_before']:.6g} → "
+                f"{_r['priority_after']:.6g} "
+                f"skew={_r['skew']:.4g} str={_r['strength']:.4g}"
+            )
 
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
@@ -1580,9 +1612,25 @@ def _apply_fp16_budget_cap(
             "sev": combinator.get("align_sev"),
             "mse": combinator.get("align_mse"),
         },
-        "ranking": "per_model_auto_analysis_priority_inside_300mib",
-        "family_sens_floor_repairs": len(family_sens_repairs),
-        "family_sens_floor_detail": family_sens_repairs[:32],
+        "ranking": "per_model_auto_analysis_infinite_branches_inside_300mib",
+        "infinite_branch_profile": {
+            "cv_sens": branch_profile.get("cv_sens"),
+            "cv_sev": branch_profile.get("cv_sev"),
+            "cv_mse": branch_profile.get("cv_mse"),
+            "align_sens": branch_profile.get("align_sens"),
+            "align_sev": branch_profile.get("align_sev"),
+            "align_mse": branch_profile.get("align_mse"),
+            "dm_starvation": branch_profile.get("dm_starvation"),
+            "gamma_sibling": branch_profile.get("gamma_sibling"),
+            "gamma_blend": branch_profile.get("gamma_blend"),
+            "mismatch_gain": branch_profile.get("mismatch_gain"),
+            "prio_sibling_gamma": branch_profile.get("prio_sibling_gamma"),
+            "prio_blend_gamma": branch_profile.get("prio_blend_gamma"),
+        },
+        "infinite_ranking_branch_repairs": len(branch_repairs),
+        "infinite_ranking_branch_detail": branch_repairs[:32],
+        "infinite_priority_branch_repairs": len(prio_branch_repairs),
+        "infinite_priority_branch_detail": prio_branch_repairs[:32],
         "hard_ceiling_mb": FP16_BUDGET_MB_HARD,
         "slack_bytes": max(budget_bytes - used, 0),
         "slack_mb": max(budget_bytes - used, 0) / (1024 * 1024),
