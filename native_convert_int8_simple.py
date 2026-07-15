@@ -1,4 +1,4 @@
-"""Independent SDXL UNet INT8 convert: Card 3 pack + optional Card 1.
+"""Independent SDXL UNet INT8 convert: optional Card 1 / Card 3.
 
 Fully self-contained. NO import / reference to quantize_sdxl_hswq_v3.0.py.
 
@@ -9,7 +9,9 @@ Scope:
   NEVER leave QKV in FP16 as an "escape" (that claim is forbidden / wrong:
   native INT8's QKV and still clears ~0.97).
 
-Pack (Card 3 — always):
+Pack (default): tensorwise amax/127 (same as native_convert_int8.py).
+
+Card 3 (--per_channel_int8; DEFAULT OFF):
   per-out-channel amax/127
   Linear scale (O, 1); Conv2d scale (O, 1, 1, 1)
   Format tag stays int8_tensorwise
@@ -43,8 +45,17 @@ from native_int8_sdxl_unet_map import (
 
 
 # ---------------------------------------------------------------------------
-# Pack (Card 3 — always)
+# Pack
 # ---------------------------------------------------------------------------
+def pack_tensorwise(weight: torch.Tensor):
+    """Symmetric per-tensor INT8: scale = amax / 127 (native floor)."""
+    w = weight.float()
+    amax = max(float(w.abs().max().item()), 1e-6)
+    scale = amax / 127.0
+    q = (w / scale).round().clamp(-127, 127).to(torch.int8)
+    return q, torch.tensor(scale, dtype=torch.float32)
+
+
 def pack_channelwise(weight: torch.Tensor):
     """Per-out-channel INT8 (Card 3). Linear (O,1) or Conv2d (O,1,1,1).
 
@@ -231,7 +242,7 @@ def run_card1_calib(
             act_mean_by_module[name] = (act_sums[name] / cnt).float()
     print(
         f"  [Card 1] act_mean modules={len(act_mean_by_module)} "
-        f"(full Card 1; Card 3 always ON; no VETO; no Approach A)"
+        f"(full Card 1; no VETO; no Approach A)"
     )
 
     del pipeline, model
@@ -247,18 +258,19 @@ def run_card1_calib(
 
 
 # ---------------------------------------------------------------------------
-# Convert (Card 3 always; Card 1 optional, default OFF)
+# Convert (Card 1 / Card 3 both DEFAULT OFF)
 # ---------------------------------------------------------------------------
 def convert_to_int8(
     input_path,
     output_path,
     *,
+    per_channel_int8: bool = False,
     bias_correction: bool = False,
     calib_file: str | None = None,
     num_calib_samples: int = 32,
     num_inference_steps: int = 25,
 ):
-    """INT8 Linear+Conv with Card 3 pack; Card 1 only if bias_correction."""
+    """INT8 Linear+Conv; Card 3 / Card 1 only when flags are set."""
     if bias_correction:
         if not calib_file:
             raise ValueError("--bias_correction requires --calib_file")
@@ -266,9 +278,11 @@ def convert_to_int8(
             raise FileNotFoundError(f"calib_file not found: {calib_file}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    pack_mode = "per-channel (Card 3)" if per_channel_int8 else "tensorwise"
     print(
         f"  Card 1={'ON' if bias_correction else 'OFF (default)'} | "
-        "Card 3 ON | "
+        f"Card 3={'ON' if per_channel_int8 else 'OFF (default)'} | "
+        f"pack={pack_mode} | "
         "INT8 scope = Linear+Conv (ndim>=2), including QKV | "
         "QKV without .bias still INT8 (BC apply skipped only) | "
         "no Approach A / no top_ratio / no FP16 QKV escape"
@@ -306,10 +320,7 @@ def convert_to_int8(
     bias_corr_skipped_no_act = 0
     bias_corr_skipped_bad_shape = 0
 
-    print(
-        "Converting UNet Linear+Conv (ndim>=2) to INT8 "
-        "(Card 3 per-channel amax/127)..."
-    )
+    print(f"Converting UNet Linear+Conv (ndim>=2) to INT8 ({pack_mode})...")
 
     for key, tensor in tqdm(state_dict.items()):
         is_unet_matmul_weight = (
@@ -322,7 +333,10 @@ def convert_to_int8(
             torch.float32,
             torch.bfloat16,
         ]:
-            q, scale = pack_channelwise(tensor)
+            if per_channel_int8:
+                q, scale = pack_channelwise(tensor)
+            else:
+                q, scale = pack_tensorwise(tensor)
             weight_dq = q.float() * scale
 
             module_key = key[: -len(".weight")]
@@ -392,7 +406,7 @@ def convert_to_int8(
 
     print(f"Saving to: {output_path}")
     print(f"Converted layers: {converted_count}, Kept layers: {skipped_count}")
-    print("Per-channel INT8 (Card 3): True (always)")
+    print(f"Per-channel INT8 (Card 3): {per_channel_int8}")
     print(f"Bias correction (Card 1): {bias_correction}")
     if bias_correction:
         print(f"  Bias-corrected INT8 layers: {bias_corr_applied}")
@@ -404,8 +418,9 @@ def convert_to_int8(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
-            "Independent Simple UNet INT8: Card 3 always ON; "
-            "Card 1 DEFAULT OFF (--bias_correction to enable). "
+            "Independent Simple UNet INT8: Card 1 and Card 3 DEFAULT OFF. "
+            "Default pack = tensorwise. "
+            "--per_channel_int8 / --bias_correction to enable. "
             "INT8 scope = Linear+Conv (ndim>=2), including QKV. "
             "No FP16 QKV escape. No Approach A / no VETO. "
             "No dependency on quantize_sdxl_hswq_v3.0.py."
@@ -421,6 +436,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--output", type=str, required=True, help="Path to output .safetensors"
+    )
+    parser.add_argument(
+        "--per_channel_int8",
+        action="store_true",
+        default=False,
+        help="Enable Card 3 per-channel pack (DEFAULT OFF)",
     )
     parser.add_argument(
         "--bias_correction",
@@ -459,6 +480,7 @@ if __name__ == "__main__":
     convert_to_int8(
         args.model,
         args.output,
+        per_channel_int8=bool(args.per_channel_int8),
         bias_correction=bool(args.bias_correction),
         calib_file=args.calib_file,
         num_calib_samples=args.num_calib_samples,
