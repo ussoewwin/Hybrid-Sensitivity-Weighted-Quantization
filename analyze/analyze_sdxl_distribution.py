@@ -18,12 +18,116 @@ import json
 import math
 import os
 import sys
+import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple
 
 import numpy as np
 import torch
 from safetensors.torch import load_file
+
+
+# ---------------------------------------------------------------------------
+# Full visibility — every calc / every knob / every layer (no summary hide)
+# Owner: 全ての計算過程と解析結果をログにだせ / 一バイトでも隠したら殺す
+# ---------------------------------------------------------------------------
+
+def _pool_full_stats(values: Sequence[float]) -> Dict[str, Any]:
+    """Exhaustive pool stats (no averaged-only substitute)."""
+    vals = [float(v) for v in values]
+    n = len(vals)
+    if n == 0:
+        return {"n": 0, "values": []}
+    s = _sorted_pool(vals)
+    pcts = (0.0, 1.0, 5.0, 10.0, 25.0, 50.0, 75.0, 90.0, 95.0, 99.0, 100.0)
+    out: Dict[str, Any] = {
+        "n": n,
+        "min": float(s[0]),
+        "max": float(s[-1]),
+        "sum": float(sum(vals)),
+        "mean": float(sum(vals) / n),
+        "values_sorted": [float(x) for x in s],
+        "percentiles": {
+            f"p{p:g}": float(_safe_percentile(vals, float(p))) for p in pcts
+        },
+    }
+    if n >= 4:
+        q1, med, q3 = _quartile_bounds(s)
+        out["q1"] = float(q1)
+        out["median"] = float(med)
+        out["q3"] = float(q3)
+        out["iqr"] = float(q3 - q1)
+    else:
+        out["q1"] = float(s[0])
+        out["median"] = float(_safe_percentile(vals, 50.0))
+        out["q3"] = float(s[-1])
+        out["iqr"] = 0.0
+    return out
+
+
+def _flatten_repr_lines(obj: Any, prefix: str = "") -> List[str]:
+    """One path=repr(leaf) per line — no JSON round-trip float truncation."""
+    lines: List[str] = []
+    if isinstance(obj, dict):
+        for k in sorted(obj.keys(), key=lambda x: str(x)):
+            key = f"{prefix}.{k}" if prefix else str(k)
+            lines.extend(_flatten_repr_lines(obj[k], key))
+    elif isinstance(obj, (list, tuple)):
+        # Full vector: emit as single repr so every element is present.
+        lines.append(f"{prefix} = {repr(list(obj))}")
+    else:
+        lines.append(f"{prefix} = {repr(obj)}")
+    return lines
+
+
+def emit_hswq_int8_full_visibility_log(
+    report: Dict[str, Any],
+    *,
+    stream: Optional[TextIO] = None,
+    also_write_file: bool = True,
+) -> Optional[str]:
+    """Print + optionally write the COMPLETE auto-analysis → auto-optimal trace."""
+    out = stream or sys.stdout
+    banner = (
+        "======== HSWQ INT8 FULL AUTO-ANALYSIS -> AUTO-OPTIMAL TRACE "
+        "(BEGIN - hide nothing) ========"
+    )
+    end = (
+        "======== HSWQ INT8 FULL AUTO-ANALYSIS -> AUTO-OPTIMAL TRACE "
+        "(END) ========"
+    )
+    lines = [banner] + _flatten_repr_lines(report) + [end]
+    text = "\n".join(lines) + "\n"
+    try:
+        out.write(text)
+    except UnicodeEncodeError:
+        out.write(text.encode(out.encoding or "utf-8", errors="replace").decode(
+            out.encoding or "utf-8", errors="replace"
+        ))
+    out.flush()
+    path: Optional[str] = None
+    if also_write_file:
+        env_p = (os.environ.get("HSWQ_FULL_TRACE_PATH") or "").strip()
+        if env_p:
+            path = os.path.abspath(env_p)
+        else:
+            repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            log_dir = os.path.join(repo, "log")
+            os.makedirs(log_dir, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            path = os.path.join(
+                log_dir, f"hswq_int8_autonomous_full_trace_{stamp}.txt"
+            )
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+        try:
+            out.write(f"[HSWQ FULL TRACE FILE] {path}\n")
+        except UnicodeEncodeError:
+            out.write(f"[HSWQ FULL TRACE FILE] {path}\n".encode(
+                out.encoding or "ascii", errors="replace"
+            ).decode(out.encoding or "ascii", errors="replace"))
+        out.flush()
+    return path
 
 # ---------------------------------------------------------------------------
 # Architecture classification (key patterns only — no checkpoint names)
@@ -464,18 +568,19 @@ def _alpha_auto_from_this_character(
     iqr_k: float,
     iqr_o: float,
     iqr_m: float,
+    calc_trace: Optional[Dict[str, Any]] = None,
 ) -> float:
-    """Full-SVD×RMS mix from THIS multi-axis analyze character (continuous).
+    """Full-SVD×RMS mix weight from THIS multi-axis analyze character.
 
     Uses kurtosis order + outlier + magnitude dispersion of THIS checkpoint.
     Axis weights = THIS IQR / THIS scale (same spirit as score_*_weight).
     Infinite pattern space: every checkpoint gets its own alpha_auto; no
-    fixed 0.7 / forced-off recipe. When the profile is degenerate (all axes
-    flat), alpha_auto may resolve to 0.0 — this only scales the SVD-leverage
-    contribution to zero in the mix; it NEVER skips Full-SVD computation
-    (philosophy §0/§4/§5: never skip V4). weighted_histogram_mse_v4 always
-    runs torch.linalg.svd regardless of alpha so DualMonitor / V4 MSE /
-    ranking see real structural leverage, not RMS-only handwave.
+    fixed 0.7 recipe.
+
+    alpha is the mix weight that puts SVD leverage into ranking. alpha==0
+    with a non-empty THIS profile is SVD cut (rebellion) — not a valid
+    "still running SVD" outcome. When THIS has any axis upper mass / IQR,
+    the mix floor is the THIS peak axis share so SVD always participates.
     """
     s_k = _alpha_auto_from_kurtosis_order(k_p50, k_p75, k_p99)
     if float(o_p99) > 1e-12:
@@ -491,8 +596,78 @@ def _alpha_auto_from_this_character(
     w_o = float(iqr_o) / max(float(o_p75), 1e-9)
     w_m = float(iqr_m) / max(float(m_p50), 1e-9)
     w_sum = max(w_k + w_o + w_m, 1e-9)
-    alpha = (w_k * s_k + w_o * s_o + w_m * s_m) / w_sum
-    return float(min(max(alpha, 0.0), 1.0))
+    alpha_raw = (w_k * s_k + w_o * s_o + w_m * s_m) / w_sum
+    alpha = float(alpha_raw)
+    branch = "weighted_mean"
+
+    # Non-degenerate THIS: any upper mass or IQR on k∪o∪m → SVD must mix in.
+    # Floor = THIS peak axis share (auto from THIS; not a fixed 0.05 recipe).
+    this_signal = max(
+        abs(float(iqr_k)),
+        float(iqr_o),
+        float(iqr_m),
+        abs(float(k_p99)),
+        float(o_p99),
+        float(m_p99),
+    )
+    axis_peak = max(float(s_k), float(s_o), float(s_m))
+    if this_signal > 1e-12 and axis_peak > 0.0:
+        if float(alpha) < float(axis_peak):
+            branch = "floor_to_axis_peak"
+        alpha = max(float(alpha), float(axis_peak))
+    elif this_signal > 1e-12 and axis_peak <= 0.0:
+        # Magnitude axis always present on real UNet: body/tail of abs_max.
+        if float(m_p99) > 1e-12:
+            branch = "fallback_m_p50_over_m_p99"
+            alpha = float(
+                min(max(float(m_p50) / max(float(m_p99), 1e-12), 0.0), 1.0)
+            )
+        elif float(o_p99) > 1e-12:
+            branch = "fallback_o_p50_over_o_p99"
+            alpha = float(
+                min(max(float(o_p50) / max(float(o_p99), 1e-12), 0.0), 1.0)
+            )
+        else:
+            branch = "fallback_k_p50_over_k_p99"
+            alpha = float(
+                min(max(abs(float(k_p50)) / max(abs(float(k_p99)), 1e-12), 0.0), 1.0)
+            )
+
+    alpha_out = float(min(max(alpha, 0.0), 1.0))
+    if calc_trace is not None:
+        calc_trace.clear()
+        calc_trace.update(
+            {
+                "inputs": {
+                    "k_p50": float(k_p50),
+                    "k_p75": float(k_p75),
+                    "k_p99": float(k_p99),
+                    "o_p50": float(o_p50),
+                    "o_p75": float(o_p75),
+                    "o_p99": float(o_p99),
+                    "m_p50": float(m_p50),
+                    "m_p75": float(m_p75),
+                    "m_p99": float(m_p99),
+                    "iqr_k": float(iqr_k),
+                    "iqr_o": float(iqr_o),
+                    "iqr_m": float(iqr_m),
+                },
+                "s_k_kurtosis_order": float(s_k),
+                "s_o_iqr_over_o_p99": float(s_o),
+                "s_m_iqr_over_m_p99": float(s_m),
+                "w_k_iqr_over_k_p75": float(w_k),
+                "w_o_iqr_over_o_p75": float(w_o),
+                "w_m_iqr_over_m_p50": float(w_m),
+                "w_sum": float(w_sum),
+                "alpha_weighted_mean": float(alpha_raw),
+                "this_signal": float(this_signal),
+                "axis_peak": float(axis_peak),
+                "branch": branch,
+                "alpha_before_clip01": float(alpha),
+                "alpha_auto": float(alpha_out),
+            }
+        )
+    return alpha_out
 
 
 def _derive_engine_tunables_int8(
@@ -696,6 +871,8 @@ def _derive_hard_veto_fence_bundle(
 
 def _mad_continuous_fences_from_positives(
     positives: List[float],
+    *,
+    calc_trace: Optional[Dict[str, Any]] = None,
 ) -> Tuple[float, float, float, float, float]:
     """THIS-pool MAD% → (floor, soft_gap, p99, collapse, iqr).
 
@@ -722,6 +899,21 @@ def _mad_continuous_fences_from_positives(
         soft = float(min(body, peak))
         if soft >= peak:
             soft = float(body)
+        if calc_trace is not None:
+            calc_trace.clear()
+            calc_trace.update(
+                {
+                    "branch": "n_lt_4",
+                    "n": int(n),
+                    "positives_sorted": [float(x) for x in mad_sorted],
+                    "peak_as_floor": float(peak),
+                    "body_p50": float(body),
+                    "soft": float(soft),
+                    "p99": float(peak),
+                    "collapse": 1.0,
+                    "iqr": 0.0,
+                }
+            )
         return peak, soft, peak, 1.0, 0.0
     q1, _med, q3_raw = _quartile_bounds(mad_sorted)
     mad_q3 = float(_safe_percentile(positives, 75.0))
@@ -732,12 +924,12 @@ def _mad_continuous_fences_from_positives(
     collapse = float(1.0 - min(1.0, iqr / (iqr + tail_span)))
     mad_floor = float(mad_q3)
     below = [float(v) for v in positives if float(v) < mad_floor]
+    soft_tip = float(mad_p50)
     if below:
         # Soft band = upper share of below-floor mass; width tracks THIS collapse.
         soft_tip = float(_safe_percentile(below, 100.0 * collapse))
         mad_soft = float((1.0 - collapse) * mad_p50 + collapse * soft_tip)
     else:
-        soft_tip = float(mad_p50)
         mad_soft = float(mad_p50)
     # THIS Soft narrow band (reflection §3-1 / commit 8357425): tip-heavy
     # keeps ~0.08 gap under floor (soft≈0.508 @ floor=0.588), Soft≠dead.
@@ -750,19 +942,56 @@ def _mad_continuous_fences_from_positives(
             1e-12,
         )
     )
+    mad_soft_pre_cap = float(mad_soft)
     mad_soft = float(min(mad_soft, mad_floor - band_w))
+    soft_adjust: List[str] = []
+    if mad_soft_pre_cap != mad_soft:
+        soft_adjust.append("cap_by_band_w")
     if mad_soft >= mad_floor:
         mad_soft = float(q1) if float(q1) < mad_floor else float(mad_p50)
+        soft_adjust.append("fallback_q1_or_p50")
     if mad_soft >= mad_floor and below:
         mad_soft = float(max(below))
+        soft_adjust.append("fallback_max_below")
     if mad_soft >= mad_floor:
         mad_soft = float(mad_floor) - float(max(mad_floor, 1.0) * 1e-12)
+        soft_adjust.append("epsilon_under_floor")
+    if calc_trace is not None:
+        calc_trace.clear()
+        calc_trace.update(
+            {
+                "branch": "n_ge_4",
+                "n": int(n),
+                "positives_sorted": [float(x) for x in mad_sorted],
+                "q1": float(q1),
+                "median_quartile": float(_med),
+                "q3_raw": float(q3_raw),
+                "mad_q3_p75_as_hard_floor": float(mad_q3),
+                "mad_p50": float(mad_p50),
+                "mad_p99_tip_only": float(mad_p99),
+                "iqr": float(iqr),
+                "tail_span": float(tail_span),
+                "collapse": float(collapse),
+                "n_below_floor": int(len(below)),
+                "below_sorted": [float(x) for x in _sorted_pool(below)] if below else [],
+                "soft_tip_below_collapse_pctile": float(soft_tip),
+                "mad_soft_pre_band_cap": float(mad_soft_pre_cap),
+                "soft_span_floor_minus_p50": float(soft_span),
+                "band_w": float(band_w),
+                "soft_adjust_steps": list(soft_adjust),
+                "attn_mad_pct_floor": float(mad_floor),
+                "attn_mad_q3_soft": float(mad_soft),
+                "attn_mad_p99": float(mad_p99),
+            }
+        )
     return mad_floor, mad_soft, mad_p99, collapse, iqr
 
 
 def _mad_tunables_from_positive_samples(
     mad_vals: List[float],
     gap_o_max: float,
+    *,
+    calc_trace: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, float]:
     """THIS-sample MAD% → auto-optimal floor/soft/p99 (any n≥1).
 
@@ -776,6 +1005,16 @@ def _mad_tunables_from_positive_samples(
     positives = [float(v) for v in mad_vals if float(v) > 0.0]
     gap = float(max(gap_o_max, 1e-9))
     if not positives:
+        if calc_trace is not None:
+            calc_trace.clear()
+            calc_trace.update(
+                {
+                    "branch": "zero_positive_mad",
+                    "n_raw": int(len(mad_vals)),
+                    "n_positive": 0,
+                    "gap_o_max": float(gap),
+                }
+            )
         return {
             "attn_mad_pct_floor": 0.0,
             "attn_mad_q3": 0.0,
@@ -785,11 +1024,12 @@ def _mad_tunables_from_positive_samples(
             "attn_mad_collapse": 0.0,
             "attn_mad_iqr": 0.0,
         }
+    fence_trace: Dict[str, Any] = {}
     mad_floor, mad_soft, mad_p99, collapse, iqr = (
-        _mad_continuous_fences_from_positives(positives)
+        _mad_continuous_fences_from_positives(positives, calc_trace=fence_trace)
     )
     mad_p99 = float(max(mad_p99, 1e-9))
-    return {
+    out = {
         "attn_mad_pct_floor": float(mad_floor),
         "attn_mad_q3": float(mad_soft),
         "attn_mad_p99": mad_p99,
@@ -798,6 +1038,18 @@ def _mad_tunables_from_positive_samples(
         "attn_mad_collapse": float(collapse),
         "attn_mad_iqr": float(iqr),
     }
+    if calc_trace is not None:
+        calc_trace.clear()
+        calc_trace.update(
+            {
+                "n_raw": int(len(mad_vals)),
+                "n_positive": int(len(positives)),
+                "gap_o_max": float(gap),
+                "fence_calc": fence_trace,
+                "tunables_out": dict(out),
+            }
+        )
+    return out
 
 
 def _derive_int8_attn_mad_tunables(
@@ -1592,6 +1844,7 @@ def derive_int8_autonomous_tunables(
     base["beta_clip_max"] = float(max(o_scale_a * o_p99, beta_floor))
 
     # ---- alpha_auto: Full-SVD×RMS from THIS multi-axis analyze character ----
+    alpha_trace: Dict[str, Any] = {}
     base["alpha_auto"] = _alpha_auto_from_this_character(
         k_p50=k_p50,
         k_p75=k_p75,
@@ -1605,6 +1858,7 @@ def derive_int8_autonomous_tunables(
         iqr_k=iqr_k,
         iqr_o=iqr_o,
         iqr_m=iqr_m,
+        calc_trace=alpha_trace,
     )
 
     # ---- search_low: INT8 pack is absmax (1.0). No clipping. ----
@@ -1616,8 +1870,9 @@ def derive_int8_autonomous_tunables(
     # ---- MAD% gate + character scale: from THIS profile if present ----
     # Any positive MAD sample → continuous replace (n≥1). Zero samples → off.
     # Writing 0.0 when 1≤n<4 after deleting ×N floors is forbidden.
+    mad_trace: Dict[str, Any] = {}
     mad_bundle = _mad_tunables_from_positive_samples(
-        all_mad, float(max(eo, 1e-9))
+        all_mad, float(max(eo, 1e-9)), calc_trace=mad_trace
     )
     base.update(mad_bundle)
 
@@ -1639,16 +1894,37 @@ def derive_int8_autonomous_tunables(
     # lower fence (Q1 - IQR) of THIS calibration — their act-mean estimate is
     # dominated by noise and BC would inject DC. Scope ratio is therefore
     # the measured fraction of layers at or above that fence (continuous).
+    bc_trace: Dict[str, Any] = {"n_sens_positive": int(len(sens_values))}
     if sens_values and len(sens_values) >= 4:
         s_sorted_bc = _sorted_pool(sens_values)
-        q1_bc, _, q3_bc = _quartile_bounds(s_sorted_bc)
+        q1_bc, med_bc, q3_bc = _quartile_bounds(s_sorted_bc)
         lower_fence = q1_bc - (q3_bc - q1_bc)
         noisy = sum(1 for v in s_sorted_bc if v < lower_fence)
         base["bias_correction_top_ratio"] = float(
             min(max(1.0 - noisy / max(len(s_sorted_bc), 1), 0.0), 1.0)
         )
+        bc_trace.update(
+            {
+                "branch": "tukey_lower_fence",
+                "sens_pool_sorted": [float(x) for x in s_sorted_bc],
+                "q1": float(q1_bc),
+                "median": float(med_bc),
+                "q3": float(q3_bc),
+                "iqr": float(q3_bc - q1_bc),
+                "lower_fence": float(lower_fence),
+                "n_noisy_below_fence": int(noisy),
+                "bias_correction_top_ratio": float(base["bias_correction_top_ratio"]),
+            }
+        )
     else:
         base["bias_correction_top_ratio"] = 1.0
+        bc_trace.update(
+            {
+                "branch": "full_bc_degenerate_or_lt4",
+                "sens_pool_sorted": [float(x) for x in _sorted_pool(sens_values)],
+                "bias_correction_top_ratio": 1.0,
+            }
+        )
 
     # ---- FP16 hard ceiling 300 MiB (owner); auto settings fill inside ----
     base["fp16_budget_mb"] = 300.0
@@ -1672,6 +1948,76 @@ def derive_int8_autonomous_tunables(
     base["n_unet_layers"] = n_layers
     base["autonomous"] = True
     _assert_int8_auto_optimal_complete(base)
+
+    # ---- Full visibility dump (every calc / every layer / every knob) ----
+    layers_dump: Dict[str, Any] = {}
+    for lname, entry in sorted(layers.items(), key=lambda kv: str(kv[0])):
+        if not isinstance(entry, dict):
+            layers_dump[str(lname)] = {"_raw": repr(entry)}
+            continue
+        layers_dump[str(lname)] = {
+            "class": classify_layer(str(lname)),
+            "kurtosis": float(entry.get("kurtosis", 0) or 0),
+            "outlier_ratio": float(entry.get("outlier_ratio", 0) or 0),
+            "abs_max": float(entry.get("abs_max", 0) or 0),
+            "mad_outlier_pct": float(
+                entry.get("mad_outlier_pct", entry.get("mad_pct", 0)) or 0
+            ),
+            "entry_full": {str(ek2): entry[ek2] for ek2 in entry},
+        }
+    weights_calc = {
+        "iqr_k": float(iqr_k),
+        "iqr_o": float(iqr_o),
+        "iqr_m": float(iqr_m),
+        "iqr_mad": float(iqr_mad),
+        "w_k_raw_iqr_over_k_p75": float(iqr_k / max(k_p75, 1e-9)),
+        "w_o_raw_iqr_over_o_p75": float(iqr_o / max(o_p75, 1e-9)),
+        "w_m_raw_iqr_over_m_p50": float(iqr_m / max(m_p50, 1e-9)),
+        "score_k_weight": float(base["score_k_weight"]),
+        "score_o_weight": float(base["score_o_weight"]),
+        "score_m_weight": float(base["score_m_weight"]),
+        "drift_score_mult": float(base["drift_score_mult"]),
+        "ek_max_tukey_p99": float(ek),
+        "eo_max_tukey_p99": float(eo),
+        "hm_max_tukey_p99": float(hm),
+        "mse_release_o_min": float(base["mse_release_o_min"]),
+        "mse_release_k_max": float(base["mse_release_k_max"]),
+        "mse_release_m_max": float(base["mse_release_m_max"]),
+        "mse_p75_multiplier": float(base["mse_p75_multiplier"]),
+        "o_den_for_mse_mult": float(o_den),
+        "alpha_floor": float(base["alpha_floor"]),
+        "beta_floor": float(base["beta_floor"]),
+        "alpha_clip_max": float(base["alpha_clip_max"]),
+        "beta_clip_max": float(base["beta_clip_max"]),
+        "k_scale_a": float(k_scale_a),
+        "o_scale_a": float(o_scale_a),
+    }
+    full_report: Dict[str, Any] = {
+        "doctrine": (
+            "model-specific auto analysis -> infinitely branching "
+            "dynamic auto-optimal settings - full dump, hide nothing"
+        ),
+        "fp16_budget_mb_hard": float(fp16_budget_mb),
+        "n_unet_layers": int(n_layers),
+        "n_dualmonitor_sens_positive": int(len(sens_values)),
+        "dualmonitor_sensitivities_full": {
+            str(k): float(v) for k, v in sorted(sens.items(), key=lambda kv: str(kv[0]))
+            if v is not None and math.isfinite(float(v))
+        },
+        "pool_kurtosis": _pool_full_stats(all_k),
+        "pool_outlier_ratio": _pool_full_stats(all_o),
+        "pool_abs_max": _pool_full_stats(all_m),
+        "pool_mad_outlier_pct": _pool_full_stats(all_mad),
+        "pool_sev_proxy": _pool_full_stats(sev_proxy_values),
+        "calc_ranking_weights_and_fences": weights_calc,
+        "calc_alpha_auto": alpha_trace,
+        "calc_mad": mad_trace,
+        "calc_bias_correction_scope": bc_trace,
+        "priority_combinator": base.get("priority_combinator"),
+        "tunables_every_key": {str(k): base[k] for k in sorted(base.keys(), key=str)},
+        "layers_every_entry": layers_dump,
+    }
+    emit_hswq_int8_full_visibility_log(full_report)
     return base
 
 
@@ -1853,9 +2199,14 @@ def measure_v4_int8_mse_at_absmax(
             "device": device,
         }
 
-    # alpha_auto from THIS profile → Full-SVD×RMS; DualMonitor Imp multiplies.
+    # alpha_auto from THIS profile → Full-SVD×RMS mix into ranking.
     alpha = float(tunables.get("alpha_auto", 0.0))
     alpha = float(min(max(alpha, 0.0), 1.0))
+    if alpha <= 0.0:
+        raise ValueError(
+            "measure_v4_int8_mse_at_absmax: alpha_auto must be > 0 "
+            f"(alpha==0 is SVD cut / rebellion). got {alpha}"
+        )
     beta = 1.0 - alpha
     quantizer = INT8Quantizer(device=device)
     optimizer = HSWQWeightedHistogramOptimizerV4(
@@ -2014,11 +2365,9 @@ def measure_v4_int8_mse_at_absmax(
         "alpha": alpha,
         "beta": beta,
         "use_svd_leverage": True,
-        # NEVER report svd_enabled=False (philosophy §0/§4/§5: never skip V4).
-        # weighted_histogram_mse_v4.compute_hybrid_leverage_scores ALWAYS runs
-        # torch.linalg.svd regardless of alpha; alpha only scales the SVD-leverage
-        # contribution in the SVD×RMS mix. bool(alpha > 0.0) would be a lying
-        # "SVD skipped" flag — sacrilege. Full-SVD always executes.
+        # svd_enabled=True means Full-SVD is on the ranking path. Contribution
+        # requires alpha>0 (alpha==0 is cut / rebellion). Do not treat
+        # "svd ran then ×0" as success.
         "svd_enabled": True,
         "dualmonitor_importance": True,
         "calib_contract": {
