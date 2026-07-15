@@ -18,6 +18,8 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 
 **Z Image / Z-Anime models (FP8):** [Hugging Face — HSWQ-Z-Image-fp8e4m3](https://huggingface.co/ussoewwin/HSWQ-Z-Image-fp8e4m3)
 
+**Z Image / Z-Anime models (INT8):** [Hugging Face — HSWQ-Z-Image-INT8](https://huggingface.co/ussoewwin/HSWQ-Z-Image-INT8)
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/logo.png" width="400">
 </p>
@@ -33,6 +35,7 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 - **SDXL (FP8):** [MSE / SSIM](test/benchmark_test.md)
 - **SDXL (INT8):** [MSE / SSIM](test/benchmark_sdxl_int8.md)
 - **Z Image / Z-Anime (FP8):** [MSE / SSIM](test/benchmark_zit.md)
+- **Z Image / Z-Anime (INT8):** [MSE / SSIM](test/benchmark_zi_int8.md)
 
 ---
 
