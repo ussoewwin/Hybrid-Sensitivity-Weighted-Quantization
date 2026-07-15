@@ -20,12 +20,12 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 Same setup (vs FP16 reference). **HSWQ INT8** vs baseline (see below).  
 Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ MSE ⇒ HSWQ better; negative Δ SSIM ⇒ HSWQ better, since higher SSIM is better).  
-**Native** = naive cast INT8.
+**Native** = naive cast INT8. **Official INT8** = officially distributed INT8. Native and Official INT8 are not the same.
 
 | Model | Keep | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Baseline | Winner |
 |-------|------|----------|--------------|-------|-----------|---------------|--------|----------|--------|
 | moodyProMix_zitV13 | r0 | 0.0258 | 0.0269 | +0.0011 | 0.9938 | 0.9798 | −0.0140 | Native INT8 | HSWQ |
-| moodyRealMix_zitV7 | r0 | 0.0121 | 7.1742 | +7.1621 | 0.9983 | 0.9354 | −0.0629 | Native INT8 | HSWQ |
+| moodyRealMix_zitV7 | r0 | 0.0121 | 0.2344 | +0.2223 | 0.9983 | 0.9597 | −0.0386 | Official INT8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM (lower MSE and higher SSIM for HSWQ vs baseline).
 
