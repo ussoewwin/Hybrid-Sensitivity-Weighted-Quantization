@@ -100,7 +100,7 @@ venv_site_packages = os.path.join(os.path.dirname(current_dir), "venv", "Lib", "
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
     sys.path.append(venv_site_packages)
 
-from weighted_histogram_mse_v4 import HSWQWeightedHistogramOptimizerV4, INT8Quantizer
+from weighted_histogram_mse_v4_int8 import HSWQWeightedHistogramOptimizerV4, INT8Quantizer
 
 # Enforce C++20
 if sys.platform == "win32":
@@ -521,8 +521,10 @@ class SdxlVetoTunables:
             )
         if str(d["quant_format"]) != "int8_tensorwise":
             raise ValueError("INT8 SdxlVetoTunables requires quant_format=int8_tensorwise")
-        if abs(float(d["fp16_budget_mb"]) - 300.0) > 1e-6:
-            raise ValueError("fp16_budget_mb must be 300.0")
+        if abs(float(d["fp16_budget_mb"]) - float(FP16_BUDGET_MB_HARD)) > 1e-6:
+            raise ValueError(
+                f"fp16_budget_mb must be {float(FP16_BUDGET_MB_HARD):g}"
+            )
         if float(d["search_low_floor"]) != 1.0:
             raise ValueError("INT8 search_low_floor must be 1.0 (absmax auto-optimal)")
         if float(d["mse_p75_multiplier"]) <= 0.0:
