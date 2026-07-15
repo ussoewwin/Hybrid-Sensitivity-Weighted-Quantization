@@ -1113,12 +1113,13 @@ def int8_fp16_budget_analyze_severity(
     severity = max(o / eo, 0.0) + max(k / ek, 0.0) + max(m / hm, 0.0)
 
     # Attn-class character from the same INT8 tunables (THIS-model gates).
+    # Includes NextDiT fused `.attention.qkv` / `.attention.out` (structure suffix).
     name = str(layer_name or "")
-    if name.endswith((".to_q", ".to_k", ".to_v")):
+    if name.endswith((".to_q", ".to_k", ".to_v", ".attention.qkv")):
         aq = max(float(tunables.get("attn_qkv_absmax", hm)), 1e-6)
         ao = max(float(tunables.get("attn_qkv_outlier", eo)), 1e-6)
         severity += max(m / aq, 0.0) + max(o / ao, 0.0)
-    elif name.endswith(".to_out.0"):
+    elif name.endswith((".to_out.0", ".attention.out")):
         aq = max(float(tunables.get("attn_toout_absmax", hm)), 1e-6)
         ao = max(float(tunables.get("attn_toout_outlier", eo)), 1e-6)
         severity += max(m / aq, 0.0) + max(o / ao, 0.0)
@@ -1285,11 +1286,33 @@ def derive_priority_combinator(
 # Architectural key-pattern suffixes (structure only — not a KEEP table).
 # Sibling DualMonitor under-measure is repaired by continuous THIS-model
 # branches below, never by a unified median/geom floor recipe.
+# Structure endings only (Diffusers UNet / NextDiT / Lumina-style) — never a
+# frozen per-model priority recipe.
 _KEYPATTERN_FAMILY_SENS_SUFFIXES = (
+    ".to_q",
+    ".to_k",
+    ".to_v",
+    ".to_out.0",
+    ".add_q_proj",
+    ".add_k_proj",
+    ".add_v_proj",
+    ".to_add_out",
+    ".ff.net.0.proj",
+    ".ff.net.2",
+    ".proj_in",
+    ".proj_out",
+    ".proj",
     ".upsamplers.0.conv",
     ".downsamplers.0.conv",
     ".conv_in",
     ".conv_out",
+    # NextDiT / Comfy Lumina fused attention + FFN (ZI / ZIB structure keys)
+    ".attention.qkv",
+    ".attention.out",
+    ".feed_forward.w1",
+    ".feed_forward.w2",
+    ".feed_forward.w3",
+    ".adaLN_modulation.1",
 )
 
 
