@@ -6,10 +6,10 @@ ZI-format pipeline (load / calib / Static+Structural VETO / Z-Anime):
   same infrastructure as quantize_zib_hswq_v2.0.py (loaded via importlib).
 
 INT8 FP16 protect (HSWQ — per-checkpoint auto analysis → auto-optimal):
-  - Owner hard frame: FP16 overhead vs all-INT8 == 300 MiB exactly.
+  - Owner hard frame: FP16 overhead vs all-INT8 == 600 MiB exactly.
   - DualMonitor sensitivity × analyze severity × V4 estimated_mse rank
     with infinite THIS-model ranking / priority branches (no fixed formula,
-    no keep_ratio % cut). Extreme fill under 300 MiB only truncates.
+    no keep_ratio % cut). Extreme fill under 600 MiB only truncates.
   - Pack amax stays absmax (tensorwise) or per-out-channel (Card 3).
   - Card 1 (--bias_correction): bias += -(W_q - W) @ mu_x
     mu_x = DualMonitor.channel_act_mean from ZITCalibrationPipeline.
@@ -55,7 +55,7 @@ def _load_zib_v20():
 
 
 def _load_hswq_int8_budget():
-    """Load INT8 300 MiB budget + infinite-branch helpers (shared HSWQ path)."""
+    """Load INT8 FP16 budget + infinite-branch helpers (shared HSWQ path)."""
     path = os.path.join(current_dir, "quantize_sdxl_hswq_v3.0.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"HSWQ INT8 budget engine not found: {path}")
@@ -69,6 +69,24 @@ def _load_hswq_int8_budget():
     sys.modules[mod_name] = mod
     spec.loader.exec_module(mod)
     return mod
+
+
+# ZI INT8 V1.0 owner hard ceiling (MiB). Ranking/fill logic unchanged;
+# only the ceiling number. SDXL V3.0 default remains 300 via its own constant.
+ZI_FP16_BUDGET_MB_HARD = 600.0
+
+
+def _install_zi_fp16_budget_ceiling(hswq_int8) -> float:
+    """Point shared helpers at ZI's 600 MiB ceiling (same require/fill path)."""
+    hard = float(ZI_FP16_BUDGET_MB_HARD)
+    hswq_int8.FP16_BUDGET_MB_HARD = hard
+    analyze_dir = os.path.join(current_dir, "analyze")
+    if analyze_dir not in sys.path:
+        sys.path.insert(0, analyze_dir)
+    import analyze_sdxl_distribution as _az
+
+    _az.INT8_FP16_BUDGET_MB_HARD = hard
+    return hard
 
 
 class DualMonitorInt8:
@@ -191,7 +209,7 @@ def _v4_score_all_fp16_candidates(
 ):
     """V4 estimated_mse @ absmax for ALL target Linear/Conv — no keep_ratio cut.
 
-    Truncation is only the 300 MiB budget pass over THIS-model priority order
+    Truncation is only the 600 MiB budget pass over THIS-model priority order
     (auto analysis → infinite branches → extreme fill).
     """
     return hswq_int8._build_v4_calib_fp16_candidates(
@@ -208,11 +226,11 @@ def _v4_score_all_fp16_candidates(
 
 def main():
     hswq_int8 = _load_hswq_int8_budget()
-    budget_hard = float(hswq_int8.FP16_BUDGET_MB_HARD)
+    budget_hard = _install_zi_fp16_budget_ceiling(hswq_int8)
 
     parser = argparse.ArgumentParser(
         description=(
-            "Z-Image / NextDiT INT8 HSWQ V1.0 — 300 MiB FP16 frame + "
+            "Z-Image / NextDiT INT8 HSWQ V1.0 — 600 MiB FP16 frame + "
             "per-checkpoint auto analysis → infinite-branch fill + "
             "Card 1 bias correction + Card 3 per-channel (ZI format via zib v2.0)."
         )
@@ -504,7 +522,7 @@ def main():
                 f"(total {len(hard_veto_layers)})"
             )
 
-    # --- Per-checkpoint auto analysis → auto-optimal FP16 inside 300 MiB ---
+    # --- Per-checkpoint auto analysis → auto-optimal FP16 inside 600 MiB ---
     # DualMonitor refresh α/β (never keep pre-calib stale mix). No keep_ratio.
     if not _norm_profile:
         raise ValueError(

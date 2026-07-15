@@ -1724,11 +1724,16 @@ def build_int8_analyze_character_table(
 
 # ---------------------------------------------------------------------------
 # Fully autonomous tunable derivation.
-# Owner hard ceiling fp16_budget_mb=300 MiB is NOT a thinking-stop recipe:
+# Owner hard ceiling INT8_FP16_BUDGET_MB_HARD (default 300 MiB; ZI V1.0 may
+# raise the same named ceiling to 600) is NOT a thinking-stop recipe:
 # auto knobs fill inside that frame and must never exceed it.
 # Every knob below is derived from THIS checkpoint's profile + DualMonitor
 # sensitivity distribution. Covers degenerate / tiny / huge / skewed cases.
 # ---------------------------------------------------------------------------
+
+# Default = SDXL INT8. Callers (e.g. quantize_zi_int8_hswq_v1.0) may set this
+# module attribute before derive / assert; ranking / fill logic is unchanged.
+INT8_FP16_BUDGET_MB_HARD = 300.0
 
 
 def _safe_percentile(values: List[float], pct: float) -> float:
@@ -1760,15 +1765,16 @@ def derive_int8_autonomous_tunables(
     *,
     dualmonitor_sensitivities: Optional[Dict[str, float]] = None,
     layer_extra_bytes: Optional[Dict[str, int]] = None,
-    fp16_budget_mb: float = 300.0,
+    fp16_budget_mb: float = INT8_FP16_BUDGET_MB_HARD,
 ) -> Dict[str, Any]:
     """Derive EVERY INT8 knob from this checkpoint + calibration.
 
-    Owner hard ceiling: fp16_budget_mb must be exactly 300 MiB.
+    Owner hard ceiling: fp16_budget_mb must equal INT8_FP16_BUDGET_MB_HARD
+    (default 300 MiB; ZI INT8 V1.0 uses 600 MiB via the same named ceiling).
     Inside that frame: THIS model's auto analysis → extreme auto-optimal
     settings (Hard VETO fences, ranking weights, MSE release, BC scope,
     gray-zone, alpha/beta, search_low, sens_veto percentile).
-    Never redefine/exceed 300; never treat 300 as a removable recipe.
+    Never redefine/exceed the hard ceiling; never treat it as removable.
 
     Degenerate-input safe:
       - empty / single-layer profile
@@ -1777,12 +1783,13 @@ def derive_int8_autonomous_tunables(
       - extreme outliers dominating max
       - tiny UNet (<50 layers) or huge (>5000)
     """
-    if abs(float(fp16_budget_mb) - 300.0) > 1e-6:
+    hard = float(INT8_FP16_BUDGET_MB_HARD)
+    if abs(float(fp16_budget_mb) - hard) > 1e-6:
         raise ValueError(
-            f"fp16_budget_mb must be exactly 300.0 MiB "
+            f"fp16_budget_mb must be exactly {hard:g} MiB "
             f"(owner hard ceiling; got {fp16_budget_mb})"
         )
-    fp16_budget_mb = 300.0
+    fp16_budget_mb = hard
 
     profile = _normalize_profile(profile)
     profile = _unet_only_profile(profile)
@@ -1949,9 +1956,9 @@ def derive_int8_autonomous_tunables(
             }
         )
 
-    # ---- FP16 hard ceiling 300 MiB (owner); auto settings fill inside ----
-    base["fp16_budget_mb"] = 300.0
-    base["fp16_budget_bytes"] = int(300.0 * 1024 * 1024)
+    # ---- FP16 hard ceiling (owner); auto settings fill inside ----
+    base["fp16_budget_mb"] = float(INT8_FP16_BUDGET_MB_HARD)
+    base["fp16_budget_bytes"] = int(float(INT8_FP16_BUDGET_MB_HARD) * 1024 * 1024)
 
 
     # Autonomous priority combinator seed (analyze severity axis only here;
@@ -2102,8 +2109,10 @@ def _assert_int8_auto_optimal_complete(d: Dict[str, Any]) -> None:
         )
     if str(d.get("quant_format")) != "int8_tensorwise":
         raise ValueError("INT8 auto-optimal requires quant_format=int8_tensorwise")
-    if abs(float(d.get("fp16_budget_mb", 0.0)) - 300.0) > 1e-6:
-        raise ValueError("INT8 auto-optimal requires fp16_budget_mb=300.0")
+    if abs(float(d.get("fp16_budget_mb", 0.0)) - float(INT8_FP16_BUDGET_MB_HARD)) > 1e-6:
+        raise ValueError(
+            f"INT8 auto-optimal requires fp16_budget_mb={float(INT8_FP16_BUDGET_MB_HARD):g}"
+        )
     if not bool(d.get("autonomous")):
         raise ValueError("INT8 auto-optimal requires autonomous=True from derive")
     # Finite / non-NaN on continuous auto knobs.
@@ -2166,7 +2175,7 @@ def measure_v4_int8_mse_at_absmax(
     hist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "histogram")
     if hist_dir not in sys.path:
         sys.path.insert(0, hist_dir)
-    from weighted_histogram_mse_v4 import (  # type: ignore
+    from weighted_histogram_mse_v4_int8 import (  # type: ignore
         HSWQWeightedHistogramOptimizerV4,
         INT8Quantizer,
     )
