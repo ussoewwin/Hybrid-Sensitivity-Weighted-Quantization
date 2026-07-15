@@ -14,6 +14,7 @@ Hybrid model:
 Assigns per-element (2D/4D) importance and builds weighted histogram MSE at high precision.
 """
 
+import os
 import torch
 import numpy as np
 import math
@@ -271,24 +272,124 @@ class MSEOptimizer:
 # ==============================================================================
 # V4 Hybrid: SVD Leverage + RMS Magnitude Calculator
 # ==============================================================================
-def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, beta: float = 0.3, top_p: float = 1.0, min_k: int = 1, max_k: int = 4096) -> torch.Tensor:
+_SVD_MIX_TRACE_FH = None
+_SVD_MIX_TRACE_PATH = None
+
+
+def _svd_mix_trace_path() -> str:
+    env = os.environ.get("HSWQ_SVD_TRACE_PATH", "").strip()
+    if env:
+        return env
+    base = os.environ.get("HSWQ_FULL_TRACE_PATH", "").strip()
+    if base:
+        root, ext = os.path.splitext(base)
+        return f"{root}_svd_mix{ext or '.txt'}"
+    import time as _time
+
+    log_dir = os.path.join(os.getcwd(), "log")
+    os.makedirs(log_dir, exist_ok=True)
+    return os.path.join(
+        log_dir,
+        f"hswq_int8_svd_mix_full_trace_{_time.strftime('%Y%m%d_%H%M%S')}.txt",
+    )
+
+
+def _append_svd_mix_trace(text: str) -> None:
+    """Append SVD mix calc dump to disk (open once per process)."""
+    global _SVD_MIX_TRACE_FH, _SVD_MIX_TRACE_PATH
+    try:
+        if _SVD_MIX_TRACE_FH is None:
+            _SVD_MIX_TRACE_PATH = _svd_mix_trace_path()
+            parent = os.path.dirname(_SVD_MIX_TRACE_PATH)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            _SVD_MIX_TRACE_FH = open(
+                _SVD_MIX_TRACE_PATH, "a", encoding="utf-8", newline="\n"
+            )
+            print(f"  [HSWQ SVD MIX TRACE FILE] {_SVD_MIX_TRACE_PATH}")
+        _SVD_MIX_TRACE_FH.write(text)
+        if not text.endswith("\n"):
+            _SVD_MIX_TRACE_FH.write("\n")
+        _SVD_MIX_TRACE_FH.flush()
+    except OSError as exc:
+        print(f"  [HSWQ SVD MIX TRACE FILE] write failed: {exc!r}")
+
+
+def compute_hybrid_leverage_scores(
+    weight: torch.Tensor,
+    alpha: float = 0.7,
+    beta: float = 0.3,
+    top_p: float = 1.0,
+    min_k: int = 1,
+    max_k: int = 4096,
+    layer_name: str = "",
+    return_stats: bool = False,
+):
     """
     Outputs blended importance matrix: SVD-based structural leverage and RMS magnitude,
     each L2-normalized and combined with weights (alpha, beta).
+
+    Always emits full SVD-mix calc visibility (settings + singular values +
+    alpha*leverage vs beta*magnitude contribution). The old ``shape > 100``
+    print gate is removed — mid-stopping SVD logs was rebellion / deception.
+    When return_stats=True, returns ``(tensor, stats_dict)``.
     """
     device = weight.device
     original_shape = weight.shape
-    
+    label = layer_name or f"tensor{tuple(original_shape)}"
+
+    def _finish(out: torch.Tensor, stats: dict):
+        if return_stats:
+            return out, stats
+        return out
+
     # Flatten to 2D
     if weight.ndim > 2:
         w_float = weight.detach().float().view(weight.shape[0], -1)
     elif weight.ndim == 2:
         w_float = weight.detach().float()
     else:
-        return torch.ones_like(weight, dtype=torch.float32)
+        stats = {
+            "layer": label,
+            "skipped": True,
+            "reason": "ndim<2_ones",
+            "ndim": int(weight.ndim),
+            "shape": list(original_shape),
+            "alpha": float(alpha),
+            "beta": float(beta),
+        }
+        _emit_svd_mix_visibility(stats)
+        return _finish(torch.ones_like(weight, dtype=torch.float32), stats)
 
     if torch.all(w_float == 0):
-        return torch.ones_like(weight, dtype=torch.float32)
+        stats = {
+            "layer": label,
+            "skipped": True,
+            "reason": "all_zero_ones",
+            "shape": list(original_shape),
+            "w2d_shape": list(w_float.shape),
+            "alpha": float(alpha),
+            "beta": float(beta),
+        }
+        _emit_svd_mix_visibility(stats)
+        return _finish(torch.ones_like(weight, dtype=torch.float32), stats)
+
+    # Non-finite weights: emit full visibility then ones — do NOT crash mid-layer
+    # (mid-stop via LinAlgError was another way of ending SVD settings incomplete).
+    if not bool(torch.isfinite(w_float).all().item()):
+        n_bad = int((~torch.isfinite(w_float)).sum().item())
+        stats = {
+            "layer": label,
+            "skipped": True,
+            "reason": "non_finite_ones",
+            "n_nonfinite": n_bad,
+            "shape": list(original_shape),
+            "w2d_shape": list(w_float.shape),
+            "alpha": float(alpha),
+            "beta": float(beta),
+        }
+        _emit_svd_mix_visibility(stats)
+        return _finish(torch.ones_like(weight, dtype=torch.float32), stats)
 
     M, N = w_float.shape
     max_rank = min(M, N)
@@ -298,45 +399,166 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
     # --- RMS Magnitude (always) ---
     magnitude_2d = w_float ** 2  # (M, N)
     mag_norm = torch.norm(magnitude_2d, p=2)
+    mag_norm_f = float(mag_norm.item()) if mag_norm.numel() else 0.0
     if mag_norm > 0:
         magnitude_2d = magnitude_2d / mag_norm
 
-    # NEVER skip V4 / never skip Full-SVD×RMS (philosophy §0, §4, §5).
-    # alpha is the MIX WEIGHT between SVD leverage and RMS magnitude, NOT a
-    # switch that turns SVD on/off. Even when alpha_auto degenerates to 0.0
-    # (flat k∪o∪m profile), Full-SVD still executes — its contribution is
-    # simply scaled to zero by alpha, but the structural-leverage path is
-    # always computed so DualMonitor / V4 MSE / ranking see real structure.
-    # No "RMS-only shortcut", no "alpha<=0 skip" handwave.
-    if w_float.shape[0] > 100 or w_float.shape[1] > 100:
-        print(
-            f"  [Hybrid Full-SVD×RMS] Executing torch.linalg.svd and RMS "
-            f"blending on shape {w_float.shape} [alpha={alpha}, beta={beta}]..."
+    # Full-SVD×RMS hybrid: alpha is the mix weight that puts SVD leverage
+    # into ranking. alpha==0 ⇒ SVD cut (rebellion) — not "still contributing".
+    if float(alpha) <= 0.0:
+        raise ValueError(
+            "Full-SVD×RMS mix alpha must be > 0 (alpha==0 is SVD cut / rebellion). "
+            f"got alpha={alpha}, beta={beta}, shape={tuple(w_float.shape)}, layer={label!r}"
         )
 
-    # --- SVD Leverage (full: σ^2 weighted) ---
-    U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
+    # --- SVD Leverage (full: σ^2 weighted) — settings + process always logged ---
+    try:
+        U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
+    except RuntimeError as exc:
+        stats = {
+            "layer": label,
+            "skipped": True,
+            "reason": "svd_linalg_error_ones",
+            "error": repr(exc),
+            "shape": list(original_shape),
+            "w2d_shape": list(w_float.shape),
+            "alpha": float(alpha),
+            "beta": float(beta),
+        }
+        _emit_svd_mix_visibility(stats)
+        return _finish(torch.ones_like(weight, dtype=torch.float32), stats)
     S_sq = S ** 2
     row_scores = (U ** 2) @ S_sq.unsqueeze(1)
     col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1)
     leverage_2d = row_scores * col_scores.T
 
     lev_norm = torch.norm(leverage_2d, p=2)
+    lev_norm_f = float(lev_norm.item()) if lev_norm.numel() else 0.0
     if lev_norm > 0:
         leverage_2d = leverage_2d / lev_norm
 
-    hybrid_importance = (alpha * leverage_2d) + (beta * magnitude_2d)
+    alpha_f = float(alpha)
+    beta_f = float(beta)
+    alpha_lev = alpha_f * leverage_2d
+    beta_mag = beta_f * magnitude_2d
+    alpha_lev_l2 = float(torch.norm(alpha_lev, p=2).item())
+    beta_mag_l2 = float(torch.norm(beta_mag, p=2).item())
+    mix_den = alpha_lev_l2 + beta_mag_l2
+    svd_share = (alpha_lev_l2 / mix_den) if mix_den > 0 else float("nan")
+
+    hybrid_raw = alpha_lev + beta_mag
+    hybrid_raw_mean = float(hybrid_raw.mean().item())
+    hybrid_raw_min = float(hybrid_raw.min().item())
+    hybrid_raw_max = float(hybrid_raw.max().item())
+
+    hybrid_importance = hybrid_raw
 
     # --- 5. Histogram scale normalization ---
-    # Scale so mean ~1.0 and histogram area matches weight count
     avg_score = hybrid_importance.mean()
+    avg_score_f = float(avg_score.item())
     if avg_score > 0:
         hybrid_importance = hybrid_importance / avg_score
 
     # V2-style mild baseline (avoid 0-div and full collapse)
     hybrid_importance = 0.5 + 0.5 * hybrid_importance
 
-    return hybrid_importance.view(original_shape)
+    S_cpu = S.detach().float().cpu()
+    s_list = [float(x) for x in S_cpu.tolist()]
+    out = hybrid_importance.view(original_shape)
+    stats = {
+        "layer": label,
+        "skipped": False,
+        "reason": "",
+        "shape": list(original_shape),
+        "w2d_shape": [int(M), int(N)],
+        "settings": {
+            "alpha": alpha_f,
+            "beta": beta_f,
+            "top_p": float(top_p),
+            "min_k": int(min_k),
+            "max_k": int(max_k),
+            "k_requested": int(k),
+            "max_rank": int(max_rank),
+            "full_matrices": False,
+            "svd_weighting": "sigma_squared",
+            "mix_formula": "alpha*L2norm(leverage)+beta*L2norm(magnitude^2); then mean-norm; then 0.5+0.5*x",
+        },
+        "singular_values": {
+            "n": int(S_cpu.numel()),
+            "sum": float(S_cpu.sum().item()),
+            "max": float(S_cpu.max().item()) if S_cpu.numel() else 0.0,
+            "min": float(S_cpu.min().item()) if S_cpu.numel() else 0.0,
+            "top5": s_list[:5],
+            "all": s_list,
+        },
+        "norms": {
+            "mag_l2_before_norm": mag_norm_f,
+            "lev_l2_before_norm": lev_norm_f,
+            "alpha_times_leverage_l2": alpha_lev_l2,
+            "beta_times_magnitude_l2": beta_mag_l2,
+            "svd_share_of_mix_l2": svd_share,
+            "hybrid_raw_mean": hybrid_raw_mean,
+            "hybrid_raw_min": hybrid_raw_min,
+            "hybrid_raw_max": hybrid_raw_max,
+            "hybrid_mean_before_baseline": avg_score_f,
+            "out_mean": float(out.mean().item()),
+            "out_min": float(out.min().item()),
+            "out_max": float(out.max().item()),
+        },
+        "proof_svd_in_ranking": {
+            "alpha_gt_0": alpha_f > 0.0,
+            "alpha_lev_l2_gt_0": alpha_lev_l2 > 0.0,
+            "svd_share_gt_0": bool(svd_share > 0.0) if svd_share == svd_share else False,
+        },
+    }
+    _emit_svd_mix_visibility(stats)
+    return _finish(out, stats)
+
+
+def _emit_svd_mix_visibility(stats: dict) -> None:
+    """Stdout + file: every SVD mix setting and calc result (no mid-stop)."""
+    layer = stats.get("layer", "?")
+    lines = [
+        f"===== [HSWQ SVD MIX FULL] layer={layer!r} =====",
+    ]
+    if stats.get("skipped"):
+        lines.append(f"skipped = True")
+        lines.append(f"reason = {stats.get('reason')!r}")
+        for k in ("ndim", "shape", "w2d_shape", "alpha", "beta"):
+            if k in stats:
+                lines.append(f"{k} = {stats[k]!r}")
+    else:
+        st = stats.get("settings") or {}
+        nm = stats.get("norms") or {}
+        sv = stats.get("singular_values") or {}
+        pf = stats.get("proof_svd_in_ranking") or {}
+        lines.append(f"shape = {stats.get('shape')!r}")
+        lines.append(f"w2d_shape = {stats.get('w2d_shape')!r}")
+        for k, v in st.items():
+            lines.append(f"settings.{k} = {v!r}")
+        for k, v in nm.items():
+            lines.append(f"norms.{k} = {v!r}")
+        lines.append(f"singular_values.n = {sv.get('n')!r}")
+        lines.append(f"singular_values.sum = {sv.get('sum')!r}")
+        lines.append(f"singular_values.max = {sv.get('max')!r}")
+        lines.append(f"singular_values.min = {sv.get('min')!r}")
+        lines.append(f"singular_values.top5 = {sv.get('top5')!r}")
+        # Full S vector — hide nothing (may be long; file + stdout)
+        lines.append(f"singular_values.all = {sv.get('all')!r}")
+        for k, v in pf.items():
+            lines.append(f"proof_svd_in_ranking.{k} = {v!r}")
+        lines.append(
+            f"[Hybrid Full-SVD x RMS] Mixing into ranking "
+            f"shape={stats.get('w2d_shape')!r} "
+            f"alpha={st.get('alpha')!r} beta={st.get('beta')!r} "
+            f"svd_share={nm.get('svd_share_of_mix_l2')!r} "
+            f"alpha_lev_l2={nm.get('alpha_times_leverage_l2')!r} "
+            f"beta_mag_l2={nm.get('beta_times_magnitude_l2')!r}"
+        )
+    lines.append(f"===== [/HSWQ SVD MIX FULL] layer={layer!r} =====")
+    block = "\n".join(lines)
+    print(block)
+    _append_svd_mix_trace(block)
 
 
 
@@ -451,6 +673,7 @@ class HSWQWeightedHistogramOptimizerV4:
         use_svd_leverage: bool = True,
         scaled: bool = True,
         search_range: Tuple[float, float] = (1.0, 1.0),
+        layer_name: str = "",
     ) -> dict:
         """INT8-only: estimated_mse at an explicit search_range (typically absmax).
 
@@ -464,9 +687,14 @@ class HSWQWeightedHistogramOptimizerV4:
         previous double-SVD path that also spammed 1.000-1.000 DEBUG lines).
         """
         combined_importance = None
+        svd_mix_stats: Optional[dict] = None
         if use_svd_leverage and weight.ndim >= 2:
-            hybrid_importance = compute_hybrid_leverage_scores(
-                weight, alpha=self.alpha, beta=self.beta
+            hybrid_importance, svd_mix_stats = compute_hybrid_leverage_scores(
+                weight,
+                alpha=self.alpha,
+                beta=self.beta,
+                layer_name=layer_name,
+                return_stats=True,
             )
             if importance is not None:
                 importance = importance.float().to(self.device)
@@ -491,6 +719,19 @@ class HSWQWeightedHistogramOptimizerV4:
                 combined_importance = hybrid_importance
         else:
             combined_importance = importance
+            svd_mix_stats = {
+                "layer": layer_name or f"tensor{tuple(weight.shape)}",
+                "skipped": True,
+                "reason": (
+                    "use_svd_leverage=False"
+                    if not use_svd_leverage
+                    else "ndim<2_in_int8_range"
+                ),
+                "shape": list(weight.shape),
+                "alpha": float(self.alpha),
+                "beta": float(self.beta),
+            }
+            _emit_svd_mix_visibility(svd_mix_stats)
 
         weighted_hist = WeightedHistogram(bins=self.bins, device=self.device)
         weighted_hist.build(weight, combined_importance)
@@ -501,6 +742,7 @@ class HSWQWeightedHistogramOptimizerV4:
                 "max_val": 0.0,
                 "compression_ratio": 1.0,
                 "estimated_mse": 0.0,
+                "svd_mix": svd_mix_stats,
             }
 
         sr0 = float(search_range[0])
@@ -534,6 +776,7 @@ class HSWQWeightedHistogramOptimizerV4:
             "max_val": max_val,
             "compression_ratio": optimal_amax / max_val if max_val > 0 else 1.0,
             "estimated_mse": estimated_mse,
+            "svd_mix": svd_mix_stats,
         }
 
 
