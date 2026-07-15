@@ -48,7 +48,8 @@ COMFY_PATH = _resolve_comfy_path()
 def _ensure_comfy_complete():
     """Cloud checkouts of ComfyUI-master often ship a truncated tree.
     Restore missing root .py files and the entire comfy/ tree from upstream,
-    then overlay our patched ops.py for INT8 Conv2d support."""
+    Preserve existing ops.py if present. INT8 Conv2d support is NOT via
+    permanently patched ops.py — see int8/comfy_quant_int8.py monkey-patch."""
     comfy_dir = os.path.join(COMFY_PATH, "comfy")
     # Always ensure comfy/__init__.py exists first.
     init_path = os.path.join(comfy_dir, "__init__.py")
@@ -331,26 +332,34 @@ if _comfy_import_error is not None and "comfy.ops" not in dir():
 
 
 try:
-    # Normalize comfy_quant after json.loads (bare str / double-encoded JSON).
-    _ops_json_loads = comfy.ops.json.loads
+    # INT8 comfy_quant: inject Quantized Conv2d + normalize comfy_quant JSON.
+    # Local package only — never import from ComfyUI-nunchaku-unofficial-loader.
+    _BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
+    if _BENCH_DIR not in sys.path:
+        sys.path.insert(0, _BENCH_DIR)
+    from int8.comfy_quant_int8 import (  # noqa: E402
+        apply_comfy_quant_int8_patches,
+        checkpoint_looks_like_comfy_quant_int8,
+        _int8_quant_conv_scope,
+    )
+    import int8.comfy_quant_int8 as _cq_int8  # noqa: E402
 
-    def _normalize_comfy_quant_loads(s, *args, **kwargs):
-        obj = _ops_json_loads(s, *args, **kwargs)
-        if isinstance(obj, str):
-            try:
-                obj = _ops_json_loads(obj)
-            except Exception:
-                obj = {"format": obj}
-        if not isinstance(obj, dict):
-            obj = {"format": str(obj)}
-        return obj
-
-    comfy.ops.json.loads = _normalize_comfy_quant_loads
+    apply_comfy_quant_int8_patches()
+    _mp_ops = comfy.ops.mixed_precision_ops()
+    with _int8_quant_conv_scope():
+        _has_conv_int8 = hasattr(comfy.ops.mixed_precision_ops(), "Conv2d")
 
     print(f"[BENCH] COMFY_PATH: {COMFY_PATH}")
     print(f"[BENCH] comfy.ops: {comfy.ops.__file__}")
     print(f"[BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
-    print(f"[BENCH] MixedPrecisionOps.Conv2d: {hasattr(comfy.ops.mixed_precision_ops(), 'Conv2d')}")
+    print(f"[BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
+    print(
+        f"[BENCH] mixed_precision_ops Conv2d inject: "
+        f"{getattr(comfy.ops.mixed_precision_ops, '_hswq_int8_conv_patched', False)}"
+    )
+    print(f"[BENCH] MixedPrecisionOps.Conv2d (default): {hasattr(_mp_ops, 'Conv2d')}")
+    print(f"[BENCH] MixedPrecisionOps.Conv2d (INT8 scope): {_has_conv_int8}")
+    print(f"[BENCH] patch file: {os.path.abspath(_cq_int8.__file__)}")
     print(f"[BENCH] comfy_aimdo stubbed: {_AIMDO_STUBBED}")
 except Exception as e:
     print(f"Error: Could not import ComfyUI comfy package from {COMFY_PATH}: {type(e).__name__}: {e}")
@@ -389,12 +398,23 @@ def load_pipeline(path, device="cuda"):
     print(f"Loading model: {os.path.basename(path)}...")
     try:
         ckpt_path = os.path.abspath(path)
-        out = comfy.sd.load_checkpoint_guess_config(
-            ckpt_path,
-            output_vae=True,
-            output_clip=True,
-            embedding_directory=None,
-        )
+        use_int8_scope = checkpoint_looks_like_comfy_quant_int8(ckpt_path)
+        print(f"[BENCH] INT8 Conv2d load scope: {use_int8_scope}")
+        if use_int8_scope:
+            with _int8_quant_conv_scope():
+                out = comfy.sd.load_checkpoint_guess_config(
+                    ckpt_path,
+                    output_vae=True,
+                    output_clip=True,
+                    embedding_directory=None,
+                )
+        else:
+            out = comfy.sd.load_checkpoint_guess_config(
+                ckpt_path,
+                output_vae=True,
+                output_clip=True,
+                embedding_directory=None,
+            )
         model, clip, vae = out[0], out[1], out[2]
         return model, clip, vae
     except Exception as e:

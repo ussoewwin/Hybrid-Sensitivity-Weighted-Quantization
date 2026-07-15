@@ -175,12 +175,38 @@ def detect_zit_config_from_keys(state_dict):
 
     return zit_config
 
+def _ensure_int8_comfy_quant_patches():
+    """Apply hswq benchmark/int8 monkey-patches (never import nunchaku unofficial-loader)."""
+    bench_dir = os.path.dirname(os.path.abspath(__file__))
+    if bench_dir not in sys.path:
+        sys.path.insert(0, bench_dir)
+    from int8.comfy_quant_int8 import (  # noqa: E402
+        apply_comfy_quant_int8_patches,
+        _int8_quant_conv_scope,
+    )
+    import int8.comfy_quant_int8 as _cq_int8  # noqa: E402
+    import comfy.ops
+
+    apply_comfy_quant_int8_patches()
+    print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
+    print(
+        f"  [BENCH] mixed_precision_ops Conv2d inject: "
+        f"{getattr(comfy.ops.mixed_precision_ops, '_hswq_int8_conv_patched', False)}"
+    )
+    print(f"  [BENCH] patch file: {os.path.abspath(_cq_int8.__file__)}")
+    return _int8_quant_conv_scope
+
+
 def load_zit_model(path, device="cuda", comfy_path=None, is_int8=False):
     if comfy_path and comfy_path not in sys.path:
         sys.path.insert(0, comfy_path)
     
     from comfy.ldm.lumina.model import NextDiT
     import comfy.ops
+
+    int8_scope_cm = None
+    if is_int8:
+        int8_scope_cm = _ensure_int8_comfy_quant_patches()
     
     args_path = resolve_path(path, is_file=True)
     print(f"Loading state_dict: {os.path.basename(args_path)}")
@@ -238,14 +264,6 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_int8=False):
     print(f"  [Config Detection] hidden_size={config['hidden_size']}, layers={config['num_layers']}")
     
     # === STEP 4: Create model with correct dimensions ===
-    if is_int8:
-        print(f"Using mixed_precision_ops for INT8 (int8_tensorwise) model load...")
-        print(f"  [BENCH] int8_tensorwise in QUANT_ALGOS: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
-        ops = comfy.ops.mixed_precision_ops(compute_dtype=torch.float16)
-    else:
-        print(f"Using standard operations for FP16 model load...")
-        ops = comfy.ops.disable_weight_init
-    
     kwargs = {}
     if config.get("intermediate_size"):
         ratio = config["intermediate_size"] / config["hidden_size"]
@@ -256,41 +274,59 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_int8=False):
 
     import inspect
     print(f"  Debug: NextDiT Signature: {inspect.signature(NextDiT.__init__)}")
-    
-    model = NextDiT(
-        patch_size=2,
-        in_channels=16,
-        dim=config["hidden_size"],
-        n_layers=config["num_layers"],
-        n_refiner_layers=config["num_context_refiner"],
-        n_heads=config["hidden_size"] // 128,
-        n_kv_heads=config["hidden_size"] // 128,
-        multiple_of=256,
-        norm_eps=1e-5,
-        cap_feat_dim=2560,
-        z_image_modulation=True,
-        pad_tokens_multiple=64,
-        device="cpu",
-        dtype=torch.float16,
-        operations=ops,
-        **kwargs
-    )
-    
-    # === STEP 5: Load weights (assign=True keeps int8 storage / QuantizedTensor layouts) ===
-    try:
-        # assign=True allows the nn.Parameter to physically change its dtype (int8 / FP8)
-        # Without this, PyTorch forces quantized tensors to cast back into the FP16 init wrapper!
-        missing, unexpected = model.load_state_dict(converted_dict, strict=False, assign=True)
-    except TypeError:
-        # Fallback for older PyTorch versions (<2.3) that lack assign=True
-        print("  [Warning] PyTorch version does not support assign=True. INT8 dtype might be cast to FP16.")
-        missing, unexpected = model.load_state_dict(converted_dict, strict=False)
-    except RuntimeError as e:
-        print(f"  CRITICAL ERROR: Model Size Mismatch despite config adjustment.")
-        print(f"  Error: {e}")
-        print(f"  Config: {config}")
-        print(f"  NextDiT Signature: {inspect.signature(NextDiT.__init__)}")
-        sys.exit(1)
+
+    def _build_and_load(ops):
+        model_local = NextDiT(
+            patch_size=2,
+            in_channels=16,
+            dim=config["hidden_size"],
+            n_layers=config["num_layers"],
+            n_refiner_layers=config["num_context_refiner"],
+            n_heads=config["hidden_size"] // 128,
+            n_kv_heads=config["hidden_size"] // 128,
+            multiple_of=256,
+            norm_eps=1e-5,
+            cap_feat_dim=2560,
+            z_image_modulation=True,
+            pad_tokens_multiple=64,
+            device="cpu",
+            dtype=torch.float16,
+            operations=ops,
+            **kwargs
+        )
+        # === STEP 5: Load weights (assign=True keeps int8 storage / QuantizedTensor layouts) ===
+        try:
+            # assign=True allows the nn.Parameter to physically change its dtype (int8 / FP8)
+            # Without this, PyTorch forces quantized tensors to cast back into the FP16 init wrapper!
+            missing_local, unexpected_local = model_local.load_state_dict(
+                converted_dict, strict=False, assign=True
+            )
+        except TypeError:
+            # Fallback for older PyTorch versions (<2.3) that lack assign=True
+            print("  [Warning] PyTorch version does not support assign=True. INT8 dtype might be cast to FP16.")
+            missing_local, unexpected_local = model_local.load_state_dict(
+                converted_dict, strict=False
+            )
+        except RuntimeError as e:
+            print(f"  CRITICAL ERROR: Model Size Mismatch despite config adjustment.")
+            print(f"  Error: {e}")
+            print(f"  Config: {config}")
+            print(f"  NextDiT Signature: {inspect.signature(NextDiT.__init__)}")
+            sys.exit(1)
+        return model_local, missing_local, unexpected_local
+
+    if is_int8:
+        print(f"Using mixed_precision_ops for INT8 (int8_tensorwise) model load...")
+        print(f"  [BENCH] int8_tensorwise in QUANT_ALGOS: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+        print(f"  [BENCH] INT8 Conv2d load scope: True")
+        with int8_scope_cm():
+            ops = comfy.ops.mixed_precision_ops(compute_dtype=torch.float16)
+            print(f"  [BENCH] MixedPrecisionOps.Conv2d (INT8 scope): {hasattr(ops, 'Conv2d')}")
+            model, missing, unexpected = _build_and_load(ops)
+    else:
+        print(f"Using standard operations for FP16 model load...")
+        ops = comfy.ops.disable_weight_init
+        model, missing, unexpected = _build_and_load(ops)
 
     print(f"  [Keys] Matched: {len(converted_dict) - len(unexpected)}, Missing: {len(missing)}, Unexpected: {len(unexpected)}")
     
@@ -480,22 +516,17 @@ def main():
         from transformers import Qwen2Tokenizer
         import comfy.ops
 
-        # Normalize comfy_quant after json.loads (bare str / double-encoded JSON).
-        _ops_json_loads = comfy.ops.json.loads
+        # INT8 comfy_quant patches live under benchmark/int8 (runtime monkey-patch).
+        bench_dir = os.path.dirname(os.path.abspath(__file__))
+        if bench_dir not in sys.path:
+            sys.path.insert(0, bench_dir)
+        from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches  # noqa: E402
+        import int8.comfy_quant_int8 as _cq_int8  # noqa: E402
 
-        def _normalize_comfy_quant_loads(s, *a, **kw):
-            obj = _ops_json_loads(s, *a, **kw)
-            if isinstance(obj, str):
-                try:
-                    obj = _ops_json_loads(obj)
-                except Exception:
-                    obj = {"format": obj}
-            if not isinstance(obj, dict):
-                obj = {"format": str(obj)}
-            return obj
-
-        comfy.ops.json.loads = _normalize_comfy_quant_loads
+        apply_comfy_quant_int8_patches()
         print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+        print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
+        print(f"  [BENCH] patch file: {os.path.abspath(_cq_int8.__file__)}")
     except ImportError as e:
         print(f"CRITICAL ERROR: Could not import 'comfy'.")
         print(f"  Current Working Directory: {os.getcwd()}")
