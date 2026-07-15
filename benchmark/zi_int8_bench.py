@@ -440,7 +440,7 @@ def print_model_stats(model, name, original_state_dict=None):
 def main():
     parser = argparse.ArgumentParser(description="Z Image INT8 HSWQ Fidelity & VRAM Benchmark (zit_bench-based)")
     parser.add_argument("--fp16", required=True, help="Baseline model path")
-    parser.add_argument("--int8", required=True, help="HSWQ INT8 quantized model path (int8_tensorwise)")
+    parser.add_argument("--fp8", required=True, help="Quantized model path")
     parser.add_argument("--clip_path", required=True, help="Qwen3-4B text encoder path")
     parser.add_argument("--tokenizer_path", default=None, help="Tokenizer path or Repo ID")
     parser.add_argument("--comfy_path", required=True, help="ComfyUI root path")
@@ -572,7 +572,7 @@ def main():
 
     # INT8 Benchmark
     print("\n=== 2. Benchmarking Quantized (INT8 / int8_tensorwise) ===")
-    model, state_dict_int8, is_zanime_int8 = load_zit_model(args.int8, device, args.comfy_path, is_int8=True)
+    model, state_dict_int8, is_zanime_int8 = load_zit_model(args.fp8, device, args.comfy_path, is_int8=True)
     is_zanime = is_zanime_fp16 or is_zanime_int8
     print_model_stats(model, "INT8 Quantized", state_dict_int8)
     latents_int8, time_int8, vram_int8 = run_inference(model, embeds, mask, args.steps, args.seed, device)
