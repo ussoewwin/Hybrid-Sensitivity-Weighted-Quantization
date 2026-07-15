@@ -3,7 +3,10 @@
 Fully self-contained. NO import / reference to quantize_sdxl_hswq_v3.0.py.
 
 Scope (critical for SSIM):
-  INT8 ONLY Linear weights (ndim == 2).
+  INT8 Linear weights (ndim == 2) that HAVE a .bias in the checkpoint.
+  Attention to_q / to_k / to_v (bias=False in architecture) stay FP — Card 1
+  cannot cancel (W_q-W)@mu without a bias, and INT8'ing them floored SSIM
+  near ~0.9688 while Card1 already covered all bias Linear.
   Conv2d (ndim == 4) stays FP16/FP32 as-is.
   Comfy MixedPrecisionOps owns Linear load of weight_scale / comfy_quant.
   Quantizing Conv breaks dequant / quality (native 0.97 floor collapses).
@@ -18,7 +21,7 @@ Card 1 (--bias_correction):
   per-input-channel activation means on Linear.
   bias += -(W_q - W) @ mu_x  on ALL INT8 Linear (full Card 1; no top_ratio gate).
   Calib defaults: samples=32, steps=25.
-  No Static Profile VETO / no keep_ratio FP16 budget.
+  No Static Profile VETO / no keep_ratio / no 300 MiB budget.
   Format tag stays int8_tensorwise.
 """
 from __future__ import annotations
