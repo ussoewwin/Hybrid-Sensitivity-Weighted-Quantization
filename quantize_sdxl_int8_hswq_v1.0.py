@@ -4,12 +4,14 @@ Pack:
   default              symmetric per-tensor (amax / 127)
   --per_channel_int8   per-out-channel scale
 
-Card 1 (--bias_correction):
-  Same calibration formula and CLI as quantize_sdxl_hswq_v3.0.py:
-    --calib_file / --num_calib_samples / --num_inference_steps
-    DualMonitor hooks + StableDiffusionXLPipeline latent calib
-    V4 histogram scoring on THAT calib (DualMonitor Importance)
+Card 1 (--bias_correction): stays ON when the flag is set.
+  DualMonitor hooks + StableDiffusionXLPipeline latent calib
   mu_x = DualMonitor.channel_act_mean; bias += -(W_q - W) @ mu_x
+  Applies to every INT8 Linear and Conv2d (same formula as
+  quantize_sdxl_hswq_v3.0.compute_int8_bias_delta).
+  Calib: num_inference_steps default 25 (How-to); same pipeline call as V3.0
+  (prompt + steps + latent + generator — no CFG/size override).
+  No Static Profile VETO / no V4 FP16 keep in this script.
   Format stays int8_tensorwise.
 """
 from __future__ import annotations
@@ -19,7 +21,6 @@ import gc
 import importlib.util
 import json
 import os
-import subprocess
 import sys
 
 import torch
@@ -88,61 +89,22 @@ def run_v30_calib_and_v4(
     Those belong to quantize_sdxl_hswq_v3.0.py only.
     """
     v30 = _load_hswq_v30()
-    script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Profile only for optional autonomous bias_correction_top_ratio (no VETO).
-    analyze_script = os.path.join(script_dir, "analyze", "analyze_sdxl_distribution.py")
-    input_abs = os.path.abspath(input_path)
-    input_root = os.path.splitext(os.path.basename(input_path))[0]
-    if not profile_path:
-        profile_path = os.path.join(script_dir, f"{input_root}_distribution_profile.json")
-    if not os.path.exists(profile_path):
-        if not os.path.exists(analyze_script):
-            raise FileNotFoundError(
-                f"Profile missing and analyze script not found: {analyze_script}"
-            )
-        print("[*] Executing mandated distribution analysis (for bc_top only):")
-        print(f"    Script: {analyze_script}")
-        print(f"    Input:  {input_abs}")
-        print(f"    Result: {profile_path}")
-        subprocess.run(
-            [sys.executable, analyze_script, "--input", input_abs, "--output", profile_path],
-            check=True,
-        )
-
-    model_profile = {}
-    profile_summary = {}
-    if os.path.exists(profile_path):
+    # Card 1 quality path: default bc_top=1.0 (full BC). Autonomous top<1 dropped SSIM on V3.
+    if profile_path and os.path.exists(profile_path):
         print(f"[*] Loading Analysis Data: {profile_path}")
-        with open(profile_path, "r", encoding="utf-8") as f:
-            profile_data = json.load(f)
-            if isinstance(profile_data, dict):
-                profile_summary = profile_data.get("summary", {}) or {}
-                model_profile = profile_data.get("layers", profile_data)
-            else:
-                model_profile = profile_data
 
     pipeline, _state_dict, comfyui_to_diffusers_map = v30.load_unet_from_safetensors(
         input_path, device
     )
-    model_profile = v30._remap_profile_to_diffusers(
-        model_profile, comfyui_to_diffusers_map
-    )
     model = pipeline.unet
-    _norm_profile = {k: v for k, v in model_profile.items() if isinstance(v, dict)}
 
     bc_top = bias_correction_top_ratio
     if bc_top is None:
-        veto_tunables = v30.resolve_veto_tunables(
-            _norm_profile,
-            profile_summary,
-            dual_monitors=None,
-            fp16_budget_mb=float(v30.FP16_BUDGET_MB_HARD),
-        )
-        bc_top = float(veto_tunables.bias_correction_top_ratio)
+        bc_top = 1.0
         print(
-            f"  [Autonomous bias_correction_top_ratio] {bc_top:.2f} "
-            f"(bc_top only; no Static Profile VETO / no V4)"
+            "  [bias_correction_top_ratio] default=1.0 "
+            "(full Card 1 on all INT8 Linear+Conv; measured quality path)"
         )
 
     print("Preparing calibration (Dual Monitor hooks; Card 1 act means)...")
@@ -169,6 +131,7 @@ def run_v30_calib_and_v4(
         f"Running calibration ({num_calib_samples} samples, "
         f"{num_inference_steps} steps)..."
     )
+    # Same How-to contract as quantize_sdxl_hswq_v3.0 (samples=32, steps=25).
     if num_calib_samples != 32 or num_inference_steps != 25:
         print(
             "  [WARN] How-to / r32 recipe is num_calib_samples=32, "
@@ -191,19 +154,6 @@ def run_v30_calib_and_v4(
             torch.cuda.empty_cache()
     for h in handles:
         h.remove()
-
-    if bias_correction_top_ratio is None:
-        veto_tunables = v30.resolve_veto_tunables(
-            _norm_profile,
-            profile_summary,
-            dual_monitors=v30.dual_monitors,
-            fp16_budget_mb=float(v30.FP16_BUDGET_MB_HARD),
-        )
-        bc_top = float(veto_tunables.bias_correction_top_ratio)
-        print(
-            f"  [Autonomous bias_correction_top_ratio after DualMonitor] "
-            f"{bc_top!r}"
-        )
 
     act_mean_dict = {}
     sens_dict = {}
@@ -246,7 +196,7 @@ def convert_to_int8(
     act_mean_dict = {}
     sens_dict = {}
     comfyui_to_diffusers_map = {}
-    bc_allowed_modules = None  # None = all INT8 modules
+    bc_allowed_modules = None  # None = all INT8 Linear+Conv modules
     compute_int8_bias_delta = None
 
     if bias_correction:
@@ -258,9 +208,10 @@ def convert_to_int8(
         if not os.path.isfile(calib_file):
             raise FileNotFoundError(f"calib_file not found: {calib_file}")
         print(
-            "  [Bias Correction Card 1] ON | "
-            "DualMonitor calib only (no Static Profile VETO / no V4) | "
-            "mu_x = DualMonitor.channel_act_mean"
+            "  [Bias Correction Card 1] ON | all INT8 Linear+Conv | "
+            "DualMonitor calib (steps=25) | "
+            "mu_x = DualMonitor.channel_act_mean | "
+            "bias += -(W_q - W) @ mu_x"
         )
         calib = run_v30_calib_and_v4(
             input_path=input_path,
@@ -299,7 +250,7 @@ def convert_to_int8(
     print(f"Loading model: {input_path}")
     state_dict = load_file(input_path)
 
-    # Approach A scope (V3.0): top_ratio of INT8 layers by DualMonitor sensitivity.
+    # Approach A scope: all INT8 Linear + Conv (ndim>=2). Default top_ratio=1.0.
     if bias_correction and act_mean_dict:
         int8_module_names = []
         for key, tensor in state_dict.items():
@@ -326,14 +277,15 @@ def convert_to_int8(
         if top_ratio >= 1.0:
             bc_allowed_modules = None
             print(
-                f"  [Bias Correction] scope=ALL {len(ranked)} INT8 layers "
+                f"  [Bias Correction] scope=ALL {len(ranked)} INT8 Linear+Conv "
                 f"(top_ratio=1.0)."
             )
         else:
             bc_allowed_modules = set(ranked[:n_bc])
             print(
                 f"  [Bias Correction] Approach A scope=top {n_bc}/{len(ranked)} "
-                f"INT8 by DualMonitor sensitivity (top_ratio={top_ratio:.3f})."
+                f"INT8 by DualMonitor sensitivity "
+                f"(top_ratio={top_ratio:.3f})."
             )
 
     new_state_dict = {}
@@ -401,7 +353,9 @@ def convert_to_int8(
                     if act_mean is None:
                         bias_corr_skipped_no_act += 1
                     else:
-                        delta = compute_int8_bias_delta(tensor, weight_dq, act_mean)
+                        delta = compute_int8_bias_delta(
+                            tensor, weight_dq, act_mean
+                        )
                         if delta is None:
                             bias_corr_skipped_bad_shape += 1
                         else:
@@ -415,7 +369,7 @@ def convert_to_int8(
     if bias_correction and bias_corr_pending:
         print(
             f"\n[Bias Correction] Applying deltas to {len(bias_corr_pending)} "
-            f"INT8 layers..."
+            f"INT8 Linear+Conv layers..."
         )
         for module_key, delta in bias_corr_pending.items():
             bias_key = f"{module_key}.bias"
@@ -454,7 +408,7 @@ def convert_to_int8(
     print(f"Per-channel INT8: {per_channel_int8}")
     print(f"Bias correction (Card 1): {bias_correction}")
     if bias_correction:
-        print(f"  Bias-corrected layers: {bias_corr_applied}")
+        print(f"  Bias-corrected INT8 layers: {bias_corr_applied}")
 
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
@@ -481,44 +435,43 @@ if __name__ == "__main__":
         "--bias_correction",
         action="store_true",
         help=(
-            "Card 1: V3.0 DualMonitor calib + V4 histogram on that calib; "
-            "bias += -(W_q - W) @ mu_x. Requires --calib_file."
+            "Card 1 ON: DualMonitor calib; bias += -(W_q - W) @ mu_x on all "
+            "INT8 Linear+Conv. Calib steps default 25. Requires --calib_file."
         ),
     )
-    # --- Same calibration options / defaults as quantize_sdxl_hswq_v3.0.py ---
+    # --- Calibration options (Card 1); steps default 25 (How-to) ---
     parser.add_argument(
         "--calib_file",
         type=str,
         default=None,
-        help="Path to calibration prompts text file (required with --bias_correction; V3.0 same)",
+        help="Path to calibration prompts text file (required with --bias_correction)",
     )
     parser.add_argument(
         "--num_calib_samples",
         type=int,
         default=32,
-        help="Calibration samples (How-to / r32 recommended: 32) - V3.0 same",
+        help="Calibration samples (recommended: 32)",
     )
     parser.add_argument(
         "--num_inference_steps",
         type=int,
         default=25,
-        help="Denoising steps per calibration sample (How-to example: 25) - V3.0 same",
+        help="Denoising steps per calib sample (default 25)",
     )
     parser.add_argument(
         "--bias_correction_top_ratio",
         type=float,
         default=None,
         help=(
-            "Fraction of INT8 layers (by DualMonitor sensitivity, highest first) "
-            "that receive bias correction. Default: None = autonomous "
-            "(V3.0 same)."
+            "Fraction of INT8 layers (by DualMonitor sensitivity) that receive "
+            "Card 1. Default: None = 1.0 (full Card 1 / measured quality path)."
         ),
     )
     parser.add_argument(
         "--profile",
         type=str,
         default=None,
-        help="Path to distribution profile JSON (optional; auto-generate if missing - V3.0 same)",
+        help="Optional distribution profile JSON (unused when top_ratio=1.0)",
     )
     args = parser.parse_args()
 
