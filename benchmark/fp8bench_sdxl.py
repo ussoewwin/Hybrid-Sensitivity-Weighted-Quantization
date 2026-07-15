@@ -482,7 +482,7 @@ def main():
     parser.add_argument("--fp8", required=True, help="Path to Quantized (FP8) model")
     parser.add_argument("--prompt", required=True, help="Benchmark prompt")
     parser.add_argument("--seed", type=int, default=123456789, help="Fixed seed for reproduction")
-    parser.add_argument("--steps", type=int, default=30, help="Inference steps")
+    parser.add_argument("--steps", type=int, default=25, help="Inference steps")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
