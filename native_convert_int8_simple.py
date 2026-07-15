@@ -1,23 +1,21 @@
-"""Independent SDXL UNet INT8 convert: Card 1 + Card 3 (SSIM ~0.98 path).
+"""Independent SDXL UNet INT8 convert: Card 3 pack + optional Card 1.
 
 Fully self-contained. NO import / reference to quantize_sdxl_hswq_v3.0.py.
 
-Scope (native floor + cards):
+Scope:
   INT8 every UNet matmul weight with ndim >= 2 (Linear AND Conv2d), including
   attention to_q / to_k / to_v. Those layers have no .bias architecturally;
   weights are still INT8'd. Card 1 is skipped only where .bias is absent —
   NEVER leave QKV in FP16 as an "escape" (that claim is forbidden / wrong:
   native INT8's QKV and still clears ~0.97).
 
-Card 1 and Card 3 are ALWAYS ON for this script (0.98 recipe).
-  Disabling either is not supported.
-
 Pack (Card 3 — always):
   per-out-channel amax/127
   Linear scale (O, 1); Conv2d scale (O, 1, 1, 1)
   Format tag stays int8_tensorwise
 
-Card 1 (always; requires --calib_file):
+Card 1 (--bias_correction; DEFAULT OFF):
+  Requires --calib_file when enabled.
   SDXL pretrained pipeline + Comfy->Diffusers structural key map
   (native_int8_sdxl_unet_map; NO fingerprint; NO import of v3.0).
   Hooks Linear + Conv2d for per-input-channel mu_x.
@@ -249,45 +247,53 @@ def run_card1_calib(
 
 
 # ---------------------------------------------------------------------------
-# Convert (Card 1 + Card 3 always ON)
+# Convert (Card 3 always; Card 1 optional, default OFF)
 # ---------------------------------------------------------------------------
 def convert_to_int8(
     input_path,
     output_path,
-    calib_file: str,
+    *,
+    bias_correction: bool = False,
+    calib_file: str | None = None,
     num_calib_samples: int = 32,
     num_inference_steps: int = 25,
 ):
-    """INT8 Linear+Conv with Card 3 pack + Card 1 bias correction (always)."""
-    if not calib_file:
-        raise ValueError("--calib_file is required (Card 1 always ON)")
-    if not os.path.isfile(calib_file):
-        raise FileNotFoundError(f"calib_file not found: {calib_file}")
+    """INT8 Linear+Conv with Card 3 pack; Card 1 only if bias_correction."""
+    if bias_correction:
+        if not calib_file:
+            raise ValueError("--bias_correction requires --calib_file")
+        if not os.path.isfile(calib_file):
+            raise FileNotFoundError(f"calib_file not found: {calib_file}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(
-        "  [0.98 recipe] Card 1 ON | Card 3 ON | "
+        f"  Card 1={'ON' if bias_correction else 'OFF (default)'} | "
+        "Card 3 ON | "
         "INT8 scope = Linear+Conv (ndim>=2), including QKV | "
         "QKV without .bias still INT8 (BC apply skipped only) | "
-        "structural Comfy->Diffusers map | "
-        "mu_x = per-input-channel mean | "
-        "bias += -(W_q - W) @ mu_x | "
         "no Approach A / no top_ratio / no FP16 QKV escape"
     )
-    calib = run_card1_calib(
-        input_path=input_path,
-        calib_file=calib_file,
-        num_calib_samples=int(num_calib_samples),
-        num_inference_steps=int(num_inference_steps),
-        device=device,
-    )
-    act_mean_by_module = calib["act_mean_by_module"]
-    comfyui_to_diffusers_map = calib["comfyui_to_diffusers_map"]
-    state_dict = calib["state_dict"]
-    print(
-        f"  [Bias Correction] Captured act means for "
-        f"{len(act_mean_by_module)} modules"
-    )
+
+    act_mean_by_module: dict = {}
+    comfyui_to_diffusers_map: dict = {}
+    if bias_correction:
+        calib = run_card1_calib(
+            input_path=input_path,
+            calib_file=calib_file,
+            num_calib_samples=int(num_calib_samples),
+            num_inference_steps=int(num_inference_steps),
+            device=device,
+        )
+        act_mean_by_module = calib["act_mean_by_module"]
+        comfyui_to_diffusers_map = calib["comfyui_to_diffusers_map"]
+        state_dict = calib["state_dict"]
+        print(
+            f"  [Bias Correction] Captured act means for "
+            f"{len(act_mean_by_module)} modules"
+        )
+    else:
+        print(f"Loading model: {input_path}")
+        state_dict = load_file(input_path)
 
     new_state_dict = {}
     quant_meta_layers = {}
@@ -329,50 +335,54 @@ def convert_to_int8(
             quant_meta_layers[module_key] = {"format": "int8_tensorwise"}
             converted_count += 1
 
-            diffusers_key = comfyui_to_diffusers_map.get(key)
-            module_name = None
-            if diffusers_key and diffusers_key.endswith(".weight"):
-                module_name = diffusers_key[: -len(".weight")]
-            if module_name is None:
-                bias_corr_skipped_no_map += 1
-            else:
-                act_mean = act_mean_by_module.get(module_name)
-                if act_mean is None:
-                    bias_corr_skipped_no_act += 1
+            if bias_correction:
+                diffusers_key = comfyui_to_diffusers_map.get(key)
+                module_name = None
+                if diffusers_key and diffusers_key.endswith(".weight"):
+                    module_name = diffusers_key[: -len(".weight")]
+                if module_name is None:
+                    bias_corr_skipped_no_map += 1
                 else:
-                    delta = _compute_int8_bias_delta(tensor, weight_dq, act_mean)
-                    if delta is None:
-                        bias_corr_skipped_bad_shape += 1
+                    act_mean = act_mean_by_module.get(module_name)
+                    if act_mean is None:
+                        bias_corr_skipped_no_act += 1
                     else:
-                        bias_corr_pending[module_key] = (
-                            (-delta).detach().float().cpu()
-                        )
+                        delta = _compute_int8_bias_delta(tensor, weight_dq, act_mean)
+                        if delta is None:
+                            bias_corr_skipped_bad_shape += 1
+                        else:
+                            bias_corr_pending[module_key] = (
+                                (-delta).detach().float().cpu()
+                            )
         else:
             new_state_dict[key] = tensor
             skipped_count += 1
 
-    print(
-        f"\n[Bias Correction] Applying deltas to {len(bias_corr_pending)} "
-        f"INT8 modules (full Card 1; skip when .bias absent e.g. QKV)..."
-    )
-    for module_key, delta in bias_corr_pending.items():
-        bias_key = f"{module_key}.bias"
-        if bias_key not in new_state_dict:
-            bias_corr_skipped_no_bias += 1
-            continue
-        bias = new_state_dict[bias_key]
-        corrected = bias.float() + delta.to(
-            device=bias.device, dtype=torch.float32
+    if bias_correction:
+        print(
+            f"\n[Bias Correction] Applying deltas to {len(bias_corr_pending)} "
+            f"INT8 modules (full Card 1; skip when .bias absent e.g. QKV)..."
         )
-        new_state_dict[bias_key] = corrected.to(dtype=bias.dtype)
-        bias_corr_applied += 1
-    print(
-        f"  [Bias Correction] applied={bias_corr_applied}, "
-        f"no_bias={bias_corr_skipped_no_bias}, "
-        f"no_map={bias_corr_skipped_no_map}, "
-        f"no_act={bias_corr_skipped_no_act}, "
-        f"bad_shape={bias_corr_skipped_bad_shape}"
-    )
+        for module_key, delta in bias_corr_pending.items():
+            bias_key = f"{module_key}.bias"
+            if bias_key not in new_state_dict:
+                bias_corr_skipped_no_bias += 1
+                continue
+            bias = new_state_dict[bias_key]
+            corrected = bias.float() + delta.to(
+                device=bias.device, dtype=torch.float32
+            )
+            new_state_dict[bias_key] = corrected.to(dtype=bias.dtype)
+            bias_corr_applied += 1
+        print(
+            f"  [Bias Correction] applied={bias_corr_applied}, "
+            f"no_bias={bias_corr_skipped_no_bias}, "
+            f"no_map={bias_corr_skipped_no_map}, "
+            f"no_act={bias_corr_skipped_no_act}, "
+            f"bad_shape={bias_corr_skipped_bad_shape}"
+        )
+    else:
+        print("\n[Bias Correction] Disabled (default; pass --bias_correction).")
 
     metadata = {
         "_quantization_metadata": json.dumps(
@@ -383,8 +393,9 @@ def convert_to_int8(
     print(f"Saving to: {output_path}")
     print(f"Converted layers: {converted_count}, Kept layers: {skipped_count}")
     print("Per-channel INT8 (Card 3): True (always)")
-    print("Bias correction (Card 1): True (always)")
-    print(f"  Bias-corrected INT8 layers: {bias_corr_applied}")
+    print(f"Bias correction (Card 1): {bias_correction}")
+    if bias_correction:
+        print(f"  Bias-corrected INT8 layers: {bias_corr_applied}")
 
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
@@ -393,7 +404,8 @@ def convert_to_int8(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
-            "Independent Simple UNet INT8: Card 1 + Card 3 always ON. "
+            "Independent Simple UNet INT8: Card 3 always ON; "
+            "Card 1 DEFAULT OFF (--bias_correction to enable). "
             "INT8 scope = Linear+Conv (ndim>=2), including QKV. "
             "No FP16 QKV escape. No Approach A / no VETO. "
             "No dependency on quantize_sdxl_hswq_v3.0.py."
@@ -411,10 +423,16 @@ if __name__ == "__main__":
         "--output", type=str, required=True, help="Path to output .safetensors"
     )
     parser.add_argument(
+        "--bias_correction",
+        action="store_true",
+        default=False,
+        help="Enable Card 1 bias correction (DEFAULT OFF)",
+    )
+    parser.add_argument(
         "--calib_file",
         type=str,
-        required=True,
-        help="Calibration prompts text (required; Card 1 always ON)",
+        default=None,
+        help="Calibration prompts text (required with --bias_correction)",
     )
     parser.add_argument(
         "--num_calib_samples",
@@ -434,9 +452,14 @@ if __name__ == "__main__":
         print(f"Error: Model not found at {args.model}")
         sys.exit(1)
 
+    if args.bias_correction and not args.calib_file:
+        print("Error: --bias_correction requires --calib_file")
+        sys.exit(1)
+
     convert_to_int8(
         args.model,
         args.output,
+        bias_correction=bool(args.bias_correction),
         calib_file=args.calib_file,
         num_calib_samples=args.num_calib_samples,
         num_inference_steps=args.num_inference_steps,
