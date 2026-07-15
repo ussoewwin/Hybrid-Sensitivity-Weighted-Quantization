@@ -10,9 +10,9 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - HSWQWeightedHistogramOptimizerV4 receives INT8Quantizer via `quantizer=`
   injection; the SVD+RMS histogram MSE core is reused unchanged.
 - derive_veto_tunables_int8: VETO fences from this checkpoint's distribution
-  (weight-space outlier_ratio / abs_max / kurtosis — not 127/448-collapsed).
+  (weight-space outlier_ratio / abs_max / kurtosis  -  not 127/448-collapsed).
 - Pack amax (Card 3 OFF): absmax (search_low = 1.0). Natural for symmetric
-  INT8 uniform grid — NOT an HSWQ search. Deep amax clip drops SSIM.
+  INT8 uniform grid  -  NOT an HSWQ search. Deep amax clip drops SSIM.
 - V4 weighted histogram MSE is for FP16 protection candidate selection:
   HSWQWeightedHistogramOptimizerV4 + INT8Quantizer measure estimated_mse at
   the (natural) absmax pack point; that MSE ranks which layers stay FP16
@@ -25,7 +25,7 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - Bias correction scope: default is ALL INT8 layers (same as commit d1290df,
   measured SSIM 0.9753). Optional Approach A (--bias_correction_top_ratio < 1)
   limits BC to the top fraction by DualMonitor sensitivity; top_ratio=0.5 was
-  measured to raise MSE quality but DROP SSIM (0.9753 -> 0.9678) — do not use
+  measured to raise MSE quality but DROP SSIM (0.9753 -> 0.9678)  -  do not use
   as default. Anchor: d1290df0d2b8624ee8fc317c0a44ebec9e10400f.
 - Optional asymmetric INT8 pack (--asymmetric_int8, default off): map
   [w_min, w_max] via mid; loader still int8_tensorwise; mid absorbed by BC.
@@ -36,7 +36,7 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
   V4 histogram still ranks FP16 keep candidates (not pack amax).
 - INT8 MAD attn VETO (this script only): MAD% floors are auto-derived from
   analyze_sdxl_distribution profile (Tukey / Q3 on attn mad_outlier_pct).
-  Same path for every checkpoint — no per-model settings. FP8 scripts and
+  Same path for every checkpoint  -  no per-model settings. FP8 scripts and
   derive_veto_tunables (FP8) are not modified.
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
@@ -86,7 +86,7 @@ def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
         raise ValueError(
             f"fp16_budget_mb must be exactly {FP16_BUDGET_MB_HARD:g} MiB "
             f"(owner hard ceiling; auto-optimal settings are inside this "
-            f"frame only — never outside). Got {b}."
+            f"frame only  -  never outside). Got {b}."
         )
     return FP16_BUDGET_MB_HARD
 
@@ -270,7 +270,7 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
                             "input_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b),
                         )
             n += 1
-        # Last DownBlock has no downsampler in SDXL — register only if op exists.
+        # Last DownBlock has no downsampler in SDXL  -  register only if op exists.
         if _comfy_present("input_blocks.{}.0.op.weight".format(n)):
             for k in ["weight", "bias"]:
                 _map_put(
@@ -451,11 +451,11 @@ class SdxlVetoTunables:
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
-    # (kurtosis∪outlier∪magnitude). alpha scales SVD leverage in the mix;
-    # Full-SVD always runs even when alpha_auto resolves to 0.0.
+    # (kurtosis∪outlier∪magnitude). Must be > 0 for non-degenerate THIS  - 
+    # alpha_auto==0 is SVD cut (rebellion), not a valid default outcome.
     alpha_auto: float = 0.0
 
-    # Required from derive_int8_autonomous_tunables — no silent default holes
+    # Required from derive_int8_autonomous_tunables  -  no silent default holes
     # after deleting accommodation clips (auto analysis → auto-optimal).
     _FROM_DICT_REQUIRED = (
         "extreme_kurtosis",
@@ -511,7 +511,7 @@ class SdxlVetoTunables:
         if missing:
             raise ValueError(
                 "SdxlVetoTunables.from_dict missing auto-optimal keys "
-                f"{missing}. Run derive_int8_autonomous_tunables — do not "
+                f"{missing}. Run derive_int8_autonomous_tunables  -  do not "
                 "fill deleted clip holes with dataclass defaults."
             )
         if not bool(d["autonomous"]):
@@ -658,7 +658,7 @@ def resolve_veto_tunables(
     weights, MSE release gates, bias_correction scope, sens_veto percentile,
     alpha/beta, search_low) come from derive_int8_autonomous_tunables,
     which uses THIS checkpoint's profile + DualMonitor sensitivity
-    distribution. fp16_budget_mb is the owner hard ceiling (300 MiB) —
+    distribution. fp16_budget_mb is the owner hard ceiling (300 MiB)  - 
     auto settings fill that frame; they do not redefine or exceed it.
     No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
@@ -666,7 +666,10 @@ def resolve_veto_tunables(
     analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
-    from analyze_sdxl_distribution import derive_int8_autonomous_tunables
+    from analyze_sdxl_distribution import (
+        derive_int8_autonomous_tunables,
+        emit_hswq_int8_full_visibility_log,
+    )
 
     if norm_profile:
         sens_map: dict[str, float] = {}
@@ -683,53 +686,18 @@ def resolve_veto_tunables(
             dualmonitor_sensitivities=sens_map if sens_map else None,
             fp16_budget_mb=fp16_budget_mb,
         )
-        if derived.get("ff2_auto_full_class"):
-            print(
-                "  [Auto FF2 INT8] full-class protection: "
-                f"count={derived.get('ff2_class_count', 0)}, "
-                f"span={derived.get('ff2_class_outlier_span', 0):.3f}, "
-                f"profile_o>={derived['ff2_profile_outlier']:.2f}"
-            )
-        print(
-            "  [Auto INT8 MAD] "
-            f"floor={derived.get('attn_mad_pct_floor', 0.0):.3f}, "
-            f"soft={derived.get('attn_mad_q3', 0.0):.3f}, "
-            f"p99={derived.get('attn_mad_p99', 0.0):.3f}, "
-            f"collapse={derived.get('attn_mad_collapse', 0.0):.3f}, "
-            f"iqr={derived.get('attn_mad_iqr', 0.0):.3f}, "
-            f"gap_o_max={derived.get('attn_mad_gap_o_max', 0.0):.3f}, "
-            f"from_profile={bool(derived.get('attn_mad_from_profile', 0))}"
-        )
-        print(
-            "  [V4→FP16 protect] "
-            f"mse_release o>{derived.get('mse_release_o_min', 0):.3f} "
-            f"k<={derived.get('mse_release_k_max', 0):.3f} "
-            f"m<={derived.get('mse_release_m_max', 0):.3f} "
-            f"p75×{derived.get('mse_p75_multiplier', 1.0):.2f} "
-            f"(V4 estimated_mse ranks FP16 keep; "
-            f"pack stays absmax search_low="
-            f"{derived.get('search_low_floor', 1.0):.3f})"
-        )
-        print(
-            "  [Autonomous INT8] "
-            f"sens_veto_pct={derived.get('sens_veto_percentile', 100.0):.1f} "
-            f"bc_top={derived.get('bias_correction_top_ratio', 1.0):.2f} "
-            f"w(k/o/m)={derived.get('score_k_weight', 1.0):.3f}/"
-            f"{derived.get('score_o_weight', 1.0):.3f}/"
-            f"{derived.get('score_m_weight', 1.0):.3f} "
-            f"auto_kr={derived.get('auto_keep_ratio', 0.0):.3f}"
-        )
-        print(
-            "  [Auto-optimal replace] "
-            f"drift={(derived.get('drift_veto_thresh', 0)):.4f} "
-            f"(was 0.1..1.0 box → THIS (o_q3-o_med)/o_med) "
-            f"mse_mult={derived.get('mse_p75_multiplier', 0):.4f} "
-            f"(was 1.25..3.0 box → 1+IQR/o) "
-            f"alpha_auto={derived.get('alpha_auto', 0):.4f} "
-            f"α[{derived.get('alpha_floor', 0):.4f}..{derived.get('alpha_clip_max', 0):.4f}] "
-            f"(was 0.5..0.99 box → THIS k∪o∪m character; SVD always runs) "
-            f"mad_p99={derived.get('attn_mad_p99', 0):.4f} "
-            f"(was ×4 q3 box → THIS attn MAD P99)"
+        # derive_int8_autonomous_tunables already emitted the FULL pool / calc /
+        # every-layer / every-knob dump. Emit the final resolved dict again so
+        # DualMonitor re-resolve is also byte-complete in the same log.
+        emit_hswq_int8_full_visibility_log(
+            {
+                "resolve_stage": "resolve_veto_tunables",
+                "n_dualmonitor_sens": int(len(sens_map)),
+                "derived_every_key": {
+                    str(k): derived[k] for k in sorted(derived.keys(), key=str)
+                },
+            },
+            also_write_file=False,
         )
         return SdxlVetoTunables.from_dict(derived)
     # Stale precomputed veto_tunables without live layer profile = deleted-clip
@@ -880,7 +848,7 @@ def _compute_sdxl_keypattern_veto(
 
     Boundary suffixes apply to Conv2d (and any module whose name ends with the
     suffix). Linear-only iteration previously never reached .conv_in/.conv_out
-    or resolution resample — that dead path is forbidden hand-waving.
+    or resolution resample  -  that dead path is forbidden hand-waving.
     """
     added = set()
     ff2_suffixes = _discover_ff2_suffixes(norm_profile)
@@ -1205,7 +1173,7 @@ def _collect_mse_release_candidates(
     model: nn.Module,
     tunables: SdxlVetoTunables,
 ) -> set:
-    """Outlier-only profile VETO with low drift and non-structural — MSE release candidates.
+    """Outlier-only profile VETO with low drift and non-structural  -  MSE release candidates.
 
     V3.0 INT8: mse_release_* come only from derive_veto_tunables_int8
     (analyze_sdxl_distribution). No hardcoded min/max floors.
@@ -1267,7 +1235,7 @@ def _mse_grayzone_veto_reassessment(
     estimated_mse @ absmax to optionally release soft analyze-VETO layers
     whose damage is below P75×mult of a safe baseline.
 
-    Pack amax stays absmax — V4 does not choose pack scale.
+    Pack amax stays absmax  -  V4 does not choose pack scale.
 
     DualMonitor importance preferred when present; always Full-SVD×RMS
     via alpha_auto (missing Imp never skips V4 or SVD).
@@ -1333,6 +1301,7 @@ def _mse_grayzone_veto_reassessment(
                 use_svd_leverage=True,
                 scaled=False,
                 search_range=_veto_search_range,
+                layer_name=sname,
             )
             safe_mses.append(sresult["estimated_mse"])
             mse_cache[sname] = float(sresult["estimated_mse"])
@@ -1372,6 +1341,7 @@ def _mse_grayzone_veto_reassessment(
                 use_svd_leverage=True,
                 scaled=False,
                 search_range=_veto_search_range,
+                layer_name=vname,
             )
             vmse = vresult["estimated_mse"]
             mse_cache[vname] = float(vmse)
@@ -1420,16 +1390,18 @@ def _measure_v4_mse_absmax_int8(
     weight: torch.Tensor,
     importance: torch.Tensor | None,
     optimizer: HSWQWeightedHistogramOptimizerV4,
+    layer_name: str = "",
 ) -> float:
     """INT8-only: V4 estimated_mse for FP16 protection candidate ranking.
 
     Measures weighted-histogram MSE at the natural INT8 pack point (absmax).
-    That MSE is the damage score used to decide FP16 keep — it is NOT used
+    That MSE is the damage score used to decide FP16 keep  -  it is NOT used
     to choose a pack amax (pack stays absmax for INT8).
 
     Always runs V4 Full-SVD×RMS hybrid (use_svd_leverage=True). When
     DualMonitor channel Importance is present it multiplies the hybrid map;
     when missing, hybrid alone. Cutting SVD because Imp exists is forbidden.
+    SVD mix settings + singular values are logged for every layer (no mid-stop).
     """
     result = optimizer.compute_optimal_amax_with_stats_int8_range(
         weight,
@@ -1437,6 +1409,7 @@ def _measure_v4_mse_absmax_int8(
         use_svd_leverage=True,
         scaled=False,
         search_range=(1.0, 1.0),
+        layer_name=layer_name,
     )
     return float(result["estimated_mse"])
 
@@ -1457,7 +1430,7 @@ def _build_v4_calib_fp16_candidates(
 
     V4's job here: estimated_mse @ absmax for every target Linear/Conv so the
     later 300 MiB budget can rank which layers stay FP16. Pack amax remains
-    absmax separately — V4 does not search pack scale.
+    absmax separately  -  V4 does not search pack scale.
 
     Always Full-SVD×RMS hybrid; DualMonitor Importance multiplies when present.
     Never skip a measurable layer (skipping collapses FP16 selection).
@@ -1505,6 +1478,7 @@ def _build_v4_calib_fp16_candidates(
                 weight=mod.weight.data,
                 importance=imp,
                 optimizer=trial_optimizer,
+                layer_name=name,
             )
             cache[name] = float(v4_mse)
             scored.add(name)
@@ -1675,6 +1649,7 @@ def _apply_fp16_budget_cap(
                     weight=mod.weight.data,
                     importance=imp,
                     optimizer=trial_optimizer,
+                    layer_name=name,
                 )
                 cache[name] = v4_mse
                 measured_fresh += 1
@@ -2115,14 +2090,14 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
             )
 
     if veto_tunables is None:
-        # Owner hard ceiling 300 MiB — auto knobs fill inside this frame.
+        # Owner hard ceiling 300 MiB  -  auto knobs fill inside this frame.
         veto_tunables = resolve_veto_tunables(
             model_profile or {},
             fp16_budget_mb=FP16_BUDGET_MB_HARD,
         )
 
     print(
-        "  [INT8 pack] absmax (search_low=1.0 — natural INT8); "
+        "  [INT8 pack] absmax (search_low=1.0  -  natural INT8); "
         "[V4 histogram] FP16 protection candidate ranking @ absmax"
     )
 
@@ -2137,18 +2112,22 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
         avg_k = np.mean(all_k) if all_k else 0
         avg_o = np.mean(all_o) if all_o else 0
         avg_m = np.mean(all_m) if all_m else 0
-        print(f"  [Profile Stats INT8] Avg Kurtosis: {avg_k:.2f}, Avg OutlierRatio: {avg_o:.2f}, Avg AbsMax: {avg_m:.2f}")
+        print(f"  [Profile Stats INT8] Avg Kurtosis: {avg_k!r}, Avg OutlierRatio: {avg_o!r}, Avg AbsMax: {avg_m!r}")
 
     # alpha = SVD-leverage MIX WEIGHT from THIS multi-axis character (k∪o∪m).
-    # Full-SVD always executes (never skip V4); alpha only scales leverage vs
-    # RMS in the hybrid map. DualMonitor Imp multiplies that map when present.
-    # No fixed cut, no model-name rule, no "alpha>0 else skip SVD" thought-stop.
+    # DualMonitor Imp multiplies the hybrid map when present. alpha==0 with a
+    # live profile is SVD cut  -  refuse (do not log "executing" as if contributing).
     alpha = float(veto_tunables.alpha_auto)
+    if model_profile and alpha <= 0.0:
+        raise ValueError(
+            "INT8 Full-SVD×RMS alpha_auto must be > 0 when model_profile is present "
+            f"(alpha==0 is SVD cut / rebellion). got alpha_auto={alpha}"
+        )
     beta = 1.0 - alpha
 
     print(
-        f"  [Dynamic Alpha/Beta INT8] alpha={alpha:.3f}, beta={beta:.3f} "
-        f"(analyze k∪o∪m → Full-SVD×RMS; Imp multiplies when present)"
+        f"  [Dynamic Alpha/Beta INT8] alpha={alpha!r}, beta={beta!r} "
+        f"(analyze k∪o∪m → Full-SVD×RMS mix into ranking; Imp multiplies when present)"
     )
 
     hard_veto_layers = set()
@@ -2168,12 +2147,18 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
                     hard_veto_layers.add(layer_base_name)
                     reasons = []
                     if is_extreme_kurtosis:
-                        reasons.append(f"k={k:.1f}")
+                        reasons.append(
+                            f"k={k!r}>extreme_kurtosis={veto_tunables.extreme_kurtosis!r}"
+                        )
                     if is_extreme_divergence:
-                        reasons.append(f"o={o:.1f}")
+                        reasons.append(
+                            f"o={o!r}>extreme_outlier={veto_tunables.extreme_outlier!r}"
+                        )
                     if is_huge_magnitude:
-                        reasons.append(f"m={m:.2f}")
-                    print(f"    VETO: {layer_base_name} [{', '.join(reasons)}]")
+                        reasons.append(
+                            f"m={m!r}>huge_magnitude={veto_tunables.huge_magnitude!r}"
+                        )
+                    print(f"    VETO: {layer_base_name} [{'; '.join(reasons)}]")
 
     print(
         f"  [Static Profile VETO INT8] Identified {len(hard_veto_layers)} layers "
@@ -2242,7 +2227,7 @@ def main():
         default=FP16_BUDGET_MB_HARD,
         help="Owner hard ceiling: must be exactly 300 MiB FP16 overhead vs "
              "all-INT8. Per-model auto analysis / auto-optimal settings fill "
-             "this frame only — never redefine or exceed it. "
+             "this frame only  -  never redefine or exceed it. "
              "Extra cost = 1 byte per weight element.",
     )
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
@@ -2261,7 +2246,7 @@ def main():
         help="Fraction of INT8 layers (by DualMonitor sensitivity, highest first) "
              "that receive bias correction. Default: None = autonomous "
              "(derive_int8_autonomous_tunables: Tukey lower fence of THIS "
-             "DualMonitor sensitivity — scope = fraction at/above fence).",
+             "DualMonitor sensitivity  -  scope = fraction at/above fence).",
     )
     parser.add_argument(
         "--asymmetric_int8",
@@ -2298,7 +2283,7 @@ def main():
         sys.exit(1)
 
     # r0 fixed. DualMonitor sensitivity is used ONLY in
-    # _apply_fp16_budget_cap (extreme fill inside 300 MiB) — never to
+    # _apply_fp16_budget_cap (extreme fill inside 300 MiB)  -  never to
     # invent or gate keep_ratio.
     _bc_top_override = args.bias_correction_top_ratio
     if abs(float(args.keep_ratio)) > 1e-12:
@@ -2402,9 +2387,12 @@ def main():
         print(
             f"  [Autonomous bias_correction_top_ratio] "
             f"{args.bias_correction_top_ratio:.2f} "
-            f"(THIS DualMonitor Tukey lower-fence scope — auto-optimal)"
+            f"(THIS DualMonitor Tukey lower-fence scope  -  auto-optimal)"
         )
-    print(f"  [Veto Tunables INT8] {veto_tunables.as_dict()}")
+    print("  [Veto Tunables INT8  -  full as_dict via repr]")
+    _vt = veto_tunables.as_dict()
+    for _k in sorted(_vt.keys(), key=str):
+        print(f"    veto_tunables.{_k} = {_vt[_k]!r}")
     alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy_int8(
         model_profile,
         veto_tunables,
@@ -2466,7 +2454,7 @@ def main():
     generator = torch.Generator(device=device).manual_seed(42)
     
     # Calibration for DualMonitor Importance only (V4 ranking). No UNet
-    # reservoir / grad-damage capture — that path was the priority hand-wave.
+    # reservoir / grad-damage capture  -  that path was the priority hand-wave.
     for i, prompt in enumerate(prompts):
         print(f"\nSample {i+1}/{args.num_calib_samples}: {prompt[:50]}...")
         with torch.no_grad():
@@ -2484,7 +2472,7 @@ def main():
 
     print("  [Calib] DualMonitor Importance ready for V4 full-pool priority.")
 
-    print("\nAnalyzing layer sensitivity [INT8] — V4 calib FP16 cands + analyze VETO...")
+    print("\nAnalyzing layer sensitivity [INT8]  -  V4 calib FP16 cands + analyze VETO...")
 
     _supp = _autonomous_supplemental_veto(model, hard_veto_layers, _norm_profile, veto_tunables)
     if _supp:
@@ -2492,7 +2480,7 @@ def main():
         print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
 
     # Re-derive autonomous knobs now that DualMonitor calibration exists.
-    # Refresh α/β from THIS multi-axis alpha_auto — never keep pre-calib
+    # Refresh α/β from THIS multi-axis alpha_auto  -  never keep pre-calib
     # stale mix (handwave that skips analyze character after Sensitivity).
     veto_tunables = resolve_veto_tunables(
         _norm_profile,
@@ -2501,17 +2489,29 @@ def main():
         fp16_budget_mb=float(args.fp16_budget_mb),
     )
     alpha = float(veto_tunables.alpha_auto)
+    if _norm_profile and alpha <= 0.0:
+        raise ValueError(
+            "INT8 Full-SVD×RMS alpha_auto must be > 0 after DualMonitor resolve "
+            f"(alpha==0 is SVD cut / rebellion). got alpha_auto={alpha}"
+        )
     beta = 1.0 - alpha
     print(
         f"  [Dynamic Alpha/Beta INT8 after DualMonitor] "
-        f"alpha={alpha:.4f}, beta={beta:.4f} "
-        f"(analyze k∪o∪m → Full-SVD×RMS; Imp×Sens×V4 MSE fill 300 MiB)"
+        f"alpha={alpha!r}, beta={beta!r} "
+        f"(analyze k∪o∪m → Full-SVD×RMS mix into ranking; Imp×Sens×V4 MSE fill 300 MiB)"
+    )
+    print(
+        "  [HSWQ SVD SETTINGS LOCK] "
+        f"alpha={alpha!r} beta={beta!r} | "
+        "every Linear/Conv V4 measure will emit [HSWQ SVD MIX FULL] "
+        "(settings + all singular values + alpha*leverage vs beta*magnitude proof); "
+        "mid-stop / shape>100 gate is removed"
     )
     if _bc_top_override is None:
         args.bias_correction_top_ratio = float(veto_tunables.bias_correction_top_ratio)
         print(
             f"  [Autonomous bias_correction_top_ratio after DualMonitor] "
-            f"{args.bias_correction_top_ratio:.2f}"
+            f"{args.bias_correction_top_ratio!r}"
         )
 
     mse_cache: dict = {}
@@ -2571,7 +2571,7 @@ def main():
         if _name not in mapped_weight_modules:
             raise RuntimeError(
                 f"Map integrity FATAL: Diffusers module {_name!r} exists on UNet "
-                f"but has no Comfy map entry — fix unet_to_diffusers_mapping "
+                f"but has no Comfy map entry  -  fix unet_to_diffusers_mapping "
                 f"(refuse invent / refuse leave unmapped)"
             )
         print(f"  [Map integrity] {_name} mapped")
@@ -2585,7 +2585,7 @@ def main():
             print(f"    unmapped: {n}")
         raise RuntimeError(
             f"Map integrity: {len(orphan_before)} unmapped keep layer(s); "
-            f"refuse exclude — fix unet_to_diffusers_mapping"
+            f"refuse exclude  -  fix unet_to_diffusers_mapping"
         )
 
     # Hard ceiling: FP16 overhead vs all-INT8 must stay within budget.
@@ -2618,7 +2618,7 @@ def main():
             print(f"    unmapped: {n}")
         raise RuntimeError(
             f"Map integrity: {len(orphan_keep)} keep layer(s) unmapped after budget; "
-            f"refusing to drop — fix unet_to_diffusers_mapping"
+            f"refusing to drop  -  fix unet_to_diffusers_mapping"
         )
     print("  [Map integrity] orphan_keep=0 (all FP16 keep names are Comfy-mapped).")
     print(
