@@ -30,7 +30,7 @@ High-fidelity INT8 quantization for diffusion models (Z Image Turbo family). HSW
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% (6.5GB) | High |
 | Naive INT8 | 0.93-0.97 | 50% | High |
-| **HSWQ INT8** | **0.99** | 50-60% (FP16 mixed) | **High** |
+| **HSWQ INT8** | **0.99** | 55% (FP16 mixed) | **High** |
 
 ---
 
