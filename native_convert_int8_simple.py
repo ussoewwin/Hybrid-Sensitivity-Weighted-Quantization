@@ -81,15 +81,16 @@ def run_v30_calib_and_v4(
     profile_path: str | None,
     device: str,
 ):
-    """V3.0 calibration formula + options, then V4 scoring on that calib.
+    """Card 1 Bias Correction only: DualMonitor calib → channel_act_mean / sens.
 
-    Mirrors quantize_sdxl_hswq_v3.0.py DualMonitor calib loop and
-    _build_v4_calib_fp16_candidates (same args defaults / same pipeline call).
+    native_convert_int8_simple does NOT run Static Profile VETO, does NOT call
+    derive_hswq_strategy_int8, and does NOT build V4 FP16 keep candidates.
+    Those belong to quantize_sdxl_hswq_v3.0.py only.
     """
     v30 = _load_hswq_v30()
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Same as V3.0: auto-generate distribution profile when missing.
+    # Profile only for optional autonomous bias_correction_top_ratio (no VETO).
     analyze_script = os.path.join(script_dir, "analyze", "analyze_sdxl_distribution.py")
     input_abs = os.path.abspath(input_path)
     input_root = os.path.splitext(os.path.basename(input_path))[0]
@@ -100,7 +101,7 @@ def run_v30_calib_and_v4(
             raise FileNotFoundError(
                 f"Profile missing and analyze script not found: {analyze_script}"
             )
-        print("[*] Executing mandated distribution analysis (V3.0 same):")
+        print("[*] Executing mandated distribution analysis (for bc_top only):")
         print(f"    Script: {analyze_script}")
         print(f"    Input:  {input_abs}")
         print(f"    Result: {profile_path}")
@@ -129,34 +130,30 @@ def run_v30_calib_and_v4(
     )
     model = pipeline.unet
     _norm_profile = {k: v for k, v in model_profile.items() if isinstance(v, dict)}
-    veto_tunables = v30.resolve_veto_tunables(
-        _norm_profile,
-        profile_summary,
-        dual_monitors=None,
-        fp16_budget_mb=float(v30.FP16_BUDGET_MB_HARD),
-    )
+
     bc_top = bias_correction_top_ratio
     if bc_top is None:
+        veto_tunables = v30.resolve_veto_tunables(
+            _norm_profile,
+            profile_summary,
+            dual_monitors=None,
+            fp16_budget_mb=float(v30.FP16_BUDGET_MB_HARD),
+        )
         bc_top = float(veto_tunables.bias_correction_top_ratio)
         print(
             f"  [Autonomous bias_correction_top_ratio] {bc_top:.2f} "
-            f"(V3.0 same - pre-calib seed; refreshed after DualMonitor)"
+            f"(bc_top only; no Static Profile VETO / no V4)"
         )
-    alpha, beta, _get_low, hard_veto_layers = v30.derive_hswq_strategy_int8(
-        model_profile, veto_tunables
-    )
 
-    # --- Preparing calibration (Dual Monitor hooks)...  (V3.0 verbatim) ---
-    print("Preparing calibration (Dual Monitor hooks)...")
+    print("Preparing calibration (Dual Monitor hooks; Card 1 act means)...")
     v30.dual_monitors.clear()
-    handles, target_modules = [], []
+    handles = []
     for name, module in model.named_modules():
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
             handle = module.register_forward_hook(
                 lambda m, i, o, n=name: v30.hook_fn(m, i, o, n)
             )
             handles.append(handle)
-            target_modules.append(name)
 
     print("Preparing calibration data...")
     with open(calib_file, "r", encoding="utf-8") as f:
@@ -175,8 +172,7 @@ def run_v30_calib_and_v4(
     if num_calib_samples != 32 or num_inference_steps != 25:
         print(
             "  [WARN] How-to / r32 recipe is num_calib_samples=32, "
-            "num_inference_steps=25. DualMonitor importance for V4 FP16 "
-            "ranking should follow that calibration; current args differ."
+            "num_inference_steps=25. current args differ."
         )
     pipeline.set_progress_bar_config(disable=False)
     generator = torch.Generator(device=device).manual_seed(42)
@@ -196,51 +192,18 @@ def run_v30_calib_and_v4(
     for h in handles:
         h.remove()
 
-    print("  [Calib] DualMonitor Importance ready for V4 full-pool priority.")
-    print(
-        "\nAnalyzing layer sensitivity [INT8]  -  V4 calib FP16 cands "
-        "(native_simple; Card 1 act means from DualMonitor)..."
-    )
-
-    veto_tunables = v30.resolve_veto_tunables(
-        _norm_profile,
-        profile_summary,
-        dual_monitors=v30.dual_monitors,
-        fp16_budget_mb=float(v30.FP16_BUDGET_MB_HARD),
-    )
-    alpha = float(veto_tunables.alpha_auto)
-    if _norm_profile and alpha <= 0.0:
-        raise ValueError(
-            "INT8 Full-SVD×RMS alpha_auto must be > 0 after DualMonitor resolve "
-            f"(alpha==0 is SVD cut / rebellion). got alpha_auto={alpha}"
-        )
-    beta = 1.0 - alpha
-    print(
-        f"  [Dynamic Alpha/Beta INT8 after DualMonitor] "
-        f"alpha={alpha!r}, beta={beta!r}"
-    )
     if bias_correction_top_ratio is None:
+        veto_tunables = v30.resolve_veto_tunables(
+            _norm_profile,
+            profile_summary,
+            dual_monitors=v30.dual_monitors,
+            fp16_budget_mb=float(v30.FP16_BUDGET_MB_HARD),
+        )
         bc_top = float(veto_tunables.bias_correction_top_ratio)
         print(
             f"  [Autonomous bias_correction_top_ratio after DualMonitor] "
             f"{bc_top!r}"
         )
-
-    mse_cache: dict = {}
-    dynamic_keep_layers, mse_cache = v30._build_v4_calib_fp16_candidates(
-        model=model,
-        dual_monitors=v30.dual_monitors,
-        target_modules=target_modules,
-        hard_veto_layers=hard_veto_layers,
-        mse_cache=mse_cache,
-        alpha=alpha,
-        beta=beta,
-        device=device,
-    )
-    print(
-        f"  [V4 histogram calib] scored={len(dynamic_keep_layers)} "
-        f"mse_cache={len(mse_cache)} (same path as V3.0)"
-    )
 
     act_mean_dict = {}
     sens_dict = {}
@@ -248,8 +211,11 @@ def run_v30_calib_and_v4(
         if mon.channel_act_mean is not None:
             act_mean_dict[name] = mon.channel_act_mean.detach().float().cpu()
         sens_dict[name] = float(mon.get_sensitivity())
+    print(
+        f"  [Card 1 DualMonitor] act_mean layers={len(act_mean_dict)} "
+        f"sens layers={len(sens_dict)} (no VETO, no V4 FP16 cands)"
+    )
 
-    # Free Diffusers pipeline before INT8 pack (VRAM).
     del pipeline
     del model
     gc.collect()
@@ -293,7 +259,7 @@ def convert_to_int8(
             raise FileNotFoundError(f"calib_file not found: {calib_file}")
         print(
             "  [Bias Correction Card 1] ON | "
-            "V3.0 DualMonitor calib + V4 histogram on that calib | "
+            "DualMonitor calib only (no Static Profile VETO / no V4) | "
             "mu_x = DualMonitor.channel_act_mean"
         )
         calib = run_v30_calib_and_v4(
