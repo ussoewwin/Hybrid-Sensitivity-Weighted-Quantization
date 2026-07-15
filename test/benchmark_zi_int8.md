@@ -35,7 +35,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 - **MSE (latent):** Mean squared error on raw latent tensors vs FP16 reference; 0 = perfect match.
 - **SSIM (0–255 view):** Structural similarity on normalized 0–255 preview images (`zit_bench`); 1.0 = perfect match.
-- **Keep ratio:** Fraction of layers kept in FP16 (e.g. r0.1 = 10%, r0.05 = 5%).
+
 
 ---
 
