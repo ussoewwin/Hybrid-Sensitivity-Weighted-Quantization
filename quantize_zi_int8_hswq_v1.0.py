@@ -5,10 +5,12 @@ Z-Image / NextDiT INT8 quantization — HSWQ V1.0
 ZI-format pipeline (load / calib / Static+Structural VETO / Z-Anime):
   same infrastructure as quantize_zib_hswq_v2.0.py (loaded via importlib).
 
-INT8 payload (from quantize_sdxl_int8_hswq_v1.0.py + SDXL V3.0 Card ideas):
-  - V4 histogram: HSWQWeightedHistogramOptimizerV4 + INT8Quantizer
-    estimated_mse @ absmax ranks FP16 protect layers (keep_ratio).
-    Pack amax stays absmax (tensorwise) or per-out-channel (Card 3).
+INT8 FP16 protect (HSWQ — per-checkpoint auto analysis → auto-optimal):
+  - Owner hard frame: FP16 overhead vs all-INT8 == 300 MiB exactly.
+  - DualMonitor sensitivity × analyze severity × V4 estimated_mse rank
+    with infinite THIS-model ranking / priority branches (no fixed formula,
+    no keep_ratio % cut). Extreme fill under 300 MiB only truncates.
+  - Pack amax stays absmax (tensorwise) or per-out-channel (Card 3).
   - Card 1 (--bias_correction): bias += -(W_q - W) @ mu_x
     mu_x = DualMonitor.channel_act_mean from ZITCalibrationPipeline.
   - Card 3 (--per_channel_int8): per-out-channel scale (O,1) / (O,1,1,1).
@@ -37,11 +39,6 @@ histogram_dir = os.path.join(current_dir, "histogram")
 if histogram_dir not in sys.path:
     sys.path.insert(0, histogram_dir)
 
-from weighted_histogram_mse_v4 import (
-    HSWQWeightedHistogramOptimizerV4,
-    INT8Quantizer,
-)
-
 
 def _load_zib_v20():
     """Load quantize_zib_hswq_v2.0.py (ZI-format engine)."""
@@ -53,6 +50,23 @@ def _load_zib_v20():
         raise ImportError(f"Cannot load module spec for {path}")
     mod = importlib.util.module_from_spec(spec)
     sys.modules["quantize_zib_hswq_v2_0"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _load_hswq_int8_budget():
+    """Load INT8 300 MiB budget + infinite-branch helpers (shared HSWQ path)."""
+    path = os.path.join(current_dir, "quantize_sdxl_hswq_v3.0.py")
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"HSWQ INT8 budget engine not found: {path}")
+    mod_name = "quantize_hswq_int8_budget_v3_0"
+    if mod_name in sys.modules:
+        return sys.modules[mod_name]
+    spec = importlib.util.spec_from_file_location(mod_name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load module spec for {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[mod_name] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -163,86 +177,43 @@ def _emit_int8_meta(out_dict, prefixed_module, scale):
     )
 
 
-def _v4_rank_fp16_keep(
+def _v4_score_all_fp16_candidates(
     *,
-    zib,
+    hswq_int8,
     model,
     dual_monitors,
     target_modules,
     hard_veto_layers,
-    keep_ratio,
     alpha,
     beta,
     device,
+    mse_cache=None,
 ):
-    """Score non-VETO Linear/Conv with V4+INT8Quantizer estimated_mse @ absmax.
+    """V4 estimated_mse @ absmax for ALL target Linear/Conv — no keep_ratio cut.
 
-    Dynamic FP16 keep = top keep_ratio by MSE damage. Pack amax stays absmax
-    (Card 3 uses per-channel amax separately).
+    Truncation is only the 300 MiB budget pass over THIS-model priority order
+    (auto analysis → infinite branches → extreme fill).
     """
-    int8_q = INT8Quantizer(device=device)
-    opt = HSWQWeightedHistogramOptimizerV4(
-        bins=8192,
-        num_candidates=1000,
-        refinement_iterations=10,
-        device=device,
+    return hswq_int8._build_v4_calib_fp16_candidates(
+        model=model,
+        dual_monitors=dual_monitors,
+        target_modules=target_modules,
+        hard_veto_layers=hard_veto_layers,
+        mse_cache=dict(mse_cache or {}),
         alpha=alpha,
         beta=beta,
-        quantizer=int8_q,
+        device=device,
     )
-    module_dict = dict(model.named_modules())
-    scored = []
-    print(
-        "\n[V4→FP16 protect] HSWQWeightedHistogramOptimizerV4 + INT8Quantizer "
-        "estimated_mse @ absmax (ranking only; pack amax stays absmax/Card3)."
-    )
-    for name in tqdm(target_modules, desc="V4 INT8 MSE"):
-        if name in hard_veto_layers:
-            continue
-        mod = module_dict.get(name)
-        if mod is None or not hasattr(mod, "weight"):
-            continue
-        w = mod.weight.data
-        if w.ndim < 2:
-            continue
-        mon = dual_monitors.get(name)
-        importance = mon.channel_importance if mon is not None else None
-        try:
-            result = opt.compute_optimal_amax_with_stats_int8_range(
-                w,
-                importance=importance,
-                use_svd_leverage=True,
-                scaled=False,
-                search_range=(1.0, 1.0),
-                layer_name=name,
-            )
-            mse = float(result["estimated_mse"])
-            scored.append((name, mse, int(w.numel())))
-        except Exception as e:
-            print(f"  [V4 ERROR] {name}: {e}")
-        if device == "cuda":
-            torch.cuda.empty_cache()
-
-    scored.sort(key=lambda x: x[1], reverse=True)
-    n_dynamic = int(len(scored) * float(keep_ratio) + 1e-9)
-    dynamic_keep = set(n for n, _, _ in scored[:n_dynamic])
-    keep_layers = dynamic_keep.union(hard_veto_layers)
-    print(
-        f"  [V4 keep] scored={len(scored)} dynamic={len(dynamic_keep)} "
-        f"(keep_ratio={keep_ratio}) hard_veto={len(hard_veto_layers)} "
-        f"total_fp16={len(keep_layers)}"
-    )
-    if scored[:5]:
-        print("  [V4 top-5 by estimated_mse]")
-        for n, mse, _ in scored[:5]:
-            print(f"    {n}: mse={mse:.8e}")
-    return keep_layers, {n: mse for n, mse, _ in scored}
 
 
 def main():
+    hswq_int8 = _load_hswq_int8_budget()
+    budget_hard = float(hswq_int8.FP16_BUDGET_MB_HARD)
+
     parser = argparse.ArgumentParser(
         description=(
-            "Z-Image / NextDiT INT8 HSWQ V1.0 — V4 histogram FP16 ranking + "
+            "Z-Image / NextDiT INT8 HSWQ V1.0 — 300 MiB FP16 frame + "
+            "per-checkpoint auto analysis → infinite-branch fill + "
             "Card 1 bias correction + Card 3 per-channel (ZI format via zib v2.0)."
         )
     )
@@ -254,10 +225,14 @@ def main():
     parser.add_argument("--num_calib_samples", type=int, default=256)
     parser.add_argument("--num_inference_steps", type=int, default=20)
     parser.add_argument(
-        "--keep_ratio",
+        "--fp16_budget_mb",
         type=float,
-        default=0.25,
-        help="Fraction of non-VETO layers kept FP16 by V4 estimated_mse ranking",
+        default=budget_hard,
+        help=(
+            f"Owner hard ceiling for FP16 overhead vs all-INT8 "
+            f"(must be exactly {budget_hard:g} MiB). Auto analysis fills "
+            f"this frame; never redefine or exceed it."
+        ),
     )
     parser.add_argument("--comfy_path", type=str, default=None)
     parser.add_argument("--profile", type=str, default=None)
@@ -277,13 +252,18 @@ def main():
     parser.add_argument(
         "--bias_correction_top_ratio",
         type=float,
-        default=1.0,
+        default=None,
         help=(
             "Fraction of INT8 layers (by DualMonitor sensitivity, high first) "
-            "that receive Card 1. Default 1.0 = all INT8 layers."
+            "that receive Card 1. Default None = autonomous from THIS "
+            "checkpoint DualMonitor / analyze character."
         ),
     )
     args = parser.parse_args()
+    args.fp16_budget_mb = hswq_int8._require_fp16_budget_mb_hard(
+        float(args.fp16_budget_mb)
+    )
+    _bc_top_override = args.bias_correction_top_ratio
 
     zib = _load_zib_v20()
     script_dir = current_dir
@@ -524,14 +504,66 @@ def main():
                 f"(total {len(hard_veto_layers)})"
             )
 
-    # --- V4 histogram FP16 ranking (INT8) ---
-    keep_layers, mse_cache = _v4_rank_fp16_keep(
-        zib=zib,
+    # --- Per-checkpoint auto analysis → auto-optimal FP16 inside 300 MiB ---
+    # DualMonitor refresh α/β (never keep pre-calib stale mix). No keep_ratio.
+    if not _norm_profile:
+        raise ValueError(
+            "ZI INT8 FP16 budget requires THIS-checkpoint layer profile "
+            "(auto analysis → derive_int8_autonomous_tunables). "
+            "Run analyze / supply --profile before quantize."
+        )
+    veto_tunables = hswq_int8.resolve_veto_tunables(
+        _norm_profile,
+        dual_monitors=dual_monitors,
+        fp16_budget_mb=float(args.fp16_budget_mb),
+    )
+    alpha = float(veto_tunables.alpha_auto)
+    if alpha <= 0.0:
+        raise ValueError(
+            "INT8 Full-SVD×RMS alpha_auto must be > 0 after DualMonitor resolve "
+            f"(alpha==0 is SVD cut / rebellion). got alpha_auto={alpha}"
+        )
+    beta = 1.0 - alpha
+    print(
+        f"  [Dynamic Alpha/Beta INT8 after DualMonitor] "
+        f"alpha={alpha!r}, beta={beta!r} "
+        f"(THIS analyze character → Full-SVD×RMS; Imp×Sens×V4 MSE fill "
+        f"{float(args.fp16_budget_mb):g} MiB)"
+    )
+    if _bc_top_override is None:
+        args.bias_correction_top_ratio = float(
+            veto_tunables.bias_correction_top_ratio
+        )
+        print(
+            f"  [Autonomous bias_correction_top_ratio after DualMonitor] "
+            f"{args.bias_correction_top_ratio!r}"
+        )
+    else:
+        args.bias_correction_top_ratio = float(_bc_top_override)
+
+    mse_cache: dict = {}
+    dynamic_keep_layers, mse_cache = _v4_score_all_fp16_candidates(
+        hswq_int8=hswq_int8,
         model=model,
         dual_monitors=dual_monitors,
         target_modules=target_modules,
         hard_veto_layers=hard_veto_layers,
-        keep_ratio=args.keep_ratio,
+        alpha=alpha,
+        beta=beta,
+        device=device,
+        mse_cache=mse_cache,
+    )
+    # FULL union — budget only truncates (Hard VETO may demote if over frame).
+    keep_layers = dynamic_keep_layers.union(hard_veto_layers)
+    keep_layers, hard_veto_layers, budget_stats = hswq_int8._apply_fp16_budget_cap(
+        model=model,
+        keep_layers=keep_layers,
+        hard_veto_layers=hard_veto_layers,
+        budget_mb=float(args.fp16_budget_mb),
+        norm_profile=_norm_profile,
+        veto_tunables=veto_tunables,
+        dual_monitors=dual_monitors,
+        mse_cache=mse_cache,
         alpha=alpha,
         beta=beta,
         device=device,
@@ -778,17 +810,37 @@ def main():
                 "format_version": "1.0",
                 "quant": "int8_tensorwise",
                 "engine": "quantize_zi_int8_hswq_v1.0",
-                "keep_ratio": float(args.keep_ratio),
+                "fp16_budget_mb": float(args.fp16_budget_mb),
+                "fp16_budget_used_mb": float(
+                    budget_stats.get("used_mb", 0.0)
+                    if isinstance(budget_stats, dict)
+                    else 0.0
+                ),
+                "fp16_priority_form": (
+                    budget_stats.get("priority_form")
+                    if isinstance(budget_stats, dict)
+                    else None
+                ),
+                "n_fp16_keep": int(len(keep_layers)),
                 "per_channel_int8": bool(args.per_channel_int8),
                 "bias_correction": bool(args.bias_correction),
+                "bias_correction_top_ratio": float(
+                    args.bias_correction_top_ratio
+                    if args.bias_correction_top_ratio is not None
+                    else 1.0
+                ),
                 "layers": quant_meta_layers,
             }
         )
     }
 
     print(f"Saving: {args.output}")
+    used_mb = float(
+        budget_stats.get("used_mb", 0.0) if isinstance(budget_stats, dict) else 0.0
+    )
     print(
         f"  INT8 layers: {converted_count} | FP16/BF16 keep: {kept_count} | "
+        f"FP16 budget {used_mb:.2f}/{float(args.fp16_budget_mb):g} MiB | "
         f"Card3={args.per_channel_int8} | Card1={args.bias_correction} "
         f"(applied={bias_corr_applied})"
     )
