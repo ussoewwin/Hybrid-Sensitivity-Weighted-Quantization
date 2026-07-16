@@ -7,10 +7,10 @@
 High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z Image Turbo**, and **Z-Anime** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
 
 - **FP8:** two modes — standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
-- **INT8 (SDXL V3.0):** ComfyUI-compatible `int8_tensorwise` pack with DualMonitor + V4 weighted-histogram ranking for FP16 protection under a fixed budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage.
+- **INT8 (SDXL V3.0 / Z Image V1.0):** ComfyUI-compatible `int8_tensorwise` pack with DualMonitor + V4 weighted-histogram ranking for FP16 protection under a fixed budget (**300 MiB** SDXL, **700 MiB** Z Image). Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage.
 
 **Technical details (FP8):** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)  
-**Technical details (INT8 SDXL V3.0):** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md)
+**Technical details (INT8 SDXL V3.0; Z Image shares the same pack / r0 / V4 ranking design):** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md)
 
 **SDXL models (FP8):** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
 
@@ -43,7 +43,7 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 
 ## Overview
 
-| Feature | FP8 V1: Standard Compatible | FP8 V2: High Performance Scaled | INT8 (SDXL V3.0) |
+| Feature | FP8 V1: Standard Compatible | FP8 V2: High Performance Scaled | INT8 (SDXL V3.0 / Z Image V1.0) |
 | :--- | :--- | :--- | :--- |
 | **Compatibility** | Full (100%), any FP8 loader | Requires dedicated loader — **not usable at present** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible |
 | **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (weights + `.scale` metadata) | INT8 weights + scale (`int8_tensorwise`) |
@@ -51,7 +51,7 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 | **Mechanism** | Optimal clipping (smart clipping) | Full-range scaling (dynamic scaling) | Absmax pack + DualMonitor / V4 FP16 protect (r0) |
 | **Keep ratio** | 5–25% (see How-to; SDXL/ZIT often 10%) | 5–25% (see How-to) | **0 (fixed)** |
 | **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) | Measurable |
-| **Use case** | Distribution, general users | Unavailable until a dedicated loader exists | SDXL INT8 distribution / kitchen loaders |
+| **Use case** | Distribution, general users | Unavailable until a dedicated loader exists | SDXL / Z Image INT8 distribution / kitchen loaders |
 
 File size is reduced by about **30–40%** vs FP16 while keeping best quality per use case.
 
@@ -70,7 +70,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 
 3. **Weighted MSE Optimization** — Finds parameters that minimize quantization error using an importance-weighted histogram (not a plain frequency histogram).
    - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram amax search. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
-   - **V4 (SVD × RMS hybrid):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers. Used by Z Image / Z-Anime FP8 for amax search, and by SDXL INT8 for FP16-candidate ranking at the absmax pack point. **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
+   - **V4 (SVD × RMS hybrid):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers. Used by Z Image / Z-Anime FP8 for amax search, and by **SDXL / Z Image INT8** for FP16-candidate ranking at the absmax pack point. **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
 
 ---
 
@@ -81,10 +81,11 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 - **V1** (`scaled=False`): No scaling; only the clipping threshold (amax) is optimized. Output is standard FP8 weights. **Use this mode** — full compatibility with any FP8 loader.
 - **V2** (`scaled=True`): Weights are scaled to FP8 range, quantized, and inverse scale `S` is stored in Safetensors (`.scale`). Requires a dedicated loader; **not usable at the current time.**
 
-### INT8 (SDXL)
+### INT8 (SDXL / Z Image)
 
+- **Scripts:** `quantize_sdxl_hswq_v3.0.py` (SDXL; **300 MiB** FP16 budget) · `quantize_zi_int8_hswq_v1.0.py` (Z Image / NextDiT; **700 MiB** FP16 budget; ZI format via `quantize_zib_hswq_v2.0.py`).
 - **Tensorwise pack (default):** per-tensor absmax; format tag `int8_tensorwise`.
-- **Card 3** (`--per_channel_int8`): per-output-channel amax / scale. Mutually exclusive with `--asymmetric_int8`.
+- **Card 3** (`--per_channel_int8`): per-output-channel amax / scale. Mutually exclusive with `--asymmetric_int8` (SDXL).
 - **Keep ratio:** **0 (fixed)** — FP16 protection is automatic (analyze Hard VETO + DualMonitor + V4 ranking inside the FP16 budget), not a percentage keep-ratio.
 
 ---
@@ -94,7 +95,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 - **Samples:** 32 (recommended) — number of calibration samples (**same for FP8 and INT8**).
 - **Steps:** 25 — number of inference steps per sample during calibration (**same for FP8 and INT8**).
 - **Keep ratio (FP8):** 5–25% — keeps critical layers in FP16. For SDXL and ZIT, 10% often gives sufficient quality.
-- **Keep ratio (INT8):** **0 (fixed)** — do not use a non-zero keep-ratio percentage for the INT8 SDXL V3.0 path.
+- **Keep ratio (INT8):** **0 (fixed)** — do not use a non-zero keep-ratio percentage for the INT8 SDXL V3.0 / Z Image V1.0 path.
 - **Latent:** 32–256, default 128 — calibration latent size (H/W). Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity.
 
 ---
