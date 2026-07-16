@@ -1,35 +1,23 @@
-"""Independent SDXL UNet INT8 convert: optional Card 1 / Card 3.
+"""Simple SDXL UNet INT8 convert + Card 1 Bias Correction + Card 3 per-channel.
 
-Fully self-contained. NO import / reference to quantize_sdxl_hswq_v3.0.py.
+Pack:
+  default              symmetric per-tensor (amax / 127)
+  --per_channel_int8   per-out-channel scale (Card 3)
 
-Scope:
-  INT8 every UNet matmul weight with ndim >= 2 (Linear AND Conv2d), including
-  attention to_q / to_k / to_v. Those layers have no .bias architecturally;
-  weights are still INT8'd. Card 1 is skipped only where .bias is absent —
-  NEVER leave QKV in FP16 as an "escape" (that claim is forbidden / wrong:
-  native INT8's QKV and still clears ~0.97).
-
-Pack (default): tensorwise amax/127 (same as native_convert_int8.py).
-
-Card 3 (--per_channel_int8; DEFAULT OFF):
-  per-out-channel amax/127
-  Linear scale (O, 1); Conv2d scale (O, 1, 1, 1)
-  Format tag stays int8_tensorwise
-
-Card 1 (--bias_correction; DEFAULT OFF):
-  Requires --calib_file when enabled.
-  SDXL pretrained pipeline + Comfy->Diffusers structural key map
-  (native_int8_sdxl_unet_map; NO fingerprint; NO import of v3.0).
-  Hooks Linear + Conv2d for per-input-channel mu_x.
-  bias += -(W_q - W) contracted with mu_x on every INT8 module that HAS .bias.
-  Full Card 1; no Approach A / no top_ratio gate.
+Card 1 (--bias_correction):
+  DualMonitor hooks + StableDiffusionXLPipeline latent calib
+  mu_x = DualMonitor.channel_act_mean; bias += -(W_q - W) @ mu_x
+  ALWAYS applied to every INT8 Linear/Conv that has act_mean (full Card 1).
+  No Approach A / no bias_correction_top_ratio gating (that dropped SSIM).
   Calib defaults: samples=32, steps=25.
-  No Static Profile VETO / no keep_ratio / no 300 MiB FP16 budget.
+  No Static Profile VETO / no V4 FP16 keep.
+  Format tag stays int8_tensorwise.
 """
 from __future__ import annotations
 
 import argparse
 import gc
+import importlib.util
 import json
 import os
 import sys
@@ -38,17 +26,25 @@ import torch
 from safetensors.torch import load_file, save_file
 from tqdm import tqdm
 
-from native_int8_sdxl_unet_map import (
-    detect_unet_config_from_keys,
-    unet_to_diffusers_mapping,
-)
+
+def _load_hswq_v30():
+    """Load quantize_sdxl_hswq_v3.0.py as a module (filename has a digit)."""
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "quantize_sdxl_hswq_v3.0.py"
+    )
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"HSWQ V3.0 script not found: {path}")
+    spec = importlib.util.spec_from_file_location("quantize_sdxl_hswq_v3_0", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load module spec for {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["quantize_sdxl_hswq_v3_0"] = mod
+    spec.loader.exec_module(mod)
+    return mod
 
 
-# ---------------------------------------------------------------------------
-# Pack
-# ---------------------------------------------------------------------------
 def pack_tensorwise(weight: torch.Tensor):
-    """Symmetric per-tensor INT8: scale = amax / 127 (native floor)."""
+    """Symmetric per-tensor INT8: scale = amax / 127."""
     w = weight.float()
     amax = max(float(w.abs().max().item()), 1e-6)
     scale = amax / 127.0
@@ -57,88 +53,22 @@ def pack_tensorwise(weight: torch.Tensor):
 
 
 def pack_channelwise(weight: torch.Tensor):
-    """Per-out-channel INT8 (Card 3). Linear (O,1) or Conv2d (O,1,1,1).
-
-    Broadcast-safe under kitchen dequantize_int8_simple (q * scale).
-    A flat (O,) scale is NOT safe for 4D (right-aligned broadcast collision).
-    """
+    """Per-out-channel INT8 (Card 3 shape for kitchen dequant)."""
     w = weight.float()
-    if w.dim() not in (2, 4):
-        raise ValueError(
-            f"pack_channelwise supports ndim 2 or 4; got ndim={w.dim()}"
-        )
     reduce_dims = tuple(range(1, w.dim()))
-    amax = torch.clamp(w.abs().amax(dim=reduce_dims), min=1e-6)
+    amax = torch.clamp(w.abs().amax(dim=reduce_dims).reshape(-1), min=1e-6)
     scale = amax / 127.0
     if w.dim() == 4:
         scale_view = scale.view(-1, 1, 1, 1)
         amax_view = amax.view(-1, 1, 1, 1)
-    else:
+    elif w.dim() == 2:
         scale_view = scale.view(-1, 1)
         amax_view = amax.view(-1, 1)
+    else:
+        raise ValueError(f"unsupported weight ndim={w.dim()} for --per_channel_int8")
     clamped = torch.clamp(w, -amax_view, amax_view)
     q = (clamped / scale_view).round().clamp(-127, 127).to(torch.int8)
     return q, scale_view.to(dtype=torch.float32)
-
-
-# ---------------------------------------------------------------------------
-# Independent Card 1: structural Comfy->Diffusers map + act-mean hooks
-# ---------------------------------------------------------------------------
-def _load_card1_pipeline(input_path: str, device: str):
-    """Load SDXL pipeline and inject Comfy UNet weights via structural map.
-
-    Fingerprint matching is forbidden: Comfy FP16 safetensors vs float cast
-    misses most Linear lookups and explodes bias_corr_skipped_no_act.
-    from_single_file is not used (CLIP loader breakage on this env).
-    """
-    from diffusers import StableDiffusionXLPipeline
-
-    print(f"Loading model: {input_path}")
-    state_dict = load_file(input_path)
-    print("Detecting UNet structure...")
-    unet_config = detect_unet_config_from_keys(state_dict)
-    print(f"Detected UNet config: {unet_config}")
-    print("Initializing Diffusers pipeline (pretrained base + remapped UNet)...")
-    pipeline = StableDiffusionXLPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-xl-base-1.0",
-        torch_dtype=torch.float16,
-        use_safetensors=True,
-        variant="fp16",
-    ).to(device)
-    print("Building Comfy -> Diffusers key mapping...")
-    comfyui_to_diffusers_map = unet_to_diffusers_mapping(unet_config, state_dict)
-    new_state_dict = {}
-    for comfy_key, diffusers_key in comfyui_to_diffusers_map.items():
-        if comfy_key in state_dict:
-            new_state_dict[diffusers_key] = state_dict[comfy_key]
-    missing, unexpected = pipeline.unet.load_state_dict(new_state_dict, strict=False)
-    print(
-        f"  [Card 1] remapped tensors={len(new_state_dict)} "
-        f"missing={len(missing)} unexpected={len(unexpected)} "
-        f"map_entries={len(comfyui_to_diffusers_map)}"
-    )
-    return pipeline, comfyui_to_diffusers_map, state_dict
-
-
-def _compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
-    """delta = (W_q - W) contracted with mu_x. None if shapes mismatch.
-
-    Linear (O, I):              err @ mu -> (O,)
-    Conv2d (O, I, K, K):        sum_{i,kh,kw} err[o,i,…] * mu[i] -> (O,)
-    """
-    if act_mean is None:
-        return None
-    err = weight_dq.float() - weight_fp.float()
-    mu = act_mean.float().to(device=err.device)
-    if err.ndim == 2:
-        if mu.numel() != err.shape[1]:
-            return None
-        return err @ mu
-    if err.ndim == 4:
-        if mu.numel() != err.shape[1]:
-            return None
-        return (err * mu.view(1, -1, 1, 1)).sum(dim=(1, 2, 3))
-    return None
 
 
 def run_card1_calib(
@@ -149,63 +79,36 @@ def run_card1_calib(
     num_inference_steps: int,
     device: str,
 ):
-    """Card 1 calibration via remapped Diffusers SDXL pipeline.
+    """Card 1 only: DualMonitor calib → channel_act_mean.
 
-    Hooks Linear + Conv2d. Structural key map for Comfy -> Diffusers module
-    names (no fingerprint).
+    Does NOT run Static Profile VETO, derive_hswq_strategy_int8, or V4 FP16 keep.
     """
-    pipeline, comfyui_to_diffusers_map, state_dict = _load_card1_pipeline(
+    v30 = _load_hswq_v30()
+
+    pipeline, _state_dict, comfyui_to_diffusers_map = v30.load_unet_from_safetensors(
         input_path, device
     )
     model = pipeline.unet
 
+    print("Preparing calibration (Dual Monitor hooks; Card 1 act means)...")
+    v30.dual_monitors.clear()
+    handles = []
+    for name, module in model.named_modules():
+        if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
+            handle = module.register_forward_hook(
+                lambda m, i, o, n=name: v30.hook_fn(m, i, o, n)
+            )
+            handles.append(handle)
+
     print("Preparing calibration data...")
     with open(calib_file, "r", encoding="utf-8") as f:
-        prompts = [line.strip() for line in f if line.strip()]
+        prompts = [line.strip() for line in f.readlines() if line.strip()]
     if len(prompts) < num_calib_samples:
         prompts = (prompts * (num_calib_samples // len(prompts) + 1))[
             :num_calib_samples
         ]
     else:
         prompts = prompts[:num_calib_samples]
-
-    act_sums = {}
-    act_counts = {}
-    handles = []
-
-    def make_hook(module_name):
-        def hook(_m, inp, _out):
-            x = inp[0].detach().float()
-            if x.dim() == 2:
-                s = x.sum(dim=0)
-                c = x.shape[0]
-            elif x.dim() == 3:
-                s = x.sum(dim=(0, 1))
-                c = x.shape[0] * x.shape[1]
-            elif x.dim() == 4:
-                s = x.sum(dim=(0, 2, 3))
-                c = x.shape[0] * x.shape[2] * x.shape[3]
-            else:
-                return
-            if module_name in act_sums:
-                act_sums[module_name] = act_sums[module_name] + s.cpu()
-                act_counts[module_name] += c
-            else:
-                act_sums[module_name] = s.cpu()
-                act_counts[module_name] = c
-
-        return hook
-
-    n_linear = 0
-    n_conv = 0
-    for name, module in model.named_modules():
-        if isinstance(module, torch.nn.Linear):
-            handles.append(module.register_forward_hook(make_hook(name)))
-            n_linear += 1
-        elif isinstance(module, torch.nn.Conv2d):
-            handles.append(module.register_forward_hook(make_hook(name)))
-            n_conv += 1
-    print(f"  [Card 1] hooked Linear={n_linear} Conv2d={n_conv}")
 
     print(
         f"Running calibration ({num_calib_samples} samples, "
@@ -220,7 +123,7 @@ def run_card1_calib(
     generator = torch.Generator(device=device).manual_seed(42)
 
     for i, prompt in enumerate(prompts):
-        print(f"\nSample {i + 1}/{num_calib_samples}: {prompt[:50]}...")
+        print(f"\nSample {i+1}/{num_calib_samples}: {prompt[:50]}...")
         with torch.no_grad():
             pipeline(
                 prompt=prompt,
@@ -231,66 +134,60 @@ def run_card1_calib(
         if (i + 1) % 10 == 0:
             gc.collect()
             torch.cuda.empty_cache()
-
     for h in handles:
         h.remove()
 
-    act_mean_by_module = {}
-    for name in act_sums:
-        cnt = act_counts[name]
-        if cnt > 0:
-            act_mean_by_module[name] = (act_sums[name] / cnt).float()
+    act_mean_dict = {}
+    for name, mon in v30.dual_monitors.items():
+        if mon.channel_act_mean is not None:
+            act_mean_dict[name] = mon.channel_act_mean.detach().float().cpu()
     print(
-        f"  [Card 1] act_mean modules={len(act_mean_by_module)} "
+        f"  [Card 1 DualMonitor] act_mean layers={len(act_mean_dict)} "
         f"(full Card 1; no VETO; no Approach A)"
     )
 
-    del pipeline, model
+    del pipeline
+    del model
     gc.collect()
     if device == "cuda":
         torch.cuda.empty_cache()
 
     return {
-        "act_mean_by_module": act_mean_by_module,
+        "act_mean_dict": act_mean_dict,
         "comfyui_to_diffusers_map": comfyui_to_diffusers_map,
-        "state_dict": state_dict,
+        "v30": v30,
     }
 
 
-# ---------------------------------------------------------------------------
-# Convert (Card 1 / Card 3 both DEFAULT OFF)
-# ---------------------------------------------------------------------------
 def convert_to_int8(
     input_path,
     output_path,
-    *,
     per_channel_int8: bool = False,
     bias_correction: bool = False,
     calib_file: str | None = None,
     num_calib_samples: int = 32,
     num_inference_steps: int = 25,
 ):
-    """INT8 Linear+Conv; Card 3 / Card 1 only when flags are set."""
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    act_mean_dict = {}
+    comfyui_to_diffusers_map = {}
+    compute_int8_bias_delta = None
+
     if bias_correction:
         if not calib_file:
-            raise ValueError("--bias_correction requires --calib_file")
+            raise ValueError(
+                "--bias_correction requires --calib_file "
+                "(same as quantize_sdxl_hswq_v3.0.py)"
+            )
         if not os.path.isfile(calib_file):
             raise FileNotFoundError(f"calib_file not found: {calib_file}")
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    pack_mode = "per-channel (Card 3)" if per_channel_int8 else "tensorwise"
-    print(
-        f"  Card 1={'ON' if bias_correction else 'OFF (default)'} | "
-        f"Card 3={'ON' if per_channel_int8 else 'OFF (default)'} | "
-        f"pack={pack_mode} | "
-        "INT8 scope = Linear+Conv (ndim>=2), including QKV | "
-        "QKV without .bias still INT8 (BC apply skipped only) | "
-        "no Approach A / no top_ratio / no FP16 QKV escape"
-    )
-
-    act_mean_by_module: dict = {}
-    comfyui_to_diffusers_map: dict = {}
-    if bias_correction:
+        print(
+            "  [Bias Correction Card 1] ON | ALL INT8 Linear+Conv | "
+            "DualMonitor calib (steps=25) | "
+            "mu_x = DualMonitor.channel_act_mean | "
+            "bias += -(W_q - W) @ mu_x | "
+            "no Approach A / no top_ratio gate"
+        )
         calib = run_card1_calib(
             input_path=input_path,
             calib_file=calib_file,
@@ -298,16 +195,30 @@ def convert_to_int8(
             num_inference_steps=int(num_inference_steps),
             device=device,
         )
-        act_mean_by_module = calib["act_mean_by_module"]
+        act_mean_dict = calib["act_mean_dict"]
         comfyui_to_diffusers_map = calib["comfyui_to_diffusers_map"]
-        state_dict = calib["state_dict"]
+        compute_int8_bias_delta = calib["v30"].compute_int8_bias_delta
         print(
-            f"  [Bias Correction] Captured act means for "
-            f"{len(act_mean_by_module)} modules"
+            f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers"
         )
     else:
-        print(f"Loading model: {input_path}")
-        state_dict = load_file(input_path)
+        def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
+            if act_mean is None:
+                return None
+            err = weight_dq.float() - weight_fp.float()
+            mu = act_mean.float().to(device=err.device)
+            if err.ndim == 2:
+                if mu.numel() != err.shape[1]:
+                    return None
+                return err @ mu
+            if err.ndim == 4:
+                if mu.numel() != err.shape[1]:
+                    return None
+                return (err * mu.view(1, -1, 1, 1)).sum(dim=(1, 2, 3))
+            return None
+
+    print(f"Loading model: {input_path}")
+    state_dict = load_file(input_path)
 
     new_state_dict = {}
     quant_meta_layers = {}
@@ -316,11 +227,10 @@ def convert_to_int8(
     bias_corr_pending: dict[str, torch.Tensor] = {}
     bias_corr_applied = 0
     bias_corr_skipped_no_bias = 0
-    bias_corr_skipped_no_map = 0
     bias_corr_skipped_no_act = 0
     bias_corr_skipped_bad_shape = 0
-
-    print(f"Converting UNet Linear+Conv (ndim>=2) to INT8 ({pack_mode})...")
+    mode = "per-channel" if per_channel_int8 else "tensorwise"
+    print(f"Converting UNet Linear/Conv weights to INT8 ({mode}, amax/127)...")
 
     for key, tensor in tqdm(state_dict.items()):
         is_unet_matmul_weight = (
@@ -334,10 +244,15 @@ def convert_to_int8(
             torch.bfloat16,
         ]:
             if per_channel_int8:
+                if tensor.ndim not in (2, 4):
+                    new_state_dict[key] = tensor
+                    skipped_count += 1
+                    continue
                 q, scale = pack_channelwise(tensor)
+                weight_dq = q.float() * scale
             else:
                 q, scale = pack_tensorwise(tensor)
-            weight_dq = q.float() * scale
+                weight_dq = q.float() * scale
 
             module_key = key[: -len(".weight")]
             new_state_dict[key] = q
@@ -353,29 +268,30 @@ def convert_to_int8(
                 diffusers_key = comfyui_to_diffusers_map.get(key)
                 module_name = None
                 if diffusers_key and diffusers_key.endswith(".weight"):
-                    module_name = diffusers_key[: -len(".weight")]
-                if module_name is None:
-                    bias_corr_skipped_no_map += 1
+                    module_name = diffusers_key[:-7]
+                act_mean = (
+                    act_mean_dict.get(module_name)
+                    if module_name is not None
+                    else None
+                )
+                if act_mean is None:
+                    bias_corr_skipped_no_act += 1
                 else:
-                    act_mean = act_mean_by_module.get(module_name)
-                    if act_mean is None:
-                        bias_corr_skipped_no_act += 1
+                    delta = compute_int8_bias_delta(tensor, weight_dq, act_mean)
+                    if delta is None:
+                        bias_corr_skipped_bad_shape += 1
                     else:
-                        delta = _compute_int8_bias_delta(tensor, weight_dq, act_mean)
-                        if delta is None:
-                            bias_corr_skipped_bad_shape += 1
-                        else:
-                            bias_corr_pending[module_key] = (
-                                (-delta).detach().float().cpu()
-                            )
+                        bias_corr_pending[module_key] = (
+                            (-delta).detach().float().cpu()
+                        )
         else:
             new_state_dict[key] = tensor
             skipped_count += 1
 
-    if bias_correction:
+    if bias_correction and bias_corr_pending:
         print(
             f"\n[Bias Correction] Applying deltas to {len(bias_corr_pending)} "
-            f"INT8 modules (full Card 1; skip when .bias absent e.g. QKV)..."
+            f"INT8 Linear+Conv layers (full Card 1)..."
         )
         for module_key, delta in bias_corr_pending.items():
             bias_key = f"{module_key}.bias"
@@ -391,12 +307,15 @@ def convert_to_int8(
         print(
             f"  [Bias Correction] applied={bias_corr_applied}, "
             f"no_bias={bias_corr_skipped_no_bias}, "
-            f"no_map={bias_corr_skipped_no_map}, "
             f"no_act={bias_corr_skipped_no_act}, "
             f"bad_shape={bias_corr_skipped_bad_shape}"
         )
-    else:
-        print("\n[Bias Correction] Disabled (default; pass --bias_correction).")
+    elif bias_correction:
+        print(
+            f"  [Bias Correction] No deltas pending "
+            f"(no_act={bias_corr_skipped_no_act}, "
+            f"bad_shape={bias_corr_skipped_bad_shape})"
+        )
 
     metadata = {
         "_quantization_metadata": json.dumps(
@@ -418,12 +337,8 @@ def convert_to_int8(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
-            "Independent Simple UNet INT8: Card 1 and Card 3 DEFAULT OFF. "
-            "Default pack = tensorwise. "
-            "--per_channel_int8 / --bias_correction to enable. "
-            "INT8 scope = Linear+Conv (ndim>=2), including QKV. "
-            "No FP16 QKV escape. No Approach A / no VETO. "
-            "No dependency on quantize_sdxl_hswq_v3.0.py."
+            "Simple UNet INT8 convert. Card 1 = full BC on all INT8 Linear+Conv. "
+            "Card 3 = --per_channel_int8. No Approach A / no VETO."
         )
     )
     parser.add_argument(
@@ -434,26 +349,29 @@ if __name__ == "__main__":
         required=True,
         help="Path to input .safetensors",
     )
-    parser.add_argument(
-        "--output", type=str, required=True, help="Path to output .safetensors"
-    )
+    parser.add_argument("--output", type=str, required=True, help="Path to output .safetensors")
     parser.add_argument(
         "--per_channel_int8",
         action="store_true",
-        default=False,
-        help="Enable Card 3 per-channel pack (DEFAULT OFF)",
+        help=(
+            "Card 3: per-out-channel amax/scale (Linear (O,1), Conv (O,1,1,1)). "
+            "Default is symmetric per-tensor. Format tag stays int8_tensorwise."
+        ),
     )
     parser.add_argument(
         "--bias_correction",
         action="store_true",
-        default=False,
-        help="Enable Card 1 bias correction (DEFAULT OFF)",
+        help=(
+            "Card 1 ON: DualMonitor calib; bias += -(W_q - W) @ mu_x on ALL "
+            "INT8 Linear+Conv (no top_ratio gate). Calib steps default 25. "
+            "Requires --calib_file."
+        ),
     )
     parser.add_argument(
         "--calib_file",
         type=str,
         default=None,
-        help="Calibration prompts text (required with --bias_correction)",
+        help="Path to calibration prompts text file (required with --bias_correction)",
     )
     parser.add_argument(
         "--num_calib_samples",
@@ -472,7 +390,6 @@ if __name__ == "__main__":
     if not os.path.exists(args.model):
         print(f"Error: Model not found at {args.model}")
         sys.exit(1)
-
     if args.bias_correction and not args.calib_file:
         print("Error: --bias_correction requires --calib_file")
         sys.exit(1)
@@ -480,7 +397,7 @@ if __name__ == "__main__":
     convert_to_int8(
         args.model,
         args.output,
-        per_channel_int8=bool(args.per_channel_int8),
+        per_channel_int8=args.per_channel_int8,
         bias_correction=bool(args.bias_correction),
         calib_file=args.calib_file,
         num_calib_samples=args.num_calib_samples,
