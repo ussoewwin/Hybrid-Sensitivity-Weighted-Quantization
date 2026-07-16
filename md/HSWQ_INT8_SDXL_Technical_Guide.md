@@ -1,11 +1,12 @@
-# HSWQ INT8 (SDXL V3.0) — Technical Overview
+# HSWQ INT8 (SDXL V3.0 / Z Image V1.0) — Technical Overview
 
 **Document version:** 1.1  
 **Date:** 2026-07-13  
-**Target:** Stable Diffusion XL UNet — `quantize_sdxl_hswq_v3.0.py`  
+**Target (SDXL):** Stable Diffusion XL UNet — `quantize_sdxl_hswq_v3.0.py` (**300 MiB** FP16 budget)  
+**Target (Z Image):** NextDiT / ZI format — `quantize_zi_int8_hswq_v1.0.py` (**700 MiB** FP16 budget; same absmax pack / r0 / DualMonitor + V4 ranking design; ZI load/calib via `quantize_zib_hswq_v2.0.py`)  
 **Companion (FP8 families):** [HSWQ: Hybrid Sensitivity Weighted Quantization — Technical Overview](HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md)
 
-This document is the **INT8-only** counterpart to the FP8 technical overview. It enumerates every decision path in the V3.0 pipeline at the same level of detail: philosophy, mermaid architecture, Hard VETO stack, DualMonitor, V4 MSE ranking, 300 MiB FP16 budget, gray-zone release, pack Cards, bias correction, ComfyUI metadata, formulas, and CLI contracts. FP8 scripts and FP8 `derive_veto_tunables` are **not** modified by this path.
+This document is the **INT8-only** counterpart to the FP8 technical overview. The body below enumerates the **SDXL V3.0** pipeline in full detail (philosophy, mermaid architecture, Hard VETO stack, DualMonitor, V4 MSE ranking, 300 MiB FP16 budget, gray-zone release, pack Cards, bias correction, ComfyUI metadata, formulas, and CLI contracts). **Z Image INT8 V1.0** reuses the same pack / r0 / DualMonitor + V4 ranking / Card1–Card3 design under a **700 MiB** ceiling. FP8 scripts and FP8 `derive_veto_tunables` are **not** modified by this path.
 
 ---
 
