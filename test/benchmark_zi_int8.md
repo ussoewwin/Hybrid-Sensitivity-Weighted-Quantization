@@ -18,6 +18,8 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | unstableRevolution_V3Fp16 | r0 | 0.0117 | 0.9983 |
 | Big Love | r0 | 0.0067 | 0.9987 |
 | zimageTurboByStable_2602BF16 | r0 | 0.0292 | 0.9980 |
+| divingZImageTurbo_v60Fp16 | r0 | 6.4867 | 0.9465 |
+| gonzalomoZpop_insta2 | r0 | 0.0068 | 0.9986 |
 
 ---
 
@@ -36,6 +38,8 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | unstableRevolution_V3Fp16 | r0 | 0.0117 | 8.3628 | +8.3511 | 0.9983 | 0.9194 | −0.0789 | Native INT8 | HSWQ |
 | Big Love | r0 | 0.0067 | 4.8617 | +4.8550 | 0.9987 | 0.9289 | −0.0698 | Native INT8 | HSWQ |
 | zimageTurboByStable_2602BF16 | r0 | 0.0292 | 1.2656 | +1.2364 | 0.9980 | 0.9645 | −0.0335 | Native INT8 | HSWQ |
+| divingZImageTurbo_v60Fp16 | r0 | 6.4867 | 6.3843 | −0.1024 | 0.9465 | 0.9195 | −0.0270 | Native INT8 | — |
+| gonzalomoZpop_insta2 | r0 | 0.0068 | 0.0760 | +0.0692 | 0.9986 | 0.9827 | −0.0159 | Native INT8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM (lower MSE and higher SSIM for HSWQ vs baseline).
 
