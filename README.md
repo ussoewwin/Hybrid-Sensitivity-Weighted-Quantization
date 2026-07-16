@@ -20,6 +20,8 @@ High-fidelity **FP8** and **INT8** quantization for **SDXL**, **Flux1.dev**, **Z
 
 **Z Image / Z-Anime models (INT8):** [Hugging Face — HSWQ-Z-Image-INT8](https://huggingface.co/ussoewwin/HSWQ-Z-Image-INT8)
 
+**ComfyUI Loader for INT8:** To use the INT8 models in ComfyUI, please use this custom node: [ComfyUI-nunchaku-unofficial-loader](https://github.com/ussoewwin/ComfyUI-nunchaku-unofficial-loader)
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/logo.png" width="400">
 </p>

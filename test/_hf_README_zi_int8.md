@@ -20,6 +20,8 @@ High-fidelity INT8 quantization for diffusion models (Z Image Turbo family). HSW
 
 **How to quantize:** [How to quantize Z Image.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20Z%20Image.md)
 
+**ComfyUI Loader for INT8:** To load these INT8 models in ComfyUI, please use the unofficial loader node: [ComfyUI-nunchaku-unofficial-loader](https://github.com/ussoewwin/ComfyUI-nunchaku-unofficial-loader)
+
 **Z Image INT8 Benchmark Test Results:** [test/benchmark_zi_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_zi_int8.md)
 
 ---
