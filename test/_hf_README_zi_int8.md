@@ -38,9 +38,14 @@ High-fidelity INT8 quantization for diffusion models (Z Image Turbo family). HSW
 
 | Filename | Base Model | Version | License |
 | :--- | :--- | :--- | :--- |
+| `beyondREALITY_V30_hswq_r32_int8.safetensors` | [beyondREALITY_V30](https://civitai.red/models/1090420/beyond-reality?modelVersionId=2648189) | v30 | Apache 2.0 |
+| `bigLove_zt3_hswq_r32_int8.safetensors` | Big Love | zt3 | Apache 2.0 |
 | `darkBeastINT8Convrot2_dbzit9DIMRclaw_hswq_r32_int8.safetensors` | [darkBeastINT8Convrot2_dbzit9DIMRclaw](https://civitai.com/models/2242173) | dbzit9 | Apache 2.0 |
+| `divingZImageTurbo_v60Fp16_hswq_r32_int8.safetensors` | divingZImageTurbo_v60Fp16 | v60 | Apache 2.0 |
+| `gonzalomoZpop_insta2_hswq_r32_int8.safetensors` | gonzalomoZpop_insta2 | insta2 | Apache 2.0 |
 | `moodyProMix_zitV13_hswq_r32_int8.safetensors` | [moodyProMix_zitV13](https://civitai.red/models/620406) | v13 | Apache 2.0 |
 | `moodyRealMix_zitV7_hswq_r32_int8_v1.safetensors` | [moodyRealMix_zitV7](https://civitai.red/models/621441) | v7 | Apache 2.0 |
+| `zimageTurboByStable_2602BF16_hswq_r32_int8.safetensors` | zimageTurboByStable_2602BF16 | 2602 | Apache 2.0 |
 
 ---
 
@@ -48,6 +53,8 @@ High-fidelity INT8 quantization for diffusion models (Z Image Turbo family). HSW
 
 ### Base Models
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
+- **beyondREALITY_V30**: Created by [Nurburgring](https://civitai.red/user/Nurburgring) ([BEYOND REALITY](https://civitai.red/models/1090420/beyond-reality?modelVersionId=2648189) on Civitai).
+- **Big Love** / **divingZImageTurbo_v60Fp16** / **gonzalomoZpop_insta2** / **zimageTurboByStable_2602BF16**: Respective creators on Civitai.
 - **darkBeastINT8Convrot2_dbzit9DIMRclaw**: Created by [AiMetatron](https://civitai.com/user/AiMetatron).
 - **moodyProMix_zitV13** / **moodyRealMix_zitV7**: Created by [catlover1937](https://civitai.red/user/catlover1937) (on Civitai).
 
