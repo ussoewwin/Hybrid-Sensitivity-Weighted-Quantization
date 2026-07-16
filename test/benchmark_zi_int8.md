@@ -15,6 +15,8 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | moodyRealMix_zitV7 | r0 | 0.0121 | 0.9983 |
 | darkBeastINT8Convrot2_dbzit9DIMRclaw | r0 | 0.0071 | 0.9982 |
 | beyondREALITY_V30 | r0 | 0.0078 | 0.9988 |
+| unstableRevolution_V3Fp16 | r0 | 0.0117 | 0.9983 |
+| Big Love | r0 | 0.0067 | 0.9987 |
 
 ---
 
@@ -30,6 +32,8 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | moodyRealMix_zitV7 | r0 | 0.0121 | 0.2344 | +0.2223 | 0.9983 | 0.9597 | −0.0386 | Official INT8 | HSWQ |
 | darkBeastINT8Convrot2_dbzit9DIMRclaw | r0 | 0.0071 | 0.1251 | +0.1180 | 0.9982 | 0.9817 | −0.0165 | Native INT8 | HSWQ |
 | beyondREALITY_V30 | r0 | 0.0078 | 0.1092 | +0.1014 | 0.9988 | 0.9865 | −0.0123 | Native INT8 | HSWQ |
+| unstableRevolution_V3Fp16 | r0 | 0.0117 | 8.3628 | +8.3511 | 0.9983 | 0.9194 | −0.0789 | Native INT8 | HSWQ |
+| Big Love | r0 | 0.0067 | 4.8617 | +4.8550 | 0.9987 | 0.9289 | −0.0698 | Native INT8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM (lower MSE and higher SSIM for HSWQ vs baseline).
 
