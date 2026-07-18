@@ -55,11 +55,11 @@ def _load_zib_v20():
 
 
 def _load_hswq_int8_budget():
-    """Load INT8 FP16 budget + infinite-branch helpers (shared HSWQ path)."""
-    path = os.path.join(current_dir, "quantize_sdxl_hswq_v3.0.py")
+    """Load ZI-owned INT8 FP16 budget engine (ZI path only; no SDXL quantize file)."""
+    path = os.path.join(current_dir, "quantize_zi_int8_budget_engine.py")
     if not os.path.isfile(path):
-        raise FileNotFoundError(f"HSWQ INT8 budget engine not found: {path}")
-    mod_name = "quantize_hswq_int8_budget_v3_0"
+        raise FileNotFoundError(f"ZI INT8 budget engine not found: {path}")
+    mod_name = "quantize_zi_int8_budget_engine"
     if mod_name in sys.modules:
         return sys.modules[mod_name]
     spec = importlib.util.spec_from_file_location(mod_name, path)
