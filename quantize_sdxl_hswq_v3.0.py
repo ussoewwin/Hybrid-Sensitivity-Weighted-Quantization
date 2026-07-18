@@ -77,8 +77,8 @@ sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 # Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
 # optimize INSIDE this frame. Not a thinking-stop formula constant.
 FP16_BUDGET_MB_HARD = 300.0
-# Post-pack assert slack: owner-allowed measurement / fill error band (~10 MiB).
-# Over ceiling by more than this still refuses to save.
+# Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
+# leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
 
@@ -2969,6 +2969,16 @@ def main():
                                 # Negate: add -E[(W_q-W)x] to bias so output mean matches FP.
                                 bias_corr_pending[comfy_module] = (-delta).detach().float().cpu()
             else:
+                # 1D norms / non-pack weights may stay float. Linear (2D) /
+                # Conv (4D) MUST be keep FP16 or INT8 — silent float leak
+                # was hand-waving that inflated post-pack budget.
+                if int(value.ndim) in (2, 4):
+                    raise RuntimeError(
+                        f"[INT8 pack] {module_name!r} is Linear/Conv "
+                        f"(ndim={int(value.ndim)}, key={key!r}) but missing "
+                        f"from keep_layers and weight_amax_dict / "
+                        f"weight_channel_amax_dict. Refuse silent FP16 leak."
+                    )
                 new_value = value
         else:
             new_value = value
@@ -3000,9 +3010,12 @@ def main():
     if args.bias_correction:
         print(f"  Bias-corrected layers: {bias_corr_applied}")
 
-    # Hard assert: Linear+Conv FP16 keep ≤ owner ceiling + tiny tolerance.
-    # Meter matches pack targets (2D Linear / 4D Conv); 1D norms are not
-    # INT8 candidates and are not charged against the 300 MiB frame.
+    # Hard assert: Linear+Conv FP16 keep ≤ owner ceiling + owner tolerance.
+    # Hand-waving that caused the false 300.146 fail:
+    #   (1) meter counted 1D norm weights as "Conv/other" budget;
+    #   (2) convert else-branch could silently leave Linear/Conv as float.
+    # Meter = 2D/4D only. Leak = float 2D/4D not in keep_layers → refuse.
+    # Tolerance (~10 MiB) is owner fill-band only — not a shield for leaks.
     _budget_ceil_b = int(float(args.fp16_budget_mb) * 1024 * 1024)
     _tol_b = int(float(FP16_BUDGET_ASSERT_TOLERANCE_MIB) * 1024 * 1024)
     _pack_fp16_extra = 0
@@ -3010,6 +3023,7 @@ def main():
     _pack_fp16_linear_n = 0
     _pack_fp16_conv_n = 0
     _pack_fp16_skipped_non_lc = 0
+    _pack_fp16_leak = []
     for _ck, _cv in output_state_dict.items():
         if not _ck.endswith(".weight"):
             continue
@@ -3024,6 +3038,10 @@ def main():
         if _ndim not in (2, 4):
             _pack_fp16_skipped_non_lc += 1
             continue
+        _mod = _dk[:-7]
+        if _mod not in keep_layers:
+            _pack_fp16_leak.append(_mod)
+            continue
         _n_el = int(_cv.numel())
         _pack_fp16_extra += _n_el
         _pack_fp16_n += 1
@@ -3031,6 +3049,13 @@ def main():
             _pack_fp16_linear_n += 1
         else:
             _pack_fp16_conv_n += 1
+    if _pack_fp16_leak:
+        _show = ", ".join(_pack_fp16_leak[:12])
+        raise RuntimeError(
+            f"[FP16 budget] post-pack leak: {len(_pack_fp16_leak)} Linear/Conv "
+            f"float weight(s) not in keep_layers (hand-waving pack path). "
+            f"Examples: {_show}. Refusing to save."
+        )
     _pack_fp16_mb = _pack_fp16_extra / (1024 * 1024)
     _over_b = _pack_fp16_extra - _budget_ceil_b
     print(
@@ -3054,7 +3079,7 @@ def main():
         )
     if _over_b > 0:
         print(
-            f"  [FP16 budget] within tolerance: "
+            f"  [FP16 budget] within owner tolerance: "
             f"+{_over_b / (1024 * 1024):.3f} MiB over ceiling "
             f"(allowed ≤ {FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB); saving."
         )
