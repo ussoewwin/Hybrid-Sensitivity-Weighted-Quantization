@@ -549,7 +549,6 @@ def _apply_fp16_budget_cap(
     alpha: float,
     beta: float,
     device: str = "cuda",
-    charge_mag_forced_non_linear_fp16: bool = False,
 ) -> tuple[set, set, dict]:
     """Per-model auto analysis → auto-optimal FP16 set inside the hard ceiling.
 
@@ -557,11 +556,9 @@ def _apply_fp16_budget_cap(
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
-    charge_mag_forced_non_linear_fp16: SDXL-ONLY. Mag MixedPrecisionOps packs
-    INT8 for Linear (ndim==2) only; Conv stay FP16. When True, those Mag-
-    forced bytes are charged against the ceiling first (SDXL +500 MiB leak
-    fix). Default False so Z-Image INT8 (700 MiB, shared import of this
-    helper) is NOT changed by the SDXL Mag-Conv accounting.
+    Linear and Conv compete in ONE ranking (DualMonitor + analyze + V4 MSE +
+    infinite branches). Priority weights are derived per-checkpoint — never
+    a unified cross-model standard, never Mag-outside exemption.
 
     alpha/beta MUST be THIS-profile auto-optimal (caller passes
     veto_tunables.alpha_auto mix). Fixed 0.5/0.5 defaults are forbidden.
@@ -606,44 +603,12 @@ def _apply_fp16_budget_cap(
         hard_veto_names=hard_veto_layers,
     )
 
-    pool = set(keep_layers) | set(hard_veto_layers)
-    for name, row in char_table.items():
-        if float(row.get("severity", 0.0)) >= 1.0:
-            pool.add(name)
+    # All analyze-character layers enter the pool. Continuous severity ranks
+    # them later — severity>=1 gate was thinking-stop (drops 0<sev<1).
+    pool = set(keep_layers) | set(hard_veto_layers) | set(char_table.keys())
 
     module_dict = dict(model.named_modules())
     pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
-
-    # SDXL-only Mag Linear-only pack: Conv (ndim!=2) stay FP16 — charge first.
-    # Default off: Z-Image INT8 imports this helper under a 700 MiB ceiling and
-    # must not inherit SDXL Mag-Conv accounting (owner: do not affect ZI).
-    mag_forced_fp16: set = set()
-    forced_bytes = 0
-    if charge_mag_forced_non_linear_fp16:
-        for _n, _mod in module_dict.items():
-            if not isinstance(_mod, (torch.nn.Conv2d, torch.nn.Linear)):
-                continue
-            if _mod.weight is None:
-                continue
-            if int(_mod.weight.data.ndim) != 2:
-                mag_forced_fp16.add(_n)
-        for _n in sorted(mag_forced_fp16):
-            forced_bytes += _fp16_extra_bytes_vs_int8(module_dict[_n].weight.data)
-        if forced_bytes > budget_bytes:
-            raise RuntimeError(
-                f"[FP16 budget] Mag-forced Conv/non-Linear FP16 alone exceeds "
-                f"{budget_mb:g} MiB ceiling: "
-                f"forced={forced_bytes / (1024 * 1024):.3f} MiB "
-                f"({len(mag_forced_fp16)} modules). Refusing to proceed."
-            )
-        optional_budget_bytes = budget_bytes - forced_bytes
-        print(
-            f"  [FP16 budget] Mag-forced FP16 (Conv/ndim!=2, SDXL-only): "
-            f"{len(mag_forced_fp16)} modules | "
-            f"{forced_bytes / (1024 * 1024):.2f} MiB of {budget_mb:g} MiB | "
-            f"Linear keep remaining={optional_budget_bytes / (1024 * 1024):.2f} MiB"
-        )
-        pool = {n for n in pool if n not in mag_forced_fp16}
 
     sens_by_name: dict[str, float] = {}
     for name, mon in dual_monitors.items():
@@ -836,29 +801,21 @@ def _apply_fp16_budget_cap(
 
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
-    # Extreme fill inside the caller hard ceiling (SDXL 300 / ZI 700).
-    # When Mag-forced Conv are charged (SDXL-only flag), they are already in
-    # used; priority-order Linear keep fills only the remainder. If a layer
-    # does not fit, skip and keep packing smaller remaining layers.
+    # Extreme fill inside the hard ceiling (SDXL 300 / ZI 700):
+    # Linear and Conv share ONE THIS-model auto-priority queue.
     selected: set = set()
-    used = int(forced_bytes)
-    optional_used = 0
+    used = 0
     dropped: list[tuple[str, int, float, float, float, float]] = []
     kept_detail: list[tuple[str, int, float, float, float, float]] = []
     for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         if used + extra <= budget_bytes:
             selected.add(name)
             used += extra
-            optional_used += extra
             kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
         else:
             dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
 
     demoted_veto = hard_veto_layers - selected
-    # Auto-optimal FP16 set for THIS model (DualMonitor + analyze + V4).
-    # Analyze VETO that win stay labeled VETO; DualMonitor winners are keep.
-    # Mag-forced Conv are FP16 at save but are not listed in keep_out
-    # (pack path forces them regardless of keep_layers).
     hard_veto_out = hard_veto_layers & selected
     keep_out = set(selected)
 
@@ -866,9 +823,7 @@ def _apply_fp16_budget_cap(
         raise RuntimeError(
             f"[FP16 budget] selected set exceeds hard ceiling "
             f"{budget_mb:g} MiB: used={used / (1024 * 1024):.3f} MiB "
-            f"(forced={forced_bytes / (1024 * 1024):.3f} + "
-            f"optional={optional_used / (1024 * 1024):.3f}; "
-            f"{used} bytes > {budget_bytes}). Refusing to proceed."
+            f"({used} bytes > {budget_bytes}). Refusing to proceed."
         )
 
     stats = {
@@ -876,11 +831,12 @@ def _apply_fp16_budget_cap(
         "budget_bytes": budget_bytes,
         "used_bytes": used,
         "used_mb": used / (1024 * 1024),
-        "forced_bytes": int(forced_bytes),
-        "forced_mb": forced_bytes / (1024 * 1024),
-        "optional_bytes": int(optional_used),
-        "optional_mb": optional_used / (1024 * 1024),
-        "mag_forced_fp16_count": len(mag_forced_fp16),
+        "forced_bytes": 0,
+        "forced_mb": 0.0,
+        "optional_bytes": int(used),
+        "optional_mb": used / (1024 * 1024),
+        "total_fp16_mb": used / (1024 * 1024),
+        "mag_forced_fp16_count": 0,
         "candidates": len(candidates),
         "pool": len(pool),
         "analyze_character_layers": len(char_table),

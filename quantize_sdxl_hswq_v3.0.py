@@ -343,6 +343,11 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
 
 
 def load_unet_from_safetensors(path, device="cuda"):
+    if str(device).startswith("cpu"):
+        raise RuntimeError(
+            "load_unet_from_safetensors refused device='cpu'. "
+            "SDXL INT8 DualMonitor calibration requires CUDA."
+        )
     print(f"Loading model: {path}")
     state_dict = load_file(path)
     print("Detecting UNet structure...")
@@ -350,12 +355,29 @@ def load_unet_from_safetensors(path, device="cuda"):
     print(f"Detected UNet config: {unet_config}")
     print("Initializing Diffusers pipeline...")
     try:
-        pipeline = StableDiffusionXLPipeline.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, use_safetensors=True, variant="fp16").to(device)
+        pipeline = StableDiffusionXLPipeline.from_pretrained(
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            torch_dtype=torch.float16,
+            use_safetensors=True,
+            variant="fp16",
+        ).to(device)
     except Exception as e:
         print(f"Warning: failed to load pretrained model: {e}")
         from diffusers import UNet2DConditionModel
         unet = UNet2DConditionModel(sample_size=128, in_channels=4, out_channels=4, layers_per_block=2, block_out_channels=(320, 640, 1280), down_block_types=("DownBlock2D", "CrossAttnDownBlock2D", "CrossAttnDownBlock2D"), up_block_types=("CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "UpBlock2D"))
         pipeline = StableDiffusionXLPipeline(vae=None, text_encoder=None, text_encoder_2=None, tokenizer=None, tokenizer_2=None, unet=unet, scheduler=None)
+        pipeline = pipeline.to(device)
+    # Guard against silent CPU placement (diffusers warns then calib hangs at 0/25).
+    try:
+        unet_dev = str(next(pipeline.unet.parameters()).device)
+    except StopIteration:
+        unet_dev = "unknown"
+    if not unet_dev.startswith("cuda"):
+        raise RuntimeError(
+            f"UNet landed on {unet_dev!r}, not CUDA. "
+            "Refusing to start DualMonitor calibration (would hang at 0/25 on CPU fp16)."
+        )
+    print(f"  [Pipeline] UNet device={unet_dev}")
     print("Building key mapping...")
     comfyui_to_diffusers_map = unet_to_diffusers_mapping(unet_config, state_dict)
     print("Loading UNet weights...")
@@ -1517,7 +1539,6 @@ def _apply_fp16_budget_cap(
     alpha: float,
     beta: float,
     device: str = "cuda",
-    charge_mag_forced_non_linear_fp16: bool = False,
 ) -> tuple[set, set, dict]:
     """Per-model auto analysis → auto-optimal FP16 set inside the hard ceiling.
 
@@ -1525,11 +1546,10 @@ def _apply_fp16_budget_cap(
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
-    charge_mag_forced_non_linear_fp16: SDXL-ONLY. Mag MixedPrecisionOps packs
-    INT8 for Linear (ndim==2) only; Conv stay FP16. When True, those Mag-
-    forced bytes are charged against the ceiling first (SDXL +500 MiB leak
-    fix). Default False so Z-Image INT8 (700 MiB, shared import of this
-    helper) is NOT changed by the SDXL Mag-Conv accounting.
+    Linear and Conv compete in ONE ranking (DualMonitor + analyze + V4 MSE +
+    infinite branches). Priority weights are derived per-checkpoint — never
+    fixed Conv-first / Mag-outside / Mag-tax exemption. Winners only get FP16;
+    demoted layers (Linear or Conv) stay INT8 pack candidates.
 
     alpha/beta MUST be THIS-profile auto-optimal (caller passes
     veto_tunables.alpha_auto mix). Fixed 0.5/0.5 defaults are forbidden.
@@ -1574,44 +1594,12 @@ def _apply_fp16_budget_cap(
         hard_veto_names=hard_veto_layers,
     )
 
-    pool = set(keep_layers) | set(hard_veto_layers)
-    for name, row in char_table.items():
-        if float(row.get("severity", 0.0)) >= 1.0:
-            pool.add(name)
+    # All analyze-character layers enter the pool. Continuous severity ranks
+    # them later — severity>=1 gate was thinking-stop (drops 0<sev<1).
+    pool = set(keep_layers) | set(hard_veto_layers) | set(char_table.keys())
 
     module_dict = dict(model.named_modules())
     pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
-
-    # SDXL-only Mag Linear-only pack: Conv (ndim!=2) stay FP16 — charge first.
-    # Default off: Z-Image INT8 imports this helper under a 700 MiB ceiling and
-    # must not inherit SDXL Mag-Conv accounting (owner: do not affect ZI).
-    mag_forced_fp16: set = set()
-    forced_bytes = 0
-    if charge_mag_forced_non_linear_fp16:
-        for _n, _mod in module_dict.items():
-            if not isinstance(_mod, (torch.nn.Conv2d, torch.nn.Linear)):
-                continue
-            if _mod.weight is None:
-                continue
-            if int(_mod.weight.data.ndim) != 2:
-                mag_forced_fp16.add(_n)
-        for _n in sorted(mag_forced_fp16):
-            forced_bytes += _fp16_extra_bytes_vs_int8(module_dict[_n].weight.data)
-        if forced_bytes > budget_bytes:
-            raise RuntimeError(
-                f"[FP16 budget] Mag-forced Conv/non-Linear FP16 alone exceeds "
-                f"{budget_mb:g} MiB ceiling: "
-                f"forced={forced_bytes / (1024 * 1024):.3f} MiB "
-                f"({len(mag_forced_fp16)} modules). Refusing to proceed."
-            )
-        optional_budget_bytes = budget_bytes - forced_bytes
-        print(
-            f"  [FP16 budget] Mag-forced FP16 (Conv/ndim!=2, SDXL-only): "
-            f"{len(mag_forced_fp16)} modules | "
-            f"{forced_bytes / (1024 * 1024):.2f} MiB of {budget_mb:g} MiB | "
-            f"Linear keep remaining={optional_budget_bytes / (1024 * 1024):.2f} MiB"
-        )
-        pool = {n for n in pool if n not in mag_forced_fp16}
 
     sens_by_name: dict[str, float] = {}
     for name, mon in dual_monitors.items():
@@ -1804,20 +1792,17 @@ def _apply_fp16_budget_cap(
 
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
-    # Extreme fill inside the caller hard ceiling (SDXL 300 / ZI 700).
-    # When Mag-forced Conv are charged (SDXL-only flag), they are already in
-    # used; priority-order Linear keep fills only the remainder. If a layer
-    # does not fit, skip and keep packing smaller remaining layers.
+    # Extreme fill inside the hard ceiling (SDXL 300 / ZI 700):
+    # Linear and Conv share ONE auto-priority queue. No Mag-outside tax,
+    # no fixed Conv-first reservation. Skip layers that do not fit; continue.
     selected: set = set()
-    used = int(forced_bytes)
-    optional_used = 0
+    used = 0
     dropped: list[tuple[str, int, float, float, float, float]] = []
     kept_detail: list[tuple[str, int, float, float, float, float]] = []
     for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         if used + extra <= budget_bytes:
             selected.add(name)
             used += extra
-            optional_used += extra
             kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
         else:
             dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
@@ -1825,8 +1810,7 @@ def _apply_fp16_budget_cap(
     demoted_veto = hard_veto_layers - selected
     # Auto-optimal FP16 set for THIS model (DualMonitor + analyze + V4).
     # Analyze VETO that win stay labeled VETO; DualMonitor winners are keep.
-    # Mag-forced Conv are FP16 at save but are not listed in keep_out
-    # (pack path forces them regardless of keep_layers).
+    # Pack uses keep_out only — demoted Conv/Linear are INT8, not Mag-forced FP16.
     hard_veto_out = hard_veto_layers & selected
     keep_out = set(selected)
 
@@ -1834,9 +1818,7 @@ def _apply_fp16_budget_cap(
         raise RuntimeError(
             f"[FP16 budget] selected set exceeds hard ceiling "
             f"{budget_mb:g} MiB: used={used / (1024 * 1024):.3f} MiB "
-            f"(forced={forced_bytes / (1024 * 1024):.3f} + "
-            f"optional={optional_used / (1024 * 1024):.3f}; "
-            f"{used} bytes > {budget_bytes}). Refusing to proceed."
+            f"({used} bytes > {budget_bytes}). Refusing to proceed."
         )
 
     stats = {
@@ -1844,11 +1826,12 @@ def _apply_fp16_budget_cap(
         "budget_bytes": budget_bytes,
         "used_bytes": used,
         "used_mb": used / (1024 * 1024),
-        "forced_bytes": int(forced_bytes),
-        "forced_mb": forced_bytes / (1024 * 1024),
-        "optional_bytes": int(optional_used),
-        "optional_mb": optional_used / (1024 * 1024),
-        "mag_forced_fp16_count": len(mag_forced_fp16),
+        "forced_bytes": 0,
+        "forced_mb": 0.0,
+        "optional_bytes": int(used),
+        "optional_mb": used / (1024 * 1024),
+        "total_fp16_mb": used / (1024 * 1024),
+        "mag_forced_fp16_count": 0,
         "candidates": len(candidates),
         "pool": len(pool),
         "analyze_character_layers": len(char_table),
@@ -2368,10 +2351,43 @@ def main():
         print(f"[*] Resolved --input: {raw_input_arg!r} -> {resolved_input}")
     args.input = resolved_input
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # SDXL DualMonitor calib is GPU-only. Silent CPU fallback makes
+    # Sample 1/32 sit at 0/25 forever (fp16 on CPU) and looks like a hang.
+    # Cloud symptom: "NVIDIA driver ... too old" → is_available() False → cpu.
+    if not torch.cuda.is_available():
+        print("[FATAL] CUDA is required for quantize_sdxl_hswq_v3.0.py.")
+        print(f"  torch={torch.__version__}")
+        try:
+            print(f"  torch.version.cuda={torch.version.cuda!r}")
+        except Exception:
+            pass
+        print(
+            "  torch.cuda.is_available() is False. Typical cloud cause: "
+            "PyTorch was built for a newer CUDA than the instance NVIDIA driver "
+            "(warning: 'NVIDIA driver on your system is too old')."
+        )
+        print(
+            "  Fix the instance: install a PyTorch build that matches the "
+            "driver, or upgrade the driver. Do not run SDXL INT8 calib on CPU."
+        )
+        sys.exit(1)
+    try:
+        _probe = torch.zeros(1, device="cuda")
+        del _probe
+        torch.cuda.synchronize()
+    except Exception as e:
+        print("[FATAL] CUDA reported available but a device probe failed.")
+        print(f"  error: {e}")
+        sys.exit(1)
+    device = "cuda"
     print("=" * 60)
     print("HSWQ V3.0 SDXL INT8 Pure Autonomous Engine (Environment-Aware Analysis)")
     print("=" * 60)
+    print(
+        f"[*] CUDA OK: {torch.cuda.get_device_name(0)} "
+        f"(capability {torch.cuda.get_device_capability(0)}; "
+        f"torch={torch.__version__}; cuda={torch.version.cuda})"
+    )
 
     # --- ComfyUI Path Setup ---
     comfy_path = args.comfy_path
@@ -2661,7 +2677,6 @@ def main():
         alpha=alpha,
         beta=beta,
         device=device,
-        charge_mag_forced_non_linear_fp16=True,
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
 
@@ -2680,11 +2695,10 @@ def main():
     print("  [Map integrity] orphan_keep=0 (all FP16 keep names are Comfy-mapped).")
     print(
         f"\n  [FP16 budget] ranking={budget_stats.get('ranking')} "
-        f"hard_ceiling={budget_stats['budget_mb']:.1f} MiB "
-        f"(extra vs all-INT8); used={budget_stats['used_mb']:.1f} MiB "
-        f"(forced_Conv={budget_stats.get('forced_mb', 0):.1f} + "
-        f"optional_Linear={budget_stats.get('optional_mb', 0):.1f}) "
-        f"slack={budget_stats.get('slack_mb', 0):.2f} MiB "
+        f"ceiling={budget_stats['budget_mb']:.1f} MiB "
+        f"(extra vs all-INT8; Linear+Conv share THIS-model auto priority) "
+        f"| used={budget_stats['used_mb']:.1f} MiB "
+        f"| slack={budget_stats.get('slack_mb', 0):.2f} MiB "
         f"| pool={budget_stats.get('pool', budget_stats['candidates'])} "
         f"| analyze_char={budget_stats.get('analyze_character_layers', '?')} "
         f"| keep {keep_before_budget}→{budget_stats['kept']} "
@@ -2859,7 +2873,6 @@ def main():
     quant_meta_layers = {}  # layer_name -> {"format": "int8_tensorwise"}
     converted_count = 0
     kept_count = 0
-    conv_fp16_count = 0  # Mag MixedPrecision quant-load is Linear-only
     bias_corr_pending = {}  # comfy module prefix -> float32 bias delta (O,)
     bias_corr_applied = 0
     bias_corr_skipped_no_bias = 0
@@ -2882,8 +2895,8 @@ def main():
 
     print("Converting weights to INT8 (GPU accelerated)...")
     print(
-        "  Mag MixedPrecisionOps: INT8 pack Linear (ndim==2) only; "
-        "Conv/other stay FP16 (no unexpected weight_scale)."
+        "  FP16 pack: budget winners only (Linear+Conv from THIS-model "
+        "auto ranking). Demoted layers pack INT8 — no Mag force-all-Conv FP16."
     )
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         diffusers_key = comfyui_to_diffusers_map.get(key)
@@ -2896,18 +2909,7 @@ def main():
             kept_count += 1
         elif module_name:
             weight_key = module_name + ".weight"
-            # Comfy MixedPrecisionOps overrides Linear (Embedding/MoE) load only.
-            # Conv2d inherits manual_cast load → .weight_scale/.comfy_quant unexpected
-            # → raw int8 without dequant → NaN / SSIM≈0 (THIS 2026-07-15 log).
-            if int(value.ndim) != 2:
-                new_value = (
-                    value.to(torch.float16)
-                    if value.dtype != torch.float16
-                    else value
-                )
-                conv_fp16_count += 1
-                kept_count += 1
-            elif args.per_channel_int8 and weight_key in weight_channel_amax_dict:
+            if args.per_channel_int8 and weight_key in weight_channel_amax_dict:
                 # Card 3: broadcastable weight_scale; format int8_tensorwise.
                 amax_cpu = weight_channel_amax_dict[weight_key]
                 int8_quantized, scale_view, _ = pack_int8_channelwise(
@@ -2988,18 +2990,19 @@ def main():
         )
 
     print("Conversion done:")
-    print(f"  INT8 layers (Linear ndim==2): {converted_count}")
-    print(f"  FP16-kept layers: {kept_count} (incl. non-Linear/Conv FP16={conv_fp16_count})")
+    print(f"  INT8 layers: {converted_count}")
+    print(f"  FP16-kept layers (budget winners): {kept_count}")
     print(f"  Per-channel INT8 (Card 3): {args.per_channel_int8}")
     print(f"  Asymmetric INT8 pack: {args.asymmetric_int8}")
     if args.bias_correction:
         print(f"  Bias-corrected layers: {bias_corr_applied}")
 
-    # Hard assert: packed UNet weight FP16 overhead vs all-INT8 ≤ 300 MiB.
-    # Catches Mag-forced Conv + optional Linear keep double-spend leaks.
+    # Hard assert: ALL FP16 weight keep (Linear+Conv) ≤ owner ceiling (300).
     _budget_ceil_b = int(float(args.fp16_budget_mb) * 1024 * 1024)
     _pack_fp16_extra = 0
     _pack_fp16_n = 0
+    _pack_fp16_linear_n = 0
+    _pack_fp16_conv_n = 0
     for _ck, _cv in output_state_dict.items():
         if not _ck.endswith(".weight"):
             continue
@@ -3010,20 +3013,27 @@ def main():
             continue
         if _cv.dtype not in (torch.float16, torch.bfloat16, torch.float32):
             continue
-        _pack_fp16_extra += int(_cv.numel())
+        _n_el = int(_cv.numel())
+        _pack_fp16_extra += _n_el
         _pack_fp16_n += 1
+        if int(_cv.ndim) == 2:
+            _pack_fp16_linear_n += 1
+        else:
+            _pack_fp16_conv_n += 1
     _pack_fp16_mb = _pack_fp16_extra / (1024 * 1024)
     print(
-        f"  [FP16 budget] post-pack UNet weight extra vs all-INT8: "
-        f"{_pack_fp16_mb:.2f} MiB ({_pack_fp16_n} FP16 weights) / "
+        f"  [FP16 budget] post-pack FP16 keep extra vs all-INT8: "
+        f"{_pack_fp16_mb:.2f} MiB ({_pack_fp16_n} modules; "
+        f"Linear={_pack_fp16_linear_n} Conv/other={_pack_fp16_conv_n}) / "
         f"ceiling={float(args.fp16_budget_mb):g} MiB"
     )
     if _pack_fp16_extra > _budget_ceil_b:
         raise RuntimeError(
             f"[FP16 budget] post-pack assert FAILED: "
-            f"UNet FP16 weight extra {_pack_fp16_mb:.3f} MiB exceeds "
+            f"FP16 keep {_pack_fp16_mb:.3f} MiB exceeds "
             f"{float(args.fp16_budget_mb):g} MiB hard ceiling "
-            f"({_pack_fp16_extra} > {_budget_ceil_b} bytes). "
+            f"({_pack_fp16_extra} > {_budget_ceil_b} bytes; "
+            f"Linear={_pack_fp16_linear_n} Conv/other={_pack_fp16_conv_n}). "
             f"Refusing to save."
         )
 

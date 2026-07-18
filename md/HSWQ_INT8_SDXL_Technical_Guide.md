@@ -270,7 +270,7 @@ extra_bytes(W) = numel(W)    # +1 byte/elem vs INT8 (FP16 2B − INT8 1B)
 
 `_apply_fp16_budget_cap`:
 
-1. **Pool** = `keep ∪ hard_veto ∪ {severity ≥ 1} ∪ {DualMonitor sens > 0}` (layers with weights).
+1. **Pool** = `keep ∪ hard_veto ∪ {all analyze character-table layers} ∪ {DualMonitor sens > 0}` (layers with weights). **No `severity ≥ 1` gate** (thinking-stop; continuous severity ranks inside the pool).
 2. For each pool layer measure:
    - `dm_sens` — DualMonitor sensitivity  
    - `severity` — `int8_fp16_budget_analyze_severity` (continuous; Hard VETO adds **+1.0**, must **not** flatten to a constant)  
@@ -278,7 +278,7 @@ extra_bytes(W) = numel(W)    # +1 byte/elem vs INT8 (FP16 2B − INT8 1B)
 3. `derive_priority_combinator` from measured triples + Hard VETO mask:
    - Dispersion seeds: \(d = \mathrm{IQR}/\mathrm{P50}\) per axis  
    - VETO alignment: Cohen-style signed effect on \(\log(1+|v|)\) → `align_* = max(d, 0)`  
-   - Weights: \(w \propto d \cdot \mathrm{align}\) (form `weighted_geometric_veto_aligned`), else dispersion-only, else `uniform`
+   - Weights: \(w \propto d \cdot \mathrm{align}\) (form `weighted_geometric_veto_aligned`), else dispersion-only, else **`equal_weight_geometric` (`w=1/3` each)** — never flatten to identical priority
 4. Priority:
 
 ```
@@ -287,7 +287,7 @@ P = exp( w_s · log1p(sens / s_ref)
        + w_m · log1p(mse  / m_ref) )
 ```
 
-   (`uniform` → `P = 1`). **Fixed product formulas are forbidden.**
+   Flat-axis fallback uses equal weights on THIS layer’s measured axes. **Forbidden:** `form=uniform` → `P = 1` for every layer (size-only fill / thinking-stop). **Fixed product formulas are forbidden.**
 
 5. Sort by `(-P, extra_bytes)`; greedy fill while `used + extra ≤ 300 MiB`.
 6. Analyze Hard VETO layers that lose the race are **demoted** to INT8; DualMonitor winners that fit stay in the FP16 set.
