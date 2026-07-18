@@ -1256,9 +1256,13 @@ def derive_priority_combinator(
 
     w_sum = w_s + w_v + w_m
     if w_sum < eps:
+        # Flat dispersion on all axes: still discriminate by THIS layer's
+        # measured sens/sev/mse under equal weights. Returning form=uniform
+        # with priority=1.0 for every layer is thinking-stop (size-only fill).
+        eq = 1.0 / 3.0
         return {
-            "form": "uniform",
-            "w_sens": 0.0, "w_sev": 0.0, "w_mse": 0.0,
+            "form": "equal_weight_geometric",
+            "w_sens": eq, "w_sev": eq, "w_mse": eq,
             "sens_ref": max(float(sens_p50), eps),
             "sev_ref": max(float(sev_p50), eps),
             "mse_ref": max(float(mse_p50), eps),
@@ -1663,8 +1667,15 @@ def int8_fp16_budget_priority(
     vref = max(float(combinator.get("sev_ref", 1.0)), 1e-30)
     mref = max(float(combinator.get("mse_ref", 1.0)), 1e-30)
 
-    if str(combinator.get("form", "")) == "uniform":
-        return 1.0
+    w_sum = w_s + w_v + w_m
+    # Thinking-stop ban: never flatten every layer to identical priority
+    # (old form=uniform → return 1.0 → size-only budget fill).
+    if w_sum < 1e-30 or str(combinator.get("form", "")) == "uniform":
+        w_s = w_v = w_m = 1.0 / 3.0
+    else:
+        w_s /= w_sum
+        w_v /= w_sum
+        w_m /= w_sum
 
     return math.exp(
         w_s * math.log1p(sens / sref)
