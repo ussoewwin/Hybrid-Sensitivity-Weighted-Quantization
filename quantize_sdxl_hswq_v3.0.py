@@ -1517,16 +1517,19 @@ def _apply_fp16_budget_cap(
     alpha: float,
     beta: float,
     device: str = "cuda",
+    charge_mag_forced_non_linear_fp16: bool = False,
 ) -> tuple[set, set, dict]:
-    """Per-model auto analysis → auto-optimal FP16 set inside 300 MiB.
+    """Per-model auto analysis → auto-optimal FP16 set inside the hard ceiling.
 
-    Owner hard ceiling: fp16_budget_mb == 300 exactly. Auto settings fill
-    that frame; they never redefine it and never exceed it.
+    Owner hard ceiling is installed by the caller (SDXL 300 / ZI 700 via
+    FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
+    it and never exceed it.
 
-    Mag MixedPrecisionOps packs INT8 for Linear (weight ndim==2) only.
-    Conv (ndim!=2) stay FP16 at save time — those bytes are charged against
-    the same 300 MiB ceiling first. Optional Linear keep fills only the
-    remainder. Leaving Conv off-budget was the SDXL +500 MiB leak.
+    charge_mag_forced_non_linear_fp16: SDXL-ONLY. Mag MixedPrecisionOps packs
+    INT8 for Linear (ndim==2) only; Conv stay FP16. When True, those Mag-
+    forced bytes are charged against the ceiling first (SDXL +500 MiB leak
+    fix). Default False so Z-Image INT8 (700 MiB, shared import of this
+    helper) is NOT changed by the SDXL Mag-Conv accounting.
 
     alpha/beta MUST be THIS-profile auto-optimal (caller passes
     veto_tunables.alpha_auto mix). Fixed 0.5/0.5 defaults are forbidden.
@@ -1579,35 +1582,36 @@ def _apply_fp16_budget_cap(
     module_dict = dict(model.named_modules())
     pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
 
-    # Mag loader: only Linear (ndim==2) can be INT8. Every Conv/other weight
-    # is FP16 at save — charge that overhead against the 300 MiB ceiling now.
+    # SDXL-only Mag Linear-only pack: Conv (ndim!=2) stay FP16 — charge first.
+    # Default off: Z-Image INT8 imports this helper under a 700 MiB ceiling and
+    # must not inherit SDXL Mag-Conv accounting (owner: do not affect ZI).
     mag_forced_fp16: set = set()
-    for _n, _mod in module_dict.items():
-        if not isinstance(_mod, (torch.nn.Conv2d, torch.nn.Linear)):
-            continue
-        if _mod.weight is None:
-            continue
-        if int(_mod.weight.data.ndim) != 2:
-            mag_forced_fp16.add(_n)
     forced_bytes = 0
-    for _n in sorted(mag_forced_fp16):
-        forced_bytes += _fp16_extra_bytes_vs_int8(module_dict[_n].weight.data)
-    if forced_bytes > budget_bytes:
-        raise RuntimeError(
-            f"[FP16 budget] Mag-forced Conv/non-Linear FP16 alone exceeds "
-            f"{budget_mb:g} MiB ceiling: "
-            f"forced={forced_bytes / (1024 * 1024):.3f} MiB "
-            f"({len(mag_forced_fp16)} modules). Refusing to proceed."
+    if charge_mag_forced_non_linear_fp16:
+        for _n, _mod in module_dict.items():
+            if not isinstance(_mod, (torch.nn.Conv2d, torch.nn.Linear)):
+                continue
+            if _mod.weight is None:
+                continue
+            if int(_mod.weight.data.ndim) != 2:
+                mag_forced_fp16.add(_n)
+        for _n in sorted(mag_forced_fp16):
+            forced_bytes += _fp16_extra_bytes_vs_int8(module_dict[_n].weight.data)
+        if forced_bytes > budget_bytes:
+            raise RuntimeError(
+                f"[FP16 budget] Mag-forced Conv/non-Linear FP16 alone exceeds "
+                f"{budget_mb:g} MiB ceiling: "
+                f"forced={forced_bytes / (1024 * 1024):.3f} MiB "
+                f"({len(mag_forced_fp16)} modules). Refusing to proceed."
+            )
+        optional_budget_bytes = budget_bytes - forced_bytes
+        print(
+            f"  [FP16 budget] Mag-forced FP16 (Conv/ndim!=2, SDXL-only): "
+            f"{len(mag_forced_fp16)} modules | "
+            f"{forced_bytes / (1024 * 1024):.2f} MiB of {budget_mb:g} MiB | "
+            f"Linear keep remaining={optional_budget_bytes / (1024 * 1024):.2f} MiB"
         )
-    optional_budget_bytes = budget_bytes - forced_bytes
-    print(
-        f"  [FP16 budget] Mag-forced FP16 (Conv/ndim!=2): "
-        f"{len(mag_forced_fp16)} modules | "
-        f"{forced_bytes / (1024 * 1024):.2f} MiB of {budget_mb:g} MiB | "
-        f"Linear keep remaining={optional_budget_bytes / (1024 * 1024):.2f} MiB"
-    )
-    # Optional keep ranking is Linear-only; Conv is already charged above.
-    pool = {n for n in pool if n not in mag_forced_fp16}
+        pool = {n for n in pool if n not in mag_forced_fp16}
 
     sens_by_name: dict[str, float] = {}
     for name, mon in dual_monitors.items():
@@ -1800,9 +1804,10 @@ def _apply_fp16_budget_cap(
 
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
-    # Extreme fill inside the 300 MiB hard ceiling: Mag-forced Conv already
-    # charged; priority-order Linear keep fills only the remainder. If a
-    # layer does not fit, skip and keep packing smaller remaining layers.
+    # Extreme fill inside the caller hard ceiling (SDXL 300 / ZI 700).
+    # When Mag-forced Conv are charged (SDXL-only flag), they are already in
+    # used; priority-order Linear keep fills only the remainder. If a layer
+    # does not fit, skip and keep packing smaller remaining layers.
     selected: set = set()
     used = int(forced_bytes)
     optional_used = 0
@@ -1865,7 +1870,10 @@ def _apply_fp16_budget_cap(
             "sev": combinator.get("align_sev"),
             "mse": combinator.get("align_mse"),
         },
-        "ranking": "per_model_auto_analysis_infinite_branches_inside_300mib",
+        "ranking": (
+            "per_model_auto_analysis_infinite_branches_inside_"
+            f"{float(budget_mb):g}mib"
+        ),
         "infinite_branch_profile": {
             "cv_sens": branch_profile.get("cv_sens"),
             "cv_sev": branch_profile.get("cv_sev"),
@@ -1884,7 +1892,7 @@ def _apply_fp16_budget_cap(
         "infinite_ranking_branch_detail": branch_repairs[:32],
         "infinite_priority_branch_repairs": len(prio_branch_repairs),
         "infinite_priority_branch_detail": prio_branch_repairs[:32],
-        "hard_ceiling_mb": FP16_BUDGET_MB_HARD,
+        "hard_ceiling_mb": float(budget_mb),
         "slack_bytes": max(budget_bytes - used, 0),
         "slack_mb": max(budget_bytes - used, 0) / (1024 * 1024),
         "dropped_detail": dropped[:40],
@@ -2653,6 +2661,7 @@ def main():
         alpha=alpha,
         beta=beta,
         device=device,
+        charge_mag_forced_non_linear_fp16=True,
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
 
