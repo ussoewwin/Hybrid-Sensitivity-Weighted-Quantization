@@ -1523,6 +1523,11 @@ def _apply_fp16_budget_cap(
     Owner hard ceiling: fp16_budget_mb == 300 exactly. Auto settings fill
     that frame; they never redefine it and never exceed it.
 
+    Mag MixedPrecisionOps packs INT8 for Linear (weight ndim==2) only.
+    Conv (ndim!=2) stay FP16 at save time — those bytes are charged against
+    the same 300 MiB ceiling first. Optional Linear keep fills only the
+    remainder. Leaving Conv off-budget was the SDXL +500 MiB leak.
+
     alpha/beta MUST be THIS-profile auto-optimal (caller passes
     veto_tunables.alpha_auto mix). Fixed 0.5/0.5 defaults are forbidden.
     """
@@ -1573,6 +1578,36 @@ def _apply_fp16_budget_cap(
 
     module_dict = dict(model.named_modules())
     pool = {n for n in pool if n in module_dict and hasattr(module_dict[n], "weight")}
+
+    # Mag loader: only Linear (ndim==2) can be INT8. Every Conv/other weight
+    # is FP16 at save — charge that overhead against the 300 MiB ceiling now.
+    mag_forced_fp16: set = set()
+    for _n, _mod in module_dict.items():
+        if not isinstance(_mod, (torch.nn.Conv2d, torch.nn.Linear)):
+            continue
+        if _mod.weight is None:
+            continue
+        if int(_mod.weight.data.ndim) != 2:
+            mag_forced_fp16.add(_n)
+    forced_bytes = 0
+    for _n in sorted(mag_forced_fp16):
+        forced_bytes += _fp16_extra_bytes_vs_int8(module_dict[_n].weight.data)
+    if forced_bytes > budget_bytes:
+        raise RuntimeError(
+            f"[FP16 budget] Mag-forced Conv/non-Linear FP16 alone exceeds "
+            f"{budget_mb:g} MiB ceiling: "
+            f"forced={forced_bytes / (1024 * 1024):.3f} MiB "
+            f"({len(mag_forced_fp16)} modules). Refusing to proceed."
+        )
+    optional_budget_bytes = budget_bytes - forced_bytes
+    print(
+        f"  [FP16 budget] Mag-forced FP16 (Conv/ndim!=2): "
+        f"{len(mag_forced_fp16)} modules | "
+        f"{forced_bytes / (1024 * 1024):.2f} MiB of {budget_mb:g} MiB | "
+        f"Linear keep remaining={optional_budget_bytes / (1024 * 1024):.2f} MiB"
+    )
+    # Optional keep ranking is Linear-only; Conv is already charged above.
+    pool = {n for n in pool if n not in mag_forced_fp16}
 
     sens_by_name: dict[str, float] = {}
     for name, mon in dual_monitors.items():
@@ -1765,17 +1800,19 @@ def _apply_fp16_budget_cap(
 
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
-    # Extreme fill inside the 300 MiB hard ceiling: priority order; if a
-    # layer does not fit, skip and keep packing smaller remaining layers
-    # (THIS model's auto-optimal set under the owner frame).
+    # Extreme fill inside the 300 MiB hard ceiling: Mag-forced Conv already
+    # charged; priority-order Linear keep fills only the remainder. If a
+    # layer does not fit, skip and keep packing smaller remaining layers.
     selected: set = set()
-    used = 0
+    used = int(forced_bytes)
+    optional_used = 0
     dropped: list[tuple[str, int, float, float, float, float]] = []
     kept_detail: list[tuple[str, int, float, float, float, float]] = []
     for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         if used + extra <= budget_bytes:
             selected.add(name)
             used += extra
+            optional_used += extra
             kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
         else:
             dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
@@ -1783,6 +1820,8 @@ def _apply_fp16_budget_cap(
     demoted_veto = hard_veto_layers - selected
     # Auto-optimal FP16 set for THIS model (DualMonitor + analyze + V4).
     # Analyze VETO that win stay labeled VETO; DualMonitor winners are keep.
+    # Mag-forced Conv are FP16 at save but are not listed in keep_out
+    # (pack path forces them regardless of keep_layers).
     hard_veto_out = hard_veto_layers & selected
     keep_out = set(selected)
 
@@ -1790,7 +1829,9 @@ def _apply_fp16_budget_cap(
         raise RuntimeError(
             f"[FP16 budget] selected set exceeds hard ceiling "
             f"{budget_mb:g} MiB: used={used / (1024 * 1024):.3f} MiB "
-            f"({used} bytes > {budget_bytes}). Refusing to proceed."
+            f"(forced={forced_bytes / (1024 * 1024):.3f} + "
+            f"optional={optional_used / (1024 * 1024):.3f}; "
+            f"{used} bytes > {budget_bytes}). Refusing to proceed."
         )
 
     stats = {
@@ -1798,6 +1839,11 @@ def _apply_fp16_budget_cap(
         "budget_bytes": budget_bytes,
         "used_bytes": used,
         "used_mb": used / (1024 * 1024),
+        "forced_bytes": int(forced_bytes),
+        "forced_mb": forced_bytes / (1024 * 1024),
+        "optional_bytes": int(optional_used),
+        "optional_mb": optional_used / (1024 * 1024),
+        "mag_forced_fp16_count": len(mag_forced_fp16),
         "candidates": len(candidates),
         "pool": len(pool),
         "analyze_character_layers": len(char_table),
@@ -2627,6 +2673,8 @@ def main():
         f"\n  [FP16 budget] ranking={budget_stats.get('ranking')} "
         f"hard_ceiling={budget_stats['budget_mb']:.1f} MiB "
         f"(extra vs all-INT8); used={budget_stats['used_mb']:.1f} MiB "
+        f"(forced_Conv={budget_stats.get('forced_mb', 0):.1f} + "
+        f"optional_Linear={budget_stats.get('optional_mb', 0):.1f}) "
         f"slack={budget_stats.get('slack_mb', 0):.2f} MiB "
         f"| pool={budget_stats.get('pool', budget_stats['candidates'])} "
         f"| analyze_char={budget_stats.get('analyze_character_layers', '?')} "
@@ -2937,6 +2985,38 @@ def main():
     print(f"  Asymmetric INT8 pack: {args.asymmetric_int8}")
     if args.bias_correction:
         print(f"  Bias-corrected layers: {bias_corr_applied}")
+
+    # Hard assert: packed UNet weight FP16 overhead vs all-INT8 ≤ 300 MiB.
+    # Catches Mag-forced Conv + optional Linear keep double-spend leaks.
+    _budget_ceil_b = int(float(args.fp16_budget_mb) * 1024 * 1024)
+    _pack_fp16_extra = 0
+    _pack_fp16_n = 0
+    for _ck, _cv in output_state_dict.items():
+        if not _ck.endswith(".weight"):
+            continue
+        _dk = comfyui_to_diffusers_map.get(_ck)
+        if not (isinstance(_dk, str) and _dk.endswith(".weight")):
+            continue
+        if _cv.dtype == torch.int8:
+            continue
+        if _cv.dtype not in (torch.float16, torch.bfloat16, torch.float32):
+            continue
+        _pack_fp16_extra += int(_cv.numel())
+        _pack_fp16_n += 1
+    _pack_fp16_mb = _pack_fp16_extra / (1024 * 1024)
+    print(
+        f"  [FP16 budget] post-pack UNet weight extra vs all-INT8: "
+        f"{_pack_fp16_mb:.2f} MiB ({_pack_fp16_n} FP16 weights) / "
+        f"ceiling={float(args.fp16_budget_mb):g} MiB"
+    )
+    if _pack_fp16_extra > _budget_ceil_b:
+        raise RuntimeError(
+            f"[FP16 budget] post-pack assert FAILED: "
+            f"UNet FP16 weight extra {_pack_fp16_mb:.3f} MiB exceeds "
+            f"{float(args.fp16_budget_mb):g} MiB hard ceiling "
+            f"({_pack_fp16_extra} > {_budget_ceil_b} bytes). "
+            f"Refusing to save."
+        )
 
     # Build _quantization_metadata for ComfyUI loader (QUANTIZATION.md format)
     quantization_metadata = {
