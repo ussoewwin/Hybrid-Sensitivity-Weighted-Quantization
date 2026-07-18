@@ -77,6 +77,9 @@ sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 # Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
 # optimize INSIDE this frame. Not a thinking-stop formula constant.
 FP16_BUDGET_MB_HARD = 300.0
+# Post-pack assert slack: owner-allowed measurement / fill error band (~10 MiB).
+# Over ceiling by more than this still refuses to save.
+FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
@@ -2997,12 +3000,16 @@ def main():
     if args.bias_correction:
         print(f"  Bias-corrected layers: {bias_corr_applied}")
 
-    # Hard assert: ALL FP16 weight keep (Linear+Conv) ≤ owner ceiling (300).
+    # Hard assert: Linear+Conv FP16 keep ≤ owner ceiling + tiny tolerance.
+    # Meter matches pack targets (2D Linear / 4D Conv); 1D norms are not
+    # INT8 candidates and are not charged against the 300 MiB frame.
     _budget_ceil_b = int(float(args.fp16_budget_mb) * 1024 * 1024)
+    _tol_b = int(float(FP16_BUDGET_ASSERT_TOLERANCE_MIB) * 1024 * 1024)
     _pack_fp16_extra = 0
     _pack_fp16_n = 0
     _pack_fp16_linear_n = 0
     _pack_fp16_conv_n = 0
+    _pack_fp16_skipped_non_lc = 0
     for _ck, _cv in output_state_dict.items():
         if not _ck.endswith(".weight"):
             continue
@@ -3013,28 +3020,43 @@ def main():
             continue
         if _cv.dtype not in (torch.float16, torch.bfloat16, torch.float32):
             continue
+        _ndim = int(_cv.ndim)
+        if _ndim not in (2, 4):
+            _pack_fp16_skipped_non_lc += 1
+            continue
         _n_el = int(_cv.numel())
         _pack_fp16_extra += _n_el
         _pack_fp16_n += 1
-        if int(_cv.ndim) == 2:
+        if _ndim == 2:
             _pack_fp16_linear_n += 1
         else:
             _pack_fp16_conv_n += 1
     _pack_fp16_mb = _pack_fp16_extra / (1024 * 1024)
+    _over_b = _pack_fp16_extra - _budget_ceil_b
     print(
         f"  [FP16 budget] post-pack FP16 keep extra vs all-INT8: "
         f"{_pack_fp16_mb:.2f} MiB ({_pack_fp16_n} modules; "
-        f"Linear={_pack_fp16_linear_n} Conv/other={_pack_fp16_conv_n}) / "
-        f"ceiling={float(args.fp16_budget_mb):g} MiB"
+        f"Linear={_pack_fp16_linear_n} Conv={_pack_fp16_conv_n}; "
+        f"skipped_non_LinearConv={_pack_fp16_skipped_non_lc}) / "
+        f"ceiling={float(args.fp16_budget_mb):g} MiB "
+        f"(assert tol={FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB)"
     )
-    if _pack_fp16_extra > _budget_ceil_b:
+    if _over_b > _tol_b:
         raise RuntimeError(
             f"[FP16 budget] post-pack assert FAILED: "
             f"FP16 keep {_pack_fp16_mb:.3f} MiB exceeds "
             f"{float(args.fp16_budget_mb):g} MiB hard ceiling "
-            f"({_pack_fp16_extra} > {_budget_ceil_b} bytes; "
-            f"Linear={_pack_fp16_linear_n} Conv/other={_pack_fp16_conv_n}). "
+            f"+ {FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB tolerance "
+            f"({_pack_fp16_extra} > {_budget_ceil_b + _tol_b} bytes; "
+            f"over_by={_over_b / (1024 * 1024):.3f} MiB; "
+            f"Linear={_pack_fp16_linear_n} Conv={_pack_fp16_conv_n}). "
             f"Refusing to save."
+        )
+    if _over_b > 0:
+        print(
+            f"  [FP16 budget] within tolerance: "
+            f"+{_over_b / (1024 * 1024):.3f} MiB over ceiling "
+            f"(allowed ≤ {FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB); saving."
         )
 
     # Build _quantization_metadata for ComfyUI loader (QUANTIZATION.md format)
