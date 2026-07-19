@@ -161,27 +161,19 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
     try:
         w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(module, weight_qt)
 
-        freeze = bool(
-            getattr(module, "_hswq_nvfp4_scale_placeholder", False)
-            or act_scale is None
-        )
-        if freeze:
-            cached_alpha = getattr(module, "_hswq_nvfp4_alpha", None)
-            if cached_alpha is None:
-                alpha = scale_a * scale_b
-                if alpha.dtype != torch.float32:
-                    alpha = alpha.to(dtype=torch.float32)
-                if alpha.dim() == 0:
-                    alpha = alpha.reshape(1)
-                module._hswq_nvfp4_alpha = alpha
-            else:
-                alpha = cached_alpha
-        else:
+        # Calib input_scale and placeholder ones are static — always cache
+        # alpha. Recomputing scale_a*scale_b every Linear (~18k/sample) was
+        # pure waste on FULL ConvRot (every layer has input_scale).
+        cached_alpha = getattr(module, "_hswq_nvfp4_alpha", None)
+        if cached_alpha is None:
             alpha = scale_a * scale_b
             if alpha.dtype != torch.float32:
                 alpha = alpha.to(dtype=torch.float32)
             if alpha.dim() == 0:
                 alpha = alpha.reshape(1)
+            module._hswq_nvfp4_alpha = alpha
+        else:
+            alpha = cached_alpha
 
         # CUDA Graph is OFF by default: shape-shared replay copies full weight
         # every call and was slower than eager (13.05s vs ~11.8s). Opt-in:
