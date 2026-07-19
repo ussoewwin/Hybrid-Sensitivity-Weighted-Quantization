@@ -77,6 +77,8 @@ import gc
 from tqdm import tqdm
 import sys
 import json
+import time
+import atexit
 import numpy as np
 import subprocess
 from dataclasses import dataclass
@@ -90,6 +92,92 @@ FP16_BUDGET_MB_HARD = 300.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
+
+_SDXL_V31_CONSOLE_LOG_CLOSED = False
+
+
+class _TeeTextIO:
+    """Mirror every write to the live console and a UTF-8 log file."""
+
+    def __init__(self, primary, secondary):
+        self._primary = primary
+        self._secondary = secondary
+
+    def write(self, data):
+        n = self._primary.write(data)
+        try:
+            self._secondary.write(data)
+        except UnicodeEncodeError:
+            self._secondary.write(
+                data.encode("utf-8", errors="replace").decode("utf-8")
+            )
+        return n
+
+    def flush(self):
+        self._primary.flush()
+        self._secondary.flush()
+
+    def isatty(self):
+        return bool(getattr(self._primary, "isatty", lambda: False)())
+
+    def fileno(self):
+        return self._primary.fileno()
+
+    def __getattr__(self, name):
+        return getattr(self._primary, name)
+
+
+def _begin_sdxl_v31_console_log(input_arg: str | None = None) -> tuple[str, object, object, object]:
+    """Tee stdout+stderr into log/quantize_sdxl_hswq_v3.1_*.txt (full run text)."""
+    global _SDXL_V31_CONSOLE_LOG_CLOSED
+    _SDXL_V31_CONSOLE_LOG_CLOSED = False
+    log_dir = os.path.join(current_dir, "log")
+    os.makedirs(log_dir, exist_ok=True)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    stem = "model"
+    if input_arg:
+        base = os.path.basename(str(input_arg).strip().replace("\\", "/"))
+        if base:
+            stem = os.path.splitext(base)[0]
+            stem = "".join(c if (c.isalnum() or c in "._-") else "_" for c in stem)
+            stem = stem[:80] or "model"
+    log_path = os.path.join(log_dir, f"quantize_sdxl_hswq_v3.1_{stem}_{stamp}.txt")
+    log_fh = open(log_path, "w", encoding="utf-8", newline="\n", buffering=1)
+    old_out, old_err = sys.stdout, sys.stderr
+    sys.stdout = _TeeTextIO(old_out, log_fh)
+    sys.stderr = _TeeTextIO(old_err, log_fh)
+    print(f"[LOG] Full console log -> {log_path}")
+    print(f"[LOG] Started at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    return log_path, log_fh, old_out, old_err
+
+
+def _end_sdxl_v31_console_log(log_path: str, log_fh, old_out, old_err) -> None:
+    global _SDXL_V31_CONSOLE_LOG_CLOSED
+    if _SDXL_V31_CONSOLE_LOG_CLOSED:
+        return
+    _SDXL_V31_CONSOLE_LOG_CLOSED = True
+    try:
+        print(f"[LOG] Finished at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"[LOG] Full console log saved: {log_path}")
+    except Exception:
+        pass
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+    sys.stdout = old_out
+    sys.stderr = old_err
+    try:
+        log_fh.flush()
+        log_fh.close()
+    except Exception:
+        pass
+    try:
+        old_out.write(f"[LOG] Full console log saved: {log_path}\n")
+        old_out.flush()
+    except Exception:
+        pass
 
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
@@ -2348,6 +2436,15 @@ def main():
         help=f"ConvRot Hadamard group size (power of 4, default {_DEFAULT_CONVROT_GROUPSIZE})",
     )
     args = parser.parse_args()
+
+    # Full console tee → log/quantize_sdxl_hswq_v3.1_<stem>_<stamp>.txt
+    # (stdout + stderr; closed via atexit so sys.exit also flushes the file)
+    _log_path, _log_fh, _old_out, _old_err = _begin_sdxl_v31_console_log(
+        getattr(args, "input", None)
+    )
+    atexit.register(
+        _end_sdxl_v31_console_log, _log_path, _log_fh, _old_out, _old_err
+    )
 
     # V3.1: Card 1 / Card 2 forced OFF — FP16 300 MiB path untouched.
     args.bias_correction = False
