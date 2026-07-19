@@ -569,6 +569,154 @@ def _model_has_int8_quantized_weights(model) -> bool:
     return False
 
 
+# --- ConvRot-only helpers (plain INT8 path never calls these) ---
+_HADAMARD_CACHE: dict = {}
+_OPS_PATCH_VER = 3  # Conv2d ConvRot: clear 4D Params via in-place (_layout_cls safe)
+
+
+def _build_hadamard(size: int, device="cpu", dtype=None):
+    import math
+
+    import torch
+
+    if dtype is None:
+        dtype = torch.float32
+    cache_key = (size, str(device), dtype)
+    if cache_key in _HADAMARD_CACHE:
+        return _HADAMARD_CACHE[cache_key]
+    if size < 4 or (size & (size - 1)) != 0 or math.log(size, 4) % 1 != 0:
+        raise ValueError(f"Regular Hadamard size must be a power of 4, got {size}")
+    h4 = torch.tensor(
+        [[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]],
+        dtype=dtype,
+        device=device,
+    )
+    h_matrix = h4
+    current_size = 4
+    while current_size < size:
+        h_matrix = torch.kron(h_matrix, h4)
+        current_size *= 4
+    h_matrix = h_matrix / (size**0.5)
+    _HADAMARD_CACHE[cache_key] = h_matrix
+    return h_matrix
+
+
+def _rotate_last_dim(x, h_matrix, group_size: int):
+    import torch
+
+    orig_shape = x.shape
+    features = orig_shape[-1]
+    if features % group_size != 0:
+        raise ValueError(f"features {features} not divisible by group_size {group_size}")
+    group_count = features // group_size
+    x_grouped = x.reshape(-1, group_count, group_size)
+    h = h_matrix.to(dtype=x.dtype, device=x.device)
+    return torch.matmul(x_grouped, h).reshape(orig_shape)
+
+
+def _rotate_activation_nchw(x, h_matrix, group_size: int):
+    if x.ndim != 4:
+        raise ValueError(f"NCHW activation must be 4D, got ndim={x.ndim}")
+    x_perm = x.permute(0, 2, 3, 1).contiguous()
+    x_rot = _rotate_last_dim(x_perm, h_matrix, group_size)
+    return x_rot.permute(0, 3, 1, 2).contiguous()
+
+
+def _unrotate_last_dim(x, h_matrix, group_size: int):
+    import torch
+
+    orig_shape = x.shape
+    features = orig_shape[-1]
+    group_count = features // group_size
+    x_grouped = x.reshape(-1, group_count, group_size)
+    h = h_matrix.to(dtype=x.dtype, device=x.device)
+    return torch.matmul(x_grouped, h).reshape(orig_shape)
+
+
+def _unrotate_weight_conv2d(weight, h_matrix, group_size: int):
+    if weight.ndim != 4:
+        raise ValueError(f"Conv2d weight must be 4D, got ndim={weight.ndim}")
+    out_c, in_c, k_h, k_w = weight.shape
+    flat = weight.permute(0, 2, 3, 1).contiguous().view(-1, in_c)
+    flat_un = _unrotate_last_dim(flat, h_matrix, group_size)
+    return flat_un.view(out_c, k_h, k_w, in_c).permute(0, 3, 1, 2).contiguous()
+
+
+def _rotate_weight_conv2d(weight, h_matrix, group_size: int):
+    import torch
+
+    if weight.ndim != 4:
+        raise ValueError(f"Conv2d weight must be 4D, got ndim={weight.ndim}")
+    out_c, in_c, k_h, k_w = weight.shape
+    flat = weight.permute(0, 2, 3, 1).contiguous().view(-1, in_c)
+    orig_shape = flat.shape
+    group_count = in_c // group_size
+    weight_grouped = flat.view(orig_shape[0], group_count, group_size)
+    flat_rot = torch.matmul(
+        weight_grouped, h_matrix.T.to(dtype=weight.dtype, device=weight.device)
+    ).reshape(orig_shape)
+    return flat_rot.view(out_c, k_h, k_w, in_c).permute(0, 3, 1, 2).contiguous()
+
+
+def _qt_payload(weight, QuantizedTensor):
+    if weight is None:
+        return None
+    if isinstance(weight, QuantizedTensor):
+        return weight
+    data = getattr(weight, "data", None)
+    if isinstance(data, QuantizedTensor):
+        return data
+    return None
+
+
+def _arm_hswq_conv2d_convrot(module, QuantizedTensor):
+    """ConvRot branch only: keep online rotate on module; clear kitchen Params.convrot.
+
+    Kitchen dequantize_int8_convrot_* is 2D-only. Stamping Params.convrot=True on
+    4D then .dequantize() raises NoCapableBackendError (exactly 2D).
+    Plain INT8 Conv2d (no convrot stamp) never enters this path.
+    """
+    import dataclasses
+
+    import torch
+
+    qt = _qt_payload(getattr(module, "weight", None), QuantizedTensor)
+    if qt is None:
+        return
+    params = getattr(qt, "_params", None)
+    qdata = getattr(qt, "_qdata", None)
+    if params is None or qdata is None:
+        return
+    if getattr(qdata, "ndim", None) != 4:
+        return
+    if not bool(getattr(params, "convrot", False)):
+        return
+
+    gs = int(getattr(params, "convrot_groupsize", 256) or 256)
+    module._hswq_convrot = True
+    module._hswq_convrot_groupsize = gs
+    new_params = dataclasses.replace(params, convrot=False)
+    # Prefer in-place params swap. Reconstructing QT needs layout *string*
+    # (_layout_cls), not a layout object — wrong arg → empty AssertionError.
+    try:
+        object.__setattr__(qt, "_params", new_params)
+        return
+    except Exception:
+        pass
+    try:
+        qt._params = new_params
+        return
+    except Exception:
+        pass
+    layout_cls = getattr(qt, "_layout_cls", None)
+    if not isinstance(layout_cls, str):
+        layout_cls = getattr(module, "layout_type", None)
+    if not isinstance(layout_cls, str):
+        return
+    new_qt = type(qt)(qdata, layout_cls, new_params)
+    module.weight = torch.nn.Parameter(new_qt, requires_grad=False)
+
+
 def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
     """Build MixedPrecisionOps.Conv2d class using current comfy.ops helpers."""
     import torch
@@ -633,16 +781,36 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
             self.layout_type = None
             self._full_precision_mm = MixedPrecisionOps._full_precision_mm
             self._full_precision_mm_config = False
+            # ConvRot branch flags (plain INT8 stays False)
+            self._hswq_convrot = False
+            self._hswq_convrot_groupsize = 256
 
         def reset_parameters(self):
             return None
 
         def _load_from_state_dict(self, *args):
             _load_quantized_module(self, super()._load_from_state_dict, *args, load_extra_params=False)
+            # ConvRot-only: arm online rotate + clear 4D Params.convrot
+            _arm_hswq_conv2d_convrot(self, QuantizedTensor)
 
         def state_dict(self, *args, destination=None, prefix="", **kwargs):
             sd = destination if destination is not None else {}
-            return _quantized_weight_state_dict(self, sd, prefix)
+            sd = _quantized_weight_state_dict(self, sd, prefix)
+            # ConvRot-only: re-stamp on export (Params.convrot cleared for safe dequant)
+            if getattr(self, "_hswq_convrot", False):
+                cq_key = f"{prefix}comfy_quant"
+                conf = {
+                    "format": "int8_tensorwise",
+                    "convrot": True,
+                    "convrot_groupsize": int(
+                        getattr(self, "_hswq_convrot_groupsize", 256) or 256
+                    ),
+                }
+                sd[cq_key] = torch.tensor(
+                    list(json.dumps(conf, separators=(",", ":")).encode("utf-8")),
+                    dtype=torch.uint8,
+                )
+            return sd
 
         def _conv_forward(self, input, weight, bias):
             if self.padding_mode != "zeros":
@@ -666,6 +834,11 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
             # Dynamic VRAM uses weight_lowvram_function, want_requant=True so
             # post_cast dequant → LoRA → requant (want_requant=False left QT
             # in the resident path after the first step and killed LoRA).
+            # ConvRot branch only: online NCHW act rotate (kitchen has no int8_conv).
+            if getattr(self, "_hswq_convrot", False):
+                gs = int(getattr(self, "_hswq_convrot_groupsize", 256) or 256)
+                h = _build_hadamard(gs, device="cpu", dtype=torch.float32)
+                input = _rotate_activation_nchw(input, h, gs)
             want_requant = isinstance(getattr(self, "weight", None), QuantizedTensor)
             weight, bias, offload_stream = cast_bias_weight(
                 self,
@@ -687,6 +860,11 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
             # dequant → calculate_weight → set_weight (see ComfyUI-INT8-Fast bake path).
             global _lora_convert_logs
             out = weight.dequantize() if isinstance(weight, QuantizedTensor) else weight
+            # ConvRot branch only: unrotate to original float basis for LoRA
+            if getattr(self, "_hswq_convrot", False) and out is not None and getattr(out, "ndim", 0) == 4:
+                gs = int(getattr(self, "_hswq_convrot_groupsize", 256) or 256)
+                h = _build_hadamard(gs, device="cpu", dtype=torch.float32)
+                out = _unrotate_weight_conv2d(out, h, gs)
             if _lora_convert_logs < _LORA_CONVERT_LOG_MAX:
                 _lora_convert_logs += 1
                 wdtype = getattr(weight, "dtype", None)
@@ -694,7 +872,8 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
                 _console(
                     f"[HSWQ INT8 LoRA] Conv2d.convert_weight #{_lora_convert_logs}: "
                     f"in={type(weight).__name__}/{wdtype} -> out={type(out).__name__}/{odtype} "
-                    f"layout={getattr(self, 'layout_type', None)}"
+                    f"layout={getattr(self, 'layout_type', None)} "
+                    f"convrot={getattr(self, '_hswq_convrot', False)}"
                 )
             return out
 
@@ -705,13 +884,19 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
             global _lora_set_logs
             layout = getattr(self, "layout_type", None)
             path = "requant" if layout is not None else "cast_only"
+            # ConvRot branch only: convert_weight returned unrotated; re-rotate before requant
+            if getattr(self, "_hswq_convrot", False) and getattr(weight, "ndim", 0) == 4:
+                gs = int(getattr(self, "_hswq_convrot_groupsize", 256) or 256)
+                h = _build_hadamard(gs, device="cpu", dtype=torch.float32)
+                weight = _rotate_weight_conv2d(weight, h, gs)
             if _lora_set_logs < _LORA_SET_LOG_MAX:
                 _lora_set_logs += 1
                 _console(
                     f"[HSWQ INT8 LoRA] Conv2d.set_weight #{_lora_set_logs}: "
                     f"path={path} float_in={getattr(weight, 'dtype', None)} "
                     f"shape={tuple(weight.shape) if hasattr(weight, 'shape') else '?'} "
-                    f"seed={seed} layout={layout}"
+                    f"seed={seed} layout={layout} "
+                    f"convrot={getattr(self, '_hswq_convrot', False)}"
                 )
             if layout is not None:
                 weight = self.weight.requantize_from_float(
@@ -793,7 +978,8 @@ def _patch_ops_decode_and_conv() -> bool:
     original_mp = getattr(ops_module, "mixed_precision_ops", None)
     if original_mp is None or not callable(original_mp):
         return False
-    if getattr(original_mp, "_hswq_int8_conv_patched", False):
+    # Versioned so ConvRot branch upgrade re-applies; plain path unchanged.
+    if getattr(original_mp, "_hswq_int8_ops_ver", 0) >= _OPS_PATCH_VER:
         return True
 
     def mixed_precision_ops_force_conv(
@@ -821,6 +1007,7 @@ def _patch_ops_decode_and_conv() -> bool:
         return result
 
     mixed_precision_ops_force_conv._hswq_int8_conv_patched = True
+    mixed_precision_ops_force_conv._hswq_int8_ops_ver = _OPS_PATCH_VER
     ops_module.mixed_precision_ops = mixed_precision_ops_force_conv
     return True
 
@@ -1503,7 +1690,7 @@ def apply_comfy_quant_int8_patches() -> bool:
         _PATCHES_APPLIED = True
         _console(
             "[HSWQ INT8] comfy_quant patches applied "
-            f"(Conv2d quant load + decode"
+            f"(Conv2d quant load + decode + ConvRot-safe 4D"
             f"{' + convert_old_quants' if ok_utils else ''}"
             f"{' + LoRA bake logs' if ok_lora_log else ''}"
             f"{' + LoRA key counts' if ok_keys else ''}"

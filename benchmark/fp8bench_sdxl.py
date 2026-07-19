@@ -418,7 +418,9 @@ def load_pipeline(path, device="cuda"):
         model, clip, vae = out[0], out[1], out[2]
         return model, clip, vae
     except Exception as e:
-        print(f"Error loading model: {e}")
+        import traceback
+        print(f"Error loading model: {type(e).__name__}: {e}")
+        traceback.print_exc()
         sys.exit(1)
 
 def generate_image_fixed(model, clip, vae, prompt, seed, steps):

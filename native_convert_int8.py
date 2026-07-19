@@ -1,9 +1,138 @@
+import argparse
 import json
+import math
+import os
+
 import torch
 from safetensors.torch import load_file, save_file
-import argparse
-import os
 from tqdm import tqdm
+
+# Hadamard / ConvRot helpers for sibling native_convert_int8_convrot.py.
+# Default convert_to_int8 below stays plain tensorwise INT8 (no ConvRot).
+_DEFAULT_GROUPSIZE = 256
+_HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
+
+
+def build_hadamard(
+    size: int,
+    device: str | torch.device = "cpu",
+    dtype: torch.dtype = torch.float32,
+) -> torch.Tensor:
+    """Normalized regular Hadamard (power-of-4), same as comfy_kitchen ConvRot."""
+    cache_key = (size, str(device), dtype)
+    if cache_key in _HADAMARD_CACHE:
+        return _HADAMARD_CACHE[cache_key]
+
+    if size < 4 or (size & (size - 1)) != 0 or math.log(size, 4) % 1 != 0:
+        raise ValueError(f"Regular Hadamard size must be a power of 4, got {size}")
+
+    h4 = torch.tensor(
+        [
+            [1, 1, 1, -1],
+            [1, 1, -1, 1],
+            [1, -1, 1, 1],
+            [-1, 1, 1, 1],
+        ],
+        dtype=dtype,
+        device=device,
+    )
+    h_matrix = h4
+    current_size = 4
+    while current_size < size:
+        h_matrix = torch.kron(h_matrix, h4)
+        current_size *= 4
+    h_matrix = h_matrix / (size**0.5)
+    _HADAMARD_CACHE[cache_key] = h_matrix
+    return h_matrix
+
+
+def convrot_group_size_for_features(n: int, preferred: int = _DEFAULT_GROUPSIZE) -> int | None:
+    """Largest power-of-4 group size <= preferred that divides n (or None)."""
+    if n < 4:
+        return None
+    gs = preferred
+    while gs >= 4:
+        if n % gs == 0 and math.log(gs, 4) % 1 == 0:
+            return gs
+        gs //= 4
+    return None
+
+
+def rotate_weight(weight: torch.Tensor, h_matrix: torch.Tensor, group_size: int) -> torch.Tensor:
+    """Offline Linear: W_rot = W @ H^T (group-wise)."""
+    out_features, in_features = weight.shape
+    if in_features % group_size != 0:
+        raise ValueError(
+            f"in_features {in_features} not divisible by group_size {group_size}"
+        )
+    group_count = in_features // group_size
+    weight_grouped = weight.view(out_features, group_count, group_size)
+    return torch.matmul(
+        weight_grouped, h_matrix.T.to(dtype=weight.dtype, device=weight.device)
+    ).reshape(weight.shape)
+
+
+def unrotate_weight(weight: torch.Tensor, h_matrix: torch.Tensor, group_size: int) -> torch.Tensor:
+    """Inverse of rotate_weight."""
+    out_features, in_features = weight.shape
+    if in_features % group_size != 0:
+        raise ValueError(
+            f"in_features {in_features} not divisible by group_size {group_size}"
+        )
+    group_count = in_features // group_size
+    weight_grouped = weight.view(out_features, group_count, group_size)
+    return torch.matmul(
+        weight_grouped, h_matrix.to(dtype=weight.dtype, device=weight.device)
+    ).reshape(weight.shape)
+
+
+def rotate_weight_conv2d(
+    weight: torch.Tensor, h_matrix: torch.Tensor, group_size: int
+) -> torch.Tensor:
+    """Offline Conv2d: rotate along in_channels. weight (O, I, kH, kW)."""
+    if weight.ndim != 4:
+        raise ValueError(f"Conv2d weight must be 4D, got ndim={weight.ndim}")
+    out_c, in_c, k_h, k_w = weight.shape
+    flat = weight.permute(0, 2, 3, 1).contiguous().view(-1, in_c)
+    flat_rot = rotate_weight(flat, h_matrix, group_size)
+    return flat_rot.view(out_c, k_h, k_w, in_c).permute(0, 3, 1, 2).contiguous()
+
+
+def unrotate_weight_conv2d(
+    weight: torch.Tensor, h_matrix: torch.Tensor, group_size: int
+) -> torch.Tensor:
+    """Inverse of rotate_weight_conv2d."""
+    if weight.ndim != 4:
+        raise ValueError(f"Conv2d weight must be 4D, got ndim={weight.ndim}")
+    out_c, in_c, k_h, k_w = weight.shape
+    flat = weight.permute(0, 2, 3, 1).contiguous().view(-1, in_c)
+    flat_un = unrotate_weight(flat, h_matrix, group_size)
+    return flat_un.view(out_c, k_h, k_w, in_c).permute(0, 3, 1, 2).contiguous()
+
+
+def rotate_activation(
+    x: torch.Tensor, h_matrix: torch.Tensor, group_size: int
+) -> torch.Tensor:
+    """Online Linear: x_rot = x @ H (last dim = features)."""
+    orig_shape = x.shape
+    features = orig_shape[-1]
+    if features % group_size != 0:
+        raise ValueError(f"features {features} not divisible by group_size {group_size}")
+    group_count = features // group_size
+    x_grouped = x.reshape(-1, group_count, group_size)
+    h = h_matrix.to(dtype=x.dtype, device=x.device)
+    return torch.matmul(x_grouped, h).reshape(orig_shape)
+
+
+def rotate_activation_nchw(
+    x: torch.Tensor, h_matrix: torch.Tensor, group_size: int
+) -> torch.Tensor:
+    """Online Conv2d: rotate channel dim of NCHW activation."""
+    if x.ndim != 4:
+        raise ValueError(f"NCHW activation must be 4D, got ndim={x.ndim}")
+    x_perm = x.permute(0, 2, 3, 1).contiguous()
+    x_rot = rotate_activation(x_perm, h_matrix, group_size)
+    return x_rot.permute(0, 3, 1, 2).contiguous()
 
 
 def convert_to_int8(input_path, output_path):
