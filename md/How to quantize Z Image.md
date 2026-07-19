@@ -1,8 +1,12 @@
 # How to quantize Z Image (ZI)
 
-The dedicated VRAM for the GPU must be **24GB or more**.
+Use **native ConvRot INT8** with `native_convert_int8_convrot.py`.
 
-**Z Image base models are not recommended for HSWQ quantization. Please select a Z Image turbo model instead.**
+**HSWQ Z Image INT8 development and public release ended.** For Z Image 8-bit, use this native path (typically **SSIM > 0.99**). HSWQ INT8 continues for **SDXL** only.
+
+The dedicated VRAM for the GPU must be enough to load the UNet weights (often **24GB or more** for Z Image Turbo–class models).
+
+**Prefer a Z Image Turbo (ZIT) checkpoint.** Plain Z Image base models are not recommended.
 
 ## Clone the repository
 
@@ -23,35 +27,23 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 ## Install other libraries
 
 ```bash
-pip install diffusers safetensors transformers accelerate tqdm sentencepiece protobuf einops scikit-image
-pip install -r requirements.txt
-pip install comfy_aimdo
+pip install safetensors tqdm
 ```
-
-## `quantize_zib_hswq_v2.0.py` and attention backends
-
-`quantize_zib_hswq_v2.0.py` does **not** define a `--sa2` (SageAttention2) flag. Use only the arguments shown in the example below. You do **not** need a separate “install SageAttention2 for quantization” step for this guide.
-
-## Download text encoder (CLIP)
-
-Download the text encoder and save it in the **`clip`** folder.
-
-- **[ussoewwin/qwen3_4b_abliterated_fp16](https://huggingface.co/ussoewwin/qwen3_4b_abliterated_fp16)** (Hugging Face)
-
-Use the converted safetensors file, e.g. `clip/qwen3_4b_abliterated_fp16_converted.safetensors`, and pass its path to `--clip_path` when quantizing.
 
 ## Quantize a ZI model
 
-Adjust the file paths to your environment.
+Adjust the file paths to your environment. `--model` and `--input` are aliases for the same argument.
 
 ```bash
-python quantize_zib_hswq_v2.0.py --input "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_hswq_r32_r0.1_v2.safetensors" --clip_path "clip/qwen3_4b_abliterated_fp16_converted.safetensors" --calib_file "sample/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.1
+python native_convert_int8_convrot.py --model "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_convrot_int8.safetensors" --per_channel_int8
 ```
 
 **Notes:**
 
-- **Samples:** 32 (recommended).
-- **Keep ratio:** 0.1 (as in the example); the valid range is typically `0.05`–`0.25`. For ZI and ZA, 0.1 often gives sufficient quality. Adjust if you want to trade off quality vs. memory/speed.
+- **FULL ConvRot** (Linear + Conv2d when `in_dim` is divisible by a power-of-4 group size) is **ON by default**. Pass `--no-convrot` only for plain INT8 without ConvRot.
+- **`--per_channel_int8`:** use per-out-channel amax/scale instead of a single per-tensor scale when packing layers that do **not** go through ConvRot. Under default FULL ConvRot, almost all eligible Linear/Conv2d already use rotate + per-channel scale, so this flag has **little effect** in practice; keep it as **insurance** for any remaining non-ConvRot packs. Format tag stays `int8_tensorwise`.
+- **`--groupsize`:** ConvRot Hadamard group size (power of 4; default `256`).
+- **ComfyUI:** Load the output with [ComfyUI-nunchaku-unofficial-loader](https://github.com/ussoewwin/ComfyUI-nunchaku-unofficial-loader).
 
 ## Z-Anime page
 
