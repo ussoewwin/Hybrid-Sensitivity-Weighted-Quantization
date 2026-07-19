@@ -28,7 +28,7 @@ High-fidelity **FP8** and **ConvRot INT8** quantization for **SDXL**, **Flux1.de
 ## How to quantize
 
 - **SDXL (FP8):** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md)
-- **Z Image / Z-Anime (FP8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md)
+- **Z Image / Z-Anime (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md)
 
 **Benchmark results:**
 - **SDXL (FP8):** [MSE / SSIM](test/benchmark_test.md)
