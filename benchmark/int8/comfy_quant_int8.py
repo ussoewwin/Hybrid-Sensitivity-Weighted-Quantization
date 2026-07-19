@@ -571,7 +571,7 @@ def _model_has_int8_quantized_weights(model) -> bool:
 
 # --- ConvRot-only helpers (plain INT8 path never calls these) ---
 _HADAMARD_CACHE: dict = {}
-_OPS_PATCH_VER = 3  # Conv2d ConvRot: clear 4D Params via in-place (_layout_cls safe)
+_OPS_PATCH_VER = 4  # Conv2d ConvRot: cache H on module GPU (no per-fwd CPU→CUDA)
 
 
 def _build_hadamard(size: int, device="cpu", dtype=None):
@@ -835,9 +835,20 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
             # post_cast dequant → LoRA → requant (want_requant=False left QT
             # in the resident path after the first step and killed LoRA).
             # ConvRot branch only: online NCHW act rotate (kitchen has no int8_conv).
+            # Cache H on module at act device/dtype — building on CPU then
+            # ``.to(cuda)`` every Conv2d forward was a steady tax on FULL ConvRot.
             if getattr(self, "_hswq_convrot", False):
                 gs = int(getattr(self, "_hswq_convrot_groupsize", 256) or 256)
-                h = _build_hadamard(gs, device="cpu", dtype=torch.float32)
+                h = getattr(self, "_hswq_convrot_H", None)
+                if (
+                    h is None
+                    or h.device != input.device
+                    or h.dtype != input.dtype
+                ):
+                    h = _build_hadamard(
+                        gs, device=input.device, dtype=input.dtype
+                    )
+                    self._hswq_convrot_H = h
                 input = _rotate_activation_nchw(input, h, gs)
             want_requant = isinstance(getattr(self, "weight", None), QuantizedTensor)
             weight, bias, offload_stream = cast_bias_weight(
