@@ -28,6 +28,7 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 ## How to quantize
 
 - **SDXL (ConvRot INT8):** [How to quantize SDXL ConvRot INT8](md/How%20to%20quantize%20SDXL.md)
+- **SDXL (ConvRot NVFP4):** [How to quantize SDXL ConvRot NVFP4](md/How%20to%20quantize%20SDXL%20NVFP4.md)
 - **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) — HSWQ-specific Z Image development has **ended**; this How-to only introduces the **general** ConvRot INT8 quantization method.
 
 **Benchmark results:**
