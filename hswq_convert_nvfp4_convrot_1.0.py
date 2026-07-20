@@ -43,6 +43,7 @@ HSWQ DualMonitor + FP16 protect, when --calib_file is set (r0 only):
 from __future__ import annotations
 
 import argparse
+import atexit
 import gc
 import importlib.util
 import json
@@ -50,6 +51,7 @@ import math
 import os
 import subprocess
 import sys
+import time
 
 import torch
 from diffusers import StableDiffusionXLPipeline
@@ -58,6 +60,75 @@ from tqdm import tqdm
 
 _DEFAULT_GROUPSIZE = 256
 
+
+class _TeeStream:
+    """Mirror every write to console and a session log file (full convert log)."""
+
+    def __init__(self, primary, secondary):
+        self._primary = primary
+        self._secondary = secondary
+
+    def write(self, data):
+        self._primary.write(data)
+        self._secondary.write(data)
+        return len(data)
+
+    def flush(self):
+        self._primary.flush()
+        self._secondary.flush()
+
+    def isatty(self):
+        return bool(getattr(self._primary, "isatty", lambda: False)())
+
+    def fileno(self):
+        return self._primary.fileno()
+
+    @property
+    def encoding(self):
+        return getattr(self._primary, "encoding", "utf-8")
+
+    def __getattr__(self, name):
+        return getattr(self._primary, name)
+
+
+def _install_nvfp4_convert_full_session_log() -> str:
+    """Tee stdout+stderr into log/hswq_nvfp4_convert_full_<stamp>.txt (full log).
+
+    Override path with HSWQ_CONVERT_FULL_LOG_PATH. Same spirit as analyze's
+    emit_hswq_nvfp4_full_visibility_log file under log/.
+    """
+    env_p = (os.environ.get("HSWQ_CONVERT_FULL_LOG_PATH") or "").strip()
+    if env_p:
+        path = os.path.abspath(env_p)
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+    else:
+        repo = os.path.dirname(os.path.abspath(__file__))
+        log_dir = os.path.join(repo, "log")
+        os.makedirs(log_dir, exist_ok=True)
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(log_dir, f"hswq_nvfp4_convert_full_{stamp}.txt")
+    fh = open(path, "w", encoding="utf-8", newline="\n", buffering=1)
+    tee_out = _TeeStream(sys.__stdout__, fh)
+    tee_err = _TeeStream(sys.__stderr__, fh)
+    sys.stdout = tee_out
+    sys.stderr = tee_err
+
+    def _close_log() -> None:
+        try:
+            if sys.stdout is tee_out:
+                sys.stdout = sys.__stdout__
+            if sys.stderr is tee_err:
+                sys.stderr = sys.__stderr__
+            fh.flush()
+            fh.close()
+        except Exception:
+            pass
+
+    atexit.register(_close_log)
+    print(f"[HSWQ CONVERT FULL LOG FILE] {path}")
+    return path
 
 
 def _ensure_nvfp4_hist_on_path() -> None:
@@ -151,7 +222,9 @@ def _ensure_distribution_profile(
         print(f"    Script: {analyze_script}")
         print(f"    Input:  {input_abs}")
         print(f"    Result: {profile_path}")
-        subprocess.run(
+        # Capture + re-print so Tee session log includes analyze stdout/stderr
+        # (child inherit of console FD bypasses Python sys.stdout Tee).
+        _an = subprocess.run(
             [
                 sys.executable,
                 analyze_script,
@@ -160,8 +233,29 @@ def _ensure_distribution_profile(
                 "--output",
                 profile_path,
             ],
-            check=True,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
         )
+        if _an.stdout:
+            sys.stdout.write(_an.stdout)
+            if not _an.stdout.endswith("\n"):
+                sys.stdout.write("\n")
+            sys.stdout.flush()
+        if _an.stderr:
+            sys.stderr.write(_an.stderr)
+            if not _an.stderr.endswith("\n"):
+                sys.stderr.write("\n")
+            sys.stderr.flush()
+        if _an.returncode != 0:
+            raise subprocess.CalledProcessError(
+                _an.returncode,
+                _an.args,
+                output=_an.stdout,
+                stderr=_an.stderr,
+            )
 
     if not os.path.exists(profile_path):
         raise FileNotFoundError(
@@ -3412,6 +3506,7 @@ if __name__ == "__main__":
         ),
     )
     args = parser.parse_args()
+    _install_nvfp4_convert_full_session_log()
 
     if not os.path.exists(args.model):
         print(f"Error: Model not found at {args.model}")
