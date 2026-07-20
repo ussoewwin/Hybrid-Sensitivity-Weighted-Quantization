@@ -13,8 +13,6 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 **Technical details (FP8):** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) — **FP8 development has ended**; this document is retained as a technical asset.  
 **Technical details (INT8 FP16-protect / pack overview — ConvRot pack guide not published yet):** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md)
 
-**SDXL models (FP8):** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-fp8e4m3)
-
 **SDXL models (ConvRot INT8):** [Hugging Face — Hybrid-Sensitivity-Weighted-Quantization-SDXL-ConvRot-INT8](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-ConvRot-INT8)
 
 **ComfyUI Loader for ConvRot INT8 / INT8:** To use these models in ComfyUI, please use this custom node: [ComfyUI-nunchaku-unofficial-loader](https://github.com/ussoewwin/ComfyUI-nunchaku-unofficial-loader)
@@ -96,9 +94,6 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 
 - **Samples:** 32 (recommended) — number of calibration samples (**same for FP8 and ConvRot INT8**).
 - **Steps:** 25 — number of inference steps per sample during calibration (**same for FP8 and ConvRot INT8**).
-- **Keep ratio (FP8):** 5–25% — keeps critical layers in FP16. For SDXL and ZIT, 10% often gives sufficient quality.
-- **Keep ratio (ConvRot INT8, SDXL):** **0 (fixed)** — do not use a non-zero keep-ratio percentage for the SDXL V3.1 path.
-- **Latent:** 32–256, default 128 — calibration latent size (H/W). Use `--latent 32` for faster calibration, `--latent 256` for higher fidelity.
 - **ConvRot group size (SDXL V3.1):** power of 4 (default from script CLI); `--no-convrot` disables FULL ConvRot (plain pack only).
 
 ---
@@ -109,11 +104,10 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
 | Naive FP8 | 0.75–0.93 | 50% | High |
-| **HSWQ FP8 V1** | **0.94–0.98** | 60-70% (FP16 mixed) | **High** |
-| **HSWQ ConvRot INT8** | **0.94–0.98** | 60-70% (FP16 mixed) | **High** (ComfyUI INT8) |
-| **HSWQ FP8 V2** | — (currently unmeasurable) | 60-70% (FP16 mixed) | Not usable (no dedicated loader) |
+| **HSWQ ConvRot INT8** | **0.94–0.98** | **68%** (FP16 mixed) | **High** (ComfyUI INT8) |
+| **HSWQ ConvRot NVFP4** | **0.95** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
-HSWQ FP8 V1 and HSWQ ConvRot INT8 target **SSIM 0.94–0.98** with full loader compatibility on their respective formats. FP8 V2 would require a dedicated loader; benchmark is currently unmeasurable and V2 is not usable at the current time.
+HSWQ ConvRot INT8 targets **SSIM 0.94–0.98**; HSWQ ConvRot NVFP4 targets **SSIM 0.95**. Both keep full loader compatibility on their respective formats.
 
 ---
 
