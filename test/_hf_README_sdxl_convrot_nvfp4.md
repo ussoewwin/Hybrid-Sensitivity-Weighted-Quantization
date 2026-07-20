@@ -1,0 +1,64 @@
+---
+license: other
+tags:
+- text-to-image
+- sdxl
+- nunchaku
+- svdq
+- quantized
+- nvfp4
+- illustrious
+- comfyui
+- controlnet
+- anime
+library_name: nunchaku
+---
+
+# Hybrid-Sensitivity-Weighted-Quantization (HSWQ)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
+</p>
+
+High-fidelity ConvRot NVFP4 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
+
+ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed **600 MiB** budget. Keep ratio is **0** (r0); calib writes NVFP4 `.input_scale`. Script: `hswq_convert_nvfp4_convrot_1.0.py`.
+
+**Technical details:** [md/HSWQ_INT8_SDXL_Technical_Guide.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_INT8_SDXL_Technical_Guide.md)
+
+**How to quantize (SDXL ConvRot NVFP4):** [md/How to quantize SDXL NVFP4.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL%20NVFP4.md)
+
+**ComfyUI Loader for ConvRot NVFP4:** Native ComfyUI load (Load Diffusion Model with `nvfp4` support).
+
+---
+
+## Benchmark (Reference)
+
+| Model | SSIM (Avg) | File size | Compatibility |
+| :--- | :--- | :--- | :--- |
+| Original FP16 | 1.0000 | 100% | High |
+| **HSWQ ConvRot NVFP4** | **0.95** | 60% (FP16 mixed) | **High** (ComfyUI NVFP4) |
+
+---
+
+## 📦 Available Models
+
+| Filename | Base Model | Version | License |
+| :--- | :--- | :--- | :--- |
+| `waiIllustriousSDXL_v170_hswq_r32_covrot_nvfp4.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Illustrious License |
+
+---
+
+## 📜 Credits & License
+
+### 🏆 Special Acknowledgement
+We extend our deepest respect and gratitude to the **Nunchaku Team** for their groundbreaking work on SVDQ quantization and for sharing their models with the community. This collection relies heavily on their research and original implementation.
+- **Original Repository:** [nunchaku-tech/nunchaku-sdxl](https://huggingface.co/nunchaku-tech/nunchaku-sdxl)
+
+### Base Models
+These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
+- **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.red/user/WAI0731).
+
+---
+
+**Disclaimer:** These models are provided for optimization and research purposes. Please adhere to the original licenses of the base models.
