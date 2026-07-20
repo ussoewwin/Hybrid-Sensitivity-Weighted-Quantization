@@ -25,13 +25,15 @@ library_name: nunchaku
 
 High-fidelity ConvRot INT8 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
 
-**Technical details:** [md/HSWQ_INT8_SDXL_Technical_Guide.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_INT8_SDXL_Technical_Guide.md)
+ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Linear/Conv2d after DualMonitor + V4 weighted-histogram FP16 protection under a fixed **300 MiB** budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage. Pack path matches `native_convert_int8_convrot.py`.
 
-**How to quantize:** [md/HSWQ_ How to quantize SDXL.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL.md)
+**Technical details (INT8 FP16-protect / pack overview — ConvRot pack guide not published yet):** [md/HSWQ_INT8_SDXL_Technical_Guide.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/HSWQ_INT8_SDXL_Technical_Guide.md)
 
-**ComfyUI Loader for INT8:** To load these INT8 models in ComfyUI, please use the unofficial loader node: [ComfyUI-nunchaku-unofficial-loader](https://github.com/ussoewwin/ComfyUI-nunchaku-unofficial-loader)
+**How to quantize (SDXL ConvRot INT8):** [md/HSWQ_ How to quantize SDXL.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL.md)
 
-**SDXL Benchmark Test Results:** [test/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_sdxl_int8.md)
+**ComfyUI Loader for ConvRot INT8 / INT8:** To load these INT8 models in ComfyUI, please use the unofficial loader node: [ComfyUI-nunchaku-unofficial-loader](https://github.com/ussoewwin/ComfyUI-nunchaku-unofficial-loader)
+
+**SDXL ConvRot INT8 Benchmark Test Results:** [test/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_sdxl_int8.md)
 
 ---
 
@@ -41,7 +43,7 @@ High-fidelity ConvRot INT8 quantization for diffusion models (SDXL). HSWQ uses *
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
 | Naive INT8 | 0.95-0.97 | 50% | High |
-| **HSWQ INT8** | **0.96-0.98** | 67% (FP16 mixed) | **High** |
+| **HSWQ ConvRot INT8** | **0.94-0.98** | 68% (FP16 mixed) | **High** (ComfyUI INT8) |
 
 ---
 
