@@ -72,11 +72,6 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 
 ## Modes
 
-### FP8
-
-- **V1** (`scaled=False`): No scaling; only the clipping threshold (amax) is optimized. Output is standard FP8 weights. **Use this mode** — full compatibility with any FP8 loader.
-- **V2** (`scaled=True`): Weights are scaled to FP8 range, quantized, and inverse scale `S` is stored in Safetensors (`.scale`). Requires a dedicated loader; **not usable at the current time.**
-
 ### ConvRot INT8 (SDXL)
 
 - **Script:** `quantize_sdxl_hswq_v3.1.py` (SDXL ConvRot INT8; **300 MiB** FP16 budget; FULL ConvRot default ON).
@@ -85,6 +80,14 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 - **Card 3** (`--per_channel_int8`): per-output-channel amax / scale for non-ConvRot plain packs (SDXL).
 - **Keep ratio:** **0 (fixed)** — FP16 protection is automatic (analyze Hard VETO + DualMonitor + V4 ranking inside the FP16 budget), not a percentage keep-ratio.
 - **Z Image INT8 (HSWQ):** **Ended** — no further HSWQ Z Image 8-bit development or Hugging Face publication. Prefer **native ConvRot INT8** for Z Image (typically **SSIM > 0.99**).
+
+### ConvRot NVFP4 (SDXL)
+
+- **Script:** `hswq_convert_nvfp4_convrot_1.0.py` (SDXL ConvRot NVFP4; **600 MiB** FP16 budget; FULL ConvRot default ON).
+- **Order:** (1) FP16 keep via DualMonitor + analyze + V4 under the **600 MiB** hard ceiling → (2) remaining eligible layers **FULL ConvRot** — Linear → **NVFP4**, Conv2d → **INT8** (`int8_tensorwise`).
+- **Loader / format:** ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4`; NVFP4 `.input_scale` from PTQ calib (`--calib_file`).
+- **Keep ratio:** **0 (fixed)** — FP16 protection is automatic (analyze Hard VETO + DualMonitor + V4 pack-MSE ranking inside the FP16 budget), not a percentage keep-ratio.
+- **Image quality (SSIM):** **0.95**.
 
 ---
 
