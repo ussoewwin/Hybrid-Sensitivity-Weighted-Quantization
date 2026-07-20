@@ -31,22 +31,21 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 - **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) — HSWQ-specific Z Image development has **ended**; this How-to only introduces the **general** ConvRot INT8 quantization method.
 
 **Benchmark results:**
-- **SDXL (FP8):** [MSE / SSIM](test/benchmark_test.md)
 - **SDXL (ConvRot INT8):** [MSE / SSIM](test/benchmark_sdxl_int8.md)
 
 ---
 
 ## Overview
 
-| Feature | FP8 V1: Standard Compatible | FP8 V2: High Performance Scaled | ConvRot INT8 (SDXL V3.1) |
-| :--- | :--- | :--- | :--- |
-| **Compatibility** | Full (100%), any FP8 loader | Requires dedicated loader — **not usable at present** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible |
-| **File format** | Standard FP8 (`torch.float8_e4m3fn`) | Extended FP8 (weights + `.scale` metadata) | INT8 weights + scale (`int8_tensorwise`); SDXL V3.1 packs remainder with **FULL ConvRot** |
-| **Image quality (SSIM)** | **0.94–0.98** | Unmeasurable (no dedicated loader) | **0.94–0.98** |
-| **Mechanism** | Optimal clipping (smart clipping) | Full-range scaling (dynamic scaling) | Absmax + DualMonitor / V4 FP16 protect (r0); then FULL ConvRot on Linear/Conv2d remainder |
-| **Keep ratio** | 5–25% (see How-to; SDXL/ZIT often 10%) | 5–25% (see How-to) | **0 (fixed)** |
-| **Benchmark** | Measurable | Currently unmeasurable (no dedicated loader) | Measurable |
-| **Use case** | Distribution, general users | Unavailable until a dedicated loader exists | SDXL ConvRot INT8 distribution / kitchen loaders |
+| Feature | ConvRot INT8 (SDXL V3.1) | ConvRot NVFP4 |
+| :--- | :--- | :--- |
+| **Compatibility** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible |
+| **File format** | INT8 weights + scale (`int8_tensorwise`); SDXL V3.1 packs remainder with **FULL ConvRot** | Linear **NVFP4** + Conv2d **INT8** (`int8_tensorwise`); **FULL ConvRot** on eligible layers |
+| **Image quality (SSIM)** | **0.94–0.98** | **0.95** |
+| **Mechanism** | Absmax + DualMonitor / V4 FP16 protect (r0); then FULL ConvRot on Linear/Conv2d remainder | Absmax + DualMonitor / V4 FP16 protect (r0, **600 MiB**); FULL ConvRot (Linear→NVFP4, Conv2d→INT8) |
+| **Keep ratio** | **0 (fixed)** | **0 (fixed)** |
+| **Benchmark** | Measurable | Measurable |
+| **Use case** | SDXL ConvRot INT8 distribution / kitchen loaders | SDXL ConvRot NVFP4 distribution / native ComfyUI load |
 
 **Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL path.
 
