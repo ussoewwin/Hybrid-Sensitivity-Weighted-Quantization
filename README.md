@@ -55,17 +55,17 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 ## Architecture
 
 1. **Dual Monitor System** — During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ (**FP8:** top 5–25% by keep ratio; for SDXL and ZIT, 10% often gives sufficient quality. **ConvRot INT8 (SDXL):** keep ratio **0**; FP16 set comes from automatic analysis / budget ranking, not a keep-ratio %).
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ. **ConvRot INT8 / NVFP4 (SDXL):** keep ratio **0**; FP16 set comes from automatic analysis / budget ranking, not a keep-ratio %.
    - **Importance:** V1 uses per-channel input mean-abs; V4 uses per-element SVD leverage × RMS magnitude hybrid → weights of the weighted histogram.
    **Technical details:** [Dual Monitor System — Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
 2. **Rigorous grid / pack simulation**
-   - **FP8:** physical grid (all 0–255 values cast to `torch.float8_e4m3fn`) instead of theoretical formulas, so MSE matches real runtime.
    - **ConvRot INT8 (SDXL):** natural absmax pack point for the symmetric INT8 grid; V4 weighted-histogram MSE ranks FP16 protection candidates (does not choose pack amax). **SDXL V3.1** then applies **FULL ConvRot** (Hadamard rotate → channelwise absmax) on remaining Linear/Conv2d, identical to `native_convert_int8_convrot.py`.
+   - **ConvRot NVFP4 (SDXL):** absmax pack point for Linear→NVFP4 and Conv2d→INT8; V4 pack-MSE ranks FP16 protection under the **600 MiB** budget, then **FULL ConvRot** on eligible remainder.
 
 3. **Weighted MSE Optimization** — Finds parameters that minimize quantization error using an importance-weighted histogram (not a plain frequency histogram).
-   - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram amax search. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
-   - **V4 (SVD × RMS hybrid):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers. Used by Z Image / Z-Anime FP8 for amax search, and by **SDXL ConvRot INT8** for FP16-candidate ranking at the absmax pack point. **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
+   - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
+   - **V4 (SVD × RMS hybrid):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers. Used by **SDXL ConvRot INT8** and **ConvRot NVFP4** for FP16-candidate ranking at the absmax pack point. **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
 
 ---
 
