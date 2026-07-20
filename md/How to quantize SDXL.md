@@ -1,4 +1,4 @@
-# How to quantize SDXL
+# How to quantize SDXL ConvRot INT8
 
 The dedicated VRAM for the GPU must be **12GB or more**.
 
