@@ -1530,6 +1530,10 @@ def nvfp4_fp16_budget_priority(
 ) -> float:
     """Per-checkpoint FP16 priority via THIS model's autonomous combinator.
 
+    Inputs are three ranking axes measured after arranging:
+      DualMonitor sens × analyze severity × V4 estimated_mse
+    (V4 MSE already embeds mandatory Full-SVD×RMS; Importance when present).
+
     combinator MUST be derive_priority_combinator(...) from measured
     sens/sev/mse distributions. Fixed formulas are forbidden.
     """
