@@ -729,13 +729,21 @@ class HSWQWeightedHistogramOptimizerV4:
         importance: Optional[torch.Tensor] = None,
         use_svd_leverage: bool = True,
         layer_name: str = "",
+        linear_pack: str = "nvfp4",
     ) -> dict:
         """Real pack roundtrip MSE @ absmax for FP16 protect ranking.
 
-        Linear (2D): comfy_kitchen TensorCoreNVFP4Layout.
+        Linear (2D): comfy_kitchen TensorCoreNVFP4Layout, or per-out-channel
+        INT8 when linear_pack="int8" (multi-tier shelter d1 measurement).
         Conv2d (4D): per-out-channel INT8 (same as convert pack_channelwise_int8).
         Pack amax stays absmax (optimal_amax = weight absmax); MSE ranks FP16 keep.
+        linear_pack only changes the 2D pack format; importance weighting and
+        its denominator are identical so d0/d1 stay directly comparable.
         """
+        if linear_pack not in ("nvfp4", "int8"):
+            raise ValueError(
+                f"linear_pack must be 'nvfp4' or 'int8', got {linear_pack!r}"
+            )
         imp_arg = channel_importance if channel_importance is not None else importance
         w = weight.detach().float().to(self.device)
         if w.ndim not in (2, 4):
@@ -795,7 +803,18 @@ class HSWQWeightedHistogramOptimizerV4:
                 "pack_format": "empty",
             }
 
-        if w.ndim == 2:
+        if w.ndim == 2 and linear_pack == "int8":
+            # Multi-tier d1: per-out-channel INT8 on 2D (same math as the
+            # convert pack_channelwise_int8 Linear shelter path).
+            amax = torch.clamp(w.abs().amax(dim=1).reshape(-1), min=1e-6)
+            scale = amax / 127.0
+            scale_view = scale.view(-1, 1)
+            amax_view = amax.view(-1, 1)
+            clamped = torch.clamp(w, -amax_view, amax_view)
+            q = (clamped / scale_view).round().clamp(-127, 127)
+            dq = q * scale_view
+            pack_format = "int8_channelwise"
+        elif w.ndim == 2:
             from comfy_kitchen.tensor import TensorCoreNVFP4Layout
 
             layout = TensorCoreNVFP4Layout
