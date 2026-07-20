@@ -2403,11 +2403,18 @@ def pack_nvfp4(weight: torch.Tensor):
     """NVFP4 pack: uint8 qdata + Params (scale, block_scale, orig_shape).
 
     Auto-pads to 16x16 when needed (layout get_padded_shape).
+    Kitchen TensorCoreNVFP4Layout accepts FP16/BF16 only (not float32).
     """
     if weight.ndim != 2:
         raise ValueError(f"NVFP4 pack expects 2D weight, got ndim={weight.ndim}")
     layout = _get_nvfp4_layout()
-    qdata, params = layout.quantize(weight.float())
+    if weight.dtype == torch.bfloat16:
+        w_pack = weight.detach().to(dtype=torch.bfloat16)
+    elif weight.dtype == torch.float16:
+        w_pack = weight.detach().to(dtype=torch.float16)
+    else:
+        w_pack = weight.detach().float().to(dtype=torch.float16)
+    qdata, params = layout.quantize(w_pack)
     return qdata, params
 
 

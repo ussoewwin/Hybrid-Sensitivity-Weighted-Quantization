@@ -126,7 +126,13 @@ def pack_nvfp4(weight: torch.Tensor):
     if weight.ndim != 2:
         raise ValueError(f"NVFP4 pack expects 2D weight, got ndim={weight.ndim}")
     layout = _get_nvfp4_layout()
-    qdata, params = layout.quantize(weight.float())
+    qdata, params = layout.quantize(
+        weight.detach().to(
+            dtype=torch.bfloat16
+            if weight.dtype == torch.bfloat16
+            else torch.float16
+        )
+    )
     return qdata, params
 
 
