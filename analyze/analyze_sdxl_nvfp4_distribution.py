@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """
-SDXL UNet layer distribution analyzer for HSWQ NVFP4 convert.
+SDXL UNet layer distribution analyzer for HSWQ.
 
-NVFP4-dedicated twin of analyze_sdxl_distribution.py. Primary surfaces:
-  - derive_veto_tunables_nvfp4()       → hard VETO fences + alpha_auto for Full-SVD
-  - measure_v4_nvfp4_mse_at_absmax()  → V4 Full-SVD×RMS × real NVFP4/INT8 pack MSE
-  - profile_from_unet_modules()       → live UNet → profile for convert keep ranking
-
-Shared fence math with INT8 (weight-space character). Pack format for V4 MSE is
-nvfp4_linear_int8_conv — not FP8 E4M3 histogram.
+Produces per-layer statistics and:
+  - derive_veto_tunables()       → FP8 / quantize_sdxl_hswq_v2.x
+  - derive_veto_tunables_int8()  → INT8 / quantize_sdxl_hswq_v3.0
+    (hard VETO fences + mse_* that drive V4 MSE-guided VETO; pack search_low=1.0)
 
 All VETO / V4-link thresholds come from this checkpoint's layer distribution
 (no model-name hardcoding).
@@ -529,56 +526,10 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
     )
     base.update(int8_engine)
     base.update(mad_tunables)
-    base["quant_format"] = "int8_tensorwise"
+    # Convert NVFP4 pack protect requires quant_format=nvfp4 (Linear NVFP4 +
+    # Conv INT8). Do not stamp int8_tensorwise — that locks convert to INT8-only.
+    base["quant_format"] = "nvfp4"
     return base
-
-
-def derive_veto_tunables_nvfp4(profile: Dict[str, Any]) -> Dict[str, Any]:
-    """NVFP4 convert: same THIS-checkpoint fences / alpha_auto as INT8 engine.
-
-    Pack format differs (Linear=NVFP4, Conv=INT8 channelwise). V4 estimated_mse
-    must use weighted_histogram_mse_v4_nvfp4 (Full-SVD×RMS + real pack), not FP8.
-    """
-    base = derive_veto_tunables_int8(profile)
-    base["quant_format"] = "nvfp4_linear_int8_conv"
-    base["format_note"] = (
-        "Linear 2D → NVFP4 pack; Conv2d 4D → channelwise INT8; "
-        "V4 = Full-SVD×RMS hybrid + pack MSE @ absmax"
-    )
-    return base
-
-
-def profile_from_unet_modules(model: torch.nn.Module) -> Dict[str, Any]:
-    """Build analyze profile from a live Diffusers UNet (module names as keys)."""
-    layers: Dict[str, Any] = {}
-    for name, mod in model.named_modules():
-        if not isinstance(mod, (torch.nn.Linear, torch.nn.Conv2d)):
-            continue
-        w = getattr(mod, "weight", None)
-        if w is None or not isinstance(w, torch.Tensor) or w.ndim < 2:
-            continue
-        layers[name] = _layer_stats(w.detach())
-    return {"source": "live_unet_modules", "layers": layers}
-
-
-def hard_veto_module_names(
-    profile: Dict[str, Any], tunables: Dict[str, Any]
-) -> set:
-    """Module names that cross Hard VETO fences (for FP16 keep union)."""
-    ek = float(tunables.get("extreme_kurtosis", 1e9))
-    eo = float(tunables.get("extreme_outlier", 1e9))
-    hm = float(tunables.get("huge_magnitude", 1e9))
-    out: set = set()
-    for name, entry in (profile.get("layers") or {}).items():
-        if not isinstance(entry, dict):
-            continue
-        k = float(entry.get("kurtosis", 0) or 0)
-        o = float(entry.get("outlier_ratio", 0) or 0)
-        m = float(entry.get("abs_max", 0) or 0)
-        if (o > eo) or (k > ek) or (m > hm):
-            base = name[:-7] if str(name).endswith(".weight") else str(name)
-            out.add(base)
-    return out
 
 
 def _alpha_auto_from_kurtosis_order(
@@ -1147,10 +1098,11 @@ def int8_fp16_budget_analyze_severity(
     erases relative danger, collapses sev IQR, and makes
     derive_priority_combinator drop w_sev (thinking-stop on the judgment).
     """
-    if tunables.get("quant_format") != "int8_tensorwise":
+    if tunables.get("quant_format") != "nvfp4":
         raise ValueError(
-            "int8_fp16_budget_analyze_severity is INT8-only "
-            "(require quant_format=int8_tensorwise); FP8 must not call this"
+            "int8_fp16_budget_analyze_severity for NVFP4 convert requires "
+            "quant_format=nvfp4 (Linear NVFP4 + Conv INT8 protect); "
+            f"got {tunables.get('quant_format')!r}"
         )
 
     ek = max(abs(float(tunables.get("extreme_kurtosis", 1e-6))), 1e-6)
@@ -1747,9 +1699,10 @@ def build_int8_analyze_character_table(
     Returns {layer: {kurtosis, outlier_ratio, abs_max, mad_outlier_pct, severity}}.
     Severity uses the same fences as int8_fp16_budget_analyze_severity.
     """
-    if tunables.get("quant_format") != "int8_tensorwise":
+    if tunables.get("quant_format") != "nvfp4":
         raise ValueError(
-            "build_int8_analyze_character_table is INT8-only; FP8 must not call this"
+            "build_int8_analyze_character_table for NVFP4 convert requires "
+            f"quant_format=nvfp4; got {tunables.get('quant_format')!r}"
         )
     profile = _unet_only_profile(profile)
     layers = profile.get("layers", {})
@@ -1795,7 +1748,7 @@ def build_int8_analyze_character_table(
 
 # Default = SDXL INT8. Callers (e.g. quantize_zi_int8_hswq_v1.0) may set this
 # module attribute before derive / assert; ranking / fill logic is unchanged.
-INT8_FP16_BUDGET_MB_HARD = 300.0
+INT8_FP16_BUDGET_MB_HARD = 600.0
 
 
 def _safe_percentile(values: List[float], pct: float) -> float:
@@ -2169,14 +2122,17 @@ def _assert_int8_auto_optimal_complete(d: Dict[str, Any]) -> None:
             f"{missing}. Do not fill deleted clip holes with defaults; "
             "re-run derive_int8_autonomous_tunables."
         )
-    if str(d.get("quant_format")) != "int8_tensorwise":
-        raise ValueError("INT8 auto-optimal requires quant_format=int8_tensorwise")
+    if str(d.get("quant_format")) != "nvfp4":
+        raise ValueError(
+            "NVFP4 auto-optimal requires quant_format=nvfp4 "
+            f"(got {d.get('quant_format')!r})"
+        )
     if abs(float(d.get("fp16_budget_mb", 0.0)) - float(INT8_FP16_BUDGET_MB_HARD)) > 1e-6:
         raise ValueError(
-            f"INT8 auto-optimal requires fp16_budget_mb={float(INT8_FP16_BUDGET_MB_HARD):g}"
+            f"NVFP4 auto-optimal requires fp16_budget_mb={float(INT8_FP16_BUDGET_MB_HARD):g}"
         )
     if not bool(d.get("autonomous")):
-        raise ValueError("INT8 auto-optimal requires autonomous=True from derive")
+        raise ValueError("NVFP4 auto-optimal requires autonomous=True from derive")
     # Finite / non-NaN on continuous auto knobs.
     for k in (
         "mse_p75_multiplier",
@@ -2223,11 +2179,11 @@ def measure_v4_int8_mse_at_absmax(
     tunables: Optional[Dict[str, Any]] = None,
     importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
 ) -> Dict[str, Any]:
-    """HSWQ V4 + INT8Quantizer estimated_mse at absmax (same contract as v3.0).
+    """HSWQ V4 real pack MSE @ absmax (NVFP4 Linear + INT8 Conv; V3.0 parity).
 
     analyze derives mse_release_* / mse_p75_multiplier; this function measures
-    the histogram side on live weights so optimal INT8 settings are a double
-    of (analyze gates) × (V4 MSE).
+    kitchen NVFP4 (2D) / channelwise INT8 (4D) roundtrip MSE so optimal settings
+    are (analyze gates) × (real pack MSE), not histogram-bin proxy.
 
     importance_by_layer MUST come from DualMonitor after the SDXL r32
     calibration recipe (num_calib_samples=32, num_inference_steps=25).
@@ -2237,9 +2193,8 @@ def measure_v4_int8_mse_at_absmax(
     hist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "histogram")
     if hist_dir not in sys.path:
         sys.path.insert(0, hist_dir)
-    from weighted_histogram_mse_v4_int8 import (  # type: ignore
+    from weighted_histogram_mse_v4_nvfp4 import (  # type: ignore
         HSWQWeightedHistogramOptimizerV4,
-        INT8Quantizer,
     )
 
     if device is None:
@@ -2302,7 +2257,6 @@ def measure_v4_int8_mse_at_absmax(
             f"(alpha==0 is SVD cut / rebellion). got {alpha}"
         )
     beta = 1.0 - alpha
-    quantizer = INT8Quantizer(device=device)
     optimizer = HSWQWeightedHistogramOptimizerV4(
         bins=8192,
         num_candidates=1000,
@@ -2310,9 +2264,7 @@ def measure_v4_int8_mse_at_absmax(
         device=device,
         alpha=alpha,
         beta=beta,
-        quantizer=quantizer,
     )
-    search_range = (1.0, 1.0)
 
     layer_quick: List[Tuple[str, torch.Tensor, Dict[str, float]]] = []
     for name, tensor in items:
@@ -2351,12 +2303,11 @@ def measure_v4_int8_mse_at_absmax(
             w = w.to(device)
             imp = imp.to(device)
         try:
-            result = optimizer.compute_optimal_amax_with_stats_int8_range(
+            result = optimizer.compute_pack_mse_absmax_with_svd(
                 w,
-                importance=imp,
+                channel_importance=imp,
                 use_svd_leverage=True,
-                scaled=False,
-                search_range=search_range,
+                layer_name=name,
             )
             mse = float(result["estimated_mse"])
             safe_mses.append(mse)
@@ -2364,6 +2315,7 @@ def measure_v4_int8_mse_at_absmax(
                 "name": name,
                 "estimated_mse": mse,
                 "optimal_amax": float(result["optimal_amax"]),
+                "pack_format": result.get("pack_format"),
                 "abs_max": float(st["abs_max"]),
                 "outlier_ratio": float(st["outlier_ratio"]),
                 "used_dualmonitor_importance": True,
@@ -2384,9 +2336,9 @@ def measure_v4_int8_mse_at_absmax(
             "gray_candidate_count": len(gray_pool),
             "reason": "no_safe_mse_with_dualmonitor_importance",
             "safe_detail": safe_detail,
-            "search_range": list(search_range),
-            "quantizer": "INT8Quantizer",
-            "optimizer": "HSWQWeightedHistogramOptimizerV4",
+            "pack_point": "absmax",
+            "quantizer": "TensorCoreNVFP4Layout+INT8_channelwise",
+            "optimizer": "HSWQWeightedHistogramOptimizerV4.compute_pack_mse_absmax_with_svd",
             "calib_contract": {
                 "num_calib_samples": 32,
                 "num_inference_steps": 25,
@@ -2418,12 +2370,11 @@ def measure_v4_int8_mse_at_absmax(
             w = w.to(device)
             imp = imp.to(device)
         try:
-            result = optimizer.compute_optimal_amax_with_stats_int8_range(
+            result = optimizer.compute_pack_mse_absmax_with_svd(
                 w,
-                importance=imp,
+                channel_importance=imp,
                 use_svd_leverage=True,
-                scaled=False,
-                search_range=search_range,
+                layer_name=name,
             )
             mse = float(result["estimated_mse"])
             decision = "RELEASE" if mse <= mse_threshold else "KEEP"
@@ -2436,6 +2387,7 @@ def measure_v4_int8_mse_at_absmax(
                 "estimated_mse": mse,
                 "decision": decision,
                 "optimal_amax": float(result["optimal_amax"]),
+                "pack_format": result.get("pack_format"),
                 "abs_max": float(st["abs_max"]),
                 "outlier_ratio": float(st["outlier_ratio"]),
                 "kurtosis": float(st["kurtosis"]),
@@ -2450,9 +2402,8 @@ def measure_v4_int8_mse_at_absmax(
         "v4_ran": True,
         "complete": True,
         "device": device,
-        "quantizer": "INT8Quantizer",
-        "optimizer": "HSWQWeightedHistogramOptimizerV4",
-        "search_range": list(search_range),
+        "quantizer": "TensorCoreNVFP4Layout+INT8_channelwise",
+        "optimizer": "HSWQWeightedHistogramOptimizerV4.compute_pack_mse_absmax_with_svd",
         "bins": 8192,
         "num_candidates": 1000,
         "pack_point": "absmax",
@@ -2492,106 +2443,6 @@ def measure_v4_int8_mse_at_absmax(
     }
 
 
-def measure_v4_nvfp4_mse_at_absmax(
-    weight_tensors: Dict[str, torch.Tensor],
-    *,
-    device: Optional[str] = None,
-    tunables: Optional[Dict[str, Any]] = None,
-    importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
-) -> Dict[str, Any]:
-    """Per-layer V4 Full-SVD×RMS × NVFP4/INT8 pack estimated_mse @ absmax.
-
-    Primary surface for NVFP4 convert FP16 keep ranking. Always
-    use_svd_leverage=True. DualMonitor channel importance multiplies the
-    hybrid map when present — SVD is never cut because Imp exists.
-    """
-    hist_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "histogram"
-    )
-    if hist_dir not in sys.path:
-        sys.path.insert(0, hist_dir)
-    from weighted_histogram_mse_v4_nvfp4 import (  # type: ignore
-        HSWQWeightedHistogramOptimizerV4NVFP4,
-    )
-
-    if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    tunables = tunables or {}
-    alpha = float(tunables.get("alpha_auto", 0.0) or 0.0)
-    alpha = float(min(max(alpha, 0.0), 1.0))
-    if alpha <= 0.0:
-        raise ValueError(
-            "measure_v4_nvfp4_mse_at_absmax: alpha_auto must be > 0 "
-            f"(alpha==0 is SVD cut / rebellion). got {alpha}"
-        )
-    beta = 1.0 - alpha
-    optimizer = HSWQWeightedHistogramOptimizerV4NVFP4(
-        device=device, alpha=alpha, beta=beta
-    )
-
-    def _imp_for(name: str) -> Optional[torch.Tensor]:
-        if not importance_by_layer:
-            return None
-        base = name[:-7] if name.endswith(".weight") else name
-        for key in (name, base, base + ".weight"):
-            if key in importance_by_layer:
-                return importance_by_layer[key].detach().float()
-        return None
-
-    scores: Dict[str, float] = {}
-    detail: List[Dict[str, Any]] = []
-    n_svd_x_imp = 0
-    n_svd_only = 0
-    for name, tensor in weight_tensors.items():
-        if not isinstance(tensor, torch.Tensor) or tensor.ndim < 2:
-            continue
-        if not _is_unet_weight_key(name):
-            continue
-        imp = _imp_for(name)
-        try:
-            result = optimizer.compute_pack_mse_absmax_with_svd(
-                tensor,
-                channel_importance=imp,
-                use_svd_leverage=True,
-                layer_name=name,
-            )
-            mse = float(result["estimated_mse"])
-            scores[name] = mse
-            if imp is None:
-                n_svd_only += 1
-            else:
-                n_svd_x_imp += 1
-            detail.append(
-                {
-                    "name": name,
-                    "estimated_mse": mse,
-                    "pack_mode": result.get("pack_mode"),
-                    "used_dualmonitor_importance": imp is not None,
-                    "alpha": alpha,
-                    "beta": beta,
-                }
-            )
-        except Exception as exc:  # noqa: BLE001
-            detail.append({"name": name, "error": str(exc)})
-        if device != "cpu":
-            torch.cuda.empty_cache()
-
-    return {
-        "v4_ran": True,
-        "complete": bool(scores),
-        "device": device,
-        "alpha": alpha,
-        "beta": beta,
-        "use_svd_leverage": True,
-        "svd_enabled": True,
-        "optimizer": "HSWQWeightedHistogramOptimizerV4NVFP4",
-        "n_svd_x_importance": n_svd_x_imp,
-        "n_svd_only": n_svd_only,
-        "layer_scores": scores,
-        "detail": detail,
-    }
-
-
 def compute_int8_optimal_settings(
     profile: Dict[str, Any],
     weight_tensors: Optional[Dict[str, torch.Tensor]] = None,
@@ -2599,11 +2450,11 @@ def compute_int8_optimal_settings(
     device: Optional[str] = None,
     importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
 ) -> Dict[str, Any]:
-    """Auto optimal INT8 settings = analyze × V4 SVD×Imp × DualMonitor (r32).
+    """Auto optimal NVFP4-pack settings = analyze × V4 pack MSE × DualMonitor.
 
     Triple contract (no shortcuts):
       1) analyze derive_int8_autonomous_tunables (weight-space + alpha_auto)
-      2) V4 Full-SVD×RMS + INT8Quantizer estimated_mse @ absmax
+      2) V4 Full-SVD×RMS + real pack MSE @ absmax (Linear NVFP4 / Conv INT8)
       3) DualMonitor channel_importance from 32-sample / 25-step calibration
     """
     unet_prof = _unet_only_profile(profile)
@@ -2611,7 +2462,7 @@ def compute_int8_optimal_settings(
     layers = unet_prof.get("layers", {})
 
     optimal: Dict[str, Any] = {
-        "quant_format": "int8_tensorwise",
+        "quant_format": "nvfp4",
         "pack_amax": "absmax",
         "search_low": 1.0,
         "calib_contract": {
@@ -2639,12 +2490,13 @@ def compute_int8_optimal_settings(
         "v4": {
             "required": True,
             "role": (
-                "MSE-guided VETO @ absmax: Full-SVD×RMS "
-                "(alpha_auto) × DualMonitor importance"
+                "FP16 protect ranking @ absmax: Full-SVD×RMS "
+                "(alpha_auto) × DualMonitor × real pack MSE "
+                "(Linear=NVFP4, Conv=INT8)"
             ),
-            "quantizer": "INT8Quantizer",
-            "optimizer": "HSWQWeightedHistogramOptimizerV4",
-            "search_range": [1.0, 1.0],
+            "quantizer": "TensorCoreNVFP4Layout+INT8_channelwise",
+            "optimizer": "HSWQWeightedHistogramOptimizerV4.compute_pack_mse_absmax_with_svd",
+            "pack_point": "absmax",
             "use_svd_leverage": True,
         },
     }
@@ -2753,8 +2605,6 @@ def enrich_profile_with_derived(
     )
     profile["veto_tunables_int8"] = int8_bundle["veto_tunables_int8"]
     profile["optimal_settings_int8"] = int8_bundle["optimal_settings_int8"]
-    # NVFP4 convert surface: same fences + alpha_auto; pack format differs.
-    profile["veto_tunables_nvfp4"] = derive_veto_tunables_nvfp4(profile)
 
     extreme_k = tunables["extreme_kurtosis"]
     med_k = tunables["median_kurtosis"]
