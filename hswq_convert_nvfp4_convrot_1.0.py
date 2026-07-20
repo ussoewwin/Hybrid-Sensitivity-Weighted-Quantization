@@ -1206,10 +1206,12 @@ def _measure_v4_pack_mse_absmax(
     importance: torch.Tensor | None,
     optimizer: HSWQWeightedHistogramOptimizerV4,
     layer_name: str = "",
+    linear_pack: str = "nvfp4",
 ) -> float:
     """Real pack roundtrip MSE @ absmax for FP16 protect ranking (V3.0 parity).
 
-    Linear: kitchen TensorCoreNVFP4Layout. Conv2d: channelwise INT8.
+    Linear: kitchen TensorCoreNVFP4Layout, or channelwise INT8 when
+    linear_pack="int8" (multi-tier shelter d1). Conv2d: channelwise INT8.
     Pack amax stays absmax — this MSE only ranks FP16 keep.
 
     SVD is mandatory (use_svd_leverage=True). DualMonitor Importance multiplies
@@ -1221,6 +1223,7 @@ def _measure_v4_pack_mse_absmax(
         channel_importance=importance,
         use_svd_leverage=True,
         layer_name=layer_name,
+        linear_pack=linear_pack,
     )
     return float(result["estimated_mse"])
 
@@ -1485,15 +1488,24 @@ def _apply_fp16_budget_cap(
     alpha: float,
     beta: float,
     device: str = "cuda",
-) -> tuple[set, set, dict]:
-    """Per-model auto analysis → auto-optimal FP16 set inside the hard ceiling.
+) -> tuple[set, set, dict, set]:
+    """Per-model auto analysis → auto-optimal 3-tier set inside the hard ceiling.
 
     Owner hard ceiling is installed by the caller (NVFP4 600 via
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
-    Comprehensive FP16 ranking (owner 2026-07-20) — ALL arranged together:
-      (1) V4 histogram calib → estimated_mse @ absmax
+    Multi-tier shelter (owner 2026-07-20): Linear has THREE states —
+    NVFP4 (baseline) → INT8 ConvRot (+0.5 B/elem) → FP16 (+1.0 B/elem more);
+    Conv2d keeps INT8 (baseline) → FP16 (+1 B/elem). INT8 shelter protects
+    ~3x more elements than FP16 at the same budget, rescuing layers whose
+    fine singulars zero-collapse on NVFP4's 16-level grid onto INT8's
+    256-level grid. Each upgrade step is scored priority x measured rescue
+    fraction (d0 = NVFP4 pack MSE, d1 = INT8 pack MSE, same importance
+    weighting) and ALL steps compete in ONE score/byte ranking.
+
+    Comprehensive ranking (owner 2026-07-20) — ALL arranged together:
+      (1) V4 histogram calib → estimated_mse @ absmax (d0 AND d1)
       (2) DualMonitor sensitivity (+ Importance into V4 hybrid)
       (3) analyze JSON → severity / Hard VETO / tunables
       (4) Full-SVD×RMS inside every V4 pack MSE measure
@@ -1503,6 +1515,8 @@ def _apply_fp16_budget_cap(
 
     alpha/beta MUST be THIS-profile auto-optimal (caller passes
     veto_tunables.alpha_auto mix). Fixed 0.5/0.5 defaults are forbidden.
+
+    Returns (fp16_keep, hard_veto_layers, budget_stats, int8_shelter).
     """
     if not math.isfinite(float(alpha)) or not math.isfinite(float(beta)):
         raise ValueError(
@@ -1575,13 +1589,22 @@ def _apply_fp16_budget_cap(
     measured_fresh = 0
 
     need_fresh = [n for n in pool if n not in cache]
+    # Multi-tier: every 2D pool layer also needs d1 (INT8 pack MSE) so the
+    # NVFP4→INT8 shelter step can be priced. Measured here in ONE place with
+    # the SAME optimizer/importance as d0 (per-run cache covers d0 only).
+    need_int8_d1 = [
+        n for n in pool
+        if module_dict.get(n) is not None
+        and getattr(module_dict[n], "weight", None) is not None
+        and int(module_dict[n].weight.ndim) == 2
+    ]
     trial_optimizer = None
-    if need_fresh:
+    if need_fresh or need_int8_d1:
         print(
             f"  [FP16 budget] THIS-model pool measure: "
             f"analyze={len(char_table)} pool={len(pool)} "
             f"dm_sens={len(sens_by_name)} | V4 fresh={len(need_fresh)} "
-            f"(cache={len(cache)})..."
+            f"(cache={len(cache)}) INT8 d1={len(need_int8_d1)}..."
         )
         trial_optimizer = HSWQWeightedHistogramOptimizerV4(
             bins=8192, num_candidates=1000, refinement_iterations=10,
@@ -1594,6 +1617,7 @@ def _apply_fp16_budget_cap(
             f"dm_sens={len(sens_by_name)} | V4 cached ({len(cache)})"
         )
 
+    int8_mse: dict[str, float] = {}
     for name in sorted(pool):
         mod = module_dict.get(name)
         if mod is None or not hasattr(mod, "weight") or mod.weight is None:
@@ -1620,13 +1644,13 @@ def _apply_fp16_budget_cap(
             profile_score=ps,
         )
 
+        imp = _dualmonitor_channel_importance(dual_monitors, name)
         if name in cache:
             v4_mse = float(cache[name])
         else:
             if trial_optimizer is None:
                 skipped_no_v4.append(name)
                 continue
-            imp = _dualmonitor_channel_importance(dual_monitors, name)
             try:
                 v4_mse = _measure_v4_pack_mse_absmax(
                     weight=mod.weight.data,
@@ -1642,7 +1666,29 @@ def _apply_fp16_budget_cap(
                 continue
             torch.cuda.empty_cache()
 
+        if int(mod.weight.data.ndim) == 2 and trial_optimizer is not None:
+            try:
+                d1 = _measure_v4_pack_mse_absmax(
+                    weight=mod.weight.data,
+                    importance=imp,
+                    optimizer=trial_optimizer,
+                    layer_name=name,
+                    linear_pack="int8",
+                )
+                int8_mse[name] = float(d1)
+            except Exception as e:
+                print(
+                    f"    [Multi-tier] INT8 d1 failed {name}: {e} "
+                    f"(no INT8 shelter step for this layer)"
+                )
+
         measured.append((name, dm_sens, v4_mse, severity, extra))
+
+    print(
+        f"  [Multi-tier] INT8 d1 measured for {len(int8_mse)}/"
+        f"{len(need_int8_d1)} Linear pool layers (same importance weighting "
+        f"as d0; rescue fraction = (d0-d1)/d0)"
+    )
 
     # Model-specific auto analysis → auto-optimal ranking branches.
     # DualMonitor / analyze / V4 triples for THIS checkpoint drive continuous
@@ -1744,36 +1790,119 @@ def _apply_fp16_budget_cap(
                 f"skew={_r['skew']:.4g} str={_r['strength']:.4g}"
             )
 
-    candidates.sort(key=lambda x: (-x[0], x[4]))
-
-    # Extreme fill inside the hard ceiling (SDXL 300 / ZI 700):
-    # Linear and Conv share ONE auto-priority queue. No Mag-outside tax,
-    # no fixed Conv-first reservation. Skip layers that do not fit; continue.
-    selected: set = set()
-    used = 0
-    dropped: list[tuple[str, int, float, float, float, float]] = []
-    kept_detail: list[tuple[str, int, float, float, float, float]] = []
+    # Multi-tier shelter ladder (owner 2026-07-20): Linear has THREE states —
+    # NVFP4 baseline → INT8 ConvRot shelter (+0.5 B/elem) → FP16 (+1.0 B/elem
+    # more); Conv2d keeps INT8 baseline → FP16 (+1 B/elem). INT8 shelter costs
+    # ~1/3 of FP16 per element, so the hard ceiling rescues ~3x more elements.
+    # Each upgrade step scores priority x MEASURED rescue fraction
+    # (d0 = NVFP4 pack MSE, d1 = INT8 pack MSE, same importance weighting) and
+    # ALL steps compete in ONE score/byte ranking. No fixed tier reservation.
+    extra_by_name: dict[str, int] = {}
+    int8_cost_by_name: dict[str, int] = {}
+    fp16_marginal_by_name: dict[str, int] = {}
+    ndim_by_name: dict[str, int] = {}
+    # (score, cost_bytes, tier, name, priority, rescue_frac)
+    steps: list[tuple[float, int, str, str, float, float]] = []
     for priority, v4_mse, severity, dm_sens, extra, name in candidates:
-        if used + extra <= budget_bytes:
-            selected.add(name)
-            used += extra
-            kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
+        mod = module_dict[name]
+        w_ndim = int(mod.weight.data.ndim)
+        n_el = int(mod.weight.data.numel())
+        extra_by_name[name] = int(extra)
+        ndim_by_name[name] = w_ndim
+        d0 = float(v4_mse)
+        if w_ndim == 2:
+            cost_int8 = n_el // 2
+            int8_cost_by_name[name] = cost_int8
+            # FP16 marginal from INT8: 2.0-1.0 = +1.0 B/elem → n_el bytes.
+            fp16_marginal_by_name[name] = n_el
+            d1 = int8_mse.get(name)
+            if d1 is not None and d0 > 0.0:
+                r1 = min(max((d0 - d1) / d0, 0.0), 1.0)
+                r2 = min(max(d1 / d0, 0.0), 1.0)
+            elif d0 > 0.0:
+                # d1 unmeasured: INT8 step unavailable, FP16 removes all.
+                r1, r2 = 0.0, 1.0
+            else:
+                r1, r2 = 0.0, 0.0
+            if d1 is not None and r1 > 0.0:
+                steps.append((priority * r1, cost_int8, "int8", name, priority, r1))
+            if r2 > 0.0:
+                steps.append(
+                    (priority * r2, n_el, "fp16", name, priority, r2)
+                )
         else:
+            # Conv2d baseline is INT8; single FP16 step removes all damage.
+            fp16_marginal_by_name[name] = int(extra)
+            if priority > 0.0:
+                steps.append((priority, int(extra), "fp16", name, priority, 1.0))
+
+    steps.sort(key=lambda t: (-(t[0] / max(t[1], 1)), t[3]))
+
+    tier_state: dict[str, str] = {}
+    used = 0
+    used_int8 = 0
+    used_fp16 = 0
+    shelter_detail: list[tuple[str, int, float, float, float]] = []
+    kept_detail: list[tuple[str, int, float, float, float, float]] = []
+    for score, cost, tier, name, priority, rescue_frac in steps:
+        if score <= 0.0:
+            continue
+        cur = tier_state.get(name)
+        if tier == "int8":
+            if cur is not None:
+                continue
+            charge = cost
+        else:
+            if cur == "fp16":
+                continue
+            if cur == "int8":
+                charge = fp16_marginal_by_name[name]
+            else:
+                # Direct baseline → FP16 pays the full FP16 extra.
+                charge = extra_by_name[name]
+        if used + charge > budget_bytes:
+            continue
+        used += charge
+        tier_state[name] = tier
+        if tier == "int8":
+            used_int8 += charge
+            shelter_detail.append((name, charge, score, priority, rescue_frac))
+        else:
+            used_fp16 += charge
+
+    keep_out = {n for n, s in tier_state.items() if s == "fp16"}
+    shelter_out = {n for n, s in tier_state.items() if s == "int8"}
+    cand_by_name = {c[5]: c for c in candidates}
+    for name in sorted(keep_out):
+        priority, v4_mse, severity, dm_sens, extra, _ = cand_by_name[name]
+        kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
+    dropped: list[tuple[str, int, float, float, float, float]] = []
+    for priority, v4_mse, severity, dm_sens, extra, name in candidates:
+        if name not in tier_state:
             dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
 
-    demoted_veto = hard_veto_layers - selected
-    # Auto-optimal FP16 set for THIS model (DualMonitor + analyze + V4).
-    # Analyze VETO that win stay labeled VETO; DualMonitor winners are keep.
-    # Pack uses keep_out only — demoted Conv/Linear are INT8, not Mag-forced FP16.
-    hard_veto_out = hard_veto_layers & selected
-    keep_out = set(selected)
+    demoted_veto = hard_veto_layers - keep_out
+    # Auto-optimal 3-tier set for THIS model (DualMonitor + analyze + V4 d0/d1).
+    # Analyze VETO that win FP16 stay labeled VETO; INT8 shelter is the cheap
+    # middle tier; demoted Linear pack NVFP4, demoted Conv pack INT8.
+    hard_veto_out = hard_veto_layers & keep_out
+    veto_in_shelter = hard_veto_layers & shelter_out
 
     if used > budget_bytes:
         raise RuntimeError(
-            f"[FP16 budget] selected set exceeds hard ceiling "
+            f"[Multi-tier] selected set exceeds hard ceiling "
             f"{budget_mb:g} MiB: used={used / (1024 * 1024):.3f} MiB "
             f"({used} bytes > {budget_bytes}). Refusing to proceed."
         )
+
+    print(
+        f"  [Multi-tier] steps={len(steps)} → FP16 keep={len(keep_out)} "
+        f"({used_fp16 / (1024 * 1024):.2f} MiB) + INT8 shelter="
+        f"{len(shelter_out)} ({used_int8 / (1024 * 1024):.2f} MiB) = "
+        f"{used / (1024 * 1024):.2f}/{budget_mb:g} MiB | veto→fp16="
+        f"{len(hard_veto_out)} veto→int8={len(veto_in_shelter)} "
+        f"veto→packed={len(demoted_veto - shelter_out)}"
+    )
 
     stats = {
         "budget_mb": float(budget_mb),
@@ -1784,18 +1913,24 @@ def _apply_fp16_budget_cap(
         "forced_mb": 0.0,
         "optional_bytes": int(used),
         "optional_mb": used / (1024 * 1024),
-        "total_fp16_mb": used / (1024 * 1024),
+        "total_fp16_mb": used_fp16 / (1024 * 1024),
+        "total_int8_shelter_mb": used_int8 / (1024 * 1024),
         "mag_forced_fp16_count": 0,
         "candidates": len(candidates),
         "pool": len(pool),
         "analyze_character_layers": len(char_table),
         "dm_sensitivity_layers": len(sens_by_name),
         "kept": len(keep_out),
+        "int8_sheltered": len(shelter_out),
+        "int8_shelter_bytes": int(used_int8),
         "dropped": len(dropped),
         "demoted_veto": len(demoted_veto),
+        "veto_in_int8_shelter": len(veto_in_shelter),
         "skipped_no_weight": len(skipped_no_weight),
         "skipped_no_v4": len(skipped_no_v4),
         "measured_fresh_v4": measured_fresh,
+        "int8_d1_measured": len(int8_mse),
+        "multi_tier_steps": len(steps),
         "priority_form": combinator["form"],
         "priority_weights": {
             "sens": combinator["w_sens"],
@@ -1808,7 +1943,7 @@ def _apply_fp16_budget_cap(
             "mse": combinator.get("align_mse"),
         },
         "ranking": (
-            "per_model_auto_analysis_infinite_branches_inside_"
+            "per_model_auto_analysis_multi_tier_score_per_byte_inside_"
             f"{float(budget_mb):g}mib"
         ),
         "infinite_branch_profile": {
@@ -1834,9 +1969,10 @@ def _apply_fp16_budget_cap(
         "slack_mb": max(budget_bytes - used, 0) / (1024 * 1024),
         "dropped_detail": dropped[:40],
         "kept_detail": kept_detail[:40],
+        "shelter_detail": shelter_detail[:40],
         "mse_cache_size": len(cache),
     }
-    return keep_out, hard_veto_out, stats
+    return keep_out, hard_veto_out, stats, shelter_out
 
 
 
@@ -2887,18 +3023,20 @@ def run_nvfp4_calib(
             f"refuse exclude — fix unet_to_diffusers_mapping"
         )
 
-    keep_layers, hard_veto_layers, budget_stats = _apply_fp16_budget_cap(
-        model,
-        keep_layers,
-        hard_veto_layers,
-        budget_mb=budget_mb,
-        norm_profile=_norm_profile,
-        veto_tunables=veto_tunables,
-        dual_monitors=dual_monitors,
-        mse_cache=mse_cache,
-        alpha=alpha,
-        beta=beta,
-        device=device,
+    keep_layers, hard_veto_layers, budget_stats, int8_shelter_layers = (
+        _apply_fp16_budget_cap(
+            model,
+            keep_layers,
+            hard_veto_layers,
+            budget_mb=budget_mb,
+            norm_profile=_norm_profile,
+            veto_tunables=veto_tunables,
+            dual_monitors=dual_monitors,
+            mse_cache=mse_cache,
+            alpha=alpha,
+            beta=beta,
+            device=device,
+        )
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
 
@@ -2913,6 +3051,20 @@ def run_nvfp4_calib(
         raise RuntimeError(
             f"Map integrity after budget: {len(orphan_keep)} unmapped keep "
             f"layer(s); refuse exclude"
+        )
+
+    orphan_shelter = int8_shelter_layers - mapped_weight_modules
+    if orphan_shelter:
+        print(
+            f"  [INT8 shelter] FATAL map mismatch: {len(orphan_shelter)} "
+            f"shelter name(s) still unmapped after budget (must be 0; "
+            f"will not drop):"
+        )
+        for n in sorted(orphan_shelter):
+            print(f"    unmapped: {n}")
+        raise RuntimeError(
+            f"Map integrity after budget: {len(orphan_shelter)} unmapped "
+            f"INT8 shelter layer(s); refuse exclude"
         )
 
     layer_sensitivities = {}
@@ -2950,6 +3102,7 @@ def run_nvfp4_calib(
         "act_amax_dict": act_amax_dict,
         "comfyui_to_diffusers_map": comfyui_to_diffusers_map,
         "keep_layers": keep_layers,
+        "int8_shelter_layers": int8_shelter_layers,
         "weight_amax_dict": weight_amax_dict,
         "layer_sensitivities": layer_sensitivities,
         "budget_stats": budget_stats,
@@ -2978,6 +3131,7 @@ def convert_to_nvfp4_convrot(
     act_amax_dict: dict[str, float] = {}
     weight_amax_dict: dict[str, float] = {}
     keep_layers: set[str] = set()
+    int8_shelter_layers: set[str] = set()
     comfyui_to_diffusers_map = {}
     compute_int8_bias_delta = None
     rotate_weight = None
@@ -2988,6 +3142,8 @@ def convert_to_nvfp4_convrot(
     plain_nvfp4 = 0
     convrot_int8_conv2d = 0
     plain_int8_conv2d = 0
+    convrot_int8_linear = 0
+    plain_int8_linear = 0
     skipped_small = 0
     fp16_kept_count = 0
     weight_clamp_count = 0
@@ -3066,6 +3222,7 @@ def convert_to_nvfp4_convrot(
         act_amax_dict = calib["act_amax_dict"]
         weight_amax_dict = calib["weight_amax_dict"]
         keep_layers = calib["keep_layers"]
+        int8_shelter_layers = calib.get("int8_shelter_layers", set())
         comfyui_to_diffusers_map = calib["comfyui_to_diffusers_map"]
         if bias_correction:
             compute_int8_bias_delta = globals()["compute_int8_bias_delta"]
@@ -3077,7 +3234,8 @@ def convert_to_nvfp4_convrot(
         )
         print(
             f"  [HSWQ] weight amax for {len(weight_amax_dict)} layers; "
-            f"FP16 keep={len(keep_layers)}"
+            f"FP16 keep={len(keep_layers)}; "
+            f"INT8 shelter={len(int8_shelter_layers)}"
         )
     elif bias_correction:
         raise ValueError(
@@ -3191,40 +3349,59 @@ def convert_to_nvfp4_convrot(
             module_key = key[: -len(".weight")]
 
             if tensor.ndim == 2:
-                if not can_pack_nvfp4(tensor):
+                if module_name is not None and module_name in int8_shelter_layers:
+                    # Multi-tier INT8 shelter: V3.1-compatible per-out-channel
+                    # INT8 (+ FULL ConvRot when OK). No .input_scale — the
+                    # V3.1 INT8 path does not use one.
+                    q, scale = pack_channelwise_int8(w_fp)
+                    weight_dq = dequant_channelwise_int8(q, scale)
+                    if do_rotate:
+                        quant_config = {
+                            "format": "int8_tensorwise",
+                            "convrot": True,
+                            "convrot_groupsize": int(used_gs),
+                        }
+                        convrot_int8_linear += 1
+                    else:
+                        quant_config = {"format": "int8_tensorwise"}
+                        plain_int8_linear += 1
+                    new_state_dict[key] = q
+                    new_state_dict[f"{module_key}.weight_scale"] = scale
+                elif not can_pack_nvfp4(tensor):
                     new_state_dict[key] = tensor
                     skipped_count += 1
                     continue
-                q, params = pack_nvfp4(w_fp)
-                weight_dq = dequant_nvfp4(q, params)
-                if do_rotate:
-                    quant_config = {
-                        "format": "nvfp4",
-                        "convrot": True,
-                        "convrot_groupsize": int(used_gs),
-                    }
-                    convrot_nvfp4 += 1
                 else:
-                    quant_config = {"format": "nvfp4"}
-                    plain_nvfp4 += 1
-                new_state_dict[key] = q
-                new_state_dict[f"{module_key}.weight_scale"] = params.block_scale
-                new_state_dict[f"{module_key}.weight_scale_2"] = params.scale.to(
-                    dtype=torch.float32
-                ).reshape(())
-                if write_input_scale:
-                    amax = (
-                        act_amax_dict.get(module_name)
-                        if module_name is not None
-                        else None
-                    )
-                    if amax is None:
-                        input_scale_missing += 1
+                    q, params = pack_nvfp4(w_fp)
+                    weight_dq = dequant_nvfp4(q, params)
+                    if do_rotate:
+                        quant_config = {
+                            "format": "nvfp4",
+                            "convrot": True,
+                            "convrot_groupsize": int(used_gs),
+                        }
+                        convrot_nvfp4 += 1
                     else:
-                        new_state_dict[f"{module_key}.input_scale"] = (
-                            _nvfp4_input_scale_from_amax(amax)
+                        quant_config = {"format": "nvfp4"}
+                        plain_nvfp4 += 1
+                    new_state_dict[key] = q
+                    new_state_dict[f"{module_key}.weight_scale"] = params.block_scale
+                    new_state_dict[f"{module_key}.weight_scale_2"] = params.scale.to(
+                        dtype=torch.float32
+                    ).reshape(())
+                    if write_input_scale:
+                        amax = (
+                            act_amax_dict.get(module_name)
+                            if module_name is not None
+                            else None
                         )
-                        input_scale_written += 1
+                        if amax is None:
+                            input_scale_missing += 1
+                        else:
+                            new_state_dict[f"{module_key}.input_scale"] = (
+                                _nvfp4_input_scale_from_amax(amax)
+                            )
+                            input_scale_written += 1
             else:
                 # Conv2d: NVFP4 is 2D-only → INT8 channelwise (+ FULL ConvRot when OK)
                 q, scale = pack_channelwise_int8(w_fp)
@@ -3333,18 +3510,23 @@ def convert_to_nvfp4_convrot(
         print(
             f"  NVFP4 ConvRot Linear: {convrot_nvfp4}, "
             f"plain NVFP4 Linear: {plain_nvfp4}, "
+            f"INT8 shelter ConvRot Linear: {convrot_int8_linear}, "
+            f"INT8 shelter plain Linear: {plain_int8_linear}, "
             f"INT8 ConvRot Conv2d: {convrot_int8_conv2d}, "
             f"plain INT8 Conv2d: {plain_int8_conv2d}"
         )
     else:
         print(
             f"  plain NVFP4 Linear: {plain_nvfp4}, "
+            f"INT8 shelter plain Linear: {plain_int8_linear}, "
             f"plain INT8 Conv2d: {plain_int8_conv2d}"
         )
 
-    # Hard assert: Linear+Conv FP16 keep ≤ owner ceiling + owner tolerance.
-    # Meter matches budget ranking: Linear +1.5×numel (vs NVFP4), Conv +1×
-    # (vs INT8). Packed Linear is float8_e4m3fn_x2 / similar — not float16.
+    # Hard assert: Linear+Conv FP16 keep + Linear INT8 shelter ≤ owner
+    # ceiling + owner tolerance. Meter matches budget ranking: Linear FP16
+    # +1.5×numel (vs NVFP4), Conv FP16 +1× (vs INT8), Linear INT8 shelter
+    # +0.5×numel (vs NVFP4). Packed Linear is float8_e4m3fn_x2 / similar —
+    # not float16.
     _budget_ceil_b = int(float(fp16_budget_mb) * 1024 * 1024)
     _tol_b = int(float(FP16_BUDGET_ASSERT_TOLERANCE_MIB) * 1024 * 1024)
     _pack_fp16_extra = 0
@@ -3353,14 +3535,22 @@ def convert_to_nvfp4_convrot(
     _pack_fp16_conv_n = 0
     _pack_fp16_skipped_non_lc = 0
     _pack_fp16_leak = []
-    if keep_layers:
+    _pack_shelter_extra = 0
+    _pack_shelter_n = 0
+    if keep_layers or int8_shelter_layers:
         for _ck, _cv in new_state_dict.items():
             if not _ck.endswith(".weight"):
                 continue
             _dk = comfyui_to_diffusers_map.get(_ck)
             if not (isinstance(_dk, str) and _dk.endswith(".weight")):
                 continue
+            _mod = _dk[:-7]
             if _cv.dtype == torch.int8:
+                # INT8 shelter Linear counts +0.5 B/el vs NVFP4; Conv INT8
+                # is the packed baseline (no extra).
+                if int(_cv.ndim) == 2 and _mod in int8_shelter_layers:
+                    _pack_shelter_extra += int(_cv.numel()) // 2
+                    _pack_shelter_n += 1
                 continue
             # Packed NVFP4 Linear is not FP16 keep.
             _dt = str(getattr(_cv.dtype, "name", _cv.dtype))
@@ -3372,7 +3562,6 @@ def convert_to_nvfp4_convrot(
             if _ndim not in (2, 4):
                 _pack_fp16_skipped_non_lc += 1
                 continue
-            _mod = _dk[:-7]
             if _mod not in keep_layers:
                 _pack_fp16_leak.append(_mod)
                 continue
@@ -3391,26 +3580,40 @@ def convert_to_nvfp4_convrot(
                 f"float weight(s) not in keep_layers (hand-waving pack path). "
                 f"Examples: {_show}. Refusing to save."
             )
+        if int8_shelter_layers and _pack_shelter_n != len(int8_shelter_layers):
+            raise RuntimeError(
+                f"[FP16 budget] post-pack INT8 shelter mismatch: "
+                f"{_pack_shelter_n} INT8 Linear found in output vs "
+                f"{len(int8_shelter_layers)} shelter layer(s) selected by the "
+                f"multi-tier ladder. Refusing to save."
+            )
         _pack_fp16_mb = _pack_fp16_extra / (1024 * 1024)
-        _over_b = _pack_fp16_extra - _budget_ceil_b
+        _pack_shelter_mb = _pack_shelter_extra / (1024 * 1024)
+        _pack_total_mb = (_pack_fp16_extra + _pack_shelter_extra) / (1024 * 1024)
+        _over_b = (_pack_fp16_extra + _pack_shelter_extra) - _budget_ceil_b
         print(
-            f"  [FP16 budget] post-pack FP16 keep extra vs packed "
-            f"(Linear +1.5B/el vs NVFP4, Conv +1B/el vs INT8): "
-            f"{_pack_fp16_mb:.2f} MiB ({_pack_fp16_n} modules; "
+            f"  [FP16 budget] post-pack extra vs packed "
+            f"(Linear FP16 +1.5B/el vs NVFP4, Conv FP16 +1B/el vs INT8, "
+            f"INT8 shelter +0.5B/el vs NVFP4): "
+            f"FP16={_pack_fp16_mb:.2f} MiB ({_pack_fp16_n} modules; "
             f"Linear={_pack_fp16_linear_n} Conv={_pack_fp16_conv_n}; "
-            f"skipped_non_LinearConv={_pack_fp16_skipped_non_lc}) / "
+            f"skipped_non_LinearConv={_pack_fp16_skipped_non_lc}) + "
+            f"INT8 shelter={_pack_shelter_mb:.2f} MiB "
+            f"({_pack_shelter_n} Linear) = {_pack_total_mb:.2f} MiB / "
             f"ceiling={float(fp16_budget_mb):g} MiB "
             f"(assert tol={FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB)"
         )
         if _over_b > _tol_b:
             raise RuntimeError(
                 f"[FP16 budget] post-pack assert FAILED: "
-                f"FP16 keep {_pack_fp16_mb:.3f} MiB exceeds "
+                f"FP16 keep + INT8 shelter {_pack_total_mb:.3f} MiB exceeds "
                 f"{float(fp16_budget_mb):g} MiB hard ceiling "
                 f"+ {FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB tolerance "
-                f"({_pack_fp16_extra} > {_budget_ceil_b + _tol_b} bytes; "
+                f"({_pack_fp16_extra + _pack_shelter_extra} > "
+                f"{_budget_ceil_b + _tol_b} bytes; "
                 f"over_by={_over_b / (1024 * 1024):.3f} MiB; "
-                f"Linear={_pack_fp16_linear_n} Conv={_pack_fp16_conv_n}). "
+                f"FP16 Linear={_pack_fp16_linear_n} Conv={_pack_fp16_conv_n}; "
+                f"INT8 shelter Linear={_pack_shelter_n}). "
                 f"Refusing to save."
             )
         if _over_b > 0:
