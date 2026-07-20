@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0
+
+**Line shift: FP8 E4M3 and Z Image HSWQ ended; ConvRot INT8 and ConvRot NVFP4 begun** — HSWQ **FP8 E4M3** development has ended (retained as a technical asset). **Z Image** HSWQ 8-bit development and publication have ended; prefer native ConvRot INT8 for Z Image. Active SDXL work moves to **ConvRot INT8** (`quantize_sdxl_hswq_v3.1.py`, 300 MiB FP16 budget) and **ConvRot NVFP4** (`hswq_convert_nvfp4_convrot_1.0.py`, 600 MiB FP16 budget), with README / How-to documentation aligned to that stack.
+Release notes: [v2.0](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.0)
+
 ## 1.2.1
 
 **SDXL benchmark: transformers 5.6+ CLIP compatibility** — Upgrading `transformers` to 5.6+ broke `benchmark/fp8bench.py` and `benchmark/fp8bench_enhanced.py` during `StableDiffusionXLPipeline.from_single_file()` with `AttributeError: 'CLIPTextModel' object has no attribute 'text_model'`. Added `benchmark/transformers_clip_compat.py` (applied before diffusers import): restores a `text_model` property, flattens legacy `text_model.*` state-dict keys on load, and skips `logit_scale`. Same remapping idea as Forge-Nunchaku `loader.py`. Guide: `md/SDXL_Bench_Transformers_56_CLIP_Compat_Fix.md`.
