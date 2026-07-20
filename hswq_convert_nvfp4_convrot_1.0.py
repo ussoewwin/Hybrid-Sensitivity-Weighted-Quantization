@@ -34,9 +34,15 @@ Optional Card 1 (--bias_correction): DualMonitor act means; bias += -(W_q - W) @
 HSWQ DualMonitor + FP16 protect, when --calib_file is set (r0 only):
   - Profile JSON + analyze/analyze_sdxl_nvfp4_distribution.py
     (Hard VETO cascade, DualMonitor, infinite branches, budget fill).
-  - --keep_ratio must be 0. FP16 set = DualMonitor + analyze severity +
-    V4 real pack MSE @ absmax (Linear NVFP4 / Conv INT8) + infinite branches,
-    truncated only by --fp16_budget_mb (hard ceiling 600 MiB). No top-% cut.
+  - --keep_ratio must be 0. FP16 set = comprehensive judgment only:
+      (1) histogram V4 calib → estimated_mse @ absmax
+      (2) DualMonitor sensitivity + Importance
+      (3) analyze JSON → VETO + severity / tunables
+      (4) Full-SVD×RMS inside V4 pack MSE (never optional / discard)
+    arranged together → per-model auto analysis → infinitely branching
+    auto-optimal priority, truncated only by --fp16_budget_mb
+    (hard ceiling 600 MiB). No top-% cut. No fixed recipe.
+    Blasphemy = omit any of (1)-(4), or substitute fixed floors.
   - Pack amax: absmax after optional ConvRot (V3.0 parity). V4 real pack MSE
     ranks FP16 keep only (Linear=NVFP4 / Conv2d=INT8 channelwise).
 """
@@ -349,9 +355,11 @@ _SDXL_ATTN_TOOUT_SUFFIX = ".to_out.0"
 _SDXL_PROFILE_PREFIXES = ("model.", "model.diffusion_model.")
 
 # DualMonitor Sensitivity → FP16 candidates; analyze → VETO candidates.
-# Both enter ONE per-model ranking in _apply_fp16_budget_cap (with V4 MSE).
+# V4 calib MSE embeds Full-SVD×RMS (+ DualMonitor Importance when present).
+# All four surfaces enter ONE per-model ranking in _apply_fp16_budget_cap.
 # Budget winners = final FP16 protection. Analyze VETO is not renamed.
 # keep_ratio is r0; DualMonitor must not invent or gate that flag.
+# Fixed combinator weights / model-name recipes = blasphemy.
 
 
 @dataclass(frozen=True)
@@ -1203,6 +1211,10 @@ def _measure_v4_pack_mse_absmax(
 
     Linear: kitchen TensorCoreNVFP4Layout. Conv2d: channelwise INT8.
     Pack amax stays absmax — this MSE only ranks FP16 keep.
+
+    SVD is mandatory (use_svd_leverage=True). DualMonitor Importance multiplies
+    when present; missing Importance never disables SVD. Discarding SVD after
+    compute (float32 kitchen path etc.) is blasphemy — fixed in pack BF16 cast.
     """
     result = optimizer.compute_pack_mse_absmax_with_svd(
         weight,
@@ -1390,8 +1402,9 @@ def _build_v4_calib_fp16_candidates(
     later 600 MiB budget can rank which layers stay FP16. Pack amax remains
     absmax separately  -  V4 does not search pack scale.
 
-    Always Full-SVD×RMS hybrid; DualMonitor Importance multiplies when present.
-    Never skip a measurable layer (skipping collapses FP16 selection).
+    Always Full-SVD×RMS hybrid (surface 4 of comprehensive FP16 ranking);
+    DualMonitor Importance multiplies when present. Never skip a measurable
+    layer (skipping collapses FP16 selection). SVD skip/discard = blasphemy.
 
     Returns (all_v4_scored_names, mse_cache). Does NOT truncate by keep_ratio:
     truncation is only the FP16 budget pass over the FULL priority order of
@@ -1479,10 +1492,14 @@ def _apply_fp16_budget_cap(
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
-    Linear and Conv compete in ONE ranking (DualMonitor + analyze + V4 MSE +
-    infinite branches). Priority weights are derived per-checkpoint — never
-    fixed Conv-first / Mag-outside / Mag-tax exemption. Winners only get FP16;
-    demoted layers (Linear or Conv) stay INT8 pack candidates.
+    Comprehensive FP16 ranking (owner 2026-07-20) — ALL arranged together:
+      (1) V4 histogram calib → estimated_mse @ absmax
+      (2) DualMonitor sensitivity (+ Importance into V4 hybrid)
+      (3) analyze JSON → severity / Hard VETO / tunables
+      (4) Full-SVD×RMS inside every V4 pack MSE measure
+    Linear and Conv compete in ONE ranking. Priority weights are derived
+    per-checkpoint via infinite branches — never fixed Conv-first /
+    Mag-outside / Mag-tax exemption / model-name recipe.
 
     alpha/beta MUST be THIS-profile auto-optimal (caller passes
     veto_tunables.alpha_auto mix). Fixed 0.5/0.5 defaults are forbidden.
@@ -1493,6 +1510,11 @@ def _apply_fp16_budget_cap(
             f"(got alpha={alpha}, beta={beta})"
         )
     budget_mb = _require_fp16_budget_mb_hard(budget_mb)
+    print(
+        "  [FP16 candidates] comprehensive surfaces (THIS model): "
+        "V4 calib MSE | DualMonitor | analyze JSON | SVD×RMS — "
+        "arranged → infinite-branch auto-optimal; no fixed recipe."
+    )
     analyze_dir = os.path.join(_SCRIPT_DIR, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
