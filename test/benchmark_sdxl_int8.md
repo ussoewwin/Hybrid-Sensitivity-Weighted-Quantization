@@ -1,6 +1,6 @@
-# SDXL Benchmark Test Results
+# SDXL ConvRot INT8 Benchmark Test Results
 
-Benchmark comparison: **FP16 reference** vs **HSWQ INT8 quantized** output.  
+Benchmark comparison: **FP16 reference** vs **HSWQ ConvRot INT8 quantized** output.  
 Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 **Source:** `test/score_sdxl_int8.txt`
@@ -25,9 +25,9 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 ---
 
-## HSWQ vs Native INT8 comparison (partial)
+## HSWQ ConvRot INT8 vs Native ConvRot INT8 comparison (partial)
 
-Same setup (vs FP16 reference). **HSWQ INT8** vs baseline (see below).  
+Same setup (vs FP16 reference). **HSWQ ConvRot INT8** vs baseline (see below).  
 Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ MSE ⇒ HSWQ better; negative Δ SSIM ⇒ HSWQ better, since higher SSIM is better).  
 **Native** = naive cast INT8. **Official INT8** = officially distributed INT8. Native and Official INT8 are not the same.
 
