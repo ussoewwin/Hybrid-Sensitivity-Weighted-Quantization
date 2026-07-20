@@ -4,11 +4,13 @@ HSWQ V3.1 SDXL INT8 Quantization Script
 Hybrid Sensitivity Weighted Quantization for Stable Diffusion XL (UNet only),
 INT8 (symmetric per-tensor) edition.
 
-V3.1 vs V3.0 pack-only deltas (FP16 300 MiB protection path UNCHANGED):
-- Order: (1) FP16 keep via DualMonitor + analyze + V4 → 300 MiB budget
-  (same code as V3.0) → (2) remaining Linear/Conv2d FULL ConvRot INT8.
-- FULL ConvRot pack: identical to native_convert_int8_convrot.py
-  (that file's pack_channelwise / pack_tensorwise / _encode_comfy_quant +
+V3.1 vs V3.0 pack-only deltas (FP16 600 MiB protection path):
+- Order: (1) FP16 keep via DualMonitor + analyze + V4 → 600 MiB budget
+  (same code as V3.0) → (2) remaining Linear/Conv2d FULL ConvRot INT4
+  (W4A4 when eligible; INT8 fallback otherwise).
+- FULL ConvRot pack: identical to native_convert_int4_convrot.py
+  (that file's pack_signed_int4_rowwise / can_pack_w4a4 /
+  pack_channelwise_int8 / pack_tensorwise_int8 / _encode_comfy_quant +
   its _load_native_convert_int8 rotate helpers). No alternate pack math.
 - Card 1 (bias_correction) FORCED OFF.
 - Card 2 (asymmetric_int8) FORCED OFF.
@@ -26,7 +28,7 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - V4 weighted histogram MSE is for FP16 protection candidate selection:
   HSWQWeightedHistogramOptimizerV4 + INT8Quantizer measure estimated_mse at
   the (natural) absmax pack point; that MSE ranks which layers stay FP16
-  under the 300 MiB budget (with DualMonitor sens + analyze severity).
+  under the 600 MiB budget (with DualMonitor sens + analyze severity).
   Pack and V4 ranking are separate jobs.
 - Bias correction (Card 1): after INT8 pack, cancel systematic output bias
   E[(W_q - W) x] ≈ (W_q - W) @ mean(x) into the layer bias. Uses DualMonitor
@@ -51,10 +53,10 @@ V3.0 builds on V2.1 with the following INT8-specific changes:
 - Output format: torch.int8 weight + float32 weight_scale, following ComfyUI
   `int8_tensorwise` layout (comfy/quant_ops.py QUANT_ALGOS["int8_tensorwise"]).
 - _quantization_metadata embedded in safetensors metadata for ComfyUI loader.
-- FP16 keep hard ceiling: exactly +300 MiB vs all-INT8 (owner non-negotiable).
+- FP16 keep hard ceiling: exactly +600 MiB vs all-INT8 (owner non-negotiable).
   Per-model auto analysis / auto-optimal settings run ONLY inside that frame.
-  DualMonitor FP16 cands + analyze VETO + V4 MSE → priority fill under 300 MiB.
-  Never exceed 300. Never treat 300 as a removable "thinking-stop" constant.
+  DualMonitor FP16 cands + analyze VETO + V4 MSE → priority fill under 600 MiB.
+  Never exceed 600. Never treat 600 as a removable "thinking-stop" constant.
   keep_ratio is r0. DualMonitor never invents keep_ratio. FP8 untouched.
 
 ComfyUI compatibility:
@@ -77,6 +79,8 @@ import gc
 from tqdm import tqdm
 import sys
 import json
+import time
+import atexit
 import numpy as np
 import subprocess
 from dataclasses import dataclass
@@ -86,14 +90,100 @@ sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
 # Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
 # optimize INSIDE this frame. Not a thinking-stop formula constant.
-FP16_BUDGET_MB_HARD = 300.0
+FP16_BUDGET_MB_HARD = 600.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
+_SDXL_V31_CONSOLE_LOG_CLOSED = False
+
+
+class _TeeTextIO:
+    """Mirror every write to the live console and a UTF-8 log file."""
+
+    def __init__(self, primary, secondary):
+        self._primary = primary
+        self._secondary = secondary
+
+    def write(self, data):
+        n = self._primary.write(data)
+        try:
+            self._secondary.write(data)
+        except UnicodeEncodeError:
+            self._secondary.write(
+                data.encode("utf-8", errors="replace").decode("utf-8")
+            )
+        return n
+
+    def flush(self):
+        self._primary.flush()
+        self._secondary.flush()
+
+    def isatty(self):
+        return bool(getattr(self._primary, "isatty", lambda: False)())
+
+    def fileno(self):
+        return self._primary.fileno()
+
+    def __getattr__(self, name):
+        return getattr(self._primary, name)
+
+
+def _begin_sdxl_v31_console_log(input_arg: str | None = None) -> tuple[str, object, object, object]:
+    """Tee stdout+stderr into log/quantize_sdxl_hswq_v3.1_*.txt (full run text)."""
+    global _SDXL_V31_CONSOLE_LOG_CLOSED
+    _SDXL_V31_CONSOLE_LOG_CLOSED = False
+    log_dir = os.path.join(current_dir, "log")
+    os.makedirs(log_dir, exist_ok=True)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    stem = "model"
+    if input_arg:
+        base = os.path.basename(str(input_arg).strip().replace("\\", "/"))
+        if base:
+            stem = os.path.splitext(base)[0]
+            stem = "".join(c if (c.isalnum() or c in "._-") else "_" for c in stem)
+            stem = stem[:80] or "model"
+    log_path = os.path.join(log_dir, f"quantize_sdxl_hswq_v3.1_{stem}_{stamp}.txt")
+    log_fh = open(log_path, "w", encoding="utf-8", newline="\n", buffering=1)
+    old_out, old_err = sys.stdout, sys.stderr
+    sys.stdout = _TeeTextIO(old_out, log_fh)
+    sys.stderr = _TeeTextIO(old_err, log_fh)
+    print(f"[LOG] Full console log -> {log_path}")
+    print(f"[LOG] Started at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    return log_path, log_fh, old_out, old_err
+
+
+def _end_sdxl_v31_console_log(log_path: str, log_fh, old_out, old_err) -> None:
+    global _SDXL_V31_CONSOLE_LOG_CLOSED
+    if _SDXL_V31_CONSOLE_LOG_CLOSED:
+        return
+    _SDXL_V31_CONSOLE_LOG_CLOSED = True
+    try:
+        print(f"[LOG] Finished at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"[LOG] Full console log saved: {log_path}")
+    except Exception:
+        pass
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+    sys.stdout = old_out
+    sys.stderr = old_err
+    try:
+        log_fh.flush()
+        log_fh.close()
+    except Exception:
+        pass
+    try:
+        old_out.write(f"[LOG] Full console log saved: {log_path}\n")
+        old_out.flush()
+    except Exception:
+        pass
+
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
-    """Refuse any fp16_budget_mb other than the owner hard ceiling (300)."""
+    """Refuse any fp16_budget_mb other than the owner hard ceiling (600)."""
     b = float(budget_mb)
     if abs(b - FP16_BUDGET_MB_HARD) > 1e-6:
         raise ValueError(
@@ -124,14 +214,14 @@ else:
 _DEFAULT_CONVROT_GROUPSIZE = 256
 
 
-def _load_native_convert_int8_convrot():
-    """Load authority FULL ConvRot converter (do not diverge from this file)."""
+def _load_native_convert_int4_convrot():
+    """Load authority FULL ConvRot W4A4 converter (do not diverge from this file)."""
     import importlib.util
 
-    path = os.path.join(current_dir, "native_convert_int8_convrot.py")
+    path = os.path.join(current_dir, "native_convert_int4_convrot.py")
     if not os.path.isfile(path):
-        raise FileNotFoundError(f"native_convert_int8_convrot.py not found: {path}")
-    name = "native_convert_int8_convrot_for_sdxl_hswq_v31"
+        raise FileNotFoundError(f"native_convert_int4_convrot.py not found: {path}")
+    name = "native_convert_int4_convrot_for_sdxl_hswq_v32"
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load module spec for {path}")
@@ -501,8 +591,8 @@ class SdxlVetoTunables:
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
-    fp16_budget_mb: float = 300.0
-    fp16_budget_bytes: int = 314572800
+    fp16_budget_mb: float = 600.0
+    fp16_budget_bytes: int = 629145600
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
@@ -636,7 +726,7 @@ class SdxlVetoTunables:
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
             fp16_budget_mb=float(d["fp16_budget_mb"]),
-            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 300 * 1024 * 1024)),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 600 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=True,
             alpha_auto=float(d["alpha_auto"]),
@@ -715,7 +805,7 @@ def resolve_veto_tunables(
     weights, MSE release gates, bias_correction scope, sens_veto percentile,
     alpha/beta, search_low) come from derive_int8_autonomous_tunables,
     which uses THIS checkpoint's profile + DualMonitor sensitivity
-    distribution. fp16_budget_mb is the owner hard ceiling (300 MiB)  - 
+    distribution. fp16_budget_mb is the owner hard ceiling (600 MiB)  - 
     auto settings fill that frame; they do not redefine or exceed it.
     No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
@@ -723,6 +813,10 @@ def resolve_veto_tunables(
     analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
+    import analyze_sdxl_distribution as _az
+    # V3.1 hard ceiling is 600 MiB (owner). analyze default may still be 300;
+    # same pattern as quantize_zi_int8_hswq_v1.0 (sets module attr before derive).
+    _az.INT8_FP16_BUDGET_MB_HARD = float(FP16_BUDGET_MB_HARD)
     from analyze_sdxl_distribution import (
         derive_int8_autonomous_tunables,
         emit_hswq_int8_full_visibility_log,
@@ -1486,7 +1580,7 @@ def _build_v4_calib_fp16_candidates(
     """Score FP16 protection candidates with histogram V4 on THIS calibration.
 
     V4's job here: estimated_mse @ absmax for every target Linear/Conv so the
-    later 300 MiB budget can rank which layers stay FP16. Pack amax remains
+    later 600 MiB budget can rank which layers stay FP16. Pack amax remains
     absmax separately  -  V4 does not search pack scale.
 
     Always Full-SVD×RMS hybrid; DualMonitor Importance multiplies when present.
@@ -1575,7 +1669,7 @@ def _apply_fp16_budget_cap(
 ) -> tuple[set, set, dict]:
     """Per-model auto analysis → auto-optimal FP16 set inside the hard ceiling.
 
-    Owner hard ceiling is installed by the caller (SDXL 300 / ZI 700 via
+    Owner hard ceiling is installed by the caller (SDXL 600 / ZI 700 via
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
@@ -1825,7 +1919,7 @@ def _apply_fp16_budget_cap(
 
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
-    # Extreme fill inside the hard ceiling (SDXL 300 / ZI 700):
+    # Extreme fill inside the hard ceiling (SDXL 600 / ZI 700):
     # Linear and Conv share ONE auto-priority queue. No Mag-outside tax,
     # no fixed Conv-first reservation. Skip layers that do not fit; continue.
     selected: set = set()
@@ -2162,7 +2256,7 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
             )
 
     if veto_tunables is None:
-        # Owner hard ceiling 300 MiB  -  auto knobs fill inside this frame.
+        # Owner hard ceiling 600 MiB  -  auto knobs fill inside this frame.
         veto_tunables = resolve_veto_tunables(
             model_profile or {},
             fp16_budget_mb=FP16_BUDGET_MB_HARD,
@@ -2272,7 +2366,7 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "SDXL INT8 Quantization - HSWQ V3.1 "
-            "(FULL ConvRot pack; Card1/2 OFF; FP16 300 MiB protection unchanged)"
+            "(FULL ConvRot pack; Card1/2 OFF; FP16 600 MiB protection)"
         )
     )
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
@@ -2302,7 +2396,7 @@ def main():
         "--fp16_budget_mb",
         type=float,
         default=FP16_BUDGET_MB_HARD,
-        help="Owner hard ceiling: must be exactly 300 MiB FP16 overhead vs "
+        help="Owner hard ceiling: must be exactly 600 MiB FP16 overhead vs "
              "all-INT8. Per-model auto analysis / auto-optimal settings fill "
              "this frame only  -  never redefine or exceed it. "
              "Extra cost = 1 byte per weight element.",
@@ -2339,7 +2433,8 @@ def main():
         "--convrot",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="FULL ConvRot on Linear+Conv2d INT8 pack (default ON; --no-convrot).",
+        help="FULL ConvRot W4A4 on eligible Linear (default ON; --no-convrot). "
+             "Identical to native_convert_int4_convrot.py.",
     )
     parser.add_argument(
         "--groupsize",
@@ -2349,7 +2444,16 @@ def main():
     )
     args = parser.parse_args()
 
-    # V3.1: Card 1 / Card 2 forced OFF — FP16 300 MiB path untouched.
+    # Full console tee → log/quantize_sdxl_hswq_v3.1_<stem>_<stamp>.txt
+    # (stdout + stderr; closed via atexit so sys.exit also flushes the file)
+    _log_path, _log_fh, _old_out, _old_err = _begin_sdxl_v31_console_log(
+        getattr(args, "input", None)
+    )
+    atexit.register(
+        _end_sdxl_v31_console_log, _log_path, _log_fh, _old_out, _old_err
+    )
+
+    # V3.1: Card 1 / Card 2 forced OFF — FP16 600 MiB path.
     args.bias_correction = False
     args.asymmetric_int8 = False
     print("[V3.1] Card 1 (bias_correction) FORCED OFF")
@@ -2362,19 +2466,23 @@ def main():
         print(f"[FATAL] --groupsize must be a power of 4, got {args.groupsize}")
         sys.exit(1)
 
-    # FULL ConvRot from authority native_convert_int8_convrot.py (same pack path).
+    # FULL ConvRot from authority native_convert_int4_convrot.py (same pack path).
     # Rotate helpers = that file's _load_native_convert_int8() → native_convert_int8.py.
     build_hadamard = None
     rotate_weight = None
     rotate_weight_conv2d = None
     convrot_group_size_for_features = None
+    can_pack_w4a4 = None
+    pack_signed_int4_rowwise = None
     pack_channelwise_native = None
     pack_tensorwise_native = None
     encode_comfy_quant_native = None
     if args.convrot:
-        _ncc = _load_native_convert_int8_convrot()
-        pack_channelwise_native = _ncc.pack_channelwise
-        pack_tensorwise_native = _ncc.pack_tensorwise
+        _ncc = _load_native_convert_int4_convrot()
+        pack_signed_int4_rowwise = _ncc.pack_signed_int4_rowwise
+        can_pack_w4a4 = _ncc.can_pack_w4a4
+        pack_channelwise_native = _ncc.pack_channelwise_int8
+        pack_tensorwise_native = _ncc.pack_tensorwise_int8
         encode_comfy_quant_native = _ncc._encode_comfy_quant
         _nc = _ncc._load_native_convert_int8()
         build_hadamard = _nc.build_hadamard
@@ -2382,18 +2490,18 @@ def main():
         rotate_weight_conv2d = _nc.rotate_weight_conv2d
         convrot_group_size_for_features = _nc.convrot_group_size_for_features
         print(
-            f"[V3.1] FULL ConvRot ON (groupsize={args.groupsize}) — "
-            "pack path = native_convert_int8_convrot.py identical; "
-            "applied AFTER FP16 300 MiB keep decision"
+            f"[V3.2] FULL ConvRot W4A4 ON (groupsize={args.groupsize}) — "
+            "pack path = native_convert_int4_convrot.py identical; "
+            "applied AFTER FP16 600 MiB keep decision"
         )
     else:
-        _ncc = _load_native_convert_int8_convrot()
-        pack_channelwise_native = _ncc.pack_channelwise
-        pack_tensorwise_native = _ncc.pack_tensorwise
+        _ncc = _load_native_convert_int4_convrot()
+        pack_channelwise_native = _ncc.pack_channelwise_int8
+        pack_tensorwise_native = _ncc.pack_tensorwise_int8
         encode_comfy_quant_native = _ncc._encode_comfy_quant
-        print("[V3.1] ConvRot OFF (--no-convrot); plain pack still uses native pack_*")
+        print("[V3.2] ConvRot OFF (--no-convrot); plain pack still uses native pack_*")
 
-    # 300 MiB hard ceiling: auto analysis / auto-optimal settings only inside.
+    # 600 MiB hard ceiling: auto analysis / auto-optimal settings only inside.
     try:
         args.fp16_budget_mb = _require_fp16_budget_mb_hard(args.fp16_budget_mb)
     except ValueError as e:
@@ -2401,7 +2509,7 @@ def main():
         sys.exit(1)
 
     # r0 fixed. DualMonitor sensitivity is used ONLY in
-    # _apply_fp16_budget_cap (extreme fill inside 300 MiB)  -  never to
+    # _apply_fp16_budget_cap (extreme fill inside 600 MiB)  -  never to
     # invent or gate keep_ratio.
     _bc_top_override = args.bias_correction_top_ratio
     if abs(float(args.keep_ratio)) > 1e-12:
@@ -2461,7 +2569,7 @@ def main():
     device = "cuda"
     print("=" * 60)
     print(
-        "HSWQ V3.1 SDXL INT8 — FP16 300 MiB protect first, "
+        "HSWQ V3.1 SDXL INT8 — FP16 600 MiB protect first, "
         "then FULL ConvRot on remainder (Card1/2 OFF)"
     )
     print("=" * 60)
@@ -2652,7 +2760,7 @@ def main():
     print(
         f"  [Dynamic Alpha/Beta INT8 after DualMonitor] "
         f"alpha={alpha!r}, beta={beta!r} "
-        f"(analyze k∪o∪m → Full-SVD×RMS mix into ranking; Imp×Sens×V4 MSE fill 300 MiB)"
+        f"(analyze k∪o∪m → Full-SVD×RMS mix into ranking; Imp×Sens×V4 MSE fill 600 MiB)"
     )
     print(
         "  [HSWQ SVD SETTINGS LOCK] "
@@ -2847,8 +2955,9 @@ def main():
 
     print("\n[HSWQ V3.1 SDXL INT8] Starting Optimization...")
     print(
-        "  Order: (1) FP16 keep already decided (300 MiB) "
-        "→ (2) remaining Linear/Conv2d get FULL ConvRot INT8"
+        "  Order: (1) FP16 keep already decided (600 MiB) "
+        "→ (2) remaining Linear/Conv2d get FULL ConvRot W4A4/INT8 "
+        "(identical to native_convert_int4_convrot.py)"
     )
     weight_amax_dict = {}
     weight_channel_amax_dict = {}  # Card 3 only; unused when per_channel OFF
@@ -2960,8 +3069,9 @@ def main():
     quant_meta_layers = {}  # layer_name -> quant config dict
     converted_count = 0
     kept_count = 0
-    convrot_linear = 0
-    convrot_conv2d = 0
+    convrot_w4a4 = 0
+    convrot_int8_linear = 0
+    convrot_int8_conv2d = 0
     plain_int8_count = 0
     bias_corr_pending = {}  # unused in V3.1 (Card 1 forced OFF)
     bias_corr_applied = 0
@@ -2974,7 +3084,7 @@ def main():
     print("Converting weights to INT8 (GPU accelerated)...")
     print(
         "  Order: (1) FP16 keep unchanged → (2) remainder FULL ConvRot "
-        "identical to native_convert_int8_convrot.py"
+        "identical to native_convert_int4_convrot.py"
     )
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
         diffusers_key = comfyui_to_diffusers_map.get(key)
@@ -2999,44 +3109,66 @@ def main():
         )
 
         if is_int8_candidate:
-            # (2) Remainder: identical to native_convert_int8_convrot.convert_to_int8
-            #     (lines 313–361) — rotate helpers + pack_channelwise from that file.
+            # (2) Remainder: identical to native_convert_int4_convrot.convert_to_int4_convrot
+            #     — W4A4 when eligible; INT8 ConvRot / plain fallback otherwise.
             comfy_module = key[:-7] if key.endswith(".weight") else key
             w_fp = value.float()
+            in_f = int(w_fp.shape[1])
             used_gs = None
             if (
                 enable_convrot
                 and convrot_group_size_for_features is not None
                 and build_hadamard is not None
             ):
-                used_gs = convrot_group_size_for_features(
-                    int(w_fp.shape[1]), group_size
-                )
+                used_gs = convrot_group_size_for_features(in_f, group_size)
 
-            if used_gs is not None and value.ndim == 2 and rotate_weight is not None:
-                h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-                w_fp = rotate_weight(w_fp, h_matrix, used_gs)
+            if (
+                enable_convrot
+                and value.ndim == 2
+                and can_pack_w4a4 is not None
+                and can_pack_w4a4(in_f, used_gs)
+                and rotate_weight is not None
+                and build_hadamard is not None
+                and pack_signed_int4_rowwise is not None
+            ):
+                h_matrix = build_hadamard(int(used_gs), device="cpu", dtype=torch.float32)
+                w_fp = rotate_weight(w_fp, h_matrix, int(used_gs))
+                q, scale = pack_signed_int4_rowwise(w_fp)
+                quant_config = {
+                    "format": "convrot_w4a4",
+                    "convrot_groupsize": int(used_gs),
+                }
+                convrot_w4a4 += 1
+            elif (
+                enable_convrot
+                and used_gs is not None
+                and value.ndim == 2
+                and rotate_weight is not None
+            ):
+                h_matrix = build_hadamard(int(used_gs), device="cpu", dtype=torch.float32)
+                w_fp = rotate_weight(w_fp, h_matrix, int(used_gs))
                 q, scale = pack_channelwise_native(w_fp)
                 quant_config = {
                     "format": "int8_tensorwise",
                     "convrot": True,
                     "convrot_groupsize": int(used_gs),
                 }
-                convrot_linear += 1
+                convrot_int8_linear += 1
             elif (
-                used_gs is not None
+                enable_convrot
+                and used_gs is not None
                 and value.ndim == 4
                 and rotate_weight_conv2d is not None
             ):
-                h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-                w_fp = rotate_weight_conv2d(w_fp, h_matrix, used_gs)
+                h_matrix = build_hadamard(int(used_gs), device="cpu", dtype=torch.float32)
+                w_fp = rotate_weight_conv2d(w_fp, h_matrix, int(used_gs))
                 q, scale = pack_channelwise_native(w_fp)
                 quant_config = {
                     "format": "int8_tensorwise",
                     "convrot": True,
                     "convrot_groupsize": int(used_gs),
                 }
-                convrot_conv2d += 1
+                convrot_int8_conv2d += 1
             elif args.per_channel_int8:
                 q, scale = pack_channelwise_native(w_fp)
                 quant_config = {"format": "int8_tensorwise"}
@@ -3087,7 +3219,9 @@ def main():
     print(f"  FULL ConvRot: {enable_convrot}")
     if enable_convrot:
         print(
-            f"    ConvRot Linear: {convrot_linear}, ConvRot Conv2d: {convrot_conv2d}, "
+            f"    W4A4 Linear: {convrot_w4a4}, "
+            f"INT8 ConvRot Linear: {convrot_int8_linear}, "
+            f"INT8 ConvRot Conv2d: {convrot_int8_conv2d}, "
             f"plain INT8: {plain_int8_count}"
         )
     print(f"  Per-channel INT8 (Card 3): {args.per_channel_int8}")
@@ -3189,7 +3323,8 @@ def main():
     print(
         f"  Per-channel (Card 3): {args.per_channel_int8} | "
         f"ConvRot: {enable_convrot} "
-        f"(Linear={convrot_linear} Conv2d={convrot_conv2d} plain={plain_int8_count}) | "
+        f"(W4A4={convrot_w4a4} INT8Lin={convrot_int8_linear} "
+        f"INT8Conv={convrot_int8_conv2d} plain={plain_int8_count}) | "
         f"Asymmetric: {args.asymmetric_int8} | Bias correction: {args.bias_correction}"
     )
 
