@@ -19,74 +19,6 @@ import math
 from typing import Optional, Tuple, List
 
 
-class FP8E4M3Quantizer:
-    """
-    Accurate quantize/dequantize simulator for FP8 E4M3 format.
-    """
-    
-    def __init__(self, device: str = "cuda"):
-        self.device = device
-        self._positive_grid = None
-        self._full_grid = None
-        self.max_representable = 0.0
-        self._build_fp8_grid()
-    
-    def _build_fp8_grid(self):
-        """Build full representable positive grid for FP8 E4M3 (PyTorch native behavior)."""
-        all_bytes = torch.arange(256, dtype=torch.uint8, device=self.device)
-        fp8_vals = all_bytes.view(torch.float8_e4m3fn)
-        f32_vals = fp8_vals.float()
-        
-        valid_mask = ~f32_vals.isnan()
-        valid_vals = f32_vals[valid_mask]
-        
-        pos_vals = valid_vals[valid_vals >= 0]
-        unique_vals = pos_vals.unique().sort().values
-        
-        self._positive_grid = unique_vals
-        
-        negative_values = -unique_vals[unique_vals > 0].flip(0)
-        self._full_grid = torch.cat([negative_values, unique_vals])
-        
-        self.max_representable = self._positive_grid.max().item()  # 448.0
-    
-    def quantize_dequantize(self, values: torch.Tensor, amax: float, scaled: bool = True) -> torch.Tensor:
-        """Full quantize-then-dequantize function q(x, delta)."""
-        if amax <= 0:
-            return torch.zeros_like(values)
-        
-        if scaled:
-            scale = self.max_representable / amax
-            scaled_vals = values * scale
-            scaled_vals = scaled_vals.clamp(-self.max_representable, self.max_representable)
-            quantized = self._round_to_fp8_grid(scaled_vals)
-            dequantized = quantized / scale
-            return dequantized
-        else:
-            clipped = values.clamp(-amax, amax)
-            clipped = clipped.clamp(-self.max_representable, self.max_representable)
-            dequantized = self._round_to_fp8_grid(clipped)
-            return dequantized
-    
-    def _round_to_fp8_grid(self, values: torch.Tensor) -> torch.Tensor:
-        """Round values to nearest FP8 grid points."""
-        signs = torch.sign(values)
-        abs_values = values.abs()
-        
-        abs_flat = abs_values.reshape(-1)
-        batch_size = 10000
-        result = torch.zeros_like(abs_flat)
-        
-        for i in range(0, len(abs_flat), batch_size):
-            batch = abs_flat[i:i+batch_size]
-            distances = (batch.unsqueeze(1) - self._positive_grid.unsqueeze(0)).abs()
-            nearest_indices = distances.argmin(dim=1)
-            result[i:i+batch_size] = self._positive_grid[nearest_indices]
-        
-        result = result.reshape(abs_values.shape)
-        return result * signs
-
-
 class INT8Quantizer:
     """Symmetric per-tensor INT8 q/dq (Conv2d path; NVFP4 is 2D-only)."""
 
@@ -231,10 +163,10 @@ class MSEOptimizer:
     def __init__(self, device: str = "cuda", quantizer: Optional[torch.nn.Module] = None):
         self.device = device
         # Allow caller to inject NVFP4PackQuantizer / INT8Quantizer; default NVFP4.
-        self.fp8_quantizer = quantizer if quantizer is not None else NVFP4PackQuantizer(device)
+        self.pack_quantizer = quantizer if quantizer is not None else NVFP4PackQuantizer(device)
 
     def compute_weighted_mse(self, histogram: torch.Tensor, bin_centers: torch.Tensor, amax: float, scaled: bool = True) -> float:
-        dequantized = self.fp8_quantizer.quantize_dequantize(bin_centers.float(), amax, scaled=scaled).double()
+        dequantized = self.pack_quantizer.quantize_dequantize(bin_centers.float(), amax, scaled=scaled).double()
         error_sq = (dequantized - bin_centers) ** 2
         return (histogram * error_sq).sum().item()
     
@@ -249,7 +181,7 @@ class MSEOptimizer:
         low = max_val * float(search_range[0])
         high = max_val * float(search_range[1])
 
-        # Point search (e.g. INT8 absmax search_range=(1.0,1.0)): no grid.
+        # Point search (e.g. absmax search_range=(1.0,1.0)): no grid.
         if high <= low or abs(high - low) <= max_val * 1e-12:
             return high if high > 0 else max_val
         
@@ -303,7 +235,7 @@ def _svd_mix_trace_path() -> str:
     os.makedirs(log_dir, exist_ok=True)
     return os.path.join(
         log_dir,
-        f"hswq_int8_svd_mix_full_trace_{_time.strftime('%Y%m%d_%H%M%S')}.txt",
+        f"hswq_nvfp4_svd_mix_full_trace_{_time.strftime('%Y%m%d_%H%M%S')}.txt",
     )
 
 
@@ -579,9 +511,9 @@ class HSWQWeightedHistogramOptimizerV4:
     """
     HSWQ weighted histogram optimizer (V4: SVD-Magnitude Hybrid).
 
-    `quantizer` arg allows switching between FP8E4M3 (default) and INT8
-    (symmetric per-tensor) quantize/dequantize simulators. The amax search
-    loop is identical; only the quantize/dequantize kernel changes.
+    `quantizer` arg selects the histogram-bin MSE proxy
+    (default NVFP4PackQuantizer; INT8Quantizer for Conv-shaped bin callers).
+    Protect ranking must use compute_pack_mse_absmax_with_svd (real pack).
     """
 
     def __init__(self, bins: int = 8192, num_candidates: int = 1000, refinement_iterations: int = 10, device: str = "cuda", alpha: float = 0.7, beta: float = 0.3, quantizer=None):
@@ -679,7 +611,7 @@ class HSWQWeightedHistogramOptimizerV4:
             'estimated_mse': estimated_mse
         }
 
-    def compute_optimal_amax_with_stats_int8_range(
+    def compute_optimal_amax_with_stats_absmax_range(
         self,
         weight: torch.Tensor,
         importance: Optional[torch.Tensor] = None,
@@ -688,16 +620,14 @@ class HSWQWeightedHistogramOptimizerV4:
         search_range: Tuple[float, float] = (1.0, 1.0),
         layer_name: str = "",
     ) -> dict:
-        """NVFP4 path: estimated_mse at an explicit search_range (typically absmax).
+        """Bin-proxy estimated_mse at an explicit search_range (typically absmax).
 
-        FP8 scripts must keep calling compute_optimal_amax_with_stats / compute_optimal_amax.
-        Default search_range is (1.0, 1.0) = natural INT8 absmax pack point.
-        Callers use estimated_mse for FP16 protection candidate ranking
-        (pack amax stays absmax; this is not an amax search).
-        Requires MSEOptimizer.quantizer = NVFP4PackQuantizer (or INT8 for Conv bins).
+        Default search_range is (1.0, 1.0) = absmax pack point (no amax search).
+        Prefer compute_pack_mse_absmax_with_svd for FP16 protect ranking.
+        Requires MSEOptimizer.pack_quantizer = NVFP4PackQuantizer
+        (or INT8Quantizer for Conv-shaped bin callers).
 
-        Builds the hybrid importance + weighted histogram **once** (avoids the
-        previous double-SVD path that also spammed 1.000-1.000 DEBUG lines).
+        Builds hybrid importance + weighted histogram once.
         """
         combined_importance = None
         svd_mix_stats: Optional[dict] = None
@@ -738,7 +668,7 @@ class HSWQWeightedHistogramOptimizerV4:
                 "reason": (
                     "use_svd_leverage=False"
                     if not use_svd_leverage
-                    else "ndim<2_in_int8_range"
+                    else "ndim<2_in_absmax_range"
                 ),
                 "shape": list(weight.shape),
                 "alpha": float(self.alpha),

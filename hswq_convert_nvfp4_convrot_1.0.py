@@ -52,6 +52,7 @@ import subprocess
 import sys
 
 import torch
+from diffusers import StableDiffusionXLPipeline
 from safetensors.torch import load_file, save_file
 from tqdm import tqdm
 
@@ -172,10 +173,10 @@ def _ensure_distribution_profile(
 def _load_distribution_profile_layers(
     profile_path: str,
 ) -> tuple[dict, dict, dict]:
-    """Load layers + summary + veto_tunables from NVFP4 analyze JSON.
+    """Load layers + summary + veto_tunables_nvfp4 from NVFP4 analyze JSON.
 
-    Analyze writes veto_tunables_int8 (INT8 engine shared with V3.0 protect).
-    Accept veto_tunables_nvfp4 as an alias if present.
+    Auto convert always re-runs analyze/analyze_sdxl_nvfp4_distribution.py,
+    which writes veto_tunables_nvfp4. No legacy INT8 key path.
     """
     with open(profile_path, "r", encoding="utf-8") as f:
         profile_data = json.load(f)
@@ -185,13 +186,10 @@ def _load_distribution_profile_layers(
     model_profile = profile_data.get("layers", profile_data)
     if not isinstance(model_profile, dict):
         raise ValueError(f"Profile layers must be a dict: {profile_path}")
-    veto_blob = profile_data.get("veto_tunables_int8")
-    if not isinstance(veto_blob, dict) or not veto_blob:
-        veto_blob = profile_data.get("veto_tunables_nvfp4")
+    veto_blob = profile_data.get("veto_tunables_nvfp4")
     if not isinstance(veto_blob, dict) or not veto_blob:
         raise ValueError(
-            f"Profile JSON missing veto_tunables_int8 "
-            f"(or veto_tunables_nvfp4): {profile_path}"
+            f"Profile JSON missing veto_tunables_nvfp4: {profile_path}"
         )
     return model_profile, profile_summary, veto_blob
 
@@ -241,7 +239,7 @@ def calculate_kurtosis(tensor):
     if std == 0: return 0.0
     return torch.mean(((tensor - mean) / std) ** 4).item()
 
-# --- V3.0 SDXL INT8 autonomous engine tunables ---
+# --- SDXL NVFP4 autonomous engine tunables (V3.0 protect shape) ---
 # Architectural boundary Conv2d keys (not Linear). Resolution resample is the
 # same class of unet boundary as conv_in/conv_out; Linear-only walk previously
 # made documented .conv_in/.conv_out key-pattern dead code (手抜き).
@@ -312,7 +310,7 @@ class SdxlVetoTunables:
     # Continuous MAD branch fingerprint (THIS pool IQR death → soft→Tukey; P99 tip-only).
     attn_mad_collapse: float = 0.0
     attn_mad_iqr: float = 0.0
-    # Autonomous (from derive_int8_autonomous_tunables):
+    # Autonomous (from derive_nvfp4_autonomous_tunables):
     sens_veto_percentile: float = 100.0
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
@@ -326,7 +324,7 @@ class SdxlVetoTunables:
     # alpha_auto==0 is SVD cut (rebellion), not a valid default outcome.
     alpha_auto: float = 0.0
 
-    # Required from derive_int8_autonomous_tunables  -  no silent default holes
+    # Required from derive_nvfp4_autonomous_tunables  -  no silent default holes
     # after deleting accommodation clips (auto analysis → auto-optimal).
     _FROM_DICT_REQUIRED = (
         "extreme_kurtosis",
@@ -382,7 +380,7 @@ class SdxlVetoTunables:
         if missing:
             raise ValueError(
                 "SdxlVetoTunables.from_dict missing auto-optimal keys "
-                f"{missing}. Run derive_int8_autonomous_tunables  -  do not "
+                f"{missing}. Run derive_nvfp4_autonomous_tunables  -  do not "
                 "fill deleted clip holes with dataclass defaults."
             )
         if not bool(d["autonomous"]):
@@ -528,11 +526,11 @@ def resolve_veto_tunables(
     dual_monitors: dict | None = None,
     fp16_budget_mb: float = FP16_BUDGET_MB_HARD,
 ) -> SdxlVetoTunables:
-    """Load INT8 veto_tunables via fully autonomous derivation.
+    """Load NVFP4 veto_tunables via fully autonomous derivation.
 
     All knobs (Hard VETO fences, percentile promotions, dynamic ranking
     weights, MSE release gates, bias_correction scope, sens_veto percentile,
-    alpha/beta, search_low) come from derive_int8_autonomous_tunables,
+    alpha/beta, search_low) come from derive_nvfp4_autonomous_tunables,
     which uses THIS checkpoint's profile + DualMonitor sensitivity
     distribution. fp16_budget_mb is the owner hard ceiling (600 MiB)  - 
     auto settings fill that frame; they do not redefine or exceed it.
@@ -543,8 +541,8 @@ def resolve_veto_tunables(
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_nvfp4_distribution import (
-        derive_int8_autonomous_tunables,
-        emit_hswq_int8_full_visibility_log,
+        derive_nvfp4_autonomous_tunables,
+        emit_hswq_nvfp4_full_visibility_log,
     )
 
     if norm_profile:
@@ -557,15 +555,15 @@ def resolve_veto_tunables(
                     s = 0.0
                 if s > 0.0 and math.isfinite(s):
                     sens_map[name] = s
-        derived = derive_int8_autonomous_tunables(
+        derived = derive_nvfp4_autonomous_tunables(
             norm_profile,
             dualmonitor_sensitivities=sens_map if sens_map else None,
             fp16_budget_mb=fp16_budget_mb,
         )
-        # derive_int8_autonomous_tunables already emitted the FULL pool / calc /
+        # derive_nvfp4_autonomous_tunables already emitted the FULL pool / calc /
         # every-layer / every-knob dump. Emit the final resolved dict again so
         # DualMonitor re-resolve is also byte-complete in the same log.
-        emit_hswq_int8_full_visibility_log(
+        emit_hswq_nvfp4_full_visibility_log(
             {
                 "resolve_stage": "resolve_veto_tunables",
                 "n_dualmonitor_sens": int(len(sens_map)),
@@ -586,7 +584,7 @@ def resolve_veto_tunables(
         )
     raise ValueError(
         "resolve_veto_tunables: need THIS checkpoint layer profile for "
-        "derive_int8_autonomous_tunables (auto analysis → auto-optimal). "
+        "derive_nvfp4_autonomous_tunables (auto analysis → auto-optimal). "
         "Refuse stale veto_tunables-only load after accommodation-clip purge."
     )
 
@@ -602,7 +600,7 @@ def _layer_weight_stats(tensor: torch.Tensor) -> tuple[float, float, float]:
 
 
 def _mad_outlier_pct(tensor: torch.Tensor, zthr: float = 3.0) -> float:
-    """INT8-only robust outlier fraction (%). Not used by FP8 VETO paths."""
+    """Robust outlier fraction (%). Used by NVFP4 VETO paths."""
     xf = tensor.detach().float().reshape(-1)
     if xf.numel() < 4:
         return 0.0
@@ -683,7 +681,7 @@ def _ff2_selective_veto_hit(
     tunables: SdxlVetoTunables,
 ) -> tuple[bool, str]:
     """Selective ff.net.2 VETO: class-relative profile_score and outlier (not blanket)."""
-    # Cuts = derive_veto_tunables_int8 only (no hardcoded floors).
+    # Cuts = derive_veto_tunables_nvfp4 only (no hardcoded floors).
     score_cut = tunables.ff2_profile_score_cutoff
     outlier_cut = tunables.ff2_profile_outlier
     live_cut = tunables.ff2_outlier_live
@@ -742,7 +740,7 @@ def _compute_sdxl_keypattern_veto(
             print(f"    [Key-Pattern VETO] {_n} (embedding)")
             continue
         if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
-            # V3.0 INT8: skip full-class auto (inflates file size on SDXL);
+            # NVFP4: skip full-class auto (inflates file size on SDXL);
             # selective VETO below handles individual outlier ff2 layers.
             prof = (norm_profile or {}).get(_n, {})
             _k, _o, _mstat = _profile_layer_stats(prof, _m.weight.detach())
@@ -802,11 +800,11 @@ def _compute_sdxl_per_projection_attn_veto(
 ) -> set:
     """VETO attn projections when profile (or live) abs_max / outlier_ratio exceeds thresholds.
 
-    V3.0 INT8: thresholds come only from derive_veto_tunables_int8
+    NVFP4: thresholds come only from derive_veto_tunables_nvfp4
     (analyze_sdxl_nvfp4_distribution). No additional hardcoded floors.
     """
     proj_veto = set()
-    # Thresholds = derive_veto_tunables_int8 only (no hardcoded INT8 floors).
+    # Thresholds = derive_veto_tunables_nvfp4 only (no hardcoded floors).
     for _n, _m in model.named_modules():
         if not isinstance(_m, torch.nn.Linear):
             continue
@@ -902,13 +900,13 @@ def _mad_continuous_gates_from_live(
     return mad_floor, mad_soft, collapse, iqr
 
 
-def _compute_sdxl_int8_mad_attn_veto(
+def _compute_sdxl_nvfp4_mad_attn_veto(
     model: nn.Module,
     hard_veto_layers: set,
     tunables: SdxlVetoTunables | None = None,
     norm_profile: dict | None = None,
 ) -> set:
-    """INT8-only key-pattern + MAD% VETO for attn projections.
+    """NVFP4-path key-pattern + MAD% VETO for attn projections.
 
     Floors / soft-gap from analyze continuous THIS-pool body fences
     (hard=THIS MAD Q3/P75; soft=below-floor collapse Soft band; P99 tip-only).
@@ -970,7 +968,7 @@ def _compute_sdxl_int8_mad_attn_veto(
         if gap_o_max <= 0.0 and tunables is not None:
             gap_o_max = float(max(tunables.extreme_outlier, 1e-9))
         print(
-            f"  [INT8 MAD VETO] Continuous THIS-UNet MAD body fences from "
+            f"  [NVFP4 MAD VETO] Continuous THIS-UNet MAD body fences from "
             f"{len(live_mads)} live samples "
             f"(floor={mad_floor:.2f}, soft={mad_soft:.2f}, "
             f"collapse={collapse:.3f}, iqr={mad_iqr:.3f}; P99 tip-only)"
@@ -993,7 +991,7 @@ def _compute_sdxl_int8_mad_attn_veto(
             kind = "hard" if hard else "soft"
             o_note = "o_miss" if o < gap_o_max else "o_hit"
             print(
-                f"    [INT8 MAD VETO] {_n} "
+                f"    [NVFP4 MAD VETO] {_n} "
                 f"(MAD%={mad_pct:.2f}, o={o:.2f}, floor={mad_floor:.2f}, "
                 f"soft={mad_soft:.2f}, collapse={collapse:.3f}, "
                 f"iqr={mad_iqr:.3f}, gate_o={gap_o_max:.2f}; "
@@ -1001,7 +999,7 @@ def _compute_sdxl_int8_mad_attn_veto(
             )
     if added:
         print(
-            f"  [INT8 MAD VETO] Added {len(added)} attn layers "
+            f"  [NVFP4 MAD VETO] Added {len(added)} attn layers "
             f"(floor={mad_floor:.2f}, soft={mad_soft:.2f}, "
             f"collapse={collapse:.3f}, iqr={mad_iqr:.3f})."
         )
@@ -1028,7 +1026,7 @@ def _autonomous_supplemental_veto(
             norm_profile, min_count=tunables.ff2_suffix_min_count
         )
         if ff2_suffixes and any(_n.endswith(s) for s in ff2_suffixes):
-            # V3.0 INT8: selective only (no full-class auto)
+            # NVFP4: selective only (no full-class auto)
             hit, reason = _ff2_selective_veto_hit(prof if prof else None, _o, tunables)
             if hit:
                 added.add(_n)
@@ -1051,7 +1049,7 @@ def _collect_mse_release_candidates(
 ) -> set:
     """Outlier-only profile VETO with low drift and non-structural  -  MSE release candidates.
 
-    V3.0 INT8: mse_release_* come only from derive_veto_tunables_int8
+    NVFP4: mse_release_* come only from derive_veto_tunables_nvfp4
     (analyze_sdxl_nvfp4_distribution). No hardcoded min/max floors.
     """
     candidates = set()
@@ -1140,7 +1138,7 @@ def _mse_grayzone_veto_reassessment(
 ) -> tuple[set, set, dict]:
     """Gray-zone soft-VETO release; V4 MSE also fills FP16 protect cache.
 
-    Primary V4 role in V3.0 INT8 is FP16 protection ranking (see
+    Primary V4 role in NVFP4 convert is FP16 protection ranking (see
     _build_v4_calib_fp16_candidates). This path reuses the same V4
     estimated_mse @ absmax to optionally release soft analyze-VETO layers
     whose damage is below P75×mult of a safe baseline.
@@ -1407,9 +1405,9 @@ def _apply_fp16_budget_cap(
     from analyze_sdxl_nvfp4_distribution import (
         apply_fp16_infinite_priority_branches,
         apply_fp16_infinite_ranking_branches,
-        build_int8_analyze_character_table,
-        int8_fp16_budget_analyze_severity,
-        int8_fp16_budget_priority,
+        build_nvfp4_analyze_character_table,
+        nvfp4_fp16_budget_analyze_severity,
+        nvfp4_fp16_budget_priority,
         derive_priority_combinator,
         _safe_percentile,
         _robust_iqr,
@@ -1429,7 +1427,7 @@ def _apply_fp16_budget_cap(
     tunables_dict = veto_tunables.as_dict()
     budget_bytes = int(budget_mb * 1024 * 1024)
 
-    char_table = build_int8_analyze_character_table(
+    char_table = build_nvfp4_analyze_character_table(
         {"layers": norm_profile},
         tunables_dict,
         hard_veto_names=hard_veto_layers,
@@ -1495,7 +1493,7 @@ def _apply_fp16_budget_cap(
         m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
         mad = float(row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0)
         ps = float(row.get("profile_score", prof.get("profile_score", 0)) or 0)
-        severity = int8_fp16_budget_analyze_severity(
+        severity = nvfp4_fp16_budget_analyze_severity(
             kurtosis=k,
             outlier_ratio=o,
             abs_max=m,
@@ -1608,7 +1606,7 @@ def _apply_fp16_budget_cap(
 
     candidates: list[tuple[float, float, float, float, int, str]] = []
     for name, dm_sens, v4_mse, severity, extra in measured:
-        priority = int8_fp16_budget_priority(
+        priority = nvfp4_fp16_budget_priority(
             dm_sens, v4_mse, severity, combinator=combinator,
         )
         candidates.append((priority, v4_mse, severity, dm_sens, extra, name))
@@ -1862,9 +1860,9 @@ def _remap_profile_to_diffusers(model_profile: dict, comfyui_to_diffusers_map: d
     return remapped
 
 
-def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | None = None):
+def derive_hswq_strategy_nvfp4(model_profile, veto_tunables: SdxlVetoTunables | None = None):
     """
-    SDXL V3.0 INT8: Alpha/Beta from profile + absmax pack + V4 FP16 ranking.
+    SDXL NVFP4: Alpha/Beta from profile + absmax pack + V4 FP16 ranking.
 
     - search_low: 1.0 → pack amax = absmax (obvious for symmetric INT8).
     - V4 pack MSE: FP16 protection candidate ranking
@@ -1873,7 +1871,7 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
     - alpha/beta: alpha_auto from THIS multi-axis analyze character
       (kurtosis∪outlier∪magnitude → Full-SVD×RMS); DualMonitor Importance
       multiplies the hybrid map when present. No fixed mix / no SVD off.
-    - hard_veto: thresholds from derive_veto_tunables_int8 (this checkpoint).
+    - hard_veto: thresholds from derive_veto_tunables_nvfp4 (this checkpoint).
     """
     if model_profile:
         sample_key = next(iter(model_profile))
@@ -1903,12 +1901,12 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
         )
 
     print(
-        "  [INT8 pack] absmax (search_low=1.0  -  natural INT8); "
+        "  [NVFP4 pack] absmax (search_low=1.0); "
         "[V4 histogram] FP16 protection candidate ranking @ absmax"
     )
 
     def get_dynamic_search_low(name, weight_tensor):
-        # Natural INT8 pack point. V4 does not choose pack amax.
+        # Natural absmax pack point. V4 does not choose pack amax.
         return 1.0
 
     if model_profile:
@@ -1918,7 +1916,7 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
         avg_k = np.mean(all_k) if all_k else 0
         avg_o = np.mean(all_o) if all_o else 0
         avg_m = np.mean(all_m) if all_m else 0
-        print(f"  [Profile Stats INT8] Avg Kurtosis: {avg_k!r}, Avg OutlierRatio: {avg_o!r}, Avg AbsMax: {avg_m!r}")
+        print(f"  [Profile Stats NVFP4] Avg Kurtosis: {avg_k!r}, Avg OutlierRatio: {avg_o!r}, Avg AbsMax: {avg_m!r}")
 
     # alpha = SVD-leverage MIX WEIGHT from THIS multi-axis character (k∪o∪m).
     # DualMonitor Imp multiplies the hybrid map when present. alpha==0 with a
@@ -1926,13 +1924,13 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
     alpha = float(veto_tunables.alpha_auto)
     if model_profile and alpha <= 0.0:
         raise ValueError(
-            "INT8 Full-SVD×RMS alpha_auto must be > 0 when model_profile is present "
+            "NVFP4 Full-SVD×RMS alpha_auto must be > 0 when model_profile is present "
             f"(alpha==0 is SVD cut / rebellion). got alpha_auto={alpha}"
         )
     beta = 1.0 - alpha
 
     print(
-        f"  [Dynamic Alpha/Beta INT8] alpha={alpha!r}, beta={beta!r} "
+        f"  [Dynamic Alpha/Beta NVFP4] alpha={alpha!r}, beta={beta!r} "
         f"(analyze k∪o∪m → Full-SVD×RMS mix into ranking; Imp multiplies when present)"
     )
 
@@ -1943,7 +1941,7 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
                 k = prof.get("kurtosis", 0)
                 m = prof.get("abs_max", 0)
                 o = prof.get("outlier_ratio", 0)
-                # VETO thresholds = analyze_sdxl_nvfp4_distribution.derive_veto_tunables_int8
+                # VETO thresholds = analyze_sdxl_nvfp4_distribution.derive_veto_tunables_nvfp4
                 # only (this checkpoint's distribution). No hardcoded floors.
                 is_extreme_divergence = o > veto_tunables.extreme_outlier
                 is_extreme_kurtosis = k > veto_tunables.extreme_kurtosis
@@ -1967,8 +1965,8 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
                     print(f"    VETO: {layer_base_name} [{'; '.join(reasons)}]")
 
     print(
-        f"  [Static Profile VETO INT8] Identified {len(hard_veto_layers)} layers "
-        "with extreme distribution (Unquantizable in INT8)."
+        f"  [Static Profile VETO NVFP4] Identified {len(hard_veto_layers)} layers "
+        "with extreme distribution (Unquantizable under NVFP4 protect)."
     )
     return alpha, beta, get_dynamic_search_low, hard_veto_layers
 
@@ -2211,7 +2209,7 @@ def load_unet_from_safetensors(path, device="cuda"):
     if str(device).startswith("cpu"):
         raise RuntimeError(
             "load_unet_from_safetensors refused device='cpu'. "
-            "SDXL INT8 DualMonitor calibration requires CUDA."
+            "SDXL NVFP4 DualMonitor calibration requires CUDA."
         )
     print(f"Loading model: {path}")
     state_dict = load_file(path)
@@ -2501,7 +2499,7 @@ def run_nvfp4_calib(
     for _k in sorted(_vt.keys(), key=str):
         print(f"    veto_tunables.{_k} = {_vt[_k]!r}")
 
-    alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy_int8(
+    alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy_nvfp4(
         model_profile,
         veto_tunables,
     )
@@ -2531,13 +2529,13 @@ def run_nvfp4_calib(
             f"  [Per-Projection VETO] Added {len(proj_veto)} attn layers "
             f"(total VETO: {len(hard_veto_layers)})."
         )
-    mad_veto = _compute_sdxl_int8_mad_attn_veto(
+    mad_veto = _compute_sdxl_nvfp4_mad_attn_veto(
         model, hard_veto_layers, veto_tunables, _norm_profile
     )
     if mad_veto:
         hard_veto_layers = hard_veto_layers.union(mad_veto)
         print(
-            f"  [INT8 MAD VETO] total VETO after MAD fill: {len(hard_veto_layers)}."
+            f"  [NVFP4 MAD VETO] total VETO after MAD fill: {len(hard_veto_layers)}."
         )
     keypattern_veto = _compute_sdxl_keypattern_veto(
         model, hard_veto_layers, veto_tunables, _norm_profile

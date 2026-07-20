@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-SDXL UNet layer distribution analyzer for HSWQ.
+SDXL UNet layer distribution analyzer for HSWQ NVFP4 ConvRot convert.
 
 Produces per-layer statistics and:
-  - derive_veto_tunables()       → FP8 / quantize_sdxl_hswq_v2.x
-  - derive_veto_tunables_int8()  → INT8 / quantize_sdxl_hswq_v3.0
-    (hard VETO fences + mse_* that drive V4 MSE-guided VETO; pack search_low=1.0)
+  - derive_veto_tunables_nvfp4()
+      hard VETO fences + mse_* for V4 pack-MSE-guided VETO
+      (Linear=NVFP4 / Conv=channelwise INT8; pack search_low=1.0)
+  - derive_nvfp4_autonomous_tunables()
+      auto analysis → auto-optimal for hswq_convert_nvfp4_convrot_1.0.py
 
 All VETO / V4-link thresholds come from this checkpoint's layer distribution
-(no model-name hardcoding).
+(no model-name hardcoding). quant_format is stamped "nvfp4".
 """
 
 from __future__ import annotations
@@ -80,7 +82,7 @@ def _flatten_repr_lines(obj: Any, prefix: str = "") -> List[str]:
     return lines
 
 
-def emit_hswq_int8_full_visibility_log(
+def emit_hswq_nvfp4_full_visibility_log(
     report: Dict[str, Any],
     *,
     stream: Optional[TextIO] = None,
@@ -89,11 +91,11 @@ def emit_hswq_int8_full_visibility_log(
     """Print + optionally write the COMPLETE auto-analysis → auto-optimal trace."""
     out = stream or sys.stdout
     banner = (
-        "======== HSWQ INT8 FULL AUTO-ANALYSIS -> AUTO-OPTIMAL TRACE "
+        "======== HSWQ NVFP4 FULL AUTO-ANALYSIS -> AUTO-OPTIMAL TRACE "
         "(BEGIN - hide nothing) ========"
     )
     end = (
-        "======== HSWQ INT8 FULL AUTO-ANALYSIS -> AUTO-OPTIMAL TRACE "
+        "======== HSWQ NVFP4 FULL AUTO-ANALYSIS -> AUTO-OPTIMAL TRACE "
         "(END) ========"
     )
     lines = [banner] + _flatten_repr_lines(report) + [end]
@@ -116,7 +118,7 @@ def emit_hswq_int8_full_visibility_log(
             os.makedirs(log_dir, exist_ok=True)
             stamp = time.strftime("%Y%m%d_%H%M%S")
             path = os.path.join(
-                log_dir, f"hswq_int8_autonomous_full_trace_{stamp}.txt"
+                log_dir, f"hswq_nvfp4_autonomous_full_trace_{stamp}.txt"
             )
         with open(path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(text)
@@ -155,7 +157,7 @@ _classify_layer_key = classify_layer
 def _mad_outlier_pct(tensor: torch.Tensor, zthr: float = 3.0) -> float:
     """Robust outlier fraction (%). Complements abs_max/std for heavy tails.
 
-    Used by INT8 derive_veto_tunables_int8 only; FP8 derive_veto_tunables
+    Used by derive_veto_tunables_nvfp4 only; FP8 derive_veto_tunables
     ignores this field. No model-name branches — value is per-layer from weights.
     """
     xf = tensor.detach().float().reshape(-1)
@@ -333,99 +335,8 @@ def _derive_ff2_auto_tunables(
     }
 
 
-def _derive_engine_tunables(
-    all_k: List[float],
-    all_o: List[float],
-    all_m: List[float],
-    k_sorted: List[float],
-    o_sorted: List[float],
-    m_sorted: List[float],
-) -> Dict[str, float]:
-    """THIS-profile auto-optimal engine knobs (FP8 path).
-
-    Former accommodation boxes are not "deleted into empty". Each is replaced
-    by a continuous map from THIS checkpoint's measured pools:
-
-      drift box 0.1..1.0      → (o_q3 - o_med) / o_med
-      mse_mult box 1.25..3.0  → 1 + iqr_o / o_q1 (else o_med)
-      α/β box 0.5..0.99       → k_med/k_q3 .. 1.0 and o_med/o_q3 .. 1.0
-      mse_release half-IQR    → o_q3 / k_q3 / m_q3 (THIS Q3)
-    """
-    n = len(all_k)
-    k_q1, k_med, k_q3 = _quartile_bounds(k_sorted)
-    o_q1, o_med, o_q3 = _quartile_bounds(o_sorted)
-    m_q1, m_med, m_q3 = _quartile_bounds(m_sorted)
-    iqr_k = k_q3 - k_q1
-    iqr_o = o_q3 - o_q1
-    iqr_m = m_q3 - m_q1
-
-    # Auto-optimal drift: THIS upper-half relative to THIS median.
-    if o_med > 0:
-        drift_veto_thresh = (o_q3 - o_med) / max(o_med, 1e-9)
-    else:
-        drift_veto_thresh = 0.0
-    drift_score_mult = max(iqr_k + iqr_o + iqr_m, 1.0)
-
-    # Auto-optimal mse_p75_mult: THIS outlier IQR / THIS scale chain.
-    o_scale_den = next(
-        (x for x in (o_q1, o_med, o_q3, max(o_sorted) if o_sorted else 0.0) if x > 0),
-        0.0,
-    )
-    mse_p75_mult = 1.0 + (iqr_o / max(o_scale_den, 1e-9))
-
-    k_scale = 1.0 / max(k_q3, 1e-9)
-    o_scale = 1.0 / max(o_q3, 1e-9)
-    m_scale = 1.0 / max(m_q3, 1e-9)
-    penalty_cap = iqr_k / max(k_q3, 1e-9)
-
-    # Auto-optimal α/β band: THIS med/Q3 ratios (floor ≤ clip_max always).
-    alpha_floor = max(k_scale * k_med, 0.0)
-    beta_floor = max(o_scale * o_med, 0.0)
-    alpha_clip_max = max(k_scale * k_q3, alpha_floor)
-    beta_clip_max = max(o_scale * o_q3, beta_floor)
-
-    o_w_den = next(
-        (x for x in (o_q1, o_med, o_q3, max(o_sorted) if o_sorted else 0.0) if x > 0),
-        1e-9,
-    )
-    m_w_den = next(
-        (x for x in (m_q1, m_med, m_q3, max(m_sorted) if m_sorted else 0.0) if x > 0),
-        1e-9,
-    )
-
-    return {
-        "drift_veto_thresh": float(drift_veto_thresh),
-        "drift_score_mult": float(drift_score_mult),
-        # THIS Q3 only — no half-IQR accommodation rewrite of o_med.
-        "mse_release_o_min": float(o_q3),
-        "mse_release_k_max": float(k_q3),
-        "mse_release_m_max": float(m_q3),
-        "mse_p75_multiplier": float(mse_p75_mult),
-        "k_scale": float(k_scale),
-        "o_scale": float(o_scale),
-        "m_scale": float(m_scale),
-        "k_gray_lo": float(k_q1),
-        "k_gray_hi": float(k_q3),
-        "o_gray_lo": float(o_q1),
-        "o_gray_hi": float(o_q3),
-        "m_gray_lo": float(m_q1),
-        "m_gray_hi": float(m_q3),
-        "search_low_floor": float(m_q1 / max(m_q3, 1e-9)) if m_q3 > 0 else 1.0,
-        "search_low_penalty_cap": float(penalty_cap),
-        "search_low_clip_max": float(max(o_scale * o_med, 0.0)),
-        "search_low_gray_clip_max": float(max(k_scale * k_med, 0.0)),
-        "alpha_floor": float(alpha_floor),
-        "alpha_clip_max": float(alpha_clip_max),
-        "beta_floor": float(beta_floor),
-        "beta_clip_max": float(beta_clip_max),
-        "ff2_suffix_min_count": max(1, (n + 19) // 20),
-        "score_o_weight": float(iqr_o / max(o_w_den, 1e-9)),
-        "score_m_weight": float(iqr_m / max(m_w_den, 1e-9)),
-    }
-
-
 # ---------------------------------------------------------------------------
-# derive_veto_tunables — single source for analyze + quantize
+# derive_veto_tunables_nvfp4 — single source for NVFP4 analyze + convert
 # ---------------------------------------------------------------------------
 
 def _normalize_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
@@ -436,45 +347,13 @@ def _normalize_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
     return profile
 
 
-def derive_veto_tunables(profile: Dict[str, Any]) -> Dict[str, Any]:
-    profile = _normalize_profile(profile)
-    layers = profile.get("layers", {})
-    if not layers:
-        raise ValueError("profile has no layers")
-
-    all_k: List[float] = []
-    all_o: List[float] = []
-    all_m: List[float] = []
-    by_class: Dict[str, List[Dict[str, float]]] = defaultdict(list)
-
-    for name, entry in layers.items():
-        k = float(entry.get("kurtosis", 0))
-        o = float(entry.get("outlier_ratio", entry.get("abs_max", 0)))
-        m = float(entry.get("abs_max", 0))
-        all_k.append(k)
-        all_o.append(o)
-        all_m.append(m)
-        cls = classify_layer(name)
-        by_class[cls].append({"k": k, "o": o, "m": m, "name": name})
-
-    k_sorted = _sorted_pool(all_k)
-    o_sorted = _sorted_pool(all_o)
-    m_sorted = _sorted_pool(all_m)
-
-    fences = _derive_hard_veto_fence_bundle(
-        all_k, all_o, all_m, by_class, k_sorted, o_sorted, m_sorted
-    )
-    engine = _derive_engine_tunables(all_k, all_o, all_m, k_sorted, o_sorted, m_sorted)
-    return {**fences, **engine}
-
-
-def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
-    """INT8 VETO + V4-histogram link for SDXL V3.0.
+def derive_veto_tunables_nvfp4(profile: Dict[str, Any]) -> Dict[str, Any]:
+    """NVFP4 VETO + V4-histogram link for SDXL V3.0.
 
     Per-model auto analysis → continuous engine branch (infinite patterns):
       1) Hard VETO fences from THIS checkpoint (shared fence helper; no FP8
          engine inheritance).
-      2) INT8 engine from THIS weight-space pools → V4 histogram MSE-guided VETO.
+      2) NVFP4 engine from THIS weight-space pools → V4 histogram MSE-guided VETO.
       3) search_low_* = 1.0 → pack amax is absmax; V4 remains mandatory.
 
     Hard-VETO kurtosis / magnitude: max(Tukey, THIS P99) so only the right
@@ -516,15 +395,15 @@ def derive_veto_tunables_int8(profile: Dict[str, Any]) -> Dict[str, Any]:
     base["extreme_kurtosis"] = float(max(float(base["extreme_kurtosis"]), k_p99))
     base["huge_magnitude"] = float(max(float(base["huge_magnitude"]), m_p99))
 
-    int8_engine = _derive_engine_tunables_int8(
+    nvfp4_engine = _derive_engine_tunables_nvfp4(
         all_k, all_o, all_m, k_sorted, o_sorted, m_sorted
     )
-    mad_tunables = _derive_int8_attn_mad_tunables(
+    mad_tunables = _derive_nvfp4_attn_mad_tunables(
         by_class,
         float(base["attn_qkv_outlier"]),
         float(base["attn_toout_outlier"]),
     )
-    base.update(int8_engine)
+    base.update(nvfp4_engine)
     base.update(mad_tunables)
     # Convert NVFP4 pack protect requires quant_format=nvfp4 (Linear NVFP4 +
     # Conv INT8). Do not stamp int8_tensorwise — that locks convert to INT8-only.
@@ -672,7 +551,7 @@ def _alpha_auto_from_this_character(
     return alpha_out
 
 
-def _derive_engine_tunables_int8(
+def _derive_engine_tunables_nvfp4(
     all_k: List[float],
     all_o: List[float],
     all_m: List[float],
@@ -680,7 +559,7 @@ def _derive_engine_tunables_int8(
     o_sorted: List[float],
     m_sorted: List[float],
 ) -> Dict[str, float]:
-    """INT8 engine: THIS-profile auto-optimal knobs linked to V4 histogram VETO.
+    """NVFP4 engine: THIS-profile auto-optimal knobs linked to V4 histogram VETO.
 
     Replacement map (delete-without-replace is forbidden — philosophy §2 / §12):
 
@@ -688,7 +567,7 @@ def _derive_engine_tunables_int8(
       former mse_mult clip 1.25..3.0 → 1 + iqr_o / o_q1 (else o_med)
       former α/β box 0.5..0.99       → k_med/k_q3 .. 1.0 , o_med/o_q3 .. 1.0
       former mse_release half-IQR    → THIS o_q3 / k_q3 / m_q3
-      search_low                     → 1.0 (INT8 absmax; V4 still ranks @ absmax)
+      search_low                     → 1.0 (absmax pack; V4 still ranks @ absmax)
 
     Profile stats are weight-space. Do NOT multiply by 127/448.
     """
@@ -778,7 +657,7 @@ def _derive_engine_tunables_int8(
         "o_gray_hi": float(o_q3),
         "m_gray_lo": float(m_q1),
         "m_gray_hi": float(m_q3),
-        # INT8 pack point = absmax. V4 histogram still drives VETO MSE at that
+        # Absmax pack point. V4 histogram still drives VETO MSE at that
         # point (v3 search_range (1.0, 1.0) for estimated_mse).
         "search_low_floor": 1.0,
         "search_low_penalty_cap": 0.0,
@@ -824,8 +703,8 @@ def _derive_hard_veto_fence_bundle(
 ) -> Dict[str, Any]:
     """Hard VETO fences + FF2 from THIS checkpoint pools only (no engine keys).
 
-    Shared continuous fence analysis for FP8 and INT8. Engine tunables are
-    attached by each format's own _derive_engine_tunables* so INT8 never
+    Shared continuous fence analysis helper. Engine tunables are
+    attached by _derive_engine_tunables_nvfp4 so NVFP4 never
     inherits FP8 accommodation soil.
     """
     extreme_k = _tukey_upper(k_sorted)
@@ -1054,7 +933,7 @@ def _mad_tunables_from_positive_samples(
     return out
 
 
-def _derive_int8_attn_mad_tunables(
+def _derive_nvfp4_attn_mad_tunables(
     by_class: Dict[str, List[Dict[str, float]]],
     attn_qkv_outlier: float,
     attn_toout_outlier: float,
@@ -1076,7 +955,7 @@ def _derive_int8_attn_mad_tunables(
     )
 
 
-def int8_fp16_budget_analyze_severity(
+def nvfp4_fp16_budget_analyze_severity(
     *,
     kurtosis: float,
     outlier_ratio: float,
@@ -1087,11 +966,11 @@ def int8_fp16_budget_analyze_severity(
     mad_outlier_pct: float = 0.0,
     profile_score: float = 0.0,
 ) -> float:
-    """INT8-only: analyze-side severity = this checkpoint's danger character.
+    """NVFP4-path: analyze-side severity = this checkpoint's danger character.
 
     FP8 path must NOT call this. Continuous score for
-    derive_priority_combinator → int8_fp16_budget_priority. Denominators are
-    derive_veto_tunables_int8 fences for THIS model — not a fixed recipe.
+    derive_priority_combinator → nvfp4_fp16_budget_priority. Denominators are
+    derive_veto_tunables_nvfp4 fences for THIS model — not a fixed recipe.
     Higher = more FP16-deserving under --fp16_budget_mb.
 
     Must NOT flatten Hard VETO to a constant (e.g. max(sev, 1.0)): that
@@ -1100,8 +979,8 @@ def int8_fp16_budget_analyze_severity(
     """
     if tunables.get("quant_format") != "nvfp4":
         raise ValueError(
-            "int8_fp16_budget_analyze_severity for NVFP4 convert requires "
-            "quant_format=nvfp4 (Linear NVFP4 + Conv INT8 protect); "
+            "nvfp4_fp16_budget_analyze_severity for NVFP4 convert requires "
+            "quant_format=nvfp4 (Linear NVFP4 + Conv NVFP4 protect); "
             f"got {tunables.get('quant_format')!r}"
         )
 
@@ -1112,10 +991,10 @@ def int8_fp16_budget_analyze_severity(
     k = float(kurtosis)
     o = float(outlier_ratio)
     m = float(abs_max)
-    # Excess over INT8 hard fences (1.0 == at fence). Keep continuous.
+    # Excess over NVFP4 hard fences (1.0 == at fence). Keep continuous.
     severity = max(o / eo, 0.0) + max(k / ek, 0.0) + max(m / hm, 0.0)
 
-    # Attn-class character from the same INT8 tunables (THIS-model gates).
+    # Attn-class character from the same NVFP4 tunables (THIS-model gates).
     # Includes NextDiT fused `.attention.qkv` / `.attention.out` (structure suffix).
     name = str(layer_name or "")
     if name.endswith((".to_q", ".to_k", ".to_v", ".attention.qkv")):
@@ -1642,7 +1521,7 @@ def apply_fp16_infinite_priority_branches(
     return restored, details
 
 
-def int8_fp16_budget_priority(
+def nvfp4_fp16_budget_priority(
     dualmonitor_sensitivity: float,
     v4_estimated_mse: float,
     analyze_severity: float,
@@ -1656,7 +1535,7 @@ def int8_fp16_budget_priority(
     """
     if combinator is None:
         raise ValueError(
-            "int8_fp16_budget_priority requires per-checkpoint combinator "
+            "nvfp4_fp16_budget_priority requires per-checkpoint combinator "
             "(derive_priority_combinator); fixed formulas are forbidden"
         )
     sens = max(float(dualmonitor_sensitivity), 0.0)
@@ -1688,20 +1567,20 @@ def int8_fp16_budget_priority(
 
 
 
-def build_int8_analyze_character_table(
+def build_nvfp4_analyze_character_table(
     profile: Dict[str, Any],
     tunables: Dict[str, Any],
     *,
     hard_veto_names: Optional[set] = None,
 ) -> Dict[str, Dict[str, float]]:
-    """Per-layer INT8 analyze character for this checkpoint (FP8 must not call).
+    """Per-layer NVFP4 analyze character for this checkpoint (FP8 must not call).
 
     Returns {layer: {kurtosis, outlier_ratio, abs_max, mad_outlier_pct, severity}}.
-    Severity uses the same fences as int8_fp16_budget_analyze_severity.
+    Severity uses the same fences as nvfp4_fp16_budget_analyze_severity.
     """
     if tunables.get("quant_format") != "nvfp4":
         raise ValueError(
-            "build_int8_analyze_character_table for NVFP4 convert requires "
+            "build_nvfp4_analyze_character_table for NVFP4 convert requires "
             f"quant_format=nvfp4; got {tunables.get('quant_format')!r}"
         )
     profile = _unet_only_profile(profile)
@@ -1716,7 +1595,7 @@ def build_int8_analyze_character_table(
         m = float(entry.get("abs_max", 0) or 0)
         mad = float(entry.get("mad_outlier_pct", 0) or 0)
         ps = float(entry.get("profile_score", 0) or 0)
-        sev = int8_fp16_budget_analyze_severity(
+        sev = nvfp4_fp16_budget_analyze_severity(
             kurtosis=k,
             outlier_ratio=o,
             abs_max=m,
@@ -1739,16 +1618,16 @@ def build_int8_analyze_character_table(
 
 # ---------------------------------------------------------------------------
 # Fully autonomous tunable derivation.
-# Owner hard ceiling INT8_FP16_BUDGET_MB_HARD (default 300 MiB; ZI V1.0 may
+# Owner hard ceiling NVFP4_FP16_BUDGET_MB_HARD (default 300 MiB; ZI V1.0 may
 # raise the same named ceiling to 600) is NOT a thinking-stop recipe:
 # auto knobs fill inside that frame and must never exceed it.
 # Every knob below is derived from THIS checkpoint's profile + DualMonitor
 # sensitivity distribution. Covers degenerate / tiny / huge / skewed cases.
 # ---------------------------------------------------------------------------
 
-# Default = SDXL INT8. Callers (e.g. quantize_zi_int8_hswq_v1.0) may set this
-# module attribute before derive / assert; ranking / fill logic is unchanged.
-INT8_FP16_BUDGET_MB_HARD = 600.0
+# Default = SDXL NVFP4 convert budget ceiling (600 MiB).
+# Module attribute may be set before derive / assert; ranking / fill unchanged.
+NVFP4_FP16_BUDGET_MB_HARD = 600.0
 
 
 def _safe_percentile(values: List[float], pct: float) -> float:
@@ -1775,17 +1654,17 @@ def _robust_iqr(values: List[float]) -> float:
     return max(q3 - q1, 1e-12)
 
 
-def derive_int8_autonomous_tunables(
+def derive_nvfp4_autonomous_tunables(
     profile: Dict[str, Any],
     *,
     dualmonitor_sensitivities: Optional[Dict[str, float]] = None,
     layer_extra_bytes: Optional[Dict[str, int]] = None,
-    fp16_budget_mb: float = INT8_FP16_BUDGET_MB_HARD,
+    fp16_budget_mb: float = NVFP4_FP16_BUDGET_MB_HARD,
 ) -> Dict[str, Any]:
-    """Derive EVERY INT8 knob from this checkpoint + calibration.
+    """Derive EVERY NVFP4 knob from this checkpoint + calibration.
 
-    Owner hard ceiling: fp16_budget_mb must equal INT8_FP16_BUDGET_MB_HARD
-    (default 300 MiB; ZI INT8 V1.0 uses 600 MiB via the same named ceiling).
+    Owner hard ceiling: fp16_budget_mb must equal NVFP4_FP16_BUDGET_MB_HARD
+    (600 MiB for NVFP4 convert).
     Inside that frame: THIS model's auto analysis → extreme auto-optimal
     settings (Hard VETO fences, ranking weights, MSE release, BC scope,
     gray-zone, alpha/beta, search_low, sens_veto percentile).
@@ -1798,7 +1677,7 @@ def derive_int8_autonomous_tunables(
       - extreme outliers dominating max
       - tiny UNet (<50 layers) or huge (>5000)
     """
-    hard = float(INT8_FP16_BUDGET_MB_HARD)
+    hard = float(NVFP4_FP16_BUDGET_MB_HARD)
     if abs(float(fp16_budget_mb) - hard) > 1e-6:
         raise ValueError(
             f"fp16_budget_mb must be exactly {hard:g} MiB "
@@ -1810,9 +1689,9 @@ def derive_int8_autonomous_tunables(
     profile = _unet_only_profile(profile)
     layers = profile.get("layers", {})
     if not layers:
-        raise ValueError("derive_int8_autonomous_tunables: profile has no layers")
+        raise ValueError("derive_nvfp4_autonomous_tunables: profile has no layers")
 
-    base = derive_veto_tunables_int8(profile)
+    base = derive_veto_tunables_nvfp4(profile)
 
     all_k: List[float] = []
     all_o: List[float] = []
@@ -1906,7 +1785,7 @@ def derive_int8_autonomous_tunables(
         calc_trace=alpha_trace,
     )
 
-    # ---- search_low: INT8 pack is absmax (1.0). No clipping. ----
+    # ---- search_low: NVFP4/Conv pack is absmax (1.0). No clipping. ----
     base["search_low_floor"] = 1.0
     base["search_low_penalty_cap"] = 0.0
     base["search_low_clip_max"] = 1.0
@@ -1972,8 +1851,8 @@ def derive_int8_autonomous_tunables(
         )
 
     # ---- FP16 hard ceiling (owner); auto settings fill inside ----
-    base["fp16_budget_mb"] = float(INT8_FP16_BUDGET_MB_HARD)
-    base["fp16_budget_bytes"] = int(float(INT8_FP16_BUDGET_MB_HARD) * 1024 * 1024)
+    base["fp16_budget_mb"] = float(NVFP4_FP16_BUDGET_MB_HARD)
+    base["fp16_budget_bytes"] = int(float(NVFP4_FP16_BUDGET_MB_HARD) * 1024 * 1024)
 
 
     # Autonomous priority combinator seed (analyze severity axis only here;
@@ -1992,7 +1871,7 @@ def derive_int8_autonomous_tunables(
 
     base["n_unet_layers"] = n_layers
     base["autonomous"] = True
-    _assert_int8_auto_optimal_complete(base)
+    _assert_nvfp4_auto_optimal_complete(base)
 
     # ---- Full visibility dump (every calc / every layer / every knob) ----
     layers_dump: Dict[str, Any] = {}
@@ -2062,13 +1941,13 @@ def derive_int8_autonomous_tunables(
         "tunables_every_key": {str(k): base[k] for k in sorted(base.keys(), key=str)},
         "layers_every_entry": layers_dump,
     }
-    emit_hswq_int8_full_visibility_log(full_report)
+    emit_hswq_nvfp4_full_visibility_log(full_report)
     return base
 
 
 # Keys that MUST be filled by auto analysis → auto-optimal (never silent
 # dataclass holes after deleting accommodation clips — philosophy §0 / §1).
-_INT8_AUTO_OPTIMAL_REQUIRED = (
+_NVFP4_AUTO_OPTIMAL_REQUIRED = (
     "extreme_kurtosis",
     "extreme_outlier",
     "huge_magnitude",
@@ -2113,23 +1992,23 @@ _INT8_AUTO_OPTIMAL_REQUIRED = (
 )
 
 
-def _assert_int8_auto_optimal_complete(d: Dict[str, Any]) -> None:
+def _assert_nvfp4_auto_optimal_complete(d: Dict[str, Any]) -> None:
     """Fail loud if a former accommodation clip was deleted without replace."""
-    missing = [k for k in _INT8_AUTO_OPTIMAL_REQUIRED if k not in d]
+    missing = [k for k in _NVFP4_AUTO_OPTIMAL_REQUIRED if k not in d]
     if missing:
         raise ValueError(
-            "INT8 auto-optimal incomplete after analyze — missing keys "
+            "NVFP4 auto-optimal incomplete after analyze — missing keys "
             f"{missing}. Do not fill deleted clip holes with defaults; "
-            "re-run derive_int8_autonomous_tunables."
+            "re-run derive_nvfp4_autonomous_tunables."
         )
     if str(d.get("quant_format")) != "nvfp4":
         raise ValueError(
             "NVFP4 auto-optimal requires quant_format=nvfp4 "
             f"(got {d.get('quant_format')!r})"
         )
-    if abs(float(d.get("fp16_budget_mb", 0.0)) - float(INT8_FP16_BUDGET_MB_HARD)) > 1e-6:
+    if abs(float(d.get("fp16_budget_mb", 0.0)) - float(NVFP4_FP16_BUDGET_MB_HARD)) > 1e-6:
         raise ValueError(
-            f"NVFP4 auto-optimal requires fp16_budget_mb={float(INT8_FP16_BUDGET_MB_HARD):g}"
+            f"NVFP4 auto-optimal requires fp16_budget_mb={float(NVFP4_FP16_BUDGET_MB_HARD):g}"
         )
     if not bool(d.get("autonomous")):
         raise ValueError("NVFP4 auto-optimal requires autonomous=True from derive")
@@ -2145,11 +2024,11 @@ def _assert_int8_auto_optimal_complete(d: Dict[str, Any]) -> None:
     ):
         v = float(d[k])
         if not math.isfinite(v):
-            raise ValueError(f"INT8 auto-optimal key {k} is not finite: {v}")
+            raise ValueError(f"NVFP4 auto-optimal key {k} is not finite: {v}")
     if float(d["mse_p75_multiplier"]) <= 0.0:
         raise ValueError("mse_p75_multiplier must be > 0 (THIS-profile replace)")
     if float(d["search_low_floor"]) != 1.0:
-        raise ValueError("INT8 search_low_floor must be 1.0 (absmax pack replace)")
+        raise ValueError("NVFP4 search_low_floor must be 1.0 (absmax pack replace)")
 
 
 def _is_unet_weight_key(name: str) -> bool:
@@ -2170,7 +2049,7 @@ def _unet_only_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def measure_v4_int8_mse_at_absmax(
+def measure_v4_nvfp4_mse_at_absmax(
     weight_tensors: Dict[str, torch.Tensor],
     *,
     device: Optional[str] = None,
@@ -2253,7 +2132,7 @@ def measure_v4_int8_mse_at_absmax(
     alpha = float(min(max(alpha, 0.0), 1.0))
     if alpha <= 0.0:
         raise ValueError(
-            "measure_v4_int8_mse_at_absmax: alpha_auto must be > 0 "
+            "measure_v4_nvfp4_mse_at_absmax: alpha_auto must be > 0 "
             f"(alpha==0 is SVD cut / rebellion). got {alpha}"
         )
     beta = 1.0 - alpha
@@ -2443,7 +2322,7 @@ def measure_v4_int8_mse_at_absmax(
     }
 
 
-def compute_int8_optimal_settings(
+def compute_nvfp4_optimal_settings(
     profile: Dict[str, Any],
     weight_tensors: Optional[Dict[str, torch.Tensor]] = None,
     *,
@@ -2453,12 +2332,12 @@ def compute_int8_optimal_settings(
     """Auto optimal NVFP4-pack settings = analyze × V4 pack MSE × DualMonitor.
 
     Triple contract (no shortcuts):
-      1) analyze derive_int8_autonomous_tunables (weight-space + alpha_auto)
+      1) analyze derive_nvfp4_autonomous_tunables (weight-space + alpha_auto)
       2) V4 Full-SVD×RMS + real pack MSE @ absmax (Linear NVFP4 / Conv INT8)
       3) DualMonitor channel_importance from 32-sample / 25-step calibration
     """
     unet_prof = _unet_only_profile(profile)
-    tunables = derive_int8_autonomous_tunables(unet_prof)
+    tunables = derive_nvfp4_autonomous_tunables(unet_prof)
     layers = unet_prof.get("layers", {})
 
     optimal: Dict[str, Any] = {
@@ -2502,7 +2381,7 @@ def compute_int8_optimal_settings(
     }
 
     if weight_tensors is not None:
-        v4 = measure_v4_int8_mse_at_absmax(
+        v4 = measure_v4_nvfp4_mse_at_absmax(
             weight_tensors,
             device=device,
             tunables=tunables,
@@ -2564,7 +2443,7 @@ def compute_int8_optimal_settings(
         optimal["v4"]["reason"] = "no_weight_tensors_passed"
         optimal["complete"] = False
 
-    return {"veto_tunables_int8": tunables, "optimal_settings_int8": optimal}
+    return {"veto_tunables_nvfp4": tunables, "optimal_settings_nvfp4": optimal}
 
 
 def enrich_profile_with_derived(
@@ -2574,11 +2453,11 @@ def enrich_profile_with_derived(
     device: Optional[str] = None,
     importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
 ) -> Dict[str, Any]:
-    """Recompute scores; attach FP8 + INT8 tunables; auto-optimal via analyze×V4×calib.
+    """Recompute scores; attach NVFP4 tunables; auto-optimal via analyze×V4×calib.
 
-    Full INT8 optimal (complete=True) requires DualMonitor channel_importance
+    Full NVFP4 optimal (complete=True) requires DualMonitor channel_importance
     from the How-to r32 recipe (32 samples / 25 steps). Without it, gates are
-    still written but optimal_settings_int8.complete stays False.
+    still written but optimal_settings_nvfp4.complete stays False.
     """
     layers = profile.get("layers", {})
     all_k = [float(e.get("kurtosis", 0)) for e in layers.values()]
@@ -2594,26 +2473,24 @@ def enrich_profile_with_derived(
         m = float(entry.get("abs_max", 0))
         entry["profile_score"] = composite_rank_score(k, o, m, all_k, all_o, all_m)
 
-    tunables = derive_veto_tunables(profile)
-    profile["veto_tunables"] = tunables
-
-    int8_bundle = compute_int8_optimal_settings(
+    # NVFP4-only: never attach FP8 veto_tunables / derive_veto_tunables.
+    nvfp4_bundle = compute_nvfp4_optimal_settings(
         profile,
         weight_tensors=weight_tensors,
         device=device,
         importance_by_layer=importance_by_layer,
     )
-    profile["veto_tunables_int8"] = int8_bundle["veto_tunables_int8"]
-    profile["optimal_settings_int8"] = int8_bundle["optimal_settings_int8"]
+    profile["veto_tunables_nvfp4"] = nvfp4_bundle["veto_tunables_nvfp4"]
+    profile["optimal_settings_nvfp4"] = nvfp4_bundle["optimal_settings_nvfp4"]
 
-    extreme_k = tunables["extreme_kurtosis"]
-    med_k = tunables["median_kurtosis"]
-    extreme_o = tunables["extreme_outlier"]
+    vt = profile["veto_tunables_nvfp4"]
+    extreme_k = float(vt["extreme_kurtosis"])
+    med_k = float(vt["median_kurtosis"])
+    extreme_o = float(vt["extreme_outlier"])
 
     high_k = low_k = med_k_count = 0
     for entry in layers.values():
         k = float(entry.get("kurtosis", 0))
-        o = float(entry.get("outlier_ratio", entry.get("abs_max", 0)))
         if k > extreme_k:
             high_k += 1
         elif k <= med_k:
@@ -2622,8 +2499,7 @@ def enrich_profile_with_derived(
             med_k_count += 1
 
     ff2_count = sum(1 for n in layers if classify_layer(n) == "ff2")
-    i8 = profile["veto_tunables_int8"]
-    opt = profile["optimal_settings_int8"]
+    opt = profile["optimal_settings_nvfp4"]
     v4opt = opt.get("v4", {})
     profile["summary"] = {
         "layer_count": len(layers),
@@ -2636,12 +2512,13 @@ def enrich_profile_with_derived(
             if float(e.get("outlier_ratio", e.get("abs_max", 0))) > extreme_o
         ),
         "ff2_count": ff2_count,
-        "ff2_auto_full_class": tunables.get("ff2_auto_full_class", False),
-        "ff2_selective_protected_count": tunables.get("ff2_selective_protected_count", 0),
-        "int8_search_low": float(i8.get("search_low_floor", 1.0)),
-        "int8_mse_release_o_min": float(i8.get("mse_release_o_min", 0.0)),
-        "int8_mse_p75_multiplier": float(i8.get("mse_p75_multiplier", 1.0)),
-        "int8_optimal_complete": bool(opt.get("complete", False)),
+        "ff2_auto_full_class": vt.get("ff2_auto_full_class", False),
+        "ff2_selective_protected_count": vt.get("ff2_selective_protected_count", 0),
+        "nvfp4_search_low": float(vt.get("search_low_floor", 1.0)),
+        "nvfp4_mse_release_o_min": float(vt.get("mse_release_o_min", 0.0)),
+        "nvfp4_mse_p75_multiplier": float(vt.get("mse_p75_multiplier", 1.0)),
+        "nvfp4_optimal_complete": bool(opt.get("complete", False)),
+        "quant_format": "nvfp4",
         "calib_contract": opt.get("calib_contract"),
         "v4_ran": bool(v4opt.get("v4_ran", False)),
         "v4_complete": bool(v4opt.get("complete", False)),
@@ -2651,7 +2528,7 @@ def enrich_profile_with_derived(
         "v4_svd_enabled": v4opt.get("svd_enabled"),
         "v4_alpha": v4opt.get("alpha"),
         "v4_beta": v4opt.get("beta"),
-        "alpha_auto": float(i8.get("alpha_auto", 0.0)),
+        "alpha_auto": float(vt.get("alpha_auto", 0.0)),
     }
     return profile
 
@@ -2661,11 +2538,11 @@ def enrich_profile_with_derived(
 # ---------------------------------------------------------------------------
 
 def analyze_unet(path: str, *, run_v4: bool = True) -> Dict[str, Any]:
-    """Scan safetensors → layer stats → FP8/INT8 tunables → optional V4 stub.
+    """Scan safetensors → layer stats → NVFP4 tunables → optional V4 stub.
 
     Weight-only analyze cannot supply DualMonitor importance (needs the
     32-sample / 25-step calib recipe). With run_v4=True, weights are still
-    passed so the contract is recorded, but optimal_settings_int8.complete
+    passed so the contract is recorded, but optimal_settings_nvfp4.complete
     remains False until importance_by_layer is provided (quantize path).
     """
     state = load_file(path)
@@ -2689,7 +2566,10 @@ def analyze_unet(path: str, *, run_v4: bool = True) -> Dict[str, Any]:
 
 
 def generate_model_profile(input_path: str, output_path: str) -> Dict[str, Any]:
-    """Build profile JSON (CPU safetensors scan). Used by quantize_sdxl_hswq_v2.0."""
+    """Build NVFP4 profile JSON (CPU safetensors scan).
+
+    Used by hswq_convert_nvfp4_convrot_1.0.py auto analyze path.
+    """
     profile = analyze_unet(input_path)
     os.makedirs(os.path.dirname(os.path.abspath(output_path)) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
@@ -2698,7 +2578,9 @@ def generate_model_profile(input_path: str, output_path: str) -> Dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Analyze SDXL UNet weight distribution")
+    parser = argparse.ArgumentParser(
+        description="Analyze SDXL UNet weight distribution for HSWQ NVFP4"
+    )
     parser.add_argument("safetensors", nargs="?", help="Path to SDXL UNet safetensors (positional)")
     parser.add_argument("--input", "-i", dest="input_path", help="Input safetensors (quantize CLI compat)")
     parser.add_argument("-o", "--output", required=True, help="Output profile JSON path")
@@ -2717,9 +2599,9 @@ def main() -> None:
     if (not v4_ran) and v4_reason == "dualmonitor_importance_required":
         defer = " (V4 MSE deferred until DualMonitor Imp; Full-SVD scheduled ON)"
     print(
-        f"[analyze×V4 INT8] search_low={summary.get('int8_search_low')} "
-        f"mse_release_o_min={summary.get('int8_mse_release_o_min')} "
-        f"mse_p75_mult={summary.get('int8_mse_p75_multiplier')} "
+        f"[analyze×V4 NVFP4] search_low={summary.get('nvfp4_search_low')} "
+        f"mse_release_o_min={summary.get('nvfp4_mse_release_o_min')} "
+        f"mse_p75_mult={summary.get('nvfp4_mse_p75_multiplier')} "
         f"v4_ran={v4_ran} "
         f"v4_reason={v4_reason} "
         f"v4_p75_mse={summary.get('v4_safe_p75_mse')} "
