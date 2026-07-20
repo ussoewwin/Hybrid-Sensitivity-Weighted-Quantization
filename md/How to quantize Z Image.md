@@ -4,8 +4,6 @@ Use **native ConvRot INT8** with `native_convert_int8_convrot.py`.
 
 **HSWQ Z Image INT8 development and public release ended.** For Z Image 8-bit, use this native path (typically **SSIM > 0.99**). HSWQ INT8 continues for **SDXL** only.
 
-The dedicated VRAM for the GPU must be enough to load the UNet weights (often **24GB or more** for Z Image Turbo–class models).
-
 **Prefer a Z Image Turbo (ZIT) checkpoint.** Plain Z Image base models are not recommended.
 
 ## Clone the repository
