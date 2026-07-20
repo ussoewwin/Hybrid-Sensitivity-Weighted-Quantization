@@ -799,7 +799,14 @@ class HSWQWeightedHistogramOptimizerV4:
             from comfy_kitchen.tensor import TensorCoreNVFP4Layout
 
             layout = TensorCoreNVFP4Layout
-            qdata, params = layout.quantize(w)
+            # Kitchen TensorCoreNVFP4Layout accepts FP16/BF16 only.
+            # SVD/importance stay on float32 `w`; pack input must not be float32
+            # or quantize raises and convert/analyze skip — SVD computed then discarded.
+            if weight.dtype == torch.bfloat16:
+                w_pack = w.to(dtype=torch.bfloat16)
+            else:
+                w_pack = w.to(dtype=torch.float16)
+            qdata, params = layout.quantize(w_pack)
             full = layout.dequantize(qdata, params)
             orig = tuple(params.orig_shape)
             if tuple(full.shape) != orig:
