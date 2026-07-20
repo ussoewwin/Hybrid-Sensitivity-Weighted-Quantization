@@ -343,8 +343,14 @@ try:
         _int8_quant_conv_scope,
     )
     import int8.comfy_quant_int8 as _cq_int8  # noqa: E402
+    from int4.comfy_quant_int4 import (  # noqa: E402
+        apply_comfy_quant_int4_patches,
+        checkpoint_looks_like_comfy_quant_int4,
+    )
+    import int4.comfy_quant_int4 as _cq_int4  # noqa: E402
 
     apply_comfy_quant_int8_patches()
+    apply_comfy_quant_int4_patches()
     _mp_ops = comfy.ops.mixed_precision_ops()
     with _int8_quant_conv_scope():
         _has_conv_int8 = hasattr(comfy.ops.mixed_precision_ops(), "Conv2d")
@@ -352,14 +358,17 @@ try:
     print(f"[BENCH] COMFY_PATH: {COMFY_PATH}")
     print(f"[BENCH] comfy.ops: {comfy.ops.__file__}")
     print(f"[BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+    print(f"[BENCH] convrot_w4a4: {'convrot_w4a4' in comfy.ops.QUANT_ALGOS}")
     print(f"[BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
+    print(f"[BENCH] comfy_quant_int4 patched: {_cq_int4._PATCHES_APPLIED}")
     print(
         f"[BENCH] mixed_precision_ops Conv2d inject: "
         f"{getattr(comfy.ops.mixed_precision_ops, '_hswq_int8_conv_patched', False)}"
     )
     print(f"[BENCH] MixedPrecisionOps.Conv2d (default): {hasattr(_mp_ops, 'Conv2d')}")
     print(f"[BENCH] MixedPrecisionOps.Conv2d (INT8 scope): {_has_conv_int8}")
-    print(f"[BENCH] patch file: {os.path.abspath(_cq_int8.__file__)}")
+    print(f"[BENCH] patch file int8: {os.path.abspath(_cq_int8.__file__)}")
+    print(f"[BENCH] patch file int4: {os.path.abspath(_cq_int4.__file__)}")
     print(f"[BENCH] comfy_aimdo stubbed: {_AIMDO_STUBBED}")
 except Exception as e:
     print(f"Error: Could not import ComfyUI comfy package from {COMFY_PATH}: {type(e).__name__}: {e}")
@@ -399,7 +408,9 @@ def load_pipeline(path, device="cuda"):
     try:
         ckpt_path = os.path.abspath(path)
         use_int8_scope = checkpoint_looks_like_comfy_quant_int8(ckpt_path)
+        use_int4 = checkpoint_looks_like_comfy_quant_int4(ckpt_path)
         print(f"[BENCH] INT8 Conv2d load scope: {use_int8_scope}")
+        print(f"[BENCH] INT4 convrot_w4a4 detect: {use_int4}")
         if use_int8_scope:
             with _int8_quant_conv_scope():
                 out = comfy.sd.load_checkpoint_guess_config(
