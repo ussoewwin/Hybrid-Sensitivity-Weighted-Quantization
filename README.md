@@ -4,9 +4,8 @@
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity **FP8** and **ConvRot INT8** quantization for **SDXL**, **Flux1.dev**, **Z Image Turbo**, and **Z-Anime** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
+High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
 
-- **FP8:** two modes — standard-compatible (V1) and high-performance scaled (V2). **V2 requires a dedicated loader and is not usable at the current time.**
 - **ConvRot INT8 (SDXL V3.1):** ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Linear/Conv2d after DualMonitor + V4 weighted-histogram FP16 protection under a fixed **300 MiB** budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage. Pack path matches `native_convert_int8_convrot.py`.
 - **Z Image INT8 (HSWQ):** **Development and public release ended.** For Z Image, **native ConvRot INT8** already reaches roughly **SSIM > 0.99** in general, so a separate HSWQ Z Image 8-bit line is no longer developed or published. Use native ConvRot INT8 for Z Image 8-bit; HSWQ INT8 work continues for **SDXL**.
 
