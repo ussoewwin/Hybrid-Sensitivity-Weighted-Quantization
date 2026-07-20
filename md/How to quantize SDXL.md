@@ -27,13 +27,15 @@ pip install -r requirements.txt
 
 ## Quantize an SDXL model
 
-Example: koronemixVpred_v20. Adjust the file paths to your environment.
+Example: epicrealismXL_pureFix. Adjust the file paths to your environment.
 
 ```bash
-python quantize_sdxl_hswq_v1.3.py --input "<path-to-unet>/koronemixVpred_v20.safetensors" --output "<output-dir>/koronemixVpred_v20_hswq_r32_s25_r0.25_v1.safetensors" --calib_file "<output-dir>/calibration_prompts_256.txt" --num_calib_samples 32 --num_inference_steps 25 --keep_ratio 0.25
+python quantize_sdxl_hswq_v3.1.py --input "<path-to-unet>/epicrealismXL_pureFix.safetensors" --output "<path-to-unet>/epicrealismXL_pureFix_hswq_v3.1.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8
 ```
 
 **Notes:**
 
 - **Samples:** 32 (recommended).
-- **Keep ratio:** 0.1 (as in the example); the valid range is typically 0.05–0.25. For SDXL, 0.1 often gives sufficient quality. Adjust if you want to trade off quality vs. memory/speed.
+- **Inference steps:** 25 (as in the example).
+- **FULL ConvRot** (Linear + Conv2d when `in_dim` is divisible by a power-of-4 group size) is **ON by default**. Pass `--no-convrot` only for plain INT8 without ConvRot.
+- **`--per_channel_int8`:** use per-out-channel amax/scale instead of a single per-tensor scale when packing layers that do **not** go through ConvRot. Under default FULL ConvRot, almost all eligible Linear/Conv2d already use rotate + per-channel scale, so this flag has **little effect** in practice; keep it as **insurance** for any remaining non-ConvRot packs. Format tag stays `int8_tensorwise`.
