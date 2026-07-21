@@ -138,11 +138,6 @@ def _install_nvfp4_convert_full_session_log() -> str:
     return path
 
 
-def _ensure_nvfp4_hist_on_path() -> None:
-    hist_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "histogram")
-    if hist_dir not in sys.path:
-        sys.path.insert(0, hist_dir)
-
 def _script_dir() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
@@ -2967,7 +2962,7 @@ def run_nvfp4_calib(
         release_cands -= keypattern_veto
     if release_cands:
         hard_veto_layers, keep_layers, mse_cache = _mse_grayzone_veto_reassessment(
-            scope_label="V1.0 SDXL NVFP4 ConvRot",
+            scope_label="V1.2 SDXL NVFP4",
             hard_veto_layers=hard_veto_layers,
             keep_layers=keep_layers,
             outlier_only_veto=release_cands,
@@ -3620,12 +3615,13 @@ def convert_to_nvfp4_convrot(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
-            "Diffusion FULL ConvRot convert: Linear→NVFP4 (+ rotate), "
-            "Conv2d→INT8 (+ rotate). Pass --calib_file for NVFP4 .input_scale, "
+            "Diffusion ConvRot + NVFP4 convert: Linear→NVFP4 (unrotated), "
+            "Conv2d→INT8 (+ ConvRot), INT8-shelter Linear→INT8 (+ ConvRot). "
+            "Pass --calib_file for NVFP4 .input_scale, "
             "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=600 hard "
             "ceiling), and weight clip amax from NVFP4/INT8 pack roundtrip MSE. "
-            "Online act rotate required at load (loader built separately). "
-            "Card 1 = --bias_correction."
+            "Online act rotate required at load for ConvRot layers "
+            "(loader built separately). Card 1 = --bias_correction."
         )
     )
     parser.add_argument(
