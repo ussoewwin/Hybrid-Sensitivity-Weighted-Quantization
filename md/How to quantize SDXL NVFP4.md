@@ -30,7 +30,7 @@ pip install -r requirements.txt
 Example: waiIllustriousSDXL_v170. Adjust the file paths to your environment.
 
 ```bash
-python hswq_convert_nvfp4_convrot_1.0.py --model "<path-to-unet>/waiIllustriousSDXL_v170.safetensors" --output "<path-to-unet>/waiIllustriousSDXL_v170_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25
+python hswq_convert_nvfp4_1.0.py --model "<path-to-unet>/waiIllustriousSDXL_v170.safetensors" --output "<path-to-unet>/waiIllustriousSDXL_v170_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25
 ```
 
 **Notes:**
