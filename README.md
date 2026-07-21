@@ -40,7 +40,7 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 | :--- | :--- | :--- |
 | **Compatibility** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible |
 | **File format** | INT8 weights + scale (`int8_tensorwise`); SDXL V3.1 packs remainder with **FULL ConvRot** | Linear **NVFP4** + Conv2d **INT8** (`int8_tensorwise`); **FULL ConvRot** on eligible layers |
-| **Image quality (SSIM)** | **0.94–0.98** | **0.95-0.98** |
+| **Image quality (SSIM)** | **0.94–0.98** | **0.93-0.98** |
 | **Mechanism** | Absmax + DualMonitor / V4 FP16 protect (r0); then FULL ConvRot on Linear/Conv2d remainder | Absmax + DualMonitor / V4 FP16 protect (r0, **600 MiB**); FULL ConvRot (Linear→NVFP4, Conv2d→INT8) |
 | **Keep ratio** | **0 (fixed)** | **0 (fixed)** |
 | **Benchmark** | Measurable | Measurable |
@@ -86,7 +86,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 - **Order:** (1) FP16 keep via DualMonitor + analyze + V4 under the **600 MiB** hard ceiling → (2) remaining eligible layers **FULL ConvRot** — Linear → **NVFP4**, Conv2d → **INT8** (`int8_tensorwise`).
 - **Loader / format:** ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4`; NVFP4 `.input_scale` from PTQ calib (`--calib_file`).
 - **Keep ratio:** **0 (fixed)** — FP16 protection is automatic (analyze Hard VETO + DualMonitor + V4 pack-MSE ranking inside the FP16 budget), not a percentage keep-ratio.
-- **Image quality (SSIM):** **0.95**.
+- **Image quality (SSIM):** **0.93-0.98**.
 
 ---
 
@@ -105,7 +105,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 | Original FP16 | 1.0000 | 100% | High |
 | Naive FP8 | 0.75–0.93 | 50% | High |
 | **HSWQ ConvRot INT8** | **0.94–0.98** | **68%** (FP16 mixed) | **High** (ComfyUI INT8) |
-| **HSWQ ConvRot NVFP4** | **0.95-0.98** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
+| **HSWQ ConvRot NVFP4** | **0.93-0.98** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
 HSWQ ConvRot INT8 targets **SSIM 0.94–0.98**; HSWQ ConvRot NVFP4 targets **SSIM 0.95**. Both keep full loader compatibility on their respective formats.
 
