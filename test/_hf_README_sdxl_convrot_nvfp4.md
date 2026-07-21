@@ -29,7 +29,7 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 
 **How to quantize (SDXL ConvRot NVFP4):** [md/How to quantize SDXL NVFP4.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL%20NVFP4.md)
 
-**ComfyUI Loader for ConvRot NVFP4:** Native ComfyUI load (Load Diffusion Model with `nvfp4` support).
+**ComfyUI Loader for ConvRot NVFP4:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
 
 ---
 
