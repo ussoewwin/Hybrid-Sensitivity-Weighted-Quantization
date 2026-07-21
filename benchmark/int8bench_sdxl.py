@@ -296,7 +296,7 @@ def _install_psutil_stub():
 _PSUTIL_STUBBED = _install_psutil_stub()
 
 # ComfyUI's cli_args.py calls parser.parse_args() at import time, which would
-# swallow our bench argv (--fp16, --fp8, --prompt, ...). Temporarily clear
+# swallow our bench argv (--fp16, --int8, --prompt, ...). Temporarily clear
 # sys.argv so ComfyUI parses an empty arg list, then restore it.
 _saved_argv = list(sys.argv)
 sys.argv = [sys.argv[0]] if sys.argv else []
@@ -490,9 +490,9 @@ def calculate_metrics(img1, img2):
     return mse, score_ssim
 
 def main():
-    parser = argparse.ArgumentParser(description="Robust SDXL FP8 Fidelity Benchmark")
+    parser = argparse.ArgumentParser(description="Robust SDXL INT8 Fidelity Benchmark")
     parser.add_argument("--fp16", required=True, help="Path to Baseline (FP16) model")
-    parser.add_argument("--fp8", required=True, help="Path to Quantized (FP8) model")
+    parser.add_argument("--int8", required=True, help="Path to Quantized (INT8) model")
     parser.add_argument("--prompt", required=True, help="Benchmark prompt")
     parser.add_argument("--seed", type=int, default=123456789, help="Fixed seed for reproduction")
     parser.add_argument("--steps", type=int, default=25, help="Inference steps")
@@ -513,17 +513,17 @@ def main():
     img_fp16.save("bench_result_fp16.png")
     print(f"FP16 Time: {time_fp16:.2f}s")
 
-    # Full memory release (keep CLIP/VAE for FP8 side to isolate UNet difference)
+    # Full memory release (keep CLIP/VAE for INT8 side to isolate UNet difference)
     del model16
     gc.collect()
     torch.cuda.empty_cache()
 
-    # 2. FP8 (Quantized) Generation
-    print("\n=== 2. Generating Quantized (FP8) ===")
-    model8, clip8, vae8 = load_pipeline(args.fp8, device)
-    img_fp8, time_fp8 = generate_image_fixed(model8, clip16, vae16, args.prompt, args.seed, args.steps)
-    img_fp8.save("bench_result_fp8.png")
-    print(f"FP8 Time: {time_fp8:.2f}s")
+    # 2. INT8 (Quantized) Generation
+    print("\n=== 2. Generating Quantized (INT8) ===")
+    model8, clip8, vae8 = load_pipeline(args.int8, device)
+    img_int8, time_int8 = generate_image_fixed(model8, clip16, vae16, args.prompt, args.seed, args.steps)
+    img_int8.save("bench_result_int8.png")
+    print(f"INT8 Time: {time_int8:.2f}s")
 
     del model8, clip8, vae8, clip16, vae16
     gc.collect()
@@ -533,12 +533,12 @@ def main():
     print("\n=== 3. Calculating Metrics ===")
 
     # Size check (prevent error when models/settings differ)
-    if img_fp16.size != img_fp8.size:
-        print(f"Error: Image sizes do not match! FP16:{img_fp16.size}, FP8:{img_fp8.size}")
+    if img_fp16.size != img_int8.size:
+        print(f"Error: Image sizes do not match! FP16:{img_fp16.size}, INT8:{img_int8.size}")
         print("Different models or settings used.")
         sys.exit(1)
 
-    mse, score = calculate_metrics(img_fp16, img_fp8)
+    mse, score = calculate_metrics(img_fp16, img_int8)
 
     print(f"--------------------------------------------------")
     print(f"MSE (Error): {mse:.4f} \t(0 is perfect match)")
@@ -558,7 +558,7 @@ def main():
     print(f"Quality Grade: {grade}")
 
     # Difference image generation
-    diff_img = ImageChops.difference(img_fp16, img_fp8)
+    diff_img = ImageChops.difference(img_fp16, img_int8)
     diff_img = ImageChops.multiply(diff_img, Image.new('RGB', diff_img.size, (10, 10, 10)))
     diff_img.save("bench_result_diff.png")
     print("Diff image saved: bench_result_diff.png")
