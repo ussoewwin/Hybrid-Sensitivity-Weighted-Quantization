@@ -13,6 +13,8 @@ tags:
 - comfyui
 - controlnet
 - anime
+- faipl-1.0-sd
+- creativeml-openrail-m
 library_name: nunchaku
 ---
 
@@ -23,7 +25,7 @@ library_name: nunchaku
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity ConvRot INT8 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
+High-fidelity ConvRot INT8 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. This is highly useful for users who need to strictly manage their VRAM resources while maintaining maximum image quality.
 
 ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Linear/Conv2d after DualMonitor + V4 weighted-histogram FP16 protection under a fixed **300 MiB** budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage. Pack path matches `native_convert_int8_convrot.py`.
 
@@ -51,11 +53,11 @@ ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Lin
 
 | Filename | Base Model | Version | License |
 | :--- | :--- | :--- | :--- |
-| `JANKUTrainedChenkinNoobai_v777_hswq_r32_convrot_int8.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.red/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Illustrious License |
-| `bluePencilXL_v031_hswq_r32_convrot_int8.safetensors` | [blue_pencil-XL](https://civitai.red/models/119012) | v0.3.1 | CreativeML Open RAIL++-M |
-| `epicrealismXL_pureFix_hswq_r32_convrot_int8.safetensors` | [epiCRealism XL](https://civitai.red/models/277058) | pureFix | CreativeML Open RAIL++-M |
-| `oneObsession_v23_hswq_r32_convrot_int8.safetensors` | [OneObsession](https://civitai.red/models/691062) | v23 | CreativeML Open RAIL++-M |
-| `waiIllustriousSDXL_v170_hswq_r32_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Illustrious License |
+| `JANKUTrainedChenkinNoobai_v777_hswq_r32_convrot_int8.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.com/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Fair AI Public License 1.0-SD |
+| `bluePencilXL_v031_hswq_r32_convrot_int8.safetensors` | [blue_pencil-XL](https://civitai.com/models/119012) | v0.3.1 | CreativeML Open RAIL++-M |
+| `epicrealismXL_pureFix_hswq_r32_convrot_int8.safetensors` | [epiCRealism XL](https://civitai.com/models/277058) | pureFix | CreativeML Open RAIL++-M |
+| `oneObsession_v23_hswq_r32_convrot_int8.safetensors` | [OneObsession](https://civitai.com/models/691062) | v23 | CreativeML Open RAIL++-M |
+| `waiIllustriousSDXL_v170_hswq_r32_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.com/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Fair AI Public License 1.0-SD |
 
 ---
 
@@ -67,11 +69,11 @@ We extend our deepest respect and gratitude to the **Nunchaku Team** for their g
 
 ### Base Models
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
-- **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.red/user/janxd).
-- **blue_pencil-XL**: Created by [Euge_us](https://civitai.red/user/Euge_us).
-- **epiCRealism XL**: Created by [epinikion](https://civitai.red/user/epinikion).
-- **OneObsession**: Created by [Polyhedron](https://civitai.red/user/Polyhedron).
-- **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.red/user/WAI0731).
+- **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.com/user/janxd).
+- **blue_pencil-XL**: Created by [Euge_us](https://civitai.com/user/Euge_us).
+- **epiCRealism XL**: Created by [epinikion](https://civitai.com/user/epinikion).
+- **OneObsession**: Created by [Polyhedron](https://civitai.com/user/Polyhedron).
+- **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.com/user/WAI0731).
 
 ---
 
