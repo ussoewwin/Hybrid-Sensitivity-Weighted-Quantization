@@ -1844,7 +1844,14 @@ def _apply_fp16_budget_cap(
     used_fp16 = 0
     shelter_detail: list[tuple[str, int, float, float, float]] = []
     kept_detail: list[tuple[str, int, float, float, float, float]] = []
-    for score, cost, tier, name, priority, rescue_frac in steps:
+    # Diagnostic trace (owner 2026-07-21): record every step's fate so the
+    # budget-cut boundary (accepted tail vs rejected head) can be dumped to
+    # the log. Tuple = (rank, score/byte, tier, name, charge, status,
+    # remaining_before); status is "ok" or "no_fit".
+    ladder_trace: list[tuple[int, float, str, str, int, str, int]] = []
+    for _rank, (score, cost, tier, name, priority, rescue_frac) in enumerate(
+        steps, 1
+    ):
         if score <= 0.0:
             continue
         cur = tier_state.get(name)
@@ -1861,7 +1868,15 @@ def _apply_fp16_budget_cap(
                 # Direct baseline → FP16 pays the full FP16 extra.
                 charge = extra_by_name[name]
         if used + charge > budget_bytes:
+            ladder_trace.append(
+                (_rank, score / max(cost, 1), tier, name, charge, "no_fit",
+                 budget_bytes - used)
+            )
             continue
+        ladder_trace.append(
+            (_rank, score / max(cost, 1), tier, name, charge, "ok",
+             budget_bytes - used)
+        )
         used += charge
         tier_state[name] = tier
         if tier == "int8":
@@ -1903,6 +1918,50 @@ def _apply_fp16_budget_cap(
         f"{len(hard_veto_out)} veto→int8={len(veto_in_shelter)} "
         f"veto→packed={len(demoted_veto - shelter_out)}"
     )
+
+    # Diagnostic dumps (owner 2026-07-21): full visibility of WHAT the
+    # budget bought and what it cut. All lines print to stdout → run log.
+    print(
+        f"  [Shelter-detail] accepted INT8-shelter steps "
+        f"(ladder/score-per-byte order, top 40 of {len(shelter_detail)}):"
+    )
+    for _n, _ch, _sc, _prio, _r1 in shelter_detail[:40]:
+        print(
+            f"    {_n}  charge={_ch / (1024 * 1024):8.3f}MiB "
+            f"step_score={_sc:.6e} priority={_prio:.6e} rescue_frac={_r1:.4f}"
+        )
+    _dropped_sorted = sorted(dropped, key=lambda t: -t[2])
+    print(
+        f"  [Dropped-detail] rejected candidates (priority order, "
+        f"top 40 of {len(dropped)}):"
+    )
+    for _n, _ex, _prio, _v4, _sev, _dm in _dropped_sorted[:40]:
+        print(
+            f"    {_n}  fp16_cost={_ex / (1024 * 1024):8.3f}MiB "
+            f"priority={_prio:.6e} v4_mse={_v4:.6e} severity={_sev:.4f} "
+            f"dm_sens={_dm:.6e}"
+        )
+    _trace_ok = [t for t in ladder_trace if t[5] == "ok"]
+    _trace_rej = [t for t in ladder_trace if t[5] == "no_fit"]
+    print(
+        f"  [Cut-window] ladder accepted={len(_trace_ok)} "
+        f"rejected_no_fit={len(_trace_rej)} "
+        f"(rank = score/byte order; boundary = accepted TAIL vs rejected HEAD)"
+    )
+    print("    --- accepted TAIL (last 20 steps to make the cut) ---")
+    for _r, _spb, _tier, _n, _ch, _st, _rem in _trace_ok[-20:]:
+        print(
+            f"    #{_r:>4} {_spb:.6e}/B tier={_tier:<4} "
+            f"charge={_ch / (1024 * 1024):8.3f}MiB "
+            f"remain_before={_rem / (1024 * 1024):8.3f}MiB  {_n}"
+        )
+    print("    --- rejected HEAD (first 20 steps to miss the cut) ---")
+    for _r, _spb, _tier, _n, _ch, _st, _rem in _trace_rej[:20]:
+        print(
+            f"    #{_r:>4} {_spb:.6e}/B tier={_tier:<4} "
+            f"charge={_ch / (1024 * 1024):8.3f}MiB "
+            f"remain_before={_rem / (1024 * 1024):8.3f}MiB  {_n}"
+        )
 
     stats = {
         "budget_mb": float(budget_mb),

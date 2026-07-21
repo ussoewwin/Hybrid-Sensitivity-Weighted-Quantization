@@ -57,6 +57,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
     try:
         import comfy.model_detection as model_detection
         import comfy.ops as ops
+        import comfy.utils as comfy_utils
     except Exception as e:
         logger.warning("[HSWQ NVFP4] comfy import failed: %s", e)
         return False
@@ -69,6 +70,34 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
     _orig_calc = model_detection.calculate_transformer_depth
     _orig_load = ops._load_quantized_module
     _orig_mp = ops.mixed_precision_ops
+    _orig_convert_old_quants = comfy_utils.convert_old_quants
+
+    def convert_old_quants_patched(state_dict, model_prefix="", metadata={}):
+        state_dict, metadata = _orig_convert_old_quants(
+            state_dict, model_prefix, metadata=metadata
+        )
+        # Kitchen "plain NVFP4" (native_convert_nvfp4.py) stores _quantization_metadata
+        # layer keys WITHOUT the diffusion-model prefix, so stock convert_old_quants
+        # injects `.comfy_quant` markers at bare keys (e.g. "input_blocks.4.1.proj_in").
+        # HSWQ detection/load resolve them at the full module prefix
+        # ("model.diffusion_model.input_blocks.4.1.proj_in.comfy_quant"). Move each
+        # nvfp4 marker to the full-prefix key so packed-K expansion + load succeed.
+        # HSWQ ConvRot files already carry full-prefix markers → skipped (untouched).
+        if model_prefix:
+            for k in list(state_dict.keys()):
+                if not k.endswith(".comfy_quant") or k.startswith(model_prefix):
+                    continue
+                try:
+                    conf = decode_comfy_quant_conf(state_dict[k])
+                except Exception:
+                    continue
+                if not is_nvfp4_conf(conf):
+                    continue
+                layer = k[: -len(".comfy_quant")]
+                if f"{model_prefix}{layer}.weight" not in state_dict:
+                    continue
+                state_dict[f"{model_prefix}{k}"] = state_dict.pop(k)
+        return state_dict, metadata
 
     def calculate_transformer_depth_patched(prefix, state_dict_keys, state_dict):
         out = _orig_calc(prefix, state_dict_keys, state_dict)
@@ -176,6 +205,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
     model_detection.model_config_from_unet = model_config_from_unet_patched
     ops._load_quantized_module = _load_quantized_module_patched
     ops.mixed_precision_ops = mixed_precision_ops_patched
+    comfy_utils.convert_old_quants = convert_old_quants_patched
 
     detect_unet_config_patched._hswq_nvfp4_packed_dims = True  # type: ignore[attr-defined]
     calculate_transformer_depth_patched._hswq_nvfp4_packed_dims = True  # type: ignore[attr-defined]

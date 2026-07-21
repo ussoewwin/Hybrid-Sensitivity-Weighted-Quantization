@@ -172,6 +172,33 @@ _KITCHEN_PROFILES: dict[str, tuple[list[str], list[str]]] = {
 }
 
 
+# Non-diffusion components (CLIP / text encoders / VAE) must never be
+# quantized to 4-bit. Full checkpoints embed these alongside the diffusion
+# model; keep them in bfloat16 (parity with the ConvRot converter, which
+# only quantizes "model.diffusion_model." weights).
+_NON_DIFFUSION_MARKERS: tuple[str, ...] = (
+    "conditioner.",       # SDXL CLIP tower
+    "cond_stage_model.",  # SD1.x CLIP tower
+    "text_encoders.",     # ComfyUI dual/triple CLIP
+    "text_encoder.",      # diffusers CLIP-L
+    "text_encoder_2.",    # diffusers CLIP-G / OpenCLIP
+    "text_encoder_3.",    # diffusers T5
+    "text_model.",        # HF CLIP text tower
+    "text_projection",    # CLIP text projection
+    "logit_scale",        # CLIP
+    "clip_l.",
+    "clip_g.",
+    "t5xxl.",
+    "first_stage_model.",  # VAE (SD checkpoints)
+    "vae.",               # VAE (diffusers)
+)
+
+
+def _is_non_diffusion_key(key: str) -> bool:
+    """True for CLIP / text-encoder / VAE tensors that must stay non-4-bit."""
+    return any(marker in key for marker in _NON_DIFFUSION_MARKERS)
+
+
 def convert_to_nvfp4(
     input_path: str,
     output_path: str,
@@ -202,6 +229,10 @@ def convert_to_nvfp4(
     print(f"Converting ({len(sd)} tensors)...")
     for k, v in tqdm(list(sd.items())):
         if any(name in k for name in blacklist):
+            new_sd[k] = v.to(dtype=torch.bfloat16)
+            continue
+
+        if _is_non_diffusion_key(k):
             new_sd[k] = v.to(dtype=torch.bfloat16)
             continue
 

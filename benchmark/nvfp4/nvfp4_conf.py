@@ -121,6 +121,19 @@ def _probe_path_comfy_quant_nvfp4(path: str) -> bool:
                 conf = decode_comfy_quant_conf(f.get_tensor(ck))
                 if is_nvfp4_conf(conf):
                     return True
+            # Kitchen "plain NVFP4" (native_convert_nvfp4.py) has no per-layer
+            # .comfy_quant tensors; it stores a top-level _quantization_metadata
+            # header whose layer entries carry {"format": "nvfp4"}.
+            meta = f.metadata() or {}
+            raw = meta.get("_quantization_metadata")
+            if raw:
+                try:
+                    layers = json.loads(raw).get("layers", {})
+                except (TypeError, ValueError):
+                    layers = {}
+                for v in layers.values():
+                    if is_nvfp4_conf(decode_comfy_quant_conf(v)):
+                        return True
     except Exception as e:
         logger.debug("NVFP4 probe failed for %s: %s", path, e)
         return False
