@@ -11,6 +11,7 @@ tags:
 - comfyui
 - controlnet
 - anime
+- faipl-1.0-sd
 library_name: nunchaku
 ---
 
@@ -20,7 +21,7 @@ library_name: nunchaku
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity ConvRot NVFP4 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
+High-fidelity ConvRot NVFP4 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. This is highly useful for users who need to strictly manage their VRAM resources while maintaining maximum image quality.
 
 ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed **600 MiB** budget. Keep ratio is **0** (r0); calib writes NVFP4 `.input_scale`. Script: `hswq_convert_nvfp4_convrot_1.0.py`.
 
@@ -45,7 +46,7 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 
 | Filename | Base Model | Version | License |
 | :--- | :--- | :--- | :--- |
-| `waiIllustriousSDXL_v170_hswq_r32_covrot_nvfp4.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Illustrious License |
+| `waiIllustriousSDXL_v170_hswq_r32_covrot_nvfp4.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.com/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Fair AI Public License 1.0-SD |
 
 ---
 
@@ -57,7 +58,7 @@ We extend our deepest respect and gratitude to the **Nunchaku Team** for their g
 
 ### Base Models
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
-- **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.red/user/WAI0731).
+- **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.com/user/WAI0731).
 
 ---
 
