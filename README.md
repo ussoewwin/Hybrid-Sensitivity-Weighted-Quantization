@@ -107,7 +107,7 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
 | **HSWQ ConvRot INT8** | **0.94–0.98** | **68%** (FP16 mixed) | **High** (ComfyUI INT8) |
 | **HSWQ ConvRot NVFP4** | **0.93-0.98** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
-HSWQ ConvRot INT8 targets **SSIM 0.94–0.98**; HSWQ ConvRot NVFP4 targets **SSIM 0.95**. Both keep full loader compatibility on their respective formats.
+HSWQ ConvRot INT8 targets **SSIM 0.94–0.98**; HSWQ ConvRot NVFP4 targets **SSIM 0.93–0.98**. Both keep full loader compatibility on their respective formats.
 
 ---
 

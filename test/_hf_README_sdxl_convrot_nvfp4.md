@@ -40,7 +40,7 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 | Model | SSIM (Avg) | File size | Compatibility |
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
-| **HSWQ ConvRot NVFP4** | **0.95** | 60% (FP16 mixed) | **High** (ComfyUI NVFP4) |
+| **HSWQ ConvRot NVFP4** | **0.93–0.98** | 60% (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
 ---
 
