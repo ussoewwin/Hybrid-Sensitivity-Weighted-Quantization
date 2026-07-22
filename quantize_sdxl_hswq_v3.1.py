@@ -10,7 +10,7 @@ V3.1 vs V3.0 pack-only deltas (FP16 300 MiB protection path UNCHANGED):
 - FULL ConvRot pack: identical to native_convert_int8_convrot.py
   (that file's pack_channelwise / pack_tensorwise / _encode_comfy_quant +
   its _load_native_convert_int8 rotate helpers). No alternate pack math.
-- Card 1 (bias_correction) FORCED OFF.
+- Card 1 (bias_correction) default OFF; enable with --bias_correction.
 - Card 2 (asymmetric_int8) FORCED OFF.
 - FP16 keep / DualMonitor / budget ranking code is NOT rewritten.
 
@@ -2272,7 +2272,8 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "SDXL INT8 Quantization - HSWQ V3.1 "
-            "(FULL ConvRot pack; Card1/2 OFF; FP16 300 MiB protection unchanged)"
+            "(FULL ConvRot pack; Card1 opt-in; Card2 OFF; "
+            "FP16 300 MiB protection unchanged)"
         )
     )
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
@@ -2313,13 +2314,15 @@ def main():
         "--bias_correction",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="Card 1. V3.1 FORCES this OFF (CLI ignored).",
+        help="Card 1. Default OFF. Pass --bias_correction to enable "
+             "(cancel systematic INT8 output bias into layer bias).",
     )
     parser.add_argument(
         "--bias_correction_top_ratio",
         type=float,
         default=None,
-        help="Unused in V3.1 (Card 1 forced OFF).",
+        help="Card 1 scope when --bias_correction is on. None = autonomous "
+             "from DualMonitor; 1.0 = all INT8 layers; <1 = Approach A top fraction.",
     )
     parser.add_argument(
         "--asymmetric_int8",
@@ -2349,10 +2352,12 @@ def main():
     )
     args = parser.parse_args()
 
-    # V3.1: Card 1 / Card 2 forced OFF — FP16 300 MiB path untouched.
-    args.bias_correction = False
+    # V3.1: Card 2 forced OFF. Card 1 is opt-in (--bias_correction, default OFF).
     args.asymmetric_int8 = False
-    print("[V3.1] Card 1 (bias_correction) FORCED OFF")
+    print(
+        f"[V3.1] Card 1 (bias_correction) = {args.bias_correction} "
+        f"(default OFF; enable with --bias_correction)"
+    )
     print("[V3.1] Card 2 (asymmetric_int8) FORCED OFF")
 
     if args.groupsize < 4 or (args.groupsize & (args.groupsize - 1)) != 0:
@@ -2462,7 +2467,8 @@ def main():
     print("=" * 60)
     print(
         "HSWQ V3.1 SDXL INT8 — FP16 300 MiB protect first, "
-        "then FULL ConvRot on remainder (Card1/2 OFF)"
+        "then FULL ConvRot on remainder "
+        f"(Card1={'ON' if args.bias_correction else 'OFF'}, Card2 OFF)"
     )
     print("=" * 60)
     print(
@@ -2963,7 +2969,7 @@ def main():
     convrot_linear = 0
     convrot_conv2d = 0
     plain_int8_count = 0
-    bias_corr_pending = {}  # unused in V3.1 (Card 1 forced OFF)
+    bias_corr_pending = {}  # comfy module prefix -> float32 bias delta (O,)
     bias_corr_applied = 0
     bias_corr_skipped_no_bias = 0
     bias_corr_skipped_no_act = 0
@@ -3046,6 +3052,7 @@ def main():
                 quant_config = {"format": "int8_tensorwise"}
                 plain_int8_count += 1
 
+            weight_dq = q.float() * scale
             output_state_dict[key] = q
             output_state_dict[f"{comfy_module}.weight_scale"] = scale
             output_state_dict[f"{comfy_module}.comfy_quant"] = (
@@ -3053,6 +3060,25 @@ def main():
             )
             quant_meta_layers[comfy_module] = dict(quant_config)
             converted_count += 1
+
+            # Card 1: same as native_convert_int8_convrot — BC vs pre-quant
+            # float (rotated when ConvRot).
+            if args.bias_correction:
+                if (
+                    bc_allowed_modules is not None
+                    and module_name not in bc_allowed_modules
+                ):
+                    bias_corr_skipped_low_sens += 1
+                else:
+                    act_mean = act_mean_dict.get(module_name)
+                    if act_mean is None:
+                        bias_corr_skipped_no_act += 1
+                    else:
+                        delta = compute_int8_bias_delta(w_fp, weight_dq, act_mean)
+                        if delta is not None:
+                            bias_corr_pending[comfy_module] = (
+                                (-delta).detach().float().cpu()
+                            )
             continue
 
         if module_name and int(value.ndim) in (2, 4):
@@ -3080,6 +3106,12 @@ def main():
             f"no_bias={bias_corr_skipped_no_bias}, no_act={bias_corr_skipped_no_act}, "
             f"low_sens_skip={bias_corr_skipped_low_sens}"
         )
+    elif args.bias_correction:
+        print(
+            f"  [Bias Correction] No deltas pending "
+            f"(no_act={bias_corr_skipped_no_act}, "
+            f"low_sens_skip={bias_corr_skipped_low_sens})"
+        )
 
     print("Conversion done:")
     print(f"  INT8 layers: {converted_count}")
@@ -3092,7 +3124,7 @@ def main():
         )
     print(f"  Per-channel INT8 (Card 3): {args.per_channel_int8}")
     print(f"  Asymmetric INT8 pack: {args.asymmetric_int8} (forced OFF)")
-    print(f"  Bias correction: {args.bias_correction} (forced OFF)")
+    print(f"  Bias correction (Card 1): {args.bias_correction}")
 
     # Hard assert: Linear+Conv FP16 keep ≤ owner ceiling + owner tolerance.
     # Hand-waving that caused the false 300.146 fail:
