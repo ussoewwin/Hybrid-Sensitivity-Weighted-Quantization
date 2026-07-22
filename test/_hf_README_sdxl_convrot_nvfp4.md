@@ -48,7 +48,10 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 
 | Filename | Base Model | Version | License |
 | :--- | :--- | :--- | :--- |
-| `waiIllustriousSDXL_v170_hswq_r32_covrot_nvfp4.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.com/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Fair AI Public License 1.0-SD |
+| `waiIllustriousSDXL_v170_hswq_r32_convrot_nvfp4.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.com/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Fair AI Public License 1.0-SD |
+| `JANKUTrainedChenkinNoobai_v777_hswq_r32_+200_nvfp4.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.com/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Fair AI Public License 1.0-SD |
+| `animemix_v80_hswq_r32_nvfp4.safetensors` | AnimeMix | v8.0 | Fair AI Public License 1.0-SD |
+| `koronemixIllustrious_v70_hswq_r32_convrot_nvfp4.safetensors` | koronemixIllustrious | v70 | Fair AI Public License 1.0-SD |
 
 ---
 
@@ -61,6 +64,8 @@ We extend our deepest respect and gratitude to the **Nunchaku Team** for their g
 ### Base Models
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
 - **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.com/user/WAI0731).
+- **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.com/user/janxd).
+- **AnimeMix / koronemixIllustrious**: Created by [koronen](https://civitai.com/user/koronen).
 
 ---
 
