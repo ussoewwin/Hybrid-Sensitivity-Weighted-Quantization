@@ -22,6 +22,8 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | bluePencilXL_v031 | r0 | 14.8040 | 0.9442 |
 | JANKUTrainedChenkinNoobai_v777 | r0 | 6.3061 | 0.9813 |
 | epicrealismXL_pureFix | r0 | 7.9803 | 0.9763 |
+| koronemixIllustrious_v70 | r0 | 35.2376 | 0.9321 |
+| koronemixVpred_v20 | r0 | 24.0460 | 0.9620 |
 
 ---
 
@@ -44,6 +46,8 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | bluePencilXL_v031 | r0 | 14.8040 | 20.3359 | +5.5319 | 0.9442 | 0.9365 | −0.0077 | Native ConvRot INT8 | HSWQ |
 | JANKUTrainedChenkinNoobai_v777 | r0 | 6.3061 | 21.5584 | +15.2523 | 0.9813 | 0.9626 | −0.0187 | Native INT8 | HSWQ |
 | epicrealismXL_pureFix | r0 | 7.9803 | 8.7927 | +0.8124 | 0.9763 | 0.9756 | −0.0007 | Native ConvRot INT8 | HSWQ |
+| koronemixIllustrious_v70 | r0 | 35.2376 | 32.5487 | −2.6889 | 0.9321 | 0.9330 | +0.0009 | Native ConvRot INT8 | Native |
+| koronemixVpred_v20 | r0 | 24.0460 | 20.1841 | −3.8619 | 0.9620 | 0.9754 | +0.0134 | Native ConvRot INT8 | Native |
 
 **Winner** = better on both MSE and SSIM.
 
