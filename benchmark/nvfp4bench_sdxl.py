@@ -296,7 +296,7 @@ def _install_psutil_stub():
 _PSUTIL_STUBBED = _install_psutil_stub()
 
 # ComfyUI's cli_args.py calls parser.parse_args() at import time, which would
-# swallow our bench argv (--fp16, --fp8, --prompt, ...). Temporarily clear
+# swallow our bench argv (--fp16, --nvfp4, --prompt, ...). Temporarily clear
 # sys.argv so ComfyUI parses an empty arg list, then restore it.
 _saved_argv = list(sys.argv)
 sys.argv = [sys.argv[0]] if sys.argv else []
@@ -507,9 +507,9 @@ def calculate_metrics(img1, img2):
     return mse, score_ssim
 
 def main():
-    parser = argparse.ArgumentParser(description="Robust SDXL FP8 Fidelity Benchmark")
+    parser = argparse.ArgumentParser(description="Robust SDXL NVFP4 Fidelity Benchmark")
     parser.add_argument("--fp16", required=True, help="Path to Baseline (FP16) model")
-    parser.add_argument("--fp8", required=True, help="Path to Quantized (FP8) model")
+    parser.add_argument("--nvfp4", required=True, help="Path to Quantized (NVFP4) model")
     parser.add_argument("--prompt", required=True, help="Benchmark prompt")
     parser.add_argument("--seed", type=int, default=123456789, help="Fixed seed for reproduction")
     parser.add_argument("--steps", type=int, default=25, help="Inference steps")
@@ -530,7 +530,7 @@ def main():
     img_fp16.save("bench_result_fp16.png")
     print(f"FP16 Time: {time_fp16:.2f}s")
 
-    # Full memory release (keep CLIP/VAE for FP8 side to isolate UNet difference)
+    # Full memory release (keep CLIP/VAE for NVFP4 side to isolate UNet difference)
     del model16
     gc.collect()
     torch.cuda.empty_cache()
@@ -538,7 +538,7 @@ def main():
     # 2. NVFP4 (Quantized) Generation
     print("\n=== 2. Generating Quantized (NVFP4) ===")
     reset_nvfp4_forward_stats()
-    model8, clip8, vae8 = load_pipeline(args.fp8, device)
+    model8, clip8, vae8 = load_pipeline(args.nvfp4, device)
     img_fp8, time_fp8 = generate_image_fixed(model8, clip16, vae16, args.prompt, args.seed, args.steps)
     img_fp8.save("bench_result_fp8.png")
     _nvfp4_stats = nvfp4_forward_stats()
