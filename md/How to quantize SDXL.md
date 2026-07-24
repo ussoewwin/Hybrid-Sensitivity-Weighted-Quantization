@@ -60,10 +60,10 @@ python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --ou
 
 ## Quantize an SDXL model (native ConvRot INT8)
 
-No calibration file. Adjust the file paths to your environment. `--model` and `--input` are aliases for the same argument.
+No calibration file. `--model` and `--input` are aliases for the same argument.
 
 ```bash
-python native_convert_int8_convrot.py --model "<path-to-unet>/your_sdxl_model.safetensors" --output "<path-to-unet>/your_sdxl_model_convrot_int8.safetensors" --per_channel_int8
+python native_convert_int8_sdxl.py --model "D:\USERFILES\ComfyUI\ComfyUI\models\unet\koronemixVpred_v20.safetensors" --output "D:\USERFILES\ComfyUI\ComfyUI\models\unet\test.safetensors" --per_channel_int8
 ```
 
 **Notes:**
@@ -71,6 +71,7 @@ python native_convert_int8_convrot.py --model "<path-to-unet>/your_sdxl_model.sa
 - **FULL ConvRot** (Linear + Conv2d when `in_dim` is divisible by a power-of-4 group size) is **ON by default**. Pass `--no-convrot` only for plain INT8 without ConvRot.
 - **`--per_channel_int8`:** use per-out-channel amax/scale instead of a single per-tensor scale when packing layers that do **not** go through ConvRot. Under default FULL ConvRot, almost all eligible Linear/Conv2d already use rotate + per-channel scale, so this flag has **little effect** in practice; keep it as **insurance** for any remaining non-ConvRot packs. Format tag stays `int8_tensorwise`.
 - **Bias correction (Card 1):** **OFF by default.** Pass `--bias_correction` **and** `--calib_file` (same DualMonitor prompts as HSWQ; samples/steps defaults apply). Applies \(\delta b \approx (W_q - W)\,\mu_x\) on **all** packed INT8 Linear + Conv2d (no top-ratio gate on this script). Without `--bias_correction`, no calibration pass is required for a plain pack. **Honest:** same as HSWQ — on vs off **depends on the model**; some checkpoints score better with Card 1 on, some score worse. Benchmark both.
+- **Post-convert bench:** **ON by default** (`--bench`). After save, clears parent VRAM then runs the fixed INT8 fidelity bench (`--fp16` = `--model`, `--int8` = `--output`, fixed `--prompt` / `--seed`). Pass `--no-bench` to skip.
 
 ## HSWQ vs native (honest)
 
