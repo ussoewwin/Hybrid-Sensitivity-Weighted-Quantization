@@ -34,19 +34,19 @@ Replace every `<...>` placeholder with a real path on your machine (no invented 
 **Default flow:** quantize → save → **clear parent VRAM** → run **`benchmark/nvfp4bench_sdxl.py`** automatically (`--fp16` = `--input`, `--nvfp4` = `--output`). You do **not** need a second manual bench command after a normal HSWQ NVFP4 run.
 
 ```bash
-python hswq_convert_nvfp4_1.0.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot
+python hswq_convert_nvfp4_1.0.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25
 ```
 
 With bias correction (still includes post-quantize bench by default):
 
 ```bash
-python hswq_convert_nvfp4_1.0.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot --bias_correction
+python hswq_convert_nvfp4_1.0.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --bias_correction
 ```
 
 Optional: skip the integrated bench:
 
 ```bash
-python hswq_convert_nvfp4_1.0.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot --no-bench
+python hswq_convert_nvfp4_1.0.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --no-bench
 ```
 
 **Notes:**
