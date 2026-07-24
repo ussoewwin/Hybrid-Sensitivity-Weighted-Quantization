@@ -33,6 +33,12 @@ Example: epicrealismXL_pureFix. Adjust the file paths to your environment.
 python quantize_sdxl_hswq_v3.1.py --input "<path-to-unet>/epicrealismXL_pureFix.safetensors" --output "<path-to-unet>/epicrealismXL_pureFix_hswq_v3.1.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8
 ```
 
+Cloud / relative paths are fine (no machine-local drive hardcoding). Example from repo root:
+
+```bash
+python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --output models/unet/your_sdxl_hswq_v3.1.safetensors --calib_file calibration_prompts_128.txt --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8 --bias_correction
+```
+
 **Notes:**
 
 - **Samples:** 32 (recommended).
@@ -40,6 +46,7 @@ python quantize_sdxl_hswq_v3.1.py --input "<path-to-unet>/epicrealismXL_pureFix.
 - **FULL ConvRot** (Linear + Conv2d when `in_dim` is divisible by a power-of-4 group size) is **ON by default**. Pass `--no-convrot` only for plain INT8 without ConvRot.
 - **`--per_channel_int8`:** use per-out-channel amax/scale instead of a single per-tensor scale when packing layers that do **not** go through ConvRot. Under default FULL ConvRot, almost all eligible Linear/Conv2d already use rotate + per-channel scale, so this flag has **little effect** in practice; keep it as **insurance** for any remaining non-ConvRot packs. Format tag stays `int8_tensorwise`.
 - **Bias correction (Card 1):** **OFF by default.** Pass `--bias_correction` to enable. After INT8 pack, DualMonitor signed channel means \(\mu_x\) from the **same** `--calib_file` run are used to cancel systematic output bias: \(\delta b \approx (W_q - W)\,\mu_x\) (Linear / Conv2d), written into each layer’s `.bias`. No extra tensors and no format-tag change. Optional `--bias_correction_top_ratio < 1` (Approach A) limits correction to high-sensitivity layers; **full layers (`1.0`) is preferred for SSIM**. `--no-bias_correction` forces off (same as the default). **Honest:** Card 1 is **model-dependent**. On some SDXL checkpoints, `--bias_correction` **raises** MSE / SSIM scores; on others it **lowers** them. Treat on vs off as an A/B choice per model — measure both before shipping.
+- **Post-quantize bench:** **ON by default.** After save, the script **clears parent VRAM** (drop convert tensors + `empty_cache`), then runs `benchmark/int8bench_sdxl.py` with `--fp16` = the resolved `--input` and `--int8` = `--output` (no second manual path entry). Optional: `--bench_prompt`, `--bench_seed` (default `123456789`), `--bench_steps` (default `25`). Pass `--no-bench` to skip.
 
 ## Quantize an SDXL model (native ConvRot INT8)
 
@@ -61,7 +68,9 @@ HSWQ ConvRot INT8 does **not** always beat native ConvRot INT8 on measured score
 
 ## Benchmark (use this for measurement)
 
-Use `benchmark/int8bench_sdxl.py` to measure FP16 vs quantized INT8 (MSE / SSIM). Adjust paths and the prompt to your environment. `--fp16` is the baseline checkpoint; `--int8` is the INT8 output from either path above.
+**HSWQ V3.1:** post-quantize bench is integrated (default ON). A separate bench command is only needed for **native** outputs, re-bench with a custom prompt, or when you used `--no-bench`.
+
+Standalone (native / re-run):
 
 ```bash
 python benchmark/int8bench_sdxl.py --fp16 "<path-to-unet>/your_sdxl_model.safetensors" --int8 "<path-to-unet>/your_sdxl_model_int8.safetensors" --prompt "masterpiece, best quality, 1girl, solo, standing, simple background"
@@ -71,3 +80,4 @@ python benchmark/int8bench_sdxl.py --fp16 "<path-to-unet>/your_sdxl_model.safete
 
 - Run this for **both** HSWQ and native outputs against the same FP16 baseline and the same `--prompt` / `--seed` when comparing paths.
 - Optional: `--seed` (default `123456789`), `--steps` (default `25`).
+- Prefer **relative** paths under the repo / workspace so the same command works on cloud instances.
