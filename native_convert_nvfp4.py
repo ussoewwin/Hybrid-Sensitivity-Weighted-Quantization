@@ -15,8 +15,10 @@ For FULL ConvRot + optional calib, use native_convert_nvfp4_convrot.py.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import os
+import subprocess
 import sys
 from collections import OrderedDict
 
@@ -293,12 +295,124 @@ def convert_to_nvfp4(
     print(f"Done. Size: {round(total_bytes / (1024**3), 2)} GiB")
     print(f"NVFP4/FP8 layers in metadata: {len(quant_map['layers'])}")
 
+    # Convert complete: drop holdings so a chained post-convert bench can use VRAM.
+    del sd
+    del new_sd
+    del quant_map
+    temp_diffusers_meta.clear()
+    del temp_diffusers_meta
+    _release_vram_before_bench("after native NVFP4 convert save")
+
+
+def _script_dir() -> str:
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+# Default prompt matches benchmark/nvfp4bench_sdxl.py How-to example.
+_DEFAULT_POST_BENCH_PROMPT = (
+    "masterpiece, best quality, 1girl, solo, standing, simple background"
+)
+
+
+def _release_vram_before_bench(label: str = "post-convert") -> None:
+    """Drop parent-process CUDA holdings before spawning the fidelity bench.
+
+    Convert leaves large state_dict tensors alive until refs are deleted and
+    the allocator cache is flushed. Without this clear, the chained bench
+    child OOMs on the same GPU.
+    """
+    print(f"[*] Releasing VRAM ({label}) before post-bench...")
+    gc.collect()
+    if not torch.cuda.is_available():
+        print(f"[*] VRAM clear ({label}): CUDA not available")
+        return
+    try:
+        torch.cuda.synchronize()
+    except Exception:
+        pass
+    gc.collect()
+    try:
+        torch.cuda.empty_cache()
+    except Exception:
+        pass
+    try:
+        torch.cuda.ipc_collect()
+    except Exception:
+        pass
+    try:
+        alloc_mib = torch.cuda.memory_allocated() / (1024 ** 2)
+        reserv_mib = torch.cuda.memory_reserved() / (1024 ** 2)
+        print(
+            f"[*] VRAM clear ({label}): "
+            f"allocated={alloc_mib:.1f} MiB reserved={reserv_mib:.1f} MiB"
+        )
+    except Exception:
+        print(f"[*] VRAM clear ({label}): done")
+
+
+def run_post_convert_nvfp4_bench(
+    *,
+    script_dir: str,
+    fp16_path: str,
+    nvfp4_path: str,
+    prompt: str,
+    seed: int,
+    steps: int,
+) -> int:
+    """Run benchmark/nvfp4bench_sdxl.py; FP16 from convert --model, NVFP4 from --output.
+
+    Paths come only from the convert CLI (relative or absolute as the user
+    passed / as resolved for cloud CWD). No machine-local path is hardcoded.
+    Uses a fresh subprocess so ComfyUI bench load does not fight convert VRAM.
+    """
+    bench_script = os.path.join(script_dir, "benchmark", "nvfp4bench_sdxl.py")
+    if not os.path.isfile(bench_script):
+        print(f"[FATAL] Post-convert bench script not found: {bench_script}")
+        return 1
+    if not os.path.isfile(fp16_path):
+        print(f"[FATAL] Post-convert bench: FP16 (--model) missing: {fp16_path}")
+        return 1
+    if not os.path.isfile(nvfp4_path):
+        print(
+            f"[FATAL] Post-convert bench: NVFP4 (--output) missing: {nvfp4_path}"
+        )
+        return 1
+
+    # Final gate: free any leftover parent CUDA before the bench process starts.
+    _release_vram_before_bench("pre-NVFP4-bench subprocess")
+
+    cmd = [
+        sys.executable,
+        bench_script,
+        "--fp16",
+        fp16_path,
+        "--nvfp4",
+        nvfp4_path,
+        "--prompt",
+        prompt,
+        "--seed",
+        str(int(seed)),
+        "--steps",
+        str(int(steps)),
+    ]
+    print("=" * 60)
+    print("[*] Post-convert NVFP4 fidelity bench (auto paths)")
+    print(f"    script: {bench_script}")
+    print(f"    --fp16  (= convert --model/--input): {fp16_path}")
+    print(f"    --nvfp4 (= convert --output):         {nvfp4_path}")
+    print(f"    prompt: {prompt[:60]}{'...' if len(prompt) > 60 else ''}")
+    print(f"    seed={seed} steps={steps}")
+    print("=" * 60)
+    completed = subprocess.run(cmd, check=False)
+    return int(completed.returncode)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
             "Plain NVFP4 convert — Kitchen convert_to_nvfp4_node.py as CLI. "
-            "No ConvRot / no calib / no input_scale."
+            "No ConvRot / no calib / no input_scale. "
+            "Post-convert NVFP4 bench default ON."
         )
     )
     parser.add_argument(
@@ -326,6 +440,35 @@ if __name__ == "__main__":
         choices=["cuda", "cpu"],
         help="Quantize device",
     )
+    parser.add_argument(
+        "--bench",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "After save, run benchmark/nvfp4bench_sdxl.py with "
+            "--fp16=--model/--input and --nvfp4=--output (default ON). "
+            "Pass --no-bench to skip. Cloud-safe: uses the same paths you "
+            "passed (relative or absolute); no hardcoded machine paths."
+        ),
+    )
+    parser.add_argument(
+        "--bench_prompt",
+        type=str,
+        default=_DEFAULT_POST_BENCH_PROMPT,
+        help="Prompt for post-convert nvfp4bench_sdxl.py (default matches How-to).",
+    )
+    parser.add_argument(
+        "--bench_seed",
+        type=int,
+        default=123456789,
+        help="Seed for post-convert bench (default 123456789).",
+    )
+    parser.add_argument(
+        "--bench_steps",
+        type=int,
+        default=25,
+        help="Denoising steps for post-convert bench (default 25).",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
@@ -338,3 +481,18 @@ if __name__ == "__main__":
         model_type=str(args.model_type),
         device=str(args.device),
     )
+
+    if args.bench:
+        bench_rc = run_post_convert_nvfp4_bench(
+            script_dir=_script_dir(),
+            fp16_path=args.model,
+            nvfp4_path=args.output,
+            prompt=args.bench_prompt,
+            seed=args.bench_seed,
+            steps=args.bench_steps,
+        )
+        if bench_rc != 0:
+            print(f"[FATAL] Post-convert bench exited with code {bench_rc}")
+            sys.exit(bench_rc)
+    else:
+        print("[*] Post-convert bench skipped (--no-bench)")
