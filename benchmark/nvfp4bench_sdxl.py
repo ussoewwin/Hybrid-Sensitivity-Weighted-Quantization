@@ -359,6 +359,10 @@ try:
     apply_comfy_quant_int8_patches()
     apply_comfy_quant_int4_patches()
     apply_comfy_quant_nvfp4_patches()
+    # Outside benchmark/nvfp4/ — that package stays byte-identical for SDXL.
+    from nvfp4_comfy_parity import apply_nvfp4_comfy_parity  # noqa: E402
+
+    apply_nvfp4_comfy_parity()
     _mp_ops = comfy.ops.mixed_precision_ops()
     with _int8_quant_conv_scope():
         _has_conv_int8 = hasattr(comfy.ops.mixed_precision_ops(), "Conv2d")
