@@ -53,11 +53,13 @@ ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Lin
 
 | Filename | Base Model | Version | License |
 | :--- | :--- | :--- | :--- |
-| `JANKUTrainedChenkinNoobai_v777_hswq_r32_convrot_int8.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.com/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Fair AI Public License 1.0-SD |
-| `bluePencilXL_v031_hswq_r32_convrot_int8.safetensors` | [blue_pencil-XL](https://civitai.com/models/119012) | v0.3.1 | CreativeML Open RAIL++-M |
-| `epicrealismXL_pureFix_hswq_r32_convrot_int8.safetensors` | [epiCRealism XL](https://civitai.com/models/277058) | pureFix | CreativeML Open RAIL++-M |
-| `oneObsession_v23_hswq_r32_convrot_int8.safetensors` | [OneObsession](https://civitai.com/models/691062) | v23 | CreativeML Open RAIL++-M |
-| `waiIllustriousSDXL_v170_hswq_r32_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.com/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Fair AI Public License 1.0-SD |
+| `JANKUTrainedChenkinNoobai_v777_hswq_r32_1off_convrot_int8.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.com/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Fair AI Public License 1.0-SD |
+| `bluePencilXL_v031_hswq_r32_1off_convrot_int8.safetensors` | [blue_pencil-XL](https://civitai.com/models/119012) | v0.3.1 | CreativeML Open RAIL++-M |
+| `epicrealismXL_pureFix_hswq_r32_1off_convrot_int8.safetensors` | [epiCRealism XL](https://civitai.com/models/277058) | pureFix | CreativeML Open RAIL++-M |
+| `koronemixIllustrious_v70_sci_1on_covrot_int8.safetensors` | koronemixIllustrious | v70 | Fair AI Public License 1.0-SD |
+| `novaAnimeXL_ilV190_hswq_r32_1on_convrot_int8.safetensors` | Nova Anime XL | ilV190 | Fair AI Public License 1.0-SD |
+| `prefectIllustriousXL_v8_hswq_r32_1on_convrot_int8.safetensors` | Prefect Illustrious XL | v8 | Fair AI Public License 1.0-SD |
+| `waiIllustriousSDXL_v170hswq_r32_1off_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.com/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Fair AI Public License 1.0-SD |
 
 ---
 
@@ -72,8 +74,10 @@ These models are derivatives of their respective creators. All credit for aesthe
 - **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.com/user/janxd).
 - **blue_pencil-XL**: Created by [Euge_us](https://civitai.com/user/Euge_us).
 - **epiCRealism XL**: Created by [epinikion](https://civitai.com/user/epinikion).
-- **OneObsession**: Created by [Polyhedron](https://civitai.com/user/Polyhedron).
 - **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.com/user/WAI0731).
+- **koronemixIllustrious**: Created by [koronen](https://civitai.com/user/koronen).
+- **Nova Anime XL**: Original creator on Civitai.
+- **Prefect Illustrious XL**: Created by [Goofy_Ai](https://civitai.com/user/Goofy_Ai).
 
 ---
 
