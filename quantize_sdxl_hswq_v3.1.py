@@ -2268,10 +2268,12 @@ def resolve_weights_path(raw_path: str, script_dir: str) -> tuple[str, list[str]
     return os.path.abspath(raw_path), tried
 
 
-# Default prompt matches benchmark/int8bench_sdxl.py How-to example.
-_DEFAULT_POST_BENCH_PROMPT = (
+# Exact --prompt from the owner INT8 SDXL bench command (fixed; not a CLI).
+_FIXED_INT8BENCH_PROMPT = (
     "masterpiece, best quality, 1girl, solo, standing, simple background"
 )
+# Seed fixed inside the chain (not a parent CLI).
+_FIXED_INT8BENCH_SEED = 123456789
 
 
 def _release_vram_before_bench(label: str = "post-quantize") -> None:
@@ -2315,15 +2317,13 @@ def run_post_quantize_int8_bench(
     script_dir: str,
     fp16_path: str,
     int8_path: str,
-    prompt: str,
-    seed: int,
-    steps: int,
 ) -> int:
-    """Run benchmark/int8bench_sdxl.py with FP16=--input and INT8=--output.
+    """Owner INT8 bench shape + seed fixed inside this chain:
 
-    Paths come only from the quantize CLI (relative or absolute as the user
-    passed / as resolved for cloud CWD). No machine-local path is hardcoded.
-    Uses a fresh subprocess so ComfyUI bench load does not fight quantize VRAM.
+    int8bench_sdxl.py --fp16 <path> --int8 <path>
+      --prompt "<fixed>" --seed <fixed>
+
+    (No parent --bench_seed CLI. steps left to int8bench default.)
     """
     bench_script = os.path.join(script_dir, "benchmark", "int8bench_sdxl.py")
     if not os.path.isfile(bench_script):
@@ -2347,19 +2347,17 @@ def run_post_quantize_int8_bench(
         "--int8",
         int8_path,
         "--prompt",
-        prompt,
+        _FIXED_INT8BENCH_PROMPT,
         "--seed",
-        str(int(seed)),
-        "--steps",
-        str(int(steps)),
+        str(_FIXED_INT8BENCH_SEED),
     ]
     print("=" * 60)
-    print("[*] Post-quantize INT8 fidelity bench (auto paths)")
+    print("[*] Post-quantize INT8 fidelity bench (owner command shape)")
     print(f"    script: {bench_script}")
-    print(f"    --fp16 (= quantize --input):  {fp16_path}")
-    print(f"    --int8 (= quantize --output): {int8_path}")
-    print(f"    prompt: {prompt[:60]}{'...' if len(prompt) > 60 else ''}")
-    print(f"    seed={seed} steps={steps}")
+    print(f"    --fp16: {fp16_path}")
+    print(f"    --int8: {int8_path}")
+    print(f"    --prompt: {_FIXED_INT8BENCH_PROMPT}")
+    print(f"    --seed: {_FIXED_INT8BENCH_SEED} (fixed inside)")
     print("=" * 60)
     completed = subprocess.run(cmd, check=False)
     return int(completed.returncode)
@@ -2453,28 +2451,10 @@ def main():
         default=True,
         help=(
             "After save, run benchmark/int8bench_sdxl.py with "
-            "--fp16=--input and --int8=--output (default ON). "
-            "Pass --no-bench to skip. Cloud-safe: uses the same paths you "
-            "passed (relative OK); no hardcoded local drive paths."
+            "--fp16=--input --int8=--output and the fixed --prompt "
+            "(same shape as the owner INT8 bench command). "
+            "Pass --no-bench to skip."
         ),
-    )
-    parser.add_argument(
-        "--bench_prompt",
-        type=str,
-        default=_DEFAULT_POST_BENCH_PROMPT,
-        help="Prompt for post-quantize int8bench_sdxl.py (default matches How-to).",
-    )
-    parser.add_argument(
-        "--bench_seed",
-        type=int,
-        default=123456789,
-        help="Seed for post-quantize bench (default 123456789).",
-    )
-    parser.add_argument(
-        "--bench_steps",
-        type=int,
-        default=25,
-        help="Denoising steps for post-quantize bench (default 25).",
     )
     args = parser.parse_args()
 
@@ -3369,9 +3349,6 @@ def main():
             script_dir=script_dir,
             fp16_path=args.input,
             int8_path=args.output,
-            prompt=args.bench_prompt,
-            seed=args.bench_seed,
-            steps=args.bench_steps,
         )
         if bench_rc != 0:
             print(f"[FATAL] Post-quantize bench exited with code {bench_rc}")
