@@ -63,7 +63,7 @@ python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --ou
 No calibration file. `--model` and `--input` are aliases for the same argument.
 
 ```bash
-python native_convert_int8_sdxl.py --model "D:\USERFILES\ComfyUI\ComfyUI\models\unet\koronemixVpred_v20.safetensors" --output "D:\USERFILES\ComfyUI\ComfyUI\models\unet\test.safetensors" --per_channel_int8
+python native_convert_int8_sdxl.py --model "D:\USERFILES\ComfyUI\ComfyUI\models\unet\your_sdxl.safetensors" --output "D:\USERFILES\ComfyUI\ComfyUI\models\unet\your_sdxl_int8.safetensors" --per_channel_int8
 ```
 
 **Notes:**
