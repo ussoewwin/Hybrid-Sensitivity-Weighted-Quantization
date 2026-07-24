@@ -23,7 +23,7 @@ library_name: nunchaku
 
 High-fidelity ConvRot NVFP4 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. This is highly useful for users who need to strictly manage their VRAM resources while maintaining maximum image quality.
 
-ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed **600 MiB** budget. Keep ratio is **0** (r0); calib writes NVFP4 `.input_scale`. Script: `hswq_convert_nvfp4_convrot_1.0.py`.
+ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed **600 MiB** budget. Keep ratio is **0** (r0); calib writes NVFP4 `.input_scale`. SDXL pack scripts: `hswq_convert_nvfp4_1.0.py` (HSWQ) and `native_convert_nvfp4.py` (native).
 
 **Technical details:** [https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
 
@@ -31,7 +31,9 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 
 **ComfyUI Loader for ConvRot NVFP4:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
 
-**SDXL ConvRot NVFP4 Benchmark Test Results:** [test/benchmark_convrotnvfp4.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_convrotnvfp4.md)
+**Post-convert fidelity bench (integrated, default ON):** After save, `hswq_convert_nvfp4_1.0.py` and `native_convert_nvfp4.py` **clear parent VRAM**, then automatically run `benchmark/nvfp4bench_sdxl.py` with `--fp16` = the FP16 input, `--nvfp4` = the saved pack, and a fixed `--prompt` / `--seed` (not inventable parent CLI overrides). Pass `--no-bench` to skip. Standalone re-runs use the same `nvfp4bench_sdxl.py` command shape as in the How-to.
+
+**SDXL ConvRot NVFP4 Benchmark Test Results (published tables):** [test/benchmark_convrotnvfp4.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_convrotnvfp4.md)
 
 ---
 

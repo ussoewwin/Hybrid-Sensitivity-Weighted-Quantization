@@ -27,15 +27,17 @@ library_name: nunchaku
 
 High-fidelity ConvRot INT8 quantization for diffusion models (SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. This is highly useful for users who need to strictly manage their VRAM resources while maintaining maximum image quality.
 
-ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Linear/Conv2d after DualMonitor + V4 weighted-histogram FP16 protection under a fixed **300 MiB** budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage. Pack path matches `native_convert_int8_convrot.py`.
+ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Linear/Conv2d after DualMonitor + V4 weighted-histogram FP16 protection under a fixed **300 MiB** budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage. SDXL pack scripts: `quantize_sdxl_hswq_v3.1.py` (HSWQ) and `native_convert_int8_sdxl.py` (native).
 
 **Technical details:** [https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
 
-**How to quantize (SDXL ConvRot INT8):** [md/HSWQ_ How to quantize SDXL.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL.md)
+**How to quantize (SDXL ConvRot INT8):** [md/How to quantize SDXL.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL.md)
 
 **ComfyUI Loader for ConvRot INT8 / INT8:** To load these INT8 models in ComfyUI, please use the unofficial loader node: [ComfyUI-nunchaku-unofficial-loader](https://github.com/ussoewwin/ComfyUI-nunchaku-unofficial-loader)
 
-**SDXL ConvRot INT8 Benchmark Test Results:** [test/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_sdxl_int8.md)
+**Post-quantize fidelity bench (integrated, default ON):** After save, `quantize_sdxl_hswq_v3.1.py` and `native_convert_int8_sdxl.py` **clear parent VRAM**, then automatically run `benchmark/int8bench_sdxl.py` with `--fp16` = the FP16 input, `--int8` = the saved pack, and a fixed `--prompt` / `--seed` (not inventable parent CLI overrides). Pass `--no-bench` to skip. Standalone re-runs use the same `int8bench_sdxl.py` command shape as in the How-to.
+
+**SDXL ConvRot INT8 Benchmark Test Results (published tables):** [test/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_sdxl_int8.md)
 
 ---
 
