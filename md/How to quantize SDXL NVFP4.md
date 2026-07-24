@@ -27,10 +27,10 @@ pip install -r requirements.txt
 
 ## Quantize an SDXL model
 
-Example: waiIllustriousSDXL_v170. Adjust the file paths to your environment.
+Adjust the file paths to your environment. Prefer relative paths under the repo / workspace (no machine-local drive hardcoding).
 
 ```bash
-python hswq_convert_nvfp4_1.0.py --model "<path-to-unet>/waiIllustriousSDXL_v170.safetensors" --output "<path-to-unet>/waiIllustriousSDXL_v170_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25
+python hswq_convert_nvfp4_1.0.py --model models/unet/your_sdxl.safetensors --output models/unet/your_sdxl_hswq_nvfp4.safetensors --calib_file calibration_prompts_128.txt --num_calib_samples 32 --num_inference_steps 25
 ```
 
 **Notes:**
@@ -39,3 +39,20 @@ python hswq_convert_nvfp4_1.0.py --model "<path-to-unet>/waiIllustriousSDXL_v170
 - **Inference steps:** 25 (as in the example).
 - **FULL ConvRot** (Linear → NVFP4, Conv2d → INT8 when `in_dim` is divisible by a power-of-4 group size) is **ON by default**. Pass `--no-convrot` only for plain packs without ConvRot.
 - **Bias correction (Card 1):** **OFF by default.** Pass `--bias_correction` to enable (**requires `--calib_file`**). After pack, DualMonitor signed channel means \(\mu_x\) from that calib pass cancel systematic output bias: \(\delta b \approx (W_q - W)\,\mu_x\), written into each corrected layer’s `.bias` (NVFP4 Linear and INT8 Conv paths as packed). The same `--calib_file` run also supplies NVFP4 `.input_scale` / HSWQ sensitivity — Card 1 does **not** need a second calib file. This script has **no** Approach A / `--bias_correction_top_ratio`; when the flag is on, correction covers the packed layers in scope. **Honest:** Card 1 is **model-dependent**. On some SDXL checkpoints, `--bias_correction` **raises** measured scores (MSE / SSIM); on others it **lowers** them. Compare on vs off per model before choosing which pack to ship.
+- **Post-convert bench:** **ON by default.** After save, the convert script **clears parent VRAM** (drop convert tensors + `empty_cache`), then runs `benchmark/nvfp4bench_sdxl.py` with `--fp16` = `--model` / `--input` and `--nvfp4` = `--output` (same paths you passed; relative paths are cloud-safe). Pass `--no-bench` to skip. Optional: `--bench_prompt`, `--bench_seed` (default `123456789`), `--bench_steps` (default `25`). The same post-convert bench flags / VRAM clear apply to **`native_convert_nvfp4.py`**.
+
+## Benchmark (use this for measurement)
+
+**HSWQ** (`hswq_convert_nvfp4_1.0.py`) and **native plain** (`native_convert_nvfp4.py`): post-convert bench is integrated (default ON). A separate bench command is only needed for a re-bench with a custom prompt, or when you used `--no-bench`.
+
+Standalone (re-run):
+
+```bash
+python benchmark/nvfp4bench_sdxl.py --fp16 models/unet/your_sdxl.safetensors --nvfp4 models/unet/your_sdxl_hswq_nvfp4.safetensors --prompt "masterpiece, best quality, 1girl, solo, standing, simple background"
+```
+
+**Notes:**
+
+- Run this for **both** HSWQ and native outputs against the same FP16 baseline and the same `--prompt` / `--seed` when comparing paths.
+- Optional: `--seed` (default `123456789`), `--steps` (default `25`).
+- Prefer **relative** paths under the repo / workspace so the same command works on cloud instances.

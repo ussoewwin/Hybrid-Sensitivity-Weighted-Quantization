@@ -29,15 +29,15 @@ pip install -r requirements.txt
 
 ## Quantize an SDXL model (HSWQ)
 
-Example: epicrealismXL_pureFix. Adjust the file paths to your environment.
+Adjust the file paths to your environment. Prefer relative paths under the repo / workspace (no machine-local drive hardcoding).
 
 **Default flow:** quantize → save → **clear parent VRAM** → run **`benchmark/int8bench_sdxl.py`** automatically (`--fp16` = `--input`, `--int8` = `--output`). You do **not** need a second manual bench command after a normal V3.1 run.
 
 ```bash
-python quantize_sdxl_hswq_v3.1.py --input "<path-to-unet>/epicrealismXL_pureFix.safetensors" --output "<path-to-unet>/epicrealismXL_pureFix_hswq_v3.1.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8
+python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --output models/unet/your_sdxl_hswq_v3.1.safetensors --calib_file calibration_prompts_128.txt --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8
 ```
 
-Cloud / relative paths are fine (no machine-local drive hardcoding). Example from repo root (still includes post-quantize bench by default):
+With bias correction (still includes post-quantize bench by default):
 
 ```bash
 python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --output models/unet/your_sdxl_hswq_v3.1.safetensors --calib_file calibration_prompts_128.txt --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8 --bias_correction
