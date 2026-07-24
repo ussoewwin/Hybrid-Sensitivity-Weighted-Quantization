@@ -29,24 +29,24 @@ pip install -r requirements.txt
 
 ## Quantize an SDXL model (HSWQ)
 
-Adjust the file paths to your environment. Prefer relative paths under the repo / workspace (no machine-local drive hardcoding).
+Replace every `<...>` placeholder with a real path on your machine (no invented filenames; no machine-local drive hardcoding in published examples).
 
 **Default flow:** quantize → save → **clear parent VRAM** → run **`benchmark/int8bench_sdxl.py`** automatically (`--fp16` = `--input`, `--int8` = `--output`). You do **not** need a second manual bench command after a normal V3.1 run.
 
 ```bash
-python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --output models/unet/your_sdxl_hswq_v3.1.safetensors --calib_file calibration_prompts_128.txt --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8
+python quantize_sdxl_hswq_v3.1.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_v3.1.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8
 ```
 
 With bias correction (still includes post-quantize bench by default):
 
 ```bash
-python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --output models/unet/your_sdxl_hswq_v3.1.safetensors --calib_file calibration_prompts_128.txt --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8 --bias_correction
+python quantize_sdxl_hswq_v3.1.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_v3.1.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8 --bias_correction
 ```
 
 Optional: skip the integrated bench:
 
 ```bash
-python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --output models/unet/your_sdxl_hswq_v3.1.safetensors --calib_file calibration_prompts_128.txt --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8 --no-bench
+python quantize_sdxl_hswq_v3.1.py --input "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_v3.1.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --convrot --per_channel_int8 --no-bench
 ```
 
 **Notes:**
@@ -63,7 +63,7 @@ python quantize_sdxl_hswq_v3.1.py --input models/unet/your_sdxl.safetensors --ou
 No calibration file. `--model` and `--input` are aliases for the same argument.
 
 ```bash
-python native_convert_int8_sdxl.py --model models/unet/your_sdxl.safetensors --output models/unet/your_sdxl_int8.safetensors --per_channel_int8
+python native_convert_int8_sdxl.py --model "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_int8.safetensors" --per_channel_int8
 ```
 
 **Notes:**
@@ -96,11 +96,11 @@ Pass `--no-bench` to quantize only. Do not invent other bench CLI flags on the q
 A separate bench command is needed when the quantize/convert run used `--no-bench`, or to re-measure an existing pack:
 
 ```bash
-python benchmark/int8bench_sdxl.py --fp16 "<path-to-unet>/your_sdxl_model.safetensors" --int8 "<path-to-unet>/your_sdxl_model_int8.safetensors" --prompt "masterpiece, best quality, 1girl, solo, standing, simple background"
+python benchmark/int8bench_sdxl.py --fp16 "<path-to-unet>/<sdxl_unet>.safetensors" --int8 "<path-to-unet>/<sdxl_unet>_int8.safetensors" --prompt "masterpiece, best quality, 1girl, solo, standing, simple background"
 ```
 
 **Notes:**
 
 - Run this for **both** HSWQ and native outputs against the same FP16 baseline and the same `--prompt` when comparing paths.
-- Prefer **relative** paths under the repo / workspace so the same command works on cloud instances.
+- Prefer portable paths (relative under the workspace, or any path you substitute into `<path-to-unet>`) so the same command works on cloud instances.
 - Needs a usable `ComfyUI-master` (or `COMFYUI_PATH`) tree for INT8 load via Comfy `QUANT_ALGOS` / `int8_tensorwise`.
