@@ -30,10 +30,10 @@ pip install safetensors tqdm
 
 ## Quantize a ZI model
 
-Adjust the file paths to your environment. `--model` and `--input` are aliases for the same argument.
+Replace every `<...>` placeholder with a real path on your machine (no invented filenames). `--model` and `--input` are aliases for the same argument.
 
 ```bash
-python native_convert_int8_convrot.py --model "path/to/your_zit_model.safetensors" --output "path/to/your_zit_model_convrot_int8.safetensors" --per_channel_int8
+python native_convert_int8_convrot.py --model "<path-to-unet>/<zit_unet>.safetensors" --output "<path-to-unet>/<zit_unet>_convrot_int8.safetensors" --per_channel_int8
 ```
 
 **Notes:**
