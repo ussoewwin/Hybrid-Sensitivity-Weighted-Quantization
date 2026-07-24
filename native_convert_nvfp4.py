@@ -308,10 +308,12 @@ def _script_dir() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
 
-# Default prompt matches benchmark/nvfp4bench_sdxl.py How-to example.
-_DEFAULT_POST_BENCH_PROMPT = (
+# Exact --prompt from the owner NVFP4 SDXL bench command (fixed; not a CLI).
+_FIXED_NVFP4BENCH_PROMPT = (
     "masterpiece, best quality, 1girl, solo, standing, simple background"
 )
+# Seed fixed inside the chain (not a parent CLI).
+_FIXED_NVFP4BENCH_SEED = 123456789
 
 
 def _release_vram_before_bench(label: str = "post-convert") -> None:
@@ -355,22 +357,20 @@ def run_post_convert_nvfp4_bench(
     script_dir: str,
     fp16_path: str,
     nvfp4_path: str,
-    prompt: str,
-    seed: int,
-    steps: int,
 ) -> int:
-    """Run benchmark/nvfp4bench_sdxl.py; FP16 from convert --model, NVFP4 from --output.
+    """Owner NVFP4 bench shape + seed fixed inside this chain:
 
-    Paths come only from the convert CLI (relative or absolute as the user
-    passed / as resolved for cloud CWD). No machine-local path is hardcoded.
-    Uses a fresh subprocess so ComfyUI bench load does not fight convert VRAM.
+    nvfp4bench_sdxl.py --fp16 <path> --nvfp4 <path>
+      --prompt "<fixed>" --seed <fixed>
+
+    (No parent --bench_seed CLI. steps left to nvfp4bench default.)
     """
     bench_script = os.path.join(script_dir, "benchmark", "nvfp4bench_sdxl.py")
     if not os.path.isfile(bench_script):
         print(f"[FATAL] Post-convert bench script not found: {bench_script}")
         return 1
     if not os.path.isfile(fp16_path):
-        print(f"[FATAL] Post-convert bench: FP16 (--model) missing: {fp16_path}")
+        print(f"[FATAL] Post-convert bench: FP16 (--model/--input) missing: {fp16_path}")
         return 1
     if not os.path.isfile(nvfp4_path):
         print(
@@ -378,7 +378,6 @@ def run_post_convert_nvfp4_bench(
         )
         return 1
 
-    # Final gate: free any leftover parent CUDA before the bench process starts.
     _release_vram_before_bench("pre-NVFP4-bench subprocess")
 
     cmd = [
@@ -389,19 +388,17 @@ def run_post_convert_nvfp4_bench(
         "--nvfp4",
         nvfp4_path,
         "--prompt",
-        prompt,
+        _FIXED_NVFP4BENCH_PROMPT,
         "--seed",
-        str(int(seed)),
-        "--steps",
-        str(int(steps)),
+        str(_FIXED_NVFP4BENCH_SEED),
     ]
     print("=" * 60)
-    print("[*] Post-convert NVFP4 fidelity bench (auto paths)")
+    print("[*] Post-convert NVFP4 fidelity bench (owner command shape)")
     print(f"    script: {bench_script}")
-    print(f"    --fp16  (= convert --model/--input): {fp16_path}")
-    print(f"    --nvfp4 (= convert --output):         {nvfp4_path}")
-    print(f"    prompt: {prompt[:60]}{'...' if len(prompt) > 60 else ''}")
-    print(f"    seed={seed} steps={steps}")
+    print(f"    --fp16: {fp16_path}")
+    print(f"    --nvfp4: {nvfp4_path}")
+    print(f"    --prompt: {_FIXED_NVFP4BENCH_PROMPT}")
+    print(f"    --seed: {_FIXED_NVFP4BENCH_SEED} (fixed inside)")
     print("=" * 60)
     completed = subprocess.run(cmd, check=False)
     return int(completed.returncode)
@@ -446,28 +443,10 @@ if __name__ == "__main__":
         default=True,
         help=(
             "After save, run benchmark/nvfp4bench_sdxl.py with "
-            "--fp16=--model/--input and --nvfp4=--output (default ON). "
-            "Pass --no-bench to skip. Cloud-safe: uses the same paths you "
-            "passed (relative or absolute); no hardcoded machine paths."
+            "--fp16=--model/--input and --nvfp4=--output "
+            "(same shape as the owner NVFP4 bench command). "
+            "Pass --no-bench to skip."
         ),
-    )
-    parser.add_argument(
-        "--bench_prompt",
-        type=str,
-        default=_DEFAULT_POST_BENCH_PROMPT,
-        help="Prompt for post-convert nvfp4bench_sdxl.py (default matches How-to).",
-    )
-    parser.add_argument(
-        "--bench_seed",
-        type=int,
-        default=123456789,
-        help="Seed for post-convert bench (default 123456789).",
-    )
-    parser.add_argument(
-        "--bench_steps",
-        type=int,
-        default=25,
-        help="Denoising steps for post-convert bench (default 25).",
     )
     args = parser.parse_args()
 
@@ -487,9 +466,6 @@ if __name__ == "__main__":
             script_dir=_script_dir(),
             fp16_path=args.model,
             nvfp4_path=args.output,
-            prompt=args.bench_prompt,
-            seed=args.bench_seed,
-            steps=args.bench_steps,
         )
         if bench_rc != 0:
             print(f"[FATAL] Post-convert bench exited with code {bench_rc}")
