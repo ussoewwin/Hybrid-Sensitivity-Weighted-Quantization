@@ -2268,6 +2268,103 @@ def resolve_weights_path(raw_path: str, script_dir: str) -> tuple[str, list[str]
     return os.path.abspath(raw_path), tried
 
 
+# Default prompt matches benchmark/int8bench_sdxl.py How-to example.
+_DEFAULT_POST_BENCH_PROMPT = (
+    "masterpiece, best quality, 1girl, solo, standing, simple background"
+)
+
+
+def _release_vram_before_bench(label: str = "post-quantize") -> None:
+    """Drop parent-process CUDA holdings before spawning the fidelity bench.
+
+    Quantize leaves large state_dict tensors (often on GPU) until refs are
+    deleted and the allocator cache is flushed. Without this clear, the
+    chained bench child OOMs on the same GPU.
+    """
+    print(f"[*] Releasing VRAM ({label}) before post-bench...")
+    gc.collect()
+    if not torch.cuda.is_available():
+        print(f"[*] VRAM clear ({label}): CUDA not available")
+        return
+    try:
+        torch.cuda.synchronize()
+    except Exception:
+        pass
+    gc.collect()
+    try:
+        torch.cuda.empty_cache()
+    except Exception:
+        pass
+    try:
+        torch.cuda.ipc_collect()
+    except Exception:
+        pass
+    try:
+        alloc_mib = torch.cuda.memory_allocated() / (1024 ** 2)
+        reserv_mib = torch.cuda.memory_reserved() / (1024 ** 2)
+        print(
+            f"[*] VRAM clear ({label}): "
+            f"allocated={alloc_mib:.1f} MiB reserved={reserv_mib:.1f} MiB"
+        )
+    except Exception:
+        print(f"[*] VRAM clear ({label}): done")
+
+
+def run_post_quantize_int8_bench(
+    *,
+    script_dir: str,
+    fp16_path: str,
+    int8_path: str,
+    prompt: str,
+    seed: int,
+    steps: int,
+) -> int:
+    """Run benchmark/int8bench_sdxl.py with FP16=--input and INT8=--output.
+
+    Paths come only from the quantize CLI (relative or absolute as the user
+    passed / as resolved for cloud CWD). No machine-local path is hardcoded.
+    Uses a fresh subprocess so ComfyUI bench load does not fight quantize VRAM.
+    """
+    bench_script = os.path.join(script_dir, "benchmark", "int8bench_sdxl.py")
+    if not os.path.isfile(bench_script):
+        print(f"[FATAL] Post-quantize bench script not found: {bench_script}")
+        return 1
+    if not os.path.isfile(fp16_path):
+        print(f"[FATAL] Post-quantize bench: FP16 (--input) missing: {fp16_path}")
+        return 1
+    if not os.path.isfile(int8_path):
+        print(f"[FATAL] Post-quantize bench: INT8 (--output) missing: {int8_path}")
+        return 1
+
+    # Final gate: free any leftover parent CUDA before the bench process starts.
+    _release_vram_before_bench("pre-INT8-bench subprocess")
+
+    cmd = [
+        sys.executable,
+        bench_script,
+        "--fp16",
+        fp16_path,
+        "--int8",
+        int8_path,
+        "--prompt",
+        prompt,
+        "--seed",
+        str(int(seed)),
+        "--steps",
+        str(int(steps)),
+    ]
+    print("=" * 60)
+    print("[*] Post-quantize INT8 fidelity bench (auto paths)")
+    print(f"    script: {bench_script}")
+    print(f"    --fp16 (= quantize --input):  {fp16_path}")
+    print(f"    --int8 (= quantize --output): {int8_path}")
+    print(f"    prompt: {prompt[:60]}{'...' if len(prompt) > 60 else ''}")
+    print(f"    seed={seed} steps={steps}")
+    print("=" * 60)
+    completed = subprocess.run(cmd, check=False)
+    return int(completed.returncode)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -2349,6 +2446,35 @@ def main():
         type=int,
         default=_DEFAULT_CONVROT_GROUPSIZE,
         help=f"ConvRot Hadamard group size (power of 4, default {_DEFAULT_CONVROT_GROUPSIZE})",
+    )
+    parser.add_argument(
+        "--bench",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "After save, run benchmark/int8bench_sdxl.py with "
+            "--fp16=--input and --int8=--output (default ON). "
+            "Pass --no-bench to skip. Cloud-safe: uses the same paths you "
+            "passed (relative OK); no hardcoded local drive paths."
+        ),
+    )
+    parser.add_argument(
+        "--bench_prompt",
+        type=str,
+        default=_DEFAULT_POST_BENCH_PROMPT,
+        help="Prompt for post-quantize int8bench_sdxl.py (default matches How-to).",
+    )
+    parser.add_argument(
+        "--bench_seed",
+        type=int,
+        default=123456789,
+        help="Seed for post-quantize bench (default 123456789).",
+    )
+    parser.add_argument(
+        "--bench_steps",
+        type=int,
+        default=25,
+        help="Denoising steps for post-quantize bench (default 25).",
     )
     args = parser.parse_args()
 
@@ -3224,6 +3350,34 @@ def main():
         f"(Linear={convrot_linear} Conv2d={convrot_conv2d} plain={plain_int8_count}) | "
         f"Asymmetric: {args.asymmetric_int8} | Bias correction: {args.bias_correction}"
     )
+
+    # Quantize complete: drop convert holdings before optional chained bench.
+    del output_state_dict
+    if "cpu_dict" in locals():
+        del cpu_dict
+    del original_state_dict
+    del quant_meta_layers
+    weight_amax_dict.clear()
+    del weight_amax_dict
+    act_mean_dict.clear()
+    del act_mean_dict
+    dual_monitors.clear()
+    _release_vram_before_bench("after INT8 quantize save")
+
+    if args.bench:
+        bench_rc = run_post_quantize_int8_bench(
+            script_dir=script_dir,
+            fp16_path=args.input,
+            int8_path=args.output,
+            prompt=args.bench_prompt,
+            seed=args.bench_seed,
+            steps=args.bench_steps,
+        )
+        if bench_rc != 0:
+            print(f"[FATAL] Post-quantize bench exited with code {bench_rc}")
+            sys.exit(bench_rc)
+    else:
+        print("[*] Post-quantize bench skipped (--no-bench)")
 
 if __name__ == "__main__":
     main()
