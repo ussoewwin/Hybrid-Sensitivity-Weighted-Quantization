@@ -295,6 +295,73 @@ def _install_psutil_stub():
 
 _PSUTIL_STUBBED = _install_psutil_stub()
 
+
+def _install_torchaudio_stub() -> None:
+    """Prevent real torchaudio from loading if comfy.sd is pulled in.
+
+    comfy.sd imports comfy.ldm.lightricks.vae.audio_vae, which does a hard
+    ``import torchaudio``. On cloud hosts torch/torchaudio CUDA builds often
+    mismatch (e.g. torch 13.2 vs torchaudio 13.0) and abort before bench load.
+    SDXL INT8 bench never uses AudioVAE — replace torchaudio with a local stub.
+    Does not touch ComfyUI-master.
+    """
+    import importlib.machinery
+    import types
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(
+                name, loader=None, is_package=True
+            )
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    ta = _stub_mod("torchaudio", is_package=True)
+    functional = _stub_mod("torchaudio.functional")
+
+    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
+        return waveform
+
+    functional.resample = _resample
+
+    transforms = _stub_mod("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
+_install_torchaudio_stub()
+
 # ComfyUI's cli_args.py calls parser.parse_args() at import time, which would
 # swallow our bench argv (--fp16, --int8, --prompt, ...). Temporarily clear
 # sys.argv so ComfyUI parses an empty arg list, then restore it.
