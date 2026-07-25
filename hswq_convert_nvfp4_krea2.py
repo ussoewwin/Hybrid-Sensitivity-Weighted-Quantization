@@ -2521,24 +2521,38 @@ def _install_torchaudio_stub() -> None:
     Krea2 calib only needs CLIPType.KREA2 — never AudioVAE — so replace
     torchaudio in sys.modules with a local stub. Does not touch ComfyUI-master.
     """
+    import importlib.machinery
     import types
 
     for key in list(sys.modules):
         if key == "torchaudio" or key.startswith("torchaudio."):
             del sys.modules[key]
 
-    ta = types.ModuleType("torchaudio")
-    ta.__file__ = "<hswq_torchaudio_stub>"
-    ta.__path__ = []
+    def _stub_mod(name: str, *, is_package: bool = False):
+        # transformers uses importlib.util.find_spec("torchaudio"); a ModuleType
+        # without __spec__ raises ValueError: torchaudio.__spec__ is None.
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(
+                name, loader=None, is_package=True
+            )
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
 
-    functional = types.ModuleType("torchaudio.functional")
+    ta = _stub_mod("torchaudio", is_package=True)
+    functional = _stub_mod("torchaudio.functional")
 
     def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
         return waveform
 
     functional.resample = _resample
 
-    transforms = types.ModuleType("torchaudio.transforms")
+    transforms = _stub_mod("torchaudio.transforms")
 
     class _MelSpectrogram:
         def __init__(self, *args, **kwargs):
