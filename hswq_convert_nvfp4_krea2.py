@@ -266,6 +266,7 @@ if _an not in sys.path:
 
 from weighted_histogram_mse_v4_nvfp4 import (
     HSWQWeightedHistogramOptimizerV4,
+    _is_cuda_oom,
 )
 
 # Owner hard ceiling for FP16 overhead vs packed baseline. Auto analysis may
@@ -1276,6 +1277,11 @@ def _mse_grayzone_veto_reassessment(
             safe_mses.append(smse)
             mse_cache[sname] = float(smse)
         except Exception as e:
+            if _is_cuda_oom(e):
+                raise RuntimeError(
+                    f"[{scope_label} V4→FP16 protect / gray-zone] "
+                    f"CUDA OOM on safe baseline {sname!r}."
+                ) from e
             print(f"    [MSE ERROR] Failed safe layer {sname}: {e}")
         torch.cuda.empty_cache()
 
@@ -1326,6 +1332,11 @@ def _mse_grayzone_veto_reassessment(
                     f"| o={vor:.1f}"
                 )
         except Exception as e:
+            if _is_cuda_oom(e):
+                raise RuntimeError(
+                    f"[{scope_label} V4→FP16 protect / gray-zone] "
+                    f"CUDA OOM measuring soft-VETO {vname!r}."
+                ) from e
             print(f"    ERROR:    {vname} | {e}")
         torch.cuda.empty_cache()
 
@@ -1419,8 +1430,17 @@ def _build_v4_calib_fp16_candidates(
             else:
                 n_svd_x_imp += 1
         except Exception as e:
-            print(f"    [V4→FP16 protect] skip {name}: {e}")
-            continue
+            # Protect ranking failure must raise. Silent skip demotes the layer
+            # out of FP16 priority and packs it → undersized ~8.4GB DiT.
+            if _is_cuda_oom(e):
+                raise RuntimeError(
+                    f"[V4→FP16 protect] CUDA OOM measuring pack-MSE for {name!r}. "
+                    "Refusing silent demote-to-pack (undersized DiT)."
+                ) from e
+            raise RuntimeError(
+                f"[V4→FP16 protect] pack-MSE failed for {name!r}: {e}. "
+                "Refusing silent skip (protect must not demote)."
+            ) from e
         torch.cuda.empty_cache()
 
     print(
@@ -1618,9 +1638,16 @@ def _apply_fp16_budget_cap(
                 cache[name] = v4_mse
                 measured_fresh += 1
             except Exception as e:
-                print(f"    [FP16 budget] V4 MSE failed {name}: {e} -> pack")
-                skipped_no_v4.append(name)
-                continue
+                # "-> pack" silent demote caused undersized ~8.4GB DiT. Raise.
+                if _is_cuda_oom(e):
+                    raise RuntimeError(
+                        f"[FP16 budget] CUDA OOM on V4 pack-MSE for {name!r}. "
+                        "Refusing demote-to-pack."
+                    ) from e
+                raise RuntimeError(
+                    f"[FP16 budget] V4 pack-MSE failed for {name!r}: {e}. "
+                    "Refusing demote-to-pack."
+                ) from e
             torch.cuda.empty_cache()
 
         if int(mod.weight.data.ndim) == 2 and trial_optimizer is not None:
@@ -1634,6 +1661,10 @@ def _apply_fp16_budget_cap(
                 )
                 int8_mse[name] = float(d1)
             except Exception as e:
+                if _is_cuda_oom(e):
+                    raise RuntimeError(
+                        f"[Multi-tier] CUDA OOM on INT8 d1 pack-MSE for {name!r}."
+                    ) from e
                 print(
                     f"    [Multi-tier] INT8 d1 failed {name}: {e} "
                     f"(no INT8 shelter step for this layer)"
