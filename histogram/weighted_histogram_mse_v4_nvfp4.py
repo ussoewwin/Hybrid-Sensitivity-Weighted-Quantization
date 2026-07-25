@@ -20,12 +20,10 @@ from typing import Optional, Tuple, List
 
 
 def _cuda_work_budget_bytes(device) -> Optional[int]:
-    """Bytes available for pack-MSE / kitchen scratch on this CUDA device.
+    """Free bytes for MSE scratch — consume nearly all free VRAM (32GB hard).
 
-    Uses almost all free VRAM so convert does not leave the card idle after
-    DiT is resident. Reserves 512 MiB or 2% of total (whichever larger) so
-    allocator fragmentation does not CUDA OOM. Callers MUST refuse before
-    any alloc that exceeds this budget — never rely on CUDA OOM then recover.
+    After DiT + pack/SVD residents, size MSE chunks from mem_get_info so the
+    card is not left idle. Tiny reserve only for allocator fragmentation.
     """
     if not torch.cuda.is_available():
         return None
@@ -33,25 +31,9 @@ def _cuda_work_budget_bytes(device) -> Optional[int]:
         free_b, total_b = torch.cuda.mem_get_info(device)
     except Exception:
         return None
-    reserve = max(512 * 1024 * 1024, int(total_b * 0.02))
+    # Minimal headroom: 256 MiB or 0.5% of total — rest is for work (use 32GB).
+    reserve = max(256 * 1024 * 1024, int(total_b * 0.005))
     return max(0, int(free_b) - reserve)
-
-
-# Back-compat alias (older call sites / docs).
-_cuda_mse_work_budget_bytes = _cuda_work_budget_bytes
-
-
-def _refuse_cuda_oom(need_bytes: int, device, *, where: str, layer_name: str = "") -> None:
-    """Raise before alloc if free budget cannot cover need_bytes. Never CUDA OOM."""
-    budget = _cuda_work_budget_bytes(device)
-    if budget is None:
-        return
-    if int(need_bytes) > int(budget):
-        raise RuntimeError(
-            f"[{where}] refuse CUDA OOM for {layer_name or 'layer'}: "
-            f"need {int(need_bytes)} B but free budget is {int(budget)} B "
-            f"(device={device}). DiT stays on GPU; free other peaks or shrink work."
-        )
 
 
 class INT8Quantizer:
@@ -407,10 +389,13 @@ def compute_hybrid_leverage_scores(
         }
         _emit_svd_mix_visibility(stats)
         return _finish(torch.ones_like(weight, dtype=torch.float32), stats)
+    # Snapshot singular values for stats before freeing U/S/Vh (peak cut).
+    S_cpu = S.detach().float().cpu()
     S_sq = S ** 2
     row_scores = (U ** 2) @ S_sq.unsqueeze(1)
     col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1)
     leverage_2d = row_scores * col_scores.T
+    del U, S, Vh, row_scores, col_scores, S_sq
 
     lev_norm = torch.norm(leverage_2d, p=2)
     lev_norm_f = float(lev_norm.item()) if lev_norm.numel() else 0.0
@@ -442,7 +427,6 @@ def compute_hybrid_leverage_scores(
     # V2-style mild baseline (avoid 0-div and full collapse)
     hybrid_importance = 0.5 + 0.5 * hybrid_importance
 
-    S_cpu = S.detach().float().cpu()
     s_list = [float(x) for x in S_cpu.tolist()]
     out = hybrid_importance.view(original_shape)
     stats = {
@@ -774,31 +758,89 @@ class HSWQWeightedHistogramOptimizerV4:
         Pack amax stays absmax (optimal_amax = weight absmax); MSE ranks FP16 keep.
         linear_pack only changes the 2D pack format; importance weighting and
         its denominator are identical so d0/d1 stay directly comparable.
+
+        Peak structure (essential — not refuse/CPU-park band-aids):
+          1) Pack/dequant first on GPU (DiT stays resident; no model.cpu).
+          2) SVD hybrid next (U/S/Vh freed inside compute_hybrid).
+          3) MSE last, sized from cuda mem_get_info to consume free VRAM hard.
+        Phases do not stack kitchen + SVD + full MSE scratch at once.
         """
         if linear_pack not in ("nvfp4", "int8"):
             raise ValueError(
                 f"linear_pack must be 'nvfp4' or 'int8', got {linear_pack!r}"
             )
         imp_arg = channel_importance if channel_importance is not None else importance
-        # DiT stays on GPU (no model.cpu park). Work stays on GPU too: no
-        # importance→CPU park, no fixed 64MiB timid chunks. Kitchen / INT8 /
-        # MSE peaks refuse via mem_get_info BEFORE alloc — never CUDA OOM.
-        w = weight.detach().float().to(self.device)
-        if w.ndim not in (2, 4):
+        w_ref = weight.detach().to(self.device)
+        if w_ref.ndim not in (2, 4):
             raise ValueError(
-                f"compute_pack_mse_absmax_with_svd expects 2D/4D, got ndim={w.ndim}"
+                f"compute_pack_mse_absmax_with_svd expects 2D/4D, got ndim={w_ref.ndim}"
             )
 
+        # ----- Phase 1: pack/dequant only (no SVD / no importance yet) -----
+        if w_ref.ndim == 2 and linear_pack == "int8":
+            w = w_ref.float()
+            amax = torch.clamp(w.abs().amax(dim=1).reshape(-1), min=1e-6)
+            scale = amax / 127.0
+            scale_view = scale.view(-1, 1)
+            amax_view = amax.view(-1, 1)
+            clamped = torch.clamp(w, -amax_view, amax_view)
+            q = (clamped / scale_view).round().clamp(-127, 127)
+            dq = (q * scale_view).contiguous()
+            del amax, scale, scale_view, amax_view, clamped, q
+            pack_format = "int8_channelwise"
+        elif w_ref.ndim == 2:
+            from comfy_kitchen.tensor import TensorCoreNVFP4Layout
+
+            layout = TensorCoreNVFP4Layout
+            # Kitchen accepts FP16/BF16 only — pack from native half, not f32 clone.
+            if w_ref.dtype == torch.bfloat16:
+                w_pack = w_ref
+            elif w_ref.dtype == torch.float16:
+                w_pack = w_ref
+            else:
+                w_pack = w_ref.to(dtype=torch.bfloat16)
+            qdata, params = layout.quantize(w_pack)
+            if w_pack is not w_ref:
+                del w_pack
+            full = layout.dequantize(qdata, params)
+            del qdata
+            orig = tuple(params.orig_shape)
+            if tuple(full.shape) != orig:
+                slices = tuple(slice(0, s) for s in orig)
+                dq = full[slices].contiguous()
+            else:
+                dq = full.contiguous()
+            del full, params
+            w = w_ref.float()
+            pack_format = "nvfp4"
+        else:
+            w = w_ref.float()
+            reduce_dims = tuple(range(1, w.dim()))
+            amax = torch.clamp(w.abs().amax(dim=reduce_dims).reshape(-1), min=1e-6)
+            scale = amax / 127.0
+            scale_view = scale.view(-1, 1, 1, 1)
+            amax_view = amax.view(-1, 1, 1, 1)
+            clamped = torch.clamp(w, -amax_view, amax_view)
+            q = (clamped / scale_view).round().clamp(-127, 127)
+            dq = (q * scale_view).contiguous()
+            del amax, scale, scale_view, amax_view, clamped, q
+            pack_format = "int8_channelwise"
+
+        max_val = float(w.abs().max().item()) if w.numel() else 0.0
+        if max_val <= 0.0:
+            return {
+                "optimal_amax": 0.0,
+                "max_val": 0.0,
+                "compression_ratio": 1.0,
+                "estimated_mse": 0.0,
+                "svd_mix": None,
+                "pack_format": "empty",
+            }
+
+        # ----- Phase 2: SVD hybrid (pack temps already freed; U/S/Vh freed inside) -----
         combined_importance = None
         svd_mix_stats: Optional[dict] = None
         if use_svd_leverage and w.ndim >= 2:
-            # SVD + hybrid score tensors (conservative 3x float32 weight).
-            _refuse_cuda_oom(
-                int(w.nbytes * 3),
-                w.device,
-                where="pack SVD hybrid",
-                layer_name=layer_name or "",
-            )
             hybrid_importance, svd_mix_stats = compute_hybrid_leverage_scores(
                 w,
                 alpha=self.alpha,
@@ -814,22 +856,20 @@ class HSWQWeightedHistogramOptimizerV4:
                     imp_1d = torch.cat(
                         [imp_arg[:in_channels], torch.ones(pad_len, device=self.device)]
                     )
-                    imp_expanded = imp_1d.view(1, -1, 1, 1).expand_as(w)
+                    # Broadcast view — no full expand_as contiguous clone.
+                    channel_gate = imp_1d.view(1, -1, 1, 1)
                 else:
                     in_features = w.shape[1]
                     pad_len = max(0, in_features - imp_arg.numel())
                     imp_1d = torch.cat(
                         [imp_arg[:in_features], torch.ones(pad_len, device=self.device)]
                     )
-                    imp_expanded = imp_1d.view(1, -1).expand_as(w)
-                combined_importance = (hybrid_importance * imp_expanded).contiguous()
-                del imp_1d, imp_expanded, imp_arg
+                    channel_gate = imp_1d.view(1, -1)
+                combined_importance = hybrid_importance * channel_gate
+                del imp_1d, channel_gate, imp_arg, hybrid_importance
             else:
                 combined_importance = hybrid_importance
-            if combined_importance is not hybrid_importance:
-                del hybrid_importance
         else:
-            combined_importance = None
             svd_mix_stats = {
                 "layer": layer_name or f"tensor{tuple(w.shape)}",
                 "skipped": True,
@@ -840,100 +880,14 @@ class HSWQWeightedHistogramOptimizerV4:
             }
             _emit_svd_mix_visibility(svd_mix_stats)
 
-        max_val = float(w.abs().max().item()) if w.numel() else 0.0
-        if max_val <= 0.0:
-            return {
-                "optimal_amax": 0.0,
-                "max_val": 0.0,
-                "compression_ratio": 1.0,
-                "estimated_mse": 0.0,
-                "svd_mix": svd_mix_stats,
-                "pack_format": "empty",
-            }
-
-        # Importance stays on GPU with the float32 weight (use VRAM; no CPU park).
-        # Kitchen / INT8 pack peaks MUST be refused before alloc (no CUDA OOM).
-        if w.ndim == 2 and linear_pack == "int8":
-            # Peak: clamped + q + dq alongside w (conservative 2x w.nbytes scratch).
-            _refuse_cuda_oom(
-                int(w.nbytes * 2),
-                w.device,
-                where="pack INT8",
-                layer_name=layer_name or "",
-            )
-            amax = torch.clamp(w.abs().amax(dim=1).reshape(-1), min=1e-6)
-            scale = amax / 127.0
-            scale_view = scale.view(-1, 1)
-            amax_view = amax.view(-1, 1)
-            clamped = torch.clamp(w, -amax_view, amax_view)
-            q = (clamped / scale_view).round().clamp(-127, 127)
-            dq = (q * scale_view).contiguous()
-            del amax, scale, scale_view, amax_view, clamped, q
-            pack_format = "int8_channelwise"
-        elif w.ndim == 2:
-            from comfy_kitchen.tensor import TensorCoreNVFP4Layout
-
-            layout = TensorCoreNVFP4Layout
-            # Kitchen TensorCoreNVFP4Layout accepts FP16/BF16 only.
-            # SVD/importance stay on float32 `w`; pack input must not be float32
-            # or quantize raises and convert/analyze skip — SVD computed then discarded.
-            # Peak: w_pack (2B/elem) + full dequant (~2B/elem) + kitchen temps.
-            _refuse_cuda_oom(
-                int(w.nbytes * 1.5),
-                w.device,
-                where="pack NVFP4 kitchen",
-                layer_name=layer_name or "",
-            )
-            if weight.dtype == torch.bfloat16:
-                w_pack = w.to(dtype=torch.bfloat16)
-            else:
-                w_pack = w.to(dtype=torch.float16)
-            qdata, params = layout.quantize(w_pack)
-            del w_pack
-            full = layout.dequantize(qdata, params)
-            del qdata
-            orig = tuple(params.orig_shape)
-            if tuple(full.shape) != orig:
-                slices = tuple(slice(0, s) for s in orig)
-                dq = full[slices].contiguous()
-            else:
-                dq = full.contiguous()
-            del full, params
-            pack_format = "nvfp4"
-        else:
-            _refuse_cuda_oom(
-                int(w.nbytes * 2),
-                w.device,
-                where="pack Conv INT8",
-                layer_name=layer_name or "",
-            )
-            reduce_dims = tuple(range(1, w.dim()))
-            amax = torch.clamp(w.abs().amax(dim=reduce_dims).reshape(-1), min=1e-6)
-            scale = amax / 127.0
-            scale_view = scale.view(-1, 1, 1, 1)
-            amax_view = amax.view(-1, 1, 1, 1)
-            clamped = torch.clamp(w, -amax_view, amax_view)
-            q = (clamped / scale_view).round().clamp(-127, 127)
-            dq = (q * scale_view).contiguous()
-            del amax, scale, scale_view, amax_view, clamped, q
-            pack_format = "int8_channelwise"
-
-        # Weighted MSE on GPU: one shot when free VRAM allows; else largest
-        # row chunks that still fit (consume free bytes, never CUDA OOM).
+        # ----- Phase 3: MSE — size chunks to consume free VRAM hard (use 32GB) -----
         rows = int(w.shape[0])
         elems_per_row = max(int(w[0].numel()), 1)
-        # err float32 (+ optional wi float32) per row
         tensors_per_row = 2 if combined_importance is not None else 1
         bytes_per_row = elems_per_row * 4 * tensors_per_row
         budget = _cuda_work_budget_bytes(w.device)
-        if budget is not None:
-            if bytes_per_row > budget:
-                raise RuntimeError(
-                    f"[pack MSE] refuse CUDA OOM for {layer_name or 'layer'}: "
-                    f"one row needs {bytes_per_row} B but free budget is {budget} B "
-                    f"(device={w.device}). Keep DiT on GPU and free other peaks."
-                )
-            chunk_rows = max(1, min(rows, budget // bytes_per_row))
+        if budget is not None and bytes_per_row > 0:
+            chunk_rows = max(1, min(rows, max(1, budget // bytes_per_row)))
         else:
             chunk_rows = rows
         num = 0.0
@@ -944,7 +898,7 @@ class HSWQWeightedHistogramOptimizerV4:
             if combined_importance is not None:
                 wi = combined_importance[r0:r1]
                 if wi.shape != err.shape:
-                    wi = torch.ones_like(err)
+                    wi = wi.expand_as(err)
                 num += float((err * wi).sum().item())
                 den += float(wi.sum().item())
             else:
@@ -952,7 +906,7 @@ class HSWQWeightedHistogramOptimizerV4:
                 den += float(err.numel())
             del err
         mse = num / max(den, 1e-12)
-        del dq, w, combined_importance
+        del dq, w, combined_importance, w_ref
 
         return {
             "optimal_amax": max_val,
