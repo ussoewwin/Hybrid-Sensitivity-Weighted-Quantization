@@ -20,19 +20,18 @@ from typing import Optional, Tuple, List
 
 
 def _cuda_work_budget_bytes(device) -> Optional[int]:
-    """Free bytes for MSE scratch — consume nearly all free VRAM (32GB hard).
+    """Free bytes for MSE scratch — consume free VRAM hard (32GB).
 
-    After DiT + pack/SVD residents, size MSE chunks from mem_get_info so the
-    card is not left idle. Tiny reserve only for allocator fragmentation.
+    After DiT + w + dq + importance residents, size MSE chunks from
+    mem_get_info. Only 64 MiB left for allocator fragmentation.
     """
     if not torch.cuda.is_available():
         return None
     try:
-        free_b, total_b = torch.cuda.mem_get_info(device)
+        free_b, _total_b = torch.cuda.mem_get_info(device)
     except Exception:
         return None
-    # Minimal headroom: 256 MiB or 0.5% of total — rest is for work (use 32GB).
-    reserve = max(256 * 1024 * 1024, int(total_b * 0.005))
+    reserve = 64 * 1024 * 1024
     return max(0, int(free_b) - reserve)
 
 
@@ -759,11 +758,11 @@ class HSWQWeightedHistogramOptimizerV4:
         linear_pack only changes the 2D pack format; importance weighting and
         its denominator are identical so d0/d1 stay directly comparable.
 
-        Peak structure (essential — not refuse/CPU-park band-aids):
-          1) Pack/dequant first on GPU (DiT stays resident; no model.cpu).
-          2) SVD hybrid next (U/S/Vh freed inside compute_hybrid).
-          3) MSE last, sized from cuda mem_get_info to consume free VRAM hard.
-        Phases do not stack kitchen + SVD + full MSE scratch at once.
+        Peak structure (DiT stays on GPU; no refuse/CPU-park):
+          1) SVD hybrid first — no dq resident (U/S/Vh freed inside hybrid).
+          2) Pack/dequant next — kitchen/INT8 temps freed before MSE.
+          3) MSE last — row chunks sized from mem_get_info to fill free VRAM.
+        Never stack kitchen + SVD factors + dq + full MSE scratch together.
         """
         if linear_pack not in ("nvfp4", "int8"):
             raise ValueError(
@@ -776,68 +775,10 @@ class HSWQWeightedHistogramOptimizerV4:
                 f"compute_pack_mse_absmax_with_svd expects 2D/4D, got ndim={w_ref.ndim}"
             )
 
-        # ----- Phase 1: pack/dequant only (no SVD / no importance yet) -----
-        if w_ref.ndim == 2 and linear_pack == "int8":
-            w = w_ref.float()
-            amax = torch.clamp(w.abs().amax(dim=1).reshape(-1), min=1e-6)
-            scale = amax / 127.0
-            scale_view = scale.view(-1, 1)
-            amax_view = amax.view(-1, 1)
-            clamped = torch.clamp(w, -amax_view, amax_view)
-            q = (clamped / scale_view).round().clamp(-127, 127)
-            dq = (q * scale_view).contiguous()
-            del amax, scale, scale_view, amax_view, clamped, q
-            pack_format = "int8_channelwise"
-        elif w_ref.ndim == 2:
-            from comfy_kitchen.tensor import TensorCoreNVFP4Layout
+        # Float working weight once (SVD + INT8 pack + MSE reference).
+        w = w_ref.float() if w_ref.dtype != torch.float32 else w_ref
 
-            layout = TensorCoreNVFP4Layout
-            # Kitchen accepts FP16/BF16 only — pack from native half, not f32 clone.
-            if w_ref.dtype == torch.bfloat16:
-                w_pack = w_ref
-            elif w_ref.dtype == torch.float16:
-                w_pack = w_ref
-            else:
-                w_pack = w_ref.to(dtype=torch.bfloat16)
-            qdata, params = layout.quantize(w_pack)
-            if w_pack is not w_ref:
-                del w_pack
-            full = layout.dequantize(qdata, params)
-            del qdata
-            orig = tuple(params.orig_shape)
-            if tuple(full.shape) != orig:
-                slices = tuple(slice(0, s) for s in orig)
-                dq = full[slices].contiguous()
-            else:
-                dq = full.contiguous()
-            del full, params
-            w = w_ref.float()
-            pack_format = "nvfp4"
-        else:
-            w = w_ref.float()
-            reduce_dims = tuple(range(1, w.dim()))
-            amax = torch.clamp(w.abs().amax(dim=reduce_dims).reshape(-1), min=1e-6)
-            scale = amax / 127.0
-            scale_view = scale.view(-1, 1, 1, 1)
-            amax_view = amax.view(-1, 1, 1, 1)
-            clamped = torch.clamp(w, -amax_view, amax_view)
-            q = (clamped / scale_view).round().clamp(-127, 127)
-            dq = (q * scale_view).contiguous()
-            del amax, scale, scale_view, amax_view, clamped, q
-            pack_format = "int8_channelwise"
-
-        max_val = float(w.abs().max().item()) if w.numel() else 0.0
-        if max_val <= 0.0:
-            return {
-                "optimal_amax": 0.0,
-                "max_val": 0.0,
-                "compression_ratio": 1.0,
-                "estimated_mse": 0.0,
-                "svd_mix": None,
-                "pack_format": "empty",
-            }
-
-        # ----- Phase 2: SVD hybrid (pack temps already freed; U/S/Vh freed inside) -----
+        # ----- Phase 1: SVD hybrid ONLY (no dq yet — cuts prior hand-wave peak) -----
         combined_importance = None
         svd_mix_stats: Optional[dict] = None
         if use_svd_leverage and w.ndim >= 2:
@@ -856,7 +797,6 @@ class HSWQWeightedHistogramOptimizerV4:
                     imp_1d = torch.cat(
                         [imp_arg[:in_channels], torch.ones(pad_len, device=self.device)]
                     )
-                    # Broadcast view — no full expand_as contiguous clone.
                     channel_gate = imp_1d.view(1, -1, 1, 1)
                 else:
                     in_features = w.shape[1]
@@ -880,7 +820,65 @@ class HSWQWeightedHistogramOptimizerV4:
             }
             _emit_svd_mix_visibility(svd_mix_stats)
 
-        # ----- Phase 3: MSE — size chunks to consume free VRAM hard (use 32GB) -----
+        max_val = float(w.abs().max().item()) if w.numel() else 0.0
+        if max_val <= 0.0:
+            return {
+                "optimal_amax": 0.0,
+                "max_val": 0.0,
+                "compression_ratio": 1.0,
+                "estimated_mse": 0.0,
+                "svd_mix": svd_mix_stats,
+                "pack_format": "empty",
+            }
+
+        # ----- Phase 2: pack/dequant (SVD factors already freed) -----
+        if w.ndim == 2 and linear_pack == "int8":
+            amax = torch.clamp(w.abs().amax(dim=1).reshape(-1), min=1e-6)
+            scale = amax / 127.0
+            scale_view = scale.view(-1, 1)
+            amax_view = amax.view(-1, 1)
+            clamped = torch.clamp(w, -amax_view, amax_view)
+            q = (clamped / scale_view).round().clamp(-127, 127)
+            dq = (q * scale_view).contiguous()
+            del amax, scale, scale_view, amax_view, clamped, q
+            pack_format = "int8_channelwise"
+        elif w.ndim == 2:
+            from comfy_kitchen.tensor import TensorCoreNVFP4Layout
+
+            layout = TensorCoreNVFP4Layout
+            # Kitchen accepts FP16/BF16 only — pack from native half, not f32 clone.
+            if w_ref.dtype == torch.bfloat16:
+                w_pack = w_ref
+            elif w_ref.dtype == torch.float16:
+                w_pack = w_ref
+            else:
+                w_pack = w_ref.to(dtype=torch.bfloat16)
+            qdata, params = layout.quantize(w_pack)
+            if w_pack is not w_ref:
+                del w_pack
+            full = layout.dequantize(qdata, params)
+            del qdata
+            orig = tuple(params.orig_shape)
+            if tuple(full.shape) != orig:
+                slices = tuple(slice(0, s) for s in orig)
+                dq = full[slices].contiguous()
+            else:
+                dq = full.contiguous()
+            del full, params
+            pack_format = "nvfp4"
+        else:
+            reduce_dims = tuple(range(1, w.dim()))
+            amax = torch.clamp(w.abs().amax(dim=reduce_dims).reshape(-1), min=1e-6)
+            scale = amax / 127.0
+            scale_view = scale.view(-1, 1, 1, 1)
+            amax_view = amax.view(-1, 1, 1, 1)
+            clamped = torch.clamp(w, -amax_view, amax_view)
+            q = (clamped / scale_view).round().clamp(-127, 127)
+            dq = (q * scale_view).contiguous()
+            del amax, scale, scale_view, amax_view, clamped, q
+            pack_format = "int8_channelwise"
+
+        # ----- Phase 3: MSE — fill free VRAM with largest safe row chunks -----
         rows = int(w.shape[0])
         elems_per_row = max(int(w[0].numel()), 1)
         tensors_per_row = 2 if combined_importance is not None else 1
@@ -906,7 +904,10 @@ class HSWQWeightedHistogramOptimizerV4:
                 den += float(err.numel())
             del err
         mse = num / max(den, 1e-12)
-        del dq, w, combined_importance, w_ref
+        del dq, combined_importance
+        if w is not w_ref:
+            del w
+        del w_ref
 
         return {
             "optimal_amax": max_val,
