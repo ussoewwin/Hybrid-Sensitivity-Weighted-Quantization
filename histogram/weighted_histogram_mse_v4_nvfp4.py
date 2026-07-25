@@ -19,6 +19,23 @@ import math
 from typing import Optional, Tuple, List
 
 
+def _cuda_mse_work_budget_bytes(device) -> Optional[int]:
+    """Bytes available for pack-MSE scratch on this CUDA device.
+
+    Uses almost all free VRAM so convert does not leave the card idle after
+    DiT is resident. Reserves 512 MiB or 2% of total (whichever larger) so
+    kitchen/allocator fragmentation does not CUDA OOM.
+    """
+    if not torch.cuda.is_available():
+        return None
+    try:
+        free_b, total_b = torch.cuda.mem_get_info(device)
+    except Exception:
+        return None
+    reserve = max(512 * 1024 * 1024, int(total_b * 0.02))
+    return max(0, int(free_b) - reserve)
+
+
 class INT8Quantizer:
     """Symmetric per-tensor INT8 q/dq (Conv2d path; NVFP4 is 2D-only)."""
 
@@ -745,9 +762,10 @@ class HSWQWeightedHistogramOptimizerV4:
                 f"linear_pack must be 'nvfp4' or 'int8', got {linear_pack!r}"
             )
         imp_arg = channel_importance if channel_importance is not None else importance
-        # Peak VRAM: float32 work copy + SVD hybrid + pack + full err_sq used to
-        # OOM huge layers (e.g. tproj.1) while the DiT stays on GPU. Free pack
-        # intermediates and accumulate MSE in row chunks — no CPU retry band-aid.
+        # DiT stays on GPU (no model.cpu park). Work stays on GPU too: no
+        # importance→CPU park, no fixed 64MiB timid chunks. Size MSE rows from
+        # cuda mem_get_info so free VRAM is consumed hard; reserve headroom so
+        # we never CUDA OOM (pre-check; refuse rather than OOM).
         w = weight.detach().float().to(self.device)
         if w.ndim not in (2, 4):
             raise ValueError(
@@ -786,8 +804,6 @@ class HSWQWeightedHistogramOptimizerV4:
                 combined_importance = hybrid_importance
             if combined_importance is not hybrid_importance:
                 del hybrid_importance
-            if torch.cuda.is_available() and w.is_cuda:
-                torch.cuda.empty_cache()
         else:
             combined_importance = None
             svd_mix_stats = {
@@ -811,15 +827,7 @@ class HSWQWeightedHistogramOptimizerV4:
                 "pack_format": "empty",
             }
 
-        # Park importance on CPU during kitchen/INT8 pack so GPU peak is
-        # float32 weight + pack temps only (not weight + hybrid + pack).
-        imp_host = None
-        if combined_importance is not None:
-            imp_host = combined_importance.detach().to("cpu")
-            del combined_importance
-            if torch.cuda.is_available() and w.is_cuda:
-                torch.cuda.empty_cache()
-
+        # Importance stays on GPU with the float32 weight (use VRAM; no CPU park).
         if w.ndim == 2 and linear_pack == "int8":
             # Multi-tier d1: per-out-channel INT8 on 2D (same math as the
             # convert pack_channelwise_int8 Linear shelter path).
@@ -867,34 +875,41 @@ class HSWQWeightedHistogramOptimizerV4:
             del amax, scale, scale_view, amax_view, clamped, q
             pack_format = "int8_channelwise"
 
-        if torch.cuda.is_available() and w.is_cuda:
-            torch.cuda.empty_cache()
-
-        # Row-chunked weighted MSE: avoid allocating full err_sq (+ wi) at once.
+        # Weighted MSE on GPU: one shot when free VRAM allows; else largest
+        # row chunks that still fit (consume free bytes, never CUDA OOM).
         rows = int(w.shape[0])
-        # ~64MiB float32 err chunk target for 2D; fall back for tiny layers.
         elems_per_row = max(int(w[0].numel()), 1)
-        chunk_rows = max(1, min(rows, max(1, (64 * 1024 * 1024) // (elems_per_row * 4))))
+        # err float32 (+ optional wi float32) per row
+        tensors_per_row = 2 if combined_importance is not None else 1
+        bytes_per_row = elems_per_row * 4 * tensors_per_row
+        budget = _cuda_mse_work_budget_bytes(w.device)
+        if budget is not None:
+            if bytes_per_row > budget:
+                raise RuntimeError(
+                    f"[pack MSE] refuse CUDA OOM for {layer_name or 'layer'}: "
+                    f"one row needs {bytes_per_row} B but free budget is {budget} B "
+                    f"(device={w.device}). Keep DiT on GPU and free other peaks."
+                )
+            chunk_rows = max(1, min(rows, budget // bytes_per_row))
+        else:
+            chunk_rows = rows
         num = 0.0
         den = 0.0
         for r0 in range(0, rows, chunk_rows):
             r1 = min(rows, r0 + chunk_rows)
             err = (dq[r0:r1].float() - w[r0:r1]) ** 2
-            if imp_host is not None:
-                wi = imp_host[r0:r1].float().to(device=err.device, non_blocking=True)
+            if combined_importance is not None:
+                wi = combined_importance[r0:r1]
                 if wi.shape != err.shape:
                     wi = torch.ones_like(err)
                 num += float((err * wi).sum().item())
                 den += float(wi.sum().item())
-                del wi
             else:
                 num += float(err.sum().item())
                 den += float(err.numel())
             del err
         mse = num / max(den, 1e-12)
-        del dq, w, imp_host
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        del dq, w, combined_importance
 
         return {
             "optimal_amax": max_val,
