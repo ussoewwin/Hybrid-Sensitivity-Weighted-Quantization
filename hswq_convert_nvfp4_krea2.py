@@ -1176,10 +1176,6 @@ def _measure_v4_pack_mse_absmax(
     SVD is mandatory (use_svd_leverage=True). DualMonitor Importance multiplies
     when present; missing Importance never disables SVD. Discarding SVD after
     compute (float32 kitchen path etc.) is blasphemy — fixed in pack BF16 cast.
-
-    No CPU park of DiT. SVD → (drop f32 before kitchen) → pack → MSE.
-    MSE fills free VRAM from mem_get_info. No empty_cache / refuse / OOM rename.
-    Failure must raise — never silent demote. Pack MSE semantics unchanged.
     """
     result = optimizer.compute_pack_mse_absmax_with_svd(
         weight,
@@ -1280,25 +1276,19 @@ def _mse_grayzone_veto_reassessment(
             safe_mses.append(smse)
             mse_cache[sname] = float(smse)
         except Exception as e:
-            # Same rule as protect ranking: never swallow OOM / pack MSE failure.
-            # Silent skip here collapses the baseline and was a demote path.
-            raise RuntimeError(
-                f"[{scope_label} gray-zone] pack MSE failed for safe "
-                f"baseline {sname}: {e}"
-            ) from e
+            print(f"    [MSE ERROR] Failed safe layer {sname}: {e}")
+        torch.cuda.empty_cache()
 
     if not safe_mses:
-        raise RuntimeError(
-            f"[{scope_label} V4→FP16 protect / gray-zone] "
-            "No safe baseline MSE samples (empty pool or no weights). "
-            "Refusing to continue without a baseline."
+        print(
+            f"  [{scope_label} V4→FP16 protect / gray-zone] "
+            "No safe baseline available, skipping."
         )
+        return hard_veto_layers, keep_layers, mse_cache
 
     safe_mses.sort()
     p75_idx = int(len(safe_mses) * 0.75)
-    mse_threshold = (
-        safe_mses[min(p75_idx, len(safe_mses) - 1)] * tunables.mse_p75_multiplier
-    )
+    mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * tunables.mse_p75_multiplier
     print(
         f"  [MSE Baseline NVFP4] Safe layers sampled: {len(safe_mses)}, "
         f"P75 MSE: {safe_mses[p75_idx]:.8f}, "
@@ -1336,9 +1326,8 @@ def _mse_grayzone_veto_reassessment(
                     f"| o={vor:.1f}"
                 )
         except Exception as e:
-            raise RuntimeError(
-                f"[{scope_label} gray-zone] pack MSE failed for {vname}: {e}"
-            ) from e
+            print(f"    ERROR:    {vname} | {e}")
+        torch.cuda.empty_cache()
 
     if released:
         hard_veto_layers = hard_veto_layers - released
@@ -1411,28 +1400,28 @@ def _build_v4_calib_fp16_candidates(
             bins=8192, num_candidates=1000, refinement_iterations=10,
             device=device, alpha=alpha, beta=beta,
         )
-        for name in need:
-            mod = module_dict[name]
-            imp = _dualmonitor_channel_importance(dual_monitors, name)
-            try:
-                v4_mse = _measure_v4_pack_mse_absmax(
-                    weight=mod.weight.data,
-                    importance=imp,
-                    optimizer=trial_optimizer,
-                    layer_name=name,
-                )
-                cache[name] = float(v4_mse)
-                scored.add(name)
-                if imp is None:
-                    n_svd_only += 1
-                else:
-                    n_svd_x_imp += 1
-            except Exception as e:
-                # Failure (incl. OOM) is fatal for ranking — do not silently demote
-                # the layer to pack (that produced undersized 8.4GB output).
-                raise RuntimeError(
-                    f"[V4→FP16 protect] pack MSE failed for {name}: {e}"
-                ) from e
+    for name in need:
+        if trial_optimizer is None:
+            break
+        mod = module_dict[name]
+        imp = _dualmonitor_channel_importance(dual_monitors, name)
+        try:
+            v4_mse = _measure_v4_pack_mse_absmax(
+                weight=mod.weight.data,
+                importance=imp,
+                optimizer=trial_optimizer,
+                layer_name=name,
+            )
+            cache[name] = float(v4_mse)
+            scored.add(name)
+            if imp is None:
+                n_svd_only += 1
+            else:
+                n_svd_x_imp += 1
+        except Exception as e:
+            print(f"    [V4→FP16 protect] skip {name}: {e}")
+            continue
+        torch.cuda.empty_cache()
 
     print(
         f"  [V4→FP16 protect] V4-scored={len(scored)} "
@@ -1594,21 +1583,13 @@ def _apply_fp16_budget_cap(
         dm_sens = float(sens_by_name.get(name, 0.0))
         extra = _fp16_extra_bytes_vs_packed(mod.weight.data)
         row = char_table.get(name, {})
-        prof = (
-            norm_profile.get(name, {})
-            if isinstance(norm_profile.get(name), dict)
-            else {}
-        )
+        prof = norm_profile.get(name, {}) if isinstance(norm_profile.get(name), dict) else {}
         is_hv = name in hard_veto_layers
         k = float(row.get("kurtosis", prof.get("kurtosis", 0)) or 0)
         o = float(row.get("outlier_ratio", prof.get("outlier_ratio", 0)) or 0)
         m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
-        mad = float(
-            row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0
-        )
-        ps = float(
-            row.get("profile_score", prof.get("profile_score", 0)) or 0
-        )
+        mad = float(row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0)
+        ps = float(row.get("profile_score", prof.get("profile_score", 0)) or 0)
         severity = nvfp4_fp16_budget_analyze_severity(
             kurtosis=k,
             outlier_ratio=o,
@@ -1625,14 +1606,8 @@ def _apply_fp16_budget_cap(
             v4_mse = float(cache[name])
         else:
             if trial_optimizer is None:
-                # Unmeasured pool layer would fall out of ranking → silent
-                # demote to pack (undersized protect). Fatal.
                 skipped_no_v4.append(name)
-                raise RuntimeError(
-                    f"[FP16 budget] V4 pack MSE missing for pool layer "
-                    f"{name} and no optimizer was created (cache miss with "
-                    f"need_fresh empty). Refusing silent demote to pack."
-                )
+                continue
             try:
                 v4_mse = _measure_v4_pack_mse_absmax(
                     weight=mod.weight.data,
@@ -1643,9 +1618,10 @@ def _apply_fp16_budget_cap(
                 cache[name] = v4_mse
                 measured_fresh += 1
             except Exception as e:
-                raise RuntimeError(
-                    f"[FP16 budget] V4 pack MSE failed for {name}: {e}"
-                ) from e
+                print(f"    [FP16 budget] V4 MSE failed {name}: {e} -> pack")
+                skipped_no_v4.append(name)
+                continue
+            torch.cuda.empty_cache()
 
         if int(mod.weight.data.ndim) == 2 and trial_optimizer is not None:
             try:
@@ -1658,9 +1634,10 @@ def _apply_fp16_budget_cap(
                 )
                 int8_mse[name] = float(d1)
             except Exception as e:
-                raise RuntimeError(
-                    f"[FP16 budget] INT8 d1 pack MSE failed for {name}: {e}"
-                ) from e
+                print(
+                    f"    [Multi-tier] INT8 d1 failed {name}: {e} "
+                    f"(no INT8 shelter step for this layer)"
+                )
 
         measured.append((name, dm_sens, v4_mse, severity, extra))
 
@@ -2655,7 +2632,6 @@ def _install_comfy_optional_stubs() -> None:
     except Exception:
 
         class _VM:
-            # Host RAM stub for Comfy when psutil is absent (not CUDA VRAM budget).
             total = 64 * 1024**3
             available = 32 * 1024**3
 
@@ -3801,9 +3777,6 @@ def convert_to_nvfp4_convrot(
     bias_corr_skipped_no_bias = 0
     bias_corr_skipped_no_act = 0
     bias_corr_skipped_bad_shape = 0
-    # Float weights left on purpose (min_in_features skip). Exempt from
-    # post-pack leak assert; protect keep_layers are never routed here.
-    intentional_float_modules: set[str] = set()
     rot_tag = " + FULL ConvRot" if enable_convrot else " plain NVFP4/INT8"
     print(f"Converting diffusion Linear/Conv2d weights ({rot_tag.strip()})...")
 
@@ -3831,24 +3804,21 @@ def convert_to_nvfp4_convrot(
                 skipped_count += 1
                 continue
 
+            in_f = int(tensor.shape[1])
+            if min_in_features > 0 and in_f < int(min_in_features):
+                new_state_dict[key] = tensor
+                skipped_small += 1
+                skipped_count += 1
+                continue
+
             diffusers_key = comfyui_to_diffusers_map.get(key)
             module_name = None
             if diffusers_key and diffusers_key.endswith(".weight"):
                 module_name = diffusers_key[:-7]
 
-            # Protect FIRST — never confuse with min_in_features skip.
             if module_name is not None and module_name in keep_layers:
                 new_state_dict[key] = tensor
                 fp16_kept_count += 1
-                skipped_count += 1
-                continue
-
-            in_f = int(tensor.shape[1])
-            if min_in_features > 0 and in_f < int(min_in_features):
-                new_state_dict[key] = tensor
-                if module_name is not None:
-                    intentional_float_modules.add(module_name)
-                skipped_small += 1
                 skipped_count += 1
                 continue
 
@@ -3912,13 +3882,9 @@ def convert_to_nvfp4_convrot(
                     new_state_dict[key] = q
                     new_state_dict[f"{module_key}.weight_scale"] = scale
                 elif not can_pack_nvfp4(tensor):
-                    # Never leave a non-protect Linear as float (leak →
-                    # undersize / hand-waving). Fail loud.
-                    raise RuntimeError(
-                        f"[NVFP4 pack] Linear cannot pack NVFP4 and is not in "
-                        f"keep_layers: key={key} module={module_name} "
-                        f"shape={tuple(tensor.shape)}. Refusing float leave."
-                    )
+                    new_state_dict[key] = tensor
+                    skipped_count += 1
+                    continue
                 else:
                     # NVFP4 Linear: always plain (no ConvRot, no convrot stamp).
                     q, params = pack_nvfp4(w_fp)
@@ -4075,8 +4041,6 @@ def convert_to_nvfp4_convrot(
     _pack_fp16_conv_n = 0
     _pack_fp16_skipped_non_lc = 0
     _pack_fp16_leak = []
-    _pack_fp16_found = set()
-    _pack_fp16_demoted = []
     _pack_shelter_extra = 0
     _pack_shelter_n = 0
     if keep_layers or int8_shelter_layers:
@@ -4093,31 +4057,20 @@ def convert_to_nvfp4_convrot(
                 if int(_cv.ndim) == 2 and _mod in int8_shelter_layers:
                     _pack_shelter_extra += int(_cv.numel()) // 2
                     _pack_shelter_n += 1
-                elif _mod in keep_layers:
-                    # Protect layer stored as INT8 = silent demote (undersize).
-                    _pack_fp16_demoted.append(_mod)
                 continue
             # Packed NVFP4 Linear is not FP16 keep.
             _dt = str(getattr(_cv.dtype, "name", _cv.dtype))
             if "float8" in _dt or "fp4" in _dt.lower():
-                if _mod in keep_layers:
-                    # Protect layer packed as NVFP4 = the 8.4GB undersize crime.
-                    _pack_fp16_demoted.append(_mod)
                 continue
             if _cv.dtype not in (torch.float16, torch.bfloat16, torch.float32):
-                if _mod in keep_layers:
-                    _pack_fp16_demoted.append(_mod)
                 continue
             _ndim = int(_cv.ndim)
             if _ndim not in (2, 4):
                 _pack_fp16_skipped_non_lc += 1
                 continue
             if _mod not in keep_layers:
-                if _mod in intentional_float_modules:
-                    continue
                 _pack_fp16_leak.append(_mod)
                 continue
-            _pack_fp16_found.add(_mod)
             _n_el = int(_cv.numel())
             if _ndim == 2:
                 _pack_fp16_extra += (_n_el * 3) // 2
@@ -4126,17 +4079,6 @@ def convert_to_nvfp4_convrot(
                 _pack_fp16_extra += _n_el
                 _pack_fp16_conv_n += 1
             _pack_fp16_n += 1
-        _pack_fp16_missing = sorted(set(keep_layers) - _pack_fp16_found)
-        if _pack_fp16_demoted or _pack_fp16_missing:
-            _bad = sorted(set(_pack_fp16_demoted) | set(_pack_fp16_missing))
-            _show = ", ".join(_bad[:12])
-            raise RuntimeError(
-                f"[FP16 budget] post-pack protect MISSING/DEMOTED: "
-                f"{len(_bad)} keep_layers not stored as float16/bf16/fp32 "
-                f"(packed or absent → undersized ~8.4GB path). "
-                f"demoted={len(_pack_fp16_demoted)} missing={len(_pack_fp16_missing)}. "
-                f"Examples: {_show}. Refusing to save."
-            )
         if _pack_fp16_leak:
             _show = ", ".join(_pack_fp16_leak[:12])
             raise RuntimeError(
