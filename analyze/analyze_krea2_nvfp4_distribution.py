@@ -1611,16 +1611,16 @@ def build_nvfp4_analyze_character_table(
 
 # ---------------------------------------------------------------------------
 # Fully autonomous tunable derivation.
-# Owner hard ceiling NVFP4_FP16_BUDGET_MB_HARD (Krea2 convert: 2000 MiB) is
+# Owner hard ceiling NVFP4_FP16_BUDGET_MB_HARD (Krea2 convert: 2400 MiB) is
 # NOT a thinking-stop recipe: auto knobs fill inside that frame and must
 # never exceed it.
 # Every knob below is derived from THIS checkpoint's profile + DualMonitor
 # sensitivity distribution. Covers degenerate / tiny / huge / skewed cases.
 # ---------------------------------------------------------------------------
 
-# Default = Krea2 NVFP4 convert budget ceiling (2000 MiB).
+# Default = Krea2 NVFP4 convert budget ceiling (2400 MiB).
 # Module attribute may be set before derive / assert; ranking / fill unchanged.
-NVFP4_FP16_BUDGET_MB_HARD = 2000.0
+NVFP4_FP16_BUDGET_MB_HARD = 2400.0
 
 
 def _safe_percentile(values: List[float], pct: float) -> float:
@@ -1657,7 +1657,7 @@ def derive_nvfp4_autonomous_tunables(
     """Derive EVERY NVFP4 knob from this checkpoint + calibration.
 
     Owner hard ceiling: fp16_budget_mb must equal NVFP4_FP16_BUDGET_MB_HARD
-    (2000 MiB for Krea2 NVFP4 convert).
+    (2400 MiB for Krea2 NVFP4 convert).
     Inside that frame: THIS model's auto analysis → extreme auto-optimal
     settings (Hard VETO fences, ranking weights, MSE release, BC scope,
     gray-zone, alpha/beta, search_low, sens_veto percentile).
