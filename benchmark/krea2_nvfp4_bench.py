@@ -360,22 +360,36 @@ def run_branch(
     print(f"  sample: {sample_s:.2f}s  peak_vram={peak_gb:.2f} GiB")
 
     samples_t = out["samples"]
+    lat_cpu = samples_t.detach().float().cpu()
+
     if vae is not None:
-        print("  decoding with VAE...")
-        # Exact ComfyUI nodes.VAEDecode.decode body
-        latent = samples_t
-        if latent.is_nested:
+        # Free DiT VRAM before VAE decode. Keeping UNet loaded leaves ~100 MiB
+        # free on 32 GiB cards → regular decode OOM → tiled decode → Comfy
+        # process_output inplace (add_/div_) crashes under InferenceMode.
+        latent = samples_t.detach()
+        if getattr(latent, "is_nested", False):
             latent = latent.unbind()[0]
-        images = vae.decode(latent)
+        del model, out, samples_t
+        _hard_free_vram()
+
+        print("  decoding with VAE...")
+        # Bench-only: non-inplace process_output (do not edit ComfyUI-master).
+        _po = vae.process_output
+        vae.process_output = lambda image: image.float().add(1.0).mul(0.5).clamp(0.0, 1.0)
+        try:
+            with torch.inference_mode(False):
+                images = vae.decode(latent)
+        finally:
+            vae.process_output = _po
         if len(images.shape) == 5:  # Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         img_array = 255.0 * images[0].detach().cpu().numpy()
         img = Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
+        del latent, images
     else:
         img = latent_to_rgb_preview(samples_t, model)
+        del model, out, samples_t
 
-    lat_cpu = samples_t.detach().float().cpu()
-    del model, out, samples_t, latent
     _hard_free_vram()
     return img, lat_cpu, sample_s, peak_gb
 
