@@ -42,7 +42,7 @@ HSWQ DualMonitor + FP16 protect, when --calib_file is set (r0 only):
       (4) Full-SVD×RMS inside V4 pack MSE (never optional / discard)
     arranged together → per-model auto analysis → infinitely branching
     auto-optimal priority, truncated only by --fp16_budget_mb
-    (hard ceiling 1500 MiB). No top-% cut. No fixed recipe.
+    (hard ceiling 2000 MiB). No top-% cut. No fixed recipe.
     Blasphemy = omit any of (1)-(4), or substitute fixed floors.
   - Pack amax: absmax after optional ConvRot (V3.0 parity). V4 real pack MSE
     ranks FP16 keep only (Linear=NVFP4 / Conv2d=INT8 channelwise).
@@ -269,14 +269,14 @@ from weighted_histogram_mse_v4_nvfp4 import (
 # only optimize INSIDE this frame. Not a thinking-stop formula constant.
 # Packed baseline: Linear → NVFP4 (~0.5 B/elem), Conv2d → INT8 (1 B/elem).
 # FP16 keep overhead = 2 − packed_bytes → Linear +1.5×numel, Conv +1×numel.
-FP16_BUDGET_MB_HARD = 1500.0
+FP16_BUDGET_MB_HARD = 2000.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
-    """Refuse any fp16_budget_mb other than the owner hard ceiling (1500)."""
+    """Refuse any fp16_budget_mb other than the owner hard ceiling (2000)."""
     b = float(budget_mb)
     if abs(b - FP16_BUDGET_MB_HARD) > 1e-6:
         raise ValueError(
@@ -369,8 +369,8 @@ class SdxlVetoTunables:
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
-    fp16_budget_mb: float = 1500.0
-    fp16_budget_bytes: int = 1572864000
+    fp16_budget_mb: float = 2000.0
+    fp16_budget_bytes: int = 2097152000
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
@@ -507,7 +507,7 @@ class SdxlVetoTunables:
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
             fp16_budget_mb=float(d["fp16_budget_mb"]),
-            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 1500 * 1024 * 1024)),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 2000 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=True,
             alpha_auto=float(d["alpha_auto"]),
@@ -586,7 +586,7 @@ def resolve_veto_tunables(
     weights, MSE release gates, bias_correction scope, sens_veto percentile,
     alpha/beta, search_low) come from derive_nvfp4_autonomous_tunables,
     which uses THIS checkpoint's profile + DualMonitor sensitivity
-    distribution. fp16_budget_mb is the owner hard ceiling (1500 MiB)  - 
+    distribution. fp16_budget_mb is the owner hard ceiling (2000 MiB)  - 
     auto settings fill that frame; they do not redefine or exceed it.
     No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
@@ -1358,7 +1358,7 @@ def _build_v4_calib_fp16_candidates(
     """Score FP16 protection candidates with histogram V4 on THIS calibration.
 
     V4's job here: estimated_mse @ absmax for every target Linear/Conv so the
-    later 1500 MiB budget can rank which layers stay FP16. Pack amax remains
+    later 2000 MiB budget can rank which layers stay FP16. Pack amax remains
     absmax separately  -  V4 does not search pack scale.
 
     Always Full-SVD×RMS hybrid (surface 4 of comprehensive FP16 ranking);
@@ -1447,7 +1447,7 @@ def _apply_fp16_budget_cap(
 ) -> tuple[set, set, dict, set]:
     """Per-model auto analysis → auto-optimal 3-tier set inside the hard ceiling.
 
-    Owner hard ceiling is installed by the caller (NVFP4 1500 via
+    Owner hard ceiling is installed by the caller (NVFP4 2000 via
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
@@ -2163,7 +2163,7 @@ def derive_hswq_strategy_nvfp4(model_profile, veto_tunables: SdxlVetoTunables | 
             )
 
     if veto_tunables is None:
-        # Owner hard ceiling 1500 MiB  -  auto knobs fill inside this frame.
+        # Owner hard ceiling 2000 MiB  -  auto knobs fill inside this frame.
         veto_tunables = resolve_veto_tunables(
             model_profile or {},
             fp16_budget_mb=FP16_BUDGET_MB_HARD,
@@ -3085,7 +3085,7 @@ def run_nvfp4_calib(
     """PTQ calib: DualMonitor + input_scale amax + V3.0-parity FP16 protect.
 
     FP16 protect (r0): Hard VETO cascade → DualMonitor → V4 NVFP4 candidates
-    → grayzone → _apply_fp16_budget_cap (hard ceiling 1500 MiB).
+    → grayzone → _apply_fp16_budget_cap (hard ceiling 2000 MiB).
     Pack amax stays absmax via weighted_histogram_mse_v4_nvfp4 (no fast search).
 
     When clip_path is set, DualMonitor activations use real Comfy CLIPType.KREA2
@@ -4099,7 +4099,7 @@ if __name__ == "__main__":
             "Krea2-only ConvRot + NVFP4 convert: Linear→NVFP4 (unrotated), "
             "Conv2d→INT8 (+ ConvRot), INT8-shelter Linear→INT8 (+ ConvRot). "
             "Pass --calib_file for NVFP4 .input_scale, "
-            "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=1500 hard "
+            "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=2000 hard "
             "ceiling), and weight clip amax from NVFP4/INT8 pack roundtrip MSE. "
             "Online act rotate required at load for ConvRot layers "
             "(loader built separately). Card 1 = --bias_correction."
@@ -4164,15 +4164,15 @@ if __name__ == "__main__":
         help=(
             "Must be 0 (r0). FP16 protect is DualMonitor + analyze severity + "
             "V4 NVFP4 MSE @ absmax + infinite branches, truncated only by "
-            "--fp16_budget_mb (1500 MiB hard ceiling). Top-%% cut is forbidden."
+            "--fp16_budget_mb (2000 MiB hard ceiling). Top-%% cut is forbidden."
         ),
     )
     parser.add_argument(
         "--fp16_budget_mb",
         type=float,
-        default=1500.0,
+        default=2000.0,
         help=(
-            "Owner hard ceiling: must be exactly 1500 MiB FP16 overhead vs "
+            "Owner hard ceiling: must be exactly 2000 MiB FP16 overhead vs "
             "packed baseline (Linear +1.5 B/el vs NVFP4, Conv +1 B/el vs INT8). "
             "Per-model auto analysis / auto-optimal settings fill INSIDE this "
             "frame only - never outside."
