@@ -352,13 +352,6 @@ def compute_hybrid_leverage_scores(
     k = min(max_k, max(min_k, int(math.floor(top_p * max_rank))))
     k = min(k, max_rank)
 
-    # --- RMS Magnitude (always) ---
-    magnitude_2d = w_float ** 2  # (M, N)
-    mag_norm = torch.norm(magnitude_2d, p=2)
-    mag_norm_f = float(mag_norm.item()) if mag_norm.numel() else 0.0
-    if mag_norm > 0:
-        magnitude_2d = magnitude_2d / mag_norm
-
     # Full-SVD×RMS hybrid: alpha is the mix weight that puts SVD leverage
     # into ranking. alpha==0 ⇒ SVD cut (rebellion) — not "still contributing".
     if float(alpha) <= 0.0:
@@ -367,10 +360,22 @@ def compute_hybrid_leverage_scores(
             f"got alpha={alpha}, beta={beta}, shape={tuple(w_float.shape)}, layer={label!r}"
         )
 
-    # --- SVD Leverage (full: σ^2 weighted) — settings + process always logged ---
+    # Peak order (DiT ~full GPU; free VRAM often < 1 GiB):
+    #   1) SVD first — peak is w + U/S/Vh only (do NOT hold magnitude yet).
+    #   2) Free U/S/Vh, build leverage, L2-normalize in-place.
+    #   3) Then RMS magnitude from w; drop owned float copy of w if distinct.
+    #   4) Mix / mean-norm / 0.5+0.5 baseline all in-place on one M×N buffer.
+    # Out-of-place ``0.5 + 0.5 * hybrid`` was the observed 864 MiB OOM on
+    # last.linear / tproj.1 with ~500 MiB free. Semantics unchanged.
+    # CUDA OOM must raise — never silent ones() demote of Full-SVD.
     try:
         U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
+    except torch.cuda.OutOfMemoryError:
+        raise
     except RuntimeError as exc:
+        msg = str(exc).lower()
+        if "out of memory" in msg or ("cuda" in msg and "memory" in msg):
+            raise
         stats = {
             "layer": label,
             "skipped": True,
@@ -394,32 +399,46 @@ def compute_hybrid_leverage_scores(
     lev_norm = torch.norm(leverage_2d, p=2)
     lev_norm_f = float(lev_norm.item()) if lev_norm.numel() else 0.0
     if lev_norm > 0:
-        leverage_2d = leverage_2d / lev_norm
+        leverage_2d.div_(lev_norm)
+    del lev_norm
+
+    # --- RMS Magnitude (after SVD factors freed) ---
+    magnitude_2d = w_float.square()
+    mag_norm = torch.norm(magnitude_2d, p=2)
+    mag_norm_f = float(mag_norm.item()) if mag_norm.numel() else 0.0
+    if mag_norm > 0:
+        magnitude_2d.div_(mag_norm)
+    del mag_norm
+    # Drop owned float working copy when it does not alias ``weight`` storage.
+    # Caller may still hold the same float tensor as ``w`` — then data_ptr matches.
+    if w_float.data_ptr() != weight.data_ptr():
+        del w_float
 
     alpha_f = float(alpha)
     beta_f = float(beta)
-    alpha_lev = alpha_f * leverage_2d
-    beta_mag = beta_f * magnitude_2d
-    alpha_lev_l2 = float(torch.norm(alpha_lev, p=2).item())
-    beta_mag_l2 = float(torch.norm(beta_mag, p=2).item())
+    # After L2 unit-norm, ||alpha*lev||_2 = |alpha| (and same for beta*mag).
+    alpha_lev_l2 = abs(alpha_f) if lev_norm_f > 0.0 else 0.0
+    beta_mag_l2 = abs(beta_f) if mag_norm_f > 0.0 else 0.0
     mix_den = alpha_lev_l2 + beta_mag_l2
     svd_share = (alpha_lev_l2 / mix_den) if mix_den > 0 else float("nan")
 
-    hybrid_raw = alpha_lev + beta_mag
-    hybrid_raw_mean = float(hybrid_raw.mean().item())
-    hybrid_raw_min = float(hybrid_raw.min().item())
-    hybrid_raw_max = float(hybrid_raw.max().item())
+    # In-place mix: hybrid = alpha*leverage + beta*magnitude (reuse leverage buffer)
+    leverage_2d.mul_(alpha_f)
+    leverage_2d.add_(magnitude_2d, alpha=beta_f)
+    del magnitude_2d
+    hybrid_importance = leverage_2d
 
-    hybrid_importance = hybrid_raw
+    hybrid_raw_mean = float(hybrid_importance.mean().item())
+    hybrid_raw_min = float(hybrid_importance.min().item())
+    hybrid_raw_max = float(hybrid_importance.max().item())
 
-    # --- 5. Histogram scale normalization ---
+    # --- Histogram scale normalization + V2 mild baseline (in-place) ---
     avg_score = hybrid_importance.mean()
     avg_score_f = float(avg_score.item())
     if avg_score > 0:
-        hybrid_importance = hybrid_importance / avg_score
-
-    # V2-style mild baseline (avoid 0-div and full collapse)
-    hybrid_importance = 0.5 + 0.5 * hybrid_importance
+        hybrid_importance.div_(avg_score)
+    del avg_score
+    hybrid_importance.mul_(0.5).add_(0.5)
 
     s_list = [float(x) for x in S_cpu.tolist()]
     out = hybrid_importance.view(original_shape)
@@ -805,8 +824,10 @@ class HSWQWeightedHistogramOptimizerV4:
                         [imp_arg[:in_features], torch.ones(pad_len, device=self.device)]
                     )
                     channel_gate = imp_1d.view(1, -1)
-                combined_importance = hybrid_importance * channel_gate
-                del imp_1d, channel_gate, imp_arg, hybrid_importance
+                # In-place gate — avoid a second full M×N alloc next to hybrid.
+                hybrid_importance.mul_(channel_gate)
+                combined_importance = hybrid_importance
+                del imp_1d, channel_gate, imp_arg
             else:
                 combined_importance = hybrid_importance
         else:
