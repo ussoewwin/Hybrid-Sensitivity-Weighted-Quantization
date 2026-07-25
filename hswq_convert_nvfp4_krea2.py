@@ -3801,6 +3801,9 @@ def convert_to_nvfp4_convrot(
     bias_corr_skipped_no_bias = 0
     bias_corr_skipped_no_act = 0
     bias_corr_skipped_bad_shape = 0
+    # Float weights left on purpose (min_in_features skip). Exempt from
+    # post-pack leak assert; protect keep_layers are never routed here.
+    intentional_float_modules: set[str] = set()
     rot_tag = " + FULL ConvRot" if enable_convrot else " plain NVFP4/INT8"
     print(f"Converting diffusion Linear/Conv2d weights ({rot_tag.strip()})...")
 
@@ -3828,21 +3831,24 @@ def convert_to_nvfp4_convrot(
                 skipped_count += 1
                 continue
 
-            in_f = int(tensor.shape[1])
-            if min_in_features > 0 and in_f < int(min_in_features):
-                new_state_dict[key] = tensor
-                skipped_small += 1
-                skipped_count += 1
-                continue
-
             diffusers_key = comfyui_to_diffusers_map.get(key)
             module_name = None
             if diffusers_key and diffusers_key.endswith(".weight"):
                 module_name = diffusers_key[:-7]
 
+            # Protect FIRST — never confuse with min_in_features skip.
             if module_name is not None and module_name in keep_layers:
                 new_state_dict[key] = tensor
                 fp16_kept_count += 1
+                skipped_count += 1
+                continue
+
+            in_f = int(tensor.shape[1])
+            if min_in_features > 0 and in_f < int(min_in_features):
+                new_state_dict[key] = tensor
+                if module_name is not None:
+                    intentional_float_modules.add(module_name)
+                skipped_small += 1
                 skipped_count += 1
                 continue
 
@@ -3906,9 +3912,13 @@ def convert_to_nvfp4_convrot(
                     new_state_dict[key] = q
                     new_state_dict[f"{module_key}.weight_scale"] = scale
                 elif not can_pack_nvfp4(tensor):
-                    new_state_dict[key] = tensor
-                    skipped_count += 1
-                    continue
+                    # Never leave a non-protect Linear as float (leak →
+                    # undersize / hand-waving). Fail loud.
+                    raise RuntimeError(
+                        f"[NVFP4 pack] Linear cannot pack NVFP4 and is not in "
+                        f"keep_layers: key={key} module={module_name} "
+                        f"shape={tuple(tensor.shape)}. Refusing float leave."
+                    )
                 else:
                     # NVFP4 Linear: always plain (no ConvRot, no convrot stamp).
                     q, params = pack_nvfp4(w_fp)
@@ -4103,6 +4113,8 @@ def convert_to_nvfp4_convrot(
                 _pack_fp16_skipped_non_lc += 1
                 continue
             if _mod not in keep_layers:
+                if _mod in intentional_float_modules:
+                    continue
                 _pack_fp16_leak.append(_mod)
                 continue
             _pack_fp16_found.add(_mod)
