@@ -360,79 +360,159 @@ def compute_hybrid_leverage_scores(
             f"got alpha={alpha}, beta={beta}, shape={tuple(w_float.shape)}, layer={label!r}"
         )
 
-    # Peak order (DiT ~full GPU; free VRAM often < 1 GiB):
-    #   1) SVD first — peak is w + U/S/Vh only (do NOT hold magnitude yet).
-    #   2) Free U/S/Vh, build leverage, L2-normalize in-place.
-    #   3) Then RMS magnitude from w; drop owned float copy of w if distinct.
-    #   4) Mix / mean-norm / 0.5+0.5 baseline all in-place on one M×N buffer.
-    # Out-of-place ``0.5 + 0.5 * hybrid`` was the observed 864 MiB OOM on
-    # last.linear / tproj.1 with ~500 MiB free. Semantics unchanged.
-    # CUDA OOM must raise — never silent ones() demote of Full-SVD.
-    try:
-        U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
-    except torch.cuda.OutOfMemoryError:
-        raise
-    except RuntimeError as exc:
-        msg = str(exc).lower()
-        if "out of memory" in msg or ("cuda" in msg and "memory" in msg):
-            raise
-        stats = {
-            "layer": label,
-            "skipped": True,
-            "reason": "svd_linalg_error_ones",
-            "error": repr(exc),
-            "shape": list(original_shape),
-            "w2d_shape": list(w_float.shape),
-            "alpha": float(alpha),
-            "beta": float(beta),
-        }
-        _emit_svd_mix_visibility(stats)
-        return _finish(torch.ones_like(weight, dtype=torch.float32), stats)
-    # Snapshot singular values for stats before freeing U/S/Vh (peak cut).
-    S_cpu = S.detach().float().cpu()
-    S_sq = S ** 2
-    row_scores = (U ** 2) @ S_sq.unsqueeze(1)
-    col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1)
-    leverage_2d = row_scores * col_scores.T
-    del U, S, Vh, row_scores, col_scores, S_sq
-
-    lev_norm = torch.norm(leverage_2d, p=2)
-    lev_norm_f = float(lev_norm.item()) if lev_norm.numel() else 0.0
-    if lev_norm > 0:
-        leverage_2d.div_(lev_norm)
-    del lev_norm
-
-    # --- RMS Magnitude (after SVD factors freed) ---
-    magnitude_2d = w_float.square()
-    mag_norm = torch.norm(magnitude_2d, p=2)
-    mag_norm_f = float(mag_norm.item()) if mag_norm.numel() else 0.0
-    if mag_norm > 0:
-        magnitude_2d.div_(mag_norm)
-    del mag_norm
-    # Drop owned float working copy when it does not alias ``weight`` storage.
-    # Caller may still hold the same float tensor as ``w`` — then data_ptr matches.
-    if w_float.data_ptr() != weight.data_ptr():
-        del w_float
-
+    # Peak residency (DiT stays on CUDA; free often << one M×N float32):
+    #   1) Full SVD where it fits — CUDA if mem_get_info can hold U/S/Vh peak,
+    #      else this layer's float copy on host (not model.cpu() / DiT park).
+    #   2) Keep only row/col leverage vectors; never materialize full leverage
+    #      and full magnitude at once. ||outer(r,c)||_F = ||r||_2·||c||_2.
+    #   3) ||W.^2||_2 = sqrt(sum W^4) via row chunks sized from free VRAM.
+    #   4) Fill hybrid by chunks into ONE buffer: CUDA if free fits M×N,
+    #      else host RAM. Same mix → mean-norm → 0.5+0.5. No CUDA OOM path.
     alpha_f = float(alpha)
     beta_f = float(beta)
-    # After L2 unit-norm, ||alpha*lev||_2 = |alpha| (and same for beta*mag).
+    bytes_mn = int(M) * int(N) * 4
+    k_svd = int(min(M, N))
+    # U (M×k) + S (k) + Vh (k×N) float32; + workspace slack ≈ half of factors.
+    svd_factor_bytes = (int(M) * k_svd + k_svd + k_svd * int(N)) * 4
+    svd_peak_bytes = svd_factor_bytes + max(svd_factor_bytes // 2, bytes_mn // 8)
+    budget = _cuda_work_budget_bytes(device) if device.type == "cuda" else None
+    svd_on_cuda = (
+        device.type == "cuda"
+        and budget is not None
+        and budget >= svd_peak_bytes
+    )
+
+    w_svd = w_float if svd_on_cuda else w_float.detach().cpu()
+    try:
+        U, S, Vh = torch.linalg.svd(w_svd, full_matrices=False)
+    except RuntimeError as exc:
+        msg = str(exc).lower()
+        is_oom = (
+            isinstance(exc, torch.cuda.OutOfMemoryError)
+            or "out of memory" in msg
+            or ("cuda" in msg and "memory" in msg)
+        )
+        if is_oom and svd_on_cuda:
+            # Preflight missed fragmentation — host Full SVD (same math).
+            if w_svd is not w_float:
+                del w_svd
+            torch.cuda.empty_cache()
+            w_svd = w_float.detach().cpu()
+            U, S, Vh = torch.linalg.svd(w_svd, full_matrices=False)
+            svd_on_cuda = False
+        elif is_oom:
+            raise
+        else:
+            stats = {
+                "layer": label,
+                "skipped": True,
+                "reason": "svd_linalg_error_ones",
+                "error": repr(exc),
+                "shape": list(original_shape),
+                "w2d_shape": list(w_float.shape),
+                "alpha": alpha_f,
+                "beta": beta_f,
+            }
+            _emit_svd_mix_visibility(stats)
+            return _finish(torch.ones_like(weight, dtype=torch.float32), stats)
+
+    S_cpu = S.detach().float().cpu()
+    S_sq = S ** 2
+    row_scores = ((U ** 2) @ S_sq.unsqueeze(1)).squeeze(1).float().cpu()
+    col_scores = ((Vh.T ** 2) @ S_sq.unsqueeze(1)).squeeze(1).float().cpu()
+    del U, S, Vh, S_sq
+    if w_svd is not w_float:
+        del w_svd
+
+    # ||outer(row, col)||_F == ||row||_2 * ||col||_2 (exact for rank-1 outer).
+    row_l2 = float(torch.norm(row_scores, p=2).item())
+    col_l2 = float(torch.norm(col_scores, p=2).item())
+    lev_norm_f = row_l2 * col_l2
+
+    # ||W.^2||_2 = sqrt(sum_ij W_ij^4) — chunk so mag never needs a full M×N.
+    mag_sum4 = 0.0
+    elems_per_row = max(int(N), 1)
+    # scratch: one row-chunk of w.^2 (or w.^4 path) on CUDA if w is CUDA
+    bytes_per_row_mag = elems_per_row * 4 * 2  # chunk + square/temps
+    if device.type == "cuda":
+        bud = _cuda_work_budget_bytes(device)
+        if bud is not None and bytes_per_row_mag > 0:
+            mag_rows = max(1, min(int(M), max(1, bud // bytes_per_row_mag)))
+        else:
+            mag_rows = max(1, min(int(M), 64))
+    else:
+        mag_rows = int(M)
+    for r0 in range(0, int(M), mag_rows):
+        r1 = min(int(M), r0 + mag_rows)
+        wc = w_float[r0:r1]
+        # sum(W^4) = ||W.^2||_F^2
+        mag_sum4 += float(wc.square().square().sum().item())
+        del wc
+    mag_norm_f = math.sqrt(mag_sum4) if mag_sum4 > 0.0 else 0.0
+
     alpha_lev_l2 = abs(alpha_f) if lev_norm_f > 0.0 else 0.0
     beta_mag_l2 = abs(beta_f) if mag_norm_f > 0.0 else 0.0
     mix_den = alpha_lev_l2 + beta_mag_l2
     svd_share = (alpha_lev_l2 / mix_den) if mix_den > 0 else float("nan")
 
-    # In-place mix: hybrid = alpha*leverage + beta*magnitude (reuse leverage buffer)
-    leverage_2d.mul_(alpha_f)
-    leverage_2d.add_(magnitude_2d, alpha=beta_f)
-    del magnitude_2d
-    hybrid_importance = leverage_2d
+    # One hybrid buffer: CUDA only when free fits the full M×N; else host.
+    bud2 = _cuda_work_budget_bytes(device) if device.type == "cuda" else None
+    hybrid_on_cuda = (
+        device.type == "cuda"
+        and bud2 is not None
+        and bud2 >= bytes_mn + max(bytes_mn // 8, elems_per_row * 4 * 4)
+    )
+    hybrid_dev = device if hybrid_on_cuda else torch.device("cpu")
+    hybrid_importance = torch.empty((int(M), int(N)), device=hybrid_dev, dtype=torch.float32)
+
+    # Chunk fill: temps are row×N only (sized from free VRAM / host).
+    bytes_per_row_fill = elems_per_row * 4 * 4  # lev chunk + mag + mix temps
+    if hybrid_on_cuda:
+        bud3 = _cuda_work_budget_bytes(device)
+        if bud3 is not None and bytes_per_row_fill > 0:
+            fill_rows = max(1, min(int(M), max(1, bud3 // bytes_per_row_fill)))
+        else:
+            fill_rows = 1
+    else:
+        fill_rows = max(1, min(int(M), 256))
+
+    inv_lev = (1.0 / lev_norm_f) if lev_norm_f > 0.0 else 0.0
+    inv_mag = (1.0 / mag_norm_f) if mag_norm_f > 0.0 else 0.0
+    row_scores_d = row_scores.to(hybrid_dev)
+    col_scores_d = col_scores.to(hybrid_dev)
+    for r0 in range(0, int(M), fill_rows):
+        r1 = min(int(M), r0 + fill_rows)
+        # lev = outer(row[r0:r1], col) / lev_norm
+        lev = row_scores_d[r0:r1].unsqueeze(1) * col_scores_d.unsqueeze(0)
+        if inv_lev != 0.0:
+            lev.mul_(inv_lev)
+        # mag = W[r0:r1]^2 / mag_norm  (read w on its device, move chunk if needed)
+        w_src = w_float[r0:r1]
+        if w_src.device != hybrid_dev:
+            w_chunk = w_src.to(hybrid_dev)
+            del w_src
+            mag = w_chunk.square()
+            del w_chunk
+        else:
+            mag = w_src.square()
+            del w_src
+        if inv_mag != 0.0:
+            mag.mul_(inv_mag)
+        # hybrid = alpha*lev + beta*mag
+        lev.mul_(alpha_f)
+        lev.add_(mag, alpha=beta_f)
+        del mag
+        hybrid_importance[r0:r1].copy_(lev)
+        del lev
+
+    del row_scores_d, col_scores_d, row_scores, col_scores
+    if w_float.data_ptr() != weight.data_ptr():
+        del w_float
 
     hybrid_raw_mean = float(hybrid_importance.mean().item())
     hybrid_raw_min = float(hybrid_importance.min().item())
     hybrid_raw_max = float(hybrid_importance.max().item())
 
-    # --- Histogram scale normalization + V2 mild baseline (in-place) ---
     avg_score = hybrid_importance.mean()
     avg_score_f = float(avg_score.item())
     if avg_score > 0:
@@ -459,6 +539,8 @@ def compute_hybrid_leverage_scores(
             "full_matrices": False,
             "svd_weighting": "sigma_squared",
             "mix_formula": "alpha*L2norm(leverage)+beta*L2norm(magnitude^2); then mean-norm; then 0.5+0.5*x",
+            "svd_device": "cuda" if svd_on_cuda else "cpu",
+            "hybrid_device": str(hybrid_dev),
         },
         "singular_values": {
             "n": int(S_cpu.numel()),
@@ -809,19 +891,21 @@ class HSWQWeightedHistogramOptimizerV4:
                 return_stats=True,
             )
             if imp_arg is not None:
-                imp_arg = imp_arg.float().to(self.device)
+                # Gate on hybrid's device (may be host when free VRAM < M×N).
+                hdev = hybrid_importance.device
+                imp_arg = imp_arg.float().to(hdev)
                 if w.ndim == 4:
                     in_channels = w.shape[1]
                     pad_len = max(0, in_channels - imp_arg.numel())
                     imp_1d = torch.cat(
-                        [imp_arg[:in_channels], torch.ones(pad_len, device=self.device)]
+                        [imp_arg[:in_channels], torch.ones(pad_len, device=hdev)]
                     )
                     channel_gate = imp_1d.view(1, -1, 1, 1)
                 else:
                     in_features = w.shape[1]
                     pad_len = max(0, in_features - imp_arg.numel())
                     imp_1d = torch.cat(
-                        [imp_arg[:in_features], torch.ones(pad_len, device=self.device)]
+                        [imp_arg[:in_features], torch.ones(pad_len, device=hdev)]
                     )
                     channel_gate = imp_1d.view(1, -1)
                 # In-place gate — avoid a second full M×N alloc next to hybrid.
@@ -933,6 +1017,8 @@ class HSWQWeightedHistogramOptimizerV4:
                 del dq_f
             if combined_importance is not None:
                 wi = combined_importance[r0:r1]
+                if wi.device != err.device:
+                    wi = wi.to(err.device)
                 if wi.shape != err.shape:
                     wi = wi.expand_as(err)
                 weighted = err * wi
