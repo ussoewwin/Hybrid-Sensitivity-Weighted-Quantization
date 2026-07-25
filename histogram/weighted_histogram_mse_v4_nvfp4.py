@@ -745,6 +745,9 @@ class HSWQWeightedHistogramOptimizerV4:
                 f"linear_pack must be 'nvfp4' or 'int8', got {linear_pack!r}"
             )
         imp_arg = channel_importance if channel_importance is not None else importance
+        # Peak VRAM: float32 work copy + SVD hybrid + pack + full err_sq used to
+        # OOM huge layers (e.g. tproj.1) while the DiT stays on GPU. Free pack
+        # intermediates and accumulate MSE in row chunks — no CPU retry band-aid.
         w = weight.detach().float().to(self.device)
         if w.ndim not in (2, 4):
             raise ValueError(
@@ -777,9 +780,14 @@ class HSWQWeightedHistogramOptimizerV4:
                         [imp_arg[:in_features], torch.ones(pad_len, device=self.device)]
                     )
                     imp_expanded = imp_1d.view(1, -1).expand_as(w)
-                combined_importance = hybrid_importance * imp_expanded
+                combined_importance = (hybrid_importance * imp_expanded).contiguous()
+                del imp_1d, imp_expanded, imp_arg
             else:
                 combined_importance = hybrid_importance
+            if combined_importance is not hybrid_importance:
+                del hybrid_importance
+            if torch.cuda.is_available() and w.is_cuda:
+                torch.cuda.empty_cache()
         else:
             combined_importance = None
             svd_mix_stats = {
@@ -803,6 +811,15 @@ class HSWQWeightedHistogramOptimizerV4:
                 "pack_format": "empty",
             }
 
+        # Park importance on CPU during kitchen/INT8 pack so GPU peak is
+        # float32 weight + pack temps only (not weight + hybrid + pack).
+        imp_host = None
+        if combined_importance is not None:
+            imp_host = combined_importance.detach().to("cpu")
+            del combined_importance
+            if torch.cuda.is_available() and w.is_cuda:
+                torch.cuda.empty_cache()
+
         if w.ndim == 2 and linear_pack == "int8":
             # Multi-tier d1: per-out-channel INT8 on 2D (same math as the
             # convert pack_channelwise_int8 Linear shelter path).
@@ -812,7 +829,8 @@ class HSWQWeightedHistogramOptimizerV4:
             amax_view = amax.view(-1, 1)
             clamped = torch.clamp(w, -amax_view, amax_view)
             q = (clamped / scale_view).round().clamp(-127, 127)
-            dq = q * scale_view
+            dq = (q * scale_view).contiguous()
+            del amax, scale, scale_view, amax_view, clamped, q
             pack_format = "int8_channelwise"
         elif w.ndim == 2:
             from comfy_kitchen.tensor import TensorCoreNVFP4Layout
@@ -826,13 +844,16 @@ class HSWQWeightedHistogramOptimizerV4:
             else:
                 w_pack = w.to(dtype=torch.float16)
             qdata, params = layout.quantize(w_pack)
+            del w_pack
             full = layout.dequantize(qdata, params)
+            del qdata
             orig = tuple(params.orig_shape)
             if tuple(full.shape) != orig:
                 slices = tuple(slice(0, s) for s in orig)
-                dq = full[slices]
+                dq = full[slices].contiguous()
             else:
-                dq = full
+                dq = full.contiguous()
+            del full, params
             pack_format = "nvfp4"
         else:
             reduce_dims = tuple(range(1, w.dim()))
@@ -842,18 +863,38 @@ class HSWQWeightedHistogramOptimizerV4:
             amax_view = amax.view(-1, 1, 1, 1)
             clamped = torch.clamp(w, -amax_view, amax_view)
             q = (clamped / scale_view).round().clamp(-127, 127)
-            dq = q * scale_view
+            dq = (q * scale_view).contiguous()
+            del amax, scale, scale_view, amax_view, clamped, q
             pack_format = "int8_channelwise"
 
-        err_sq = (dq.float() - w.float()) ** 2
-        if combined_importance is not None:
-            wi = combined_importance.float().to(err_sq.device)
-            if wi.shape != err_sq.shape:
-                wi = torch.ones_like(err_sq)
-            denom = float(wi.sum().item())
-            mse = float((err_sq * wi).sum().item() / max(denom, 1e-12))
-        else:
-            mse = float(err_sq.mean().item())
+        if torch.cuda.is_available() and w.is_cuda:
+            torch.cuda.empty_cache()
+
+        # Row-chunked weighted MSE: avoid allocating full err_sq (+ wi) at once.
+        rows = int(w.shape[0])
+        # ~64MiB float32 err chunk target for 2D; fall back for tiny layers.
+        elems_per_row = max(int(w[0].numel()), 1)
+        chunk_rows = max(1, min(rows, max(1, (64 * 1024 * 1024) // (elems_per_row * 4))))
+        num = 0.0
+        den = 0.0
+        for r0 in range(0, rows, chunk_rows):
+            r1 = min(rows, r0 + chunk_rows)
+            err = (dq[r0:r1].float() - w[r0:r1]) ** 2
+            if imp_host is not None:
+                wi = imp_host[r0:r1].float().to(device=err.device, non_blocking=True)
+                if wi.shape != err.shape:
+                    wi = torch.ones_like(err)
+                num += float((err * wi).sum().item())
+                den += float(wi.sum().item())
+                del wi
+            else:
+                num += float(err.sum().item())
+                den += float(err.numel())
+            del err
+        mse = num / max(den, 1e-12)
+        del dq, w, imp_host
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         return {
             "optimal_amax": max_val,
