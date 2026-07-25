@@ -7,7 +7,8 @@ ConvRot scope (owner 2026-07-21): NVFP4 Linear packs UNROTATED.
       offline Hadamard → INT8 per-channel + stamp
       (NVFP4 layout is 2D-only; Conv2d uses int8_tensorwise + convrot)
       comfy_quant: {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":G}
-  - INT8-shelter Linear (multi-tier), in_features divisible by group:
+  - INT8-shelter Linear (Static→FP16 then INT8 remainder), in_features
+      divisible by group:
       offline Hadamard → INT8 per-channel + convrot stamp
   - Conv2d / shelter Linear without group: plain INT8 {"format":"int8_tensorwise"}
 
@@ -36,17 +37,20 @@ HSWQ DualMonitor + FP16 protect, when --calib_file is set (r0 only):
   - Profile JSON + analyze/analyze_krea2_nvfp4_distribution.py
     (Hard VETO cascade, DualMonitor, infinite branches, budget fill).
   - --keep_ratio must be 0. Protect budget (hard ceiling 2400 MiB):
-      (A) Analyze Static Profile extremes → always FP16
-          (absolute FP16 storage charged first; this model ~739 MiB)
-      (B) Remainder (2400 − A) → INT8 shelter only
-          (absolute INT8 storage; score/byte ranking among Linear)
+      Charge = EXTRA vs packed (original meter — never absolute 2 B/1 B):
+        Linear FP16 +1.5 B/el, Conv FP16 +1 B/el, Linear INT8 shelter +0.5 B/el.
+      (A) Analyze Static Profile extremes → always FP16 (EXTRA).
+          Layer count and MiB emerge from THIS-model Static Profile —
+          never hardcoded recipes.
+      (B) Remainder (2400 − A) → ConvRot INT8 shelter only
+          (EXTRA +0.5 B/elem; score/byte). No competing FP16 ladder.
       Surfaces for INT8 ranking still use:
       (1) histogram V4 calib → estimated_mse @ absmax (d0/d1)
       (2) DualMonitor sensitivity + Importance
       (3) analyze JSON → VETO + severity / tunables
       (4) Full-SVD×RMS inside V4 pack MSE (never optional / discard)
-    No top-% cut. No fixed recipe.
-    Blasphemy = omit any of (1)-(4), or demote Static Profile FP16.
+    No top-% cut. No fixed recipe. No hardcode of FP16 layer count / MiB.
+    Blasphemy = omit any of (1)-(4), demote Static Profile FP16, or fix counts.
   - Pack amax: absmax after optional ConvRot (V3.0 parity). V4 real pack MSE
     ranks FP16 keep only (Linear=NVFP4 / Conv2d=INT8 channelwise).
 """
@@ -310,12 +314,14 @@ _SDXL_ATTN_PROJ_SUFFIXES = (".attn.wq", ".attn.wk", ".attn.wv")
 _SDXL_ATTN_TOOUT_SUFFIX = ".attn.wo"
 _SDXL_PROFILE_PREFIXES = ("model.diffusion_model.", "diffusion_model.", "model.", "")
 
-# DualMonitor Sensitivity → candidates; analyze Static Profile → absolute FP16.
+# DualMonitor Sensitivity → candidates; analyze Static Profile → FP16.
 # V4 calib MSE embeds Full-SVD×RMS (+ DualMonitor Importance when present).
-# _apply_fp16_budget_cap: (1) Static Profile extremes → FP16 storage first;
-# (2) remainder of 2400 MiB → INT8 shelter only (no competing FP16 ladder).
-# keep_ratio is r0; DualMonitor must not invent or gate that flag.
+# _apply_fp16_budget_cap: (1) Static Profile extremes → FP16 (EXTRA vs packed);
+# (2) remainder of 2400 MiB → ConvRot INT8 shelter only (EXTRA +0.5 B/el;
+# no competing FP16 ladder). FP16 layer count / MiB = auto Static result
+# (never hardcode). keep_ratio is r0; DualMonitor must not invent that flag.
 # Fixed combinator weights / model-name recipes = blasphemy.
+# Ceiling meter = EXTRA vs packed (same as post-pack). Never absolute 2 B/1 B.
 
 
 @dataclass(frozen=True)
@@ -1152,12 +1158,22 @@ def _fp16_extra_bytes_vs_packed(weight: torch.Tensor) -> int:
 
     Linear (2D) → NVFP4 (~0.5 B/elem): FP16 2B − 0.5B = +1.5 B/elem.
     Conv2d (4D) → INT8 (1 B/elem): FP16 2B − 1B = +1 B/elem.
-    Matches budget ranking to post-pack assert (not all-INT8 1× for Linear).
+    Matches budget ranking to post-pack assert.
     """
     n = int(weight.numel())
     if int(weight.ndim) == 2:
         return (n * 3) // 2
     return n
+
+
+def _int8_shelter_extra_bytes_vs_packed(weight: torch.Tensor) -> int:
+    """Extra bytes of INT8 shelter Linear vs NVFP4 packed (+0.5 B/elem)."""
+    if int(weight.ndim) != 2:
+        raise ValueError(
+            "_int8_shelter_extra_bytes_vs_packed: Linear 2D only "
+            f"(got ndim={int(weight.ndim)})"
+        )
+    return int(weight.numel()) // 2
 
 
 def _measure_v4_pack_mse_absmax(
@@ -1171,7 +1187,7 @@ def _measure_v4_pack_mse_absmax(
     """Real pack roundtrip MSE @ absmax for FP16 protect ranking (V3.0 parity).
 
     Linear: kitchen TensorCoreNVFP4Layout, or channelwise INT8 when
-    linear_pack="int8" (multi-tier shelter d1). Conv2d: channelwise INT8.
+    linear_pack="int8" (INT8-shelter remainder). Conv2d: channelwise INT8.
     Pack amax stays absmax — this MSE only ranks FP16 keep.
 
     SVD is mandatory (use_svd_leverage=True). DualMonitor Importance multiplies
@@ -1469,19 +1485,22 @@ def _apply_fp16_budget_cap(
     device: str = "cuda",
     static_fp16_layers: set | None = None,
 ) -> tuple[set, set, dict, set]:
-    """Protect budget: Static Profile → FP16; remainder → INT8 shelter.
+    """Protect budget: Static Profile → FP16; remainder → ConvRot INT8 shelter.
 
     Owner hard ceiling is installed by the caller (NVFP4 2400 via
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
-    Owner logic (2026-07-25):
+    Owner logic (2400 MiB usage — do not invert this split):
       (1) Analyze Static Profile extremes (k/o/m vs extreme_* tunables)
-          → always FP16. Charge = absolute FP16 storage (2 B/elem).
-      (2) Remainder (2400 MiB − (1)) → INT8 shelter only.
-          Charge = absolute INT8 storage (1 B/elem). Linear 2D steps only;
+          → always FP16. Charge = EXTRA vs packed (+1.5 B/el Linear,
+          +1 B/el Conv). How many layers / MiB = THIS-model Static output —
+          never a hardcoded recipe (hardcoding count/MiB = HSWQ blasphemy).
+      (2) Remainder (2400 MiB − (1)) → ConvRot INT8 shelter only.
+          Charge = EXTRA vs packed (+0.5 B/el Linear). Linear 2D steps only;
           scored priority × measured rescue fraction (d0 NVFP4 / d1 INT8).
           No competing FP16 ladder for non-static layers.
+      Ceiling meter is EXTRA only — never absolute 2 B/1 B.
 
     Ranking surfaces for INT8 selection still arrange together:
       (1) V4 histogram calib → estimated_mse @ absmax (d0 AND d1)
@@ -1601,6 +1620,7 @@ def _apply_fp16_budget_cap(
             skipped_no_weight.append(name)
             continue
         dm_sens = float(sens_by_name.get(name, 0.0))
+        # EXTRA vs packed for ranking display / Static charge parity.
         extra = _fp16_extra_bytes_vs_packed(mod.weight.data)
         row = char_table.get(name, {})
         prof = norm_profile.get(name, {}) if isinstance(norm_profile.get(name), dict) else {}
@@ -1778,10 +1798,9 @@ def _apply_fp16_budget_cap(
                 f"skew={_r['skew']:.4g} str={_r['strength']:.4g}"
             )
 
-    # Owner 2026-07-25: (1) Static Profile extremes → always FP16
-    # (absolute FP16 storage 2 B/elem). (2) Remainder of 2400 MiB → INT8
-    # shelter only (absolute INT8 storage 1 B/elem), ranked by priority ×
-    # measured rescue fraction. No competing FP16 ladder for other layers.
+    # (1) Static Profile extremes → always FP16 (EXTRA vs packed).
+    # (2) Remainder of 2400 MiB → ConvRot INT8 shelter (EXTRA +0.5 B/el),
+    # ranked by priority × rescue fraction. Count/MiB = auto Static only.
     forced_static = {
         n for n in (static_fp16_layers or set())
         if n in module_dict
@@ -1795,7 +1814,6 @@ def _apply_fp16_budget_cap(
     for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         mod = module_dict[name]
         w_ndim = int(mod.weight.data.ndim)
-        n_el = int(mod.weight.data.numel())
         extra_by_name[name] = int(extra)
         ndim_by_name[name] = w_ndim
         if name in forced_static:
@@ -1803,8 +1821,7 @@ def _apply_fp16_budget_cap(
         if w_ndim != 2:
             continue
         d0 = float(v4_mse)
-        # Absolute INT8 storage (1 B/elem) against remainder after FP16 protect.
-        cost_int8 = n_el
+        cost_int8 = _int8_shelter_extra_bytes_vs_packed(mod.weight.data)
         int8_cost_by_name[name] = cost_int8
         d1 = int8_mse.get(name)
         if d1 is not None and d0 > 0.0:
@@ -1823,15 +1840,15 @@ def _apply_fp16_budget_cap(
     shelter_detail: list[tuple[str, int, float, float, float]] = []
     kept_detail: list[tuple[str, int, float, float, float, float]] = []
 
-    # (1) Force Analyze Static Profile → FP16 (absolute storage).
+    # (1) Force Analyze Static Profile → FP16 (EXTRA vs packed).
     forced_detail: list[tuple[str, int]] = []
     for name in sorted(forced_static):
         mod = module_dict[name]
-        charge = int(mod.weight.data.numel()) * 2
+        charge = _fp16_extra_bytes_vs_packed(mod.weight.data)
         if used + charge > budget_bytes:
             raise RuntimeError(
                 f"[Static→FP16] forced set exceeds hard ceiling "
-                f"{budget_mb:g} MiB while adding {name}: "
+                f"{budget_mb:g} MiB (EXTRA vs packed) while adding {name}: "
                 f"used={used / (1024 * 1024):.3f} + "
                 f"charge={charge / (1024 * 1024):.3f} > {budget_mb:g}. "
                 f"Refusing to proceed."
@@ -1844,14 +1861,14 @@ def _apply_fp16_budget_cap(
     print(
         f"  [Static→FP16] forced={len(forced_static)} "
         f"fp16_protect={used_fp16 / (1024 * 1024):.3f} MiB "
-        f"(absolute FP16 storage) | INT8 remainder="
+        f"(EXTRA vs packed) | INT8 remainder="
         f"{int8_budget_bytes / (1024 * 1024):.3f} MiB "
         f"of {budget_mb:g} MiB"
     )
     for _n, _ch in forced_detail[:40]:
         print(
             f"    FORCE-FP16 {_n}  "
-            f"storage={_ch / (1024 * 1024):8.3f}MiB"
+            f"extra={_ch / (1024 * 1024):8.3f}MiB"
         )
 
     # Diagnostic trace (owner 2026-07-21): INT8 remainder ladder only.
@@ -1894,7 +1911,7 @@ def _apply_fp16_budget_cap(
             kept_detail.append(
                 (
                     name,
-                    int(mod.weight.data.numel()) * 2,
+                    _fp16_extra_bytes_vs_packed(mod.weight.data),
                     float("inf"),
                     0.0,
                     1.0,
@@ -1915,7 +1932,8 @@ def _apply_fp16_budget_cap(
     if used > budget_bytes:
         raise RuntimeError(
             f"[Protect budget] selected set exceeds hard ceiling "
-            f"{budget_mb:g} MiB: used={used / (1024 * 1024):.3f} MiB "
+            f"{budget_mb:g} MiB (EXTRA vs packed): "
+            f"used={used / (1024 * 1024):.3f} MiB "
             f"({used} bytes > {budget_bytes}). Refusing to proceed."
         )
 
@@ -2003,7 +2021,7 @@ def _apply_fp16_budget_cap(
         "skipped_no_v4": len(skipped_no_v4),
         "measured_fresh_v4": measured_fresh,
         "int8_d1_measured": len(int8_mse),
-        "multi_tier_steps": len(steps),
+        "int8_remainder_steps": len(steps),
         "priority_form": combinator["form"],
         "priority_weights": {
             "sens": combinator["w_sens"],
@@ -3652,6 +3670,7 @@ def convert_to_nvfp4_convrot(
     weight_amax_dict: dict[str, float] = {}
     keep_layers: set[str] = set()
     int8_shelter_layers: set[str] = set()
+    budget_stats: dict | None = None
     comfyui_to_diffusers_map = {}
     compute_int8_bias_delta = None
     rotate_weight = None
@@ -3745,6 +3764,7 @@ def convert_to_nvfp4_convrot(
         weight_amax_dict = calib["weight_amax_dict"]
         keep_layers = calib["keep_layers"]
         int8_shelter_layers = calib.get("int8_shelter_layers", set())
+        budget_stats = calib.get("budget_stats")
         comfyui_to_diffusers_map = calib["comfyui_to_diffusers_map"]
         if bias_correction:
             compute_int8_bias_delta = globals()["compute_int8_bias_delta"]
@@ -3835,7 +3855,7 @@ def convert_to_nvfp4_convrot(
             if diffusers_key and diffusers_key.endswith(".weight"):
                 module_name = diffusers_key[:-7]
 
-            # Absolute FP16 protect: ALWAYS store float16 (never leave bf16/fp32).
+            # FP16 protect: ALWAYS store float16 (never leave bf16/fp32).
             # Resolve keep before ndim / min_in_features gates so Static layers
             # cannot slip through as input dtype copies.
             if module_name is not None and module_name in keep_layers:
@@ -4065,12 +4085,12 @@ def convert_to_nvfp4_convrot(
         )
 
     # Hard assert: Linear+Conv FP16 keep + Linear INT8 shelter ≤ owner
-    # ceiling + owner tolerance. Meter matches budget ranking: Linear FP16
-    # +1.5×numel (vs NVFP4), Conv FP16 +1× (vs INT8), Linear INT8 shelter
-    # +0.5×numel (vs NVFP4). Packed Linear is float8_e4m3fn_x2 / similar —
-    # not float16.
-    # Absolute FP16 protect MUST be torch.float16 in the saved ckpt (bf16/fp32
-    # copies are blasphemy — refuse save).
+    # ceiling + owner tolerance. Meter = EXTRA vs packed (same as selection):
+    # Linear FP16 +1.5×numel (vs NVFP4), Conv FP16 +1× (vs INT8), Linear INT8
+    # shelter +0.5×numel (vs NVFP4). 2400 usage unchanged: Static→FP16 then
+    # INT8 remainder (never 3-tier). Post-pack EXTRA must match selection
+    # used_bytes; absolute 2 B/1 B underfill (1500→~8 GiB then “2400→~8.4”)
+    # is refused. FP16 protect MUST be torch.float16 in the saved ckpt.
     _budget_ceil_b = int(float(fp16_budget_mb) * 1024 * 1024)
     _tol_b = int(float(FP16_BUDGET_ASSERT_TOLERANCE_MIB) * 1024 * 1024)
     _pack_fp16_extra = 0
@@ -4137,7 +4157,7 @@ def convert_to_nvfp4_convrot(
         if _pack_fp16_wrong_dtype:
             _show = ", ".join(_pack_fp16_wrong_dtype[:12])
             raise RuntimeError(
-                f"[FP16 budget] post-pack absolute FP16 dtype FAIL: "
+                f"[FP16 budget] post-pack FP16 keep dtype FAIL: "
                 f"{len(_pack_fp16_wrong_dtype)} keep_layers weight(s) are not "
                 f"torch.float16 (bf16/fp32 left as-is is blasphemy). "
                 f"Examples: {_show}. Refusing to save."
@@ -4159,7 +4179,7 @@ def convert_to_nvfp4_convrot(
                 f"[FP16 budget] post-pack INT8 shelter mismatch: "
                 f"{_pack_shelter_n} INT8 Linear found in output vs "
                 f"{len(int8_shelter_layers)} shelter layer(s) selected by the "
-                f"multi-tier ladder. Refusing to save."
+                f"INT8 remainder ladder. Refusing to save."
             )
         _pack_fp16_mb = _pack_fp16_extra / (1024 * 1024)
         _pack_shelter_mb = _pack_shelter_extra / (1024 * 1024)
@@ -4195,6 +4215,29 @@ def convert_to_nvfp4_convrot(
                 f"  [FP16 budget] within owner tolerance: "
                 f"+{_over_b / (1024 * 1024):.3f} MiB over ceiling "
                 f"(allowed ≤ {FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB); saving."
+            )
+        # Selection used_bytes and post-pack EXTRA must agree. Absolute 2 B/1 B
+        # selection used to claim ~2400 while real EXTRA stayed ~1384 — refuse
+        # that lie by comparing the same EXTRA meter on both sides.
+        if isinstance(budget_stats, dict) and "used_bytes" in budget_stats:
+            _sel_used = int(budget_stats["used_bytes"])
+            _pack_used = int(_pack_fp16_extra + _pack_shelter_extra)
+            _delta = abs(_pack_used - _sel_used)
+            if _delta > _tol_b:
+                raise RuntimeError(
+                    f"[FP16 budget] post-pack EXTRA mismatch vs selection: "
+                    f"selection used_bytes={_sel_used} "
+                    f"({_sel_used / (1024 * 1024):.3f} MiB EXTRA) vs "
+                    f"post-pack={_pack_used} "
+                    f"({_pack_used / (1024 * 1024):.3f} MiB EXTRA); "
+                    f"|delta|={_delta / (1024 * 1024):.3f} MiB > "
+                    f"tol={FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB. "
+                    f"Refusing to save (absolute-meter underfill / pack drift)."
+                )
+            print(
+                f"  [FP16 budget] selection EXTRA matches post-pack: "
+                f"{_pack_used / (1024 * 1024):.2f} MiB "
+                f"(|delta|={_delta / (1024 * 1024):.3f} MiB)"
             )
 
     save_file(new_state_dict, output_path, metadata=metadata)
@@ -4280,10 +4323,15 @@ if __name__ == "__main__":
         type=float,
         default=2400.0,
         help=(
-            "Owner hard ceiling: must be exactly 2400 MiB FP16 overhead vs "
-            "packed baseline (Linear +1.5 B/el vs NVFP4, Conv +1 B/el vs INT8). "
-            "Per-model auto analysis / auto-optimal settings fill INSIDE this "
-            "frame only - never outside."
+            "Owner hard ceiling: exactly 2400 MiB real protect EXTRA vs "
+            "packed. Usage: (1) Static Profile extremes → FP16 "
+            "(+1.5 B/el Linear, +1 B/el Conv); (2) remainder → ConvRot "
+            "INT8 shelter (+0.5 B/el). Layer count / MiB emerge from "
+            "THIS-model auto Static analysis — never a hardcoded recipe. "
+            "Absolute 2 B/1 B underfills (1500→~8 GiB ⇒ true 2400 cannot "
+            "honestly be ~8.4 GiB). ~9 GiB is the RESULT of a true fill — "
+            "never reverse-calc FROM GiB. Auto settings fill INSIDE the "
+            "ceiling; they do not redefine it."
         ),
     )
     parser.add_argument(
