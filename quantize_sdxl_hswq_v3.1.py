@@ -82,6 +82,63 @@ import subprocess
 from dataclasses import dataclass
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+
+
+def _install_torchaudio_stub() -> None:
+    """Prevent real torchaudio from loading if comfy.sd is pulled in.
+
+    ComfyUI-master is placed on sys.path below. comfy.sd imports
+    comfy.ldm.lightricks.vae.audio_vae, which does a hard ``import torchaudio``.
+    On cloud hosts torch/torchaudio CUDA builds often mismatch (e.g. torch 13.2
+    vs torchaudio 13.0) and abort before UNet calib. SDXL INT8 calib uses
+    Diffusers only — never AudioVAE — so replace torchaudio in sys.modules
+    with a local stub. Does not touch ComfyUI-master sources.
+    """
+    import types
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    ta = types.ModuleType("torchaudio")
+    ta.__file__ = "<hswq_torchaudio_stub>"
+    ta.__path__ = []
+
+    functional = types.ModuleType("torchaudio.functional")
+
+    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
+        return waveform
+
+    functional.resample = _resample
+
+    transforms = types.ModuleType("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
+# Always stub before ComfyUI is on sys.path (CUDA mismatch abort guard).
+_install_torchaudio_stub()
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
 # Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
