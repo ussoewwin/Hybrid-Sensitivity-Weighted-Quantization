@@ -35,15 +35,18 @@ Optional Card 1 (--bias_correction): DualMonitor act means; bias += -(W_q - W) @
 HSWQ DualMonitor + FP16 protect, when --calib_file is set (r0 only):
   - Profile JSON + analyze/analyze_krea2_nvfp4_distribution.py
     (Hard VETO cascade, DualMonitor, infinite branches, budget fill).
-  - --keep_ratio must be 0. FP16 set = comprehensive judgment only:
-      (1) histogram V4 calib → estimated_mse @ absmax
+  - --keep_ratio must be 0. Protect budget (hard ceiling 2400 MiB):
+      (A) Analyze Static Profile extremes → always FP16
+          (absolute FP16 storage charged first; this model ~739 MiB)
+      (B) Remainder (2400 − A) → INT8 shelter only
+          (absolute INT8 storage; score/byte ranking among Linear)
+      Surfaces for INT8 ranking still use:
+      (1) histogram V4 calib → estimated_mse @ absmax (d0/d1)
       (2) DualMonitor sensitivity + Importance
       (3) analyze JSON → VETO + severity / tunables
       (4) Full-SVD×RMS inside V4 pack MSE (never optional / discard)
-    arranged together → per-model auto analysis → infinitely branching
-    auto-optimal priority, truncated only by --fp16_budget_mb
-    (hard ceiling 2000 MiB). No top-% cut. No fixed recipe.
-    Blasphemy = omit any of (1)-(4), or substitute fixed floors.
+    No top-% cut. No fixed recipe.
+    Blasphemy = omit any of (1)-(4), or demote Static Profile FP16.
   - Pack amax: absmax after optional ConvRot (V3.0 parity). V4 real pack MSE
     ranks FP16 keep only (Linear=NVFP4 / Conv2d=INT8 channelwise).
 """
@@ -269,14 +272,14 @@ from weighted_histogram_mse_v4_nvfp4 import (
 # only optimize INSIDE this frame. Not a thinking-stop formula constant.
 # Packed baseline: Linear → NVFP4 (~0.5 B/elem), Conv2d → INT8 (1 B/elem).
 # FP16 keep overhead = 2 − packed_bytes → Linear +1.5×numel, Conv +1×numel.
-FP16_BUDGET_MB_HARD = 2000.0
+FP16_BUDGET_MB_HARD = 2400.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
-    """Refuse any fp16_budget_mb other than the owner hard ceiling (2000)."""
+    """Refuse any fp16_budget_mb other than the owner hard ceiling (2400)."""
     b = float(budget_mb)
     if abs(b - FP16_BUDGET_MB_HARD) > 1e-6:
         raise ValueError(
@@ -306,10 +309,10 @@ _SDXL_ATTN_PROJ_SUFFIXES = (".attn.wq", ".attn.wk", ".attn.wv")
 _SDXL_ATTN_TOOUT_SUFFIX = ".attn.wo"
 _SDXL_PROFILE_PREFIXES = ("model.diffusion_model.", "diffusion_model.", "model.", "")
 
-# DualMonitor Sensitivity → FP16 candidates; analyze → VETO candidates.
+# DualMonitor Sensitivity → candidates; analyze Static Profile → absolute FP16.
 # V4 calib MSE embeds Full-SVD×RMS (+ DualMonitor Importance when present).
-# All four surfaces enter ONE per-model ranking in _apply_fp16_budget_cap.
-# Budget winners = final FP16 protection. Analyze VETO is not renamed.
+# _apply_fp16_budget_cap: (1) Static Profile extremes → FP16 storage first;
+# (2) remainder of 2400 MiB → INT8 shelter only (no competing FP16 ladder).
 # keep_ratio is r0; DualMonitor must not invent or gate that flag.
 # Fixed combinator weights / model-name recipes = blasphemy.
 
@@ -369,8 +372,8 @@ class SdxlVetoTunables:
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
-    fp16_budget_mb: float = 2000.0
-    fp16_budget_bytes: int = 2097152000
+    fp16_budget_mb: float = 2400.0
+    fp16_budget_bytes: int = 2516582400
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
@@ -507,7 +510,7 @@ class SdxlVetoTunables:
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
             fp16_budget_mb=float(d["fp16_budget_mb"]),
-            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 2000 * 1024 * 1024)),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 2400 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=True,
             alpha_auto=float(d["alpha_auto"]),
@@ -586,7 +589,7 @@ def resolve_veto_tunables(
     weights, MSE release gates, bias_correction scope, sens_veto percentile,
     alpha/beta, search_low) come from derive_nvfp4_autonomous_tunables,
     which uses THIS checkpoint's profile + DualMonitor sensitivity
-    distribution. fp16_budget_mb is the owner hard ceiling (2000 MiB)  - 
+    distribution. fp16_budget_mb is the owner hard ceiling (2400 MiB)  - 
     auto settings fill that frame; they do not redefine or exceed it.
     No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
@@ -1358,7 +1361,7 @@ def _build_v4_calib_fp16_candidates(
     """Score FP16 protection candidates with histogram V4 on THIS calibration.
 
     V4's job here: estimated_mse @ absmax for every target Linear/Conv so the
-    later 2000 MiB budget can rank which layers stay FP16. Pack amax remains
+    later 2400 MiB budget can rank which layers stay FP16. Pack amax remains
     absmax separately  -  V4 does not search pack scale.
 
     Always Full-SVD×RMS hybrid (surface 4 of comprehensive FP16 ranking);
@@ -1444,30 +1447,28 @@ def _apply_fp16_budget_cap(
     alpha: float,
     beta: float,
     device: str = "cuda",
+    static_fp16_layers: set | None = None,
 ) -> tuple[set, set, dict, set]:
-    """Per-model auto analysis → auto-optimal 3-tier set inside the hard ceiling.
+    """Protect budget: Static Profile → FP16; remainder → INT8 shelter.
 
-    Owner hard ceiling is installed by the caller (NVFP4 2000 via
+    Owner hard ceiling is installed by the caller (NVFP4 2400 via
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
-    Multi-tier shelter (owner 2026-07-20): Linear has THREE states —
-    NVFP4 (baseline) → INT8 ConvRot (+0.5 B/elem) → FP16 (+1.0 B/elem more);
-    Conv2d keeps INT8 (baseline) → FP16 (+1 B/elem). INT8 shelter protects
-    ~3x more elements than FP16 at the same budget, rescuing layers whose
-    fine singulars zero-collapse on NVFP4's 16-level grid onto INT8's
-    256-level grid. Each upgrade step is scored priority x measured rescue
-    fraction (d0 = NVFP4 pack MSE, d1 = INT8 pack MSE, same importance
-    weighting) and ALL steps compete in ONE score/byte ranking.
+    Owner logic (2026-07-25):
+      (1) Analyze Static Profile extremes (k/o/m vs extreme_* tunables)
+          → always FP16. Charge = absolute FP16 storage (2 B/elem).
+      (2) Remainder (2400 MiB − (1)) → INT8 shelter only.
+          Charge = absolute INT8 storage (1 B/elem). Linear 2D steps only;
+          scored priority × measured rescue fraction (d0 NVFP4 / d1 INT8).
+          No competing FP16 ladder for non-static layers.
 
-    Comprehensive ranking (owner 2026-07-20) — ALL arranged together:
+    Ranking surfaces for INT8 selection still arrange together:
       (1) V4 histogram calib → estimated_mse @ absmax (d0 AND d1)
       (2) DualMonitor sensitivity (+ Importance into V4 hybrid)
       (3) analyze JSON → severity / Hard VETO / tunables
       (4) Full-SVD×RMS inside every V4 pack MSE measure
-    Linear and Conv compete in ONE ranking. Priority weights are derived
-    per-checkpoint via infinite branches — never fixed Conv-first /
-    Mag-outside / Mag-tax exemption / model-name recipe.
+    Priority weights are derived per-checkpoint via infinite branches.
 
     alpha/beta MUST be THIS-profile auto-optimal (caller passes
     veto_tunables.alpha_auto mix). Fixed 0.5/0.5 defaults are forbidden.
@@ -1746,18 +1747,19 @@ def _apply_fp16_budget_cap(
                 f"skew={_r['skew']:.4g} str={_r['strength']:.4g}"
             )
 
-    # Multi-tier shelter ladder (owner 2026-07-20): Linear has THREE states —
-    # NVFP4 baseline → INT8 ConvRot shelter (+0.5 B/elem) → FP16 (+1.0 B/elem
-    # more); Conv2d keeps INT8 baseline → FP16 (+1 B/elem). INT8 shelter costs
-    # ~1/3 of FP16 per element, so the hard ceiling rescues ~3x more elements.
-    # Each upgrade step scores priority x MEASURED rescue fraction
-    # (d0 = NVFP4 pack MSE, d1 = INT8 pack MSE, same importance weighting) and
-    # ALL steps compete in ONE score/byte ranking. No fixed tier reservation.
+    # Owner 2026-07-25: (1) Static Profile extremes → always FP16
+    # (absolute FP16 storage 2 B/elem). (2) Remainder of 2400 MiB → INT8
+    # shelter only (absolute INT8 storage 1 B/elem), ranked by priority ×
+    # measured rescue fraction. No competing FP16 ladder for other layers.
+    forced_static = {
+        n for n in (static_fp16_layers or set())
+        if n in module_dict
+        and getattr(module_dict[n], "weight", None) is not None
+    }
     extra_by_name: dict[str, int] = {}
     int8_cost_by_name: dict[str, int] = {}
-    fp16_marginal_by_name: dict[str, int] = {}
     ndim_by_name: dict[str, int] = {}
-    # (score, cost_bytes, tier, name, priority, rescue_frac)
+    # (score, cost_bytes, tier, name, priority, rescue_frac) — INT8 only
     steps: list[tuple[float, int, str, str, float, float]] = []
     for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         mod = module_dict[name]
@@ -1765,32 +1767,21 @@ def _apply_fp16_budget_cap(
         n_el = int(mod.weight.data.numel())
         extra_by_name[name] = int(extra)
         ndim_by_name[name] = w_ndim
+        if name in forced_static:
+            continue
+        if w_ndim != 2:
+            continue
         d0 = float(v4_mse)
-        if w_ndim == 2:
-            cost_int8 = n_el // 2
-            int8_cost_by_name[name] = cost_int8
-            # FP16 marginal from INT8: 2.0-1.0 = +1.0 B/elem → n_el bytes.
-            fp16_marginal_by_name[name] = n_el
-            d1 = int8_mse.get(name)
-            if d1 is not None and d0 > 0.0:
-                r1 = min(max((d0 - d1) / d0, 0.0), 1.0)
-                r2 = min(max(d1 / d0, 0.0), 1.0)
-            elif d0 > 0.0:
-                # d1 unmeasured: INT8 step unavailable, FP16 removes all.
-                r1, r2 = 0.0, 1.0
-            else:
-                r1, r2 = 0.0, 0.0
-            if d1 is not None and r1 > 0.0:
-                steps.append((priority * r1, cost_int8, "int8", name, priority, r1))
-            if r2 > 0.0:
-                steps.append(
-                    (priority * r2, n_el, "fp16", name, priority, r2)
-                )
+        # Absolute INT8 storage (1 B/elem) against remainder after FP16 protect.
+        cost_int8 = n_el
+        int8_cost_by_name[name] = cost_int8
+        d1 = int8_mse.get(name)
+        if d1 is not None and d0 > 0.0:
+            r1 = min(max((d0 - d1) / d0, 0.0), 1.0)
         else:
-            # Conv2d baseline is INT8; single FP16 step removes all damage.
-            fp16_marginal_by_name[name] = int(extra)
-            if priority > 0.0:
-                steps.append((priority, int(extra), "fp16", name, priority, 1.0))
+            r1 = 0.0
+        if d1 is not None and r1 > 0.0 and priority > 0.0:
+            steps.append((priority * r1, cost_int8, "int8", name, priority, r1))
 
     steps.sort(key=lambda t: (-(t[0] / max(t[1], 1)), t[3]))
 
@@ -1800,29 +1791,48 @@ def _apply_fp16_budget_cap(
     used_fp16 = 0
     shelter_detail: list[tuple[str, int, float, float, float]] = []
     kept_detail: list[tuple[str, int, float, float, float, float]] = []
-    # Diagnostic trace (owner 2026-07-21): record every step's fate so the
-    # budget-cut boundary (accepted tail vs rejected head) can be dumped to
-    # the log. Tuple = (rank, score/byte, tier, name, charge, status,
-    # remaining_before); status is "ok" or "no_fit".
+
+    # (1) Force Analyze Static Profile → FP16 (absolute storage).
+    forced_detail: list[tuple[str, int]] = []
+    for name in sorted(forced_static):
+        mod = module_dict[name]
+        charge = int(mod.weight.data.numel()) * 2
+        if used + charge > budget_bytes:
+            raise RuntimeError(
+                f"[Static→FP16] forced set exceeds hard ceiling "
+                f"{budget_mb:g} MiB while adding {name}: "
+                f"used={used / (1024 * 1024):.3f} + "
+                f"charge={charge / (1024 * 1024):.3f} > {budget_mb:g}. "
+                f"Refusing to proceed."
+            )
+        used += charge
+        used_fp16 += charge
+        tier_state[name] = "fp16"
+        forced_detail.append((name, charge))
+    int8_budget_bytes = budget_bytes - used
+    print(
+        f"  [Static→FP16] forced={len(forced_static)} "
+        f"fp16_protect={used_fp16 / (1024 * 1024):.3f} MiB "
+        f"(absolute FP16 storage) | INT8 remainder="
+        f"{int8_budget_bytes / (1024 * 1024):.3f} MiB "
+        f"of {budget_mb:g} MiB"
+    )
+    for _n, _ch in forced_detail[:40]:
+        print(
+            f"    FORCE-FP16 {_n}  "
+            f"storage={_ch / (1024 * 1024):8.3f}MiB"
+        )
+
+    # Diagnostic trace (owner 2026-07-21): INT8 remainder ladder only.
     ladder_trace: list[tuple[int, float, str, str, int, str, int]] = []
     for _rank, (score, cost, tier, name, priority, rescue_frac) in enumerate(
         steps, 1
     ):
-        if score <= 0.0:
+        if score <= 0.0 or tier != "int8":
             continue
-        cur = tier_state.get(name)
-        if tier == "int8":
-            if cur is not None:
-                continue
-            charge = cost
-        else:
-            if cur == "fp16":
-                continue
-            if cur == "int8":
-                charge = fp16_marginal_by_name[name]
-            else:
-                # Direct baseline → FP16 pays the full FP16 extra.
-                charge = extra_by_name[name]
+        if name in tier_state:
+            continue
+        charge = cost
         if used + charge > budget_bytes:
             ladder_trace.append(
                 (_rank, score / max(cost, 1), tier, name, charge, "no_fit",
@@ -1834,42 +1844,56 @@ def _apply_fp16_budget_cap(
              budget_bytes - used)
         )
         used += charge
-        tier_state[name] = tier
-        if tier == "int8":
-            used_int8 += charge
-            shelter_detail.append((name, charge, score, priority, rescue_frac))
-        else:
-            used_fp16 += charge
+        tier_state[name] = "int8"
+        used_int8 += charge
+        shelter_detail.append((name, charge, score, priority, rescue_frac))
 
     keep_out = {n for n, s in tier_state.items() if s == "fp16"}
     shelter_out = {n for n, s in tier_state.items() if s == "int8"}
     cand_by_name = {c[5]: c for c in candidates}
     for name in sorted(keep_out):
-        priority, v4_mse, severity, dm_sens, extra, _ = cand_by_name[name]
-        kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
+        if name in cand_by_name:
+            priority, v4_mse, severity, dm_sens, extra, _ = cand_by_name[name]
+            kept_detail.append(
+                (name, extra, priority, v4_mse, severity, dm_sens)
+            )
+        else:
+            # Forced static may sit outside measured candidates; still report.
+            mod = module_dict[name]
+            kept_detail.append(
+                (
+                    name,
+                    int(mod.weight.data.numel()) * 2,
+                    float("inf"),
+                    0.0,
+                    1.0,
+                    0.0,
+                )
+            )
     dropped: list[tuple[str, int, float, float, float, float]] = []
     for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         if name not in tier_state:
             dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
 
     demoted_veto = hard_veto_layers - keep_out
-    # Auto-optimal 3-tier set for THIS model (DualMonitor + analyze + V4 d0/d1).
-    # Analyze VETO that win FP16 stay labeled VETO; INT8 shelter is the cheap
-    # middle tier; demoted Linear pack NVFP4, demoted Conv pack INT8.
+    # Static Profile FP16 stay labeled VETO; remaining Hard VETO compete for
+    # INT8 shelter; demoted Linear pack NVFP4, demoted Conv pack INT8.
     hard_veto_out = hard_veto_layers & keep_out
     veto_in_shelter = hard_veto_layers & shelter_out
 
     if used > budget_bytes:
         raise RuntimeError(
-            f"[Multi-tier] selected set exceeds hard ceiling "
+            f"[Protect budget] selected set exceeds hard ceiling "
             f"{budget_mb:g} MiB: used={used / (1024 * 1024):.3f} MiB "
             f"({used} bytes > {budget_bytes}). Refusing to proceed."
         )
 
     print(
-        f"  [Multi-tier] steps={len(steps)} → FP16 keep={len(keep_out)} "
-        f"({used_fp16 / (1024 * 1024):.2f} MiB) + INT8 shelter="
-        f"{len(shelter_out)} ({used_int8 / (1024 * 1024):.2f} MiB) = "
+        f"  [Protect budget] INT8 steps={len(steps)} → "
+        f"FP16 keep={len(keep_out)} "
+        f"({used_fp16 / (1024 * 1024):.2f} MiB static protect) + "
+        f"INT8 shelter={len(shelter_out)} "
+        f"({used_int8 / (1024 * 1024):.2f} MiB) = "
         f"{used / (1024 * 1024):.2f}/{budget_mb:g} MiB | veto→fp16="
         f"{len(hard_veto_out)} veto→int8={len(veto_in_shelter)} "
         f"veto→packed={len(demoted_veto - shelter_out)}"
@@ -1924,13 +1948,16 @@ def _apply_fp16_budget_cap(
         "budget_bytes": budget_bytes,
         "used_bytes": used,
         "used_mb": used / (1024 * 1024),
-        "forced_bytes": 0,
-        "forced_mb": 0.0,
-        "optional_bytes": int(used),
-        "optional_mb": used / (1024 * 1024),
+        "forced_bytes": int(used_fp16),
+        "forced_mb": used_fp16 / (1024 * 1024),
+        "optional_bytes": int(used_int8),
+        "optional_mb": used_int8 / (1024 * 1024),
+        "int8_remainder_bytes": int(int8_budget_bytes),
+        "int8_remainder_mb": int8_budget_bytes / (1024 * 1024),
         "total_fp16_mb": used_fp16 / (1024 * 1024),
         "total_int8_shelter_mb": used_int8 / (1024 * 1024),
-        "mag_forced_fp16_count": 0,
+        "mag_forced_fp16_count": len(forced_static),
+        "static_fp16_forced": len(forced_static),
         "candidates": len(candidates),
         "pool": len(pool),
         "analyze_character_layers": len(char_table),
@@ -1958,7 +1985,7 @@ def _apply_fp16_budget_cap(
             "mse": combinator.get("align_mse"),
         },
         "ranking": (
-            "per_model_auto_analysis_multi_tier_score_per_byte_inside_"
+            "static_fp16_then_int8_remainder_score_per_byte_inside_"
             f"{float(budget_mb):g}mib"
         ),
         "infinite_branch_profile": {
@@ -2140,7 +2167,9 @@ def derive_hswq_strategy_nvfp4(model_profile, veto_tunables: SdxlVetoTunables | 
     - alpha/beta: alpha_auto from THIS multi-axis analyze character
       (kurtosis∪outlier∪magnitude → Full-SVD×RMS); DualMonitor Importance
       multiplies the hybrid map when present. No fixed mix / no SVD off.
-    - hard_veto: thresholds from derive_veto_tunables_nvfp4 (this checkpoint).
+    - hard_veto / static_profile_veto: thresholds from
+      derive_veto_tunables_nvfp4 (this checkpoint). static_profile_veto is
+      the Analyze extreme set only (always FP16 under protect budget).
     """
     if model_profile:
         sample_key = next(iter(model_profile))
@@ -2163,7 +2192,7 @@ def derive_hswq_strategy_nvfp4(model_profile, veto_tunables: SdxlVetoTunables | 
             )
 
     if veto_tunables is None:
-        # Owner hard ceiling 2000 MiB  -  auto knobs fill inside this frame.
+        # Owner hard ceiling 2400 MiB  -  auto knobs fill inside this frame.
         veto_tunables = resolve_veto_tunables(
             model_profile or {},
             fp16_budget_mb=FP16_BUDGET_MB_HARD,
@@ -2233,11 +2262,14 @@ def derive_hswq_strategy_nvfp4(model_profile, veto_tunables: SdxlVetoTunables | 
                         )
                     print(f"    VETO: {layer_base_name} [{'; '.join(reasons)}]")
 
+    # Analyze Static Profile set only (before structural / key-pattern union).
+    # Protect budget forces these to FP16; remainder goes to INT8 shelter.
+    static_profile_veto = set(hard_veto_layers)
     print(
-        f"  [Static Profile VETO NVFP4] Identified {len(hard_veto_layers)} layers "
-        "with extreme distribution (Unquantizable under NVFP4 protect)."
+        f"  [Static Profile VETO NVFP4] Identified {len(static_profile_veto)} layers "
+        "with extreme distribution (force FP16 under protect budget)."
     )
-    return alpha, beta, get_dynamic_search_low, hard_veto_layers
+    return alpha, beta, get_dynamic_search_low, hard_veto_layers, static_profile_veto
 
 
 
@@ -3082,10 +3114,11 @@ def run_nvfp4_calib(
     clip_path: str | None = None,
     comfy_path: str | None = None,
 ):
-    """PTQ calib: DualMonitor + input_scale amax + V3.0-parity FP16 protect.
+    """PTQ calib: DualMonitor + input_scale amax + protect budget.
 
-    FP16 protect (r0): Hard VETO cascade → DualMonitor → V4 NVFP4 candidates
-    → grayzone → _apply_fp16_budget_cap (hard ceiling 2000 MiB).
+    Protect (r0): Hard VETO cascade → DualMonitor → V4 NVFP4 candidates
+    → grayzone → _apply_fp16_budget_cap (hard ceiling 2400 MiB):
+      Static Profile extremes → FP16; remainder → INT8 shelter.
     Pack amax stays absmax via weighted_histogram_mse_v4_nvfp4 (no fast search).
 
     When clip_path is set, DualMonitor activations use real Comfy CLIPType.KREA2
@@ -3094,7 +3127,7 @@ def run_nvfp4_calib(
     if abs(float(keep_ratio)) > 1e-12:
         raise ValueError(
             f"keep_ratio must be 0 (r0); got {keep_ratio}. "
-            f"FP16 protect = DualMonitor + analyze + V4 NVFP4 MSE inside "
+            f"Protect = Static Profile FP16 + INT8 shelter inside "
             f"{float(FP16_BUDGET_MB_HARD):g} MiB hard ceiling."
         )
     budget_mb = _require_fp16_budget_mb_hard(
@@ -3175,7 +3208,13 @@ def run_nvfp4_calib(
     for _k in sorted(_vt.keys(), key=str):
         print(f"    veto_tunables.{_k} = {_vt[_k]!r}")
 
-    alpha, beta, get_layer_search_low, hard_veto_layers = derive_hswq_strategy_nvfp4(
+    (
+        alpha,
+        beta,
+        get_layer_search_low,
+        hard_veto_layers,
+        static_profile_veto,
+    ) = derive_hswq_strategy_nvfp4(
         model_profile,
         veto_tunables,
     )
@@ -3483,6 +3522,7 @@ def run_nvfp4_calib(
             alpha=alpha,
             beta=beta,
             device=device,
+            static_fp16_layers=static_profile_veto,
         )
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
@@ -4099,7 +4139,7 @@ if __name__ == "__main__":
             "Krea2-only ConvRot + NVFP4 convert: Linear→NVFP4 (unrotated), "
             "Conv2d→INT8 (+ ConvRot), INT8-shelter Linear→INT8 (+ ConvRot). "
             "Pass --calib_file for NVFP4 .input_scale, "
-            "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=2000 hard "
+            "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=2400 hard "
             "ceiling), and weight clip amax from NVFP4/INT8 pack roundtrip MSE. "
             "Online act rotate required at load for ConvRot layers "
             "(loader built separately). Card 1 = --bias_correction."
@@ -4164,15 +4204,15 @@ if __name__ == "__main__":
         help=(
             "Must be 0 (r0). FP16 protect is DualMonitor + analyze severity + "
             "V4 NVFP4 MSE @ absmax + infinite branches, truncated only by "
-            "--fp16_budget_mb (2000 MiB hard ceiling). Top-%% cut is forbidden."
+            "--fp16_budget_mb (2400 MiB hard ceiling). Top-%% cut is forbidden."
         ),
     )
     parser.add_argument(
         "--fp16_budget_mb",
         type=float,
-        default=2000.0,
+        default=2400.0,
         help=(
-            "Owner hard ceiling: must be exactly 2000 MiB FP16 overhead vs "
+            "Owner hard ceiling: must be exactly 2400 MiB FP16 overhead vs "
             "packed baseline (Linear +1.5 B/el vs NVFP4, Conv +1 B/el vs INT8). "
             "Per-model auto analysis / auto-optimal settings fill INSIDE this "
             "frame only - never outside."
