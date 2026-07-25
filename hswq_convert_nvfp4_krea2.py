@@ -1177,22 +1177,18 @@ def _measure_v4_pack_mse_absmax(
     when present; missing Importance never disables SVD. Discarding SVD after
     compute (float32 kitchen path etc.) is blasphemy — fixed in pack BF16 cast.
 
-    No CPU park of DiT (emptied VRAM / slowed convert). Peak cut by phasing
-    pack → SVD → MSE on GPU; MSE chunks sized from mem_get_info to consume
-    free VRAM hard (use the 32GB). Failure must raise — never silent demote.
+    No CPU park of DiT. Peak cut by SVD → pack → MSE (dq not held during SVD).
+    MSE chunks sized from mem_get_info to fill free VRAM. No empty_cache spam.
+    Failure must raise — never silent demote.
     """
-    try:
-        result = optimizer.compute_pack_mse_absmax_with_svd(
-            weight,
-            channel_importance=importance,
-            use_svd_leverage=True,
-            layer_name=layer_name,
-            linear_pack=linear_pack,
-        )
-        return float(result["estimated_mse"])
-    finally:
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    result = optimizer.compute_pack_mse_absmax_with_svd(
+        weight,
+        channel_importance=importance,
+        use_svd_leverage=True,
+        layer_name=layer_name,
+        linear_pack=linear_pack,
+    )
+    return float(result["estimated_mse"])
 
 
 def _mse_grayzone_veto_reassessment(
