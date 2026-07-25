@@ -62,6 +62,7 @@ import os
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 
 import torch
 import re
@@ -1159,6 +1160,41 @@ def _fp16_extra_bytes_vs_packed(weight: torch.Tensor) -> int:
     return n
 
 
+@contextmanager
+def _v4_pack_mse_model_cpu_headroom(model: torch.nn.Module, device: str):
+    """Park DiT on CPU while V4 pack MSE allocates float32 / SVD / kitchen.
+
+    Fact (log): tproj.1 is Linear [36864, 6144] ≈ 864 MiB float32; with the
+    full Krea2 DiT still on CUDA only ~436 MiB was free → OOM then silent skip.
+    Offload for the measure window is the peak fix. CPU retry after OOM stays
+    forbidden.
+    """
+    params = list(model.parameters())
+    if not params:
+        yield
+        return
+    home = str(params[0].device)
+    need_park = (
+        str(device).startswith("cuda")
+        and home.startswith("cuda")
+        and torch.cuda.is_available()
+    )
+    if need_park:
+        print(
+            "  [V4 pack MSE] parking model on CPU for measure headroom "
+            f"(was {home})..."
+        )
+        model.cpu()
+        torch.cuda.empty_cache()
+    try:
+        yield
+    finally:
+        if need_park:
+            model.to(device)
+            torch.cuda.empty_cache()
+            print(f"  [V4 pack MSE] model restored to {device}.")
+
+
 def _measure_v4_pack_mse_absmax(
     *,
     weight: torch.Tensor,
@@ -1176,15 +1212,24 @@ def _measure_v4_pack_mse_absmax(
     SVD is mandatory (use_svd_leverage=True). DualMonitor Importance multiplies
     when present; missing Importance never disables SVD. Discarding SVD after
     compute (float32 kitchen path etc.) is blasphemy — fixed in pack BF16 cast.
+
+    No CPU fallback after CUDA OOM (forbidden band-aid). Callers must park the
+    DiT via _v4_pack_mse_model_cpu_headroom; peak inside pack MSE is also cut
+    (free SVD temps, importance on CPU during kitchen pack, row-chunked MSE).
+    Failure must raise to the caller — never silent demote to pack.
     """
-    result = optimizer.compute_pack_mse_absmax_with_svd(
-        weight,
-        channel_importance=importance,
-        use_svd_leverage=True,
-        layer_name=layer_name,
-        linear_pack=linear_pack,
-    )
-    return float(result["estimated_mse"])
+    try:
+        result = optimizer.compute_pack_mse_absmax_with_svd(
+            weight,
+            channel_importance=importance,
+            use_svd_leverage=True,
+            layer_name=layer_name,
+            linear_pack=linear_pack,
+        )
+        return float(result["estimated_mse"])
+    finally:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 def _mse_grayzone_veto_reassessment(
@@ -1260,74 +1305,81 @@ def _mse_grayzone_veto_reassessment(
         _safe_ff = []
     step = max(1, len(_safe_ff) // 30)
     _safe_sample = _safe_ff[::step][:30]
-    for sname in _safe_sample:
-        smod = _module_dict[sname]
-        if not hasattr(smod, "weight"):
-            continue
-        sw = smod.weight.data
-        simp = _dualmonitor_channel_importance(dual_monitors, sname)
-        try:
-            smse = _measure_v4_pack_mse_absmax(
-                weight=sw,
-                importance=simp,
-                optimizer=trial_optimizer,
-                layer_name=sname,
-            )
-            safe_mses.append(smse)
-            mse_cache[sname] = float(smse)
-        except Exception as e:
-            print(f"    [MSE ERROR] Failed safe layer {sname}: {e}")
-        torch.cuda.empty_cache()
+    with _v4_pack_mse_model_cpu_headroom(model, device):
+        for sname in _safe_sample:
+            smod = _module_dict[sname]
+            if not hasattr(smod, "weight"):
+                continue
+            sw = smod.weight.data
+            simp = _dualmonitor_channel_importance(dual_monitors, sname)
+            try:
+                smse = _measure_v4_pack_mse_absmax(
+                    weight=sw,
+                    importance=simp,
+                    optimizer=trial_optimizer,
+                    layer_name=sname,
+                )
+                safe_mses.append(smse)
+                mse_cache[sname] = float(smse)
+            except Exception as e:
+                print(f"    [MSE ERROR] Failed safe layer {sname}: {e}")
+            torch.cuda.empty_cache()
 
-    if not safe_mses:
-        print(
-            f"  [{scope_label} V4→FP16 protect / gray-zone] "
-            "No safe baseline available, skipping."
+        if not safe_mses:
+            print(
+                f"  [{scope_label} V4→FP16 protect / gray-zone] "
+                "No safe baseline available, skipping."
+            )
+            return hard_veto_layers, keep_layers, mse_cache
+
+        safe_mses.sort()
+        p75_idx = int(len(safe_mses) * 0.75)
+        mse_threshold = (
+            safe_mses[min(p75_idx, len(safe_mses) - 1)] * tunables.mse_p75_multiplier
         )
-        return hard_veto_layers, keep_layers, mse_cache
+        print(
+            f"  [MSE Baseline NVFP4] Safe layers sampled: {len(safe_mses)}, "
+            f"P75 MSE: {safe_mses[p75_idx]:.8f}, "
+            f"Threshold ({tunables.mse_p75_multiplier:.2f}xP75): {mse_threshold:.8f}"
+        )
 
-    safe_mses.sort()
-    p75_idx = int(len(safe_mses) * 0.75)
-    mse_threshold = safe_mses[min(p75_idx, len(safe_mses) - 1)] * tunables.mse_p75_multiplier
-    print(
-        f"  [MSE Baseline NVFP4] Safe layers sampled: {len(safe_mses)}, "
-        f"P75 MSE: {safe_mses[p75_idx]:.8f}, "
-        f"Threshold ({tunables.mse_p75_multiplier:.2f}xP75): {mse_threshold:.8f}"
-    )
-
-    released = set()
-    for vname in sorted(outlier_only_veto):
-        if vname not in _module_dict:
-            continue
-        vmod = _module_dict[vname]
-        if not hasattr(vmod, "weight"):
-            continue
-        vw = vmod.weight.data
-        vimp = _dualmonitor_channel_importance(dual_monitors, vname)
-        try:
-            vmse = _measure_v4_pack_mse_absmax(
-                weight=vw,
-                importance=vimp,
-                optimizer=trial_optimizer,
-                layer_name=vname,
-            )
-            mse_cache[vname] = float(vmse)
-            vprof = _norm_profile.get(vname, {})
-            vor = vprof.get("outlier_ratio", 0)
-            if vmse <= mse_threshold:
-                released.add(vname)
-                print(
-                    f"    RELEASED: {vname} | MSE={vmse:.8f} <= threshold={mse_threshold:.8f} "
-                    f"| o={vor:.1f}"
+        released = set()
+        for vname in sorted(outlier_only_veto):
+            if vname not in _module_dict:
+                continue
+            vmod = _module_dict[vname]
+            if not hasattr(vmod, "weight"):
+                continue
+            vw = vmod.weight.data
+            vimp = _dualmonitor_channel_importance(dual_monitors, vname)
+            try:
+                vmse = _measure_v4_pack_mse_absmax(
+                    weight=vw,
+                    importance=vimp,
+                    optimizer=trial_optimizer,
+                    layer_name=vname,
                 )
-            else:
-                print(
-                    f"    KEPT:     {vname} | MSE={vmse:.8f} >  threshold={mse_threshold:.8f} "
-                    f"| o={vor:.1f}"
-                )
-        except Exception as e:
-            print(f"    ERROR:    {vname} | {e}")
-        torch.cuda.empty_cache()
+                mse_cache[vname] = float(vmse)
+                vprof = _norm_profile.get(vname, {})
+                vor = vprof.get("outlier_ratio", 0)
+                if vmse <= mse_threshold:
+                    released.add(vname)
+                    print(
+                        f"    RELEASED: {vname} | MSE={vmse:.8f} <= threshold={mse_threshold:.8f} "
+                        f"| o={vor:.1f}"
+                    )
+                else:
+                    print(
+                        f"    KEPT:     {vname} | MSE={vmse:.8f} >  threshold={mse_threshold:.8f} "
+                        f"| o={vor:.1f}"
+                    )
+            except Exception as e:
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                raise RuntimeError(
+                    f"[{scope_label} gray-zone] pack MSE failed for {vname}: {e}"
+                ) from e
+            torch.cuda.empty_cache()
 
     if released:
         hard_veto_layers = hard_veto_layers - released
@@ -1400,28 +1452,33 @@ def _build_v4_calib_fp16_candidates(
             bins=8192, num_candidates=1000, refinement_iterations=10,
             device=device, alpha=alpha, beta=beta,
         )
-    for name in need:
-        if trial_optimizer is None:
-            break
-        mod = module_dict[name]
-        imp = _dualmonitor_channel_importance(dual_monitors, name)
-        try:
-            v4_mse = _measure_v4_pack_mse_absmax(
-                weight=mod.weight.data,
-                importance=imp,
-                optimizer=trial_optimizer,
-                layer_name=name,
-            )
-            cache[name] = float(v4_mse)
-            scored.add(name)
-            if imp is None:
-                n_svd_only += 1
-            else:
-                n_svd_x_imp += 1
-        except Exception as e:
-            print(f"    [V4→FP16 protect] skip {name}: {e}")
-            continue
-        torch.cuda.empty_cache()
+        with _v4_pack_mse_model_cpu_headroom(model, device):
+            for name in need:
+                mod = module_dict[name]
+                imp = _dualmonitor_channel_importance(dual_monitors, name)
+                try:
+                    v4_mse = _measure_v4_pack_mse_absmax(
+                        weight=mod.weight.data,
+                        importance=imp,
+                        optimizer=trial_optimizer,
+                        layer_name=name,
+                    )
+                    cache[name] = float(v4_mse)
+                    scored.add(name)
+                    if imp is None:
+                        n_svd_only += 1
+                    else:
+                        n_svd_x_imp += 1
+                except Exception as e:
+                    # Failure (incl. OOM) is fatal for ranking — do not silently demote
+                    # the layer to pack (that produced undersized 8.4GB output).
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    raise RuntimeError(
+                        f"[V4→FP16 protect] pack MSE failed for {name}: {e}"
+                    ) from e
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
     print(
         f"  [V4→FP16 protect] V4-scored={len(scored)} "
@@ -1575,71 +1632,84 @@ def _apply_fp16_budget_cap(
         )
 
     int8_mse: dict[str, float] = {}
-    for name in sorted(pool):
-        mod = module_dict.get(name)
-        if mod is None or not hasattr(mod, "weight") or mod.weight is None:
-            skipped_no_weight.append(name)
-            continue
-        dm_sens = float(sens_by_name.get(name, 0.0))
-        extra = _fp16_extra_bytes_vs_packed(mod.weight.data)
-        row = char_table.get(name, {})
-        prof = norm_profile.get(name, {}) if isinstance(norm_profile.get(name), dict) else {}
-        is_hv = name in hard_veto_layers
-        k = float(row.get("kurtosis", prof.get("kurtosis", 0)) or 0)
-        o = float(row.get("outlier_ratio", prof.get("outlier_ratio", 0)) or 0)
-        m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
-        mad = float(row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0)
-        ps = float(row.get("profile_score", prof.get("profile_score", 0)) or 0)
-        severity = nvfp4_fp16_budget_analyze_severity(
-            kurtosis=k,
-            outlier_ratio=o,
-            abs_max=m,
-            tunables=tunables_dict,
-            is_hard_veto=is_hv,
-            layer_name=name,
-            mad_outlier_pct=mad,
-            profile_score=ps,
-        )
-
-        imp = _dualmonitor_channel_importance(dual_monitors, name)
-        if name in cache:
-            v4_mse = float(cache[name])
-        else:
-            if trial_optimizer is None:
-                skipped_no_v4.append(name)
+    with _v4_pack_mse_model_cpu_headroom(model, device):
+        for name in sorted(pool):
+            mod = module_dict.get(name)
+            if mod is None or not hasattr(mod, "weight") or mod.weight is None:
+                skipped_no_weight.append(name)
                 continue
-            try:
-                v4_mse = _measure_v4_pack_mse_absmax(
-                    weight=mod.weight.data,
-                    importance=imp,
-                    optimizer=trial_optimizer,
-                    layer_name=name,
-                )
-                cache[name] = v4_mse
-                measured_fresh += 1
-            except Exception as e:
-                print(f"    [FP16 budget] V4 MSE failed {name}: {e} -> pack")
-                skipped_no_v4.append(name)
-                continue
-            torch.cuda.empty_cache()
+            dm_sens = float(sens_by_name.get(name, 0.0))
+            extra = _fp16_extra_bytes_vs_packed(mod.weight.data)
+            row = char_table.get(name, {})
+            prof = (
+                norm_profile.get(name, {})
+                if isinstance(norm_profile.get(name), dict)
+                else {}
+            )
+            is_hv = name in hard_veto_layers
+            k = float(row.get("kurtosis", prof.get("kurtosis", 0)) or 0)
+            o = float(row.get("outlier_ratio", prof.get("outlier_ratio", 0)) or 0)
+            m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
+            mad = float(
+                row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0
+            )
+            ps = float(
+                row.get("profile_score", prof.get("profile_score", 0)) or 0
+            )
+            severity = nvfp4_fp16_budget_analyze_severity(
+                kurtosis=k,
+                outlier_ratio=o,
+                abs_max=m,
+                tunables=tunables_dict,
+                is_hard_veto=is_hv,
+                layer_name=name,
+                mad_outlier_pct=mad,
+                profile_score=ps,
+            )
 
-        if int(mod.weight.data.ndim) == 2 and trial_optimizer is not None:
-            try:
-                d1 = _measure_v4_pack_mse_absmax(
-                    weight=mod.weight.data,
-                    importance=imp,
-                    optimizer=trial_optimizer,
-                    layer_name=name,
-                    linear_pack="int8",
-                )
-                int8_mse[name] = float(d1)
-            except Exception as e:
-                print(
-                    f"    [Multi-tier] INT8 d1 failed {name}: {e} "
-                    f"(no INT8 shelter step for this layer)"
-                )
+            imp = _dualmonitor_channel_importance(dual_monitors, name)
+            if name in cache:
+                v4_mse = float(cache[name])
+            else:
+                if trial_optimizer is None:
+                    skipped_no_v4.append(name)
+                    continue
+                try:
+                    v4_mse = _measure_v4_pack_mse_absmax(
+                        weight=mod.weight.data,
+                        importance=imp,
+                        optimizer=trial_optimizer,
+                        layer_name=name,
+                    )
+                    cache[name] = v4_mse
+                    measured_fresh += 1
+                except Exception as e:
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    raise RuntimeError(
+                        f"[FP16 budget] V4 pack MSE failed for {name}: {e}"
+                    ) from e
+                torch.cuda.empty_cache()
 
-        measured.append((name, dm_sens, v4_mse, severity, extra))
+            if int(mod.weight.data.ndim) == 2 and trial_optimizer is not None:
+                try:
+                    d1 = _measure_v4_pack_mse_absmax(
+                        weight=mod.weight.data,
+                        importance=imp,
+                        optimizer=trial_optimizer,
+                        layer_name=name,
+                        linear_pack="int8",
+                    )
+                    int8_mse[name] = float(d1)
+                except Exception as e:
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    raise RuntimeError(
+                        f"[FP16 budget] INT8 d1 pack MSE failed for {name}: {e}"
+                    ) from e
+                torch.cuda.empty_cache()
+
+            measured.append((name, dm_sens, v4_mse, severity, extra))
 
     print(
         f"  [Multi-tier] INT8 d1 measured for {len(int8_mse)}/"
