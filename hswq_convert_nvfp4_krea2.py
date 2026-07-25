@@ -3830,6 +3830,22 @@ def convert_to_nvfp4_convrot(
             torch.float32,
             torch.bfloat16,
         ]:
+            diffusers_key = comfyui_to_diffusers_map.get(key)
+            module_name = None
+            if diffusers_key and diffusers_key.endswith(".weight"):
+                module_name = diffusers_key[:-7]
+
+            # Absolute FP16 protect: ALWAYS store float16 (never leave bf16/fp32).
+            # Resolve keep before ndim / min_in_features gates so Static layers
+            # cannot slip through as input dtype copies.
+            if module_name is not None and module_name in keep_layers:
+                new_state_dict[key] = (
+                    tensor.detach().to(dtype=torch.float16).contiguous()
+                )
+                fp16_kept_count += 1
+                skipped_count += 1
+                continue
+
             if tensor.ndim not in (2, 4):
                 new_state_dict[key] = tensor
                 skipped_count += 1
@@ -3839,17 +3855,6 @@ def convert_to_nvfp4_convrot(
             if min_in_features > 0 and in_f < int(min_in_features):
                 new_state_dict[key] = tensor
                 skipped_small += 1
-                skipped_count += 1
-                continue
-
-            diffusers_key = comfyui_to_diffusers_map.get(key)
-            module_name = None
-            if diffusers_key and diffusers_key.endswith(".weight"):
-                module_name = diffusers_key[:-7]
-
-            if module_name is not None and module_name in keep_layers:
-                new_state_dict[key] = tensor
-                fp16_kept_count += 1
                 skipped_count += 1
                 continue
 
@@ -4064,6 +4069,8 @@ def convert_to_nvfp4_convrot(
     # +1.5×numel (vs NVFP4), Conv FP16 +1× (vs INT8), Linear INT8 shelter
     # +0.5×numel (vs NVFP4). Packed Linear is float8_e4m3fn_x2 / similar —
     # not float16.
+    # Absolute FP16 protect MUST be torch.float16 in the saved ckpt (bf16/fp32
+    # copies are blasphemy — refuse save).
     _budget_ceil_b = int(float(fp16_budget_mb) * 1024 * 1024)
     _tol_b = int(float(FP16_BUDGET_ASSERT_TOLERANCE_MIB) * 1024 * 1024)
     _pack_fp16_extra = 0
@@ -4072,6 +4079,8 @@ def convert_to_nvfp4_convrot(
     _pack_fp16_conv_n = 0
     _pack_fp16_skipped_non_lc = 0
     _pack_fp16_leak = []
+    _pack_fp16_found: set[str] = set()
+    _pack_fp16_wrong_dtype: list[str] = []
     _pack_shelter_extra = 0
     _pack_shelter_n = 0
     if keep_layers or int8_shelter_layers:
@@ -4093,6 +4102,8 @@ def convert_to_nvfp4_convrot(
             _dt = str(getattr(_cv.dtype, "name", _cv.dtype))
             if "float8" in _dt or "fp4" in _dt.lower():
                 continue
+            if _cv.dtype == torch.uint8:
+                continue
             if _cv.dtype not in (torch.float16, torch.bfloat16, torch.float32):
                 continue
             _ndim = int(_cv.ndim)
@@ -4102,6 +4113,12 @@ def convert_to_nvfp4_convrot(
             if _mod not in keep_layers:
                 _pack_fp16_leak.append(_mod)
                 continue
+            if _cv.dtype != torch.float16:
+                _pack_fp16_wrong_dtype.append(
+                    f"{_mod}:{_cv.dtype}"
+                )
+                continue
+            _pack_fp16_found.add(_mod)
             _n_el = int(_cv.numel())
             if _ndim == 2:
                 _pack_fp16_extra += (_n_el * 3) // 2
@@ -4116,6 +4133,26 @@ def convert_to_nvfp4_convrot(
                 f"[FP16 budget] post-pack leak: {len(_pack_fp16_leak)} Linear/Conv "
                 f"float weight(s) not in keep_layers (hand-waving pack path). "
                 f"Examples: {_show}. Refusing to save."
+            )
+        if _pack_fp16_wrong_dtype:
+            _show = ", ".join(_pack_fp16_wrong_dtype[:12])
+            raise RuntimeError(
+                f"[FP16 budget] post-pack absolute FP16 dtype FAIL: "
+                f"{len(_pack_fp16_wrong_dtype)} keep_layers weight(s) are not "
+                f"torch.float16 (bf16/fp32 left as-is is blasphemy). "
+                f"Examples: {_show}. Refusing to save."
+            )
+        _pack_fp16_missing = sorted(set(keep_layers) - _pack_fp16_found)
+        if keep_layers and (
+            _pack_fp16_n != len(keep_layers) or _pack_fp16_missing
+        ):
+            _show = ", ".join(_pack_fp16_missing[:12])
+            raise RuntimeError(
+                f"[FP16 budget] post-pack FP16 keep mismatch: "
+                f"{_pack_fp16_n} float16 Linear/Conv found in output vs "
+                f"{len(keep_layers)} keep_layers. "
+                f"Missing ({len(_pack_fp16_missing)}): {_show}. "
+                f"Refusing to save."
             )
         if int8_shelter_layers and _pack_shelter_n != len(int8_shelter_layers):
             raise RuntimeError(
