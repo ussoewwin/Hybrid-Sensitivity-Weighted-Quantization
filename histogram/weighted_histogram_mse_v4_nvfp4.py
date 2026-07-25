@@ -19,6 +19,30 @@ import math
 from typing import Optional, Tuple, List
 
 
+def _cuda_work_budget_bytes(device) -> Optional[int]:
+    """Free CUDA bytes usable for one pack-MSE / hybrid scratch peak.
+
+    Consumes free VRAM (DiT stays resident). Reserves max(512MiB, 2% total)
+    so kitchen/allocator fragmentation does not CUDA OOM; if even one row
+    cannot fit the remaining budget, callers must raise (never silent demote).
+    """
+    if not torch.cuda.is_available():
+        return None
+    try:
+        free_b, total_b = torch.cuda.mem_get_info(device)
+    except Exception:
+        return None
+    reserve = max(512 * 1024 * 1024, int(total_b * 0.02))
+    return max(0, int(free_b) - reserve)
+
+
+def _is_cuda_oom(exc: BaseException) -> bool:
+    if isinstance(exc, torch.cuda.OutOfMemoryError):
+        return True
+    msg = str(exc).lower()
+    return "out of memory" in msg or ("cuda" in msg and "memory" in msg)
+
+
 class INT8Quantizer:
     """Symmetric per-tensor INT8 q/dq (Conv2d path; NVFP4 is 2D-only)."""
 
@@ -341,13 +365,6 @@ def compute_hybrid_leverage_scores(
     k = min(max_k, max(min_k, int(math.floor(top_p * max_rank))))
     k = min(k, max_rank)
 
-    # --- RMS Magnitude (always) ---
-    magnitude_2d = w_float ** 2  # (M, N)
-    mag_norm = torch.norm(magnitude_2d, p=2)
-    mag_norm_f = float(mag_norm.item()) if mag_norm.numel() else 0.0
-    if mag_norm > 0:
-        magnitude_2d = magnitude_2d / mag_norm
-
     # Full-SVD×RMS hybrid: alpha is the mix weight that puts SVD leverage
     # into ranking. alpha==0 ⇒ SVD cut (rebellion) — not "still contributing".
     if float(alpha) <= 0.0:
@@ -356,10 +373,22 @@ def compute_hybrid_leverage_scores(
             f"got alpha={alpha}, beta={beta}, shape={tuple(w_float.shape)}, layer={label!r}"
         )
 
-    # --- SVD Leverage (full: σ^2 weighted) — settings + process always logged ---
+    alpha_f = float(alpha)
+    beta_f = float(beta)
+
+    # Peak order (DiT stays on GPU; free VRAM must be used for this layer):
+    #   1) Full SVD first — do NOT allocate magnitude yet.
+    #   2) Build leverage, L2-normalize in-place; free U/S/Vh.
+    #   3) RMS magnitude from w; L2-normalize in-place.
+    #   4) In-place mix / mean-norm / 0.5+0.5 on ONE M×N buffer.
+    # Out-of-place alpha*lev + beta*mag + 0.5+0.5*x stacked multiple full
+    # M×N copies next to DiT and caused pack-MSE protect OOM → silent demote
+    # → undersized ~8.4GB DiT. CUDA OOM must raise (never ones() demote).
     try:
         U, S, Vh = torch.linalg.svd(w_float, full_matrices=False)
     except RuntimeError as exc:
+        if _is_cuda_oom(exc):
+            raise
         stats = {
             "layer": label,
             "skipped": True,
@@ -367,48 +396,60 @@ def compute_hybrid_leverage_scores(
             "error": repr(exc),
             "shape": list(original_shape),
             "w2d_shape": list(w_float.shape),
-            "alpha": float(alpha),
-            "beta": float(beta),
+            "alpha": alpha_f,
+            "beta": beta_f,
         }
         _emit_svd_mix_visibility(stats)
         return _finish(torch.ones_like(weight, dtype=torch.float32), stats)
+
+    S_cpu = S.detach().float().cpu()
     S_sq = S ** 2
     row_scores = (U ** 2) @ S_sq.unsqueeze(1)
     col_scores = (Vh.T ** 2) @ S_sq.unsqueeze(1)
+    del U, Vh, S_sq
     leverage_2d = row_scores * col_scores.T
+    del row_scores, col_scores
 
     lev_norm = torch.norm(leverage_2d, p=2)
     lev_norm_f = float(lev_norm.item()) if lev_norm.numel() else 0.0
     if lev_norm > 0:
-        leverage_2d = leverage_2d / lev_norm
+        leverage_2d.div_(lev_norm)
+    del lev_norm
 
-    alpha_f = float(alpha)
-    beta_f = float(beta)
-    alpha_lev = alpha_f * leverage_2d
-    beta_mag = beta_f * magnitude_2d
-    alpha_lev_l2 = float(torch.norm(alpha_lev, p=2).item())
-    beta_mag_l2 = float(torch.norm(beta_mag, p=2).item())
+    magnitude_2d = w_float.square()
+    mag_norm = torch.norm(magnitude_2d, p=2)
+    mag_norm_f = float(mag_norm.item()) if mag_norm.numel() else 0.0
+    if mag_norm > 0:
+        magnitude_2d.div_(mag_norm)
+    del mag_norm
+    if w_float.data_ptr() != weight.data_ptr():
+        del w_float
+
+    # After L2 unit-norm, ||alpha*lev||_2 = |alpha| (and same for beta*mag).
+    alpha_lev_l2 = abs(alpha_f) if lev_norm_f > 0.0 else 0.0
+    beta_mag_l2 = abs(beta_f) if mag_norm_f > 0.0 else 0.0
     mix_den = alpha_lev_l2 + beta_mag_l2
     svd_share = (alpha_lev_l2 / mix_den) if mix_den > 0 else float("nan")
 
-    hybrid_raw = alpha_lev + beta_mag
-    hybrid_raw_mean = float(hybrid_raw.mean().item())
-    hybrid_raw_min = float(hybrid_raw.min().item())
-    hybrid_raw_max = float(hybrid_raw.max().item())
+    leverage_2d.mul_(alpha_f)
+    leverage_2d.add_(magnitude_2d, alpha=beta_f)
+    del magnitude_2d
+    hybrid_importance = leverage_2d
 
-    hybrid_importance = hybrid_raw
+    hybrid_raw_mean = float(hybrid_importance.mean().item())
+    hybrid_raw_min = float(hybrid_importance.min().item())
+    hybrid_raw_max = float(hybrid_importance.max().item())
 
-    # --- 5. Histogram scale normalization ---
     avg_score = hybrid_importance.mean()
     avg_score_f = float(avg_score.item())
     if avg_score > 0:
-        hybrid_importance = hybrid_importance / avg_score
+        hybrid_importance.div_(avg_score)
+    del avg_score
+    # V2-style mild baseline in-place (avoid a second full M×N alloc).
+    hybrid_importance.mul_(0.5).add_(0.5)
 
-    # V2-style mild baseline (avoid 0-div and full collapse)
-    hybrid_importance = 0.5 + 0.5 * hybrid_importance
-
-    S_cpu = S.detach().float().cpu()
     s_list = [float(x) for x in S_cpu.tolist()]
+    del S
     out = hybrid_importance.view(original_shape)
     stats = {
         "layer": label,
@@ -845,15 +886,16 @@ class HSWQWeightedHistogramOptimizerV4:
             dq = q * scale_view
             pack_format = "int8_channelwise"
 
-        err_sq = (dq.float() - w.float()) ** 2
-        if combined_importance is not None:
-            wi = combined_importance.float().to(err_sq.device)
-            if wi.shape != err_sq.shape:
-                wi = torch.ones_like(err_sq)
-            denom = float(wi.sum().item())
-            mse = float((err_sq * wi).sum().item() / max(denom, 1e-12))
-        else:
-            mse = float(err_sq.mean().item())
+        # Peak control for pack-MSE (protect ranking):
+        # Prefer free CUDA for the residual. Only spill to host when free VRAM
+        # cannot hold dq/w/importance together. Never silent-ones demote.
+        # Full err_sq = (dq-w)**2 next to DiT was the protect OOM that made
+        # convert demote keep layers into pack → undersized ~8.4GB DiT.
+        mse = self._pack_mse_from_dq_w(
+            dq=dq,
+            w=w,
+            combined_importance=combined_importance,
+        )
 
         return {
             "optimal_amax": max_val,
@@ -863,6 +905,84 @@ class HSWQWeightedHistogramOptimizerV4:
             "svd_mix": svd_mix_stats,
             "pack_format": pack_format,
         }
+
+    def _pack_mse_from_dq_w(
+        self,
+        dq: torch.Tensor,
+        w: torch.Tensor,
+        combined_importance: Optional[torch.Tensor],
+    ) -> float:
+        """Weighted/unweighted pack MSE using free VRAM first, then host spill."""
+        n = int(w.numel())
+        if n <= 0:
+            return 0.0
+
+        # Free CUDA budget for residual work (bytes). Need room for dq/w views
+        # plus a working strip; if free is ample, keep math on GPU.
+        budget = _cuda_work_budget_bytes(self.device)
+        # Conservative: two float32 full tensors + one strip ≈ 12*n bytes peak
+        # for a naive full err_sq path. Prefer chunked GPU when budget is tight.
+        need_fullish = 12 * n
+        use_host = (
+            (not torch.cuda.is_available())
+            or budget is None
+            or budget < need_fullish
+        )
+
+        if use_host:
+            dq_h = dq.detach().float().cpu().contiguous().view(-1)
+            w_h = w.detach().float().cpu().contiguous().view(-1)
+            if combined_importance is not None:
+                wi_h = combined_importance.detach().float().cpu()
+                if wi_h.shape != w.shape:
+                    wi_h = torch.ones_like(w_h)
+                else:
+                    wi_h = wi_h.contiguous().view(-1)
+                denom = float(wi_h.sum().item())
+                # Chunk host to avoid one giant (dq-w)**2 alloc on RAM too.
+                chunk = max(1, min(n, 1 << 20))
+                num = 0.0
+                for i0 in range(0, n, chunk):
+                    i1 = min(n, i0 + chunk)
+                    diff = dq_h[i0:i1] - w_h[i0:i1]
+                    num += float((diff.square() * wi_h[i0:i1]).sum().item())
+                    del diff
+                return float(num / max(denom, 1e-12))
+            chunk = max(1, min(n, 1 << 20))
+            acc = 0.0
+            for i0 in range(0, n, chunk):
+                i1 = min(n, i0 + chunk)
+                diff = dq_h[i0:i1] - w_h[i0:i1]
+                acc += float(diff.square().sum().item())
+                del diff
+            return float(acc / float(n))
+
+        # GPU path: free VRAM is enough for chunked residual (use the free pool).
+        dq_f = dq.float().reshape(-1)
+        w_f = w.float().reshape(-1)
+        # Aim ~1/8 of free budget for one strip of float32 diffs (+ weight).
+        strip_elems = max(1, min(n, max(65536, int(budget // 32))))
+        if combined_importance is not None:
+            wi = combined_importance.float()
+            if wi.shape != w.shape:
+                wi = torch.ones_like(w_f)
+            else:
+                wi = wi.reshape(-1)
+            denom = float(wi.sum().item())
+            num = 0.0
+            for i0 in range(0, n, strip_elems):
+                i1 = min(n, i0 + strip_elems)
+                diff = dq_f[i0:i1] - w_f[i0:i1]
+                num += float((diff.square() * wi[i0:i1]).sum().item())
+                del diff
+            return float(num / max(denom, 1e-12))
+        acc = 0.0
+        for i0 in range(0, n, strip_elems):
+            i1 = min(n, i0 + strip_elems)
+            diff = dq_f[i0:i1] - w_f[i0:i1]
+            acc += float(diff.square().sum().item())
+            del diff
+        return float(acc / float(n))
 
 
 # Alias used by convert weight-amax / protect callers (same class).
