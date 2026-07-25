@@ -1178,9 +1178,9 @@ def _measure_v4_pack_mse_absmax(
     compute (float32 kitchen path etc.) is blasphemy — fixed in pack BF16 cast.
 
     No CPU fallback after CUDA OOM (forbidden band-aid). DiT stays on GPU
-    (no model.cpu park). Pack-MSE keeps weight/importance on GPU and sizes
-    scratch from cuda mem_get_info so free VRAM is used hard; headroom reserve
-    refuses the alloc before CUDA OOM. Failure must raise — never silent demote.
+    (no model.cpu park). Pack-MSE keeps weight/importance on GPU. SVD, kitchen,
+    INT8 pack, and MSE all preflight cuda mem_get_info and refuse BEFORE alloc
+    so CUDA OOM never fires. Failure must raise — never silent demote.
     """
     try:
         result = optimizer.compute_pack_mse_absmax_with_svd(
@@ -1191,6 +1191,12 @@ def _measure_v4_pack_mse_absmax(
             linear_pack=linear_pack,
         )
         return float(result["estimated_mse"])
+    except torch.cuda.OutOfMemoryError as e:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        raise RuntimeError(
+            f"[pack MSE] CUDA OOM must never happen for {layer_name or 'layer'}: {e}"
+        ) from e
     finally:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

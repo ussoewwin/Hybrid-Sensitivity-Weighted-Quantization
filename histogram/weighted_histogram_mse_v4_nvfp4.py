@@ -19,12 +19,13 @@ import math
 from typing import Optional, Tuple, List
 
 
-def _cuda_mse_work_budget_bytes(device) -> Optional[int]:
-    """Bytes available for pack-MSE scratch on this CUDA device.
+def _cuda_work_budget_bytes(device) -> Optional[int]:
+    """Bytes available for pack-MSE / kitchen scratch on this CUDA device.
 
     Uses almost all free VRAM so convert does not leave the card idle after
     DiT is resident. Reserves 512 MiB or 2% of total (whichever larger) so
-    kitchen/allocator fragmentation does not CUDA OOM.
+    allocator fragmentation does not CUDA OOM. Callers MUST refuse before
+    any alloc that exceeds this budget — never rely on CUDA OOM then recover.
     """
     if not torch.cuda.is_available():
         return None
@@ -34,6 +35,23 @@ def _cuda_mse_work_budget_bytes(device) -> Optional[int]:
         return None
     reserve = max(512 * 1024 * 1024, int(total_b * 0.02))
     return max(0, int(free_b) - reserve)
+
+
+# Back-compat alias (older call sites / docs).
+_cuda_mse_work_budget_bytes = _cuda_work_budget_bytes
+
+
+def _refuse_cuda_oom(need_bytes: int, device, *, where: str, layer_name: str = "") -> None:
+    """Raise before alloc if free budget cannot cover need_bytes. Never CUDA OOM."""
+    budget = _cuda_work_budget_bytes(device)
+    if budget is None:
+        return
+    if int(need_bytes) > int(budget):
+        raise RuntimeError(
+            f"[{where}] refuse CUDA OOM for {layer_name or 'layer'}: "
+            f"need {int(need_bytes)} B but free budget is {int(budget)} B "
+            f"(device={device}). DiT stays on GPU; free other peaks or shrink work."
+        )
 
 
 class INT8Quantizer:
@@ -763,9 +781,8 @@ class HSWQWeightedHistogramOptimizerV4:
             )
         imp_arg = channel_importance if channel_importance is not None else importance
         # DiT stays on GPU (no model.cpu park). Work stays on GPU too: no
-        # importance→CPU park, no fixed 64MiB timid chunks. Size MSE rows from
-        # cuda mem_get_info so free VRAM is consumed hard; reserve headroom so
-        # we never CUDA OOM (pre-check; refuse rather than OOM).
+        # importance→CPU park, no fixed 64MiB timid chunks. Kitchen / INT8 /
+        # MSE peaks refuse via mem_get_info BEFORE alloc — never CUDA OOM.
         w = weight.detach().float().to(self.device)
         if w.ndim not in (2, 4):
             raise ValueError(
@@ -775,6 +792,13 @@ class HSWQWeightedHistogramOptimizerV4:
         combined_importance = None
         svd_mix_stats: Optional[dict] = None
         if use_svd_leverage and w.ndim >= 2:
+            # SVD + hybrid score tensors (conservative 3x float32 weight).
+            _refuse_cuda_oom(
+                int(w.nbytes * 3),
+                w.device,
+                where="pack SVD hybrid",
+                layer_name=layer_name or "",
+            )
             hybrid_importance, svd_mix_stats = compute_hybrid_leverage_scores(
                 w,
                 alpha=self.alpha,
@@ -828,9 +852,15 @@ class HSWQWeightedHistogramOptimizerV4:
             }
 
         # Importance stays on GPU with the float32 weight (use VRAM; no CPU park).
+        # Kitchen / INT8 pack peaks MUST be refused before alloc (no CUDA OOM).
         if w.ndim == 2 and linear_pack == "int8":
-            # Multi-tier d1: per-out-channel INT8 on 2D (same math as the
-            # convert pack_channelwise_int8 Linear shelter path).
+            # Peak: clamped + q + dq alongside w (conservative 2x w.nbytes scratch).
+            _refuse_cuda_oom(
+                int(w.nbytes * 2),
+                w.device,
+                where="pack INT8",
+                layer_name=layer_name or "",
+            )
             amax = torch.clamp(w.abs().amax(dim=1).reshape(-1), min=1e-6)
             scale = amax / 127.0
             scale_view = scale.view(-1, 1)
@@ -847,6 +877,13 @@ class HSWQWeightedHistogramOptimizerV4:
             # Kitchen TensorCoreNVFP4Layout accepts FP16/BF16 only.
             # SVD/importance stay on float32 `w`; pack input must not be float32
             # or quantize raises and convert/analyze skip — SVD computed then discarded.
+            # Peak: w_pack (2B/elem) + full dequant (~2B/elem) + kitchen temps.
+            _refuse_cuda_oom(
+                int(w.nbytes * 1.5),
+                w.device,
+                where="pack NVFP4 kitchen",
+                layer_name=layer_name or "",
+            )
             if weight.dtype == torch.bfloat16:
                 w_pack = w.to(dtype=torch.bfloat16)
             else:
@@ -864,6 +901,12 @@ class HSWQWeightedHistogramOptimizerV4:
             del full, params
             pack_format = "nvfp4"
         else:
+            _refuse_cuda_oom(
+                int(w.nbytes * 2),
+                w.device,
+                where="pack Conv INT8",
+                layer_name=layer_name or "",
+            )
             reduce_dims = tuple(range(1, w.dim()))
             amax = torch.clamp(w.abs().amax(dim=reduce_dims).reshape(-1), min=1e-6)
             scale = amax / 127.0
@@ -882,7 +925,7 @@ class HSWQWeightedHistogramOptimizerV4:
         # err float32 (+ optional wi float32) per row
         tensors_per_row = 2 if combined_importance is not None else 1
         bytes_per_row = elems_per_row * 4 * tensors_per_row
-        budget = _cuda_mse_work_budget_bytes(w.device)
+        budget = _cuda_work_budget_bytes(w.device)
         if budget is not None:
             if bytes_per_row > budget:
                 raise RuntimeError(
