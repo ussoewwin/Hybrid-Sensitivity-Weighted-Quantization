@@ -1177,9 +1177,9 @@ def _measure_v4_pack_mse_absmax(
     when present; missing Importance never disables SVD. Discarding SVD after
     compute (float32 kitchen path etc.) is blasphemy — fixed in pack BF16 cast.
 
-    No CPU park of DiT. Peak cut by SVD → pack → MSE (dq not held during SVD).
-    MSE chunks sized from mem_get_info to fill free VRAM. No empty_cache spam.
-    Failure must raise — never silent demote.
+    No CPU park of DiT. SVD → (drop f32 before kitchen) → pack → MSE.
+    MSE fills free VRAM from mem_get_info. No empty_cache / refuse / OOM rename.
+    Failure must raise — never silent demote. Pack MSE semantics unchanged.
     """
     result = optimizer.compute_pack_mse_absmax_with_svd(
         weight,
@@ -2658,6 +2658,7 @@ def _install_comfy_optional_stubs() -> None:
     except Exception:
 
         class _VM:
+            # Host RAM stub for Comfy when psutil is absent (not CUDA VRAM budget).
             total = 64 * 1024**3
             available = 32 * 1024**3
 

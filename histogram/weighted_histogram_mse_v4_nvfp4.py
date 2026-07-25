@@ -20,19 +20,14 @@ from typing import Optional, Tuple, List
 
 
 def _cuda_work_budget_bytes(device) -> Optional[int]:
-    """Free bytes for MSE scratch — consume free VRAM hard (32GB).
-
-    After DiT + w + dq + importance residents, size MSE chunks from
-    mem_get_info. Only 64 MiB left for allocator fragmentation.
-    """
+    """Live free CUDA bytes for MSE scratch via mem_get_info (use free fully)."""
     if not torch.cuda.is_available():
         return None
     try:
         free_b, _total_b = torch.cuda.mem_get_info(device)
     except Exception:
         return None
-    reserve = 64 * 1024 * 1024
-    return max(0, int(free_b) - reserve)
+    return max(0, int(free_b))
 
 
 class INT8Quantizer:
@@ -758,11 +753,15 @@ class HSWQWeightedHistogramOptimizerV4:
         linear_pack only changes the 2D pack format; importance weighting and
         its denominator are identical so d0/d1 stay directly comparable.
 
-        Peak structure (DiT stays on GPU; no refuse/CPU-park):
-          1) SVD hybrid first — no dq resident (U/S/Vh freed inside hybrid).
-          2) Pack/dequant next — kitchen/INT8 temps freed before MSE.
-          3) MSE last — row chunks sized from mem_get_info to fill free VRAM.
-        Never stack kitchen + SVD factors + dq + full MSE scratch together.
+        Peak structure (DiT stays on GPU; no refuse/CPU-park/empty_cache spam):
+          1) SVD hybrid first — no dq; U/S/Vh freed inside hybrid.
+          2) NVFP4: drop f32 working weight before kitchen (pack from half
+             w_ref) so kitchen never stacks with f32 w + importance + dq.
+             INT8/conv keep f32 w for channelwise pack.
+          3) Rematerialize f32 w for MSE; fill ALL remaining free VRAM with
+             row chunks. Scratch byte math counts dq.float + err + (err*wi).
+        Same pack (kitchen / channelwise INT8 @ absmax) and same weighted MSE
+        formula — protect ranking semantics unchanged.
         """
         if linear_pack not in ("nvfp4", "int8"):
             raise ValueError(
@@ -775,10 +774,11 @@ class HSWQWeightedHistogramOptimizerV4:
                 f"compute_pack_mse_absmax_with_svd expects 2D/4D, got ndim={w_ref.ndim}"
             )
 
-        # Float working weight once (SVD + INT8 pack + MSE reference).
-        w = w_ref.float() if w_ref.dtype != torch.float32 else w_ref
+        # Float working weight for SVD (+ INT8/conv pack). NVFP4 drops it before kitchen.
+        w_owned = w_ref.dtype != torch.float32
+        w = w_ref.float() if w_owned else w_ref
 
-        # ----- Phase 1: SVD hybrid ONLY (no dq yet — cuts prior hand-wave peak) -----
+        # ----- Phase 1: SVD hybrid ONLY (no dq) -----
         combined_importance = None
         svd_mix_stats: Optional[dict] = None
         if use_svd_leverage and w.ndim >= 2:
@@ -822,6 +822,9 @@ class HSWQWeightedHistogramOptimizerV4:
 
         max_val = float(w.abs().max().item()) if w.numel() else 0.0
         if max_val <= 0.0:
+            if w_owned:
+                del w
+            del w_ref, combined_importance
             return {
                 "optimal_amax": 0.0,
                 "max_val": 0.0,
@@ -831,7 +834,7 @@ class HSWQWeightedHistogramOptimizerV4:
                 "pack_format": "empty",
             }
 
-        # ----- Phase 2: pack/dequant (SVD factors already freed) -----
+        # ----- Phase 2: pack/dequant -----
         if w.ndim == 2 and linear_pack == "int8":
             amax = torch.clamp(w.abs().amax(dim=1).reshape(-1), min=1e-6)
             scale = amax / 127.0
@@ -845,8 +848,12 @@ class HSWQWeightedHistogramOptimizerV4:
         elif w.ndim == 2:
             from comfy_kitchen.tensor import TensorCoreNVFP4Layout
 
+            # Drop f32 working weight before kitchen — pack from native half.
+            # Importance stays (needed for MSE); kitchen must not also hold f32 w.
+            if w_owned:
+                del w
+                w = None
             layout = TensorCoreNVFP4Layout
-            # Kitchen accepts FP16/BF16 only — pack from native half, not f32 clone.
             if w_ref.dtype == torch.bfloat16:
                 w_pack = w_ref
             elif w_ref.dtype == torch.float16:
@@ -865,6 +872,9 @@ class HSWQWeightedHistogramOptimizerV4:
             else:
                 dq = full.contiguous()
             del full, params
+            # Rematerialize f32 reference for MSE (same values as pre-pack w).
+            w = w_ref.float() if w_ref.dtype != torch.float32 else w_ref
+            w_owned = w is not w_ref
             pack_format = "nvfp4"
         else:
             reduce_dims = tuple(range(1, w.dim()))
@@ -878,11 +888,14 @@ class HSWQWeightedHistogramOptimizerV4:
             del amax, scale, scale_view, amax_view, clamped, q
             pack_format = "int8_channelwise"
 
-        # ----- Phase 3: MSE — fill free VRAM with largest safe row chunks -----
+        # ----- Phase 3: MSE — chunk rows from live free VRAM (accurate scratch) -----
         rows = int(w.shape[0])
         elems_per_row = max(int(w[0].numel()), 1)
-        tensors_per_row = 2 if combined_importance is not None else 1
-        bytes_per_row = elems_per_row * 4 * tensors_per_row
+        # Per-row: err + optional dq.float() materialize + optional (err*wi).
+        dq_float_extra = 0 if dq.dtype == torch.float32 else 1
+        prod_extra = 1 if combined_importance is not None else 0
+        tensors_per_row = 1 + dq_float_extra + prod_extra
+        bytes_per_row = elems_per_row * 4 * max(tensors_per_row, 1)
         budget = _cuda_work_budget_bytes(w.device)
         if budget is not None and bytes_per_row > 0:
             chunk_rows = max(1, min(rows, max(1, budget // bytes_per_row)))
@@ -892,20 +905,26 @@ class HSWQWeightedHistogramOptimizerV4:
         den = 0.0
         for r0 in range(0, rows, chunk_rows):
             r1 = min(rows, r0 + chunk_rows)
-            err = (dq[r0:r1].float() - w[r0:r1]) ** 2
+            dq_sl = dq[r0:r1]
+            dq_f = dq_sl if dq_sl.dtype == torch.float32 else dq_sl.float()
+            err = (dq_f - w[r0:r1]) ** 2
+            if dq_f is not dq_sl:
+                del dq_f
             if combined_importance is not None:
                 wi = combined_importance[r0:r1]
                 if wi.shape != err.shape:
                     wi = wi.expand_as(err)
-                num += float((err * wi).sum().item())
+                weighted = err * wi
+                num += float(weighted.sum().item())
                 den += float(wi.sum().item())
+                del weighted, wi
             else:
                 num += float(err.sum().item())
                 den += float(err.numel())
-            del err
+            del err, dq_sl
         mse = num / max(den, 1e-12)
         del dq, combined_importance
-        if w is not w_ref:
+        if w_owned:
             del w
         del w_ref
 
