@@ -19,6 +19,14 @@ import math
 from typing import Optional, Tuple, List
 
 
+# Host design frame for MSE / SVD scratch: ordinary 64 GiB class machines.
+# Cloud boxes with ~512 GiB are outliers — never size peak residency for them.
+# Peak = one layer at a time (f32 MN + SVD factors), well under 64 GiB.
+# Speed: host spill ONLY when CUDA free cannot hold the work. Never force
+# host when free VRAM can keep SVD / mag / hybrid on GPU.
+HOST_RAM_DESIGN_GIB = 64
+
+
 def _cuda_work_budget_bytes(device) -> Optional[int]:
     """Live free CUDA bytes for MSE scratch via mem_get_info (use free fully)."""
     if not torch.cuda.is_available():
@@ -50,15 +58,16 @@ def _ones_like_peak_safe(weight: torch.Tensor) -> torch.Tensor:
 
 
 def _float2d_peak_safe(weight: torch.Tensor) -> torch.Tensor:
-    """Detach→float→2D on host when CUDA free cannot hold a full f32 copy."""
+    """Detach→float→2D on host when CUDA free cannot hold a full f32 copy.
+
+    Any CUDA weight (including already-float32 2D Linear) moves to host when
+    free VRAM cannot hold the materialize. The old dtype/ndim gate left
+    float32 2D on a near-full GPU and starved host RAM (64 GiB design frame).
+    """
     need = int(weight.numel()) * 4
     slack = max(need // 8, 1 << 20)
     host = (
         weight.device.type == "cuda"
-        and (
-            weight.dtype != torch.float32
-            or weight.ndim > 2
-        )
         and not _cuda_can_hold(weight.device, need + slack)
     )
     src = weight.detach().cpu() if host else weight.detach()
@@ -459,6 +468,13 @@ def compute_hybrid_leverage_scores(
     if w_svd is not w_float:
         del w_svd
 
+    # Speed: if SVD stayed on CUDA, keep w_float on CUDA for chunked mag
+    # (do not .cpu() the whole MN "just to use host"). Only when SVD already
+    # ran on host, move the layer f32 off the near-full GPU so mag uses host
+    # RAM (64 GiB design) instead of 1-row CUDA scraps.
+    if w_float.device.type == "cuda" and not svd_on_cuda:
+        w_float = w_float.detach().cpu()
+
     # ||outer(row, col)||_F == ||row||_2 * ||col||_2 (exact for rank-1 outer).
     row_l2 = float(torch.norm(row_scores, p=2).item())
     col_l2 = float(torch.norm(col_scores, p=2).item())
@@ -476,6 +492,7 @@ def compute_hybrid_leverage_scores(
         else:
             mag_rows = 1
     else:
+        # Host: whole matrix fits ordinary 64 GiB; one pass, no tiny scraps.
         mag_rows = int(M)
     for r0 in range(0, int(M), mag_rows):
         r1 = min(int(M), r0 + mag_rows)
@@ -511,7 +528,8 @@ def compute_hybrid_leverage_scores(
         else:
             fill_rows = 1
     else:
-        fill_rows = max(1, min(int(M), 256))
+        # Host fill under 64 GiB design: prefer large row blocks (not 512 GiB).
+        fill_rows = max(1, min(int(M), 1024))
 
     inv_lev = (1.0 / lev_norm_f) if lev_norm_f > 0.0 else 0.0
     inv_mag = (1.0 / mag_norm_f) if mag_norm_f > 0.0 else 0.0
