@@ -212,7 +212,11 @@ venv_site_packages = os.path.join(os.path.dirname(current_dir), "venv", "Lib", "
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
     sys.path.append(venv_site_packages)
 
-from weighted_histogram_mse_v4_int8 import HSWQWeightedHistogramOptimizerV4, INT8Quantizer
+from weighted_histogram_mse_v4_int8 import (
+    HSWQWeightedHistogramOptimizerV4,
+    INT8Quantizer,
+    emit_int8_quantize_phase,
+)
 
 # Enforce C++20
 if sys.platform == "win32":
@@ -2714,6 +2718,12 @@ def main():
         beta=beta,
         device=device,
     )
+    emit_int8_quantize_phase(
+        f"V4_CALIB_DONE mse_cache={len(mse_cache)} "
+        f"dynamic_keep={len(dynamic_keep_layers)} hard_veto={len(hard_veto_layers)}"
+    )
+    gc.collect()
+    torch.cuda.empty_cache()
     ranking_source = "v4_histogram_calib"
     num_keep_dynamic = len(dynamic_keep_layers)  # report only; not a pre-cut
 
@@ -2728,6 +2738,9 @@ def main():
     if keypattern_veto:
         release_cands -= keypattern_veto
     # Reuse V4 calib mse_cache; grayzone may extend it (do not wipe).
+    emit_int8_quantize_phase(
+        f"GRAYZONE_ENTER release_cands={len(release_cands)}"
+    )
     if release_cands:
         hard_veto_layers, keep_layers, mse_cache = _mse_grayzone_veto_reassessment(
             scope_label="Krea2 INT8 HSWQ",
@@ -2745,9 +2758,16 @@ def main():
             dual_monitors=dual_monitors,
             mse_cache=mse_cache,
         )
+    emit_int8_quantize_phase(
+        f"GRAYZONE_DONE keep={len(keep_layers)} hard_veto={len(hard_veto_layers)} "
+        f"mse_cache={len(mse_cache)}"
+    )
+    gc.collect()
+    torch.cuda.empty_cache()
 
     # Map integrity: KEEP names must be Comfy-mapped (Krea2 identity map).
     # Every Linear/Conv2d weight module on THIS DiT must appear in the map.
+    emit_int8_quantize_phase("MAP_INTEGRITY_ENTER")
     mapped_weight_modules = set()
     for dk in comfyui_to_diffusers_map.values():
         if isinstance(dk, str) and dk.endswith(".weight"):
@@ -2774,10 +2794,14 @@ def main():
             f"Map integrity: {len(orphan_before)} unmapped keep layer(s); "
             f"refuse exclude  -  fix load_krea2_from_safetensors / identity map"
         )
+    emit_int8_quantize_phase("MAP_INTEGRITY_OK")
 
     # Hard ceiling: FP16 overhead vs all-INT8 must stay within budget.
     # Auto-optimal over ALL of: V4-calib FP16 candidates U analyze VETO
     # U analyze fence-crossers (priority = V4 MSE x analyze severity).
+    emit_int8_quantize_phase(
+        f"BUDGET_CAP_ENTER keep={len(keep_layers)} budget_mb={float(args.fp16_budget_mb)}"
+    )
     keep_before_budget = len(keep_layers)
     veto_before_budget = len(hard_veto_layers)
     keep_layers, hard_veto_layers, budget_stats = _apply_fp16_budget_cap(
@@ -2792,6 +2816,10 @@ def main():
         alpha=alpha,
         beta=beta,
         device=device,
+    )
+    emit_int8_quantize_phase(
+        f"BUDGET_CAP_DONE keep={len(keep_layers)} hard_veto={len(hard_veto_layers)} "
+        f"dropped={budget_stats.get('dropped')}"
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
 
@@ -2977,17 +3005,15 @@ def main():
         print("  [Bias Correction] Disabled (--no-bias_correction).")
 
     print(f"Saving quantized model (INT8): {args.output}")
+    emit_int8_quantize_phase(f"PACK_ENTER output={args.output}")
     
-    print("\n[VRAM Optimization] Preparing for high-speed GPU conversion...")
+    print("\n[VRAM Optimization] Preparing for stream-convert (per-key GPU transfer)...")
     del model
     dual_monitors.clear()
     gc.collect()
     torch.cuda.empty_cache()
     
-    print(f"[VRAM Optimization] Moving source weights to {device}...")
     input_keys = list(original_state_dict.keys())
-    for k in tqdm(input_keys, desc="Loading to VRAM"):
-        original_state_dict[k] = original_state_dict[k].to(device)
     
     output_state_dict = {}
     quant_meta_layers = {}  # layer_name -> quant config dict
@@ -3009,7 +3035,8 @@ def main():
         "  Order: (1) FP16 keep unchanged → (2) remainder FULL ConvRot "
         "identical to native_convert_int8_krea2.py"
     )
-    for key, value in tqdm(original_state_dict.items(), desc="Converting"):
+    for key in tqdm(input_keys, desc="Converting"):
+        value = original_state_dict.pop(key).to(device)
         diffusers_key = comfyui_to_diffusers_map.get(key)
         module_name = None
         if diffusers_key and diffusers_key.endswith(".weight"):
@@ -3019,7 +3046,8 @@ def main():
             # (1) FP16 protection — never ConvRot these.
             new_value = value.to(torch.float16) if value.dtype != torch.float16 else value
             kept_count += 1
-            output_state_dict[key] = new_value
+            output_state_dict[key] = new_value.cpu()
+            del value
             continue
 
         weight_key = (module_name + ".weight") if module_name else None
@@ -3080,8 +3108,8 @@ def main():
                 plain_int8_count += 1
 
             weight_dq = q.float() * scale
-            output_state_dict[key] = q
-            output_state_dict[f"{comfy_module}.weight_scale"] = scale
+            output_state_dict[key] = q.cpu()
+            output_state_dict[f"{comfy_module}.weight_scale"] = scale.cpu()
             output_state_dict[f"{comfy_module}.comfy_quant"] = (
                 encode_comfy_quant_native(quant_config)
             )
@@ -3106,6 +3134,9 @@ def main():
                             bias_corr_pending[comfy_module] = (
                                 (-delta).detach().float().cpu()
                             )
+            del value, w_fp
+            if converted_count % 50 == 0:
+                torch.cuda.empty_cache()
             continue
 
         if module_name and int(value.ndim) in (2, 4):
@@ -3115,7 +3146,8 @@ def main():
                 f"from keep_layers and weight_amax_dict / "
                 f"weight_channel_amax_dict. Refuse silent FP16 leak."
             )
-        output_state_dict[key] = value
+        output_state_dict[key] = value.cpu()
+        del value
 
     if args.bias_correction and bias_corr_pending:
         print(f"\n[Bias Correction] Applying deltas to {len(bias_corr_pending)} INT8 layers...")
@@ -3234,12 +3266,7 @@ def main():
     }
     metadata = {"_quantization_metadata": json.dumps(quantization_metadata)}
 
-    try:
-        save_file(output_state_dict, args.output, metadata=metadata)
-    except Exception as e:
-        print(f"[Save Warning] GPU Tensor save failed ({e}). Moving to CPU explicitly...")
-        cpu_dict = {k: v.cpu() for k, v in output_state_dict.items()}
-        save_file(cpu_dict, args.output, metadata=metadata)
+    save_file(output_state_dict, args.output, metadata=metadata)
 
     print(f"Saved INT8 quantized model: {args.output}")
     print(f"  Format: int8_tensorwise (ComfyUI QUANT_ALGOS compatible)")
@@ -3254,8 +3281,6 @@ def main():
 
     # Quantize complete: drop convert holdings before optional chained bench.
     del output_state_dict
-    if "cpu_dict" in locals():
-        del cpu_dict
     del original_state_dict
     del quant_meta_layers
     weight_amax_dict.clear()
