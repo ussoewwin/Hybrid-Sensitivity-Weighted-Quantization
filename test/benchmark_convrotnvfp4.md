@@ -5,6 +5,13 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 **Source:** `test/score_convrotnvfp4.txt`
 
+**Bias correction (column labels from the score log):**
+
+| Label | Meaning |
+|-------|---------|
+| `1on` | Bias correction **ON** |
+| `1off` | Bias correction **OFF** |
+
 ---
 
 ## Results
@@ -51,7 +58,9 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 ## Notes
 
-- **Bias correction:** As recorded in `score_convrotnvfp4.txt` — `1on` = on, `1off` = off.
+- **Bias correction:** Each HSWQ run in `score_convrotnvfp4.txt` is tagged `1on` or `1off`.
+  - **`1on`** = bias correction enabled for that convert / bench.
+  - **`1off`** = bias correction disabled for that convert / bench.
 - **MSE:** Mean Squared Error; 0 = perfect match.
 - **SSIM:** Structural Similarity; 1.0 = perfect match.
 - **NVFP4 TC:** NVFP4 Tensor Core matmul `hits` / `fallbacks`.
