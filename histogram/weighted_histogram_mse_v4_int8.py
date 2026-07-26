@@ -15,6 +15,7 @@ Assigns per-element (2D/4D) importance and builds weighted histogram MSE at high
 """
 
 import os
+import sys
 import torch
 import numpy as np
 import math
@@ -557,7 +558,9 @@ def _emit_svd_mix_visibility(stats: dict) -> None:
         )
     lines.append(f"===== [/HSWQ SVD MIX FULL] layer={layer!r} =====")
     block = "\n".join(lines)
-    print(block)
+    # Full SVD dump must appear immediately (default path). No -u / env tricks.
+    print(block, flush=True)
+    sys.stdout.flush()
     _append_svd_mix_trace(block)
 
 

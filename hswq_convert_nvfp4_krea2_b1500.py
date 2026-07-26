@@ -166,6 +166,8 @@ class _TeeStream:
     def write(self, data):
         self._primary.write(data)
         self._secondary.write(data)
+        # Full convert log must stream as written (default). No -u / env tricks.
+        self.flush()
         return len(data)
 
     def flush(self):
@@ -4435,8 +4437,11 @@ def convert_to_nvfp4_convrot(
         )
     }
 
-    print(f"Saving to: {output_path}")
-    print(f"Converted layers: {converted_count}, Kept layers: {skipped_count}")
+    print(f"Saving to: {output_path}", flush=True)
+    print(
+        f"Converted layers: {converted_count}, Kept layers: {skipped_count}",
+        flush=True,
+    )
     if fp16_kept_count:
         print(
             f"  HSWQ FP16 protect (r0 DualMonitor / "
