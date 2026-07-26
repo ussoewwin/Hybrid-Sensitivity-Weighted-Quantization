@@ -9,15 +9,19 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 ## Results
 
-| Model | MSE (↓ better) | SSIM (↑ better) | NVFP4 TC (hits/fallbacks) |
-|-------|----------------|-----------------|---------------------------|
-| waiIllustriousSDXL_v170 | 16.7271 | 0.9593 | 2425 / 0 |
-| koronemixVpred_v20 | 44.9995 | 0.9404 | 2525 / 0 |
-| koronemixIllustrious_v70 | 14.0383 | 0.9648 | 2425 / 0 |
-| JANKUTrainedChenkinNoobai_v777 | 56.7499 | 0.9257 | 2525 / 0 |
-| epicrealismXL_pureFix | 11.5932 | 0.9677 | 2550 / 0 |
-| ebaraPonyXL_v21 | 13.2105 | 0.9382 | 2600 / 0 |
-| animemix_v80 | 6.8081 | 0.9829 | 2450 / 0 |
+| Model | Bias correction | MSE (↓ better) | SSIM (↑ better) | NVFP4 TC (hits/fallbacks) |
+|-------|-----------------|----------------|-----------------|---------------------------|
+| waiIllustriousSDXL_v170 | 1off | 16.9641 | 0.9596 | 2425 / 0 |
+| prefectIllustriousXL_v8 | 1off | 58.1917 | 0.9310 | 2450 / 0 |
+| oneObsession_v23 | 1on | 24.7509 | 0.9490 | 0 / 0 |
+| novaAsianXL_illustriousV70 | 1on | 20.0107 | 0.9344 | 0 / 0 |
+| novaAnimeXL_ilV190 | 1on | 12.8300 | 0.9238 | 2425 / 0 |
+| koronemixVpred_v20 | 1on | 29.8958 | 0.9548 | 2525 / 0 |
+| koronemixIllustrious_v70 | 1off | 14.0383 | 0.9648 | 2425 / 0 |
+| JANKUTrainedChenkinNoobai_v777 | 1on | 25.7451 | 0.9398 | 2525 / 0 |
+| epicrealismXL_pureFix | 1off | 11.5932 | 0.9677 | 2550 / 0 |
+| ebaraPonyXL_v21 | 1off | 13.2105 | 0.9382 | 2600 / 0 |
+| animemix_v80 | 1off | 6.8081 | 0.9829 | 2450 / 0 |
 
 ---
 
@@ -27,15 +31,19 @@ Same setup (vs FP16 reference). **HSWQ ConvRot NVFP4** vs baseline **Native NVFP
 Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ MSE ⇒ HSWQ better; negative Δ SSIM ⇒ HSWQ better, since higher SSIM is better).  
 **Native NVFP4** = naive cast NVFP4.
 
-| Model | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | HSWQ TC | Baseline TC | Baseline | Winner |
-|-------|----------|--------------|-------|-----------|---------------|--------|---------|-------------|----------|--------|
-| waiIllustriousSDXL_v170 | 16.7271 | 36.7770 | +20.0499 | 0.9593 | 0.9346 | −0.0247 | 2425 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
-| koronemixVpred_v20 | 44.9995 | 54.1957 | +9.1962 | 0.9404 | 0.9148 | −0.0256 | 2525 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
-| koronemixIllustrious_v70 | 14.0383 | 104.7592 | +90.7209 | 0.9648 | 0.8854 | −0.0794 | 2425 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
-| JANKUTrainedChenkinNoobai_v777 | 56.7499 | 102.9044 | +46.1545 | 0.9257 | 0.9158 | −0.0099 | 2525 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
-| epicrealismXL_pureFix | 11.5932 | 36.9909 | +25.3977 | 0.9677 | 0.9590 | −0.0087 | 2550 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
-| ebaraPonyXL_v21 | 13.2105 | 53.4388 | +40.2283 | 0.9382 | 0.8914 | −0.0468 | 2600 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
-| animemix_v80 | 6.8081 | 23.3225 | +16.5144 | 0.9829 | 0.9479 | −0.0350 | 2450 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| Model | Bias correction | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | HSWQ TC | Baseline TC | Baseline | Winner |
+|-------|-----------------|----------|--------------|-------|-----------|---------------|--------|---------|-------------|----------|--------|
+| waiIllustriousSDXL_v170 | 1off | 16.9641 | 36.7770 | +19.8129 | 0.9596 | 0.9346 | −0.0250 | 2425 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| prefectIllustriousXL_v8 | 1off | 58.1917 | 99.4071 | +41.2154 | 0.9310 | 0.9212 | −0.0098 | 2450 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| oneObsession_v23 | 1on | 24.7509 | 81.3796 | +56.6287 | 0.9490 | 0.9155 | −0.0335 | 0 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| novaAsianXL_illustriousV70 | 1on | 20.0107 | 33.4618 | +13.4511 | 0.9344 | 0.8866 | −0.0478 | 0 / 0 | 0 / 0 | Native NVFP4 | HSWQ |
+| novaAnimeXL_ilV190 | 1on | 12.8300 | 55.7887 | +42.9587 | 0.9238 | 0.9119 | −0.0119 | 2425 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| koronemixVpred_v20 | 1on | 29.8958 | 54.1957 | +24.2999 | 0.9548 | 0.9148 | −0.0400 | 2525 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| koronemixIllustrious_v70 | 1off | 14.0383 | 104.7592 | +90.7209 | 0.9648 | 0.8854 | −0.0794 | 2425 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| JANKUTrainedChenkinNoobai_v777 | 1on | 25.7451 | 102.9044 | +77.1593 | 0.9398 | 0.9158 | −0.0240 | 2525 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| epicrealismXL_pureFix | 1off | 11.5932 | 36.9909 | +25.3977 | 0.9677 | 0.9590 | −0.0087 | 2550 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| ebaraPonyXL_v21 | 1off | 13.2105 | 88.0444 | +74.8339 | 0.9382 | 0.8611 | −0.0771 | 2600 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
+| animemix_v80 | 1off | 6.8081 | 23.3225 | +16.5144 | 0.9829 | 0.9479 | −0.0350 | 2450 / 0 | 18575 / 0 | Native NVFP4 | HSWQ |
 
 **Winner** = better on both MSE and SSIM.
 
@@ -43,6 +51,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 ## Notes
 
+- **Bias correction:** As recorded in `score_convrotnvfp4.txt` — `1on` = on, `1off` = off.
 - **MSE:** Mean Squared Error; 0 = perfect match.
 - **SSIM:** Structural Similarity; 1.0 = perfect match.
 - **NVFP4 TC:** NVFP4 Tensor Core matmul `hits` / `fallbacks`.
