@@ -2659,6 +2659,8 @@ def main():
     prefix = _nc_calib._find_krea2_key_prefix(original_state_dict)
     cfg = _nc_calib.detect_krea2_dit_config(original_state_dict, prefix)
     fused = int(cfg["txtlayers"]) * int(cfg["txtdim"])
+    # Same as NVFP4: stub immediately before comfy.sd / audio_vae import chain.
+    _install_torchaudio_stub()
     context_bank = _nc_calib._encode_krea2_calib_contexts(
         clip_path=args.clip_path,
         prompts=prompts,
