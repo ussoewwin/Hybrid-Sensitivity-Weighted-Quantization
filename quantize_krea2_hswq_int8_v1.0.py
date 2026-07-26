@@ -2,9 +2,7 @@
 """
 Krea2 DiT INT8 Quantization - HSWQ V1.0 (ConvRot)
 
-- Order: (0) source-float32 RAW — auto from checkpoint dtype (all models;
-  not a per-model name table). F32 tensors stay F32; never INT8 / FP16 keep.
-  (1) FP16 keep via DualMonitor + analyze + V4 → 300 MiB budget
+- Order: (1) FP16 keep via DualMonitor + analyze + V4 → 300 MiB budget
   (same SDXL-INT8 HSWQ protect structure; do not gut)
   (2) FULL ConvRot INT8 pack on the remainder
 - FULL ConvRot pack / load / CLIP+DiT calib authority:
@@ -12,7 +10,6 @@ Krea2 DiT INT8 Quantization - HSWQ V1.0 (ConvRot)
   (pack_channelwise / pack_tensorwise / _encode_comfy_quant /
   build_hadamard / rotate_weight / rotate_weight_conv2d /
   load_krea2_from_safetensors / _encode_krea2_calib_contexts).
-  Source-F32 RAW lives ONLY in this HSWQ file — do not put it in native.
 - FP16 keep / DualMonitor / budget ranking code is NOT rewritten.
 - Layer keys: Krea2 (.attn.wq/.wk/.wv → qkv, .attn.wo → toout,
   .mlp.down → ff2, .mlp.gate/.mlp.up → ff0).
@@ -180,22 +177,6 @@ def load_unet_from_safetensors(path, device="cuda", comfy_path=None):
         path, device=device, comfy_path=comfy_path
     )
     return model, state_dict, comfyui_to_module_map
-
-
-def discover_source_f32_modules(state_dict, comfyui_to_module_map):
-    """Module names whose SOURCE checkpoint .weight is float32.
-
-    Automatic for every model: inspect safetensors/state_dict dtypes.
-    Not a hardcoded per-model layer list. HSWQ-only (not native).
-    """
-    mods = set()
-    for ck, dk in comfyui_to_module_map.items():
-        if not (isinstance(dk, str) and dk.endswith(".weight")):
-            continue
-        t = state_dict.get(ck)
-        if t is not None and getattr(t, "dtype", None) == torch.float32:
-            mods.add(dk[: -len(".weight")])
-    return mods
 
 
 def calculate_kurtosis(tensor):
@@ -2430,24 +2411,6 @@ def main():
     model, original_state_dict, comfyui_to_diffusers_map = load_unet_from_safetensors(
         args.input, device, comfy_path=comfy_path
     )
-    # Auto: source float32 weights → F32 RAW (all models; dtype inspect, not names).
-    source_f32_modules = discover_source_f32_modules(
-        original_state_dict, comfyui_to_diffusers_map
-    )
-    _f32_nbytes = 0
-    for _ck, _dk in comfyui_to_diffusers_map.items():
-        if not (isinstance(_dk, str) and _dk.endswith(".weight")):
-            continue
-        if _dk[: -len(".weight")] not in source_f32_modules:
-            continue
-        _t = original_state_dict.get(_ck)
-        if _t is not None and torch.is_tensor(_t):
-            _f32_nbytes += int(_t.numel()) * int(_t.element_size())
-    print(
-        f"  [Source F32 RAW] auto dtype scan: {len(source_f32_modules)} "
-        f"Linear/Conv modules stay float32 "
-        f"({_f32_nbytes / (1024 ** 3):.3f} GiB weights; not FP16 budget / not INT8)"
-    )
     model_profile = _remap_profile_to_diffusers(model_profile, comfyui_to_diffusers_map)
     _norm_profile = {k: v for k, v in model_profile.items() if isinstance(v, dict)}
     veto_tunables = resolve_veto_tunables(
@@ -2500,31 +2463,14 @@ def main():
         hard_veto_layers = hard_veto_layers.union(keypattern_veto)
         print(f"  [Key-Pattern VETO] hard_veto total: {len(hard_veto_layers)}.")
 
-    # Source-F32 modules are out from the start — not DualMonitor / not FP16 budget.
-    if source_f32_modules:
-        _dropped_f32_veto = hard_veto_layers & source_f32_modules
-        hard_veto_layers = hard_veto_layers - source_f32_modules
-        if _dropped_f32_veto:
-            print(
-                f"  [Source F32 RAW] removed {len(_dropped_f32_veto)} modules "
-                f"from hard_veto (stay F32; do not compete for FP16 budget)."
-            )
-
     print("Preparing calibration (Dual Monitor hooks)...")
     dual_monitors.clear()
     handles, target_modules = [], []
     for name, module in model.named_modules():
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
-            if name in source_f32_modules:
-                continue
             handle = module.register_forward_hook(lambda m, i, o, n=name: hook_fn(m, i, o, n))
             handles.append(handle)
             target_modules.append(name)
-    if source_f32_modules:
-        print(
-            f"  [Source F32 RAW] DualMonitor hooks skipped for "
-            f"{len(source_f32_modules)} source-float32 modules."
-        )
 
     print("Preparing calibration data...")
     with open(args.calib_file, "r", encoding="utf-8") as f:
@@ -2611,8 +2557,6 @@ def main():
     if _supp:
         hard_veto_layers = hard_veto_layers.union(_supp)
         print(f"  [Supplemental VETO] Added {len(_supp)} layers (total VETO: {len(hard_veto_layers)}).")
-    if source_f32_modules:
-        hard_veto_layers = hard_veto_layers - source_f32_modules
 
     # Re-derive autonomous knobs now that DualMonitor calibration exists.
     # Refresh α/β from THIS multi-axis alpha_auto  -  never keep pre-calib
@@ -2665,10 +2609,6 @@ def main():
 
     # ALL: V4-calib-scored U analyze VETO -> full priority in budget pass.
     keep_layers = dynamic_keep_layers.union(hard_veto_layers)
-    if source_f32_modules:
-        keep_layers = keep_layers - source_f32_modules
-        dynamic_keep_layers = dynamic_keep_layers - source_f32_modules
-        hard_veto_layers = hard_veto_layers - source_f32_modules
 
     # Soft gray-zone: optional analyze soft-VETO release via same V4 MSE
     # (secondary; primary V4 use was FP16 candidate scoring above).
@@ -2743,9 +2683,6 @@ def main():
         beta=beta,
         device=device,
     )
-    if source_f32_modules:
-        keep_layers = keep_layers - source_f32_modules
-        hard_veto_layers = hard_veto_layers - source_f32_modules
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
 
     orphan_keep = keep_layers - mapped_weight_modules
@@ -2856,8 +2793,6 @@ def main():
         if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
             if name in keep_layers:
                 continue
-            if name in source_f32_modules:
-                continue
             weight_key = name + ".weight"
 
             if args.per_channel_int8:
@@ -2948,8 +2883,6 @@ def main():
     quant_meta_layers = {}  # layer_name -> quant config dict
     converted_count = 0
     kept_count = 0
-    source_f32_raw_count = 0
-    source_f32_raw_tensors = 0
     convrot_linear = 0
     convrot_conv2d = 0
     plain_int8_count = 0
@@ -2963,8 +2896,7 @@ def main():
 
     print("Converting weights to INT8 (GPU accelerated)...")
     print(
-        "  Order: (0) source-float32 RAW (auto dtype) → "
-        "(1) FP16 keep unchanged → (2) remainder FULL ConvRot "
+        "  Order: (1) FP16 keep unchanged → (2) remainder FULL ConvRot "
         "identical to native_convert_int8_krea2.py"
     )
     for key, value in tqdm(original_state_dict.items(), desc="Converting"):
@@ -2972,14 +2904,6 @@ def main():
         module_name = None
         if diffusers_key and diffusers_key.endswith(".weight"):
             module_name = diffusers_key[:-7]
-
-        # (0) Source float32 → keep float32 RAW (auto from checkpoint dtype).
-        if torch.is_tensor(value) and value.dtype == torch.float32:
-            output_state_dict[key] = value
-            source_f32_raw_tensors += 1
-            if module_name is not None and int(value.ndim) in (2, 4):
-                source_f32_raw_count += 1
-            continue
 
         if module_name and module_name in keep_layers:
             # (1) FP16 protection — never ConvRot these.
@@ -3075,13 +2999,6 @@ def main():
             continue
 
         if module_name and int(value.ndim) in (2, 4):
-            if module_name in source_f32_modules:
-                # Should have been caught by dtype==float32 above; refuse drift.
-                raise RuntimeError(
-                    f"[Source F32 RAW] {module_name!r} is in source_f32_modules "
-                    f"but tensor dtype={value.dtype!r} (expected float32). "
-                    f"Refuse silent pack."
-                )
             raise RuntimeError(
                 f"[INT8 pack] {module_name!r} is Linear/Conv "
                 f"(ndim={int(value.ndim)}, key={key!r}) but missing "
@@ -3114,8 +3031,6 @@ def main():
         )
 
     print("Conversion done:")
-    print(f"  Source-F32 RAW (auto dtype; Linear/Conv weights): {source_f32_raw_count}")
-    print(f"  Source-F32 RAW tensors (all keys): {source_f32_raw_tensors}")
     print(f"  INT8 layers: {converted_count}")
     print(f"  FP16-kept layers (budget winners): {kept_count}")
     print(f"  FULL ConvRot: {enable_convrot}")
@@ -3157,9 +3072,6 @@ def main():
             _pack_fp16_skipped_non_lc += 1
             continue
         _mod = _dk[:-7]
-        if _mod in source_f32_modules:
-            # Intentional source-float32 RAW — not FP16 budget / not leak.
-            continue
         if _mod not in keep_layers:
             _pack_fp16_leak.append(_mod)
             continue
