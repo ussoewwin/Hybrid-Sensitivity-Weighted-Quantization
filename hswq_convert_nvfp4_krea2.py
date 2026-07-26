@@ -58,13 +58,13 @@ Optional Card 1 (--bias_correction): DualMonitor act means; bias += -(W_q - W) @
 HSWQ DualMonitor + FP16 protect (--calib_file required, r0 only):
   - Profile JSON + analyze/analyze_krea2_nvfp4_distribution.py
     (Hard VETO cascade, DualMonitor, infinite branches, budget fill).
-  - --keep_ratio must be 0. Protect budget (hard ceiling 3000 MiB):
+  - --keep_ratio must be 0. Protect budget (hard ceiling 2400 MiB):
       Charge = EXTRA vs packed (original meter — never absolute 2 B/1 B):
         Linear FP16 +1.5 B/el, Conv FP16 +1 B/el, Linear INT8 shelter +0.5 B/el.
       (A) Analyze Static Profile extremes → always FP16 (EXTRA).
           Layer count and MiB emerge from THIS-model Static Profile —
           never hardcoded recipes.
-      (B) Remainder (3000 − A) → marginal-rescue ladder (score/byte):
+      (B) Remainder (2400 − A) → marginal-rescue ladder (score/byte):
           INT8 shelter step (EXTRA +0.5 B/elem; gain = priority×r1,
           r1=(d0−d1)/d0) AND FP16-upgrade step for already-sheltered
           layers (EXTRA +1.0 B/elem over INT8; gain = priority×(1−r1)).
@@ -367,14 +367,14 @@ from weighted_histogram_mse_v4_nvfp4 import (
 # only optimize INSIDE this frame. Not a thinking-stop formula constant.
 # Packed baseline: Linear → NVFP4 (~0.5 B/elem), Conv2d → INT8 (1 B/elem).
 # FP16 keep overhead = 2 − packed_bytes → Linear +1.5×numel, Conv +1×numel.
-FP16_BUDGET_MB_HARD = 3000.0
+FP16_BUDGET_MB_HARD = 2400.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
-    """Refuse any fp16_budget_mb other than the owner hard ceiling (3000)."""
+    """Refuse any fp16_budget_mb other than the owner hard ceiling (2400)."""
     b = float(budget_mb)
     if abs(b - FP16_BUDGET_MB_HARD) > 1e-6:
         raise ValueError(
@@ -448,7 +448,7 @@ def _is_text_fp16_exempt(name: str) -> bool:
 # _apply_fp16_budget_cap: (1) Static Profile extremes → FP16 (EXTRA vs packed)
 # except boundary endpoints (RAW) and text-path tproj.1/tmlp.2 (owner
 # 2026-07-26 exemption — budget flows to the shelter ladder instead);
-# (2) remainder of 3000 MiB → marginal-rescue ladder: INT8 shelter
+# (2) remainder of 2400 MiB → marginal-rescue ladder: INT8 shelter
 # (EXTRA +0.5 B/el; priority×r1) + FP16 upgrades of sheltered layers
 # (EXTRA +1.0 B/el over INT8; priority×(1−r1)), one score/byte order.
 # Owner 2026-07-26: replaces "INT8 only / no FP16 ladder" (2400≈1500).
@@ -513,7 +513,7 @@ class SdxlVetoTunables:
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
-    fp16_budget_mb: float = 3000.0
+    fp16_budget_mb: float = 2400.0
     fp16_budget_bytes: int = 3145728000
     n_unet_layers: int = 0
     autonomous: bool = False
@@ -651,7 +651,7 @@ class SdxlVetoTunables:
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
             fp16_budget_mb=float(d["fp16_budget_mb"]),
-            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 3000 * 1024 * 1024)),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 2400 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=True,
             alpha_auto=float(d["alpha_auto"]),
@@ -730,7 +730,7 @@ def resolve_veto_tunables(
     weights, MSE release gates, bias_correction scope, sens_veto percentile,
     alpha/beta, search_low) come from derive_nvfp4_autonomous_tunables,
     which uses THIS checkpoint's profile + DualMonitor sensitivity
-    distribution. fp16_budget_mb is the owner hard ceiling (3000 MiB)  - 
+    distribution. fp16_budget_mb is the owner hard ceiling (2400 MiB)  - 
     auto settings fill that frame; they do not redefine or exceed it.
     No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
@@ -1522,7 +1522,7 @@ def _build_v4_calib_fp16_candidates(
     """Score FP16 protection candidates with histogram V4 on THIS calibration.
 
     V4's job here: estimated_mse @ absmax for every target Linear/Conv so the
-    later 3000 MiB budget can rank which layers stay FP16. Pack amax remains
+    later 2400 MiB budget can rank which layers stay FP16. Pack amax remains
     absmax separately  -  V4 does not search pack scale.
 
     Always Full-SVD×RMS hybrid (surface 4 of comprehensive FP16 ranking);
@@ -1643,11 +1643,11 @@ def _apply_fp16_budget_cap(
 ) -> tuple[set, set, dict, set]:
     """Protect budget: Static Profile → FP16; remainder → ConvRot INT8 shelter.
 
-    Owner hard ceiling is installed by the caller (NVFP4 3000 via
+    Owner hard ceiling is installed by the caller (NVFP4 2400 via
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
-    Owner logic (3000 MiB usage — do not invert this split):
+    Owner logic (2400 MiB usage — do not invert this split):
       (1) Analyze Static Profile extremes (k/o/m vs extreme_* tunables)
           → always FP16. Charge = EXTRA vs packed (+1.5 B/el Linear,
           +1 B/el Conv). How many layers / MiB = THIS-model Static output —
@@ -1655,7 +1655,7 @@ def _apply_fp16_budget_cap(
           Owner exemptions (2026-07-26): boundary endpoints stay RAW, and
           text-path tproj.1 / tmlp.2 skip the FP16 force (their 378 MiB
           EXTRA flows to the shelter ladder instead).
-      (2) Remainder (3000 MiB − (1)) → marginal-rescue ladder, Linear 2D
+      (2) Remainder (2400 MiB − (1)) → marginal-rescue ladder, Linear 2D
           only. Two priced steps per layer (owner 2026-07-26):
           INT8 shelter (EXTRA +0.5 B/el; score = priority × r1) and
           FP16 upgrade of an already-sheltered layer (EXTRA +1.0 B/el
@@ -1978,7 +1978,7 @@ def _apply_fp16_budget_cap(
             )
 
     # (1) Static Profile extremes → always FP16 (EXTRA vs packed).
-    # (2) Remainder of 3000 MiB → marginal-rescue ladder: INT8 shelter
+    # (2) Remainder of 2400 MiB → marginal-rescue ladder: INT8 shelter
     # (EXTRA +0.5 B/el; priority × r1) + FP16 upgrades of sheltered
     # layers (EXTRA +1.0 B/el over INT8; priority × (1−r1)),
     # one score/byte order. Count/MiB = auto Static only.
@@ -2494,7 +2494,7 @@ def derive_hswq_strategy_nvfp4(model_profile, veto_tunables: SdxlVetoTunables | 
             )
 
     if veto_tunables is None:
-        # Owner hard ceiling 3000 MiB  -  auto knobs fill inside this frame.
+        # Owner hard ceiling 2400 MiB  -  auto knobs fill inside this frame.
         veto_tunables = resolve_veto_tunables(
             model_profile or {},
             fp16_budget_mb=FP16_BUDGET_MB_HARD,
@@ -3446,7 +3446,7 @@ def run_nvfp4_calib(
     """PTQ calib: DualMonitor + input_scale amax + protect budget.
 
     Protect (r0): Hard VETO cascade → DualMonitor → V4 NVFP4 candidates
-    → grayzone → _apply_fp16_budget_cap (hard ceiling 3000 MiB):
+    → grayzone → _apply_fp16_budget_cap (hard ceiling 2400 MiB):
       Static Profile extremes → FP16; remainder → INT8 shelter.
     Pack amax stays absmax via weighted_histogram_mse_v4_nvfp4 (no fast search).
 
@@ -4553,7 +4553,7 @@ def convert_to_nvfp4_convrot(
     # Hard assert: Linear+Conv FP16 keep + Linear INT8 shelter ≤ owner
     # ceiling + owner tolerance. Meter = EXTRA vs packed (same as selection):
     # Linear FP16 +1.5×numel (vs NVFP4), Conv FP16 +1× (vs INT8), Linear INT8
-    # shelter +0.5×numel (vs NVFP4). 3000 usage unchanged: Static→FP16 then
+    # shelter +0.5×numel (vs NVFP4). 2400 usage unchanged: Static→FP16 then
     # INT8 remainder (never 3-tier). Post-pack EXTRA must match selection
     # used_bytes; absolute 2 B/1 B underfill (1500→~8 GiB then “2400→~8.4”)
     # is refused. FP16 protect MUST be torch.float16 in the saved ckpt.
@@ -4744,7 +4744,7 @@ if __name__ == "__main__":
             "(--nvfp4-convrot optional; default OFF = unrotated), "
             "Conv2d→INT8 (+ --convrot), INT8-shelter Linear→INT8 (+ --convrot). "
             "Requires --calib_file + --clip_path for NVFP4 .input_scale, "
-            "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=3000 hard "
+            "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=2400 hard "
             "ceiling), and weight clip amax from NVFP4/INT8 pack roundtrip MSE. "
             "Save without calib is refused. Pre-existing --output is quarantined "
             "at start; final path is written only via *.partial after Full-SVD×RMS "
@@ -4812,20 +4812,20 @@ if __name__ == "__main__":
         help=(
             "Must be 0 (r0). FP16 protect is DualMonitor + analyze severity + "
             "V4 NVFP4 MSE @ absmax + infinite branches, truncated only by "
-            "--fp16_budget_mb (3000 MiB hard ceiling). Top-%% cut is forbidden."
+            "--fp16_budget_mb (2400 MiB hard ceiling). Top-%% cut is forbidden."
         ),
     )
     parser.add_argument(
         "--fp16_budget_mb",
         type=float,
-        default=3000.0,
+        default=2400.0,
         help=(
-            "Owner hard ceiling: exactly 3000 MiB real protect EXTRA vs "
+            "Owner hard ceiling: exactly 2400 MiB real protect EXTRA vs "
             "packed. Usage: (1) Static Profile extremes → FP16 "
             "(+1.5 B/el Linear, +1 B/el Conv); (2) remainder → ConvRot "
             "INT8 shelter (+0.5 B/el). Layer count / MiB emerge from "
             "THIS-model auto Static analysis — never a hardcoded recipe. "
-            "Absolute 2 B/1 B underfills (1500→~8 GiB ⇒ true 3000 cannot "
+            "Absolute 2 B/1 B underfills (1500→~8 GiB ⇒ true 2400 cannot "
             "honestly be ~8.4 GiB). ~9 GiB is the RESULT of a true fill — "
             "never reverse-calc FROM GiB. Auto settings fill INSIDE the "
             "ceiling; they do not redefine it."
