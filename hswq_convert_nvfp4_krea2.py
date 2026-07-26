@@ -25,6 +25,13 @@ inference: quantize without rotate). Convert refuses to save without
 --calib_file: missing input_scale + skipped HSWQ FP16 protect would still
 have written a ckpt and destroyed quality.
 
+Output path discipline (owner 2026-07-26 — early safetensors):
+  - Quarantine any pre-existing --output at convert start so a stale /
+    unprotected ckpt cannot sit on the final path while Full-SVD×RMS runs.
+  - Refuse save unless calib returns protect_pipeline_complete and every
+    measurable Linear/Conv has a V4/Full-SVD MSE cache entry.
+  - Write only via *.partial then os.replace onto --output after pack asserts.
+
 Online act rotate at load is required for ConvRot layers (Conv2d + INT8-shelter
 Linear). The loader is built separately; this converter does FULL offline
 weight rotate + stamps on ConvRot-eligible layers only (never NVFP4 Linear).
@@ -1501,10 +1508,32 @@ def _build_v4_calib_fp16_candidates(
             ) from e
         torch.cuda.empty_cache()
 
+    measurable = [
+        n
+        for n in target_modules
+        if module_dict.get(n) is not None
+        and hasattr(module_dict[n], "weight")
+        and module_dict[n].weight is not None
+    ]
+    missing_svd = [n for n in measurable if n not in cache]
+    if missing_svd:
+        _show = ", ".join(missing_svd[:12])
+        raise RuntimeError(
+            f"[V4→FP16 protect] Full-SVD×RMS incomplete: "
+            f"{len(missing_svd)}/{len(measurable)} measurable Linear/Conv "
+            f"missing from mse_cache (refuse early/partial protect). "
+            f"Examples: {_show}."
+        )
+    if not measurable:
+        raise RuntimeError(
+            "[V4→FP16 protect] no measurable Linear/Conv in target_modules "
+            "(refuse empty Full-SVD×RMS / protect)."
+        )
     print(
         f"  [V4→FP16 protect] V4-scored={len(scored)} "
         f"(SVD×Imp={n_svd_x_imp}, SVD-only={n_svd_only}; "
         f"alpha={alpha:.3f}/beta={beta:.3f}) | "
+        f"measurable={len(measurable)} | "
         f"analyze VETO={len(hard_veto_layers)} | "
         f"union → FULL priority (budget only truncates)."
     )
@@ -3679,6 +3708,25 @@ def run_nvfp4_calib(
         rotate_weight_conv2d=rotate_weight_conv2d,
     )
 
+    _mod_dict = dict(model.named_modules())
+    _measurable = [
+        n
+        for n in target_modules
+        if _mod_dict.get(n) is not None
+        and hasattr(_mod_dict[n], "weight")
+        and _mod_dict[n].weight is not None
+    ]
+    _mse_n = int(len(mse_cache))
+    _meas_n = int(len(_measurable))
+    if _meas_n <= 0 or _mse_n < _meas_n or any(
+        n not in mse_cache for n in _measurable
+    ):
+        raise RuntimeError(
+            "[HSWQ] protect_pipeline incomplete after calib: "
+            f"mse_cache={_mse_n} measurable={_meas_n}. "
+            "Refuse returning calib that would allow early/unprotected save."
+        )
+
     del model
     gc.collect()
     if device == "cuda":
@@ -3695,8 +3743,48 @@ def run_nvfp4_calib(
         "budget_stats": budget_stats,
         "fp16_budget_mb": budget_mb,
         "dynamic_keep_layers": dynamic_keep_layers,
+        # Gate for convert save: set only after Full-SVD×RMS + budget +
+        # weight amax finished for every measurable Linear/Conv.
+        "protect_pipeline_complete": True,
+        "full_svd_mse_cache_n": _mse_n,
+        "full_svd_measurable_n": _meas_n,
     }
 
+
+
+def _quarantine_preexisting_output(output_path: str) -> None:
+    """Move any pre-existing --output off the final path before long calib.
+
+    Owner 2026-07-26: a finished-looking .safetensors on --output while
+    Full-SVD×RMS is still running is treated as early/unprotected save
+    (stale or prior WARN-then-save). Quarantine so the final path cannot
+    claim completion mid-pipeline.
+    """
+    if not output_path or not os.path.isfile(output_path):
+        return
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    stale = f"{output_path}.stale_before_{ts}"
+    os.replace(output_path, stale)
+    print(
+        f"  [output] quarantined pre-existing {output_path!r} → {stale!r} "
+        "(refuse mid-run false completion while Full-SVD×RMS / protect runs)"
+    )
+
+
+def _atomic_save_safetensors(
+    state_dict: dict,
+    output_path: str,
+    metadata: dict | None,
+) -> None:
+    """Write *.partial then os.replace onto --output (no mid-write final path)."""
+    out_abs = os.path.abspath(output_path)
+    partial = out_abs + ".partial"
+    out_dir = os.path.dirname(out_abs) or "."
+    os.makedirs(out_dir, exist_ok=True)
+    if os.path.isfile(partial):
+        os.remove(partial)
+    save_file(state_dict, partial, metadata=metadata)
+    os.replace(partial, out_abs)
 
 
 def convert_to_nvfp4_convrot(
@@ -3791,6 +3879,9 @@ def convert_to_nvfp4_convrot(
         )
     if not os.path.isfile(calib_file):
         raise FileNotFoundError(f"calib_file not found: {calib_file}")
+    # Before hours of Full-SVD×RMS: clear final --output so a stale early
+    # ckpt cannot sit on disk claiming the run already finished.
+    _quarantine_preexisting_output(output_path)
     write_input_scale = True
     if bias_correction:
         print(
@@ -3820,6 +3911,19 @@ def convert_to_nvfp4_convrot(
         clip_path=clip_path,
         comfy_path=comfy_path,
     )
+    if not calib.get("protect_pipeline_complete"):
+        raise RuntimeError(
+            "[HSWQ] refuse save: protect_pipeline_complete is missing/false "
+            "after calib — Full-SVD×RMS / FP16 budget / weight amax did not "
+            "finish. Refusing early/unprotected output."
+        )
+    _svd_cache_n = int(calib.get("full_svd_mse_cache_n", 0))
+    _svd_meas_n = int(calib.get("full_svd_measurable_n", 0))
+    if _svd_meas_n <= 0 or _svd_cache_n < _svd_meas_n:
+        raise RuntimeError(
+            "[HSWQ] refuse save: Full-SVD×RMS coverage incomplete "
+            f"(mse_cache={_svd_cache_n}, measurable={_svd_meas_n})."
+        )
     act_mean_dict = calib["act_mean_dict"]
     act_amax_dict = calib["act_amax_dict"]
     weight_amax_dict = calib["weight_amax_dict"]
@@ -3838,7 +3942,8 @@ def convert_to_nvfp4_convrot(
     print(
         f"  [HSWQ] weight amax for {len(weight_amax_dict)} layers; "
         f"FP16 keep={len(keep_layers)}; "
-        f"INT8 shelter={len(int8_shelter_layers)}"
+        f"INT8 shelter={len(int8_shelter_layers)}; "
+        f"Full-SVD mse_cache={_svd_cache_n}/{_svd_meas_n} (protect complete)"
     )
 
     if compute_int8_bias_delta is None:
@@ -4303,8 +4408,15 @@ def convert_to_nvfp4_convrot(
                 f"(|delta|={_delta / (1024 * 1024):.3f} MiB)"
             )
 
-    save_file(new_state_dict, output_path, metadata=metadata)
-    print("Done!")
+    # Final path appears only after Full-SVD×RMS + protect + pack asserts.
+    if os.path.isfile(output_path):
+        raise RuntimeError(
+            f"[output] refuse save: {output_path!r} already exists before "
+            "atomic replace (should have been quarantined at convert start). "
+            "Refusing early/overwrite ambiguity."
+        )
+    _atomic_save_safetensors(new_state_dict, output_path, metadata=metadata)
+    print(f"Done! (atomic save → {output_path})")
 
 
 if __name__ == "__main__":
@@ -4315,7 +4427,9 @@ if __name__ == "__main__":
             "Requires --calib_file + --clip_path for NVFP4 .input_scale, "
             "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=2400 hard "
             "ceiling), and weight clip amax from NVFP4/INT8 pack roundtrip MSE. "
-            "Save without calib is refused. Online act rotate required at load "
+            "Save without calib is refused. Pre-existing --output is quarantined "
+            "at start; final path is written only via *.partial after Full-SVD×RMS "
+            "+ protect + pack asserts. Online act rotate required at load "
             "for ConvRot layers (loader built separately). Card 1 = "
             "--bias_correction."
         )
