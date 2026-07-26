@@ -2,7 +2,7 @@
 """
 Krea2 DiT INT8 Quantization - HSWQ V1.0 (ConvRot)
 
-- Order: (1) FP16 keep via DualMonitor + analyze + V4 → 300 MiB budget
+- Order: (1) FP16 keep via DualMonitor + analyze + V4 → 700 MiB budget
   (same SDXL-INT8 HSWQ protect structure; do not gut)
   (2) FULL ConvRot INT8 pack on the remainder
 - FULL ConvRot pack / load / CLIP+DiT calib authority:
@@ -185,14 +185,14 @@ sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
 # Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
 # optimize INSIDE this frame. Not a thinking-stop formula constant.
-FP16_BUDGET_MB_HARD = 300.0
+FP16_BUDGET_MB_HARD = 700.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
-    """Refuse any fp16_budget_mb other than the owner hard ceiling (300)."""
+    """Refuse any fp16_budget_mb other than the owner hard ceiling (700)."""
     b = float(budget_mb)
     if abs(b - FP16_BUDGET_MB_HARD) > 1e-6:
         raise ValueError(
@@ -338,8 +338,8 @@ class SdxlVetoTunables:
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
-    fp16_budget_mb: float = 300.0
-    fp16_budget_bytes: int = 314572800
+    fp16_budget_mb: float = 700.0
+    fp16_budget_bytes: int = 734003200
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
@@ -473,7 +473,7 @@ class SdxlVetoTunables:
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
             fp16_budget_mb=float(d["fp16_budget_mb"]),
-            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 300 * 1024 * 1024)),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 700 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=True,
             alpha_auto=float(d["alpha_auto"]),
@@ -552,7 +552,7 @@ def resolve_veto_tunables(
     weights, MSE release gates, bias_correction scope, sens_veto percentile,
     alpha/beta, search_low) come from derive_int8_autonomous_tunables,
     which uses THIS checkpoint's profile + DualMonitor sensitivity
-    distribution. fp16_budget_mb is the owner hard ceiling (300 MiB)  - 
+    distribution. fp16_budget_mb is the owner hard ceiling (700 MiB)  - 
     auto settings fill that frame; they do not redefine or exceed it.
     No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
@@ -1323,7 +1323,7 @@ def _build_v4_calib_fp16_candidates(
     """Score FP16 protection candidates with histogram V4 on THIS calibration.
 
     V4's job here: estimated_mse @ absmax for every target Linear/Conv so the
-    later 300 MiB budget can rank which layers stay FP16. Pack amax remains
+    later 700 MiB budget can rank which layers stay FP16. Pack amax remains
     absmax separately  -  V4 does not search pack scale.
 
     Always Full-SVD×RMS hybrid; DualMonitor Importance multiplies when present.
@@ -1412,7 +1412,7 @@ def _apply_fp16_budget_cap(
 ) -> tuple[set, set, dict]:
     """Per-model auto analysis → auto-optimal FP16 set inside the hard ceiling.
 
-    Owner hard ceiling is installed by the caller (SDXL 300 / ZI 700 via
+    Owner hard ceiling is installed by the caller (Krea2 INT8 700 via
     FP16_BUDGET_MB_HARD). Auto settings fill that frame; they never redefine
     it and never exceed it.
 
@@ -1485,7 +1485,7 @@ def _apply_fp16_budget_cap(
 
     # Candidate pool = Linear/Conv only (ndim 2/4). Same EXTRA meter as
     # post-pack assert (+1 B/elem vs INT8). Non-LC weights must not consume
-    # the 300 MiB protect budget (that was a claimed-fill / real-underfill lie).
+    # the 700 MiB protect budget (that was a claimed-fill / real-underfill lie).
     # This is meter agreement — NOT a fixed priority ranking.
     skipped_non_lc = []
     _lc_pool = set()
@@ -1678,7 +1678,7 @@ def _apply_fp16_budget_cap(
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
     # Candidate-pool EXTRA (owner: e.g. ~739 MiB) is NOT the packed protect.
-    # Extreme fill caps that pool into the hard ceiling (300 MiB) via THIS-model
+    # Extreme fill caps that pool into the hard ceiling (700 MiB) via THIS-model
     # auto priority only — never Mag-outside / Conv-first / frozen ranking.
     pool_extra_bytes = int(sum(int(row[4]) for row in candidates))
     print(
@@ -1705,7 +1705,7 @@ def _apply_fp16_budget_cap(
             dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
 
     # Recompute EXTRA from keep_out weights (same meter as pack). Refuse
-    # accumulator drift that could claim 300 while real keep is empty/other.
+    # accumulator drift that could claim 700 while real keep is empty/other.
     used_recomputed = 0
     for _kn in selected:
         _km = module_dict.get(_kn)
@@ -1746,7 +1746,7 @@ def _apply_fp16_budget_cap(
             f"[FP16 budget] FATAL underfill: candidate pool EXTRA="
             f"{pool_extra_bytes / (1024 * 1024):.2f} MiB ≥ ceiling "
             f"{budget_mb:g} MiB but selected used="
-            f"{used / (1024 * 1024):.3f} MiB. 300 MiB FP16 protect "
+            f"{used / (1024 * 1024):.3f} MiB. 700 MiB FP16 protect "
             f"did not land — refuse native-sized INT8 save."
         )
 
@@ -2035,7 +2035,7 @@ def _remap_profile_to_diffusers(model_profile: dict, comfyui_to_diffusers_map: d
     map keys as ``{checkpoint_prefix}{module}.weight``, while analyze profiles
     often use ``model.diffusion_model.{module}.weight``. Prefix-exact-only
     remap yields 0 hits → empty analyze character / starved VETO → underfill
-    of the 300 MiB FP16 protect (output size ≈ native INT8).
+    of the 700 MiB FP16 protect (output size ≈ native INT8).
     """
     if not model_profile:
         return model_profile
@@ -2135,7 +2135,7 @@ def derive_hswq_strategy_int8(model_profile, veto_tunables: SdxlVetoTunables | N
             )
 
     if veto_tunables is None:
-        # Owner hard ceiling 300 MiB  -  auto knobs fill inside this frame.
+        # Owner hard ceiling 700 MiB  -  auto knobs fill inside this frame.
         veto_tunables = resolve_veto_tunables(
             model_profile or {},
             fp16_budget_mb=FP16_BUDGET_MB_HARD,
@@ -2358,7 +2358,7 @@ def main():
         description=(
             "Krea2 DiT INT8 Quantization - HSWQ V1.0 "
             "(native_convert_int8_krea2 pack/load/calib; Card1 opt-in; "
-            "Card2 OFF; FP16 300 MiB protection unchanged)"
+            "Card2 OFF; FP16 700 MiB protection unchanged)"
         )
     )
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
@@ -2394,7 +2394,7 @@ def main():
         "--fp16_budget_mb",
         type=float,
         default=FP16_BUDGET_MB_HARD,
-        help="Owner hard ceiling: must be exactly 300 MiB FP16 overhead vs "
+        help="Owner hard ceiling: must be exactly 700 MiB FP16 overhead vs "
              "all-INT8. Per-model auto analysis / auto-optimal settings fill "
              "this frame only  -  never redefine or exceed it. "
              "Extra cost = 1 byte per weight element.",
@@ -2489,12 +2489,12 @@ def main():
         print(
             f"[Krea2 INT8] FULL ConvRot ON (groupsize={args.groupsize}) — "
             "pack path = native_convert_int8_krea2.py; "
-            "applied AFTER FP16 300 MiB keep decision"
+            "applied AFTER FP16 700 MiB keep decision"
         )
     else:
         print("[Krea2 INT8] ConvRot OFF (--no-convrot); plain pack still uses native pack_*")
 
-    # 300 MiB hard ceiling: auto analysis / auto-optimal settings only inside.
+    # 700 MiB hard ceiling: auto analysis / auto-optimal settings only inside.
     try:
         args.fp16_budget_mb = _require_fp16_budget_mb_hard(args.fp16_budget_mb)
     except ValueError as e:
@@ -2502,7 +2502,7 @@ def main():
         sys.exit(1)
 
     # r0 fixed. DualMonitor sensitivity is used ONLY in
-    # _apply_fp16_budget_cap (extreme fill inside 300 MiB)  -  never to
+    # _apply_fp16_budget_cap (extreme fill inside 700 MiB)  -  never to
     # invent or gate keep_ratio.
     _bc_top_override = args.bias_correction_top_ratio
     if abs(float(args.keep_ratio)) > 1e-12:
@@ -2562,7 +2562,7 @@ def main():
     device = "cuda"
     print("=" * 60)
     print(
-        "HSWQ Krea2 INT8 — FP16 300 MiB protect first, "
+        "HSWQ Krea2 INT8 — FP16 700 MiB protect first, "
         "then FULL ConvRot on remainder "
         f"(Card1={'ON' if args.bias_correction else 'OFF'}, Card2 OFF)"
     )
@@ -2830,7 +2830,7 @@ def main():
     print(
         f"  [Dynamic Alpha/Beta INT8 after DualMonitor] "
         f"alpha={alpha!r}, beta={beta!r} "
-        f"(analyze k∪o∪m → Full-SVD×RMS mix into ranking; Imp×Sens×V4 MSE fill 300 MiB)"
+        f"(analyze k∪o∪m → Full-SVD×RMS mix into ranking; Imp×Sens×V4 MSE fill 700 MiB)"
     )
     print(
         "  [HSWQ SVD SETTINGS LOCK] "
@@ -2975,7 +2975,7 @@ def main():
             f"refusing to drop  -  fix load_krea2_from_safetensors / identity map"
         )
     print("  [Map integrity] orphan_keep=0 (all FP16 keep names are Comfy-mapped).")
-    # Underfill FATAL: empty keep / ~0 MiB used means 300 MiB protect did not
+    # Underfill FATAL: empty keep / ~0 MiB used means 700 MiB protect did not
     # land (output ≈ native INT8). Over-budget is already refused below / in
     # _apply_fp16_budget_cap; underfill was previously silent.
     _used_mb = float(budget_stats.get("used_mb", 0.0) or 0.0)
@@ -2984,7 +2984,7 @@ def main():
             f"[FP16 budget] FATAL underfill after budget cap: "
             f"keep={len(keep_layers)} used={_used_mb:.3f} MiB "
             f"(ceiling={FP16_BUDGET_MB_HARD:g} MiB). "
-            f"300 MiB FP16 protect did not land — refuse native-sized INT8 save. "
+            f"700 MiB FP16 protect did not land — refuse native-sized INT8 save. "
             f"Check profile remap, DualMonitor sensitivity, and V4 pool."
         )
     print(
@@ -3062,7 +3062,7 @@ def main():
 
     print("\n[HSWQ V3.1 SDXL INT8] Starting Optimization...")
     print(
-        "  Order: (1) FP16 keep already decided (300 MiB) "
+        "  Order: (1) FP16 keep already decided (700 MiB) "
         "→ (2) remaining Linear/Conv2d get FULL ConvRot INT8"
     )
     weight_amax_dict = {}
@@ -3400,7 +3400,7 @@ def main():
             f"[FP16 budget] post-pack FATAL underfill: "
             f"FP16 keep {_pack_fp16_mb:.3f} MiB ({_pack_fp16_n} modules) "
             f"under owner ceiling {float(args.fp16_budget_mb):g} MiB. "
-            f"300 MiB protect did not land in packed weights "
+            f"700 MiB protect did not land in packed weights "
             f"(kept_count={kept_count}). Refusing to save."
         )
     if _over_b > _tol_b:
@@ -3421,7 +3421,7 @@ def main():
             f"(allowed ≤ {FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB); saving."
         )
     # Selection used_bytes and post-pack EXTRA must agree (NVFP4 Krea2
-    # discipline). Claimed 300 MiB / disk not 300 MiB is refused here.
+    # discipline). Claimed 700 MiB / disk not 700 MiB is refused here.
     if isinstance(budget_stats, dict) and "used_bytes" in budget_stats:
         _sel_used = int(budget_stats["used_bytes"])
         _pack_used = int(_pack_fp16_extra)
