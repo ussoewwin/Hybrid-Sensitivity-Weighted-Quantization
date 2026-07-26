@@ -1943,24 +1943,85 @@ def hook_fn(module, input, output, name):
     dual_monitors[name].update(input[0], output, module)
 
 
+def _strip_krea2_comfy_weight_prefix(key: str) -> str:
+    """Strip Comfy UNet prefixes so profile keys match load_krea2 map keys."""
+    for pfx in _SDXL_PROFILE_PREFIXES:
+        if pfx and key.startswith(pfx):
+            return key[len(pfx) :]
+    return key
+
+
 def _remap_profile_to_diffusers(model_profile: dict, comfyui_to_diffusers_map: dict) -> dict:
-    """Map analyze JSON keys (ComfyUI .weight) to Diffusers module names for named_modules()."""
-    if not model_profile or not comfyui_to_diffusers_map:
+    """Map analyze JSON keys (ComfyUI .weight) to Diffusers module names for named_modules().
+
+    Exact map lookup first. On miss, match by bare suffix after stripping
+    model.diffusion_model. / diffusion_model. / model. — load_krea2 builds
+    map keys as ``{checkpoint_prefix}{module}.weight``, while analyze profiles
+    often use ``model.diffusion_model.{module}.weight``. Prefix-exact-only
+    remap yields 0 hits → empty analyze character / starved VETO → underfill
+    of the 300 MiB FP16 protect (output size ≈ native INT8).
+    """
+    if not model_profile:
         return model_profile
-    remapped = {}
-    unmapped = 0
+    if not comfyui_to_diffusers_map:
+        raise RuntimeError(
+            "[Profile Remap] FATAL: comfyui_to_diffusers_map is empty; "
+            "cannot remap analyze profile to Diffusers modules."
+        )
+
+    # Exact + bare + alternate-prefix indexes against the identity map.
+    lookup: dict[str, str] = {}
+    for ck, mk in comfyui_to_diffusers_map.items():
+        if not isinstance(ck, str) or not isinstance(mk, str):
+            continue
+        lookup[ck] = mk
+        bare = _strip_krea2_comfy_weight_prefix(ck)
+        lookup.setdefault(bare, mk)
+        for pfx in _SDXL_PROFILE_PREFIXES:
+            if pfx:
+                lookup.setdefault(f"{pfx}{bare}", mk)
+
+    remapped: dict = {}
+    unmapped_keys: list[str] = []
+    n_in = 0
+    n_alt = 0
     for comfy_key, val in model_profile.items():
         if not isinstance(val, dict):
             continue
-        diff_key = comfyui_to_diffusers_map.get(comfy_key)
+        n_in += 1
+        diff_key = lookup.get(comfy_key)
+        used_alt = False
         if diff_key is None:
-            unmapped += 1
+            bare = _strip_krea2_comfy_weight_prefix(comfy_key)
+            diff_key = lookup.get(bare)
+            used_alt = diff_key is not None
+        if diff_key is None:
+            unmapped_keys.append(comfy_key)
             continue
+        if used_alt:
+            n_alt += 1
         mod_name = diff_key[:-7] if diff_key.endswith(".weight") else diff_key
         remapped[mod_name] = val
-    if unmapped:
-        print(f"  [Profile Remap] {unmapped} Comfy keys had no diffusers mapping (skipped)")
-    print(f"  [Profile Remap] {len(remapped)} diffusers module profile entries")
+
+    if unmapped_keys:
+        print(
+            f"  [Profile Remap] {len(unmapped_keys)} Comfy keys had no "
+            f"diffusers mapping (skipped)"
+        )
+        for k in unmapped_keys[:8]:
+            print(f"    unmapped: {k}")
+    print(
+        f"  [Profile Remap] {len(remapped)}/{n_in} diffusers module profile "
+        f"entries (prefix-tolerant hits={n_alt}, map={len(comfyui_to_diffusers_map)})"
+    )
+    if n_in > 0 and len(remapped) == 0:
+        raise RuntimeError(
+            f"[Profile Remap] FATAL: {n_in} analyze profile layer(s) but "
+            f"0 remapped to Diffusers modules (likely Comfy prefix mismatch "
+            f"vs load_krea2 map). Map entries={len(comfyui_to_diffusers_map)}. "
+            f"Refusing empty remapped profile — would starve VETO / analyze "
+            f"character and underfill the {FP16_BUDGET_MB_HARD:g} MiB FP16 protect."
+        )
     return remapped
 
 
@@ -2836,6 +2897,18 @@ def main():
             f"refusing to drop  -  fix load_krea2_from_safetensors / identity map"
         )
     print("  [Map integrity] orphan_keep=0 (all FP16 keep names are Comfy-mapped).")
+    # Underfill FATAL: empty keep / ~0 MiB used means 300 MiB protect did not
+    # land (output ≈ native INT8). Over-budget is already refused below / in
+    # _apply_fp16_budget_cap; underfill was previously silent.
+    _used_mb = float(budget_stats.get("used_mb", 0.0) or 0.0)
+    if (not keep_layers) or _used_mb < 1.0:
+        raise RuntimeError(
+            f"[FP16 budget] FATAL underfill after budget cap: "
+            f"keep={len(keep_layers)} used={_used_mb:.3f} MiB "
+            f"(ceiling={FP16_BUDGET_MB_HARD:g} MiB). "
+            f"300 MiB FP16 protect did not land — refuse native-sized INT8 save. "
+            f"Check profile remap, DualMonitor sensitivity, and V4 pool."
+        )
     print(
         f"\n  [FP16 budget] ranking={budget_stats.get('ranking')} "
         f"ceiling={budget_stats['budget_mb']:.1f} MiB "
@@ -3241,6 +3314,14 @@ def main():
         f"ceiling={float(args.fp16_budget_mb):g} MiB "
         f"(assert tol={FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB)"
     )
+    if _pack_fp16_n == 0 or _pack_fp16_mb < 1.0:
+        raise RuntimeError(
+            f"[FP16 budget] post-pack FATAL underfill: "
+            f"FP16 keep {_pack_fp16_mb:.3f} MiB ({_pack_fp16_n} modules) "
+            f"under owner ceiling {float(args.fp16_budget_mb):g} MiB. "
+            f"300 MiB protect did not land in packed weights "
+            f"(kept_count={kept_count}). Refusing to save."
+        )
     if _over_b > _tol_b:
         raise RuntimeError(
             f"[FP16 budget] post-pack assert FAILED: "
