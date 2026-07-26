@@ -314,6 +314,22 @@ _SDXL_ATTN_PROJ_SUFFIXES = (".attn.wq", ".attn.wk", ".attn.wv")
 _SDXL_ATTN_TOOUT_SUFFIX = ".attn.wo"
 _SDXL_PROFILE_PREFIXES = ("model.diffusion_model.", "diffusion_model.", "model.", "")
 
+
+def _is_boundary_endpoint_linear(name: str) -> bool:
+    """Krea2 boundary endpoint Linear (input/output projection).
+
+    Owner rule (2026-07-26): these layers stay RAW input-dtype — never NVFP4,
+    never INT8 shelter, never FP16 keep. The validated 1500-era artifact
+    stored them F32 RAW; the 2400-era shelter ladder INT8-convrot'd them
+    (.first at gs=64) and SSIM collapsed 0.9031 → 0.83.
+    Matches both bare ("first") and prefixed ("model.diffusion_model.first")
+    module names.
+    """
+    for sfx in _SDXL_KP_BOUNDARY_SUFFIXES:
+        if name.endswith(sfx) or name == sfx.lstrip("."):
+            return True
+    return False
+
 # DualMonitor Sensitivity → candidates; analyze Static Profile → FP16.
 # V4 calib MSE embeds Full-SVD×RMS (+ DualMonitor Importance when present).
 # _apply_fp16_budget_cap: (1) Static Profile extremes → FP16 (EXTRA vs packed);
@@ -1805,6 +1821,7 @@ def _apply_fp16_budget_cap(
         n for n in (static_fp16_layers or set())
         if n in module_dict
         and getattr(module_dict[n], "weight", None) is not None
+        and not _is_boundary_endpoint_linear(n)
     }
     extra_by_name: dict[str, int] = {}
     int8_cost_by_name: dict[str, int] = {}
@@ -1817,6 +1834,10 @@ def _apply_fp16_budget_cap(
         extra_by_name[name] = int(extra)
         ndim_by_name[name] = w_ndim
         if name in forced_static:
+            continue
+        if _is_boundary_endpoint_linear(name):
+            # Boundary endpoints stay RAW F32 (owner 2026-07-26) — the INT8
+            # shelter ladder must never claim .first / .last.linear.
             continue
         if w_ndim != 2:
             continue
@@ -3866,6 +3887,15 @@ def convert_to_nvfp4_convrot(
                 skipped_count += 1
                 continue
 
+            # Boundary endpoints (owner 2026-07-26): .first / .last.linear
+            # stay RAW input-dtype — never NVFP4, never INT8 shelter.
+            if _is_boundary_endpoint_linear(
+                module_name if module_name is not None else key[:-7]
+            ):
+                new_state_dict[key] = tensor
+                skipped_count += 1
+                continue
+
             if tensor.ndim not in (2, 4):
                 new_state_dict[key] = tensor
                 skipped_count += 1
@@ -4131,6 +4161,10 @@ def convert_to_nvfp4_convrot(
                 _pack_fp16_skipped_non_lc += 1
                 continue
             if _mod not in keep_layers:
+                if _is_boundary_endpoint_linear(_mod):
+                    # Boundary endpoints are intentionally RAW F32 (owner
+                    # 2026-07-26) — not a protect leak.
+                    continue
                 _pack_fp16_leak.append(_mod)
                 continue
             if _cv.dtype != torch.float16:
