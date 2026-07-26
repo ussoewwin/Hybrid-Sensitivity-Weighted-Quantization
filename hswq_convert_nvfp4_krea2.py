@@ -64,8 +64,15 @@ HSWQ DualMonitor + FP16 protect (--calib_file required, r0 only):
       (A) Analyze Static Profile extremes → always FP16 (EXTRA).
           Layer count and MiB emerge from THIS-model Static Profile —
           never hardcoded recipes.
-      (B) Remainder (3000 − A) → ConvRot INT8 shelter only
-          (EXTRA +0.5 B/elem; score/byte). No competing FP16 ladder.
+      (B) Remainder (3000 − A) → marginal-rescue ladder (score/byte):
+          INT8 shelter step (EXTRA +0.5 B/elem; gain = priority×r1,
+          r1=(d0−d1)/d0) AND FP16-upgrade step for already-sheltered
+          layers (EXTRA +1.0 B/elem over INT8; gain = priority×(1−r1)).
+          Owner 2026-07-26 (2400≈1500 forensic): broad INT8 past the
+          ~1500 MiB knee bought +897 MiB for +0.0056 SSIM; rescue_frac
+          saturates ~0.90, so partial-rescue scoring alone can never
+          price FULL rescue of the backbone. Upgrades must outbid the
+          tail's partial rescue before the tail is bought.
       Surfaces for INT8 ranking still use:
       (1) histogram V4 calib → estimated_mse @ absmax (d0/d1)
       (2) DualMonitor sensitivity + Importance
@@ -441,8 +448,11 @@ def _is_text_fp16_exempt(name: str) -> bool:
 # _apply_fp16_budget_cap: (1) Static Profile extremes → FP16 (EXTRA vs packed)
 # except boundary endpoints (RAW) and text-path tproj.1/tmlp.2 (owner
 # 2026-07-26 exemption — budget flows to the shelter ladder instead);
-# (2) remainder of 3000 MiB → ConvRot INT8 shelter only (EXTRA +0.5 B/el;
-# no competing FP16 ladder). FP16 layer count / MiB = auto Static result
+# (2) remainder of 3000 MiB → marginal-rescue ladder: INT8 shelter
+# (EXTRA +0.5 B/el; priority×r1) + FP16 upgrades of sheltered layers
+# (EXTRA +1.0 B/el over INT8; priority×(1−r1)), one score/byte order.
+# Owner 2026-07-26: replaces "INT8 only / no FP16 ladder" (2400≈1500).
+# FP16 layer count / MiB = auto Static result
 # (never hardcode). keep_ratio is r0; DualMonitor must not invent that flag.
 # Fixed combinator weights / model-name recipes = blasphemy.
 # Ceiling meter = EXTRA vs packed (same as post-pack). Never absolute 2 B/1 B.
@@ -1645,10 +1655,16 @@ def _apply_fp16_budget_cap(
           Owner exemptions (2026-07-26): boundary endpoints stay RAW, and
           text-path tproj.1 / tmlp.2 skip the FP16 force (their 378 MiB
           EXTRA flows to the shelter ladder instead).
-      (2) Remainder (3000 MiB − (1)) → ConvRot INT8 shelter only.
-          Charge = EXTRA vs packed (+0.5 B/el Linear). Linear 2D steps only;
-          scored priority × measured rescue fraction (d0 NVFP4 / d1 INT8).
-          No competing FP16 ladder for non-static layers.
+      (2) Remainder (3000 MiB − (1)) → marginal-rescue ladder, Linear 2D
+          only. Two priced steps per layer (owner 2026-07-26):
+          INT8 shelter (EXTRA +0.5 B/el; score = priority × r1) and
+          FP16 upgrade of an already-sheltered layer (EXTRA +1.0 B/el
+          over INT8; score = priority × (1 − r1)). One score/byte order
+          over BOTH kinds, same measured d0 (NVFP4) / d1 (INT8) V4
+          surfaces. Replaces "INT8 shelter only / no FP16 ladder": the
+          2400≈1500 forensic showed broad INT8 past the knee buys
+          ~nothing while the top backbone's INT8 residual still caps
+          SSIM — full rescue must be purchasable.
       Ceiling meter is EXTRA only — never absolute 2 B/1 B.
 
     Ranking surfaces for INT8 selection still arrange together:
@@ -1962,8 +1978,10 @@ def _apply_fp16_budget_cap(
             )
 
     # (1) Static Profile extremes → always FP16 (EXTRA vs packed).
-    # (2) Remainder of 3000 MiB → ConvRot INT8 shelter (EXTRA +0.5 B/el),
-    # ranked by priority × rescue fraction. Count/MiB = auto Static only.
+    # (2) Remainder of 3000 MiB → marginal-rescue ladder: INT8 shelter
+    # (EXTRA +0.5 B/el; priority × r1) + FP16 upgrades of sheltered
+    # layers (EXTRA +1.0 B/el over INT8; priority × (1−r1)),
+    # one score/byte order. Count/MiB = auto Static only.
     forced_static = {
         n for n in (static_fp16_layers or set())
         if n in module_dict
@@ -1974,7 +1992,8 @@ def _apply_fp16_budget_cap(
     extra_by_name: dict[str, int] = {}
     int8_cost_by_name: dict[str, int] = {}
     ndim_by_name: dict[str, int] = {}
-    # (score, cost_bytes, tier, name, priority, rescue_frac) — INT8 only
+    # (score, cost_bytes, tier, name, priority, rescue_frac)
+    # tier: "int8" shelter step + "fp16up" upgrade step (owner 2026-07-26)
     steps: list[tuple[float, int, str, str, float, float]] = []
     for priority, v4_mse, severity, dm_sens, extra, name in candidates:
         mod = module_dict[name]
@@ -1999,6 +2018,26 @@ def _apply_fp16_budget_cap(
             r1 = 0.0
         if d1 is not None and r1 > 0.0 and priority > 0.0:
             steps.append((priority * r1, cost_int8, "int8", name, priority, r1))
+            # FP16 upgrade: remove the INT8 residual (1−r1 of d0) for
+            # +1.0 B/elem over INT8. Competes in the SAME score/byte
+            # ladder: a top backbone layer's FULL rescue must outbid the
+            # tail's partial rescue before the tail is bought.
+            # (owner 2026-07-26 — 2400≈1500: +897 MiB of broad INT8 past
+            # the knee ≈ +0.0056 SSIM; the backbone's INT8 residual is
+            # what still caps SSIM.)
+            cost_fp16_up = (
+                _fp16_extra_bytes_vs_packed(mod.weight.data) - cost_int8
+            )
+            steps.append(
+                (
+                    priority * (1.0 - r1),
+                    cost_fp16_up,
+                    "fp16up",
+                    name,
+                    priority,
+                    1.0 - r1,
+                )
+            )
 
     steps.sort(key=lambda t: (-(t[0] / max(t[1], 1)), t[3]))
 
@@ -2006,7 +2045,9 @@ def _apply_fp16_budget_cap(
     used = 0
     used_int8 = 0
     used_fp16 = 0
+    used_fp16_upgrades = 0
     shelter_detail: list[tuple[str, int, float, float, float]] = []
+    upgrade_detail: list[tuple[str, int, float, float, float]] = []
     kept_detail: list[tuple[str, int, float, float, float, float]] = []
 
     # (1) Force Analyze Static Profile → FP16 (EXTRA vs packed).
@@ -2030,9 +2071,9 @@ def _apply_fp16_budget_cap(
     print(
         f"  [Static→FP16] forced={len(forced_static)} "
         f"fp16_protect={used_fp16 / (1024 * 1024):.3f} MiB "
-        f"(EXTRA vs packed) | INT8 remainder="
+        f"(EXTRA vs packed) | ladder remainder="
         f"{int8_budget_bytes / (1024 * 1024):.3f} MiB "
-        f"of {budget_mb:g} MiB"
+        f"of {budget_mb:g} MiB (INT8 shelter + FP16 upgrades)"
     )
     for _n, _ch in forced_detail[:40]:
         print(
@@ -2040,14 +2081,24 @@ def _apply_fp16_budget_cap(
             f"extra={_ch / (1024 * 1024):8.3f}MiB"
         )
 
-    # Diagnostic trace (owner 2026-07-21): INT8 remainder ladder only.
+    # Marginal-rescue ladder (owner 2026-07-26): INT8 shelter steps and
+    # FP16-upgrade steps share ONE score/byte order. An upgrade is valid
+    # only after its own layer took INT8 — guaranteed by construction:
+    # for r1 > 1/3, a layer's INT8 step outranks its own upgrade
+    # (r1/0.5 > (1−r1)/1.0), so the INT8 step is always processed first.
     ladder_trace: list[tuple[int, float, str, str, int, str, int]] = []
     for _rank, (score, cost, tier, name, priority, rescue_frac) in enumerate(
         steps, 1
     ):
-        if score <= 0.0 or tier != "int8":
+        if score <= 0.0:
             continue
-        if name in tier_state:
+        if tier == "int8":
+            if name in tier_state:
+                continue
+        elif tier == "fp16up":
+            if tier_state.get(name) != "int8":
+                continue
+        else:
             continue
         charge = cost
         if used + charge > budget_bytes:
@@ -2061,9 +2112,15 @@ def _apply_fp16_budget_cap(
              budget_bytes - used)
         )
         used += charge
-        tier_state[name] = "int8"
-        used_int8 += charge
-        shelter_detail.append((name, charge, score, priority, rescue_frac))
+        if tier == "int8":
+            tier_state[name] = "int8"
+            used_int8 += charge
+            shelter_detail.append((name, charge, score, priority, rescue_frac))
+        else:
+            tier_state[name] = "fp16"
+            used_fp16 += charge
+            used_fp16_upgrades += charge
+            upgrade_detail.append((name, charge, score, priority, rescue_frac))
 
     keep_out = {n for n, s in tier_state.items() if s == "fp16"}
     shelter_out = {n for n, s in tier_state.items() if s == "int8"}
@@ -2107,9 +2164,13 @@ def _apply_fp16_budget_cap(
         )
 
     print(
-        f"  [Protect budget] INT8 steps={len(steps)} → "
+        f"  [Protect budget] ladder steps={len(steps)} "
+        f"(int8={sum(1 for s in steps if s[2] == 'int8')} "
+        f"fp16up={sum(1 for s in steps if s[2] == 'fp16up')}) → "
         f"FP16 keep={len(keep_out)} "
-        f"({used_fp16 / (1024 * 1024):.2f} MiB static protect) + "
+        f"({used_fp16 / (1024 * 1024):.2f} MiB: static "
+        f"{(used_fp16 - used_fp16_upgrades) / (1024 * 1024):.2f} + "
+        f"upgrades {used_fp16_upgrades / (1024 * 1024):.2f}) + "
         f"INT8 shelter={len(shelter_out)} "
         f"({used_int8 / (1024 * 1024):.2f} MiB) = "
         f"{used / (1024 * 1024):.2f}/{budget_mb:g} MiB | veto→fp16="
@@ -2127,6 +2188,16 @@ def _apply_fp16_budget_cap(
         print(
             f"    {_n}  charge={_ch / (1024 * 1024):8.3f}MiB "
             f"step_score={_sc:.6e} priority={_prio:.6e} rescue_frac={_r1:.4f}"
+        )
+    print(
+        f"  [Upgrade-detail] accepted FP16-upgrade steps "
+        f"(ladder/score-per-byte order, top 40 of {len(upgrade_detail)}):"
+    )
+    for _n, _ch, _sc, _prio, _r1 in upgrade_detail[:40]:
+        print(
+            f"    {_n}  charge={_ch / (1024 * 1024):8.3f}MiB "
+            f"step_score={_sc:.6e} priority={_prio:.6e} "
+            f"residual_rescue={_r1:.4f}"
         )
     _dropped_sorted = sorted(dropped, key=lambda t: -t[2])
     print(
@@ -2166,8 +2237,8 @@ def _apply_fp16_budget_cap(
         "budget_bytes": budget_bytes,
         "used_bytes": used,
         "used_mb": used / (1024 * 1024),
-        "forced_bytes": int(used_fp16),
-        "forced_mb": used_fp16 / (1024 * 1024),
+        "forced_bytes": int(used_fp16 - used_fp16_upgrades),
+        "forced_mb": (used_fp16 - used_fp16_upgrades) / (1024 * 1024),
         "optional_bytes": int(used_int8),
         "optional_mb": used_int8 / (1024 * 1024),
         "int8_remainder_bytes": int(int8_budget_bytes),
@@ -2183,6 +2254,9 @@ def _apply_fp16_budget_cap(
         "kept": len(keep_out),
         "int8_sheltered": len(shelter_out),
         "int8_shelter_bytes": int(used_int8),
+        "fp16_upgraded": len(upgrade_detail),
+        "fp16_upgrade_bytes": int(used_fp16_upgrades),
+        "fp16_upgrade_mb": used_fp16_upgrades / (1024 * 1024),
         "dropped": len(dropped),
         "demoted_veto": len(demoted_veto),
         "veto_in_int8_shelter": len(veto_in_shelter),
@@ -2190,7 +2264,8 @@ def _apply_fp16_budget_cap(
         "skipped_no_v4": len(skipped_no_v4),
         "measured_fresh_v4": measured_fresh,
         "int8_d1_measured": len(int8_mse),
-        "int8_remainder_steps": len(steps),
+        "int8_remainder_steps": sum(1 for s in steps if s[2] == "int8"),
+        "fp16up_ladder_steps": sum(1 for s in steps if s[2] == "fp16up"),
         "priority_form": combinator["form"],
         "priority_weights": {
             "sens": combinator["w_sens"],
@@ -2203,7 +2278,8 @@ def _apply_fp16_budget_cap(
             "mse": combinator.get("align_mse"),
         },
         "ranking": (
-            "static_fp16_then_int8_remainder_score_per_byte_inside_"
+            "static_fp16_then_marginal_rescue_ladder_"
+            "int8_shelter_plus_fp16_upgrade_score_per_byte_inside_"
             f"{float(budget_mb):g}mib"
         ),
         "infinite_branch_profile": {
