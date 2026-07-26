@@ -514,7 +514,7 @@ class SdxlVetoTunables:
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
     fp16_budget_mb: float = 2400.0
-    fp16_budget_bytes: int = 3145728000
+    fp16_budget_bytes: int = 2516582400  # 2400 * 1024 * 1024
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
