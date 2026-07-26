@@ -20,6 +20,7 @@ Krea2 DiT INT8 Quantization - HSWQ V1.0 (ConvRot)
 - Requires --calib_file AND --clip_path (Qwen3-VL-4B / CLIPType.KREA2).
 """
 import argparse
+import atexit
 import math
 import torch
 import torch.nn as nn
@@ -31,9 +32,84 @@ import sys
 import json
 import numpy as np
 import subprocess
+import time
 from dataclasses import dataclass
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+
+
+class _TeeStream:
+    """Mirror every write to console and a session log file (full quantize log)."""
+
+    def __init__(self, primary, secondary):
+        self._primary = primary
+        self._secondary = secondary
+
+    def write(self, data):
+        self._primary.write(data)
+        self._secondary.write(data)
+        # Full quantize log must stream as written (default). No -u / env tricks.
+        self.flush()
+        return len(data)
+
+    def flush(self):
+        self._primary.flush()
+        self._secondary.flush()
+
+    def isatty(self):
+        return bool(getattr(self._primary, "isatty", lambda: False)())
+
+    def fileno(self):
+        return self._primary.fileno()
+
+    @property
+    def encoding(self):
+        return getattr(self._primary, "encoding", "utf-8")
+
+    def __getattr__(self, name):
+        return getattr(self._primary, name)
+
+
+def _install_int8_quantize_full_session_log() -> str:
+    """Tee stdout+stderr into log/hswq_int8_quantize_full_<stamp>.txt (full log).
+
+    Override path with HSWQ_INT8_QUANTIZE_FULL_LOG_PATH.
+
+    Owner: TRACE-only / SVD-only dumps hid Conversion done / Saving / Traceback
+    from one place. This restores full-run visibility (same spirit as
+    hswq_convert_nvfp4_krea2._install_nvfp4_convert_full_session_log).
+    """
+    env_p = (os.environ.get("HSWQ_INT8_QUANTIZE_FULL_LOG_PATH") or "").strip()
+    if env_p:
+        path = os.path.abspath(env_p)
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+    else:
+        log_dir = os.path.join(current_dir, "log")
+        os.makedirs(log_dir, exist_ok=True)
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(log_dir, f"hswq_int8_quantize_full_{stamp}.txt")
+    fh = open(path, "w", encoding="utf-8", newline="\n", buffering=1)
+    tee_out = _TeeStream(sys.__stdout__, fh)
+    tee_err = _TeeStream(sys.__stderr__, fh)
+    sys.stdout = tee_out
+    sys.stderr = tee_err
+
+    def _close_log() -> None:
+        try:
+            if sys.stdout is tee_out:
+                sys.stdout = sys.__stdout__
+            if sys.stderr is tee_err:
+                sys.stderr = sys.__stderr__
+            fh.flush()
+            fh.close()
+        except Exception:
+            pass
+
+    atexit.register(_close_log)
+    print(f"[HSWQ INT8 QUANTIZE FULL LOG FILE] {path}")
+    return path
 
 
 def _install_torchaudio_stub() -> None:
@@ -2133,6 +2209,10 @@ def run_post_quantize_int8_bench(
 
 
 def main():
+    # Full session tee first — owner must see Conversion done / Saving /
+    # Traceback in one file (not TRACE-only dumps that hid the rest).
+    _install_int8_quantize_full_session_log()
+
     parser = argparse.ArgumentParser(
         description=(
             "Krea2 DiT INT8 Quantization - HSWQ V1.0 "
@@ -2384,10 +2464,40 @@ def main():
             print(f"    Script: {analyze_script}")
             print(f"    Input:  {input_abs}")
             print(f"    Result: {profile_path}")
-            subprocess.run(
-                [sys.executable, analyze_script, "--input", input_abs, "--output", profile_path],
-                check=True,
+            # Capture + re-print so Tee session log includes analyze stdout/stderr
+            # (child inherit of console FD bypasses Python sys.stdout Tee).
+            _an = subprocess.run(
+                [
+                    sys.executable,
+                    analyze_script,
+                    "--input",
+                    input_abs,
+                    "--output",
+                    profile_path,
+                ],
+                check=False,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
             )
+            if _an.stdout:
+                sys.stdout.write(_an.stdout)
+                if not _an.stdout.endswith("\n"):
+                    sys.stdout.write("\n")
+                sys.stdout.flush()
+            if _an.stderr:
+                sys.stderr.write(_an.stderr)
+                if not _an.stderr.endswith("\n"):
+                    sys.stderr.write("\n")
+                sys.stderr.flush()
+            if _an.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    _an.returncode,
+                    _an.args,
+                    output=_an.stdout,
+                    stderr=_an.stderr,
+                )
         else:
             print(f"[*] Warning: Analysis script NOT found. (Expected: {analyze_script})")
             print("    Will proceed with internal backup strategy (on-the-fly calc).")
