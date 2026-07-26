@@ -330,9 +330,34 @@ def _is_boundary_endpoint_linear(name: str) -> bool:
             return True
     return False
 
+
+# Owner order (2026-07-26): text-path tproj.1 / tmlp.2 are EXEMPT from the
+# forced Static→FP16 set. They consumed 324+54=378 MiB EXTRA (~16% of the
+# 2400 budget) on a path that runs once per prompt, while the validated
+# 1500-era artifact scored SSIM 0.9031 with tproj.1 as plain NVFP4. The freed
+# budget flows to the ConvRot INT8 shelter ladder instead.
+_TEXT_FP16_EXEMPT_SUFFIXES = (
+    ".tproj.1",
+    ".tmlp.2",
+)
+
+
+def _is_text_fp16_exempt(name: str) -> bool:
+    """Text-path layers exempt from forced Static→FP16 (owner 2026-07-26).
+
+    Only removes the FP16 forcing: the layers still compete in the INT8
+    shelter ladder normally (shelter if ranked, else plain NVFP4).
+    """
+    for sfx in _TEXT_FP16_EXEMPT_SUFFIXES:
+        if name.endswith(sfx) or name == sfx.lstrip("."):
+            return True
+    return False
+
 # DualMonitor Sensitivity → candidates; analyze Static Profile → FP16.
 # V4 calib MSE embeds Full-SVD×RMS (+ DualMonitor Importance when present).
-# _apply_fp16_budget_cap: (1) Static Profile extremes → FP16 (EXTRA vs packed);
+# _apply_fp16_budget_cap: (1) Static Profile extremes → FP16 (EXTRA vs packed)
+# except boundary endpoints (RAW) and text-path tproj.1/tmlp.2 (owner
+# 2026-07-26 exemption — budget flows to the shelter ladder instead);
 # (2) remainder of 2400 MiB → ConvRot INT8 shelter only (EXTRA +0.5 B/el;
 # no competing FP16 ladder). FP16 layer count / MiB = auto Static result
 # (never hardcode). keep_ratio is r0; DualMonitor must not invent that flag.
@@ -1512,6 +1537,9 @@ def _apply_fp16_budget_cap(
           → always FP16. Charge = EXTRA vs packed (+1.5 B/el Linear,
           +1 B/el Conv). How many layers / MiB = THIS-model Static output —
           never a hardcoded recipe (hardcoding count/MiB = HSWQ blasphemy).
+          Owner exemptions (2026-07-26): boundary endpoints stay RAW, and
+          text-path tproj.1 / tmlp.2 skip the FP16 force (their 378 MiB
+          EXTRA flows to the shelter ladder instead).
       (2) Remainder (2400 MiB − (1)) → ConvRot INT8 shelter only.
           Charge = EXTRA vs packed (+0.5 B/el Linear). Linear 2D steps only;
           scored priority × measured rescue fraction (d0 NVFP4 / d1 INT8).
@@ -1822,6 +1850,7 @@ def _apply_fp16_budget_cap(
         if n in module_dict
         and getattr(module_dict[n], "weight", None) is not None
         and not _is_boundary_endpoint_linear(n)
+        and not _is_text_fp16_exempt(n)
     }
     extra_by_name: dict[str, int] = {}
     int8_cost_by_name: dict[str, int] = {}
