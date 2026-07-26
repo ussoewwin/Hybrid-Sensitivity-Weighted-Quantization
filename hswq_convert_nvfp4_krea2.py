@@ -1,15 +1,15 @@
 """Krea2 (SingleStreamDiT) FULL ConvRot + NVFP4 converter for ComfyUI Load Diffusion Model.
 
-ConvRot scope (owner 2026-07-21): NVFP4 Linear packs UNROTATED.
-  - Linear 2D: plain NVFP4 pack (NO offline rotate)
-      comfy_quant: {"format":"nvfp4"}
-  - Conv2d, in_channels divisible by power-of-4 group:
-      offline Hadamard → INT8 per-channel + stamp
+ConvRot scope:
+  - NVFP4 Linear (--nvfp4-convrot / --no-nvfp4-convrot, default OFF):
+      OFF: plain NVFP4 pack, no offline rotate
+          comfy_quant: {"format":"nvfp4"}
+      ON:  offline Hadamard when group OK + convrot stamp
+          comfy_quant: {"format":"nvfp4","convrot":true,"convrot_groupsize":G}
+  - Conv2d / INT8-shelter Linear (--convrot / --no-convrot, default ON):
+      offline Hadamard → INT8 per-channel + stamp when group OK
       (NVFP4 layout is 2D-only; Conv2d uses int8_tensorwise + convrot)
       comfy_quant: {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":G}
-  - INT8-shelter Linear (Static→FP16 then INT8 remainder), in_features
-      divisible by group:
-      offline Hadamard → INT8 per-channel + convrot stamp
   - Conv2d / shelter Linear without group: plain INT8 {"format":"int8_tensorwise"}
 
 On-disk NVFP4 Linear (TensorCoreNVFP4Layout / QUANT_ALGOS["nvfp4"]):
@@ -19,11 +19,11 @@ On-disk NVFP4 Linear (TensorCoreNVFP4Layout / QUANT_ALGOS["nvfp4"]):
   .input_scale     f32 scalar           (act: amax / (F8_E4M3_MAX * F4_E2M1_MAX))
   .comfy_quant     uint8 JSON
 
-input_scale is written from PTQ calib (--calib_file REQUIRED). NVFP4 Linear
-packs unrotated, so amax is measured on unrotated activations (same order as
-inference: quantize without rotate). Convert refuses to save without
---calib_file: missing input_scale + skipped HSWQ FP16 protect would still
-have written a ckpt and destroyed quality.
+input_scale is written from PTQ calib (--calib_file REQUIRED). When
+--nvfp4-convrot is ON, amax is measured on Hadamard-rotated activations
+(same order as inference). When OFF, amax is on unrotated activations.
+Convert refuses to save without --calib_file: missing input_scale + skipped
+HSWQ FP16 protect would still have written a ckpt and destroyed quality.
 
 Output path discipline (owner 2026-07-26 — early safetensors):
   - Quarantine any pre-existing --output at convert start so a stale /
@@ -32,11 +32,12 @@ Output path discipline (owner 2026-07-26 — early safetensors):
     measurable Linear/Conv has a V4/Full-SVD MSE cache entry.
   - Write only via *.partial then os.replace onto --output after pack asserts.
 
-Online act rotate at load is required for ConvRot layers (Conv2d + INT8-shelter
-Linear). The loader is built separately; this converter does FULL offline
-weight rotate + stamps on ConvRot-eligible layers only (never NVFP4 Linear).
+Online act rotate at load is required for ConvRot layers (Conv2d +
+INT8-shelter Linear, and NVFP4 Linear when --nvfp4-convrot). The loader is
+built separately; this converter does FULL offline weight rotate + stamps.
 
-Use --no-convrot for plain packs only (no offline rotate / no convrot stamp).
+Use --no-convrot for plain INT8/Conv2d packs. Use --nvfp4-convrot to enable
+NVFP4 Linear ConvRot (default OFF).
 
 Optional Card 1 (--bias_correction): DualMonitor act means; bias += -(W_q - W) @ mu_x
   on quantized Linear/Conv. Shares the same --calib_file pass as input_scale.
@@ -3055,6 +3056,21 @@ def _nvfp4_input_scale_from_amax(amax: float) -> torch.Tensor:
     return torch.tensor(max(float(amax), 1e-12) / denom, dtype=torch.float32)
 
 
+def _rotate_act_last_dim(
+    x: torch.Tensor, h_matrix: torch.Tensor, group_size: int
+) -> torch.Tensor:
+    """Hadamard rotate last dim in groups (matches inference rotate_last_dim)."""
+    *lead, last = x.shape
+    if last % group_size != 0:
+        raise ValueError(
+            f"last dim {last} not divisible by group_size={group_size}"
+        )
+    y = x.reshape(*lead, last // group_size, group_size).to(dtype=torch.float32)
+    h = h_matrix.to(device=y.device, dtype=torch.float32)
+    y = torch.matmul(y, h)
+    return y.reshape(*lead, last)
+
+
 def _load_native_convert_int8():
     """Load sibling native_convert_int8.py for Hadamard / rotate_weight."""
     path = os.path.join(
@@ -3153,6 +3169,7 @@ def _compute_weight_amax_dict(
     device: str,
     alpha: float,
     enable_convrot: bool,
+    enable_nvfp4_convrot: bool,
     group_size: int,
     build_hadamard,
     convrot_group_size_for_features,
@@ -3162,10 +3179,10 @@ def _compute_weight_amax_dict(
     """Per-layer pack clip amax = absmax after optional ConvRot (V3.0 parity).
 
     V3.0 INT8 stores absmax only; V4 pack MSE is for FP16 ranking, not pack
-    scale. Same here: Linear/Conv pack amax = weight absmax. ConvRot scope:
-    NVFP4 Linear packs UNROTATED; rotation applies to Conv2d (INT8) and
-    INT8-shelter Linear only. dual_monitors / alpha unused for amax (kept
-    for call parity).
+    scale. Same here: Linear/Conv pack amax = weight absmax. ConvRot scope
+    matches pack: INT8/Conv2d via enable_convrot; NVFP4 Linear via
+    enable_nvfp4_convrot. dual_monitors / alpha unused for amax (kept for
+    call parity).
     """
     del dual_monitors, alpha  # ranking-only; amax is absmax
     weight_amax_dict: dict[str, float] = {}
@@ -3187,24 +3204,34 @@ def _compute_weight_amax_dict(
         in_f = int(w.shape[1])
         used_gs = None
         if (
-            enable_convrot
+            (enable_convrot or enable_nvfp4_convrot)
             and convrot_group_size_for_features is not None
             and build_hadamard is not None
         ):
             used_gs = convrot_group_size_for_features(in_f, group_size)
-        # NVFP4 Linear packs unrotated; rotate Conv2d (INT8) and
-        # INT8-shelter Linear only (matches the pack path).
+        # Match pack path: INT8 shelter / Conv2d use enable_convrot;
+        # NVFP4 Linear (non-shelter) uses enable_nvfp4_convrot.
         do_rotate = (
-            enable_convrot
-            and used_gs is not None
+            used_gs is not None
             and build_hadamard is not None
             and (
                 (
-                    w.ndim == 2
+                    enable_convrot
+                    and w.ndim == 2
                     and rotate_weight is not None
                     and name in int8_shelter_layers
                 )
-                or (w.ndim == 4 and rotate_weight_conv2d is not None)
+                or (
+                    enable_nvfp4_convrot
+                    and w.ndim == 2
+                    and rotate_weight is not None
+                    and name not in int8_shelter_layers
+                )
+                or (
+                    enable_convrot
+                    and w.ndim == 4
+                    and rotate_weight_conv2d is not None
+                )
             )
         )
         if do_rotate:
@@ -3236,6 +3263,7 @@ def run_nvfp4_calib(
     num_inference_steps: int,
     device: str,
     enable_convrot: bool = True,
+    enable_nvfp4_convrot: bool = False,
     group_size: int = _DEFAULT_GROUPSIZE,
     keep_ratio: float = 0.0,
     profile_arg: str | None = None,
@@ -3267,7 +3295,7 @@ def run_nvfp4_calib(
     convrot_group_size_for_features = None
     rotate_weight = None
     rotate_weight_conv2d = None
-    if enable_convrot:
+    if enable_convrot or enable_nvfp4_convrot:
         nc = _load_native_convert_int8()
         build_hadamard = nc.build_hadamard
         convrot_group_size_for_features = nc.convrot_group_size_for_features
@@ -3394,15 +3422,22 @@ def run_nvfp4_calib(
         "Preparing calibration (DualMonitor + NVFP4 input_scale amax "
         "+ FP16 budget protect + pack-roundtrip weight amax)..."
     )
-    print(
-        "  [input_scale] NVFP4 Linear: amax on unrotated activations "
-        "(NVFP4 has no ConvRot; ConvRot = Conv2d + INT8-shelter Linear only)"
-    )
+    if enable_nvfp4_convrot:
+        print(
+            "  [input_scale] NVFP4 Linear ConvRot ON: amax after Hadamard "
+            f"rotate_last_dim (preferred groupsize={group_size})"
+        )
+    else:
+        print(
+            "  [input_scale] NVFP4 Linear: amax on unrotated activations "
+            "(--no-nvfp4-convrot / default)"
+        )
 
     dual_monitors.clear()
     act_amax_dict: dict[str, float] = {}
     handles = []
     target_modules = []
+    hadamard_cache: dict[int, torch.Tensor] = {}
 
     def _make_hook(name: str):
         def hook(m, inp, out):
@@ -3412,9 +3447,30 @@ def run_nvfp4_calib(
             x = inp[0]
             if not torch.is_tensor(x) or not torch.is_floating_point(x):
                 return
-            # NVFP4 Linear packs UNROTATED → act amax on unrotated input.
-            # (INT8-shelter Linear keeps ConvRot but has no input_scale.)
-            x_for_amax = x.detach().float()
+            # NVFP4 Linear input_scale: rotate act amax iff --nvfp4-convrot.
+            # INT8-shelter Linear has no input_scale (rotate unused there).
+            x_f = x.detach().float()
+            x_for_amax = x_f
+            if (
+                isinstance(m, torch.nn.Linear)
+                and enable_nvfp4_convrot
+                and convrot_group_size_for_features is not None
+                and build_hadamard is not None
+            ):
+                in_f = int(m.in_features)
+                gs = convrot_group_size_for_features(in_f, group_size)
+                if gs is not None and int(x_f.shape[-1]) == in_f:
+                    h = hadamard_cache.get(int(gs))
+                    if h is None:
+                        h = build_hadamard(
+                            int(gs), device=x_f.device, dtype=torch.float32
+                        )
+                        hadamard_cache[int(gs)] = h
+                    elif h.device != x_f.device:
+                        h = h.to(device=x_f.device)
+                        hadamard_cache[int(gs)] = h
+                    flat = x_f.reshape(-1, in_f)
+                    x_for_amax = _rotate_act_last_dim(flat, h, int(gs))
             amax = float(x_for_amax.abs().amax().clamp_min(1e-12).item())
             prev = act_amax_dict.get(name)
             if prev is None or amax > prev:
@@ -3701,6 +3757,7 @@ def run_nvfp4_calib(
         device=device,
         alpha=float(alpha),
         enable_convrot=bool(enable_convrot),
+        enable_nvfp4_convrot=bool(enable_nvfp4_convrot),
         group_size=int(group_size),
         build_hadamard=build_hadamard,
         convrot_group_size_for_features=convrot_group_size_for_features,
@@ -3795,6 +3852,7 @@ def convert_to_nvfp4_convrot(
     num_calib_samples: int = 32,
     num_inference_steps: int = 25,
     enable_convrot: bool = True,
+    enable_nvfp4_convrot: bool = False,
     group_size: int = _DEFAULT_GROUPSIZE,
     min_in_features: int = 0,
     keep_ratio: float = 0.0,
@@ -3817,6 +3875,7 @@ def convert_to_nvfp4_convrot(
     convrot_group_size_for_features = None
     build_hadamard = None
     plain_nvfp4 = 0
+    convrot_nvfp4 = 0
     convrot_int8_conv2d = 0
     plain_int8_conv2d = 0
     convrot_int8_linear = 0
@@ -3839,21 +3898,21 @@ def convert_to_nvfp4_convrot(
     else:
         fp16_budget_mb = _require_fp16_budget_mb_hard(float(fp16_budget_mb))
 
-    if enable_convrot:
+    if enable_convrot or enable_nvfp4_convrot:
         nc = _load_native_convert_int8()
         rotate_weight = nc.rotate_weight
         rotate_weight_conv2d = nc.rotate_weight_conv2d
         convrot_group_size_for_features = nc.convrot_group_size_for_features
         build_hadamard = nc.build_hadamard
+    if enable_convrot:
         print(
-            f"  [FULL ConvRot] ON | preferred groupsize={group_size}; "
+            f"  [ConvRot INT8/Conv2d] ON | preferred groupsize={group_size}; "
             f"min_in_features={min_in_features}"
         )
         print(
-            "  [FULL ConvRot] NVFP4 Linear → plain (NO offline rotate). "
-            "Conv2d → offline Hadamard + INT8 when group OK; else plain INT8. "
-            "INT8-shelter Linear → offline Hadamard + INT8 when group OK. "
-            "Online act rotate required at load for ConvRot layers (loader later)."
+            "  [ConvRot INT8/Conv2d] Conv2d + INT8-shelter Linear → offline "
+            "Hadamard + INT8 when group OK; else plain INT8. Online act rotate "
+            "required at load for those ConvRot layers (loader later)."
         )
         if bias_correction:
             print(
@@ -3862,8 +3921,18 @@ def convert_to_nvfp4_convrot(
             )
     else:
         print(
-            "  [FULL ConvRot] OFF | plain NVFP4 on Linear, plain INT8 on Conv2d "
+            "  [ConvRot INT8/Conv2d] OFF | plain INT8 on Conv2d / shelter Linear "
             "(no offline rotate)"
+        )
+    if enable_nvfp4_convrot:
+        print(
+            f"  [NVFP4 ConvRot] ON | preferred groupsize={group_size}; "
+            "NVFP4 Linear → offline Hadamard + convrot stamp when group OK"
+        )
+    else:
+        print(
+            "  [NVFP4 ConvRot] OFF (default) | NVFP4 Linear → plain pack, "
+            "no offline rotate / no convrot stamp"
         )
 
     if not calib_file:
@@ -3904,6 +3973,7 @@ def convert_to_nvfp4_convrot(
         num_inference_steps=int(num_inference_steps),
         device=device,
         enable_convrot=bool(enable_convrot),
+        enable_nvfp4_convrot=bool(enable_nvfp4_convrot),
         group_size=int(group_size),
         keep_ratio=float(keep_ratio),
         profile_arg=profile_arg,
@@ -3976,7 +4046,16 @@ def convert_to_nvfp4_convrot(
     bias_corr_skipped_no_bias = 0
     bias_corr_skipped_no_act = 0
     bias_corr_skipped_bad_shape = 0
-    rot_tag = " + FULL ConvRot" if enable_convrot else " plain NVFP4/INT8"
+    rot_tag = ""
+    if enable_convrot or enable_nvfp4_convrot:
+        parts = []
+        if enable_nvfp4_convrot:
+            parts.append("NVFP4 ConvRot")
+        if enable_convrot:
+            parts.append("INT8/Conv2d ConvRot")
+        rot_tag = " + " + " + ".join(parts)
+    else:
+        rot_tag = " plain NVFP4/INT8"
     print(f"Converting diffusion Linear/Conv2d weights ({rot_tag.strip()})...")
 
     for key, tensor in tqdm(state_dict.items()):
@@ -4038,27 +4117,39 @@ def convert_to_nvfp4_convrot(
             w_fp = tensor.float()
             used_gs = None
             if (
-                enable_convrot
+                (enable_convrot or enable_nvfp4_convrot)
                 and convrot_group_size_for_features is not None
                 and build_hadamard is not None
             ):
                 used_gs = convrot_group_size_for_features(in_f, group_size)
 
-            # ConvRot scope (owner 2026-07-21): NVFP4 Linear packs UNROTATED.
-            # Offline Hadamard applies to Conv2d (INT8) and INT8-shelter
-            # Linear only.
+            # INT8 shelter / Conv2d → enable_convrot.
+            # NVFP4 Linear (non-shelter) → enable_nvfp4_convrot.
             do_rotate = (
-                enable_convrot
-                and used_gs is not None
+                used_gs is not None
                 and build_hadamard is not None
                 and (
                     (
-                        tensor.ndim == 2
+                        enable_convrot
+                        and tensor.ndim == 2
                         and rotate_weight is not None
                         and module_name is not None
                         and module_name in int8_shelter_layers
                     )
-                    or (tensor.ndim == 4 and rotate_weight_conv2d is not None)
+                    or (
+                        enable_nvfp4_convrot
+                        and tensor.ndim == 2
+                        and rotate_weight is not None
+                        and (
+                            module_name is None
+                            or module_name not in int8_shelter_layers
+                        )
+                    )
+                    or (
+                        enable_convrot
+                        and tensor.ndim == 4
+                        and rotate_weight_conv2d is not None
+                    )
                 )
             )
             if do_rotate:
@@ -4099,11 +4190,19 @@ def convert_to_nvfp4_convrot(
                     skipped_count += 1
                     continue
                 else:
-                    # NVFP4 Linear: always plain (no ConvRot, no convrot stamp).
+                    # NVFP4 Linear: ConvRot when --nvfp4-convrot and group OK.
                     q, params = pack_nvfp4(w_fp)
                     weight_dq = dequant_nvfp4(q, params)
-                    quant_config = {"format": "nvfp4"}
-                    plain_nvfp4 += 1
+                    if do_rotate:
+                        quant_config = {
+                            "format": "nvfp4",
+                            "convrot": True,
+                            "convrot_groupsize": int(used_gs),
+                        }
+                        convrot_nvfp4 += 1
+                    else:
+                        quant_config = {"format": "nvfp4"}
+                        plain_nvfp4 += 1
                     new_state_dict[key] = q
                     new_state_dict[f"{module_key}.weight_scale"] = params.block_scale
                     new_state_dict[f"{module_key}.weight_scale_2"] = params.scale.to(
@@ -4223,21 +4322,16 @@ def convert_to_nvfp4_convrot(
             f"  [WARN] NVFP4 Linear missing act amax (no input_scale): "
             f"{input_scale_missing}"
         )
-    print(f"FULL ConvRot enabled: {enable_convrot}")
-    if enable_convrot:
-        print(
-            f"  plain NVFP4 Linear (no ConvRot): {plain_nvfp4}, "
-            f"INT8 shelter ConvRot Linear: {convrot_int8_linear}, "
-            f"INT8 shelter plain Linear: {plain_int8_linear}, "
-            f"INT8 ConvRot Conv2d: {convrot_int8_conv2d}, "
-            f"plain INT8 Conv2d: {plain_int8_conv2d}"
-        )
-    else:
-        print(
-            f"  plain NVFP4 Linear: {plain_nvfp4}, "
-            f"INT8 shelter plain Linear: {plain_int8_linear}, "
-            f"plain INT8 Conv2d: {plain_int8_conv2d}"
-        )
+    print(f"INT8/Conv2d ConvRot enabled: {enable_convrot}")
+    print(f"NVFP4 Linear ConvRot enabled: {enable_nvfp4_convrot}")
+    print(
+        f"  NVFP4 ConvRot Linear: {convrot_nvfp4}, "
+        f"plain NVFP4 Linear: {plain_nvfp4}, "
+        f"INT8 shelter ConvRot Linear: {convrot_int8_linear}, "
+        f"INT8 shelter plain Linear: {plain_int8_linear}, "
+        f"INT8 ConvRot Conv2d: {convrot_int8_conv2d}, "
+        f"plain INT8 Conv2d: {plain_int8_conv2d}"
+    )
 
     # Hard assert: Linear+Conv FP16 keep + Linear INT8 shelter ≤ owner
     # ceiling + owner tolerance. Meter = EXTRA vs packed (same as selection):
@@ -4422,8 +4516,9 @@ def convert_to_nvfp4_convrot(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
-            "Krea2-only ConvRot + NVFP4 convert: Linear→NVFP4 (unrotated), "
-            "Conv2d→INT8 (+ ConvRot), INT8-shelter Linear→INT8 (+ ConvRot). "
+            "Krea2-only ConvRot + NVFP4 convert: Linear→NVFP4 "
+            "(--nvfp4-convrot optional; default OFF = unrotated), "
+            "Conv2d→INT8 (+ --convrot), INT8-shelter Linear→INT8 (+ --convrot). "
             "Requires --calib_file + --clip_path for NVFP4 .input_scale, "
             "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=2400 hard "
             "ceiling), and weight clip amax from NVFP4/INT8 pack roundtrip MSE. "
@@ -4538,9 +4633,20 @@ if __name__ == "__main__":
         action=argparse.BooleanOptionalAction,
         default=True,
         help=(
-            "ConvRot: offline Hadamard on eligible Conv2d (INT8) and "
-            "INT8-shelter Linear + convrot stamp; NVFP4 Linear stays unrotated. "
-            "Default ON; --no-convrot = plain packs."
+            "ConvRot for Conv2d (INT8) and INT8-shelter Linear: offline "
+            "Hadamard + convrot stamp when group OK. Independent of "
+            "--nvfp4-convrot. Default ON; --no-convrot = plain INT8 packs."
+        ),
+    )
+    parser.add_argument(
+        "--nvfp4-convrot",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "ConvRot for NVFP4 Linear: offline Hadamard + "
+            '{"format":"nvfp4","convrot":true,"convrot_groupsize":G} when '
+            "group OK; act amax for input_scale measured after rotate. "
+            "Default OFF (plain NVFP4, unrotated); --nvfp4-convrot to enable."
         ),
     )
     parser.add_argument(
@@ -4602,6 +4708,7 @@ if __name__ == "__main__":
         num_calib_samples=args.num_calib_samples,
         num_inference_steps=args.num_inference_steps,
         enable_convrot=bool(args.convrot),
+        enable_nvfp4_convrot=bool(args.nvfp4_convrot),
         group_size=int(args.groupsize),
         min_in_features=int(args.min_in_features),
         keep_ratio=float(args.keep_ratio),
