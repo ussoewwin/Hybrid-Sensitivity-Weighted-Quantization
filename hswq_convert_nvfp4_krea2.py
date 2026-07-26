@@ -39,6 +39,11 @@ Finish discipline (owner 2026-07-26 — 完走しねえコードに意味はな�
   - INT8 d1 pack-MSE failures raise (no silent skip → incomplete shelter).
   - Drop source state_dict + empty_cache before atomic save.
   - Failed *.partial is deleted (no false mid-write artifact).
+  - Every phase marker carries a CUDA + host RAM watermark (per-interval
+    peak) — the peak is measured, never guessed.
+  - Pack streams the source dict (pop per key): the FP16 source shrinks as
+    the packed dict grows, halving pack-phase host RAM. The pack loop is
+    CPU-only, so the 1500→2400 OOM was host-side, not VRAM.
 
 Online act rotate at load is required for ConvRot layers (Conv2d +
 INT8-shelter Linear, and NVFP4 Linear when --nvfp4-convrot). The loader is
@@ -94,9 +99,32 @@ _DEFAULT_GROUPSIZE = 256
 _INT8_D1_CACHE_FLUSH_EVERY = 8
 
 
+def _mem_watermark() -> str:
+    """CUDA + host RAM watermark (owner 2026-07-26: measure the peak, never
+    guess). CUDA peak is per-interval — reset on every call."""
+    parts = []
+    if torch.cuda.is_available():
+        parts.append(
+            f"cuda alloc={torch.cuda.memory_allocated() / 2**20:.0f} MiB "
+            f"reserved={torch.cuda.memory_reserved() / 2**20:.0f} MiB "
+            f"peak={torch.cuda.max_memory_allocated() / 2**20:.0f} MiB"
+        )
+        torch.cuda.reset_peak_memory_stats()
+    try:
+        import psutil
+
+        vm = psutil.virtual_memory()
+        parts.append(
+            f"host avail={vm.available / 2**20:.0f} MiB ({vm.percent:.0f}% used)"
+        )
+    except Exception:
+        parts.append("host n/a (psutil missing)")
+    return " | ".join(parts)
+
+
 def _phase_flush(msg: str) -> None:
-    """Mark pipeline phase + flush so mid-kill logs are diagnosable (NO_TAIL)."""
-    print(msg, flush=True)
+    """Mark pipeline phase + mem watermark + flush (NO_TAIL diagnosable)."""
+    print(f"{msg} [{_mem_watermark()}]", flush=True)
     sys.stdout.flush()
     sys.stderr.flush()
 
@@ -4157,7 +4185,16 @@ def convert_to_nvfp4_convrot(
         rot_tag = " plain NVFP4/INT8"
     print(f"Converting diffusion Linear/Conv2d weights ({rot_tag.strip()})...")
 
-    for key, tensor in tqdm(state_dict.items()):
+    # Stream the source dict: pop each key so the FP16 source shrinks as the
+    # packed dict grows (owner 2026-07-26 — pack-peak host RAM halves; the
+    # loop below is CPU-only, so the 1500→2400 OOM was host RAM, not VRAM).
+    _pack_total = len(state_dict)
+    for _pack_i, key in enumerate(tqdm(list(state_dict.keys()))):
+        tensor = state_dict.pop(key)
+        if _pack_i and _pack_i % 256 == 0:
+            _phase_flush(
+                f"  [phase] pack progress keys={_pack_i}/{_pack_total}"
+            )
         is_unet_matmul_weight = (
             (
                 key.startswith("model.diffusion_model")
@@ -4608,7 +4645,7 @@ def convert_to_nvfp4_convrot(
             "atomic replace (should have been quarantined at convert start). "
             "Refusing early/overwrite ambiguity."
         )
-    # Drop source FP16 dict before write (peak: state_dict + new_state_dict).
+    # Drop the streamed-empty source dict shell before write.
     del state_dict
     _cuda_empty_cache_if_available()
     _phase_flush(
