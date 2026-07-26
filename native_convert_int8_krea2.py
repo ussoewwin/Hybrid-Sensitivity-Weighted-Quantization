@@ -363,7 +363,76 @@ def _restore_argv(saved: list[str]) -> None:
     sys.argv = saved
 
 
+def _install_torchaudio_stub() -> None:
+    """Prevent real torchaudio from loading during comfy.sd import.
+
+    comfy.sd imports comfy.ldm.lightricks.vae.audio_vae, which does a hard
+    ``import torchaudio``. On cloud hosts torch/torchaudio CUDA builds often
+    mismatch (e.g. torch 13.2 vs torchaudio 13.0) and abort before CLIP load.
+    Krea2 calib only needs CLIPType.KREA2 — never AudioVAE — so replace
+    torchaudio in sys.modules with a local stub. Does not touch ComfyUI-master.
+    """
+    import importlib.machinery
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        # transformers uses importlib.util.find_spec("torchaudio"); a ModuleType
+        # without __spec__ raises ValueError: torchaudio.__spec__ is None.
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(
+                name, loader=None, is_package=True
+            )
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    ta = _stub_mod("torchaudio", is_package=True)
+    functional = _stub_mod("torchaudio.functional")
+
+    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
+        return waveform
+
+    functional.resample = _resample
+
+    transforms = _stub_mod("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
 def _install_comfy_optional_stubs() -> None:
+    """Lightweight stubs (same pattern as hswq_convert_nvfp4_krea2)."""
+    # Always stub: real torchaudio may be installed but CUDA-mismatched.
+    _install_torchaudio_stub()
+
     try:
         import comfy_aimdo  # noqa: F401
     except Exception:
@@ -456,6 +525,9 @@ def _encode_krea2_calib_contexts(
 
         comfy.options.enable_args_parsing(False)
         _install_comfy_optional_stubs()
+        # Same as NVFP4 / quantize: stub again immediately before comfy.sd
+        # (audio_vae hard-imports torchaudio; CUDA mismatch aborts otherwise).
+        _install_torchaudio_stub()
 
         import comfy.model_management as mm  # noqa: WPS433
         import comfy.sd  # noqa: WPS433
