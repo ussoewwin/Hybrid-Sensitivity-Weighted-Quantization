@@ -19,10 +19,11 @@ On-disk NVFP4 Linear (TensorCoreNVFP4Layout / QUANT_ALGOS["nvfp4"]):
   .input_scale     f32 scalar           (act: amax / (F8_E4M3_MAX * F4_E2M1_MAX))
   .comfy_quant     uint8 JSON
 
-input_scale is written from PTQ calib (--calib_file). NVFP4 Linear packs
-unrotated, so amax is measured on unrotated activations (same order as
-inference: quantize without rotate). Without calib, no input_scale keys are
-written and inference falls back to ones — that destroys quality.
+input_scale is written from PTQ calib (--calib_file REQUIRED). NVFP4 Linear
+packs unrotated, so amax is measured on unrotated activations (same order as
+inference: quantize without rotate). Convert refuses to save without
+--calib_file: missing input_scale + skipped HSWQ FP16 protect would still
+have written a ckpt and destroyed quality.
 
 Online act rotate at load is required for ConvRot layers (Conv2d + INT8-shelter
 Linear). The loader is built separately; this converter does FULL offline
@@ -33,7 +34,7 @@ Use --no-convrot for plain packs only (no offline rotate / no convrot stamp).
 Optional Card 1 (--bias_correction): DualMonitor act means; bias += -(W_q - W) @ mu_x
   on quantized Linear/Conv. Shares the same --calib_file pass as input_scale.
 
-HSWQ DualMonitor + FP16 protect, when --calib_file is set (r0 only):
+HSWQ DualMonitor + FP16 protect (--calib_file required, r0 only):
   - Profile JSON + analyze/analyze_krea2_nvfp4_distribution.py
     (Hard VETO cascade, DualMonitor, infinite branches, budget fill).
   - --keep_ratio must be 0. Protect budget (hard ceiling 2400 MiB):
@@ -3777,76 +3778,68 @@ def convert_to_nvfp4_convrot(
             "(no offline rotate)"
         )
 
-    if calib_file:
-        if not os.path.isfile(calib_file):
-            raise FileNotFoundError(f"calib_file not found: {calib_file}")
-        write_input_scale = True
-        if bias_correction:
-            print(
-                "  [Bias Correction Card 1] ON | quantized Linear | "
-                "DualMonitor calib | bias += -(W_q - W) @ mu_x"
-            )
-        print(
-            "  [input_scale] ON | write NVFP4 Linear "
-            "amax/(F8_E4M3_MAX*F4_E2M1_MAX) from same calib pass"
-        )
-        print(
-            f"  [HSWQ] r0 DualMonitor FP16 protect + "
-            f"fp16_budget_mb={float(FP16_BUDGET_MB_HARD if fp16_budget_mb is None else fp16_budget_mb):g} "
-            "+ NVFP4/INT8 pack-roundtrip weight clip amax"
-        )
-        calib = run_nvfp4_calib(
-            input_path=input_path,
-            calib_file=calib_file,
-            num_calib_samples=int(num_calib_samples),
-            num_inference_steps=int(num_inference_steps),
-            device=device,
-            enable_convrot=bool(enable_convrot),
-            group_size=int(group_size),
-            keep_ratio=float(keep_ratio),
-            profile_arg=profile_arg,
-            fp16_budget_mb=fp16_budget_mb,
-            clip_path=clip_path,
-            comfy_path=comfy_path,
-        )
-        act_mean_dict = calib["act_mean_dict"]
-        act_amax_dict = calib["act_amax_dict"]
-        weight_amax_dict = calib["weight_amax_dict"]
-        keep_layers = calib["keep_layers"]
-        int8_shelter_layers = calib.get("int8_shelter_layers", set())
-        budget_stats = calib.get("budget_stats")
-        comfyui_to_diffusers_map = calib["comfyui_to_diffusers_map"]
-        if bias_correction:
-            compute_int8_bias_delta = globals()["compute_int8_bias_delta"]
-            print(
-                f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers"
-            )
-        print(
-            f"  [input_scale] Captured act amax for {len(act_amax_dict)} layers"
-        )
-        print(
-            f"  [HSWQ] weight amax for {len(weight_amax_dict)} layers; "
-            f"FP16 keep={len(keep_layers)}; "
-            f"INT8 shelter={len(int8_shelter_layers)}"
-        )
-    elif bias_correction:
+    if not calib_file:
+        # Owner 2026-07-26: WARN-then-save without calib skipped
+        # input_scale + DualMonitor FP16 protect + weight amax, then still
+        # wrote output safetensors — refuse that path (no early/unprotected save).
         raise ValueError(
-            "--bias_correction requires --calib_file "
-            "(same as quantize_sdxl_hswq_v3.0.py)"
+            "--calib_file is required. Without DualMonitor calib, NVFP4 "
+            ".input_scale, HSWQ FP16 protect (Full-SVD×RMS / budget), and "
+            "pack-roundtrip weight amax never run, but save_file still wrote "
+            "the output ckpt — that path is refused. Pass --calib_file and "
+            "--clip_path."
         )
-    else:
+    if not os.path.isfile(calib_file):
+        raise FileNotFoundError(f"calib_file not found: {calib_file}")
+    write_input_scale = True
+    if bias_correction:
         print(
-            "  [WARN] No --calib_file: NVFP4 Linear will have NO .input_scale keys. "
-            "Inference falls back to ones(1) and quality collapses. "
-            "Pass --calib_file to write correct scales into the ckpt. "
-            "HSWQ keep_ratio / pack-roundtrip weight amax also require --calib_file."
+            "  [Bias Correction Card 1] ON | quantized Linear | "
+            "DualMonitor calib | bias += -(W_q - W) @ mu_x"
         )
-        _dit_tmp, _sd_tmp, comfyui_to_diffusers_map = (
-            load_krea2_from_safetensors(input_path, device)
+    print(
+        "  [input_scale] ON | write NVFP4 Linear "
+        "amax/(F8_E4M3_MAX*F4_E2M1_MAX) from same calib pass"
+    )
+    print(
+        f"  [HSWQ] r0 DualMonitor FP16 protect + "
+        f"fp16_budget_mb={float(FP16_BUDGET_MB_HARD if fp16_budget_mb is None else fp16_budget_mb):g} "
+        "+ NVFP4/INT8 pack-roundtrip weight clip amax"
+    )
+    calib = run_nvfp4_calib(
+        input_path=input_path,
+        calib_file=calib_file,
+        num_calib_samples=int(num_calib_samples),
+        num_inference_steps=int(num_inference_steps),
+        device=device,
+        enable_convrot=bool(enable_convrot),
+        group_size=int(group_size),
+        keep_ratio=float(keep_ratio),
+        profile_arg=profile_arg,
+        fp16_budget_mb=fp16_budget_mb,
+        clip_path=clip_path,
+        comfy_path=comfy_path,
+    )
+    act_mean_dict = calib["act_mean_dict"]
+    act_amax_dict = calib["act_amax_dict"]
+    weight_amax_dict = calib["weight_amax_dict"]
+    keep_layers = calib["keep_layers"]
+    int8_shelter_layers = calib.get("int8_shelter_layers", set())
+    budget_stats = calib.get("budget_stats")
+    comfyui_to_diffusers_map = calib["comfyui_to_diffusers_map"]
+    if bias_correction:
+        compute_int8_bias_delta = globals()["compute_int8_bias_delta"]
+        print(
+            f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers"
         )
-        del _dit_tmp, _sd_tmp
-        if device == "cuda":
-            torch.cuda.empty_cache()
+    print(
+        f"  [input_scale] Captured act amax for {len(act_amax_dict)} layers"
+    )
+    print(
+        f"  [HSWQ] weight amax for {len(weight_amax_dict)} layers; "
+        f"FP16 keep={len(keep_layers)}; "
+        f"INT8 shelter={len(int8_shelter_layers)}"
+    )
 
     if compute_int8_bias_delta is None:
 
@@ -4125,8 +4118,6 @@ def convert_to_nvfp4_convrot(
             f"  [WARN] NVFP4 Linear missing act amax (no input_scale): "
             f"{input_scale_missing}"
         )
-    elif not write_input_scale:
-        print("  [WARN] input_scale skipped (no --calib_file)")
     print(f"FULL ConvRot enabled: {enable_convrot}")
     if enable_convrot:
         print(
@@ -4162,6 +4153,15 @@ def convert_to_nvfp4_convrot(
     _pack_fp16_wrong_dtype: list[str] = []
     _pack_shelter_extra = 0
     _pack_shelter_n = 0
+    # Refuse empty protect selection: previously skipped this whole block and
+    # still called save_file (unprotected ckpt).
+    if not keep_layers and not int8_shelter_layers:
+        raise RuntimeError(
+            "[FP16 budget] refuse save: keep_layers and int8_shelter_layers "
+            "are both empty after calib — DualMonitor FP16 protect / INT8 "
+            "shelter did not produce a selection. Refusing to save an "
+            "unprotected ckpt."
+        )
     if keep_layers or int8_shelter_layers:
         for _ck, _cv in new_state_dict.items():
             if not _ck.endswith(".weight"):
@@ -4312,11 +4312,12 @@ if __name__ == "__main__":
         description=(
             "Krea2-only ConvRot + NVFP4 convert: Linear→NVFP4 (unrotated), "
             "Conv2d→INT8 (+ ConvRot), INT8-shelter Linear→INT8 (+ ConvRot). "
-            "Pass --calib_file for NVFP4 .input_scale, "
+            "Requires --calib_file + --clip_path for NVFP4 .input_scale, "
             "HSWQ DualMonitor r0 FP16 protect (--fp16_budget_mb=2400 hard "
             "ceiling), and weight clip amax from NVFP4/INT8 pack roundtrip MSE. "
-            "Online act rotate required at load for ConvRot layers "
-            "(loader built separately). Card 1 = --bias_correction."
+            "Save without calib is refused. Online act rotate required at load "
+            "for ConvRot layers (loader built separately). Card 1 = "
+            "--bias_correction."
         )
     )
     parser.add_argument(
@@ -4341,25 +4342,23 @@ if __name__ == "__main__":
     parser.add_argument(
         "--calib_file",
         type=str,
-        default=None,
+        required=True,
         help=(
-            "Calibration prompts text file. With --clip_path, DualMonitor "
-            "uses real Comfy CLIPType.KREA2 (Qwen3-VL-4B) contexts. Without "
-            "--clip_path, falls back to synthetic latent+context (prompt "
-            "lines = seeds only). Writes NVFP4 .input_scale and enables "
-            "HSWQ DualMonitor r0 FP16 protect + pack-roundtrip weight amax. "
-            "Required with --bias_correction."
+            "REQUIRED. Calibration prompts text file. With --clip_path, "
+            "DualMonitor uses real Comfy CLIPType.KREA2 (Qwen3-VL-4B) "
+            "contexts. Writes NVFP4 .input_scale and enables HSWQ DualMonitor "
+            "r0 FP16 protect + pack-roundtrip weight amax. Convert refuses "
+            "to save without this (no unprotected ckpt)."
         ),
     )
     parser.add_argument(
         "--clip_path",
         type=str,
-        default=None,
+        required=True,
         help=(
-            "Qwen3-VL-4B CLIP safetensors for Krea2 DualMonitor calib "
-            "(Comfy CLIPType.KREA2). Encode all calib prompts then unload "
-            "CLIP before DiT. Required for real text context; omit only for "
-            "synthetic-context debug."
+            "REQUIRED with --calib_file. Qwen3-VL-4B CLIP safetensors for "
+            "Krea2 DualMonitor calib (Comfy CLIPType.KREA2). Encode all "
+            "calib prompts then unload CLIP before DiT."
         ),
     )
     parser.add_argument(
@@ -4448,12 +4447,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     _install_nvfp4_convert_full_session_log()
 
-    if args.bias_correction and not args.calib_file:
-        print("Error: --bias_correction requires --calib_file")
-        sys.exit(1)
-    if args.calib_file and not args.clip_path:
+    if not args.clip_path:
         print(
-            "Error: --calib_file requires --clip_path "
+            "Error: --clip_path is required with --calib_file "
             "(Krea2 Qwen3-VL-4B CLIP for DualMonitor real context)"
         )
         sys.exit(1)
