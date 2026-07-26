@@ -316,6 +316,21 @@ def _append_svd_mix_trace(text: str) -> None:
         print(f"  [HSWQ SVD MIX TRACE FILE] write failed: {exc!r}")
 
 
+def emit_int8_quantize_phase(msg: str) -> None:
+    """Mark post-SVD phases into the same SVD mix file the cloud run syncs.
+
+    After all [HSWQ SVD MIX FULL] layers close, runs often die before
+    Saving / Conversion done. Owner pays cloud for that silent gap.
+    Phase lines make the death point visible without waiting for full Tee sync.
+    """
+    import time as _time
+
+    stamp = _time.strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[INT8 PHASE] {stamp} | {msg}"
+    print(line, flush=True)
+    _append_svd_mix_trace(line)
+
+
 def compute_hybrid_leverage_scores(
     weight: torch.Tensor,
     alpha: float = 0.7,
