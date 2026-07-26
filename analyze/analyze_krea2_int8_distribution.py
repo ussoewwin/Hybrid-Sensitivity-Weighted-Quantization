@@ -1732,7 +1732,7 @@ def build_int8_analyze_character_table(
 
 # ---------------------------------------------------------------------------
 # Fully autonomous tunable derivation.
-# Owner hard ceiling INT8_FP16_BUDGET_MB_HARD (default 300 MiB; ZI V1.0 may
+# Owner hard ceiling INT8_FP16_BUDGET_MB_HARD (default 700 MiB; ZI V1.0 may
 # raise the same named ceiling to 600) is NOT a thinking-stop recipe:
 # auto knobs fill inside that frame and must never exceed it.
 # Every knob below is derived from THIS checkpoint's profile + DualMonitor
@@ -1741,7 +1741,7 @@ def build_int8_analyze_character_table(
 
 # Default = SDXL INT8. Callers (e.g. quantize_zi_int8_hswq_v1.0) may set this
 # module attribute before derive / assert; ranking / fill logic is unchanged.
-INT8_FP16_BUDGET_MB_HARD = 300.0
+INT8_FP16_BUDGET_MB_HARD = 700.0
 
 
 def _safe_percentile(values: List[float], pct: float) -> float:
@@ -1778,7 +1778,7 @@ def derive_int8_autonomous_tunables(
     """Derive EVERY INT8 knob from this checkpoint + calibration.
 
     Owner hard ceiling: fp16_budget_mb must equal INT8_FP16_BUDGET_MB_HARD
-    (default 300 MiB; ZI INT8 V1.0 uses 600 MiB via the same named ceiling).
+    (default 700 MiB; ZI INT8 V1.0 uses 600 MiB via the same named ceiling).
     Inside that frame: THIS model's auto analysis → extreme auto-optimal
     settings (Hard VETO fences, ranking weights, MSE release, BC scope,
     gray-zone, alpha/beta, search_low, sens_veto percentile).
@@ -1916,7 +1916,7 @@ def derive_int8_autonomous_tunables(
 
     # DualMonitor = FP16 candidates; analyze = VETO candidates.
     # Quantize fills THIS model's extreme auto-optimal FP16 set inside the
-    # 300 MiB hard ceiling (measured sens/sev/mse combinator). keep_ratio r0.
+    # 700 MiB hard ceiling (measured sens/sev/mse combinator). keep_ratio r0.
     # DualMonitor is never renamed Hard VETO and never invents keep_ratio.
     sens = dualmonitor_sensitivities or {}
     sens_values = [float(v) for v in sens.values()
