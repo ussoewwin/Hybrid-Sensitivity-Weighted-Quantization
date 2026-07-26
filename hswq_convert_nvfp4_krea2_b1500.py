@@ -358,7 +358,7 @@ from weighted_histogram_mse_v4_nvfp4 import (
 # only optimize INSIDE this frame. Not a thinking-stop formula constant.
 # Packed baseline: Linear → NVFP4 (~0.5 B/elem), Conv2d → INT8 (1 B/elem).
 # FP16 keep overhead = 2 − packed_bytes → Linear +1.5×numel, Conv +1×numel.
-FP16_BUDGET_MB_HARD = 2400.0
+FP16_BUDGET_MB_HARD = 1500.0  # EXPERIMENT b1500: owner A/B 1500 vs 2400
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
@@ -501,8 +501,8 @@ class SdxlVetoTunables:
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
-    fp16_budget_mb: float = 2400.0
-    fp16_budget_bytes: int = 2516582400
+    fp16_budget_mb: float = 1500.0
+    fp16_budget_bytes: int = 1572864000
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
@@ -639,7 +639,7 @@ class SdxlVetoTunables:
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
             fp16_budget_mb=float(d["fp16_budget_mb"]),
-            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 2400 * 1024 * 1024)),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 1500 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=True,
             alpha_auto=float(d["alpha_auto"]),
@@ -4737,9 +4737,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--fp16_budget_mb",
         type=float,
-        default=2400.0,
+        default=1500.0,
         help=(
-            "Owner hard ceiling: exactly 2400 MiB real protect EXTRA vs "
+            "Owner hard ceiling (EXPERIMENT b1500): exactly 1500 MiB real protect EXTRA vs "
             "packed. Usage: (1) Static Profile extremes → FP16 "
             "(+1.5 B/el Linear, +1 B/el Conv); (2) remainder → ConvRot "
             "INT8 shelter (+0.5 B/el). Layer count / MiB emerge from "
