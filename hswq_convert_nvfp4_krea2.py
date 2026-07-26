@@ -32,6 +32,14 @@ Output path discipline (owner 2026-07-26 — early safetensors):
     measurable Linear/Conv has a V4/Full-SVD MSE cache entry.
   - Write only via *.partial then os.replace onto --output after pack asserts.
 
+Finish discipline (owner 2026-07-26 — 完走しねえコードに意味はない):
+  - DualMonitor channel stats live on CPU (no CUDA resident Importance
+    while DiT + Full-SVD×RMS + INT8 d1 share VRAM).
+  - Phase flush markers around DualMonitor / V4 / INT8 d1 / pack / save.
+  - INT8 d1 pack-MSE failures raise (no silent skip → incomplete shelter).
+  - Drop source state_dict + empty_cache before atomic save.
+  - Failed *.partial is deleted (no false mid-write artifact).
+
 Online act rotate at load is required for ConvRot layers (Conv2d +
 INT8-shelter Linear, and NVFP4 Linear when --nvfp4-convrot). The loader is
 built separately; this converter does FULL offline weight rotate + stamps.
@@ -82,6 +90,42 @@ from safetensors.torch import load_file, save_file
 from tqdm import tqdm
 
 _DEFAULT_GROUPSIZE = 256
+# INT8 d1 VRAM release cadence (layer count between empty_cache).
+_INT8_D1_CACHE_FLUSH_EVERY = 8
+
+
+def _phase_flush(msg: str) -> None:
+    """Mark pipeline phase + flush so mid-kill logs are diagnosable (NO_TAIL)."""
+    print(msg, flush=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+
+def _cuda_empty_cache_if_available() -> None:
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def _offload_dual_monitor_stats_to_cpu(dual_monitors: dict) -> int:
+    """Move DualMonitor channel tensors to CPU (finish path VRAM hygiene)."""
+    n = 0
+    for mon in dual_monitors.values():
+        for attr in (
+            "channel_importance",
+            "channel_act_mean",
+            "channel_act_sq_mean",
+        ):
+            t = getattr(mon, attr, None)
+            if t is None or not torch.is_tensor(t):
+                continue
+            if t.is_cuda:
+                setattr(mon, attr, t.detach().float().cpu())
+                n += 1
+            elif t.device.type != "cpu":
+                setattr(mon, attr, t.detach().float().cpu())
+                n += 1
+    return n
 
 
 class _TeeStream:
@@ -1689,6 +1733,11 @@ def _apply_fp16_budget_cap(
         )
 
     int8_mse: dict[str, float] = {}
+    _d1_done = 0
+    _phase_flush(
+        f"  [phase] FP16 budget pool measure start "
+        f"(V4 fresh={len(need_fresh)} INT8 d1={len(need_int8_d1)})"
+    )
     for name in sorted(pool):
         mod = module_dict.get(name)
         if mod is None or not hasattr(mod, "weight") or mod.weight is None:
@@ -1743,7 +1792,7 @@ def _apply_fp16_budget_cap(
                     f"[FP16 budget] V4 pack-MSE failed for {name!r}: {e}. "
                     "Refusing demote-to-pack."
                 ) from e
-            torch.cuda.empty_cache()
+            _cuda_empty_cache_if_available()
 
         if int(mod.weight.data.ndim) == 2 and trial_optimizer is not None:
             try:
@@ -1756,16 +1805,25 @@ def _apply_fp16_budget_cap(
                 )
                 int8_mse[name] = float(d1)
             except Exception as e:
+                # Silent skip left shelter incomplete while convert continued —
+                # same demote-to-pack / NO-DONE forgery as V4. Raise (d0 parity).
                 if _is_cuda_oom(e):
                     raise RuntimeError(
                         f"[Multi-tier] CUDA OOM on INT8 d1 pack-MSE for {name!r}."
                     ) from e
-                print(
-                    f"    [Multi-tier] INT8 d1 failed {name}: {e} "
-                    f"(no INT8 shelter step for this layer)"
-                )
+                raise RuntimeError(
+                    f"[Multi-tier] INT8 d1 pack-MSE failed for {name!r}: {e}. "
+                    "Refusing silent skip (incomplete shelter / false finish)."
+                ) from e
+            _d1_done += 1
+            if _d1_done % _INT8_D1_CACHE_FLUSH_EVERY == 0:
+                _cuda_empty_cache_if_available()
 
         measured.append((name, dm_sens, v4_mse, severity, extra))
+    _phase_flush(
+        f"  [phase] FP16 budget pool measure done "
+        f"(V4 fresh={measured_fresh} INT8 d1={len(int8_mse)})"
+    )
 
     print(
         f"  [Multi-tier] INT8 d1 measured for {len(int8_mse)}/"
@@ -2216,27 +2274,35 @@ class DualMonitor:
             elif inp_detached.dim() >= 2:
                 reduce_dims = tuple(range(inp_detached.dim() - 1))
             else:
-                current_imp = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
-                current_act = torch.zeros(1, device=inp_detached.device, dtype=torch.float32)
-                current_sq = torch.ones(1, device=inp_detached.device, dtype=torch.float32)
+                current_imp = torch.ones(1, dtype=torch.float32)
+                current_act = torch.zeros(1, dtype=torch.float32)
+                current_sq = torch.ones(1, dtype=torch.float32)
                 reduce_dims = None
             if reduce_dims is not None:
                 current_imp = inp_detached.abs().mean(dim=reduce_dims)
                 current_act = inp_detached.mean(dim=reduce_dims)
                 current_sq = (inp_detached ** 2).mean(dim=reduce_dims)
+            # Finish path: keep channel stats on CPU (no CUDA-resident Importance
+            # while DiT + Full-SVD×RMS + INT8 d1 share VRAM).
+            current_imp = current_imp.detach().float().cpu()
+            current_act = current_act.detach().float().cpu()
+            current_sq = current_sq.detach().float().cpu()
             if self.channel_importance is None:
                 self.channel_importance = current_imp
                 self.channel_act_mean = current_act
                 self.channel_act_sq_mean = current_sq
             elif current_imp.shape == self.channel_importance.shape:
+                prior_imp = self.channel_importance.float().cpu()
+                prior_act = self.channel_act_mean.float().cpu()
+                prior_sq = self.channel_act_sq_mean.float().cpu()
                 self.channel_importance = (
-                    self.channel_importance * self.count + current_imp
+                    prior_imp * self.count + current_imp
                 ) / (self.count + 1)
                 self.channel_act_mean = (
-                    self.channel_act_mean * self.count + current_act
+                    prior_act * self.count + current_act
                 ) / (self.count + 1)
                 self.channel_act_sq_mean = (
-                    self.channel_act_sq_mean * self.count + current_sq
+                    prior_sq * self.count + current_sq
                 ) / (self.count + 1)
             # else: channel layout mismatch — keep prior channel stats; still count output
             self.count += 1
@@ -3570,6 +3636,12 @@ def run_nvfp4_calib(
     for h in handles:
         h.remove()
 
+    _n_off = _offload_dual_monitor_stats_to_cpu(dual_monitors)
+    _cuda_empty_cache_if_available()
+    _phase_flush(
+        f"  [phase] DualMonitor calib done; channel stats on CPU "
+        f"(moved={_n_off} tensors)"
+    )
     print("  [Calib] DualMonitor Importance ready for V4 full-pool priority.")
 
     act_mean_dict = {}
@@ -3627,6 +3699,7 @@ def run_nvfp4_calib(
     )
 
     mse_cache: dict = {}
+    _phase_flush("  [phase] Full-SVD×RMS V4 protect measure start")
     dynamic_keep_layers, mse_cache = _build_v4_calib_fp16_candidates(
         model=model,
         dual_monitors=dual_monitors,
@@ -3636,6 +3709,10 @@ def run_nvfp4_calib(
         alpha=alpha,
         beta=beta,
         device=device,
+    )
+    _phase_flush(
+        f"  [phase] Full-SVD×RMS V4 protect measure done "
+        f"(mse_cache={len(mse_cache)})"
     )
     keep_layers = dynamic_keep_layers.union(hard_veto_layers)
 
@@ -3694,6 +3771,7 @@ def run_nvfp4_calib(
             f"refuse exclude — fix unet_to_diffusers_mapping"
         )
 
+    _phase_flush("  [phase] FP16 budget + INT8 d1 start")
     keep_layers, hard_veto_layers, budget_stats, int8_shelter_layers = (
         _apply_fp16_budget_cap(
             model,
@@ -3709,6 +3787,10 @@ def run_nvfp4_calib(
             device=device,
             static_fp16_layers=static_profile_veto,
         )
+    )
+    _phase_flush(
+        f"  [phase] FP16 budget + INT8 d1 done "
+        f"(FP16 keep={len(keep_layers)} INT8 shelter={len(int8_shelter_layers)})"
     )
     dynamic_keep_layers = dynamic_keep_layers & keep_layers
 
@@ -3784,10 +3866,12 @@ def run_nvfp4_calib(
             "Refuse returning calib that would allow early/unprotected save."
         )
 
+    _offload_dual_monitor_stats_to_cpu(dual_monitors)
+    _phase_flush(
+        "  [phase] calib protect complete; releasing DiT before convert pack"
+    )
     del model
-    gc.collect()
-    if device == "cuda":
-        torch.cuda.empty_cache()
+    _cuda_empty_cache_if_available()
 
     return {
         "act_mean_dict": act_mean_dict,
@@ -3833,15 +3917,26 @@ def _atomic_save_safetensors(
     output_path: str,
     metadata: dict | None,
 ) -> None:
-    """Write *.partial then os.replace onto --output (no mid-write final path)."""
+    """Write *.partial then os.replace onto --output (no mid-write final path).
+
+    On failure, delete *.partial so a broken mid-write cannot look like progress.
+    """
     out_abs = os.path.abspath(output_path)
     partial = out_abs + ".partial"
     out_dir = os.path.dirname(out_abs) or "."
     os.makedirs(out_dir, exist_ok=True)
     if os.path.isfile(partial):
         os.remove(partial)
-    save_file(state_dict, partial, metadata=metadata)
-    os.replace(partial, out_abs)
+    try:
+        save_file(state_dict, partial, metadata=metadata)
+        os.replace(partial, out_abs)
+    except Exception:
+        if os.path.isfile(partial):
+            try:
+                os.remove(partial)
+            except OSError:
+                pass
+        raise
 
 
 def convert_to_nvfp4_convrot(
@@ -4036,6 +4131,10 @@ def convert_to_nvfp4_convrot(
     print(f"Loading model: {input_path}")
     state_dict = load_file(input_path)
     _ = _find_krea2_key_prefix(state_dict)  # FATAL if not Krea2
+    _phase_flush(
+        f"  [phase] pack start (source keys={len(state_dict)}; "
+        f"FP16 keep={len(keep_layers)}; INT8 shelter={len(int8_shelter_layers)})"
+    )
 
     new_state_dict = {}
     quant_meta_layers = {}
@@ -4509,8 +4608,15 @@ def convert_to_nvfp4_convrot(
             "atomic replace (should have been quarantined at convert start). "
             "Refusing early/overwrite ambiguity."
         )
+    # Drop source FP16 dict before write (peak: state_dict + new_state_dict).
+    del state_dict
+    _cuda_empty_cache_if_available()
+    _phase_flush(
+        f"  [phase] atomic save start → {output_path!r} "
+        f"(keys={len(new_state_dict)})"
+    )
     _atomic_save_safetensors(new_state_dict, output_path, metadata=metadata)
-    print(f"Done! (atomic save → {output_path})")
+    _phase_flush(f"Done! (atomic save → {output_path})")
 
 
 if __name__ == "__main__":
@@ -4524,7 +4630,9 @@ if __name__ == "__main__":
             "ceiling), and weight clip amax from NVFP4/INT8 pack roundtrip MSE. "
             "Save without calib is refused. Pre-existing --output is quarantined "
             "at start; final path is written only via *.partial after Full-SVD×RMS "
-            "+ protect + pack asserts. Online act rotate required at load "
+            "+ protect + pack asserts. DualMonitor channel stats stay on CPU; "
+            "INT8 d1 failures raise (no silent skip); source state_dict is dropped "
+            "before atomic save. Online act rotate required at load "
             "for ConvRot layers (loader built separately). Card 1 = "
             "--bias_correction."
         )
