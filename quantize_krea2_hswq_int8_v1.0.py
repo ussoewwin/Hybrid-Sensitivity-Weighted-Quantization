@@ -1483,6 +1483,21 @@ def _apply_fp16_budget_cap(
             sens_by_name[name] = s
             pool.add(name)
 
+    # Candidate pool = Linear/Conv only (ndim 2/4). Same EXTRA meter as
+    # post-pack assert (+1 B/elem vs INT8). Non-LC weights must not consume
+    # the 300 MiB protect budget (that was a claimed-fill / real-underfill lie).
+    # This is meter agreement — NOT a fixed priority ranking.
+    skipped_non_lc = []
+    _lc_pool = set()
+    for _n in pool:
+        _m = module_dict.get(_n)
+        _w = getattr(_m, "weight", None) if _m is not None else None
+        if _w is None or int(_w.ndim) not in (2, 4):
+            skipped_non_lc.append(_n)
+            continue
+        _lc_pool.add(_n)
+    pool = _lc_pool
+
     cache = dict(mse_cache or {})
     measured: list[tuple[str, float, float, float, int]] = []
     skipped_no_weight = []
@@ -1662,7 +1677,19 @@ def _apply_fp16_budget_cap(
 
     candidates.sort(key=lambda x: (-x[0], x[4]))
 
-    # Extreme fill inside the hard ceiling (SDXL 300 / ZI 700):
+    # Candidate-pool EXTRA (owner: e.g. ~739 MiB) is NOT the packed protect.
+    # Extreme fill caps that pool into the hard ceiling (300 MiB) via THIS-model
+    # auto priority only — never Mag-outside / Conv-first / frozen ranking.
+    pool_extra_bytes = int(sum(int(row[4]) for row in candidates))
+    print(
+        f"  [FP16 budget] candidate pool EXTRA vs all-INT8: "
+        f"{pool_extra_bytes / (1024 * 1024):.2f} MiB "
+        f"({len(candidates)} Linear/Conv; skipped_non_LC={len(skipped_non_lc)}) "
+        f"| hard ceiling={budget_mb:g} MiB "
+        f"(pool is NOT packed protect — budget truncates next)"
+    )
+
+    # Extreme fill inside the hard ceiling:
     # Linear and Conv share ONE auto-priority queue. No Mag-outside tax,
     # no fixed Conv-first reservation. Skip layers that do not fit; continue.
     selected: set = set()
@@ -1676,6 +1703,52 @@ def _apply_fp16_budget_cap(
             kept_detail.append((name, extra, priority, v4_mse, severity, dm_sens))
         else:
             dropped.append((name, extra, priority, v4_mse, severity, dm_sens))
+
+    # Recompute EXTRA from keep_out weights (same meter as pack). Refuse
+    # accumulator drift that could claim 300 while real keep is empty/other.
+    used_recomputed = 0
+    for _kn in selected:
+        _km = module_dict.get(_kn)
+        _kw = getattr(_km, "weight", None) if _km is not None else None
+        if _kw is None or int(_kw.ndim) not in (2, 4):
+            raise RuntimeError(
+                f"[FP16 budget] selected {_kn!r} is not Linear/Conv "
+                f"(ndim={None if _kw is None else int(_kw.ndim)}); "
+                f"refusing meter lie."
+            )
+        used_recomputed += _fp16_extra_bytes_vs_int8(_kw.data)
+    if used_recomputed != used:
+        raise RuntimeError(
+            f"[FP16 budget] selection EXTRA accumulator drift: "
+            f"greedy used={used} recomputed={used_recomputed} "
+            f"(|delta|={abs(used_recomputed - used)}). Refusing to proceed."
+        )
+    used = used_recomputed
+
+    slack = max(budget_bytes - used, 0)
+    # Extreme-fill integrity: if a dropped Linear/Conv still fits in slack,
+    # greedy failed (or a fixed ranking skipped fillable layers). Refuse.
+    _fit_dropped = [
+        (n, ex) for n, ex, *_ in dropped if int(ex) <= slack and int(ex) > 0
+    ]
+    if _fit_dropped:
+        _show = ", ".join(f"{n}({ex / (1024 * 1024):.2f}MiB)" for n, ex in _fit_dropped[:8])
+        raise RuntimeError(
+            f"[FP16 budget] extreme-fill hole: slack="
+            f"{slack / (1024 * 1024):.3f} MiB but {len(_fit_dropped)} "
+            f"dropped Linear/Conv still fit. Examples: {_show}. "
+            f"Refusing underfilled protect (auto queue must continue)."
+        )
+    # Pool large enough for the ceiling but selected near-empty → protect
+    # did not land (native-sized INT8). Soft <1 MiB alone was too weak.
+    if pool_extra_bytes >= budget_bytes and used < max(int(1.0 * 1024 * 1024), 1):
+        raise RuntimeError(
+            f"[FP16 budget] FATAL underfill: candidate pool EXTRA="
+            f"{pool_extra_bytes / (1024 * 1024):.2f} MiB ≥ ceiling "
+            f"{budget_mb:g} MiB but selected used="
+            f"{used / (1024 * 1024):.3f} MiB. 300 MiB FP16 protect "
+            f"did not land — refuse native-sized INT8 save."
+        )
 
     demoted_veto = hard_veto_layers - selected
     # Auto-optimal FP16 set for THIS model (DualMonitor + analyze + V4).
@@ -1696,6 +1769,8 @@ def _apply_fp16_budget_cap(
         "budget_bytes": budget_bytes,
         "used_bytes": used,
         "used_mb": used / (1024 * 1024),
+        "pool_extra_bytes": pool_extra_bytes,
+        "pool_extra_mb": pool_extra_bytes / (1024 * 1024),
         "forced_bytes": 0,
         "forced_mb": 0.0,
         "optional_bytes": int(used),
@@ -1706,6 +1781,7 @@ def _apply_fp16_budget_cap(
         "pool": len(pool),
         "analyze_character_layers": len(char_table),
         "dm_sensitivity_layers": len(sens_by_name),
+        "skipped_non_linear_conv": len(skipped_non_lc),
         "kept": len(keep_out),
         "dropped": len(dropped),
         "demoted_veto": len(demoted_veto),
@@ -1746,8 +1822,8 @@ def _apply_fp16_budget_cap(
         "infinite_priority_branch_repairs": len(prio_branch_repairs),
         "infinite_priority_branch_detail": prio_branch_repairs[:32],
         "hard_ceiling_mb": float(budget_mb),
-        "slack_bytes": max(budget_bytes - used, 0),
-        "slack_mb": max(budget_bytes - used, 0) / (1024 * 1024),
+        "slack_bytes": slack,
+        "slack_mb": slack / (1024 * 1024),
         "dropped_detail": dropped[:40],
         "kept_detail": kept_detail[:40],
         "mse_cache_size": len(cache),
@@ -2915,6 +2991,8 @@ def main():
         f"\n  [FP16 budget] ranking={budget_stats.get('ranking')} "
         f"ceiling={budget_stats['budget_mb']:.1f} MiB "
         f"(extra vs all-INT8; Linear+Conv share THIS-model auto priority) "
+        f"| pool_EXTRA={budget_stats.get('pool_extra_mb', 0):.1f} MiB "
+        f"(candidate only — not packed) "
         f"| used={budget_stats['used_mb']:.1f} MiB "
         f"| slack={budget_stats.get('slack_mb', 0):.2f} MiB "
         f"| pool={budget_stats.get('pool', budget_stats['candidates'])} "
@@ -2924,7 +3002,8 @@ def main():
         f"| dropped={budget_stats['dropped']} "
         f"(demoted_veto={budget_stats['demoted_veto']}, "
         f"v4_fresh={budget_stats.get('measured_fresh_v4', 0)}, "
-        f"no_v4={budget_stats.get('skipped_no_v4', 0)})"
+        f"no_v4={budget_stats.get('skipped_no_v4', 0)}, "
+        f"non_LC={budget_stats.get('skipped_non_linear_conv', 0)})"
     )
     if budget_stats.get("kept_detail"):
         print("  [FP16 budget] top kept (name | MiB | priority | V4_mse | analyze_sev | dm_sens):")
@@ -3340,6 +3419,32 @@ def main():
             f"  [FP16 budget] within owner tolerance: "
             f"+{_over_b / (1024 * 1024):.3f} MiB over ceiling "
             f"(allowed ≤ {FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB); saving."
+        )
+    # Selection used_bytes and post-pack EXTRA must agree (NVFP4 Krea2
+    # discipline). Claimed 300 MiB / disk not 300 MiB is refused here.
+    if isinstance(budget_stats, dict) and "used_bytes" in budget_stats:
+        _sel_used = int(budget_stats["used_bytes"])
+        _pack_used = int(_pack_fp16_extra)
+        _delta = abs(_pack_used - _sel_used)
+        if _delta > _tol_b:
+            raise RuntimeError(
+                f"[FP16 budget] post-pack EXTRA mismatch vs selection: "
+                f"selection used_bytes={_sel_used} "
+                f"({_sel_used / (1024 * 1024):.3f} MiB EXTRA) vs "
+                f"post-pack={_pack_used} "
+                f"({_pack_used / (1024 * 1024):.3f} MiB EXTRA); "
+                f"|delta|={_delta / (1024 * 1024):.3f} MiB > "
+                f"tol={FP16_BUDGET_ASSERT_TOLERANCE_MIB:g} MiB. "
+                f"pool_EXTRA="
+                f"{float(budget_stats.get('pool_extra_mb', 0.0) or 0.0):.2f} MiB "
+                f"(candidate only). Refusing to save."
+            )
+        print(
+            f"  [FP16 budget] selection EXTRA matches post-pack: "
+            f"{_pack_used / (1024 * 1024):.2f} MiB "
+            f"(|delta|={_delta / (1024 * 1024):.3f} MiB); "
+            f"pool_EXTRA="
+            f"{float(budget_stats.get('pool_extra_mb', 0.0) or 0.0):.2f} MiB"
         )
 
     # Build _quantization_metadata for ComfyUI loader (QUANTIZATION.md format)
