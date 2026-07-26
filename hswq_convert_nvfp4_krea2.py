@@ -4553,8 +4553,11 @@ def convert_to_nvfp4_convrot(
     # Hard assert: Linear+Conv FP16 keep + Linear INT8 shelter ≤ owner
     # ceiling + owner tolerance. Meter = EXTRA vs packed (same as selection):
     # Linear FP16 +1.5×numel (vs NVFP4), Conv FP16 +1× (vs INT8), Linear INT8
-    # shelter +0.5×numel (vs NVFP4). 2400 usage unchanged: Static→FP16 then
-    # INT8 remainder (never 3-tier). Post-pack EXTRA must match selection
+    # shelter +0.5×numel (vs NVFP4). Fill order (owner 2026-07-26): static
+    # FP16 first, then ONE score/byte ladder of int8 steps (+0.5 B/el) and
+    # fp16up steps (+1.0 B/el on top of that layer's int8) — an upgraded
+    # layer meters 0.5 into shelter + 1.0 into FP16 = 1.5 total.
+    # Post-pack EXTRA must match selection
     # used_bytes; absolute 2 B/1 B underfill (1500→~8 GiB then “2400→~8.4”)
     # is refused. FP16 protect MUST be torch.float16 in the saved ckpt.
     _budget_ceil_b = int(float(fp16_budget_mb) * 1024 * 1024)
