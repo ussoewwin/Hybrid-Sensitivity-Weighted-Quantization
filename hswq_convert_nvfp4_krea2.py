@@ -4073,6 +4073,8 @@ def convert_to_nvfp4_convrot(
     compute_int8_bias_delta = None
     rotate_weight = None
     rotate_weight_conv2d = None
+    unrotate_weight = None
+    unrotate_weight_conv2d = None
     convrot_group_size_for_features = None
     build_hadamard = None
     plain_nvfp4 = 0
@@ -4103,6 +4105,8 @@ def convert_to_nvfp4_convrot(
         nc = _load_native_convert_int8()
         rotate_weight = nc.rotate_weight
         rotate_weight_conv2d = nc.rotate_weight_conv2d
+        unrotate_weight = nc.unrotate_weight
+        unrotate_weight_conv2d = nc.unrotate_weight_conv2d
         convrot_group_size_for_features = nc.convrot_group_size_for_features
         build_hadamard = nc.build_hadamard
     if enable_convrot:
@@ -4467,7 +4471,25 @@ def convert_to_nvfp4_convrot(
                 if act_mean is None:
                     bias_corr_skipped_no_act += 1
                 else:
-                    delta = compute_int8_bias_delta(w_fp, weight_dq, act_mean)
+                    # owner 2026-07-27 — delta MUST be contracted in the
+                    # ORIGINAL (unrotated) space: DualMonitor mu_x was
+                    # measured on the unrotated model, but ConvRot overwrote
+                    # w_fp with W @ H^T above, so weight_dq is rotated too.
+                    # Unrotate the dequant back before err @ mu. (v3 bug:
+                    # garbage +0.557 bias shift on txtmlp.3, SSIM
+                    # 0.9087 -> 0.8807.)
+                    w_ref = tensor.float()
+                    w_dq = weight_dq
+                    if do_rotate:
+                        if tensor.ndim == 2:
+                            w_dq = unrotate_weight(
+                                w_dq.float(), h_matrix, int(used_gs)
+                            )
+                        else:
+                            w_dq = unrotate_weight_conv2d(
+                                w_dq.float(), h_matrix, int(used_gs)
+                            )
+                    delta = compute_int8_bias_delta(w_ref, w_dq, act_mean)
                     if delta is None:
                         bias_corr_skipped_bad_shape += 1
                     else:
