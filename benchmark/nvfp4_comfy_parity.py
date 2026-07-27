@@ -6,6 +6,13 @@ Lives OUTSIDE benchmark/nvfp4/ (owner: that package is for SDXL; do not edit it)
 After apply_comfy_quant_nvfp4_patches():
   1) NVFP4 Linear load → Comfy ops._load_quantized_module (no HSWQ arm / ones(1))
   2) Linear.forward → unwrap to stock Comfy ops.py MixedPrecision Linear.forward
+  3) NVFP4 convrot (offline Hadamard-rotated weights, --nvfp4-convrot ckpts):
+     stock load drops the comfy_quant stamp, so the load wrapper re-arms
+     _hswq_nvfp4_convrot(_groupsize) from the stamp, and the parity forward
+     applies the REQUIRED online act rotation (x @ H, per group) right before
+     the stock dequant GEMM: (x @ H) @ (W @ H^T)^T == x @ W^T.
+     Without this, convrot-stamped ckpts measure as pure garbage (SSIM ~0.04).
+     Still ComfyUI-only: stock load + stock dequant linear, no TC quant of acts.
 
 No invented amax / freeze / TC / ensure_act_scale. Inference + load = ComfyUI only.
 """
@@ -28,6 +35,30 @@ def _unwrap_stock_forward(fwd):
     if not getattr(fwd, "_hswq_nvfp4_full_forward", False):
         return None
     return _closure_named(fwd, "stock_forward")
+
+
+def _make_convrot_parity_forward(stock_forward):
+    """Stock MixedPrecision forward + required online act rotation for convrot ckpts.
+
+    The HSWQ TC forward (disabled here for parity) is the only other place this
+    rotation exists. ConvRot weights are stored pre-rotated (W @ H^T); the math
+    only closes if activations are rotated too: (x @ H) @ (W @ H^T)^T == x @ W^T.
+    Modules without the armed flag pass through untouched (bit-exact stock).
+    """
+    from nvfp4.nvfp4_hadamard import build_hadamard, rotate_last_dim
+
+    def forward_convrot_parity(self, input, *args, **kwargs):
+        if getattr(self, "_hswq_nvfp4_convrot", False):
+            gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
+            h = getattr(self, "_hswq_nvfp4_parity_H", None)
+            if h is None or h.device != input.device or h.dtype != input.dtype:
+                h = build_hadamard(gs, device=input.device, dtype=input.dtype)
+                self._hswq_nvfp4_parity_H = h
+            input = rotate_last_dim(input, h, gs)
+        return stock_forward(self, input, *args, **kwargs)
+
+    forward_convrot_parity._hswq_nvfp4_convrot_parity = True  # type: ignore[attr-defined]
+    return forward_convrot_parity
 
 
 def apply_nvfp4_comfy_parity() -> bool:
@@ -58,8 +89,16 @@ def apply_nvfp4_comfy_parity() -> bool:
         error_msgs,
         load_extra_params=False,
     ):
+        from nvfp4.nvfp4_conf import (
+            convrot_flags_from_conf,
+            decode_comfy_quant_conf,
+            is_nvfp4_conf,
+        )
+
+        # Peek before orig_load pops the stamp.
+        conf = decode_comfy_quant_conf(state_dict.get(f"{prefix}comfy_quant"))
         # Always Comfy stock load — including nvfp4 (input_scale only if in ckpt)
-        return orig_load(
+        out = orig_load(
             module,
             super_load,
             state_dict,
@@ -71,6 +110,13 @@ def apply_nvfp4_comfy_parity() -> bool:
             error_msgs,
             load_extra_params=load_extra_params,
         )
+        # Stock load drops the stamp; re-arm convrot flags so the parity forward
+        # applies the online act rotation the offline-rotated weights require.
+        if is_nvfp4_conf(conf):
+            enabled, gs = convrot_flags_from_conf(conf)
+            module._hswq_nvfp4_convrot = bool(enabled)
+            module._hswq_nvfp4_convrot_groupsize = int(gs)
+        return out
 
     _load_quantized_module_comfy_only._hswq_nvfp4_full_load = True  # type: ignore[attr-defined]
     ops._load_quantized_module = _load_quantized_module_comfy_only
@@ -88,7 +134,7 @@ def apply_nvfp4_comfy_parity() -> bool:
                 "refusing to leave non-Comfy forward (SSIM target ≥0.9)"
             )
         if stock is not None:
-            Lin.forward = stock
+            Lin.forward = _make_convrot_parity_forward(stock)
         return mp
 
     ops.mixed_precision_ops = mixed_precision_ops_comfy_only
@@ -101,11 +147,12 @@ def apply_nvfp4_comfy_parity() -> bool:
             "[BENCH] nvfp4 Comfy parity: failed to unwrap Linear.forward to Comfy stock"
         )
     if stock0 is not None:
-        mp0.Linear.forward = stock0
+        mp0.Linear.forward = _make_convrot_parity_forward(stock0)
 
     _APPLIED = True
     print(
         "[BENCH] nvfp4 ComfyUI-only: load=_load_quantized_module; "
-        "Linear.forward=ops.py stock (nvfp4/ untouched); SSIM target ≥0.9"
+        "Linear.forward=ops.py stock + convrot act-rotate (nvfp4/ untouched); "
+        "SSIM target ≥0.9"
     )
     return True

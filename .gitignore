@@ -23,6 +23,8 @@ venv/
 *.ckpt
 output/
 cache/
+.pytest_cache/
+**/stdout.txt
 
 # Local test folder (never commit or push)
 test/*
@@ -33,6 +35,10 @@ test/*
 # Local / private
 反省文/
 .mailmap
+
+# Only the nested .git of seedvr2_videoupscaler (blocks parent tracking if present)
+seedvr2_videoupscaler/.git/
+_backup_seedvr2_dotgit_20260727_git/
 
 # Local push/tag scripts (excluded from repo)
 do_push.ps1
