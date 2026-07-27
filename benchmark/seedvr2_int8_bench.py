@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 """
-SeedVR2 INT8 Benchmark (seedvr2_videoupscaler path)
-===================================================
-Compare community FP16 SeedVR2 DiT vs HSWQ native INT8 (int8_tensorwise + ConvRot)
-through numz SeedVR2_VideoUpscaler (same encode / DiT / decode / color pipeline).
+SeedVR2 Native INT8 Benchmark (construction-time comfy.ops injection)
+=====================================================================
+Compare community FP16 SeedVR2 DiT vs HSWQ native INT8 (int8_tensorwise,
+optional ConvRot) through numz SeedVR2_VideoUpscaler.
 
-INT8 checkpoints use comfy_quant keys and cannot load into videoupscaler as-is.
-This bench dequantizes INT8+ConvRot to a temporary FP16 safetensors (kitchen
-dequantize_int8_convrot_weight), then runs both branches on that pipeline.
+HSWQ INT8 safetensors keep comfy_quant + weight_scale. The videoupscaler path
+injects comfy.ops.mixed_precision_ops at DiT construction so load_state_dict
+hits _load_quantized_module (QuantizedTensor stays INT8 in VRAM).
 
-Primary metric: FP16 output vs INT8-dequant output (MSE / SSIM / diff PNG).
+This bench does NOT dequantize INT8 to a temporary FP16 safetensors.
+
+Primary metric: FP16 output vs native INT8 output (MSE / SSIM / diff PNG).
+
+Python imports stay inside this repository only:
+  - seedvr2_videoupscaler/  (default --seedvr2_path)
+  - ComfyUI-master/         (default --comfy_path, for comfy.ops)
+
+Weight paths (--fp16 / --int8 / --vae) may point at model files anywhere;
+they are data files, not package imports.
 
 Example:
-  python seedvr2_int8_bench.py ^
+  D:\\USERFILES\\fp8e4m3\\venv\\Scripts\\python.exe benchmark\\seedvr2_int8_bench.py ^
     --fp16  "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\SEEDVR2\\seedvr2_ema_7b_fp16.safetensors" ^
     --int8  "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\SEEDVR2\\seedvr2_7b_int8_convrot.safetensors" ^
     --vae   "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\SEEDVR2\\ema_vae_fp16.safetensors" ^
@@ -27,7 +36,6 @@ from __future__ import annotations
 
 import argparse
 import gc
-import json
 import os
 import sys
 import time
@@ -47,18 +55,34 @@ if hasattr(sys.stdout, "reconfigure"):
 import numpy as np
 import torch
 from PIL import Image, ImageDraw
-from safetensors.torch import save_file
 from skimage.metrics import structural_similarity as ssim
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SEEDVR2_PATH = REPO_ROOT / "seedvr2_videoupscaler"
-INT8_DEQUANT_NAME = "_hswq_bench_int8_dequant_fp16.safetensors"
+DEFAULT_COMFY_PATH = REPO_ROOT / "ComfyUI-master"
 
 
 def _clean_path(p: str) -> str:
     """PowerShell trailing \\\" leaves a final backslash; strip it."""
     return os.path.normpath(str(p).rstrip("\\/"))
+
+
+def _dit_size_tag(*names: str) -> str:
+    """
+    SeedVR2 configure_runner selects configs_7b iff '7b' is in dit_model
+    filename (else configs_3b). INT8 filename must carry the same marker.
+    """
+    joined = " ".join(Path(n).name.lower() for n in names if n)
+    if "7b" in joined:
+        return "7b"
+    if "3b" in joined:
+        return "3b"
+    raise ValueError(
+        "Cannot infer SeedVR2 DiT size (3b/7b) from filenames: "
+        + ", ".join(repr(Path(n).name) for n in names if n)
+        + ". Rename sources to include 3b or 7b, e.g. seedvr2_ema_7b_fp16.safetensors."
+    )
 
 
 def make_synthetic_rgb(short_edge: int = 512) -> Image.Image:
@@ -108,93 +132,66 @@ def calculate_metrics(img1, img2):
     return mse, score_ssim
 
 
-def dequant_int8_convrot_to_fp16(
-    int8_path: str,
-    out_path: str,
-) -> str:
+def _require_under_repo(path: Path, flag: str) -> Path:
+    """Reject Python package roots outside this repository."""
+    resolved = path.resolve()
+    repo = REPO_ROOT.resolve()
+    try:
+        resolved.relative_to(repo)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"{flag} must stay inside this repository ({repo}); got: {resolved}"
+        ) from exc
+    return resolved
+
+
+def _stub_comfy_aimdo() -> None:
+    try:
+        import comfy_aimdo  # noqa: F401
+    except Exception:
+        m = types.ModuleType("comfy_aimdo")
+        m.__file__ = "<stub>"
+        m.__path__ = []
+        sys.modules["comfy_aimdo"] = m
+        filt = types.ModuleType("comfy_aimdo.filter")
+        filt.filter_modules = lambda *a, **k: None
+        sys.modules["comfy_aimdo.filter"] = filt
+        model_vbar = types.ModuleType("comfy_aimdo.model_vbar")
+        sys.modules["comfy_aimdo.model_vbar"] = model_vbar
+        ta = types.ModuleType("comfy_aimdo.torch")
+        sys.modules["comfy_aimdo.torch"] = ta
+
+
+def _install_in_repo_paths(*, seedvr2_path: str, comfy_path: str) -> tuple[str, str]:
     """
-    Expand HSWQ int8_tensorwise + ConvRot (2D) weights to FP16 safetensors
-    compatible with seedvr2_videoupscaler load_standard_weights.
-    Drops comfy_quant / weight_scale / baked conditioning keys.
+    Put only in-repo package roots on sys.path:
+      1) seedvr2_videoupscaler (src / inference_cli)
+      2) ComfyUI-master (comfy.ops)
     """
-    from safetensors import safe_open
-    from comfy_kitchen.backends.eager.quantization import (
-        dequantize_int8_convrot_weight,
-        dequantize_int8_simple,
+    seed_root = _require_under_repo(Path(seedvr2_path), "--seedvr2_path")
+    comfy_root = _require_under_repo(Path(comfy_path), "--comfy_path")
+    if not seed_root.is_dir():
+        raise FileNotFoundError(f"--seedvr2_path not found: {seed_root}")
+    if not comfy_root.is_dir():
+        raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
+    if not (comfy_root / "comfy" / "ops.py").is_file():
+        raise FileNotFoundError(f"comfy.ops missing under --comfy_path: {comfy_root}")
+
+    allowed = {seed_root, comfy_root}
+    prepend = [str(seed_root), str(comfy_root)]
+    sys.path = prepend + [
+        p for p in sys.path if Path(p).resolve() not in allowed
+    ]
+    os.environ["PYTHONPATH"] = (
+        os.pathsep.join(prepend) + os.pathsep + os.environ.get("PYTHONPATH", "")
     )
 
-    print(f"  [BENCH] dequant INT8 → FP16: {int8_path}")
-    print(f"  [BENCH] write: {out_path}")
-    t0 = time.perf_counter()
-    out: dict[str, torch.Tensor] = {}
-    n_convrot = 0
-    n_plain = 0
-    n_copy = 0
+    # Same pattern as krea2_int8_bench: keep cli_args from swallowing bench argv.
+    import comfy.options
 
-    with safe_open(int8_path, framework="pt") as f:
-        keys = list(f.keys())
-        conf_by_base: dict[str, dict] = {}
-        for k in keys:
-            if not k.endswith(".comfy_quant"):
-                continue
-            raw = bytes(f.get_tensor(k).cpu().tolist())
-            conf_by_base[k[: -len(".comfy_quant")]] = json.loads(raw.decode("utf-8"))
-
-        skip = set()
-        for k in keys:
-            if k.endswith(".comfy_quant") or k.endswith(".weight_scale"):
-                skip.add(k)
-            if k in ("positive_conditioning", "negative_conditioning"):
-                skip.add(k)
-
-        for k in keys:
-            if k in skip:
-                continue
-            if not k.endswith(".weight"):
-                out[k] = f.get_tensor(k).contiguous()
-                n_copy += 1
-                continue
-
-            base = k[: -len(".weight")]
-            scale_key = base + ".weight_scale"
-            if scale_key not in keys:
-                out[k] = f.get_tensor(k).contiguous()
-                n_copy += 1
-                continue
-
-            q = f.get_tensor(k)
-            scale = f.get_tensor(scale_key)
-            conf = conf_by_base.get(base, {})
-            if conf.get("convrot"):
-                gs = int(conf.get("convrot_groupsize", 256) or 256)
-                if q.ndim != 2:
-                    raise RuntimeError(
-                        f"ConvRot dequant expects 2D weight, got ndim={q.ndim} for {k}"
-                    )
-                w = dequantize_int8_convrot_weight(q, scale, gs)
-                n_convrot += 1
-            else:
-                w = dequantize_int8_simple(q, scale)
-                n_plain += 1
-            out[k] = w.to(torch.float16).contiguous()
-
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    save_file(out, out_path)
-    print(
-        f"  [BENCH] dequant done in {time.perf_counter() - t0:.1f}s "
-        f"(convrot={n_convrot} plain={n_plain} other={n_copy} tensors={len(out)})"
-    )
-    return out_path
-
-
-def _install_seedvr2_path(seedvr2_path: str) -> str:
-    root = str(Path(seedvr2_path).resolve())
-    if not Path(root).is_dir():
-        raise FileNotFoundError(f"--seedvr2_path not found: {root}")
-    # Prefer package root first (same as inference_cli.py)
-    sys.path = [root] + [p for p in sys.path if Path(p).resolve() != Path(root)]
-    os.environ["PYTHONPATH"] = root + os.pathsep + os.environ.get("PYTHONPATH", "")
-    return root
+    comfy.options.enable_args_parsing(False)
+    _stub_comfy_aimdo()
+    return str(seed_root), str(comfy_root)
 
 
 def _build_cli_args(
@@ -306,10 +303,10 @@ def run_branch(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="SeedVR2 INT8 bench via seedvr2_videoupscaler (FP16 vs INT8-dequant)"
+        description="SeedVR2 native INT8 bench (FP16 vs HSWQ INT8 via construction-time ops)"
     )
     parser.add_argument("--fp16", required=True, help="FP16 SeedVR2 DiT safetensors")
-    parser.add_argument("--int8", required=True, help="HSWQ INT8 ConvRot SeedVR2 DiT safetensors")
+    parser.add_argument("--int8", required=True, help="HSWQ INT8 SeedVR2 DiT safetensors")
     parser.add_argument(
         "--vae",
         required=True,
@@ -318,7 +315,12 @@ def main() -> int:
     parser.add_argument(
         "--seedvr2_path",
         default=str(DEFAULT_SEEDVR2_PATH),
-        help=f"seedvr2_videoupscaler root (default: {DEFAULT_SEEDVR2_PATH})",
+        help=f"In-repo seedvr2_videoupscaler root (default: {DEFAULT_SEEDVR2_PATH})",
+    )
+    parser.add_argument(
+        "--comfy_path",
+        default=str(DEFAULT_COMFY_PATH),
+        help=f"In-repo ComfyUI-master root for comfy.ops (default: {DEFAULT_COMFY_PATH})",
     )
     parser.add_argument(
         "--model_dir",
@@ -350,17 +352,13 @@ def main() -> int:
     parser.add_argument("--vae_offload_device", default="none")
     parser.add_argument("--tensor_offload_device", default="cpu")
     parser.add_argument("--output_dir", default=".")
-    parser.add_argument(
-        "--keep_dequant",
-        action="store_true",
-        help="Keep temporary INT8→FP16 dequant file after the run",
-    )
     args = parser.parse_args()
 
     args.fp16 = _clean_path(args.fp16)
     args.int8 = _clean_path(args.int8)
     args.vae = _clean_path(args.vae)
     args.seedvr2_path = _clean_path(args.seedvr2_path)
+    args.comfy_path = _clean_path(args.comfy_path)
     args.output_dir = _clean_path(args.output_dir)
     if args.model_dir is not None:
         args.model_dir = _clean_path(args.model_dir)
@@ -377,6 +375,10 @@ def main() -> int:
     if args.image is not None and not Path(args.image).is_file():
         raise FileNotFoundError(f"--image not found: {args.image}")
 
+    # Enforce matching 3b/7b tags between FP16 and INT8 filenames.
+    tag = _dit_size_tag(args.fp16, args.int8)
+    print(f"[BENCH] DiT size tag: {tag}")
+
     model_dir = args.model_dir or str(Path(args.fp16).parent)
     vae_name = Path(args.vae).name
     if Path(args.vae).resolve() != (Path(model_dir) / vae_name).resolve():
@@ -386,13 +388,35 @@ def main() -> int:
                 f"VAE must live under --model_dir as {vae_name}: expected {target}"
             )
 
+    int8_name = Path(args.int8).name
+    if Path(args.int8).resolve() != (Path(model_dir) / int8_name).resolve():
+        target_int8 = Path(model_dir) / int8_name
+        if not target_int8.is_file():
+            raise FileNotFoundError(
+                f"INT8 DiT must live under --model_dir as {int8_name}: expected {target_int8}"
+            )
+
     os.makedirs(args.output_dir, exist_ok=True)
 
     print(f"[BENCH] python: {sys.executable}")
+    print(f"[BENCH] repo_root: {REPO_ROOT.resolve()}")
     print(f"[BENCH] seedvr2_path: {args.seedvr2_path}")
-    _install_seedvr2_path(args.seedvr2_path)
+    print(f"[BENCH] comfy_path: {args.comfy_path}")
+    print("[BENCH] mode: native INT8 (construction-time mixed_precision_ops)")
+    seed_root, comfy_root = _install_in_repo_paths(
+        seedvr2_path=args.seedvr2_path,
+        comfy_path=args.comfy_path,
+    )
+    print(f"[BENCH] sys.path package roots: {seed_root} | {comfy_root}")
 
+    from src.optimization.int8_native_ops import checkpoint_is_hswq_int8
     from src.utils.model_registry import DEFAULT_VAE as _DEFAULT_VAE
+
+    if not checkpoint_is_hswq_int8(args.int8):
+        raise RuntimeError(
+            f"--int8 does not look like HSWQ int8_tensorwise: {args.int8}"
+        )
+    print(f"  [BENCH] HSWQ INT8 marker OK: {int8_name}")
 
     if vae_name != _DEFAULT_VAE:
         print(
@@ -416,10 +440,6 @@ def main() -> int:
 
     frames = pil_to_thwc_f16(pil_in)
     print(f"  input tensor: {tuple(frames.shape)} dtype={frames.dtype}")
-
-    # --- INT8 dequant next to model_dir so find_model_file works ---
-    dequant_path = str(Path(model_dir) / INT8_DEQUANT_NAME)
-    dequant_int8_convrot_to_fp16(args.int8, dequant_path)
 
     ns = _build_cli_args(
         dit_model=Path(args.fp16).name,
@@ -447,8 +467,8 @@ def main() -> int:
     print(f"  saved: {out_fp16}")
 
     img_int8, t_int8, v_int8 = run_branch(
-        label="INT8 (dequant→FP16 load)",
-        dit_model=INT8_DEQUANT_NAME,
+        label="INT8 (native QuantizedTensor)",
+        dit_model=int8_name,
         model_dir=model_dir,
         frames=frames,
         args_ns=ns,
@@ -457,7 +477,6 @@ def main() -> int:
     img_int8.save(out_int8)
     print(f"  saved: {out_int8}")
 
-    # Align sizes if needed
     if img_fp16.size != img_int8.size:
         print(
             f"  [BENCH] size mismatch FP16={img_fp16.size} INT8={img_int8.size}; "
@@ -474,19 +493,12 @@ def main() -> int:
     out_diff = Path(args.output_dir) / "seedvr2_diff.png"
     diff.save(out_diff)
 
-    print("\n=== Results (FP16 vs INT8-dequant, same videoupscaler pipeline) ===")
+    print("\n=== Results (FP16 vs native INT8, same videoupscaler pipeline) ===")
     print(f"  MSE:  {mse:.6f}")
     print(f"  SSIM: {score:.6f}")
     print(f"  FP16 wall: {t_fp16:.2f}s  peak_vram={v_fp16:.2f} GiB")
     print(f"  INT8 wall: {t_int8:.2f}s  peak_vram={v_int8:.2f} GiB")
     print(f"  outputs: {out_fp16} | {out_int8} | {out_diff}")
-
-    if not args.keep_dequant:
-        try:
-            os.remove(dequant_path)
-            print(f"  removed temp dequant: {dequant_path}")
-        except OSError:
-            pass
 
     return 0
 
