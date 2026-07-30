@@ -23,7 +23,7 @@ import os
 
 from .nvfp4_hadamard import build_hadamard
 from .nvfp4_runtime import (
-    ensure_act_scale,
+    ensure_act_scale_cached,
     clear_nvfp4_cudagraphs,
     nvfp4_quant_mm_cudagraph,
     quantize_nvfp4_act_pooled,
@@ -37,16 +37,22 @@ logger = logging.getLogger(__name__)
 # Counters for bench / diagnostics (reset per run if needed)
 _TC_HITS = 0
 _DEQUANT_FALLBACKS = 0
+_CONVROT_ACT_ROTATES = 0
 
 
 def reset_nvfp4_forward_stats() -> None:
-    global _TC_HITS, _DEQUANT_FALLBACKS
+    global _TC_HITS, _DEQUANT_FALLBACKS, _CONVROT_ACT_ROTATES
     _TC_HITS = 0
     _DEQUANT_FALLBACKS = 0
+    _CONVROT_ACT_ROTATES = 0
 
 
 def nvfp4_forward_stats() -> dict:
-    return {"scaled_mm_hits": _TC_HITS, "dequant_fallbacks": _DEQUANT_FALLBACKS}
+    return {
+        "scaled_mm_hits": _TC_HITS,
+        "dequant_fallbacks": _DEQUANT_FALLBACKS,
+        "convrot_act_rotates": _CONVROT_ACT_ROTATES,
+    }
 
 
 def _slice_nvfp4_mm_out(result, orig_m: int, orig_n: int):
@@ -157,21 +163,24 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         orig_k,
     )
 
-    scale_a = ensure_act_scale(input_2d, act_scale)
+    # Checkpoints omit input_scale (placeholder ones). Must amax once per
+    # module — ones as tensor_scale collapses NVFP4 act grids (SSIM~0.18).
+    scale_a = ensure_act_scale_cached(module, input_2d, act_scale)
     try:
         w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(module, weight_qt)
 
-        # Calib input_scale and placeholder ones are static — always cache
-        # alpha. Recomputing scale_a*scale_b every Linear (~18k/sample) was
-        # pure waste on FULL ConvRot (every layer has input_scale).
+        # Cache alpha only after scale_a is the real (amax or calib) tensor.
+        # Rebind if act scale object changed (first amax after placeholder).
         cached_alpha = getattr(module, "_hswq_nvfp4_alpha", None)
-        if cached_alpha is None:
+        bound = getattr(module, "_hswq_nvfp4_alpha_bound_scale", None)
+        if cached_alpha is None or bound is not scale_a:
             alpha = scale_a * scale_b
             if alpha.dtype != torch.float32:
                 alpha = alpha.to(dtype=torch.float32)
             if alpha.dim() == 0:
                 alpha = alpha.reshape(1)
             module._hswq_nvfp4_alpha = alpha
+            module._hswq_nvfp4_alpha_bound_scale = scale_a
         else:
             alpha = cached_alpha
 
@@ -235,6 +244,20 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
             orig_m=orig_m,
             orig_n=orig_n,
         )
+        if os.environ.get("HSWQ_NVFP4_NANSCAN", "").strip() == "1":
+            n_nan = int(torch.isnan(result).sum())
+            n_inf = int(torch.isinf(result).sum())
+            if n_nan or n_inf:
+                logger.warning(
+                    "[HSWQ NVFP4 NANSCAN] %s mm OUT nan=%d inf=%d "
+                    "out_dtype=%s in_dtype=%s in_amax=%.3e",
+                    getattr(module, "_hswq_nvfp4_name", "?"),
+                    n_nan,
+                    n_inf,
+                    result.dtype,
+                    input_2d.dtype,
+                    float(input_2d.detach().float().abs().max()),
+                )
         _TC_HITS += 1
         return result
     except (RuntimeError, TypeError, ValueError) as e:
@@ -255,13 +278,38 @@ def make_nvfp4_linear_forward(stock_forward):
     from comfy.ops import cast_bias_weight, run_every_op, uncast_bias_weight
 
     def forward_nvfp4(self, input, *args, **kwargs):
-        if not getattr(self, "_hswq_nvfp4", False) or getattr(self, "_full_precision_mm", False):
+        global _CONVROT_ACT_ROTATES
+
+        if not getattr(self, "_hswq_nvfp4", False):
             return stock_forward(self, input, *args, **kwargs)
 
-        # Training / LoRA / forced cast: fall back to stock (still ConvRot-armed there if wrap)
+        # Training / LoRA / forced cast: fall back to stock.
+        # ConvRot + full_precision_mm still needs act rotation before stock dequant.
         if input.requires_grad or getattr(self, "comfy_force_cast_weights", False):
             return stock_forward(self, input, *args, **kwargs)
         if len(getattr(self, "weight_function", [])) or len(getattr(self, "bias_function", [])):
+            return stock_forward(self, input, *args, **kwargs)
+
+        # GPU lacks NVFP4 TC: stock dequant mm, but MUST rotate acts if ConvRot.
+        if getattr(self, "_full_precision_mm", False):
+            if not getattr(self, "_hswq_nvfp4_convrot", False):
+                return stock_forward(self, input, *args, **kwargs)
+            input_shape = input.shape
+            reshaped_nd = input.ndim >= 3
+            input_2d = input.reshape(-1, input_shape[-1]) if reshaped_nd else input
+            if input_2d.ndim != 2:
+                return stock_forward(self, input, *args, **kwargs)
+            gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
+            h = getattr(self, "_hswq_nvfp4_H", None)
+            if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
+                h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
+                self._hswq_nvfp4_H = h
+            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
+            _CONVROT_ACT_ROTATES += 1
+            if reshaped_nd:
+                input = input_2d.reshape((*input_shape[:-1], input_shape[-1]))
+            else:
+                input = input_2d
             return stock_forward(self, input, *args, **kwargs)
 
         run_every_op()
@@ -282,6 +330,7 @@ def make_nvfp4_linear_forward(stock_forward):
                 h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
                 self._hswq_nvfp4_H = h
             input_2d = rotate_last_dim_pooled(input_2d, h, gs)
+            _CONVROT_ACT_ROTATES += 1
 
         # 3) Weight / bias: skip cast_bias_weight when already on-device QT
         #    (cast+sync every Linear was a major share of NVFP4 > FP16 wall time).

@@ -51,6 +51,11 @@ def _console(msg: str) -> None:
 def apply_comfy_quant_nvfp4_patches() -> bool:
     """Install NVFP4 detection + full load + full TC Linear forward once."""
     global _PATCHES_APPLIED
+    # Kitchen gap fill: always (re)ensure addmm → scaled_mm_nvfp4 (idempotent).
+    from .nvfp4_addmm_patch import register_nvfp4_addmm_handler
+
+    register_nvfp4_addmm_handler()
+
     if _PATCHES_APPLIED:
         return True
 
