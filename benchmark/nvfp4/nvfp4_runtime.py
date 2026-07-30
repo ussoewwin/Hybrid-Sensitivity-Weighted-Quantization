@@ -6,8 +6,12 @@ dominates wall time vs FP16. This module reuses CUDA buffers keyed by shape.
 """
 from __future__ import annotations
 
+import logging
+import math
 from collections import OrderedDict
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # (padded_rows, padded_cols, device_str) -> (qx uint8, sx_uint8)
 # Safe to reuse: only live during one Linear forward (quantize → mm reads sync).
@@ -39,7 +43,12 @@ def _dev_key(t) -> str:
 
 
 def rotate_last_dim_pooled(x, h_matrix, group_size: int):
-    """Same as ``rotate_last_dim`` but reuses the matmul output buffer."""
+    """Same as ``rotate_last_dim`` but reuses the matmul output buffer.
+
+    fp16/bf16 inputs rotate in fp32: with gs=256 a sign-aligned group of large
+    activations overflows fp16 gemm partial sums (±inf -> inf-inf = NaN).
+    Observed as NaN act-amax in deep SeedVR2 DiT blocks (A2_rot bench).
+    """
     import torch
 
     orig_shape = x.shape
@@ -48,15 +57,22 @@ def rotate_last_dim_pooled(x, h_matrix, group_size: int):
         raise ValueError(f"features {features} not divisible by group_size {group_size}")
     group_count = features // group_size
     x_grouped = x.reshape(-1, group_count, group_size)
-    if h_matrix.device != x.device or h_matrix.dtype != x.dtype:
-        h_matrix = h_matrix.to(dtype=x.dtype, device=x.device)
+    compute_dtype = (
+        torch.float32 if x.dtype in (torch.float16, torch.bfloat16) else x.dtype
+    )
+    if h_matrix.device != x.device or h_matrix.dtype != compute_dtype:
+        h_matrix = h_matrix.to(dtype=compute_dtype, device=x.device)
     m = x_grouped.shape[0]
     key = (m, group_count, group_size, x.dtype, _dev_key(x))
-    out = _ROT_OUT_POOL.get(key)
-    if out is None or out.shape != x_grouped.shape:
-        out = torch.empty_like(x_grouped)
-        _ROT_OUT_POOL[key] = out
-    torch.matmul(x_grouped, h_matrix, out=out)
+    buf = _ROT_OUT_POOL.get(key)
+    if buf is None or buf[0].shape != x_grouped.shape:
+        out32 = torch.empty(x_grouped.shape, dtype=compute_dtype, device=x.device)
+        out = torch.empty(x_grouped.shape, dtype=x.dtype, device=x.device)
+        _ROT_OUT_POOL[key] = (out32, out)
+    else:
+        out32, out = buf
+    torch.matmul(x_grouped.to(compute_dtype), h_matrix, out=out32)
+    out.copy_(out32)
     return out.reshape(orig_shape)
 
 
@@ -520,7 +536,37 @@ def ensure_act_scale_cached(module, x, scale):
         if cached is not None and cached.device == x.device:
             return cached
         s = ensure_act_scale_amax(x)
+        v = float(s)
+        if not math.isfinite(v) or v <= 0.0:
+            # Degenerate first input (all-zero / inf / NaN). Freezing this
+            # scale would make alpha=0 or NaN for EVERY later call — the whole
+            # DiT outputs zeros (SeedVR2 A2_rot black-output incident). Use
+            # ones(1) for THIS call only; retry freezing on the next forward.
+            # Zero input still maps to zero output, so this call stays correct.
+            nan_frac = float(torch.isnan(x).float().mean())
+            inf_frac = float(torch.isinf(x).float().mean())
+            xf = x.detach().float()
+            fin = xf[torch.isfinite(xf)]
+            finite_max = float(fin.abs().max()) if fin.numel() else float("nan")
+            logger.warning(
+                "[HSWQ NVFP4] degenerate act amax (%s) at %s "
+                "(input dtype=%s nan_frac=%.4f inf_frac=%.4f "
+                "finite_max=%.3e); scale freeze skipped "
+                "(using ones for this call)",
+                v,
+                getattr(module, "_hswq_nvfp4_name", "?"),
+                x.dtype,
+                nan_frac,
+                inf_frac,
+                finite_max,
+            )
+            return _device_ones_scale(x.device)
         module._hswq_nvfp4_act_scale = s
+        # Drop any alpha cached against placeholder ones(1).
+        if hasattr(module, "_hswq_nvfp4_alpha"):
+            delattr(module, "_hswq_nvfp4_alpha")
+        if hasattr(module, "_hswq_nvfp4_alpha_bound_scale"):
+            delattr(module, "_hswq_nvfp4_alpha_bound_scale")
         return s
 
     return ensure_act_scale(x, scale)
