@@ -59,8 +59,15 @@ ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Lin
 | `bluePencilXL_v031_hswq_r32_1off_convrot_int8.safetensors` | [blue_pencil-XL](https://civitai.com/models/119012) | v0.3.1 | CreativeML Open RAIL++-M |
 | `epicrealismXL_pureFix_hswq_r32_1off_convrot_int8.safetensors` | [epiCRealism XL](https://civitai.com/models/277058) | pureFix | CreativeML Open RAIL++-M |
 | `koronemixIllustrious_v70_sci_1on_covrot_int8.safetensors` | koronemixIllustrious | v70 | Fair AI Public License 1.0-SD |
+| `koronemixVpred_v20_sci_1off_convrot_int8.safetensors` | koronemixVpred | v2.0 | CreativeML Open RAIL++-M |
 | `novaAnimeXL_ilV190_hswq_r32_1on_convrot_int8.safetensors` | Nova Anime XL | ilV190 | Fair AI Public License 1.0-SD |
+| `novaAsianXL_illustriousV70_hswq_r32_1off_convrot_int8.safetensors` | Nova Asian XL | v7.0 | Fair AI Public License 1.0-SD |
+| `oneObsession_v23_hswq_r32_1off_convrot_int8.safetensors` | [OneObsession](https://civitai.com/models/691062) | v23 | CreativeML Open RAIL++-M |
 | `prefectIllustriousXL_v8_hswq_r32_1on_convrot_int8.safetensors` | Prefect Illustrious XL | v8 | Fair AI Public License 1.0-SD |
+| `realvisxlV30_v30TurboBakedvae_hswqr32_r32_1on_convrot_int8_.safetensors` | [RealVisXL V3.0 (Turbo)](https://civitai.com/models/139562?modelVersionId=361593) | v3.0 Turbo | CreativeML Open RAIL++-M |
+| `realvisxlV50_v40Bakedvae_hswq_r32_ioff_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.com/models/139562/realvisxl-v50) | v4.0 BakedVAE | CreativeML Open RAIL++-M |
+| `realvisxlV50_v50Bakedvae_hswq_r32_1on_covrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.com/models/139562/realvisxl-v50) | v5.0 BakedVAE | CreativeML Open RAIL++-M |
+| `uwazumimixILL_v50_hswq_r32_1on_convrot_int8.safetensors` | UwazumiMix | v5.0 | Fair AI Public License 1.0-SD |
 | `waiIllustriousSDXL_v170hswq_r32_1off_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.com/models/827184/wai-illustrious-sdxl) | v17.0 (HF weight) | Fair AI Public License 1.0-SD |
 
 ---
@@ -77,9 +84,12 @@ These models are derivatives of their respective creators. All credit for aesthe
 - **blue_pencil-XL**: Created by [Euge_us](https://civitai.com/user/Euge_us).
 - **epiCRealism XL**: Created by [epinikion](https://civitai.com/user/epinikion).
 - **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.com/user/WAI0731).
-- **koronemixIllustrious**: Created by [koronen](https://civitai.com/user/koronen).
-- **Nova Anime XL**: Original creator on Civitai.
+- **koronemixIllustrious / koronemixVpred**: Created by [koronen](https://civitai.com/user/koronen).
+- **Nova Anime XL / Nova Asian XL**: Original creator on Civitai.
 - **Prefect Illustrious XL**: Created by [Goofy_Ai](https://civitai.com/user/Goofy_Ai).
+- **OneObsession**: Created by [Polyhedron](https://civitai.com/user/Polyhedron).
+- **RealVisXL**: Created by [SG_161222](https://civitai.com/user/SG_161222).
+- **UwazumiMix**: Created by [UWAZUMI](https://civitai.com/user/UWAZUMI).
 
 ---
 
