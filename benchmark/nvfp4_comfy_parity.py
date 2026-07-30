@@ -10,11 +10,13 @@ After apply_comfy_quant_nvfp4_patches():
      stock load drops the comfy_quant stamp, so the load wrapper re-arms
      _hswq_nvfp4_convrot(_groupsize) from the stamp, and the parity forward
      applies the REQUIRED online act rotation (x @ H, per group) right before
-     the stock dequant GEMM: (x @ H) @ (W @ H^T)^T == x @ W^T.
+     stock MixedPrecision F.linear: (x @ H) @ (W @ H^T)^T == x @ W^T.
      Without this, convrot-stamped ckpts measure as pure garbage (SSIM ~0.04).
-     Still ComfyUI-only: stock load + stock dequant linear, no TC quant of acts.
+     Still ComfyUI-only: stock load + stock Linear.forward (ops.py).
+     Kitchen lacked aten.addmm for NVFP4 (bias F.linear → full dequant); that gap
+     is filled at runtime by nvfp4_addmm_patch (scaled_mm_nvfp4), not HSWQ TC wrap.
 
-No invented amax / freeze / TC / ensure_act_scale. Inference + load = ComfyUI only.
+No invented amax / freeze / ensure_act_scale. Inference + load = ComfyUI only.
 """
 from __future__ import annotations
 
@@ -64,6 +66,11 @@ def _make_convrot_parity_forward(stock_forward):
 def apply_nvfp4_comfy_parity() -> bool:
     """Runtime only. Never writes under benchmark/nvfp4/."""
     global _APPLIED
+    # Stock F.linear(bias=...) → aten.addmm; kitchen NVFP4 had no handler → dequant.
+    from nvfp4.nvfp4_addmm_patch import register_nvfp4_addmm_handler
+
+    register_nvfp4_addmm_handler()
+
     if _APPLIED:
         return True
 
@@ -131,7 +138,7 @@ def apply_nvfp4_comfy_parity() -> bool:
         if stock is None and getattr(Lin.forward, "_hswq_nvfp4_full_forward", False):
             raise RuntimeError(
                 "[BENCH] nvfp4 Comfy parity: HSWQ TC wrap still on Linear.forward; "
-                "refusing to leave non-Comfy forward (SSIM target ≥0.9)"
+                "refusing to leave non-Comfy forward (SSIM target >=0.9)"
             )
         if stock is not None:
             Lin.forward = _make_convrot_parity_forward(stock)
@@ -152,7 +159,8 @@ def apply_nvfp4_comfy_parity() -> bool:
     _APPLIED = True
     print(
         "[BENCH] nvfp4 ComfyUI-only: load=_load_quantized_module; "
-        "Linear.forward=ops.py stock + convrot act-rotate (nvfp4/ untouched); "
-        "SSIM target ≥0.9"
+        "Linear.forward=ops.py stock + convrot act-rotate; "
+        "NVFP4 addmm->scaled_mm_nvfp4 registered (no full-weight dequant); "
+        "SSIM target >=0.9"
     )
     return True

@@ -178,6 +178,7 @@ def load_nvfp4_linear_module(
             manually_loaded_keys.append(param_key)
 
     arm_nvfp4_module(module, layer_conf)
+    module._hswq_nvfp4_name = layer_name
 
     super_load(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
     for key in manually_loaded_keys:
