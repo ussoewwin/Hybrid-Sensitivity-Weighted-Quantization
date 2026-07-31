@@ -31,6 +31,7 @@ from .nvfp4_runtime import (
     scaled_mm_nvfp4_pooled,
     _GRAPH_MAX_M,
 )
+from .nvfp4_tc_gate import note_scaled_mm_failure, nvfp4_tc_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,10 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     a_qdata, scale_a, block_scale_a = TensorCoreNVFP4Layout.get_plain_tensors(input_qt)
     w_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(weight_qt)
     out_dtype = input_qt._params.orig_dtype
+    if not nvfp4_tc_enabled():
+        _DEQUANT_FALLBACKS += 1
+        return F.linear(input_qt, weight_qt, bias)
+
     try:
         result = ck.scaled_mm_nvfp4(
             a_qdata,
@@ -109,7 +114,7 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
         _TC_HITS += 1
         return _slice_nvfp4_mm_out(result, orig_m, orig_n)
     except (RuntimeError, TypeError) as e:
-        logger.warning("[HSWQ NVFP4] scaled_mm_nvfp4 failed: %s — F.linear dequant", e)
+        note_scaled_mm_failure(e)
         _DEQUANT_FALLBACKS += 1
         return F.linear(input_qt, weight_qt, bias)
 
@@ -151,6 +156,11 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         _DEQUANT_FALLBACKS += 1
         return None
     if getattr(weight_qt._params, "transposed", False):
+        _DEQUANT_FALLBACKS += 1
+        return None
+
+    # Cloud Ada/Hopper: skip cuBLAS NVFP4 after gate disables TC.
+    if not nvfp4_tc_enabled():
         _DEQUANT_FALLBACKS += 1
         return None
 
@@ -261,7 +271,7 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         _TC_HITS += 1
         return result
     except (RuntimeError, TypeError, ValueError) as e:
-        logger.warning("[HSWQ NVFP4] pooled TC path failed: %s", e)
+        note_scaled_mm_failure(e)
         _DEQUANT_FALLBACKS += 1
         return None
 

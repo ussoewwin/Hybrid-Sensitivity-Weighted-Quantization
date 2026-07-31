@@ -37,9 +37,16 @@ def register_nvfp4_addmm_handler() -> bool:
             TensorCoreNVFP4Layout,
             _slice_to_original_shape,
         )
+        from .nvfp4_tc_gate import (
+            announce_tc_status_at_register,
+            note_scaled_mm_failure,
+            nvfp4_tc_enabled,
+        )
     except Exception as e:
         logger.warning("[HSWQ NVFP4] addmm register skipped (import): %s", e)
         return False
+
+    announce_tc_status_at_register()
 
     # Already present in a newer kitchen — do not double-register.
     op = torch.ops.aten.addmm.default
@@ -68,6 +75,11 @@ def register_nvfp4_addmm_handler() -> bool:
             )
             return torch.addmm(*dequantize_args((bias, mat1, mat2)))
 
+        # Cloud Ada/Hopper etc.: skip scaled_mm after first CUBLAS NOT_SUPPORTED
+        # (otherwise WARNING floods every Linear every step).
+        if not nvfp4_tc_enabled():
+            return torch.addmm(*dequantize_args((bias, mat1, mat2)))
+
         input_qdata, scale_a, block_scale_a = TensorCoreNVFP4Layout.get_plain_tensors(mat1)
         weight_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(mat2)
         out_dtype = kwargs.get("out_dtype", mat1._params.orig_dtype)
@@ -87,7 +99,7 @@ def register_nvfp4_addmm_handler() -> bool:
             orig_n = mat2._params.orig_shape[1]
             return _slice_to_original_shape(result, orig_m, orig_n)
         except (RuntimeError, TypeError) as e:
-            logger.warning("NVFP4 addmm scaled_mm failed: %s — dequant fallback", e)
+            note_scaled_mm_failure(e)
             return torch.addmm(*dequantize_args((bias, mat1, mat2)))
 
     _REGISTERED = True
