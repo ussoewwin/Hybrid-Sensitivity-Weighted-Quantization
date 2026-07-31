@@ -2956,7 +2956,7 @@ def main():
                 if args.bias_correction:
                     if bc_allowed_modules is not None and module_name not in bc_allowed_modules:
                         bias_corr_skipped_low_sens += 1
-                    else:
+            else:
                         act_mean = act_mean_dict.get(module_name)
                         if act_mean is None:
                             bias_corr_skipped_no_act += 1

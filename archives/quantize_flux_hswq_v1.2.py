@@ -1,13 +1,13 @@
 """
 Quantize Flux1.dev model to FP8 (HSWQ V1.2: Flux Edition).
-Same structure/algorithm as SDXL HSWQ V1.2 (GPU Accelerated).
+Same structure and algorithm as SDXL HSWQ V1.2 (GPU Accelerated).
 
 Algorithm (same as SDXL V1.2):
 1. Load Pipeline + build comfyui_to_diffusers_map
-2. Calibration Loop (DualMonitor: sensitivity & input importance)
-3. Layer Selection (keep top N% by sensitivity)
-4. HSWQ Optimization (weighted histogram MSE, scaled=False)
-5. GPU Accelerated Quantization (convert via comfyui_to_diffusers_map reverse lookup)
+2. Calibration Loop (DualMonitor: Sensitivity & Input Importance)
+3. Layer Selection (Keep top N% by sensitivity)
+4. HSWQ Optimization (Weighted Histogram MSE, scaled=False)
+5. GPU Accelerated Quantization (convert via comfyui_to_diffusers_map)
 """
 
 import argparse
@@ -48,7 +48,7 @@ def try_import_sage_attention():
 def enable_sage_attention():
     global _original_sdpa
     if not _sage_attn_available:
-        print("[SageAttention2] Cannot enable - not available")
+        print("[SageAttention2] Cannot enable - not available.")
         return False
     
     import torch.nn.functional as F
@@ -77,10 +77,13 @@ def disable_sage_attention():
         print("[SageAttention2] Disabled (restored original SDPA)")
 
 
-# --- ComfyUI-compatible mapping (same role as SDXL V1.2 unet_to_diffusers_mapping) ---
+# --- ComfyUI-compatible mapping (equivalent to SDXL V1.2 unet_to_diffusers_mapping) ---
 
 def flux_to_diffusers_mapping(state_dict, key_prefix=None):
-    """Build Flux ComfyUI key -> Diffusers key mapping. Returns comfyui_to_diffusers_map."""
+    """Build Flux ComfyUI key -> Diffusers key mapping (same role as SDXL V1.2 unet_to_diffusers_mapping).
+    key_prefix: If None, auto-detected.
+    Returns: comfyui_to_diffusers_map = {comfy_full_key: diffusers_key}
+    """
     state_dict_keys = list(state_dict.keys())
     
     # Auto-detect prefix
@@ -212,7 +215,9 @@ def flux_to_diffusers_mapping(state_dict, key_prefix=None):
 
 
 def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_path=None, t5_path=None, vae_path=None):
-    """Load Flux pipeline (same role as SDXL V1.2 load_unet_from_safetensors). Returns: pipeline, original_state_dict, comfyui_to_diffusers_map"""
+    """Load Flux pipeline (same role as SDXL V1.2 load_unet_from_safetensors).
+    Returns: pipeline, original_state_dict, comfyui_to_diffusers_map
+    """
     print(f"Loading Flux1 model: {path}")
     
     # Load original state_dict (keep as in SDXL V1.2)
@@ -296,42 +301,120 @@ def load_flux_pipeline_from_safetensors(path, device="cuda", token=None, clip_pa
         )
         print("VAE loaded.")
 
-    # Load FluxPipeline
+    # Load FluxPipeline (manual weight load)
+    print("Building FluxPipeline (manual weight load)...")
+    pipeline = None
     try:
-        pipeline = FluxPipeline.from_single_file(
-            path, 
-            torch_dtype=torch.float16,
-            use_safetensors=True,
-            token=token,
-            text_encoder=text_encoder,
-            text_encoder_2=text_encoder_2,
-            tokenizer=tokenizer,
-            tokenizer_2=tokenizer_2,
-            vae=vae
+        # Initialize empty model from config first; decide config path
+        config_path = "black-forest-labs/FLUX.1-schnell"
+        if is_diffusers:
+             config_path = config_class_or_repo
+        
+        pipeline = FluxPipeline.from_pretrained(
+             config_path,
+             torch_dtype=torch.float16,
+             token=token,
+             text_encoder=text_encoder,
+             text_encoder_2=text_encoder_2,
+             tokenizer=tokenizer,
+             tokenizer_2=tokenizer_2,
+             vae=vae
         )
+
+        # Build target state_dict (Diffusers format)
+        converted_state_dict = {}
+        
+        # 1:1 transfer and fused-layer split via existing mapping
+        print("    Converting/splitting weights to Diffusers format...")
+        
+        # 1. Apply 1:1 mapping (comfyui_to_diffusers_map includes non-FUSED entries)
+        for comfy_key, val in original_state_dict.items():
+            if comfy_key in comfyui_to_diffusers_map:
+                diff_key = comfyui_to_diffusers_map[comfy_key]
+                if not diff_key.startswith("FUSED:"):
+                     converted_state_dict[diff_key] = val
+        
+        # 2. Manual split of fused layers
+        # Double Blocks: img_attn.qkv -> to_q, to_k, to_v
+        # Double Blocks: txt_attn.qkv -> add_q_proj, add_k_proj, add_v_proj
+        # Single Blocks: linear1 -> to_q, to_k, to_v, proj_mlp
+        
+        for key, value in original_state_dict.items():
+            # Double Block Fused QKV (img)
+            if "img_attn.qkv" in key and "double_blocks" in key:
+                parts = key.split(".")
+                # double_blocks.{i}.img_attn.qkv.{weight/bias}
+                if len(parts) >= 5 and parts[0] == "double_blocks" and parts[2] == "img_attn" and parts[3] == "qkv":
+                    idx = parts[1]
+                    suffix = parts[4] # weight or bias
+                    
+                    # Split (3072, 3072, 3072)
+                    q, k, v = torch.split(value, 3072, dim=0)
+                    
+                    base = f"transformer.transformer_blocks.{idx}.attn"
+                    converted_state_dict[f"{base}.to_q.{suffix}"] = q
+                    converted_state_dict[f"{base}.to_k.{suffix}"] = k
+                    converted_state_dict[f"{base}.to_v.{suffix}"] = v
+            
+            # Double Block Fused QKV (txt)
+            elif "txt_attn.qkv" in key and "double_blocks" in key:
+                parts = key.split(".")
+                if len(parts) >= 5 and parts[0] == "double_blocks" and parts[2] == "txt_attn" and parts[3] == "qkv":
+                    idx = parts[1]
+                    suffix = parts[4]
+                    
+                    q, k, v = torch.split(value, 3072, dim=0)
+                    
+                    base = f"transformer.transformer_blocks.{idx}.attn"
+                    converted_state_dict[f"{base}.add_q_proj.{suffix}"] = q
+                    converted_state_dict[f"{base}.add_k_proj.{suffix}"] = k
+                    converted_state_dict[f"{base}.add_v_proj.{suffix}"] = v
+
+            # Single Block Fused Linear1
+            elif "linear1" in key and "single_blocks" in key:
+                parts = key.split(".")
+                # single_blocks.{i}.linear1.{weight/bias}
+                if len(parts) >= 4 and parts[0] == "single_blocks" and parts[2] == "linear1":
+                    idx = parts[1]
+                    suffix = parts[3] 
+                    
+                    # shape is [21504, 3072] -> Split 3072, 3072, 3072, 12288
+                    # Order: q, k, v, mlp
+                    q, k, v, mlp = torch.split(value, [3072, 3072, 3072, 12288], dim=0)
+                    
+                    base = f"transformer.single_transformer_blocks.{idx}"
+                    converted_state_dict[f"{base}.attn.to_q.{suffix}"] = q
+                    converted_state_dict[f"{base}.attn.to_k.{suffix}"] = k
+                    converted_state_dict[f"{base}.attn.to_v.{suffix}"] = v
+                    converted_state_dict[f"{base}.proj_mlp.{suffix}"] = mlp
+
+        # Load into model
+        print(f"Converted state dict size: {len(converted_state_dict)}")
+        m, u = pipeline.load_state_dict(converted_state_dict, strict=False)
+        print(f"Manual load - Missing: {len(m)}, Unexpected: {len(u)}")
+        
+        if len(m) > 100:
+            print(f"Warning: Many missing keys ({len(m)}). Load may be incorrect.")
+            # print(m[:5])
+
     except Exception as e:
-        error_msg = str(e)
-        if "401" in error_msg or "403" in error_msg or "restricted" in error_msg:
-            print("\n[Auth error] Access to gated model restricted.")
-            print("Fallback: using 'black-forest-labs/FLUX.1-schnell' (public) config...")
-            try:
-                pipeline = FluxPipeline.from_single_file(
-                    path,
-                    config="black-forest-labs/FLUX.1-schnell",
-                    torch_dtype=torch.float16,
-                    use_safetensors=True,
-                    text_encoder=text_encoder,
-                    text_encoder_2=text_encoder_2,
-                    tokenizer=tokenizer,
-                    tokenizer_2=tokenizer_2,
-                    vae=vae
-                )
-            except Exception as e2:
-                print(f"Fallback failed: {e2}")
-                sys.exit(1)
-        else:
-            print(f"FluxPipeline load error: {e}")
-            raise e
+        print(f"Manual load failed: {e}")
+        print("Trying from_single_file fallback...")
+        try:
+            pipeline = FluxPipeline.from_single_file(
+                path, 
+                torch_dtype=torch.float16,
+                use_safetensors=True,
+                token=token,
+                text_encoder=text_encoder,
+                text_encoder_2=text_encoder_2,
+                tokenizer=tokenizer,
+                tokenizer_2=tokenizer_2,
+                vae=vae
+            )
+        except Exception as e2:
+            print(f"Fallback also failed: {e2}")
+            sys.exit(1)
             
     print("Enabling Model CPU Offload for VRAM...")
     pipeline.enable_model_cpu_offload()
@@ -400,7 +483,7 @@ def main():
     parser.add_argument("--calib_file", type=str, required=True, help="Path to calibration prompts text file")
     parser.add_argument("--num_calib_samples", type=int, default=25, help="Number of calibration samples (HSWQ: 25)")
     parser.add_argument("--num_inference_steps", type=int, default=25, help="Inference steps (HSWQ: 25)")
-    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16")
+    parser.add_argument("--keep_ratio", type=float, default=0.25, help="Ratio of layers to keep in FP16 (typical 0.05–0.25; 0.05–0.10 often sufficient for SDXL/ZIT)")
     parser.add_argument("--sa2", action="store_true", help="Use SageAttention2 for faster calibration")
     parser.add_argument("--token", type=str, help="Hugging Face token (gated models)")
     parser.add_argument("--clip_path", type=str, help="CLIP text encoder path")
@@ -516,17 +599,57 @@ def main():
             
             torch.cuda.empty_cache()
 
+    first_fused_module_name = {}
+    for name, module in pipeline.transformer.named_modules():
+        if isinstance(module, torch.nn.Linear):
+            # When QKV is split, store representative module name (e.g. first Q)
+            # transformer_blocks.{i}.attn.to_q
+            # transformer_blocks.{i}.attn.add_q_proj
+            # single_transformer_blocks.{i}.attn.to_q
+            parts = name.split(".")
+            if len(parts) >= 2 and parts[-1].startswith("to_q"):
+                # transformer_blocks.{i}.attn.to_q -> {i}.attn.img_qkv
+                # single_transformer_blocks.{i}.attn.to_q -> {i}.linear1 (Single: linear1=QKV+MLP)
+                if parts[0] == "transformer_blocks":
+                    block_idx = parts[1]
+                    key = f"transformer_blocks.{block_idx}.attn.img_qkv"
+                    first_fused_module_name[key] = name
+                elif parts[0] == "single_transformer_blocks":
+                    block_idx = parts[1]
+                    key = f"single_transformer_blocks.{block_idx}.linear1"
+                    first_fused_module_name[key] = name
+            
+            elif len(parts) >= 2 and parts[-1] == "add_q_proj":
+                 # transformer_blocks.{i}.attn.add_q_proj -> {i}.attn.txt_qkv
+                if parts[0] == "transformer_blocks":
+                    block_idx = parts[1]
+                    key = f"transformer_blocks.{block_idx}.attn.txt_qkv"
+                    first_fused_module_name[key] = name
+
     # === Flux: amax for fused QKV layers ===
     # ComfyUI: img_attn.qkv / txt_attn.qkv / linear1 are fused; Diffusers splits them (not in named_modules)
-    # Compute amax from original_state_dict
+    # Compute amax from original_state_dict; borrow Importance from Diffusers modules
     fused_count = 0
     for key, value in original_state_dict.items():
         if key in comfyui_to_diffusers_map:
             diffusers_key = comfyui_to_diffusers_map[key]
             if diffusers_key.startswith("FUSED:") and diffusers_key.endswith(".weight"):
+                # "FUSED:transformer_blocks.0.attn.img_qkv.weight"
+                target_base = diffusers_key[6:-7] # remove FUSED: and .weight
+
+                # Get Importance (input activation)
+                importance = None
+                
+                # Find representative Diffusers module for target_base (e.g. attn.to_q)
+                if target_base in first_fused_module_name:
+                    rep_name = first_fused_module_name[target_base]
+                    if rep_name in dual_monitors:
+                        importance = dual_monitors[rep_name].channel_importance
+                        # print(f"  [FUSED Importance] {target_base} -> used {rep_name}")
+
                 if value.dim() == 2 and value.numel() >= 1024:
                     optimal_amax = hswq_optimizer.compute_optimal_amax(
-                        value, None, scaled=False
+                        value, importance, scaled=False
                     )
                     weight_amax_dict[diffusers_key] = optimal_amax
                     fused_count += 1
