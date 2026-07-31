@@ -43,10 +43,12 @@ from .model_loader import materialize_model
 from .alpha_upscaling import process_alpha_for_batch
 from .infer import VideoDiffusionInfer
 from ..common.seed import set_seed
+from ..optimization.nvfp4_native_ops import checkpoint_is_nvfp4
 from ..optimization.memory_manager import (
     cleanup_dit,
     cleanup_vae,
     cleanup_text_embeddings,
+    clear_memory,
     manage_tensor,
     manage_model_device,
     release_tensor_memory,
@@ -64,6 +66,25 @@ from ..utils.color_fix import (
     wavelet_reconstruction,
     adaptive_instance_normalization
 )
+
+
+def _shutdown_inductor_compile_workers() -> None:
+    """
+    Shut down inductor parallel-compile workers after a phase's first batch.
+
+    All torch.compile work for a phase happens during its first batch (every
+    shape/graph family is compiled there; later batches hit the cache). With
+    worker_start_method="spawn" the workers partially create CUDA contexts
+    during autotune benchmarking, so idle workers would keep holding VRAM
+    through the remaining batches and the next phase. Shutting the pool down
+    releases that memory; it is re-created lazily if more compile work
+    appears. No-op when parallel compile is disabled or torch lacks the API.
+    """
+    try:
+        from torch._inductor.async_compile import shutdown_compile_workers
+        shutdown_compile_workers()
+    except Exception:
+        pass
 
 
 def _prepare_video_batch(
@@ -488,6 +509,11 @@ def encode_all_batches(
             # Encode to latents
             cond_latents = runner.vae_encode([transformed_video])
 
+            # First batch carries all torch.compile work for this phase; free
+            # parallel-compile workers (they hold CUDA contexts) afterwards.
+            if encode_idx == 0:
+                _shutdown_inductor_compile_workers()
+
             # Don't store transformed_video - will reconstruct on-demand in Phase 4
             del transformed_video, rgb_video
             
@@ -530,8 +556,13 @@ def encode_all_batches(
     finally:
         # Offload VAE to configured offload device if specified
         if ctx['vae_offload_device'] is not None:
-            manage_model_device(model=runner.vae, target_device=ctx['vae_offload_device'], 
+            manage_model_device(model=runner.vae, target_device=ctx['vae_offload_device'],
                                 model_name="VAE", debug=debug, reason="VAE offload", runner=runner)
+        # Return Phase 1's high-water allocator pool to the driver. Without
+        # this, the DiT compile in Phase 2 inherits the VAE encode peak as
+        # reserved-but-free blocks (counted as in-use under WDDM), shrinking
+        # the headroom available for inductor autotune allocations.
+        clear_memory(debug, timer_name="phase1_end")
     
     debug.end_timer("phase1_encoding", "Phase 1: VAE encoding complete", show_breakdown=True)
     debug.log_memory_state("After phase 1 (VAE encoding)", show_tensors=False)
@@ -711,11 +742,25 @@ def upscale_all_batches(
             except StopIteration:
                 dit_dtype = ctx['compute_dtype']  # Fallback for meta device or empty model
             
-            # Use autocast if DiT dtype differs from compute dtype
-            # Skip autocast on MPS (CompatibleDiT already handles dtype conversion)
+            # Use autocast if DiT dtype differs from compute dtype.
+            # Skip autocast on MPS (CompatibleDiT already handles dtype conversion).
+            # Skip autocast for native NVFP4: ComfyUI UNet/Flux keeps activations in
+            # FP16/BF16 without wrapping the whole forward in autocast. Under autocast,
+            # LayerNorm/RMSNorm emit float32, and comfy_kitchen CUDA quantize_nvfp4
+            # rejects dtype code 0 (float32) — only FP16/BF16 (DISPATCH_HALF_DTYPE).
+            # Stock comfy.ops MixedPrecision Linear does not cast before from_float.
+            nvfp4_native = (
+                bool(getattr(runner, "_dit_comfy_quant_native", False))
+                and checkpoint_is_nvfp4(getattr(runner, "_dit_checkpoint", None))
+            )
             debug.start_timer(f"dit_inference_{upscale_idx+1}")
             with torch.no_grad():
-                if dit_dtype != ctx['compute_dtype'] and ctx['dit_device'].type != 'mps':
+                use_autocast = (
+                    not nvfp4_native
+                    and dit_dtype != ctx['compute_dtype']
+                    and ctx['dit_device'].type != 'mps'
+                )
+                if use_autocast:
                     with torch.autocast(ctx['dit_device'].type, ctx['compute_dtype'], enabled=True):
                         upscaled_latents = runner.inference(
                             noises=noises,
@@ -729,6 +774,11 @@ def upscale_all_batches(
                         **ctx['text_embeds'],
                     )
             debug.end_timer(f"dit_inference_{upscale_idx+1}", f"DiT inference {upscale_idx+1}")
+
+            # First batch carries all torch.compile work for this phase; free
+            # parallel-compile workers (they hold CUDA contexts) afterwards.
+            if batch_idx == 0:
+                _shutdown_inductor_compile_workers()
             
             # Offload upscaled latents to avoid VRAM accumulation
             if ctx['tensor_offload_device'] is not None and (upscaled_latents[0].is_cuda or upscaled_latents[0].is_mps):
@@ -794,9 +844,14 @@ def upscale_all_batches(
 
         # Cleanup DiT as it's no longer needed after upscaling
         cleanup_dit(runner=runner, debug=debug, cache_model=cache_model)
-        
+
         # Cleanup text embeddings as they're no longer needed after upscaling
         cleanup_text_embeddings(ctx, debug)
+
+        # Release the allocator pool retained from DiT compile/sampling so
+        # VAE decoding starts from a clean pool (same retention issue as the
+        # Phase 1 -> Phase 2 boundary above).
+        clear_memory(debug, timer_name="phase2_end")
     
     debug.end_timer("phase2_upscaling", "Phase 2: DiT upscaling complete", show_breakdown=True)
     debug.log_memory_state("After phase 2 (DiT upscaling)", show_tensors=False)
@@ -938,6 +993,12 @@ def decode_all_batches(
             debug.start_timer("vae_decode")
             samples = runner.vae_decode([upscaled_latent])
             debug.end_timer("vae_decode", "VAE decode")
+
+            # First batch carries all torch.compile work for this phase (every
+            # tile/graph family compiles here); free parallel-compile workers
+            # (they hold CUDA contexts) before the remaining batches.
+            if batch_idx == 0:
+                _shutdown_inductor_compile_workers()
             
             # Process samples - get the single decoded sample
             debug.start_timer("optimized_video_rearrange")
