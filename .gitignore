@@ -52,8 +52,10 @@ push_clip.ps1
 push_clip_msg.txt
 push_rm_gitignore.ps1
 
-# Local temp / dumps (do not track
-log/
+# Local temp / dumps (do not track)
+# Keep empty log/ folder on remote; never track log body files
+log/*
+!log/.gitkeep
 *_distribution_profile.json
 test_distribution_profile.json
 /bench_result_*.png
