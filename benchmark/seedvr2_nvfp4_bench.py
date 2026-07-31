@@ -1,39 +1,40 @@
 #!/usr/bin/env python3
 """
-SeedVR2 Native INT8 Benchmark (construction-time comfy.ops injection)
-=====================================================================
-Compare community FP16 SeedVR2 DiT vs HSWQ native INT8 (int8_tensorwise,
-optional ConvRot) through numz SeedVR2_VideoUpscaler.
+SeedVR2 Native NVFP4 Benchmark (construction-time comfy.ops injection)
+======================================================================
+Compare community FP16 SeedVR2 DiT vs HSWQ native NVFP4 through numz
+SeedVR2_VideoUpscaler.
 
-HSWQ INT8 safetensors keep comfy_quant + weight_scale. The videoupscaler path
-injects comfy.ops.mixed_precision_ops at DiT construction so load_state_dict
-hits _load_quantized_module (QuantizedTensor stays INT8 in VRAM).
+HSWQ NVFP4 safetensors keep comfy_quant + weight_scale (+ weight_scale_2).
+The videoupscaler path injects comfy.ops.mixed_precision_ops at DiT
+construction so load_state_dict hits _load_quantized_module
+(QuantizedTensor stays packed in VRAM).
 
-This bench does NOT dequantize INT8 to a temporary FP16 safetensors.
+This bench does NOT dequantize NVFP4 to a temporary FP16 safetensors.
 
-Primary metric: FP16 output vs native INT8 output (MSE / SSIM / diff PNG).
+Primary metric: FP16 output vs native NVFP4 output (MSE / SSIM / diff PNG).
 
 Path layout (no hardcoded drive letters — works for any install):
 
   Layout A — ComfyUI custom node (recommended for end users)
-    <ComfyUI>/custom_nodes/seedvr2_videoupscaler/seedvr2_int8_bench.py
+    <ComfyUI>/custom_nodes/seedvr2_videoupscaler/seedvr2_nvfp4_bench.py
       seedvr2 root  = this script's directory
       ComfyUI root  = nearest ancestor that contains comfy/ops.py
       model_dir     = <ComfyUI>/models/SEEDVR2  (default)
 
   Layout B — HSWQ repository twin
-    <hswq>/seedvr2_videoupscaler/seedvr2_int8_bench.py
-    or <hswq>/benchmark/seedvr2_int8_bench.py
+    <hswq>/seedvr2_videoupscaler/seedvr2_nvfp4_bench.py
+    or <hswq>/benchmark/seedvr2_nvfp4_bench.py
       seedvr2 root  = <hswq>/seedvr2_videoupscaler
       ComfyUI root  = <hswq>/ComfyUI-master
       model_dir     = <ComfyUI>/models/SEEDVR2 when present
 
 Example (from custom_nodes/seedvr2_videoupscaler, filenames under models/SEEDVR2):
 
-  python seedvr2_int8_bench.py ^
-    --fp16 seedvr2_ema_7b_fp16.safetensors ^
-    --int8 seedvr2_7b_int8_convrot.safetensors ^
-    --vae  ema_vae_fp16.safetensors
+  python seedvr2_nvfp4_bench.py ^
+    --fp16  seedvr2_ema_7b_fp16.safetensors ^
+    --nvfp4 seedvr2_ema_7b_hswq_nvfp4_int8.safetensors ^
+    --vae   ema_vae_fp16.safetensors
 
 --image is optional: when omitted, a synthetic RGB pattern is used.
 Default resolution=1080 / color_correction=lab match videoupscaler CLI defaults.
@@ -129,6 +130,27 @@ def _discover_defaults() -> tuple[Path, Path, Path | None, str]:
                     model_dir = host_models
         return seed, comfy, (model_dir if model_dir.is_dir() else None), "hswq_repo"
 
+    # Layout C: script lives inside a seedvr2_videoupscaler/benchmark/ subdirectory
+    # (e.g. custom_nodes/seedvr2_videoupscaler/benchmark/seedvr2_nvfp4_bench.py).
+    # Treat the parent of benchmark/ as the seedvr2 root.
+    seed_c = SCRIPT_DIR.parent
+    if (seed_c / "inference_cli.py").is_file() and (seed_c / "src").is_dir():
+        comfy_c = _find_comfy_root(SCRIPT_DIR)
+        layout_c = "comfyui_custom_node_benchmark_subdir"
+        if comfy_c is None:
+            sibling = seed_c.parent / "ComfyUI-master"
+            if (sibling / "comfy" / "ops.py").is_file():
+                comfy_c = sibling
+                layout_c = "hswq_seedvr2_benchmark_subdir"
+        if comfy_c is None:
+            raise RuntimeError(
+                "Could not find ComfyUI root (comfy/ops.py) above "
+                f"{SCRIPT_DIR}, and sibling ComfyUI-master is missing. "
+                "Pass --comfy_path."
+            )
+        model_dir_c = comfy_c / "models" / "SEEDVR2"
+        return seed_c, comfy_c, (model_dir_c if model_dir_c.is_dir() else None), layout_c
+
     raise RuntimeError(
         "Cannot discover SeedVR2 / ComfyUI layout from "
         f"{SCRIPT_DIR}. Place this script in "
@@ -146,7 +168,7 @@ DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "seedvr2_out"
 def _dit_size_tag(*names: str) -> str:
     """
     SeedVR2 configure_runner selects configs_7b iff '7b' is in dit_model
-    filename (else configs_3b). INT8 filename must carry the same marker.
+    filename (else configs_3b). NVFP4 filename must carry the same marker.
     """
     joined = " ".join(Path(n).name.lower() for n in names if n)
     if "7b" in joined:
@@ -274,7 +296,7 @@ def _install_package_paths(*, seedvr2_path: str, comfy_path: str) -> tuple[str, 
         os.pathsep.join(prepend) + os.pathsep + os.environ.get("PYTHONPATH", "")
     )
 
-    # Same pattern as krea2_int8_bench: keep cli_args from swallowing bench argv.
+    # Same pattern as other benches: keep cli_args from swallowing bench argv.
     import comfy.options
 
     comfy.options.enable_args_parsing(False)
@@ -391,7 +413,7 @@ def run_branch(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="SeedVR2 native INT8 bench (FP16 vs HSWQ INT8 via construction-time ops)"
+        description="SeedVR2 native NVFP4 bench (FP16 vs HSWQ NVFP4 via construction-time ops)"
     )
     parser.add_argument(
         "--fp16",
@@ -399,9 +421,9 @@ def main() -> int:
         help="FP16 SeedVR2 DiT safetensors (filename or path)",
     )
     parser.add_argument(
-        "--int8",
+        "--nvfp4",
         required=True,
-        help="HSWQ INT8 SeedVR2 DiT safetensors (filename or path)",
+        help="HSWQ NVFP4 SeedVR2 DiT safetensors (filename or path)",
     )
     parser.add_argument(
         "--vae",
@@ -470,22 +492,22 @@ def main() -> int:
         raise FileNotFoundError(f"--model_dir not found: {model_dir_path}")
 
     fp16_path = _resolve_weight(args.fp16, model_dir_path, "--fp16")
-    int8_path = _resolve_weight(args.int8, model_dir_path, "--int8")
+    nvfp4_path = _resolve_weight(args.nvfp4, model_dir_path, "--nvfp4")
     vae_path = _resolve_weight(args.vae, model_dir_path, "--vae")
     if args.image is not None and not Path(args.image).is_file():
         raise FileNotFoundError(f"--image not found: {args.image}")
 
-    # Enforce matching 3b/7b tags between FP16 and INT8 filenames.
-    tag = _dit_size_tag(str(fp16_path), str(int8_path))
+    # Enforce matching 3b/7b tags between FP16 and NVFP4 filenames.
+    tag = _dit_size_tag(str(fp16_path), str(nvfp4_path))
     print(f"[BENCH] DiT size tag: {tag}")
 
     model_dir = str(model_dir_path) if model_dir_path is not None else str(fp16_path.parent)
     model_dir_p = Path(model_dir)
     vae_name = vae_path.name
-    int8_name = int8_path.name
+    nvfp4_name = nvfp4_path.name
     fp16_name = fp16_path.name
 
-    for src, name in ((vae_path, vae_name), (int8_path, int8_name), (fp16_path, fp16_name)):
+    for src, name in ((vae_path, vae_name), (nvfp4_path, nvfp4_name), (fp16_path, fp16_name)):
         target = model_dir_p / name
         if src.resolve() != target.resolve():
             if not target.is_file():
@@ -501,21 +523,36 @@ def main() -> int:
     print(f"[BENCH] seedvr2_path: {args.seedvr2_path}")
     print(f"[BENCH] comfy_path: {args.comfy_path}")
     print(f"[BENCH] model_dir: {model_dir}")
-    print("[BENCH] mode: native INT8 (construction-time mixed_precision_ops)")
+    print("[BENCH] mode: native NVFP4 (construction-time mixed_precision_ops)")
     seed_root, comfy_root = _install_package_paths(
         seedvr2_path=args.seedvr2_path,
         comfy_path=args.comfy_path,
     )
     print(f"[BENCH] sys.path package roots: {seed_root} | {comfy_root}")
 
-    from src.optimization.int8_native_ops import checkpoint_is_hswq_int8
+    # HSWQ自作NVFP4+ConvRotスタックをComfyUIランタイムに注入
+    # (SDXLベンチと同様、comfy.ops/comfy.model_detection をモンキーパッチ)
+    _BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
+    if _BENCH_DIR not in sys.path:
+        sys.path.insert(0, _BENCH_DIR)
+    from nvfp4.comfy_quant_nvfp4 import (  # noqa: E402
+        apply_comfy_quant_nvfp4_patches,
+        checkpoint_looks_like_comfy_quant_nvfp4,
+        nvfp4_forward_stats,
+        reset_nvfp4_forward_stats,
+    )
+    import nvfp4.comfy_quant_nvfp4 as _cq_nvfp4  # noqa: E402
+    apply_comfy_quant_nvfp4_patches()
+    print(f"[BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
+
+    from src.optimization.nvfp4_native_ops import checkpoint_is_nvfp4
     from src.utils.model_registry import DEFAULT_VAE as _DEFAULT_VAE
 
-    if not checkpoint_is_hswq_int8(str(int8_path)):
+    if not checkpoint_is_nvfp4(str(nvfp4_path)):
         raise RuntimeError(
-            f"--int8 does not look like HSWQ int8_tensorwise: {int8_path}"
+            f"--nvfp4 does not look like HSWQ NVFP4 comfy_quant: {nvfp4_path}"
         )
-    print(f"  [BENCH] HSWQ INT8 marker OK: {int8_name}")
+    print(f"  [BENCH] HSWQ NVFP4 marker OK: {nvfp4_name}")
 
     if vae_name != _DEFAULT_VAE:
         print(
@@ -565,39 +602,46 @@ def main() -> int:
     img_fp16.save(out_fp16)
     print(f"  saved: {out_fp16}")
 
-    img_int8, t_int8, v_int8 = run_branch(
-        label="INT8 (native QuantizedTensor)",
-        dit_model=int8_name,
+    reset_nvfp4_forward_stats()
+    img_nvfp4, t_nvfp4, v_nvfp4 = run_branch(
+        label="NVFP4 (native QuantizedTensor)",
+        dit_model=nvfp4_name,
         model_dir=model_dir,
         frames=frames,
         args_ns=ns,
     )
-    out_int8 = Path(args.output_dir) / "seedvr2_int8.png"
-    img_int8.save(out_int8)
-    print(f"  saved: {out_int8}")
+    _nvfp4_stats = nvfp4_forward_stats()
+    print(
+        f"[BENCH] nvfp4_forward_stats: scaled_mm_hits={_nvfp4_stats.get('scaled_mm_hits', 0)} "
+        f"dequant_fallbacks={_nvfp4_stats.get('dequant_fallbacks', 0)} "
+        f"convrot_act_rotates={_nvfp4_stats.get('convrot_act_rotates', 0)}"
+    )
+    out_nvfp4 = Path(args.output_dir) / "seedvr2_nvfp4.png"
+    img_nvfp4.save(out_nvfp4)
+    print(f"  saved: {out_nvfp4}")
 
-    if img_fp16.size != img_int8.size:
+    if img_fp16.size != img_nvfp4.size:
         print(
-            f"  [BENCH] size mismatch FP16={img_fp16.size} INT8={img_int8.size}; "
-            "resizing INT8 to FP16 for metrics"
+            f"  [BENCH] size mismatch FP16={img_fp16.size} NVFP4={img_nvfp4.size}; "
+            "resizing NVFP4 to FP16 for metrics"
         )
-        img_int8 = img_int8.resize(img_fp16.size, Image.Resampling.LANCZOS)
+        img_nvfp4 = img_nvfp4.resize(img_fp16.size, Image.Resampling.LANCZOS)
 
-    mse, score = calculate_metrics(img_fp16, img_int8)
+    mse, score = calculate_metrics(img_fp16, img_nvfp4)
     diff = Image.fromarray(
-        np.abs(np.asarray(img_fp16).astype(np.int16) - np.asarray(img_int8).astype(np.int16))
+        np.abs(np.asarray(img_fp16).astype(np.int16) - np.asarray(img_nvfp4).astype(np.int16))
         .clip(0, 255)
         .astype(np.uint8)
     )
     out_diff = Path(args.output_dir) / "seedvr2_diff.png"
     diff.save(out_diff)
 
-    print("\n=== Results (FP16 vs native INT8, same videoupscaler pipeline) ===")
+    print("\n=== Results (FP16 vs native NVFP4, same videoupscaler pipeline) ===")
     print(f"  MSE:  {mse:.6f}")
     print(f"  SSIM: {score:.6f}")
-    print(f"  FP16 wall: {t_fp16:.2f}s  peak_vram={v_fp16:.2f} GiB")
-    print(f"  INT8 wall: {t_int8:.2f}s  peak_vram={v_int8:.2f} GiB")
-    print(f"  outputs: {out_fp16} | {out_int8} | {out_diff}")
+    print(f"  FP16 wall:  {t_fp16:.2f}s  peak_vram={v_fp16:.2f} GiB")
+    print(f"  NVFP4 wall: {t_nvfp4:.2f}s  peak_vram={v_nvfp4:.2f} GiB")
+    print(f"  outputs: {out_fp16} | {out_nvfp4} | {out_diff}")
 
     return 0
 
