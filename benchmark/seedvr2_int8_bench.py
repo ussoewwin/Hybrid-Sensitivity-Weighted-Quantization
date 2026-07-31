@@ -13,20 +13,27 @@ This bench does NOT dequantize INT8 to a temporary FP16 safetensors.
 
 Primary metric: FP16 output vs native INT8 output (MSE / SSIM / diff PNG).
 
-Python imports stay inside this repository only:
-  - seedvr2_videoupscaler/  (default --seedvr2_path)
-  - ComfyUI-master/         (default --comfy_path, for comfy.ops)
+Path layout (no hardcoded drive letters — works for any install):
 
-Weight paths (--fp16 / --int8 / --vae) may point at model files anywhere;
-they are data files, not package imports.
+  Layout A — ComfyUI custom node (recommended for end users)
+    <ComfyUI>/custom_nodes/seedvr2_videoupscaler/seedvr2_int8_bench.py
+      seedvr2 root  = this script's directory
+      ComfyUI root  = nearest ancestor that contains comfy/ops.py
+      model_dir     = <ComfyUI>/models/SEEDVR2  (default)
 
-Example:
-  D:\\USERFILES\\fp8e4m3\\venv\\Scripts\\python.exe benchmark\\seedvr2_int8_bench.py ^
-    --fp16  "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\SEEDVR2\\seedvr2_ema_7b_fp16.safetensors" ^
-    --int8  "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\SEEDVR2\\seedvr2_7b_int8_convrot.safetensors" ^
-    --vae   "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\SEEDVR2\\ema_vae_fp16.safetensors" ^
-    --image "D:\\path\\to\\input.jpg" ^
-    --output_dir "D:\\USERFILES\\GitHub\\hswq\\benchmark\\seedvr2_out"
+  Layout B — HSWQ repository twin
+    <hswq>/seedvr2_videoupscaler/seedvr2_int8_bench.py
+    or <hswq>/benchmark/seedvr2_int8_bench.py
+      seedvr2 root  = <hswq>/seedvr2_videoupscaler
+      ComfyUI root  = <hswq>/ComfyUI-master
+      model_dir     = <ComfyUI>/models/SEEDVR2 when present
+
+Example (from custom_nodes/seedvr2_videoupscaler, filenames under models/SEEDVR2):
+
+  python seedvr2_int8_bench.py ^
+    --fp16 seedvr2_ema_7b_fp16.safetensors ^
+    --int8 seedvr2_7b_int8_convrot.safetensors ^
+    --vae  ema_vae_fp16.safetensors
 
 --image is optional: when omitted, a synthetic RGB pattern is used.
 Default resolution=1080 / color_correction=lab match videoupscaler CLI defaults.
@@ -58,14 +65,82 @@ from PIL import Image, ImageDraw
 from skimage.metrics import structural_similarity as ssim
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SEEDVR2_PATH = REPO_ROOT / "seedvr2_videoupscaler"
-DEFAULT_COMFY_PATH = REPO_ROOT / "ComfyUI-master"
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 def _clean_path(p: str) -> str:
     """PowerShell trailing \\\" leaves a final backslash; strip it."""
     return os.path.normpath(str(p).rstrip("\\/"))
+
+
+def _find_comfy_root(start: Path) -> Path | None:
+    """Walk ancestors for a directory that contains comfy/ops.py."""
+    for parent in [start, *start.parents]:
+        if (parent / "comfy" / "ops.py").is_file():
+            return parent
+    return None
+
+
+def _discover_defaults() -> tuple[Path, Path, Path | None, str]:
+    """
+    Resolve (seedvr2_root, comfy_root, default_model_dir, layout_name)
+    without any absolute/drive-hardcoded paths.
+    """
+    # Layout A: this file lives inside the SeedVR2 package root.
+    if (SCRIPT_DIR / "inference_cli.py").is_file() and (SCRIPT_DIR / "src").is_dir():
+        seed = SCRIPT_DIR
+        # Prefer real ComfyUI ancestor (custom_nodes/... layout).
+        comfy = _find_comfy_root(SCRIPT_DIR)
+        layout = "comfyui_custom_node"
+        if comfy is None:
+            # HSWQ twin: ComfyUI-master sits next to seedvr2_videoupscaler/.
+            sibling = SCRIPT_DIR.parent / "ComfyUI-master"
+            if (sibling / "comfy" / "ops.py").is_file():
+                comfy = sibling
+                layout = "hswq_seedvr2_package"
+        if comfy is None:
+            raise RuntimeError(
+                "Could not find ComfyUI root (comfy/ops.py) above "
+                f"{SCRIPT_DIR}, and sibling ComfyUI-master is missing. "
+                "Install as custom_nodes/seedvr2_videoupscaler under a "
+                "ComfyUI tree, or pass --comfy_path."
+            )
+        model_dir = comfy / "models" / "SEEDVR2"
+        if not model_dir.is_dir() and layout == "hswq_seedvr2_package":
+            host = _find_comfy_root(Path.cwd())
+            if host is not None:
+                host_models = host / "models" / "SEEDVR2"
+                if host_models.is_dir():
+                    model_dir = host_models
+        return seed, comfy, (model_dir if model_dir.is_dir() else None), layout
+
+    # Layout B: this file lives under hswq/benchmark/ (or similar).
+    repo = SCRIPT_DIR.parent
+    seed = repo / "seedvr2_videoupscaler"
+    comfy = repo / "ComfyUI-master"
+    if seed.is_dir() and (comfy / "comfy" / "ops.py").is_file():
+        model_dir = comfy / "models" / "SEEDVR2"
+        if not model_dir.is_dir():
+            # Prefer the host ComfyUI models folder when twin has none.
+            host = _find_comfy_root(Path.cwd())
+            if host is not None:
+                host_models = host / "models" / "SEEDVR2"
+                if host_models.is_dir():
+                    model_dir = host_models
+        return seed, comfy, (model_dir if model_dir.is_dir() else None), "hswq_repo"
+
+    raise RuntimeError(
+        "Cannot discover SeedVR2 / ComfyUI layout from "
+        f"{SCRIPT_DIR}. Place this script in "
+        "custom_nodes/seedvr2_videoupscaler/ or pass --seedvr2_path / --comfy_path."
+    )
+
+
+_DEFAULT_SEED, _DEFAULT_COMFY, _DEFAULT_MODEL_DIR, _LAYOUT = _discover_defaults()
+DEFAULT_SEEDVR2_PATH = _DEFAULT_SEED
+DEFAULT_COMFY_PATH = _DEFAULT_COMFY
+DEFAULT_MODEL_DIR = _DEFAULT_MODEL_DIR
+DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "seedvr2_out"
 
 
 def _dit_size_tag(*names: str) -> str:
@@ -132,17 +207,26 @@ def calculate_metrics(img1, img2):
     return mse, score_ssim
 
 
-def _require_under_repo(path: Path, flag: str) -> Path:
-    """Reject Python package roots outside this repository."""
-    resolved = path.resolve()
-    repo = REPO_ROOT.resolve()
-    try:
-        resolved.relative_to(repo)
-    except ValueError as exc:
-        raise RuntimeError(
-            f"{flag} must stay inside this repository ({repo}); got: {resolved}"
-        ) from exc
-    return resolved
+def _resolve_weight(path_or_name: str, model_dir: Path | None, flag: str) -> Path:
+    """
+    Accept either a plain filename (resolved under model_dir) or any filesystem path.
+    Never requires a hardcoded absolute default.
+    """
+    raw = Path(_clean_path(path_or_name))
+    if raw.is_file():
+        return raw.resolve()
+    if model_dir is not None:
+        candidate = (model_dir / raw.name).resolve()
+        if candidate.is_file():
+            return candidate
+        # Also allow relative subpaths under model_dir.
+        candidate2 = (model_dir / raw).resolve()
+        if candidate2.is_file():
+            return candidate2
+    raise FileNotFoundError(
+        f"{flag} not found: {path_or_name}"
+        + (f" (also looked under {model_dir})" if model_dir is not None else "")
+    )
 
 
 def _stub_comfy_aimdo() -> None:
@@ -162,16 +246,20 @@ def _stub_comfy_aimdo() -> None:
         sys.modules["comfy_aimdo.torch"] = ta
 
 
-def _install_in_repo_paths(*, seedvr2_path: str, comfy_path: str) -> tuple[str, str]:
+def _install_package_paths(*, seedvr2_path: str, comfy_path: str) -> tuple[str, str]:
     """
-    Put only in-repo package roots on sys.path:
+    Put package roots on sys.path:
       1) seedvr2_videoupscaler (src / inference_cli)
-      2) ComfyUI-master (comfy.ops)
+      2) ComfyUI root (comfy.ops)
     """
-    seed_root = _require_under_repo(Path(seedvr2_path), "--seedvr2_path")
-    comfy_root = _require_under_repo(Path(comfy_path), "--comfy_path")
+    seed_root = Path(seedvr2_path).resolve()
+    comfy_root = Path(comfy_path).resolve()
     if not seed_root.is_dir():
         raise FileNotFoundError(f"--seedvr2_path not found: {seed_root}")
+    if not (seed_root / "inference_cli.py").is_file():
+        raise FileNotFoundError(
+            f"--seedvr2_path missing inference_cli.py: {seed_root}"
+        )
     if not comfy_root.is_dir():
         raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
     if not (comfy_root / "comfy" / "ops.py").is_file():
@@ -305,8 +393,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="SeedVR2 native INT8 bench (FP16 vs HSWQ INT8 via construction-time ops)"
     )
-    parser.add_argument("--fp16", required=True, help="FP16 SeedVR2 DiT safetensors")
-    parser.add_argument("--int8", required=True, help="HSWQ INT8 SeedVR2 DiT safetensors")
+    parser.add_argument(
+        "--fp16",
+        required=True,
+        help="FP16 SeedVR2 DiT safetensors (filename or path)",
+    )
+    parser.add_argument(
+        "--int8",
+        required=True,
+        help="HSWQ INT8 SeedVR2 DiT safetensors (filename or path)",
+    )
     parser.add_argument(
         "--vae",
         required=True,
@@ -315,17 +411,20 @@ def main() -> int:
     parser.add_argument(
         "--seedvr2_path",
         default=str(DEFAULT_SEEDVR2_PATH),
-        help=f"In-repo seedvr2_videoupscaler root (default: {DEFAULT_SEEDVR2_PATH})",
+        help=f"seedvr2_videoupscaler root (default: {DEFAULT_SEEDVR2_PATH})",
     )
     parser.add_argument(
         "--comfy_path",
         default=str(DEFAULT_COMFY_PATH),
-        help=f"In-repo ComfyUI-master root for comfy.ops (default: {DEFAULT_COMFY_PATH})",
+        help=f"ComfyUI root for comfy.ops (default: {DEFAULT_COMFY_PATH})",
     )
     parser.add_argument(
         "--model_dir",
-        default=None,
-        help="Directory containing DiT/VAE filenames (default: directory of --fp16)",
+        default=str(DEFAULT_MODEL_DIR) if DEFAULT_MODEL_DIR is not None else None,
+        help=(
+            "Directory containing DiT/VAE filenames "
+            f"(default: {DEFAULT_MODEL_DIR or 'directory of --fp16'})"
+        ),
     )
     parser.add_argument(
         "--image",
@@ -351,12 +450,13 @@ def main() -> int:
     parser.add_argument("--dit_offload_device", default="none")
     parser.add_argument("--vae_offload_device", default="none")
     parser.add_argument("--tensor_offload_device", default="cpu")
-    parser.add_argument("--output_dir", default=".")
+    parser.add_argument(
+        "--output_dir",
+        default=str(DEFAULT_OUTPUT_DIR),
+        help=f"Output directory (default: {DEFAULT_OUTPUT_DIR})",
+    )
     args = parser.parse_args()
 
-    args.fp16 = _clean_path(args.fp16)
-    args.int8 = _clean_path(args.int8)
-    args.vae = _clean_path(args.vae)
     args.seedvr2_path = _clean_path(args.seedvr2_path)
     args.comfy_path = _clean_path(args.comfy_path)
     args.output_dir = _clean_path(args.output_dir)
@@ -365,45 +465,44 @@ def main() -> int:
     if args.image is not None:
         args.image = _clean_path(args.image)
 
-    for p, name in (
-        (args.fp16, "--fp16"),
-        (args.int8, "--int8"),
-        (args.vae, "--vae"),
-    ):
-        if not Path(p).is_file():
-            raise FileNotFoundError(f"{name} not found: {p}")
+    model_dir_path = Path(args.model_dir).resolve() if args.model_dir else None
+    if model_dir_path is not None and not model_dir_path.is_dir():
+        raise FileNotFoundError(f"--model_dir not found: {model_dir_path}")
+
+    fp16_path = _resolve_weight(args.fp16, model_dir_path, "--fp16")
+    int8_path = _resolve_weight(args.int8, model_dir_path, "--int8")
+    vae_path = _resolve_weight(args.vae, model_dir_path, "--vae")
     if args.image is not None and not Path(args.image).is_file():
         raise FileNotFoundError(f"--image not found: {args.image}")
 
     # Enforce matching 3b/7b tags between FP16 and INT8 filenames.
-    tag = _dit_size_tag(args.fp16, args.int8)
+    tag = _dit_size_tag(str(fp16_path), str(int8_path))
     print(f"[BENCH] DiT size tag: {tag}")
 
-    model_dir = args.model_dir or str(Path(args.fp16).parent)
-    vae_name = Path(args.vae).name
-    if Path(args.vae).resolve() != (Path(model_dir) / vae_name).resolve():
-        target = Path(model_dir) / vae_name
-        if not target.is_file():
-            raise FileNotFoundError(
-                f"VAE must live under --model_dir as {vae_name}: expected {target}"
-            )
+    model_dir = str(model_dir_path) if model_dir_path is not None else str(fp16_path.parent)
+    model_dir_p = Path(model_dir)
+    vae_name = vae_path.name
+    int8_name = int8_path.name
+    fp16_name = fp16_path.name
 
-    int8_name = Path(args.int8).name
-    if Path(args.int8).resolve() != (Path(model_dir) / int8_name).resolve():
-        target_int8 = Path(model_dir) / int8_name
-        if not target_int8.is_file():
-            raise FileNotFoundError(
-                f"INT8 DiT must live under --model_dir as {int8_name}: expected {target_int8}"
-            )
+    for src, name in ((vae_path, vae_name), (int8_path, int8_name), (fp16_path, fp16_name)):
+        target = model_dir_p / name
+        if src.resolve() != target.resolve():
+            if not target.is_file():
+                raise FileNotFoundError(
+                    f"{name} must live under --model_dir: expected {target}"
+                )
 
     os.makedirs(args.output_dir, exist_ok=True)
 
     print(f"[BENCH] python: {sys.executable}")
-    print(f"[BENCH] repo_root: {REPO_ROOT.resolve()}")
+    print(f"[BENCH] layout: {_LAYOUT}")
+    print(f"[BENCH] script_dir: {SCRIPT_DIR}")
     print(f"[BENCH] seedvr2_path: {args.seedvr2_path}")
     print(f"[BENCH] comfy_path: {args.comfy_path}")
+    print(f"[BENCH] model_dir: {model_dir}")
     print("[BENCH] mode: native INT8 (construction-time mixed_precision_ops)")
-    seed_root, comfy_root = _install_in_repo_paths(
+    seed_root, comfy_root = _install_package_paths(
         seedvr2_path=args.seedvr2_path,
         comfy_path=args.comfy_path,
     )
@@ -412,9 +511,9 @@ def main() -> int:
     from src.optimization.int8_native_ops import checkpoint_is_hswq_int8
     from src.utils.model_registry import DEFAULT_VAE as _DEFAULT_VAE
 
-    if not checkpoint_is_hswq_int8(args.int8):
+    if not checkpoint_is_hswq_int8(str(int8_path)):
         raise RuntimeError(
-            f"--int8 does not look like HSWQ int8_tensorwise: {args.int8}"
+            f"--int8 does not look like HSWQ int8_tensorwise: {int8_path}"
         )
     print(f"  [BENCH] HSWQ INT8 marker OK: {int8_name}")
 
@@ -423,7 +522,7 @@ def main() -> int:
             f"  [BENCH] WARNING: videoupscaler CLI hardcodes VAE={_DEFAULT_VAE}; "
             f"--vae basename is {vae_name}. Ensure {_DEFAULT_VAE} exists under {model_dir}."
         )
-        default_vae_path = Path(model_dir) / _DEFAULT_VAE
+        default_vae_path = model_dir_p / _DEFAULT_VAE
         if not default_vae_path.is_file():
             raise FileNotFoundError(
                 f"Place {_DEFAULT_VAE} in model_dir ({model_dir}) "
@@ -442,7 +541,7 @@ def main() -> int:
     print(f"  input tensor: {tuple(frames.shape)} dtype={frames.dtype}")
 
     ns = _build_cli_args(
-        dit_model=Path(args.fp16).name,
+        dit_model=fp16_name,
         model_dir=model_dir,
         resolution=args.resolution,
         seed=args.seed,
@@ -457,7 +556,7 @@ def main() -> int:
 
     img_fp16, t_fp16, v_fp16 = run_branch(
         label="FP16",
-        dit_model=Path(args.fp16).name,
+        dit_model=fp16_name,
         model_dir=model_dir,
         frames=frames,
         args_ns=ns,
