@@ -29,7 +29,7 @@ pip install -r requirements.txt
 
 ## Quantize an SDXL model (HSWQ)
 
-Replace every `<...>` placeholder with a real path on your machine (no invented filenames; no machine-local drive hardcoding in published examples).
+Replace every `<...>` placeholder with a real path on your machine.
 
 `--model` and `--input` are aliases for the same argument.
 
