@@ -5,10 +5,14 @@ NEW FILE based on native_convert_nvfp4_zi_fp16safe.py / native_convert_nvfp4_zi.
 
 Protect path (60 keys = 65-order head: prior 31 + abs_max fill, truncate tail):
   ConvRot rotate (W @ H^T) → row-wise INT8 + weight_scale + int8_tensorwise stamp
-  in _quantization_metadata (ConvRot INT8 helpers inlined below — no native_convert_int8).
+  in _quantization_metadata AND per-layer ``.comfy_quant`` (uint8 JSON; ComfyUI load).
 
-Remaining Linear 2D: NVFP4 (+ FULL ConvRot by default).
+Remaining Linear 2D: NVFP4 (+ FULL ConvRot by default) + same ``.comfy_quant``.
 Kitchen Turbo blacklist: bfloat16 (unchanged).
+
+Scheme is fixed: ConvRot NVFP4 + 60× ConvRot INT8 protect. This converter only
+adds the ComfyUI-required ``.comfy_quant`` tensors next to each packed weight
+(same shape as convert_old_quants / native_convert_int8_sdxl).
 
 Key source:
   test/_moodyProMix_zitV13_nvfp4_int8protect60_final_keys.json
@@ -119,6 +123,14 @@ def quantize_int8_rowwise(w: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     scale = abs_max / 127.0
     q = (w / scale.to(dtype=w.dtype)).round().clamp(-127, 127).to(torch.int8)
     return q, scale.to(dtype=torch.float32)
+
+
+def _encode_comfy_quant(config: dict) -> torch.Tensor:
+    """ComfyUI layer marker: uint8 JSON (same as convert_old_quants / int8_sdxl)."""
+    return torch.tensor(
+        list(json.dumps(config, separators=(",", ":")).encode("utf-8")),
+        dtype=torch.uint8,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -644,6 +656,8 @@ def convert_to_nvfp4(
                 n_int8_plain += 1
             new_sd[k] = q
             new_sd[f"{base_k_file}.weight_scale"] = scale
+            # ComfyUI load peeks ``{prefix}comfy_quant`` next to the weight.
+            new_sd[f"{base_k_file}.comfy_quant"] = _encode_comfy_quant(quant_config)
             quant_map["layers"][base_k_meta] = dict(quant_config)
             n_int8_protect += 1
             continue
@@ -692,15 +706,19 @@ def convert_to_nvfp4(
                 for suffix, tensor in tensors.items():
                     new_sd[f"{base_k_file}.weight{suffix}"] = tensor.cpu()
                 if do_rotate and used_gs is not None:
-                    quant_map["layers"][base_k_meta] = {
+                    quant_config = {
                         "format": "nvfp4",
                         "convrot": True,
                         "convrot_groupsize": int(used_gs),
                     }
                     n_convrot += 1
                 else:
-                    quant_map["layers"][base_k_meta] = {"format": "nvfp4"}
+                    quant_config = {"format": "nvfp4"}
                     n_plain_nvfp4 += 1
+                new_sd[f"{base_k_file}.comfy_quant"] = _encode_comfy_quant(
+                    quant_config
+                )
+                quant_map["layers"][base_k_meta] = dict(quant_config)
                 n_nvfp4 += 1
 
                 # Card 1: accumulate bias delta while w_for_q (pre-quant) still lives.
