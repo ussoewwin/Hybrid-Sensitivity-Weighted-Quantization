@@ -36,19 +36,19 @@ Replace every `<...>` placeholder with a real path on your machine (no invented 
 **Default flow:** quantize → save → **clear parent VRAM** → run **`benchmark/nvfp4bench_sdxl.py`** automatically (`--fp16` = `--model`/`--input`, `--nvfp4` = `--output`). You do **not** need a second manual bench command after a normal HSWQ NVFP4 run.
 
 ```bash
-python hswq_convert_nvfp4_1.0.py --model "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25
+python hswq_sdxl_convert_nvfp4_1.0.py --model "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25
 ```
 
 With bias correction (still includes post-quantize bench by default):
 
 ```bash
-python hswq_convert_nvfp4_1.0.py --model "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --bias_correction
+python hswq_sdxl_convert_nvfp4_1.0.py --model "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --bias_correction
 ```
 
 Optional: skip the integrated bench:
 
 ```bash
-python hswq_convert_nvfp4_1.0.py --model "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --no-bench
+python hswq_sdxl_convert_nvfp4_1.0.py --model "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25 --no-bench
 ```
 
 **Notes:**
@@ -70,9 +70,9 @@ python native_convert_nvfp4.py --model "<path-to-unet>/<sdxl_unet>.safetensors" 
 
 **Notes:**
 
-- **FULL ConvRot** is **not** on this script (plain Kitchen `TensorCoreNVFP4Layout` only). Use **`hswq_convert_nvfp4_1.0.py`** for HSWQ + calib. Non-diffusion tensors (CLIP / VAE markers) stay non-4-bit.
+- **FULL ConvRot** is **not** on this script (plain Kitchen `TensorCoreNVFP4Layout` only). Use **`hswq_sdxl_convert_nvfp4_1.0.py`** for HSWQ + calib. Non-diffusion tensors (CLIP / VAE markers) stay non-4-bit.
 - **`--model_type`:** Kitchen DiT profile blacklist / FP8-layer lists (default `Z-Image-Turbo`). Those name prefixes usually do **not** match SDXL UNet keys, so on a UNet-only SDXL file the blacklist is effectively empty; the non-diffusion markers above still apply if CLIP/VAE keys are present.
-- **Bias correction (Card 1):** **OFF by default** and **not** available without DualMonitor on this script. Pass `--bias_correction` **and** `--calib_file` on **`hswq_convert_nvfp4_1.0.py`** when needed. **Honest:** same as HSWQ — on vs off **depends on the model**; some checkpoints score better with Card 1 on, some score worse. Benchmark both.
+- **Bias correction (Card 1):** **OFF by default** and **not** available without DualMonitor on this script. Pass `--bias_correction` **and** `--calib_file` on **`hswq_sdxl_convert_nvfp4_1.0.py`** when needed. **Honest:** same as HSWQ — on vs off **depends on the model**; some checkpoints score better with Card 1 on, some score worse. Benchmark both.
 - **Post-convert bench:** **ON by default** (`--bench`). After save, clears parent VRAM then runs the fixed NVFP4 fidelity bench (`--fp16` = `--model`, `--nvfp4` = `--output`, fixed `--prompt` / `--seed`). Pass `--no-bench` to skip.
 
 ## HSWQ vs native (honest)
@@ -83,7 +83,7 @@ HSWQ NVFP4 does **not** always beat native NVFP4 on measured scores (MSE / SSIM)
 
 ### Integrated (HSWQ NVFP4 — preferred)
 
-`hswq_convert_nvfp4_1.0.py` already chains fidelity measurement after save:
+`hswq_sdxl_convert_nvfp4_1.0.py` already chains fidelity measurement after save:
 
 1. Save the NVFP4 pack.
 2. Clear parent VRAM (so the bench subprocess does not OOM on a 12GB+ card).
