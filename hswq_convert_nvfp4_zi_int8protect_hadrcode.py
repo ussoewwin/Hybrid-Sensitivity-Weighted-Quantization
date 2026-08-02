@@ -1,15 +1,10 @@
-"""Z-Image / ZIT NVFP4 + analysis ConvRot INT8 protect (int8protect variant).
+"""Z-Image / ZIT NVFP4 + HARDCODED ConvRot INT8 protect (hadrcode variant).
 
-NEW FILE based on native_convert_nvfp4_zi_fp16safe.py / native_convert_nvfp4_zi.py
-(do not edit the base converters).
-
-CLI flow (this file):
-  1) Analyze via analyze/analyze_convert_nvfp4_zi_int8protect.py (fixed)
-  2) Select N INT8 protect keys (default 60) per-model
-  3) Quantize NVFP4 + those keys (ConvRot INT8 protect)
-
-No hardcoded protect key list in this file.
-Analyze (relative only): analyze/analyze_convert_nvfp4_zi_int8protect.py
+Owner-allowed hardcode file. Does NOT call analyze/*.
+Protect 60 keys = moodyRealMix_zitV7 protect60 swap3 (N=60 fixed).
+  Source: test/_moodyRealMix_zitV7_protect60_swap3_keys.json
+  Best artifact: moodyRealMix_zitV7_hadrcode_nvfp4_int8protect60_swap3.safetensors
+  (MSE 0.0421 / SSIM 0.9720). Do NOT raise N. No PACKMSE, no Card1/bias.
 
 Protect path:
   ConvRot rotate (W @ H^T) → row-wise INT8 + weight_scale + int8_tensorwise stamp
@@ -18,24 +13,12 @@ Protect path:
 Remaining Linear 2D: NVFP4 (+ FULL ConvRot by default) + same ``.comfy_quant``.
 Kitchen Turbo blacklist: bfloat16 (unchanged).
 
-Card 1 TE helpers: benchmark/zi_convrot_nvfp4_bench.py
-  (used only with --bias_correction).
-
-Optional Card 1 (--bias_correction): DualMonitor act means via Comfy.
-  Requires --calib_file, --clip_path, --comfy_path, --device cuda.
-
 Post-convert bench (default ON): after save, subprocess
-  benchmark/zi_convrot_nvfp4_bench.py with owner body shape:
-  --fp16=--model --nvfp4=--output --clip_path --comfy_path
-  [--vae] [--token] --prompt --steps 25 --seed <fixed inside>
-  (--vae/--token only when the owner passes them; seed not a parent CLI).
-  Pass --no-bench to skip.
+  benchmark/zi_convrot_nvfp4_bench.py. Pass --no-bench to skip.
 
 Example:
-  python hswq_convert_nvfp4_zi_int8protect.py \\
-    --model ... --output ... \\
-    --calib_file ... --clip_path ... --comfy_path ... \\
-    --vae ... --token ...
+  python hswq_convert_nvfp4_zi_int8protect_hadrcode.py \\
+    --model ... --output ... --device cuda
 """
 from __future__ import annotations
 
@@ -394,20 +377,77 @@ _Z_IMAGE_PROFILES: dict[str, tuple[list[str], list[str]]] = {
 
 _DEFAULT_MODEL_TYPE = "Z-Image-Turbo"
 
-# Filled only by analyze inject / --keys-json / convert_to_nvfp4 kwargs.
-# Never a baked-in model key list.
-_INT8_PROTECT_KEYSET: frozenset[str] | None = None
-_INT8_PROTECT_SOURCE: str | None = None
-
-
-def _load_int8_protect_keys_json(path: str) -> tuple[frozenset[str], str]:
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    keys = data.get("protect_keys") or data.get("int8_protect_keys")
-    if not keys:
-        raise ValueError(f"protect_keys / int8_protect_keys missing in {path}")
-    source = os.path.splitext(os.path.basename(path))[0]
-    return frozenset(str(k) for k in keys), source
+# Owner-allowed hardcode: moodyRealMix_zitV7 protect N=60 (2026-08-02).
+# Source: auto60 + drop 3 kurt-only adaLN + add 3 NVFP4-outside abs top.
+# Keys JSON: test/_moodyRealMix_zitV7_protect60_swap3_keys.json
+# N=60 fixed. No N raise.
+_INT8_PROTECT_SOURCE = (
+    "moodyRealMix_zitV7_nvfp4_int8protect60_swap3_kurtAdaLN_to_nvfp4Abs"
+)
+_INT8_PROTECT_KEYSET: frozenset[str] = frozenset(
+    (
+        "model.diffusion_model.layers.6.feed_forward.w2.weight",
+        "model.diffusion_model.layers.4.feed_forward.w2.weight",
+        "model.diffusion_model.layers.11.feed_forward.w2.weight",
+        "model.diffusion_model.layers.7.feed_forward.w2.weight",
+        "model.diffusion_model.layers.13.feed_forward.w2.weight",
+        "model.diffusion_model.layers.12.feed_forward.w2.weight",
+        "model.diffusion_model.layers.9.feed_forward.w2.weight",
+        "model.diffusion_model.layers.10.feed_forward.w2.weight",
+        "model.diffusion_model.layers.5.feed_forward.w2.weight",
+        "model.diffusion_model.layers.14.feed_forward.w2.weight",
+        "model.diffusion_model.layers.15.feed_forward.w2.weight",
+        "model.diffusion_model.layers.18.feed_forward.w2.weight",
+        "model.diffusion_model.layers.1.feed_forward.w2.weight",
+        "model.diffusion_model.layers.28.adaLN_modulation.0.weight",
+        "model.diffusion_model.layers.8.feed_forward.w2.weight",
+        "model.diffusion_model.layers.19.feed_forward.w2.weight",
+        "model.diffusion_model.layers.3.feed_forward.w2.weight",
+        "model.diffusion_model.layers.2.feed_forward.w2.weight",
+        "model.diffusion_model.layers.24.feed_forward.w1.weight",
+        "model.diffusion_model.layers.29.attention.qkv.weight",
+        "model.diffusion_model.layers.16.feed_forward.w1.weight",
+        "model.diffusion_model.layers.20.feed_forward.w2.weight",
+        "model.diffusion_model.layers.16.feed_forward.w2.weight",
+        "model.diffusion_model.layers.0.feed_forward.w2.weight",
+        "model.diffusion_model.layers.17.feed_forward.w1.weight",
+        "model.diffusion_model.layers.13.attention.out.weight",
+        "model.diffusion_model.layers.19.feed_forward.w3.weight",
+        "model.diffusion_model.layers.29.adaLN_modulation.0.weight",
+        "model.diffusion_model.layers.23.feed_forward.w1.weight",
+        "model.diffusion_model.layers.23.feed_forward.w2.weight",
+        "model.diffusion_model.layers.25.feed_forward.w2.weight",
+        "model.diffusion_model.layers.26.feed_forward.w3.weight",
+        "model.diffusion_model.layers.19.feed_forward.w1.weight",
+        "model.diffusion_model.layers.28.feed_forward.w3.weight",
+        "model.diffusion_model.layers.17.feed_forward.w2.weight",
+        "model.diffusion_model.layers.22.feed_forward.w1.weight",
+        "model.diffusion_model.layers.22.feed_forward.w2.weight",
+        "model.diffusion_model.layers.21.feed_forward.w1.weight",
+        "model.diffusion_model.layers.18.feed_forward.w1.weight",
+        "model.diffusion_model.layers.28.attention.qkv.weight",
+        "model.diffusion_model.layers.11.attention.out.weight",
+        "model.diffusion_model.layers.10.attention.qkv.weight",
+        "model.diffusion_model.layers.13.feed_forward.w3.weight",
+        "model.diffusion_model.layers.27.attention.qkv.weight",
+        "model.diffusion_model.layers.12.attention.out.weight",
+        "model.diffusion_model.layers.9.attention.qkv.weight",
+        "model.diffusion_model.layers.16.attention.qkv.weight",
+        "model.diffusion_model.layers.14.attention.out.weight",
+        "model.diffusion_model.layers.28.feed_forward.w2.weight",
+        "model.diffusion_model.layers.9.attention.out.weight",
+        "model.diffusion_model.layers.3.feed_forward.w3.weight",
+        "model.diffusion_model.layers.25.feed_forward.w1.weight",
+        "model.diffusion_model.layers.24.feed_forward.w3.weight",
+        "model.diffusion_model.layers.11.attention.qkv.weight",
+        "model.diffusion_model.layers.26.feed_forward.w1.weight",
+        "model.diffusion_model.layers.8.attention.qkv.weight",
+        "model.diffusion_model.layers.24.feed_forward.w2.weight",
+        "model.diffusion_model.layers.25.feed_forward.w3.weight",
+        "model.diffusion_model.layers.19.attention.qkv.weight",
+        "model.diffusion_model.layers.21.feed_forward.w2.weight",
+    )
+)
 
 
 def _resolve_int8_protect_keyset(
@@ -420,14 +460,9 @@ def _resolve_int8_protect_keyset(
             raise ValueError("int8_protect_keys is empty")
         source = int8_protect_source or "injected_keyset"
         return keyset, source
-    if _INT8_PROTECT_KEYSET:
-        source = int8_protect_source or _INT8_PROTECT_SOURCE or "injected_keyset"
-        return frozenset(_INT8_PROTECT_KEYSET), source
-    raise ValueError(
-        "INT8 protect keyset is required (no hardcode in this converter). "
-        "Use analyze/analyze_convert_nvfp4_zi_int8protect.py, or pass "
-        "int8_protect_keys / --keys-json."
-    )
+    # Default: baked hardcode (this file only; owner-allowed).
+    source = int8_protect_source or _INT8_PROTECT_SOURCE
+    return frozenset(_INT8_PROTECT_KEYSET), source
 
 
 def _is_int8_protect_key(key: str, keyset: frozenset[str]) -> bool:
@@ -1086,21 +1121,6 @@ if __name__ == "__main__":
         default=8,
         help="Card 1 sample_euler steps (default 8)",
     )
-    parser.add_argument(
-        "--n",
-        type=int,
-        default=60,
-        help="INT8 protect key count after per-model analyze (default 60)",
-    )
-    parser.add_argument(
-        "--keys-json",
-        type=str,
-        default=None,
-        help=(
-            "Optional: skip analyze and load protect_keys from this JSON. "
-            "Default: analyze this --model, write test/<_stem>_nvfp4_int8protectN_auto_keys.json"
-        ),
-    )
     parser.set_defaults(enable_convrot=True)
     args = parser.parse_args()
 
@@ -1108,62 +1128,13 @@ if __name__ == "__main__":
         print(f"Error: Model not found at {args.model}")
         sys.exit(1)
 
-    n_protect = int(args.n)
-    # Relative to this converter file (never hardcode drive absolute paths).
-    _analyze_rel = os.path.join(
-        "analyze", "analyze_convert_nvfp4_zi_int8protect.py"
-    )
-    analyze_py = os.path.join(os.path.dirname(__file__), _analyze_rel)
-    if not os.path.isfile(analyze_py):
-        print(f"Error: analyze script not found: {_analyze_rel}")
+    # Hardcode only — no analyze/, no --keys-json.
+    keyset = frozenset(_INT8_PROTECT_KEYSET)
+    source = _INT8_PROTECT_SOURCE
+    print(f"[hardcode] INT8 protect n={len(keyset)} source={source}")
+    if len(keyset) != 60:
+        print(f"Error: hardcode keyset must be 60, got {len(keyset)}")
         sys.exit(1)
-
-    if args.keys_json:
-        if not os.path.exists(args.keys_json):
-            print(f"Error: keys JSON not found at {args.keys_json}")
-            sys.exit(1)
-        print(f"[skip analyze] load keys from {args.keys_json}")
-        keyset, source = _load_int8_protect_keys_json(args.keys_json)
-    else:
-        import importlib.util
-
-        print(f"[analyze] {_analyze_rel}")
-        spec = importlib.util.spec_from_file_location(
-            "analyze_convert_nvfp4_zi_int8protect", analyze_py
-        )
-        if spec is None or spec.loader is None:
-            print(f"Error: failed to load analyze script: {_analyze_rel}")
-            sys.exit(1)
-        az = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(az)
-
-        stem = az._stem_from_model(args.model)
-        keys_json = os.path.join(
-            os.path.dirname(__file__),
-            "test",
-            f"{stem}_nvfp4_int8protect{n_protect}_auto_keys.json",
-        )
-        print(f"[1/2] Analyze {args.model}")
-        analysis = az.analyze_model(args.model)
-        print(
-            f"  2d={analysis['n_2d_weights']} "
-            f"nvfp4_candidates={analysis['n_nvfp4_candidates']} "
-            f"prior={len(analysis['prior_keys'])}"
-        )
-        print(f"[2/2] Select INT8 protect N={n_protect} (per-model) → quantize")
-        protect_keys = az.select_protect_keys(analysis, n=n_protect)
-        az.write_keys_json(
-            analysis, protect_keys, n=n_protect, out_path=keys_json
-        )
-        print(f"  wrote test/{os.path.basename(keys_json)}")
-        print(f"  n_final={len(protect_keys)}")
-        for i, k in enumerate(protect_keys, 1):
-            tag = "PRIOR" if k in analysis["prior_keys"] else "FILL"
-            print(
-                f"  {i:02d} [{tag}] abs_max={analysis['abs_map'][k]:.4f}  {k}"
-            )
-        keyset = frozenset(protect_keys)
-        source = os.path.splitext(os.path.basename(keys_json))[0]
 
     convert_to_nvfp4(
         args.model,

@@ -1,15 +1,8 @@
-"""Z-Image / ZIT NVFP4 + analysis ConvRot INT8 protect (int8protect variant).
+"""Z-Image / ZIT NVFP4 + HSWQ ConvRot INT8 protect (quantize entry).
 
-NEW FILE based on native_convert_nvfp4_zi_fp16safe.py / native_convert_nvfp4_zi.py
-(do not edit the base converters).
-
-CLI flow (this file):
-  1) Analyze via analyze/analyze_convert_nvfp4_zi_int8protect.py (fixed)
-  2) Select N INT8 protect keys (default 60) per-model
-  3) Quantize NVFP4 + those keys (ConvRot INT8 protect)
-
-No hardcoded protect key list in this file.
-Analyze (relative only): analyze/analyze_convert_nvfp4_zi_int8protect.py
+Pack / ConvRot / save path is inlined from the hardcode convert (copy, not import).
+Protect key selection is HSWQ four pillars (Analyze THIS + DualMonitor +
+V4 estimated_mse + priority), truncated to N keys (default 60).
 
 Protect path:
   ConvRot rotate (W @ H^T) → row-wise INT8 + weight_scale + int8_tensorwise stamp
@@ -18,24 +11,17 @@ Protect path:
 Remaining Linear 2D: NVFP4 (+ FULL ConvRot by default) + same ``.comfy_quant``.
 Kitchen Turbo blacklist: bfloat16 (unchanged).
 
-Card 1 TE helpers: benchmark/zi_convrot_nvfp4_bench.py
-  (used only with --bias_correction).
-
-Optional Card 1 (--bias_correction): DualMonitor act means via Comfy.
-  Requires --calib_file, --clip_path, --comfy_path, --device cuda.
+Calib recipe (HSWQ How-to): 32 samples / 25 steps DualMonitor (sens + Imp).
+Optional ``--protect-keys-json`` skips auto ranking. Optional Card1 bias.
 
 Post-convert bench (default ON): after save, subprocess
-  benchmark/zi_convrot_nvfp4_bench.py with owner body shape:
-  --fp16=--model --nvfp4=--output --clip_path --comfy_path
-  [--vae] [--token] --prompt --steps 25 --seed <fixed inside>
-  (--vae/--token only when the owner passes them; seed not a parent CLI).
-  Pass --no-bench to skip.
+  benchmark/zi_convrot_nvfp4_bench.py. Pass --no-bench to skip.
 
 Example:
-  python hswq_convert_nvfp4_zi_int8protect.py \\
-    --model ... --output ... \\
-    --calib_file ... --clip_path ... --comfy_path ... \\
-    --vae ... --token ...
+  D:\\USERFILES\\fp8e4m3\\venv\\Scripts\\python.exe \\
+    quantize_zi_hswq_convrot_nvfp4_v1.0.py \\
+    --model ... --output ... --device cuda \\
+    --clip_path ... --comfy_path ... --calib_file ...
 """
 from __future__ import annotations
 
@@ -199,6 +185,14 @@ class DualMonitor:
                 ) / (c + 1)
             self.count += 1
 
+    def get_sensitivity(self) -> float:
+        """Output variance (HSWQ DualMonitor pillar)."""
+        if self.count == 0:
+            return 0.0
+        mean = self.output_sum / self.count
+        variance = (self.output_sq_sum / self.count) - mean ** 2
+        return variance if math.isfinite(variance) else 0.0
+
 
 _dual_monitors: dict[str, DualMonitor] = {}
 
@@ -243,9 +237,14 @@ def run_card1_calib(
     num_inference_steps: int = 25,
     tokenizer_path: str | None = None,
     seed: int = 42,
-) -> dict[str, torch.Tensor]:
-    """FP16 NextDiT calib with DualMonitor on Linear; returns act_mean by module name.
+) -> tuple[
+    dict[str, torch.Tensor],
+    dict[str, float],
+    dict[str, torch.Tensor],
+]:
+    """Unquantized NextDiT calib with DualMonitor on Linear.
 
+    Returns ``(act_mean, sens, channel_importance)`` keyed by module name.
     Module name keys match ``_meta_base_key`` (e.g. ``layers.0.attention.to_q``).
     TE path mirrors ``benchmark/zi_convrot_nvfp4_bench.py`` (Qwen3_4B + Qwen2Tokenizer).
     """
@@ -262,7 +261,7 @@ def run_card1_calib(
     )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"[Card1] Loading FP16 ZI for DualMonitor from {model_path}")
+    print(f"[Card1] Loading unquantized ZI for DualMonitor from {model_path}")
     setup_comfy(comfy_path)
 
     # qk_norm Lumina calls ck.rms_rope; older kitchen wheels lack it
@@ -347,17 +346,27 @@ def run_card1_calib(
         h.remove()
 
     act_mean_dict: dict[str, torch.Tensor] = {}
+    sens_dict: dict[str, float] = {}
+    importance_dict: dict[str, torch.Tensor] = {}
     for name, mon in _dual_monitors.items():
         if mon.channel_act_mean is not None:
             act_mean_dict[name] = mon.channel_act_mean.detach().cpu().float()
-    print(f"[Card1] Collected act_mean for {len(act_mean_dict)} layers")
+        s = float(mon.get_sensitivity())
+        if s > 0.0 and math.isfinite(s):
+            sens_dict[name] = s
+        if mon.channel_importance is not None:
+            importance_dict[name] = mon.channel_importance.detach().cpu().float()
+    print(
+        f"[Card1] Collected act_mean={len(act_mean_dict)} "
+        f"sens={len(sens_dict)} importance={len(importance_dict)}"
+    )
 
     del model, text_encoder, tokenizer
     _dual_monitors = {}
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    return act_mean_dict
+    return act_mean_dict, sens_dict, importance_dict
 
 
 _DEFAULT_GROUPSIZE = 256
@@ -394,40 +403,531 @@ _Z_IMAGE_PROFILES: dict[str, tuple[list[str], list[str]]] = {
 
 _DEFAULT_MODEL_TYPE = "Z-Image-Turbo"
 
-# Filled only by analyze inject / --keys-json / convert_to_nvfp4 kwargs.
-# Never a baked-in model key list.
-_INT8_PROTECT_KEYSET: frozenset[str] | None = None
-_INT8_PROTECT_SOURCE: str | None = None
-
-
-def _load_int8_protect_keys_json(path: str) -> tuple[frozenset[str], str]:
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    keys = data.get("protect_keys") or data.get("int8_protect_keys")
-    if not keys:
-        raise ValueError(f"protect_keys / int8_protect_keys missing in {path}")
-    source = os.path.splitext(os.path.basename(path))[0]
-    return frozenset(str(k) for k in keys), source
+# Owner-allowed hardcode: moodyRealMix_zitV7 protect N=60 (2026-08-02).
+# Source: auto60 + drop 3 kurt-only adaLN + add 3 NVFP4-outside abs top.
+# Keys JSON: test/_moodyRealMix_zitV7_protect60_swap3_keys.json
+# N=60 fixed. No N raise.
+_INT8_PROTECT_SOURCE = (
+    "moodyRealMix_zitV7_nvfp4_int8protect60_swap3_kurtAdaLN_to_nvfp4Abs"
+)
+_INT8_PROTECT_KEYSET: frozenset[str] = frozenset(
+    (
+        "model.diffusion_model.layers.6.feed_forward.w2.weight",
+        "model.diffusion_model.layers.4.feed_forward.w2.weight",
+        "model.diffusion_model.layers.11.feed_forward.w2.weight",
+        "model.diffusion_model.layers.7.feed_forward.w2.weight",
+        "model.diffusion_model.layers.13.feed_forward.w2.weight",
+        "model.diffusion_model.layers.12.feed_forward.w2.weight",
+        "model.diffusion_model.layers.9.feed_forward.w2.weight",
+        "model.diffusion_model.layers.10.feed_forward.w2.weight",
+        "model.diffusion_model.layers.5.feed_forward.w2.weight",
+        "model.diffusion_model.layers.14.feed_forward.w2.weight",
+        "model.diffusion_model.layers.15.feed_forward.w2.weight",
+        "model.diffusion_model.layers.18.feed_forward.w2.weight",
+        "model.diffusion_model.layers.1.feed_forward.w2.weight",
+        "model.diffusion_model.layers.28.adaLN_modulation.0.weight",
+        "model.diffusion_model.layers.8.feed_forward.w2.weight",
+        "model.diffusion_model.layers.19.feed_forward.w2.weight",
+        "model.diffusion_model.layers.3.feed_forward.w2.weight",
+        "model.diffusion_model.layers.2.feed_forward.w2.weight",
+        "model.diffusion_model.layers.24.feed_forward.w1.weight",
+        "model.diffusion_model.layers.29.attention.qkv.weight",
+        "model.diffusion_model.layers.16.feed_forward.w1.weight",
+        "model.diffusion_model.layers.20.feed_forward.w2.weight",
+        "model.diffusion_model.layers.16.feed_forward.w2.weight",
+        "model.diffusion_model.layers.0.feed_forward.w2.weight",
+        "model.diffusion_model.layers.17.feed_forward.w1.weight",
+        "model.diffusion_model.layers.13.attention.out.weight",
+        "model.diffusion_model.layers.19.feed_forward.w3.weight",
+        "model.diffusion_model.layers.29.adaLN_modulation.0.weight",
+        "model.diffusion_model.layers.23.feed_forward.w1.weight",
+        "model.diffusion_model.layers.23.feed_forward.w2.weight",
+        "model.diffusion_model.layers.25.feed_forward.w2.weight",
+        "model.diffusion_model.layers.26.feed_forward.w3.weight",
+        "model.diffusion_model.layers.19.feed_forward.w1.weight",
+        "model.diffusion_model.layers.28.feed_forward.w3.weight",
+        "model.diffusion_model.layers.17.feed_forward.w2.weight",
+        "model.diffusion_model.layers.22.feed_forward.w1.weight",
+        "model.diffusion_model.layers.22.feed_forward.w2.weight",
+        "model.diffusion_model.layers.21.feed_forward.w1.weight",
+        "model.diffusion_model.layers.18.feed_forward.w1.weight",
+        "model.diffusion_model.layers.28.attention.qkv.weight",
+        "model.diffusion_model.layers.11.attention.out.weight",
+        "model.diffusion_model.layers.10.attention.qkv.weight",
+        "model.diffusion_model.layers.13.feed_forward.w3.weight",
+        "model.diffusion_model.layers.27.attention.qkv.weight",
+        "model.diffusion_model.layers.12.attention.out.weight",
+        "model.diffusion_model.layers.9.attention.qkv.weight",
+        "model.diffusion_model.layers.16.attention.qkv.weight",
+        "model.diffusion_model.layers.14.attention.out.weight",
+        "model.diffusion_model.layers.28.feed_forward.w2.weight",
+        "model.diffusion_model.layers.9.attention.out.weight",
+        "model.diffusion_model.layers.3.feed_forward.w3.weight",
+        "model.diffusion_model.layers.25.feed_forward.w1.weight",
+        "model.diffusion_model.layers.24.feed_forward.w3.weight",
+        "model.diffusion_model.layers.11.attention.qkv.weight",
+        "model.diffusion_model.layers.26.feed_forward.w1.weight",
+        "model.diffusion_model.layers.8.attention.qkv.weight",
+        "model.diffusion_model.layers.24.feed_forward.w2.weight",
+        "model.diffusion_model.layers.25.feed_forward.w3.weight",
+        "model.diffusion_model.layers.19.attention.qkv.weight",
+        "model.diffusion_model.layers.21.feed_forward.w2.weight",
+    )
+)
 
 
 def _resolve_int8_protect_keyset(
     int8_protect_keys: frozenset[str] | list[str] | None,
     int8_protect_source: str | None,
 ) -> tuple[frozenset[str], str]:
-    if int8_protect_keys is not None:
-        keyset = frozenset(int8_protect_keys)
-        if not keyset:
-            raise ValueError("int8_protect_keys is empty")
-        source = int8_protect_source or "injected_keyset"
-        return keyset, source
-    if _INT8_PROTECT_KEYSET:
-        source = int8_protect_source or _INT8_PROTECT_SOURCE or "injected_keyset"
-        return frozenset(_INT8_PROTECT_KEYSET), source
-    raise ValueError(
-        "INT8 protect keyset is required (no hardcode in this converter). "
-        "Use analyze/analyze_convert_nvfp4_zi_int8protect.py, or pass "
-        "int8_protect_keys / --keys-json."
+    """Require an explicit protect keyset (HSWQ / JSON / hardcode flag).
+
+    Silent fallback to baked ``_INT8_PROTECT_KEYSET`` is forbidden on the
+    auto path — pass keys from ``select_int8_protect_keys_hswq`` or CLI.
+    """
+    if int8_protect_keys is None:
+        raise ValueError(
+            "int8_protect_keys is required (HSWQ select, --protect-keys-json, "
+            "or --protect-keys-hardcode). Silent hardcode default is forbidden."
+        )
+    keyset = frozenset(int8_protect_keys)
+    if not keyset:
+        raise ValueError("int8_protect_keys is empty")
+    source = int8_protect_source or "injected_keyset"
+    return keyset, source
+
+
+def _st_weight_to_meta(st_key: str) -> str:
+    """ST ``...weight`` → DualMonitor module meta (no ``.weight`` suffix)."""
+    base = st_key[: -len(".weight")] if st_key.endswith(".weight") else st_key
+    return _meta_base_key(base)
+
+
+def _normalize_module_meta(name: str) -> str:
+    """Strip diffusion prefixes so Card1 module names match ST meta."""
+    n = str(name or "")
+    if n.endswith(".weight"):
+        n = n[: -len(".weight")]
+    if "model.diffusion_model." in n:
+        return n.split("model.diffusion_model.")[-1]
+    if "diffusion_model." in n:
+        return n.split("diffusion_model.")[-1]
+    return n
+
+
+def _fuse_attention_qkv_aliases(
+    values_by_meta: dict[str, float],
+) -> dict[str, float]:
+    """Bridge fused ``.attention.qkv`` ↔ split ``to_q/to_k/to_v`` DualMonitor keys.
+
+    Comfy NextDiT loads often expose fused ``qkv`` Linear while some ST / hook
+    layouts expose split projections. Missing this bridge zeroes DualMonitor
+    on attention → analyze/V4 dominate alone (pillar incompleteness).
+    """
+    out = dict(values_by_meta)
+    attn_prefixes: set[str] = set()
+    for meta in list(out.keys()):
+        if meta.endswith(".attention.to_q"):
+            attn_prefixes.add(meta[: -len(".to_q")])
+        elif meta.endswith(".attention.to_k"):
+            attn_prefixes.add(meta[: -len(".to_k")])
+        elif meta.endswith(".attention.to_v"):
+            attn_prefixes.add(meta[: -len(".to_v")])
+        elif meta.endswith(".attention.qkv"):
+            attn_prefixes.add(meta[: -len(".qkv")])
+    for attn in attn_prefixes:
+        qkv = f"{attn}.qkv"
+        split_vals = [
+            float(out[k])
+            for k in (f"{attn}.to_q", f"{attn}.to_k", f"{attn}.to_v")
+            if k in out and float(out[k]) > 0.0
+        ]
+        if qkv not in out and split_vals:
+            out[qkv] = max(split_vals)
+        elif qkv in out and split_vals:
+            out[qkv] = max(float(out[qkv]), max(split_vals))
+        if qkv in out:
+            qv = float(out[qkv])
+            for suf in (".to_q", ".to_k", ".to_v"):
+                sk = f"{attn}{suf}"
+                if sk not in out and qv > 0.0:
+                    out[sk] = qv
+    return out
+
+
+def _build_sens_by_meta(
+    sens_dict: dict[str, float],
+    meta_to_st: dict[str, str],
+) -> dict[str, float]:
+    """Map DualMonitor sens onto ST meta names (prefix + qkv aliases)."""
+    raw: dict[str, float] = {}
+    for name, s in sens_dict.items():
+        try:
+            sf = float(s)
+        except (TypeError, ValueError):
+            continue
+        if sf <= 0.0 or not math.isfinite(sf):
+            continue
+        meta = _normalize_module_meta(name)
+        prev = raw.get(meta)
+        raw[meta] = sf if prev is None else max(prev, sf)
+    fused = _fuse_attention_qkv_aliases(raw)
+    return {m: fused[m] for m in meta_to_st if m in fused}
+
+
+def _lookup_importance_tensor(
+    key: str,
+    importance_dict: dict[str, torch.Tensor],
+) -> torch.Tensor | None:
+    if key in importance_dict and importance_dict[key] is not None:
+        return importance_dict[key]
+    for raw_k, tensor in importance_dict.items():
+        if _normalize_module_meta(raw_k) == key and tensor is not None:
+            return tensor
+    return None
+
+
+def _importance_for_meta(
+    meta: str,
+    importance_dict: dict[str, torch.Tensor],
+) -> torch.Tensor | None:
+    """Resolve channel-importance tensor for meta (qkv ↔ to_* fallback)."""
+    meta_n = _normalize_module_meta(meta)
+    direct = _lookup_importance_tensor(meta_n, importance_dict)
+    if direct is not None:
+        return direct
+    # Fused ST qkv + split DualMonitor Imp: in-channel Imp length matches
+    # fused in_features — take elementwise max of to_q/to_k/to_v (not concat).
+    if meta_n.endswith(".attention.qkv"):
+        attn = meta_n[: -len(".qkv")]
+        parts: list[torch.Tensor] = []
+        for suf in (".to_q", ".to_k", ".to_v"):
+            t = _lookup_importance_tensor(f"{attn}{suf}", importance_dict)
+            if t is None:
+                continue
+            parts.append(t.detach().float().reshape(-1))
+        if parts:
+            n0 = int(parts[0].numel())
+            if all(int(p.numel()) == n0 for p in parts):
+                stacked = torch.stack(parts, dim=0)
+                return stacked.max(dim=0).values
+            # Same-length only; otherwise refuse silent wrong Imp.
+            return None
+    return None
+
+
+def select_int8_protect_keys_hswq(
+    model_path: str,
+    sens_dict: dict[str, float],
+    importance_dict: dict[str, torch.Tensor],
+    *,
+    protect_n: int = 60,
+    model_type: str = _DEFAULT_MODEL_TYPE,
+    device: str = "cuda",
+) -> tuple[frozenset[str], str]:
+    """HSWQ four-pillar INT8 protect ranking → top ``protect_n`` ST keys.
+
+    Pillars (ZI analyze + DualMonitor + V4 pack-MSE + priority combinator):
+      1) Analyze THIS (``analyze_unet`` + autonomous NVFP4 tunables)
+      2) DualMonitor sensitivity + channel importance (calib)
+      3) V4 ``compute_pack_mse_absmax_with_svd(..., linear_pack=\"nvfp4\")``
+      4) Infinite ranking / priority branches → truncate by key count N
+
+    ``fp16_budget_mb`` is passed only as the analyze-side threshold input
+    (``derive_nvfp4_autonomous_tunables``). This path does **not** select
+    FP16 keep layers and does **not** fill a MiB budget — selected keys are
+    INT8 protect targets, truncated by N.
+
+    Ranking namespace is DualMonitor / ST meta
+    (``layers.*.attention.qkv`` or ``to_q`` — aliases resolved).
+    Returned keys are full safetensors weight keys for convert.
+    """
+    if int(protect_n) <= 0:
+        raise ValueError(f"protect_n must be > 0, got {protect_n!r}")
+    if model_type not in _Z_IMAGE_PROFILES:
+        raise ValueError(
+            f"Unknown model_type={model_type!r}; "
+            f"choose from {sorted(_Z_IMAGE_PROFILES)}"
+        )
+    if not sens_dict:
+        raise ValueError(
+            "DualMonitor sens_dict is empty — Card1 calib required for HSWQ"
+        )
+
+    from analyze.analyze_zi_convrot_nvfp4_distribution import (
+        NVFP4_FP16_BUDGET_MB_HARD,
+        _robust_iqr,
+        _safe_percentile,
+        analyze_unet,
+        apply_fp16_infinite_priority_branches,
+        apply_fp16_infinite_ranking_branches,
+        build_nvfp4_analyze_character_table,
+        derive_nvfp4_autonomous_tunables,
+        derive_priority_combinator,
+        nvfp4_fp16_budget_analyze_severity,
+        nvfp4_fp16_budget_priority,
     )
+    from histogram.weighted_histogram_mse_v4_nvfp4 import (
+        HSWQWeightedHistogramOptimizerV4,
+    )
+
+    blacklist, _fp8 = _Z_IMAGE_PROFILES[model_type]
+    print("\n[HSWQ] Analyze THIS (weight distribution)...")
+    profile = analyze_unet(model_path, run_v4=False)
+    st_layers = profile.get("layers") or {}
+    if not isinstance(st_layers, dict) or not st_layers:
+        raise RuntimeError(f"[HSWQ] analyze_unet returned no layers for {model_path}")
+
+    print(f"[HSWQ] Loading weights for V4 pack-MSE from {model_path}")
+    sd = load_file(model_path)
+
+    # meta → ST weight key (prefer model.diffusion_model. prefix present in file)
+    meta_to_st: dict[str, str] = {}
+    meta_layers: dict[str, dict] = {}
+    for st_key, entry in st_layers.items():
+        if not isinstance(st_key, str) or not st_key.endswith(".weight"):
+            continue
+        if _is_non_diffusion_key(st_key):
+            continue
+        if any(marker in st_key for marker in blacklist):
+            continue
+        w = sd.get(st_key)
+        if w is None or int(getattr(w, "ndim", 0)) != 2:
+            continue
+        meta = _st_weight_to_meta(st_key)
+        # Prefer full prefixed ST key if several aliases exist
+        prev = meta_to_st.get(meta)
+        if prev is None or (
+            st_key.startswith("model.diffusion_model.")
+            and not prev.startswith("model.diffusion_model.")
+        ):
+            meta_to_st[meta] = st_key
+        if isinstance(entry, dict):
+            meta_layers[meta] = dict(entry)
+
+    if not meta_to_st:
+        raise RuntimeError(
+            "[HSWQ] No Linear-2D UNet weight candidates after blacklist filter"
+        )
+
+    sens_by_meta = _build_sens_by_meta(sens_dict, meta_to_st)
+    n_pool = len(meta_to_st)
+    n_matched = len(sens_by_meta)
+    match_ratio = float(n_matched) / float(n_pool) if n_pool else 0.0
+    # DualMonitor must land on THIS pool. Silent near-zero match = pillar skip.
+    if n_matched < 1 or match_ratio < 0.25:
+        raise RuntimeError(
+            "[HSWQ] DualMonitor sens barely matched ST Linear-2D pool "
+            f"(matched={n_matched}/{n_pool} ratio={match_ratio:.3f}). "
+            "Refusing incomplete four-pillar ranking (prefix/qkv alias bug)."
+        )
+
+    norm_profile = {"layers": meta_layers, "source": model_path}
+    tunables = derive_nvfp4_autonomous_tunables(
+        norm_profile,
+        dualmonitor_sensitivities=sens_by_meta,
+        fp16_budget_mb=float(NVFP4_FP16_BUDGET_MB_HARD),
+    )
+    if str(tunables.get("quant_format")) != "nvfp4":
+        raise RuntimeError(
+            "[HSWQ] derive_nvfp4_autonomous_tunables must set quant_format=nvfp4; "
+            f"got {tunables.get('quant_format')!r}"
+        )
+    alpha = float(tunables.get("alpha_auto", 0.0) or 0.0)
+    if alpha <= 0.0:
+        raise ValueError(
+            "[HSWQ] alpha_auto must be > 0 after DualMonitor resolve "
+            f"(got {alpha!r})"
+        )
+    beta = 1.0 - alpha
+    print(
+        f"[HSWQ] alpha_auto={alpha:.6g} beta={beta:.6g} "
+        f"| DualMonitor sens matched={n_matched}/{n_pool} "
+        f"Linear-2D (ratio={match_ratio:.3f})"
+    )
+
+    ek = max(abs(float(tunables.get("extreme_kurtosis", 1e-6))), 1e-6)
+    eo = max(float(tunables.get("extreme_outlier", 1e-6)), 1e-6)
+    hm = max(float(tunables.get("huge_magnitude", 1e-6)), 1e-6)
+    hard_veto: set[str] = set()
+    for meta, entry in meta_layers.items():
+        k = float(entry.get("kurtosis", 0) or 0)
+        o = float(entry.get("outlier_ratio", 0) or 0)
+        m = float(entry.get("abs_max", 0) or 0)
+        if k >= ek or o >= eo or m >= hm:
+            hard_veto.add(meta)
+    print(
+        f"[HSWQ] Hard VETO (fence) n={len(hard_veto)} "
+        f"(ek={ek:.4g} eo={eo:.4g} hm={hm:.4g})"
+    )
+
+    char_table = build_nvfp4_analyze_character_table(
+        {"layers": meta_layers, "source": model_path},
+        tunables,
+        hard_veto_names=hard_veto,
+    )
+    pool = set(meta_to_st.keys()) | set(hard_veto) | set(char_table.keys())
+    pool = {n for n in pool if n in meta_to_st}
+    for meta in sens_by_meta:
+        if meta in meta_to_st:
+            pool.add(meta)
+
+    v4_device = device if device == "cuda" and torch.cuda.is_available() else "cpu"
+    optimizer = HSWQWeightedHistogramOptimizerV4(
+        bins=8192,
+        num_candidates=1000,
+        refinement_iterations=10,
+        device=v4_device,
+        alpha=alpha,
+        beta=beta,
+    )
+    print(
+        f"[HSWQ] V4 pack-MSE @ absmax for {len(pool)} Linear-2D layers "
+        f"(device={v4_device})..."
+    )
+    measured: list[tuple[str, float, float, float, int]] = []
+    for meta in sorted(pool):
+        st_key = meta_to_st[meta]
+        w = sd[st_key]
+        dm_sens = float(sens_by_meta.get(meta, 0.0))
+        row = char_table.get(meta, {})
+        prof = meta_layers.get(meta, {})
+        is_hv = meta in hard_veto
+        k = float(row.get("kurtosis", prof.get("kurtosis", 0)) or 0)
+        o = float(row.get("outlier_ratio", prof.get("outlier_ratio", 0)) or 0)
+        m = float(row.get("abs_max", prof.get("abs_max", 0)) or 0)
+        mad = float(row.get("mad_outlier_pct", prof.get("mad_outlier_pct", 0)) or 0)
+        ps = float(row.get("profile_score", prof.get("profile_score", 0)) or 0)
+        severity = nvfp4_fp16_budget_analyze_severity(
+            kurtosis=k,
+            outlier_ratio=o,
+            abs_max=m,
+            tunables=tunables,
+            is_hard_veto=is_hv,
+            layer_name=meta,
+            mad_outlier_pct=mad,
+            profile_score=ps,
+        )
+        imp = _importance_for_meta(meta, importance_dict)
+        if imp is not None:
+            imp = imp.detach().float()
+            # Fused qkv Imp length must match in_features when ST is fused.
+            in_f = int(w.shape[1]) if int(getattr(w, "ndim", 0)) == 2 else -1
+            if in_f > 0 and int(imp.numel()) != in_f:
+                # Split Imp concat may not match fused in_features — drop Imp
+                # rather than silently mis-broadcast (V4 still runs Full-SVD).
+                print(
+                    f"[HSWQ] WARN: Imp numel={int(imp.numel())} != in={in_f} "
+                    f"for {meta}; V4 continues with SVD only for this layer"
+                )
+                imp = None
+            elif v4_device == "cuda":
+                imp = imp.to(device="cuda")
+        w_meas = w.detach().float()
+        if v4_device == "cuda":
+            w_meas = w_meas.to(device="cuda")
+        try:
+            v4_out = optimizer.compute_pack_mse_absmax_with_svd(
+                w_meas,
+                channel_importance=imp,
+                importance=imp,
+                use_svd_leverage=True,
+                layer_name=meta,
+                linear_pack="nvfp4",
+            )
+            v4_mse = float(v4_out.get("estimated_mse", v4_out.get("mse", 0.0)))
+        except Exception as e:
+            raise RuntimeError(
+                f"[HSWQ] V4 pack-MSE failed for {meta!r} ({st_key}): {e}. "
+                "Refusing silent demote."
+            ) from e
+        if v4_device == "cuda":
+            del w_meas
+            if imp is not None:
+                del imp
+            torch.cuda.empty_cache()
+        # 5th tuple slot is required by analyze ranking APIs; INT8 protect
+        # truncates by key count N only (not weight-byte / MiB fill).
+        measured.append((meta, dm_sens, v4_mse, severity, 0))
+
+    del sd, optimizer
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    if not measured:
+        raise RuntimeError("[HSWQ] measured pool is empty after V4 scoring")
+
+    veto_mask_pre = [name in hard_veto for name, *_ in measured]
+    measured, branch_repairs, branch_profile = apply_fp16_infinite_ranking_branches(
+        measured, veto_mask_pre,
+    )
+    print(
+        f"[HSWQ] Infinite ranking branches: repairs={len(branch_repairs)} "
+        f"cv(s/v/m)={branch_profile.get('cv_sens', float('nan')):.4g}/"
+        f"{branch_profile.get('cv_sev', float('nan')):.4g}/"
+        f"{branch_profile.get('cv_mse', float('nan')):.4g}"
+    )
+
+    sens_all = [float(row[1]) for row in measured]
+    sev_all = [float(row[3]) for row in measured]
+    mse_all = [float(row[2]) for row in measured]
+    veto_mask = [row[0] in hard_veto for row in measured]
+    sens_meas = [v for v in sens_all if v > 0]
+    sev_meas = list(sev_all)
+    mse_meas = [v for v in mse_all if v > 0]
+    s_p50 = _safe_percentile(sens_meas, 50.0) if len(sens_meas) >= 2 else 0.0
+    s_iqr = _robust_iqr(sens_meas) if len(sens_meas) >= 4 else 0.0
+    v_p50 = _safe_percentile(sev_meas, 50.0) if len(sev_meas) >= 2 else 0.0
+    v_iqr = _robust_iqr(sev_meas) if len(sev_meas) >= 4 else 0.0
+    m_p50 = _safe_percentile(mse_meas, 50.0) if len(mse_meas) >= 2 else 0.0
+    m_iqr = _robust_iqr(mse_meas) if len(mse_meas) >= 4 else 0.0
+    combinator = derive_priority_combinator(
+        s_iqr, v_iqr, m_iqr, s_p50, v_p50, m_p50,
+        sens_vals=sens_all,
+        sev_vals=sev_all,
+        mse_vals=mse_all,
+        is_hard_veto=veto_mask,
+    )
+    print(
+        f"[HSWQ] Priority combinator form={combinator['form']} "
+        f"w(sens/sev/mse)={combinator['w_sens']:.3f}/"
+        f"{combinator['w_sev']:.3f}/{combinator['w_mse']:.3f}"
+    )
+
+    candidates: list[tuple[float, float, float, float, int, str]] = []
+    for name, dm_sens, v4_mse, severity, extra in measured:
+        priority = nvfp4_fp16_budget_priority(
+            dm_sens, v4_mse, severity, combinator=combinator,
+        )
+        candidates.append(
+            (priority, v4_mse, severity, dm_sens, int(extra), name)
+        )
+    candidates, prio_repairs = apply_fp16_infinite_priority_branches(
+        candidates, branch_profile,
+    )
+    if prio_repairs:
+        print(f"[HSWQ] Infinite priority repairs={len(prio_repairs)}")
+    candidates.sort(
+        key=lambda t: (t[0], t[1], t[2], t[3], t[5]),
+        reverse=True,
+    )
+
+    n_take = min(int(protect_n), len(candidates))
+    selected_meta = [row[5] for row in candidates[:n_take]]
+    selected_st = [meta_to_st[m] for m in selected_meta]
+    source = f"hswq_four_pillars_n{protect_n}"
+    print(
+        f"[HSWQ] Selected INT8 protect n={len(selected_st)}/{protect_n} "
+        f"(pool={len(candidates)} source={source})"
+    )
+    for i, (meta, st_key) in enumerate(zip(selected_meta, selected_st)):
+        pr, mse, sev, sens, _ex, _n = candidates[i]
+        print(
+            f"  [{i + 1:02d}] prio={pr:.6g} mse={mse:.6g} sev={sev:.4g} "
+            f"sens={sens:.4g} | {st_key}"
+        )
+    return frozenset(selected_st), source
 
 
 def _is_int8_protect_key(key: str, keyset: frozenset[str]) -> bool:
@@ -512,6 +1012,7 @@ def convert_to_nvfp4(
     num_inference_steps: int = 25,
     int8_protect_keys: frozenset[str] | list[str] | None = None,
     int8_protect_source: str | None = None,
+    precomputed_act_mean: dict[str, torch.Tensor] | None = None,
 ):
     if model_type not in _Z_IMAGE_PROFILES:
         raise ValueError(
@@ -547,32 +1048,39 @@ def convert_to_nvfp4(
     bias_corr_skipped_bad_shape = 0
     bias_corr_skipped_no_bias = 0
     if bias_correction:
-        if not calib_file:
-            raise ValueError("--bias_correction requires --calib_file")
-        if not clip_path:
-            raise ValueError("--bias_correction requires --clip_path")
-        if not comfy_path:
-            raise ValueError("--bias_correction requires --comfy_path")
-        if device != "cuda":
-            raise ValueError("--bias_correction requires --device cuda")
-        print("\n[Card 1] Running DualMonitor calibration (FP16 acts)...")
-        act_mean_dict = run_card1_calib(
-            model_path=input_path,
-            clip_path=clip_path,
-            comfy_path=comfy_path,
-            calib_file=calib_file,
-            tokenizer_path=tokenizer_path,
-            num_samples=num_calib_samples,
-            num_inference_steps=num_inference_steps,
-        )
-        print(
-            f"[Card 1] act_mean for {len(act_mean_dict)} Linear modules "
-            f"(keyed by module name = _meta_base_key)"
-        )
+        if precomputed_act_mean is not None:
+            act_mean_dict = precomputed_act_mean
+            print(
+                f"\n[Card 1] Using precomputed DualMonitor act_mean "
+                f"({len(act_mean_dict)} Linear modules)"
+            )
+        else:
+            if not calib_file:
+                raise ValueError("--bias_correction requires --calib_file")
+            if not clip_path:
+                raise ValueError("--bias_correction requires --clip_path")
+            if not comfy_path:
+                raise ValueError("--bias_correction requires --comfy_path")
+            if device != "cuda":
+                raise ValueError("--bias_correction requires --device cuda")
+            print("\n[Card 1] Running DualMonitor calibration (unquantized acts)...")
+            act_mean_dict, _sens_unused, _imp_unused = run_card1_calib(
+                model_path=input_path,
+                clip_path=clip_path,
+                comfy_path=comfy_path,
+                calib_file=calib_file,
+                tokenizer_path=tokenizer_path,
+                num_samples=num_calib_samples,
+                num_inference_steps=num_inference_steps,
+            )
+            print(
+                f"[Card 1] act_mean for {len(act_mean_dict)} Linear modules "
+                f"(keyed by module name = _meta_base_key)"
+            )
         if enable_convrot:
             print(
                 "[Card 1] WARN: ConvRot ON — DualMonitor acts are pre-rotation; "
-                "bias uses post-rotation w_for_q vs W_q (same as Krea2)."
+                "bias uses post-rotation w_for_q vs W_q (ZI ConvRot path)."
             )
 
     sd = load_file(input_path)
@@ -966,10 +1474,10 @@ def run_post_convert_zi_convrot_nvfp4_bench(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
-            "Z-Image / ZIT NVFP4 + analysis ConvRot INT8 protect (int8protect). "
-            "Based on native_convert_nvfp4_zi.py; 60 ranked Linear weights as "
-            "ConvRot INT8 (65-order head); rest NVFP4. FULL ConvRot ON by "
-            "default for NVFP4. Default Kitchen profile Z-Image-Turbo. "
+            "Z-Image / ZIT NVFP4 + HSWQ ConvRot INT8 protect. "
+            "Default: DualMonitor calib + four-pillar ranking → top N "
+            "(default 60) as ConvRot INT8; rest NVFP4. FULL ConvRot ON. "
+            "Kitchen profile default Z-Image-Turbo. "
             "Post-convert zi_convrot_nvfp4_bench default ON."
         )
     )
@@ -1014,30 +1522,55 @@ if __name__ == "__main__":
         help=f"Preferred ConvRot Hadamard group size (default {_DEFAULT_GROUPSIZE}).",
     )
     parser.add_argument(
+        "--protect-n",
+        type=int,
+        default=60,
+        help="HSWQ INT8 protect key count N (default 60; truncate after ranking)",
+    )
+    parser.add_argument(
+        "--protect-keys-json",
+        type=str,
+        default=None,
+        help=(
+            "Optional JSON list/object of ST weight keys; skips HSWQ auto ranking"
+        ),
+    )
+    parser.add_argument(
+        "--protect-keys-hardcode",
+        action="store_true",
+        help=(
+            "Use baked moodyRealMix_zitV7 swap3 N=60 keyset "
+            "(skips HSWQ auto ranking)"
+        ),
+    )
+    parser.add_argument(
         "--bias_correction",
         action="store_true",
         help=(
-            "Enable Card 1: DualMonitor act_mean calib + bias += -(W_q-W)@mu_x. "
-            "Requires --calib_file, --clip_path, --comfy_path, --device cuda."
+            "Enable Card 1 bias += -(W_q-W)@mu_x after packs. "
+            "Reuses DualMonitor act_mean from HSWQ calib when available."
         ),
     )
     parser.add_argument(
         "--calib_file",
         type=str,
         default=None,
-        help="JSONL prompts for Card 1 DualMonitor (required with --bias_correction)",
+        help=(
+            "JSONL prompts for DualMonitor (required for HSWQ auto ranking "
+            "and for --bias_correction)"
+        ),
     )
     parser.add_argument(
         "--clip_path",
         type=str,
         default=None,
-        help="Qwen3-4B text encoder path (Card 1 / post-convert bench)",
+        help="Qwen3-4B text encoder path (HSWQ Card1 / post-convert bench)",
     )
     parser.add_argument(
         "--comfy_path",
         type=str,
         default=None,
-        help="ComfyUI root path (Card 1 / post-convert bench)",
+        help="ComfyUI root path (HSWQ Card1 / post-convert bench)",
     )
     parser.add_argument(
         "--vae",
@@ -1077,29 +1610,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_calib_samples",
         type=int,
-        default=4,
-        help="Card 1 DualMonitor prompt count (default 4)",
+        default=32,
+        help="DualMonitor prompt count (default: 32; HSWQ How-to)",
     )
     parser.add_argument(
         "--num_inference_steps",
         type=int,
-        default=8,
-        help="Card 1 sample_euler steps (default 8)",
-    )
-    parser.add_argument(
-        "--n",
-        type=int,
-        default=60,
-        help="INT8 protect key count after per-model analyze (default 60)",
-    )
-    parser.add_argument(
-        "--keys-json",
-        type=str,
-        default=None,
-        help=(
-            "Optional: skip analyze and load protect_keys from this JSON. "
-            "Default: analyze this --model, write test/<_stem>_nvfp4_int8protectN_auto_keys.json"
-        ),
+        default=25,
+        help="DualMonitor sample_euler steps (default: 25; HSWQ How-to)",
     )
     parser.set_defaults(enable_convrot=True)
     args = parser.parse_args()
@@ -1108,62 +1626,95 @@ if __name__ == "__main__":
         print(f"Error: Model not found at {args.model}")
         sys.exit(1)
 
-    n_protect = int(args.n)
-    # Relative to this converter file (never hardcode drive absolute paths).
-    _analyze_rel = os.path.join(
-        "analyze", "analyze_convert_nvfp4_zi_int8protect.py"
+    n_modes = sum(
+        1
+        for flag in (
+            bool(args.protect_keys_json),
+            bool(args.protect_keys_hardcode),
+        )
+        if flag
     )
-    analyze_py = os.path.join(os.path.dirname(__file__), _analyze_rel)
-    if not os.path.isfile(analyze_py):
-        print(f"Error: analyze script not found: {_analyze_rel}")
+    if n_modes > 1:
+        print(
+            "Error: use at most one of --protect-keys-json / "
+            "--protect-keys-hardcode (default is HSWQ auto)"
+        )
         sys.exit(1)
 
-    if args.keys_json:
-        if not os.path.exists(args.keys_json):
-            print(f"Error: keys JSON not found at {args.keys_json}")
-            sys.exit(1)
-        print(f"[skip analyze] load keys from {args.keys_json}")
-        keyset, source = _load_int8_protect_keys_json(args.keys_json)
-    else:
-        import importlib.util
+    precomputed_act_mean: dict[str, torch.Tensor] | None = None
+    keyset: frozenset[str]
+    source: str
 
-        print(f"[analyze] {_analyze_rel}")
-        spec = importlib.util.spec_from_file_location(
-            "analyze_convert_nvfp4_zi_int8protect", analyze_py
-        )
-        if spec is None or spec.loader is None:
-            print(f"Error: failed to load analyze script: {_analyze_rel}")
+    if args.protect_keys_hardcode:
+        keyset = frozenset(_INT8_PROTECT_KEYSET)
+        source = _INT8_PROTECT_SOURCE
+        print(f"[hardcode] INT8 protect n={len(keyset)} source={source}")
+        if len(keyset) != 60:
+            print(f"Error: hardcode keyset must be 60, got {len(keyset)}")
             sys.exit(1)
-        az = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(az)
-
-        stem = az._stem_from_model(args.model)
-        keys_json = os.path.join(
-            os.path.dirname(__file__),
-            "test",
-            f"{stem}_nvfp4_int8protect{n_protect}_auto_keys.json",
-        )
-        print(f"[1/2] Analyze {args.model}")
-        analysis = az.analyze_model(args.model)
-        print(
-            f"  2d={analysis['n_2d_weights']} "
-            f"nvfp4_candidates={analysis['n_nvfp4_candidates']} "
-            f"prior={len(analysis['prior_keys'])}"
-        )
-        print(f"[2/2] Select INT8 protect N={n_protect} (per-model) → quantize")
-        protect_keys = az.select_protect_keys(analysis, n=n_protect)
-        az.write_keys_json(
-            analysis, protect_keys, n=n_protect, out_path=keys_json
-        )
-        print(f"  wrote test/{os.path.basename(keys_json)}")
-        print(f"  n_final={len(protect_keys)}")
-        for i, k in enumerate(protect_keys, 1):
-            tag = "PRIOR" if k in analysis["prior_keys"] else "FILL"
+    elif args.protect_keys_json:
+        json_path = str(args.protect_keys_json)
+        if not os.path.exists(json_path):
+            print(f"Error: --protect-keys-json not found: {json_path}")
+            sys.exit(1)
+        with open(json_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        if isinstance(payload, dict):
+            raw_keys = payload.get("keys", payload.get("protect_keys"))
+            if raw_keys is None and all(isinstance(k, str) for k in payload.keys()):
+                raw_keys = list(payload.keys())
+        elif isinstance(payload, list):
+            raw_keys = payload
+        else:
             print(
-                f"  {i:02d} [{tag}] abs_max={analysis['abs_map'][k]:.4f}  {k}"
+                "Error: --protect-keys-json must be a list of keys or "
+                "an object with keys/protect_keys"
             )
-        keyset = frozenset(protect_keys)
-        source = os.path.splitext(os.path.basename(keys_json))[0]
+            sys.exit(1)
+        if not isinstance(raw_keys, list) or not raw_keys:
+            print("Error: --protect-keys-json produced an empty key list")
+            sys.exit(1)
+        keyset = frozenset(str(k) for k in raw_keys)
+        source = f"protect_keys_json:{os.path.basename(json_path)}"
+        print(f"[json] INT8 protect n={len(keyset)} source={source}")
+    else:
+        # Default: HSWQ four-pillar auto (ZI analyze + DualMonitor + V4 + priority)
+        if not args.calib_file:
+            print("Error: HSWQ auto ranking requires --calib_file")
+            sys.exit(1)
+        if not args.clip_path:
+            print("Error: HSWQ auto ranking requires --clip_path")
+            sys.exit(1)
+        if not args.comfy_path:
+            print("Error: HSWQ auto ranking requires --comfy_path")
+            sys.exit(1)
+        if str(args.device) != "cuda":
+            print("Error: HSWQ auto ranking requires --device cuda")
+            sys.exit(1)
+        print(
+            f"\n[HSWQ] DualMonitor calib "
+            f"(samples={int(args.num_calib_samples)} "
+            f"steps={int(args.num_inference_steps)})..."
+        )
+        act_mean_dict, sens_dict, importance_dict = run_card1_calib(
+            model_path=args.model,
+            clip_path=args.clip_path,
+            comfy_path=args.comfy_path,
+            calib_file=args.calib_file,
+            tokenizer_path=args.tokenizer_path,
+            num_samples=int(args.num_calib_samples),
+            num_inference_steps=int(args.num_inference_steps),
+        )
+        precomputed_act_mean = act_mean_dict
+        keyset, source = select_int8_protect_keys_hswq(
+            args.model,
+            sens_dict,
+            importance_dict,
+            protect_n=int(args.protect_n),
+            model_type=str(args.model_type),
+            device=str(args.device),
+        )
+        print(f"[HSWQ] INT8 protect n={len(keyset)} source={source}")
 
     convert_to_nvfp4(
         args.model,
@@ -1181,6 +1732,7 @@ if __name__ == "__main__":
         num_inference_steps=int(args.num_inference_steps),
         int8_protect_keys=keyset,
         int8_protect_source=source,
+        precomputed_act_mean=precomputed_act_mean,
     )
 
     if args.bench:
