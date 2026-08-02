@@ -650,6 +650,21 @@ def convert_to_nvfp4(
             new_sd[f"{base_k_file}.comfy_quant"] = _encode_comfy_quant(quant_config)
             quant_map["layers"][base_k_meta] = dict(quant_config)
             n_int8_protect += 1
+            # Card1: protect path used to ``continue`` before NVFP4 BC — INT8 layers
+            # never got (W_dq-W)@μ. Same math as NVFP4 branch / native_convert_int8_sdxl.
+            if bias_correction and act_mean_dict is not None:
+                act_mean = act_mean_dict.get(base_k_meta)
+                if act_mean is None:
+                    bias_corr_skipped_no_act += 1
+                else:
+                    weight_dq = q.float() * scale.float()
+                    delta = compute_nvfp4_bias_delta(w, weight_dq, act_mean)
+                    if delta is None:
+                        bias_corr_skipped_bad_shape += 1
+                    else:
+                        bias_corr_pending[base_k_file] = (
+                            (-delta).detach().float().cpu()
+                        )
             continue
 
         if v.ndim == 2 and ".weight" in k:
