@@ -1324,12 +1324,15 @@ def convert_to_nvfp4(
     bias_corr_skipped_bad_shape = 0
     bias_corr_skipped_no_bias = 0
     if bias_correction and enable_convrot:
-        raise ValueError(
-            "--bias_correction cannot be used with ConvRot ON (default): "
-            "DualMonitor acts are pre-rotation while weights are rotated. "
-            "Run with --no-enable_convrot for bias, or omit bias correction. "
-            "Mixing pre/post rotation is an HSWQ blasphemy shortcut."
+        # Do not hard-abort existing notebooks / scripts that request bias with
+        # default ConvRot ON. The four-pillar protect path already ran; here we
+        # degrade bias correction only (weights stay ConvRot NVFP4/INT8).
+        print(
+            "[Card 1] SKIP bias correction: ConvRot ON mixes pre-rotation acts "
+            "with post-rotation weights (HSWQ blasphemy). "
+            "Use --no-enable_convrot if bias correction is required."
         )
+        bias_correction = False
     if bias_correction:
         if precomputed_act_mean is not None:
             act_mean_dict = precomputed_act_mean
