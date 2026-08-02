@@ -124,4 +124,4 @@ This project is built upon the following repositories:
 | Repository | In-repo path | Upstream |
 | :--- | :--- | :--- |
 | **[ComfyUI](https://github.com/Comfy-Org/ComfyUI)** | `ComfyUI-master/` | [@Comfy-Org](https://github.com/Comfy-Org) — The most powerful and modular diffusion model GUI, API and backend with a graph/nodes interface. |
-| **[ComfyUI-SeedVR2_VideoUpscaler](https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler)** | `seedvr2_videoupscaler/` | [@numz](https://github.com/numz) / [AInVFX](https://www.youtube.com/@AInVFX) — Official [SeedVR2](https://github.com/ByteDance-Seed/SeedVR) (ByteDance Seed) ComfyUI integration for one-step diffusion video/image upscaling. |
+
