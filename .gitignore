@@ -85,5 +85,5 @@ benchmark/bench_diff.png
 benchmark/bench_fp16.png
 benchmark/bench_int8.png
 benchmark/*_diag_*_log.txt
-assets/guidebook/jp_*.png
+assets/guidebook/
 _comfyui_full/
