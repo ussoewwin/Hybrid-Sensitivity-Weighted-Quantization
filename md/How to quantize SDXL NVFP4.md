@@ -89,7 +89,7 @@ python hswq_sdxl_convert_nvfp4_1.2.py --model "<path-to-unet>/<sdxl_unet>.safete
 
 ### Integrated (HSWQ NVFP4 — preferred)
 
-`hswq_sdxl_convert_nvfp4_1.0.py` already chains fidelity measurement after save:
+`hswq_sdxl_convert_nvfp4_1.0.py`, `hswq_sdxl_convert_nvfp4_1.2.py`, and `native_convert_nvfp4.py` already chain fidelity measurement after save:
 
 1. Save the NVFP4 pack.
 2. Clear parent VRAM (so the bench subprocess does not OOM on a 12GB+ card).
