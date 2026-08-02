@@ -3,22 +3,39 @@
 NEW FILE based on native_convert_nvfp4_zi_fp16safe.py / native_convert_nvfp4_zi.py
 (do not edit the base converters).
 
-Protect path (60 keys = 65-order head: prior 31 + abs_max fill, truncate tail):
+CLI flow (this file):
+  1) Analyze via analyze/analyze_convert_nvfp4_zi_int8protect.py (fixed)
+  2) Select N INT8 protect keys (default 60) per-model
+  3) Quantize NVFP4 + those keys (ConvRot INT8 protect)
+
+No hardcoded protect key list in this file.
+Analyze (relative only): analyze/analyze_convert_nvfp4_zi_int8protect.py
+
+Protect path:
   ConvRot rotate (W @ H^T) → row-wise INT8 + weight_scale + int8_tensorwise stamp
   in _quantization_metadata AND per-layer ``.comfy_quant`` (uint8 JSON; ComfyUI load).
 
 Remaining Linear 2D: NVFP4 (+ FULL ConvRot by default) + same ``.comfy_quant``.
 Kitchen Turbo blacklist: bfloat16 (unchanged).
 
-Scheme is fixed: ConvRot NVFP4 + 60× ConvRot INT8 protect. This converter only
-adds the ComfyUI-required ``.comfy_quant`` tensors next to each packed weight
-(same shape as convert_old_quants / native_convert_int8_sdxl).
+Card 1 TE helpers: benchmark/zi_convrot_nvfp4_bench.py
+  (used only with --bias_correction).
 
-Key source:
-  test/_moodyProMix_zitV13_nvfp4_int8protect60_final_keys.json
+Optional Card 1 (--bias_correction): DualMonitor act means via Comfy.
+  Requires --calib_file, --clip_path, --comfy_path, --device cuda.
+
+Post-convert bench (default ON): after save, subprocess
+  benchmark/zi_convrot_nvfp4_bench.py with owner body shape:
+  --fp16=--model --nvfp4=--output --clip_path --comfy_path
+  [--vae] [--token] --prompt --steps 25 --seed <fixed inside>
+  (--vae/--token only when the owner passes them; seed not a parent CLI).
+  Pass --no-bench to skip.
 
 Example:
-  python hswq_convert_nvfp4_zi_int8protect.py --model ... --output ...
+  python hswq_convert_nvfp4_zi_int8protect.py \\
+    --model ... --output ... \\
+    --calib_file ... --clip_path ... --comfy_path ... \\
+    --vae ... --token ...
 """
 from __future__ import annotations
 
@@ -27,6 +44,7 @@ import gc
 import json
 import math
 import os
+import subprocess
 import sys
 from collections import OrderedDict
 
@@ -229,12 +247,12 @@ def run_card1_calib(
     """FP16 NextDiT calib with DualMonitor on Linear; returns act_mean by module name.
 
     Module name keys match ``_meta_base_key`` (e.g. ``layers.0.attention.to_q``).
-    TE path mirrors ``benchmark/zi_nvfp4_bench.py`` (Qwen3_4B + Qwen2Tokenizer).
+    TE path mirrors ``benchmark/zi_convrot_nvfp4_bench.py`` (Qwen3_4B + Qwen2Tokenizer).
     """
     global _dual_monitors
     _dual_monitors = {}
 
-    from benchmark.zi_nvfp4_bench import (
+    from benchmark.zi_convrot_nvfp4_bench import (
         encode_prompt,
         load_zit_model,
         resolve_path,
@@ -248,7 +266,7 @@ def run_card1_calib(
     setup_comfy(comfy_path)
 
     # qk_norm Lumina calls ck.rms_rope; older kitchen wheels lack it
-    # (same as benchmark/zi_nvfp4_bench.py after setup_comfy).
+    # (same as benchmark/zi_convrot_nvfp4_bench.py after setup_comfy).
     from kitchen_rms_rope_fallback import ensure_kitchen_rms_rope
 
     ensure_kitchen_rms_rope()
@@ -311,7 +329,7 @@ def run_card1_calib(
     with torch.no_grad():
         for i, prompt in enumerate(tqdm(prompts, desc="Card1 calib")):
             cond, mask = encode_prompt(prompt, text_encoder, tokenizer, device)
-            # ZI Turbo: same signature as benchmark/zi_nvfp4_bench.run_inference
+            # ZI Turbo: same signature as benchmark/zi_convrot_nvfp4_bench.run_inference
             # (cond-only; no CFG guidance / uncond kwargs).
             run_inference(
                 model,
@@ -376,86 +394,53 @@ _Z_IMAGE_PROFILES: dict[str, tuple[list[str], list[str]]] = {
 
 _DEFAULT_MODEL_TYPE = "Z-Image-Turbo"
 
-# Analysis ConvRot INT8 protect (moodyProMix_zitV13; Kitchen Turbo candidates).
-# Same 65 order; truncate tail only → 60 (drop last 5 abs_max-fill).
-# Source: test/_moodyProMix_zitV13_nvfp4_int8protect60_final_keys.json
-_INT8_PROTECT_KEYSET: frozenset[str] = frozenset(
-    {
-        "model.diffusion_model.layers.6.feed_forward.w2.weight",
-        "model.diffusion_model.layers.4.feed_forward.w2.weight",
-        "model.diffusion_model.layers.11.feed_forward.w2.weight",
-        "model.diffusion_model.layers.7.feed_forward.w2.weight",
-        "model.diffusion_model.layers.13.feed_forward.w2.weight",
-        "model.diffusion_model.layers.12.feed_forward.w2.weight",
-        "model.diffusion_model.layers.9.feed_forward.w2.weight",
-        "model.diffusion_model.layers.10.feed_forward.w2.weight",
-        "model.diffusion_model.layers.5.feed_forward.w2.weight",
-        "model.diffusion_model.layers.14.feed_forward.w2.weight",
-        "model.diffusion_model.layers.15.feed_forward.w2.weight",
-        "model.diffusion_model.layers.18.feed_forward.w2.weight",
-        "model.diffusion_model.layers.1.feed_forward.w2.weight",
-        "model.diffusion_model.layers.28.adaLN_modulation.0.weight",
-        "model.diffusion_model.layers.8.feed_forward.w2.weight",
-        "model.diffusion_model.layers.19.feed_forward.w2.weight",
-        "model.diffusion_model.layers.3.feed_forward.w2.weight",
-        "model.diffusion_model.layers.2.feed_forward.w2.weight",
-        "model.diffusion_model.layers.24.feed_forward.w1.weight",
-        "model.diffusion_model.layers.29.attention.qkv.weight",
-        "model.diffusion_model.layers.16.feed_forward.w1.weight",
-        "model.diffusion_model.layers.20.feed_forward.w2.weight",
-        "model.diffusion_model.layers.16.feed_forward.w2.weight",
-        "model.diffusion_model.layers.0.feed_forward.w2.weight",
-        "model.diffusion_model.layers.17.feed_forward.w1.weight",
-        "model.diffusion_model.layers.13.attention.out.weight",
-        "model.diffusion_model.layers.19.feed_forward.w3.weight",
-        "model.diffusion_model.layers.29.adaLN_modulation.0.weight",
-        "model.diffusion_model.layers.27.adaLN_modulation.0.weight",
-        "model.diffusion_model.layers.24.adaLN_modulation.0.weight",
-        "model.diffusion_model.layers.26.adaLN_modulation.0.weight",
-        "model.diffusion_model.layers.23.feed_forward.w1.weight",
-        "model.diffusion_model.layers.23.feed_forward.w2.weight",
-        "model.diffusion_model.layers.25.feed_forward.w2.weight",
-        "model.diffusion_model.layers.26.feed_forward.w3.weight",
-        "model.diffusion_model.layers.19.feed_forward.w1.weight",
-        "model.diffusion_model.layers.28.feed_forward.w3.weight",
-        "model.diffusion_model.layers.17.feed_forward.w2.weight",
-        "model.diffusion_model.layers.22.feed_forward.w1.weight",
-        "model.diffusion_model.layers.22.feed_forward.w2.weight",
-        "model.diffusion_model.layers.21.feed_forward.w1.weight",
-        "model.diffusion_model.layers.18.feed_forward.w1.weight",
-        "model.diffusion_model.layers.28.attention.qkv.weight",
-        "model.diffusion_model.layers.11.attention.out.weight",
-        "model.diffusion_model.layers.10.attention.qkv.weight",
-        "model.diffusion_model.layers.13.feed_forward.w3.weight",
-        "model.diffusion_model.layers.27.attention.qkv.weight",
-        "model.diffusion_model.layers.12.attention.out.weight",
-        "model.diffusion_model.layers.9.attention.qkv.weight",
-        "model.diffusion_model.layers.16.attention.qkv.weight",
-        "model.diffusion_model.layers.14.attention.out.weight",
-        "model.diffusion_model.layers.28.feed_forward.w2.weight",
-        "model.diffusion_model.layers.9.attention.out.weight",
-        "model.diffusion_model.layers.25.feed_forward.w1.weight",
-        "model.diffusion_model.layers.3.feed_forward.w3.weight",
-        "model.diffusion_model.layers.24.feed_forward.w3.weight",
-        "model.diffusion_model.layers.11.attention.qkv.weight",
-        "model.diffusion_model.layers.26.feed_forward.w1.weight",
-        "model.diffusion_model.layers.8.attention.qkv.weight",
-        "model.diffusion_model.layers.24.feed_forward.w2.weight",
-    }
-)
+# Filled only by analyze inject / --keys-json / convert_to_nvfp4 kwargs.
+# Never a baked-in model key list.
+_INT8_PROTECT_KEYSET: frozenset[str] | None = None
+_INT8_PROTECT_SOURCE: str | None = None
 
 
-def _is_int8_protect_key(key: str) -> bool:
+def _load_int8_protect_keys_json(path: str) -> tuple[frozenset[str], str]:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    keys = data.get("protect_keys") or data.get("int8_protect_keys")
+    if not keys:
+        raise ValueError(f"protect_keys / int8_protect_keys missing in {path}")
+    source = os.path.splitext(os.path.basename(path))[0]
+    return frozenset(str(k) for k in keys), source
+
+
+def _resolve_int8_protect_keyset(
+    int8_protect_keys: frozenset[str] | list[str] | None,
+    int8_protect_source: str | None,
+) -> tuple[frozenset[str], str]:
+    if int8_protect_keys is not None:
+        keyset = frozenset(int8_protect_keys)
+        if not keyset:
+            raise ValueError("int8_protect_keys is empty")
+        source = int8_protect_source or "injected_keyset"
+        return keyset, source
+    if _INT8_PROTECT_KEYSET:
+        source = int8_protect_source or _INT8_PROTECT_SOURCE or "injected_keyset"
+        return frozenset(_INT8_PROTECT_KEYSET), source
+    raise ValueError(
+        "INT8 protect keyset is required (no hardcode in this converter). "
+        "Use analyze/analyze_convert_nvfp4_zi_int8protect.py, or pass "
+        "int8_protect_keys / --keys-json."
+    )
+
+
+def _is_int8_protect_key(key: str, keyset: frozenset[str]) -> bool:
     """True if key is in analysis INT8 protect set (exact or prefix variants)."""
-    if key in _INT8_PROTECT_KEYSET:
+    if key in keyset:
         return True
     if key.startswith("diffusion_model."):
         alt = "model." + key
-        if alt in _INT8_PROTECT_KEYSET:
+        if alt in keyset:
             return True
     if not key.startswith("model.diffusion_model."):
         alt = "model.diffusion_model." + key
-        if alt in _INT8_PROTECT_KEYSET:
+        if alt in keyset:
             return True
     return False
 
@@ -525,6 +510,8 @@ def convert_to_nvfp4(
     tokenizer_path: str | None = None,
     num_calib_samples: int = 32,
     num_inference_steps: int = 25,
+    int8_protect_keys: frozenset[str] | list[str] | None = None,
+    int8_protect_source: str | None = None,
 ):
     if model_type not in _Z_IMAGE_PROFILES:
         raise ValueError(
@@ -532,14 +519,17 @@ def convert_to_nvfp4(
             f"choose from {sorted(_Z_IMAGE_PROFILES)}"
         )
     blacklist, fp8_layers = _Z_IMAGE_PROFILES[model_type]
+    protect_keyset, protect_source = _resolve_int8_protect_keyset(
+        int8_protect_keys, int8_protect_source
+    )
 
     rot_tag = "FULL ConvRot NVFP4" if enable_convrot else "plain NVFP4"
     print(
         f"Mode {model_type} | device={device} | {rot_tag} "
-        f"+ ConvRot INT8 protect ({len(_INT8_PROTECT_KEYSET)} keys)"
+        f"+ ConvRot INT8 protect ({len(protect_keyset)} keys)"
     )
     print(
-        f"  [INT8 protect] {len(_INT8_PROTECT_KEYSET)} analysis keys → "
+        f"  [INT8 protect] {len(protect_keyset)} keys from {protect_source} → "
         "ConvRot INT8 (rowwise)"
     )
     if enable_convrot:
@@ -630,8 +620,8 @@ def convert_to_nvfp4(
             n_bf16 += 1
             continue
 
-        # Analysis ConvRot INT8 protect (before NVFP4) — 65 keys
-        if _is_int8_protect_key(k) and v.ndim == 2 and ".weight" in k:
+        # Analysis ConvRot INT8 protect (before NVFP4) — injected keyset
+        if _is_int8_protect_key(k, protect_keyset) and v.ndim == 2 and ".weight" in k:
             base_k_file = k.replace(".weight", "")
             base_k_meta = _meta_base_key(base_k_file)
             w = v.float().cpu()
@@ -798,9 +788,7 @@ def convert_to_nvfp4(
     final_metadata["hswq_int8_protect"] = "1"
     final_metadata["hswq_int8_protect_n"] = str(n_int8_protect)
     final_metadata["hswq_int8_protect_convrot"] = str(n_int8_convrot)
-    final_metadata["hswq_int8_protect_source"] = (
-        "moodyProMix_zitV13_nvfp4_int8protect60_final_keys"
-    )
+    final_metadata["hswq_int8_protect_source"] = protect_source
 
     print(f"Saving | Type: {model_type} | Path: {output_path}")
     save_file(new_sd, output_path, metadata=final_metadata)
@@ -855,13 +843,119 @@ def _release_vram(label: str = "post-convert") -> None:
         print(f"[*] VRAM clear ({label}): done")
 
 
+# Exact --prompt / --steps from zi_convrot_nvfp4_bench.py Example (fixed; not CLI).
+_FIXED_ZI_CONVROT_BENCH_PROMPT = (
+    "A beautiful cyberpunk city at night, high detail."
+)
+_FIXED_ZI_CONVROT_BENCH_STEPS = 25
+# Seed fixed inside this chain (not a parent CLI). Same default as
+# benchmark/zi_convrot_nvfp4_bench.py --seed (must be passed explicitly).
+_FIXED_ZI_CONVROT_BENCH_SEED = 42
+
+
+def run_post_convert_zi_convrot_nvfp4_bench(
+    *,
+    script_dir: str,
+    fp16_path: str,
+    nvfp4_path: str,
+    clip_path: str,
+    comfy_path: str,
+    vae_path: str | None = None,
+    token: str | None = None,
+) -> int:
+    """After save: subprocess benchmark/zi_convrot_nvfp4_bench.py.
+
+    Owner body argv order + seed fixed inside:
+      --fp16 --nvfp4 --clip_path --comfy_path
+      [--vae] [--token] --prompt --steps 25 --seed <fixed>
+    """
+    bench_script = os.path.join(
+        script_dir, "benchmark", "zi_convrot_nvfp4_bench.py"
+    )
+    if not os.path.isfile(bench_script):
+        print(f"[FATAL] Post-convert bench script not found: {bench_script}")
+        return 1
+    if not os.path.isfile(fp16_path):
+        print(
+            f"[FATAL] Post-convert bench: FP16 (--model) missing: {fp16_path}"
+        )
+        return 1
+    if not os.path.isfile(nvfp4_path):
+        print(
+            f"[FATAL] Post-convert bench: NVFP4 (--output) missing: {nvfp4_path}"
+        )
+        return 1
+    if not clip_path or not os.path.isfile(clip_path):
+        print(
+            f"[FATAL] Post-convert bench: --clip_path missing: {clip_path}"
+        )
+        return 1
+    if not comfy_path or not os.path.isdir(comfy_path):
+        print(
+            f"[FATAL] Post-convert bench: --comfy_path missing: {comfy_path}"
+        )
+        return 1
+    if vae_path and not os.path.isfile(vae_path):
+        print(f"[FATAL] Post-convert bench: --vae missing: {vae_path}")
+        return 1
+
+    _release_vram("pre-zi_convrot_nvfp4_bench subprocess")
+
+    # Owner body order (bench body untouched).
+    cmd = [
+        sys.executable,
+        bench_script,
+        "--fp16",
+        fp16_path,
+        "--nvfp4",
+        nvfp4_path,
+        "--clip_path",
+        clip_path,
+        "--comfy_path",
+        comfy_path,
+    ]
+    if vae_path:
+        cmd.extend(["--vae", vae_path])
+    if token:
+        cmd.extend(["--token", token])
+    cmd.extend(
+        [
+            "--prompt",
+            _FIXED_ZI_CONVROT_BENCH_PROMPT,
+            "--steps",
+            str(_FIXED_ZI_CONVROT_BENCH_STEPS),
+            "--seed",
+            str(_FIXED_ZI_CONVROT_BENCH_SEED),
+        ]
+    )
+
+    print("=" * 60)
+    print("[*] Post-convert ZI ConvRot NVFP4 bench (owner body shape)")
+    print(f"    script: {bench_script}")
+    print(f"    --fp16: {fp16_path}")
+    print(f"    --nvfp4: {nvfp4_path}")
+    print(f"    --clip_path: {clip_path}")
+    print(f"    --comfy_path: {comfy_path}")
+    if vae_path:
+        print(f"    --vae: {vae_path}")
+    if token:
+        print("    --token: (provided)")
+    print(f"    --prompt: {_FIXED_ZI_CONVROT_BENCH_PROMPT}")
+    print(f"    --steps: {_FIXED_ZI_CONVROT_BENCH_STEPS}")
+    print(f"    --seed: {_FIXED_ZI_CONVROT_BENCH_SEED} (fixed inside)")
+    print("=" * 60)
+    completed = subprocess.run(cmd, check=False)
+    return int(completed.returncode)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
             "Z-Image / ZIT NVFP4 + analysis ConvRot INT8 protect (int8protect). "
             "Based on native_convert_nvfp4_zi.py; 60 ranked Linear weights as "
             "ConvRot INT8 (65-order head); rest NVFP4. FULL ConvRot ON by "
-            "default for NVFP4. Default Kitchen profile Z-Image-Turbo."
+            "default for NVFP4. Default Kitchen profile Z-Image-Turbo. "
+            "Post-convert zi_convrot_nvfp4_bench default ON."
         )
     )
     parser.add_argument(
@@ -922,13 +1016,42 @@ if __name__ == "__main__":
         "--clip_path",
         type=str,
         default=None,
-        help="Qwen3-4B TE .safetensors for Card 1 (required with --bias_correction)",
+        help="Qwen3-4B text encoder path (Card 1 / post-convert bench)",
     )
     parser.add_argument(
         "--comfy_path",
         type=str,
         default=None,
-        help="ComfyUI root for Card 1 (required with --bias_correction)",
+        help="ComfyUI root path (Card 1 / post-convert bench)",
+    )
+    parser.add_argument(
+        "--vae",
+        type=str,
+        default=None,
+        help=(
+            "Optional VAE path for post-convert bench "
+            "(forwarded as --vae when provided)"
+        ),
+    )
+    parser.add_argument(
+        "--token",
+        type=str,
+        default=None,
+        help=(
+            "Optional Hugging Face token for post-convert bench "
+            "(forwarded as --token when provided)"
+        ),
+    )
+    parser.add_argument(
+        "--bench",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "After save, run benchmark/zi_convrot_nvfp4_bench.py "
+            "(fp16/nvfp4/clip/comfy/prompt/steps=25; "
+            "optional --vae/--token when provided). "
+            "Pass --no-bench to skip."
+        ),
     )
     parser.add_argument(
         "--tokenizer_path",
@@ -948,12 +1071,84 @@ if __name__ == "__main__":
         default=8,
         help="Card 1 sample_euler steps (default 8)",
     )
+    parser.add_argument(
+        "--n",
+        type=int,
+        default=60,
+        help="INT8 protect key count after per-model analyze (default 60)",
+    )
+    parser.add_argument(
+        "--keys-json",
+        type=str,
+        default=None,
+        help=(
+            "Optional: skip analyze and load protect_keys from this JSON. "
+            "Default: analyze this --model, write test/<_stem>_nvfp4_int8protectN_auto_keys.json"
+        ),
+    )
     parser.set_defaults(enable_convrot=True)
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
         print(f"Error: Model not found at {args.model}")
         sys.exit(1)
+
+    n_protect = int(args.n)
+    # Relative to this converter file (never hardcode drive absolute paths).
+    _analyze_rel = os.path.join(
+        "analyze", "analyze_convert_nvfp4_zi_int8protect.py"
+    )
+    analyze_py = os.path.join(os.path.dirname(__file__), _analyze_rel)
+    if not os.path.isfile(analyze_py):
+        print(f"Error: analyze script not found: {_analyze_rel}")
+        sys.exit(1)
+
+    if args.keys_json:
+        if not os.path.exists(args.keys_json):
+            print(f"Error: keys JSON not found at {args.keys_json}")
+            sys.exit(1)
+        print(f"[skip analyze] load keys from {args.keys_json}")
+        keyset, source = _load_int8_protect_keys_json(args.keys_json)
+    else:
+        import importlib.util
+
+        print(f"[analyze] {_analyze_rel}")
+        spec = importlib.util.spec_from_file_location(
+            "analyze_convert_nvfp4_zi_int8protect", analyze_py
+        )
+        if spec is None or spec.loader is None:
+            print(f"Error: failed to load analyze script: {_analyze_rel}")
+            sys.exit(1)
+        az = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(az)
+
+        stem = az._stem_from_model(args.model)
+        keys_json = os.path.join(
+            os.path.dirname(__file__),
+            "test",
+            f"{stem}_nvfp4_int8protect{n_protect}_auto_keys.json",
+        )
+        print(f"[1/2] Analyze {args.model}")
+        analysis = az.analyze_model(args.model)
+        print(
+            f"  2d={analysis['n_2d_weights']} "
+            f"nvfp4_candidates={analysis['n_nvfp4_candidates']} "
+            f"prior={len(analysis['prior_keys'])}"
+        )
+        print(f"[2/2] Select INT8 protect N={n_protect} (per-model) → quantize")
+        protect_keys = az.select_protect_keys(analysis, n=n_protect)
+        az.write_keys_json(
+            analysis, protect_keys, n=n_protect, out_path=keys_json
+        )
+        print(f"  wrote test/{os.path.basename(keys_json)}")
+        print(f"  n_final={len(protect_keys)}")
+        for i, k in enumerate(protect_keys, 1):
+            tag = "PRIOR" if k in analysis["prior_keys"] else "FILL"
+            print(
+                f"  {i:02d} [{tag}] abs_max={analysis['abs_map'][k]:.4f}  {k}"
+            )
+        keyset = frozenset(protect_keys)
+        source = os.path.splitext(os.path.basename(keys_json))[0]
 
     convert_to_nvfp4(
         args.model,
@@ -969,4 +1164,22 @@ if __name__ == "__main__":
         tokenizer_path=args.tokenizer_path,
         num_calib_samples=int(args.num_calib_samples),
         num_inference_steps=int(args.num_inference_steps),
+        int8_protect_keys=keyset,
+        int8_protect_source=source,
     )
+
+    if args.bench:
+        bench_rc = run_post_convert_zi_convrot_nvfp4_bench(
+            script_dir=os.path.dirname(os.path.abspath(__file__)),
+            fp16_path=args.model,
+            nvfp4_path=args.output,
+            clip_path=args.clip_path,
+            comfy_path=args.comfy_path,
+            vae_path=args.vae,
+            token=args.token,
+        )
+        if bench_rc != 0:
+            print(f"[FATAL] Post-convert bench exited with code {bench_rc}")
+            sys.exit(bench_rc)
+    else:
+        print("[*] Post-convert bench skipped (--no-bench)")
