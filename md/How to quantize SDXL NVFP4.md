@@ -79,6 +79,14 @@ python native_convert_nvfp4.py --model "<path-to-unet>/<sdxl_unet>.safetensors" 
 
 HSWQ NVFP4 does **not** always beat native NVFP4 on measured scores (MSE / SSIM). On some SDXL checkpoints, **native scores higher**. Compare both on your own model before choosing which path to ship.
 
+## Quantize without ConvRot (HSWQ 1.2)
+
+To run HSWQ without ConvRot, use `hswq_sdxl_convert_nvfp4_1.2.py`. Options and usage are identical to the 1.0 version.
+
+```bash
+python hswq_sdxl_convert_nvfp4_1.2.py --model "<path-to-unet>/<sdxl_unet>.safetensors" --output "<path-to-unet>/<sdxl_unet>_hswq_nvfp4.safetensors" --calib_file "<path-to-calib>/calibration_prompts_128.txt" --num_calib_samples 32 --num_inference_steps 25
+```
+
 ## Benchmark (use this for measurement)
 
 ### Integrated (HSWQ NVFP4 — preferred)
