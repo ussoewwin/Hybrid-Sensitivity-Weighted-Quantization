@@ -54,6 +54,7 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 | `epicrealismXL_pureFix_hswq_r32_1off_convrot_nvfp4.safetensors` | [epiCRealism XL](https://civitai.com/models/277058) | pureFix | CreativeML Open RAIL++-M |
 | `koronemixIllustrious_v70_hswq_r32_1off_convrot_nvfp4.safetensors` | koronemixIllustrious | v70 | Fair AI Public License 1.0-SD |
 | `koronemixVpred_v20_hswq_r32_1on_convrot_nvfp4.safetensors` | koronemixVpred | v2.0 | CreativeML Open RAIL++-M |
+| `perfectionRealisticILXL_80_r32_1on_convrot_nvfp4.safetensors` | Perfection Realistic ILXL | v8.0 | Fair AI Public License 1.0-SD |
 | `realvisxlV50_v40Bakedvae_hswq_r32_1off_nvfp4.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.com/models/139562/realvisxl-v50) | v4.0 BakedVAE | CreativeML Open RAIL++-M |
 | `realvisxlV50_v50Bakedvae_hswq_r32_1off_convrot_nvfp4.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.com/models/139562/realvisxl-v50) | v5.0 BakedVAE | CreativeML Open RAIL++-M |
 | `unholyDesireMixSinister_v80_hswq_r32_1off_nvfp4.safetensors` | Unholy Desire Mix Sinister | v8.0 | Fair AI Public License 1.0-SD |
@@ -71,6 +72,7 @@ We extend our deepest respect and gratitude to the **Nunchaku Team** for their g
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
 - **AnimeMix / koronemixIllustrious / koronemixVpred**: Created by [koronen](https://civitai.com/user/koronen).
 - **epiCRealism XL**: Created by [epinikion](https://civitai.com/user/epinikion).
+- **Perfection Realistic ILXL**: Created by [6tZ](https://civitai.com/user/6tZ).
 - **RealVisXL V5.0**: Created by [SG_161222](https://civitai.com/user/SG_161222).
 - **Unholy Desire Mix Sinister**: Created by [UnholyDesiresStudio](https://civitai.com/user/UnholyDesiresStudio).
 - **WAI-illustrious-SDXL**: Created by [WAI0731](https://civitai.com/user/WAI0731).
