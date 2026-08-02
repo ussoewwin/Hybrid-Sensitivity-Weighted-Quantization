@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1
+
+**SDXL NVFP4 no-ConvRot script added** — Added `hswq_sdxl_convert_nvfp4_1.2.py`, which provides an option to quantize SDXL to NVFP4 without applying FULL ConvRot. This serves as an alternative for checkpoints where native/plain packs score higher. Options and usage match the 1.0 version.
+
 ## 2.0
 
 **Line shift: FP8 E4M3 and Z Image HSWQ ended; ConvRot INT8 and ConvRot NVFP4 begun** — HSWQ **FP8 E4M3** development has ended (retained as a technical asset). **Z Image** HSWQ 8-bit development and publication have ended; prefer native ConvRot INT8 for Z Image. Active SDXL work moves to **ConvRot INT8** (`quantize_sdxl_hswq_v3.1.py`, 300 MiB FP16 budget) and **ConvRot NVFP4** (`hswq_convert_nvfp4_convrot_1.0.py`, 600 MiB FP16 budget), with README / How-to documentation aligned to that stack.
