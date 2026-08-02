@@ -134,215 +134,6 @@ def _encode_comfy_quant(config: dict) -> torch.Tensor:
     )
 
 
-# ---------------------------------------------------------------------------
-# DualMonitor (Card 1) — signed per-in-channel E[x] for bias fold
-# ---------------------------------------------------------------------------
-class DualMonitor:
-    """Per-layer act moments for Card 1 bias correction."""
-
-    def __init__(self):
-        self.output_sum = 0.0
-        self.output_sq_sum = 0.0
-        self.count = 0
-        self.channel_importance = None
-        self.channel_act_mean = None
-
-    def update(self, input_tensor, output_tensor, module=None):
-        with torch.no_grad():
-            out_detached = output_tensor.detach().float()
-            out_clamped = torch.clamp(out_detached, -65504.0, 65504.0)
-            mean_val = out_clamped.mean().item()
-            sq_mean_val = (out_clamped ** 2).mean().item()
-            if math.isfinite(mean_val) and math.isfinite(sq_mean_val):
-                self.output_sum += mean_val
-                self.output_sq_sum += sq_mean_val
-            inp = input_tensor.detach().float()
-            is_conv2d = isinstance(module, torch.nn.Conv2d)
-            if is_conv2d and inp.dim() == 4:
-                reduce_dims = (0, 2, 3)
-            elif inp.dim() >= 2:
-                reduce_dims = tuple(range(inp.dim() - 1))
-            else:
-                current_imp = torch.ones(1, device=inp.device, dtype=torch.float32)
-                current_act = torch.zeros(1, device=inp.device, dtype=torch.float32)
-                reduce_dims = None
-            if reduce_dims is not None:
-                current_imp = inp.abs().mean(dim=reduce_dims)
-                current_act = inp.mean(dim=reduce_dims)
-            if self.channel_importance is None:
-                self.channel_importance = current_imp
-                self.channel_act_mean = current_act
-            elif current_imp.shape == self.channel_importance.shape:
-                c = self.count
-                self.channel_importance = (
-                    self.channel_importance * c + current_imp
-                ) / (c + 1)
-                self.channel_act_mean = (
-                    self.channel_act_mean * c + current_act
-                ) / (c + 1)
-            self.count += 1
-
-
-_dual_monitors: dict[str, DualMonitor] = {}
-
-
-def _hook_fn(module, input, output, name):
-    if name not in _dual_monitors:
-        _dual_monitors[name] = DualMonitor()
-    _dual_monitors[name].update(input[0], output, module)
-
-
-def compute_nvfp4_bias_delta(weight_fp, weight_dq, act_mean):
-    """Card 1: delta ≈ (W_q - W) contracted with per-in-channel E[x]."""
-    if act_mean is None:
-        return None
-    err = weight_dq.float() - weight_fp.float()
-    mu = act_mean.float().to(device=err.device)
-    if err.ndim == 2:
-        if mu.numel() != err.shape[1]:
-            return None
-        return err @ mu
-    if err.ndim == 4:
-        if mu.numel() != err.shape[1]:
-            return None
-        return (err * mu.view(1, -1, 1, 1)).sum(dim=(1, 2, 3))
-    return None
-
-
-def _dequant_nvfp4(qdata: torch.Tensor, params) -> torch.Tensor:
-    full = TensorCoreNVFP4Layout.dequantize(qdata, params)
-    orig = tuple(params.orig_shape)
-    if tuple(full.shape) != orig:
-        return full[tuple(slice(0, s) for s in orig)]
-    return full
-
-
-def run_card1_calib(
-    model_path: str,
-    clip_path: str,
-    comfy_path: str,
-    calib_file: str,
-    num_samples: int = 32,
-    num_inference_steps: int = 25,
-    tokenizer_path: str | None = None,
-    seed: int = 42,
-) -> dict[str, torch.Tensor]:
-    """FP16 NextDiT calib with DualMonitor on Linear; returns act_mean by module name.
-
-    Module name keys match ``_meta_base_key`` (e.g. ``layers.0.attention.to_q``).
-    TE path mirrors ``benchmark/zi_convrot_nvfp4_bench.py`` (Qwen3_4B + Qwen2Tokenizer).
-    """
-    global _dual_monitors
-    _dual_monitors = {}
-
-    from benchmark.zi_convrot_nvfp4_bench import (
-        encode_prompt,
-        load_zit_model,
-        resolve_path,
-        resolve_tokenizer_offline,
-        run_inference,
-        setup_comfy,
-    )
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"[Card1] Loading FP16 ZI for DualMonitor from {model_path}")
-    setup_comfy(comfy_path)
-
-    # qk_norm Lumina calls ck.rms_rope; older kitchen wheels lack it
-    # (same as benchmark/zi_convrot_nvfp4_bench.py after setup_comfy).
-    from kitchen_rms_rope_fallback import ensure_kitchen_rms_rope
-
-    ensure_kitchen_rms_rope()
-
-    from comfy.text_encoders import llama as llama_module
-    from transformers import Qwen2Tokenizer
-    import comfy.ops
-
-    tok_resolved = resolve_tokenizer_offline(tokenizer_path, comfy_path)
-    if tok_resolved:
-        print(f"[Card1] Tokenizer (disk): {tok_resolved}")
-        try:
-            tokenizer = Qwen2Tokenizer.from_pretrained(
-                tok_resolved, local_files_only=True
-            )
-        except Exception as e:
-            print(f"[Card1] local_files_only failed ({e}); retrying...")
-            tokenizer = Qwen2Tokenizer.from_pretrained(tok_resolved)
-    else:
-        mid = tokenizer_path if tokenizer_path else "Qwen/Qwen2.5-7B-Instruct"
-        print(f"[Card1] Tokenizer repo id: {mid}")
-        tokenizer = Qwen2Tokenizer.from_pretrained(mid, local_files_only=True)
-
-    resolved_clip = resolve_path(clip_path, is_file=True)
-    text_encoder = llama_module.Qwen3_4B(
-        config_dict={},
-        device=device,
-        dtype=torch.float16,
-        operations=comfy.ops.disable_weight_init,
-    ).to(device)
-    print(f"[Card1] Loading CLIP weights from: {resolved_clip}")
-    text_encoder.load_state_dict(load_file(resolved_clip), strict=False)
-    text_encoder.eval()
-
-    model, _n_cq, _is_za = load_zit_model(
-        model_path, device, comfy_path, is_nvfp4=False
-    )
-    model.eval()
-
-    hooks = []
-    n_lin = 0
-    for name, module in model.named_modules():
-        if isinstance(module, torch.nn.Linear):
-            hooks.append(
-                module.register_forward_hook(
-                    lambda m, i, o, n=name: _hook_fn(m, i, o, n)
-                )
-            )
-            n_lin += 1
-    print(f"[Card1] DualMonitor hooks on {n_lin} Linear modules")
-
-    with open(calib_file, "r", encoding="utf-8") as f:
-        prompts = [ln.strip() for ln in f if ln.strip()]
-    prompts = prompts[: max(1, int(num_samples))]
-    print(
-        f"[Card1] Calibrating {len(prompts)} prompts, "
-        f"{num_inference_steps} steps each..."
-    )
-
-    with torch.no_grad():
-        for i, prompt in enumerate(tqdm(prompts, desc="Card1 calib")):
-            cond, mask = encode_prompt(prompt, text_encoder, tokenizer, device)
-            # ZI Turbo: same signature as benchmark/zi_convrot_nvfp4_bench.run_inference
-            # (cond-only; no CFG guidance / uncond kwargs).
-            run_inference(
-                model,
-                cond,
-                mask,
-                int(num_inference_steps),
-                int(seed) + i,
-                device,
-            )
-            del cond, mask
-            if device == "cuda":
-                torch.cuda.empty_cache()
-
-    for h in hooks:
-        h.remove()
-
-    act_mean_dict: dict[str, torch.Tensor] = {}
-    for name, mon in _dual_monitors.items():
-        if mon.channel_act_mean is not None:
-            act_mean_dict[name] = mon.channel_act_mean.detach().cpu().float()
-    print(f"[Card1] Collected act_mean for {len(act_mean_dict)} layers")
-
-    del model, text_encoder, tokenizer
-    _dual_monitors = {}
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    return act_mean_dict
-
-
 _DEFAULT_GROUPSIZE = 256
 
 # Kitchen model_type → (BLACKLIST, FP8_LAYERS) — Z-Image only
@@ -538,13 +329,6 @@ def convert_to_nvfp4(
     model_type: str = _DEFAULT_MODEL_TYPE,
     enable_convrot: bool = True,
     group_size: int = _DEFAULT_GROUPSIZE,
-    bias_correction: bool = False,
-    calib_file: str | None = None,
-    clip_path: str | None = None,
-    comfy_path: str | None = None,
-    tokenizer_path: str | None = None,
-    num_calib_samples: int = 32,
-    num_inference_steps: int = 25,
     int8_protect_keys: frozenset[str] | list[str] | None = None,
     int8_protect_source: str | None = None,
 ):
@@ -574,41 +358,6 @@ def convert_to_nvfp4(
         )
     else:
         print("  [ConvRot] OFF | plain Kitchen NVFP4 packs only")
-
-    act_mean_dict: dict[str, torch.Tensor] = {}
-    bias_corr_pending: dict[str, torch.Tensor] = {}
-    n_bias_corr = 0
-    bias_corr_skipped_no_act = 0
-    bias_corr_skipped_bad_shape = 0
-    bias_corr_skipped_no_bias = 0
-    if bias_correction:
-        if not calib_file:
-            raise ValueError("--bias_correction requires --calib_file")
-        if not clip_path:
-            raise ValueError("--bias_correction requires --clip_path")
-        if not comfy_path:
-            raise ValueError("--bias_correction requires --comfy_path")
-        if device != "cuda":
-            raise ValueError("--bias_correction requires --device cuda")
-        print("\n[Card 1] Running DualMonitor calibration (FP16 acts)...")
-        act_mean_dict = run_card1_calib(
-            model_path=input_path,
-            clip_path=clip_path,
-            comfy_path=comfy_path,
-            calib_file=calib_file,
-            tokenizer_path=tokenizer_path,
-            num_samples=num_calib_samples,
-            num_inference_steps=num_inference_steps,
-        )
-        print(
-            f"[Card 1] act_mean for {len(act_mean_dict)} Linear modules "
-            f"(keyed by module name = _meta_base_key)"
-        )
-        if enable_convrot:
-            print(
-                "[Card 1] WARN: ConvRot ON — DualMonitor acts are pre-rotation; "
-                "bias uses post-rotation w_for_q vs W_q (same as Krea2)."
-            )
 
     sd = load_file(input_path)
     prefix = _find_z_image_key_prefix(sd)
@@ -685,21 +434,6 @@ def convert_to_nvfp4(
             new_sd[f"{base_k_file}.comfy_quant"] = _encode_comfy_quant(quant_config)
             quant_map["layers"][base_k_meta] = dict(quant_config)
             n_int8_protect += 1
-            # Card1: protect path used to ``continue`` before NVFP4 BC — INT8 layers
-            # never got (W_dq-W)@μ. Same math as NVFP4 branch / native_convert_int8_sdxl.
-            if bias_correction and act_mean_dict is not None:
-                act_mean = act_mean_dict.get(base_k_meta)
-                if act_mean is None:
-                    bias_corr_skipped_no_act += 1
-                else:
-                    weight_dq = q.float() * scale.float()
-                    delta = compute_nvfp4_bias_delta(w, weight_dq, act_mean)
-                    if delta is None:
-                        bias_corr_skipped_bad_shape += 1
-                    else:
-                        bias_corr_pending[base_k_file] = (
-                            (-delta).detach().float().cpu()
-                        )
             continue
 
         if v.ndim == 2 and ".weight" in k:
@@ -761,25 +495,6 @@ def convert_to_nvfp4(
                 quant_map["layers"][base_k_meta] = dict(quant_config)
                 n_nvfp4 += 1
 
-                # Card 1: accumulate bias delta while w_for_q (pre-quant) still lives.
-                if bias_correction and act_mean_dict is not None:
-                    act_mean = act_mean_dict.get(base_k_meta)
-                    if act_mean is None:
-                        bias_corr_skipped_no_act += 1
-                    else:
-                        weight_dq = _dequant_nvfp4(qdata, params)
-                        if weight_dq is None:
-                            bias_corr_skipped_bad_shape += 1
-                        else:
-                            delta = compute_nvfp4_bias_delta(
-                                w_for_q.float(), weight_dq, act_mean
-                            )
-                            if delta is None:
-                                bias_corr_skipped_bad_shape += 1
-                            else:
-                                bias_corr_pending[base_k_file] = (
-                                    (-delta).detach().float().cpu()
-                                )
             except Exception:
                 new_sd[k] = v.to(dtype=torch.bfloat16)
                 n_bf16 += 1
@@ -791,35 +506,6 @@ def convert_to_nvfp4(
         else:
             new_sd[k] = v.to(dtype=torch.bfloat16)
             n_bf16 += 1
-
-    if bias_correction and bias_corr_pending:
-        print(
-            f"\n[Bias Correction] Applying deltas to {len(bias_corr_pending)} "
-            f"NVFP4 Linear layers (Card 1)..."
-        )
-        for base_k_file, delta in bias_corr_pending.items():
-            bias_key = f"{base_k_file}.bias"
-            if bias_key not in new_sd:
-                bias_corr_skipped_no_bias += 1
-                continue
-            bias = new_sd[bias_key]
-            corrected = bias.float() + delta.to(
-                device=bias.device, dtype=torch.float32
-            )
-            new_sd[bias_key] = corrected.to(dtype=bias.dtype)
-            n_bias_corr += 1
-        print(
-            f"  [Bias Correction] applied={n_bias_corr}, "
-            f"no_bias={bias_corr_skipped_no_bias}, "
-            f"no_act={bias_corr_skipped_no_act}, "
-            f"bad_shape={bias_corr_skipped_bad_shape}"
-        )
-    elif bias_correction:
-        print(
-            f"  [Bias Correction] No deltas pending "
-            f"(no_act={bias_corr_skipped_no_act}, "
-            f"bad_shape={bias_corr_skipped_bad_shape})"
-        )
 
     final_metadata = OrderedDict()
     final_metadata["_quantization_metadata"] = json.dumps(quant_map)
@@ -1049,30 +735,16 @@ if __name__ == "__main__":
         help=f"Preferred ConvRot Hadamard group size (default {_DEFAULT_GROUPSIZE}).",
     )
     parser.add_argument(
-        "--bias_correction",
-        action="store_true",
-        help=(
-            "Enable Card 1: DualMonitor act_mean calib + bias += -(W_q-W)@mu_x. "
-            "Requires --calib_file, --clip_path, --comfy_path, --device cuda."
-        ),
-    )
-    parser.add_argument(
-        "--calib_file",
-        type=str,
-        default=None,
-        help="JSONL prompts for Card 1 DualMonitor (required with --bias_correction)",
-    )
-    parser.add_argument(
         "--clip_path",
         type=str,
         default=None,
-        help="Qwen3-4B text encoder path (Card 1 / post-convert bench)",
+        help="Qwen3-4B text encoder path (post-convert bench)",
     )
     parser.add_argument(
         "--comfy_path",
         type=str,
         default=None,
-        help="ComfyUI root path (Card 1 / post-convert bench)",
+        help="ComfyUI root path (post-convert bench)",
     )
     parser.add_argument(
         "--vae",
@@ -1103,24 +775,6 @@ if __name__ == "__main__":
             "Pass --no-bench to skip."
         ),
     )
-    parser.add_argument(
-        "--tokenizer_path",
-        type=str,
-        default=None,
-        help="Optional local Qwen2Tokenizer dir (offline Card 1)",
-    )
-    parser.add_argument(
-        "--num_calib_samples",
-        type=int,
-        default=4,
-        help="Card 1 DualMonitor prompt count (default 4)",
-    )
-    parser.add_argument(
-        "--num_inference_steps",
-        type=int,
-        default=8,
-        help="Card 1 sample_euler steps (default 8)",
-    )
     parser.set_defaults(enable_convrot=True)
     args = parser.parse_args()
 
@@ -1143,13 +797,6 @@ if __name__ == "__main__":
         model_type=str(args.model_type),
         enable_convrot=bool(args.enable_convrot),
         group_size=int(args.group_size),
-        bias_correction=bool(args.bias_correction),
-        calib_file=args.calib_file,
-        clip_path=args.clip_path,
-        comfy_path=args.comfy_path,
-        tokenizer_path=args.tokenizer_path,
-        num_calib_samples=int(args.num_calib_samples),
-        num_inference_steps=int(args.num_inference_steps),
         int8_protect_keys=keyset,
         int8_protect_source=source,
     )
