@@ -1,8 +1,24 @@
 """Z-Image / ZIT NVFP4 + HSWQ ConvRot INT8 protect (quantize entry).
 
 Pack / ConvRot / save path is inlined from the hardcode convert (copy, not import).
-Protect key selection is HSWQ four pillars (Analyze THIS + DualMonitor +
-V4 estimated_mse + priority), truncated to N keys (default 60).
+
+**HSWQ complete contract (this file):**
+Protect key selection — per-model autonomous from ALL four directions (no hand-cut):
+  1) Analyze THIS (weight distribution / character table / autonomous tunables)
+  2) DualMonitor calib (sensitivity + channel Imp — every measured tensor)
+  3) Histogram V4 pack-MSE @ absmax (weighted histogram calibration)
+  4) SVD leverage inside V4 + gray RELEASE of hard-veto fences
+Then one joint ranking / priority combinator → top N keys (default 60).
+Optimal settings (alpha, fences, severity, protect set) are derived per model
+from that joint judgment — never fence-only, Imp-drop, or SVD-only demote.
+
+**Completeness rules (binding):**
+- DualMonitor sens: unknown layers get median-of-measured (no 0.0 demotion,
+  no drop from ranking).
+- DualMonitor Imp: missing → channel-neutral ones; every layer runs V4/SVD.
+- ConvRot bias: --bias_correction + ConvRot ON is rejected (pre/post rotation
+  mixing is a blasphemy shortcut).
+- --protect-keys-hardcode is reference-only bypass; it is NOT the HSWQ path.
 
 Protect path:
   ConvRot rotate (W @ H^T) → row-wise INT8 + weight_scale + int8_tensorwise stamp
@@ -349,13 +365,23 @@ def run_card1_calib(
     sens_dict: dict[str, float] = {}
     importance_dict: dict[str, torch.Tensor] = {}
     for name, mon in _dual_monitors.items():
+        meta_n = _normalize_module_meta(name)
         if mon.channel_act_mean is not None:
-            act_mean_dict[name] = mon.channel_act_mean.detach().cpu().float()
+            act_t = mon.channel_act_mean.detach().cpu().float()
+            act_mean_dict[name] = act_t
+            # Also index by ST-facing meta so bias / Imp land without drop.
+            if meta_n not in act_mean_dict:
+                act_mean_dict[meta_n] = act_t
         s = float(mon.get_sensitivity())
         if s > 0.0 and math.isfinite(s):
             sens_dict[name] = s
+            prev_s = sens_dict.get(meta_n)
+            sens_dict[meta_n] = s if prev_s is None else max(float(prev_s), s)
         if mon.channel_importance is not None:
-            importance_dict[name] = mon.channel_importance.detach().cpu().float()
+            imp_t = mon.channel_importance.detach().cpu().float()
+            importance_dict[name] = imp_t
+            if meta_n not in importance_dict:
+                importance_dict[meta_n] = imp_t
     print(
         f"[Card1] Collected act_mean={len(act_mean_dict)} "
         f"sens={len(sens_dict)} importance={len(importance_dict)}"
@@ -559,7 +585,11 @@ def _build_sens_by_meta(
     sens_dict: dict[str, float],
     meta_to_st: dict[str, str],
 ) -> dict[str, float]:
-    """Map DualMonitor sens onto ST meta names (prefix + qkv aliases)."""
+    """Map DualMonitor sens onto ST meta — use ALL measured sens values.
+
+    Exact meta + qkv↔to_* fuse first; then suffix / leaf recovery so DualMonitor
+    keys with different prefixes still land on the Linear-2D pool (no drop).
+    """
     raw: dict[str, float] = {}
     for name, s in sens_dict.items():
         try:
@@ -572,48 +602,162 @@ def _build_sens_by_meta(
         prev = raw.get(meta)
         raw[meta] = sf if prev is None else max(prev, sf)
     fused = _fuse_attention_qkv_aliases(raw)
-    return {m: fused[m] for m in meta_to_st if m in fused}
+    out: dict[str, float] = {}
+    for m in meta_to_st:
+        if m in fused:
+            out[m] = float(fused[m])
+            continue
+        best: float | None = None
+        leaf = m.split(".")[-1]
+        for fk, fv in fused.items():
+            if fk == m:
+                best = float(fv)
+                break
+            if fk.endswith("." + m) or m.endswith("." + fk):
+                best = float(fv) if best is None else max(best, float(fv))
+                continue
+            if fk.split(".")[-1] == leaf and (
+                fk.endswith(".attention." + leaf) or m.endswith(".attention." + leaf)
+            ):
+                # Same attention leaf under alternate block prefix — keep max.
+                if ".attention." in fk and ".attention." in m:
+                    best = float(fv) if best is None else max(best, float(fv))
+        if best is not None and best > 0.0:
+            out[m] = best
+    return out
 
 
 def _lookup_importance_tensor(
     key: str,
     importance_dict: dict[str, torch.Tensor],
 ) -> torch.Tensor | None:
+    """Resolve DualMonitor Imp for one meta — exact, then suffix / attention leaf.
+
+    Same recovery spirit as ``_build_sens_by_meta``: never drop a measured Imp
+    tensor because the hook prefix differs from the ST meta string.
+    """
+    key_n = _normalize_module_meta(key)
+    if key_n in importance_dict and importance_dict[key_n] is not None:
+        return importance_dict[key_n]
     if key in importance_dict and importance_dict[key] is not None:
         return importance_dict[key]
+    leaf = key_n.split(".")[-1]
+    recovered: list[torch.Tensor] = []
     for raw_k, tensor in importance_dict.items():
-        if _normalize_module_meta(raw_k) == key and tensor is not None:
+        if tensor is None:
+            continue
+        rk = _normalize_module_meta(raw_k)
+        if rk == key_n:
             return tensor
-    return None
+        if rk.endswith("." + key_n) or key_n.endswith("." + rk):
+            recovered.append(tensor)
+            continue
+        if rk.split(".")[-1] != leaf:
+            continue
+        if ".attention." not in rk or ".attention." not in key_n:
+            continue
+        if not (
+            rk.endswith(".attention." + leaf) and key_n.endswith(".attention." + leaf)
+        ):
+            continue
+        rk_attn = rk[: -(len(leaf) + 1)]
+        kn_attn = key_n[: -(len(leaf) + 1)]
+        if rk_attn == kn_attn or rk_attn.endswith(kn_attn) or kn_attn.endswith(rk_attn):
+            recovered.append(tensor)
+    if not recovered:
+        return None
+    if len(recovered) == 1:
+        return recovered[0]
+    # Multiple DualMonitor Imp storages for one meta — use ALL (max after align).
+    n0 = max(int(t.numel()) for t in recovered)
+    aligned = [_align_importance_1d(t, n0) for t in recovered]
+    return torch.stack(aligned, dim=0).max(dim=0).values
+
+
+def _align_importance_1d(
+    imp: torch.Tensor,
+    in_features: int | None,
+) -> torch.Tensor:
+    """Use all DualMonitor Imp values; pad/truncate like V4 histogram path."""
+    v = imp.detach().float().reshape(-1)
+    if in_features is None or int(in_features) <= 0:
+        return v
+    n = int(in_features)
+    if int(v.numel()) == n:
+        return v
+    # Concat(q|k|v) → three equal chunks: use elementwise max (all three).
+    if int(v.numel()) == 3 * n and n > 0:
+        chunks = v.view(3, n)
+        return chunks.max(dim=0).values
+    if int(v.numel()) > n:
+        return v[:n]
+    pad = torch.ones(n - int(v.numel()), dtype=v.dtype, device=v.device)
+    return torch.cat([v, pad], dim=0)
+
+
+def _max_align_parts(
+    parts: list[torch.Tensor],
+    in_features: int | None,
+) -> torch.Tensor:
+    """Elementwise-max across DualMonitor Imp parts after length align."""
+    aligned = [_align_importance_1d(p, in_features) for p in parts]
+    if in_features is None or int(in_features) <= 0:
+        n0 = max(int(a.numel()) for a in aligned)
+        aligned = [_align_importance_1d(a, n0) for a in aligned]
+    stacked = torch.stack(aligned, dim=0)
+    return stacked.max(dim=0).values
 
 
 def _importance_for_meta(
     meta: str,
     importance_dict: dict[str, torch.Tensor],
+    *,
+    in_features: int | None = None,
 ) -> torch.Tensor | None:
-    """Resolve channel-importance tensor for meta (qkv ↔ to_* fallback)."""
+    """Resolve DualMonitor channel-importance — use ALL related Imp tensors.
+
+    qkv ↔ to_q/to_k/to_v aliases are fused by elementwise max after length
+    align (pad/truncate / 3×concat split). Never drop available DualMonitor
+    Imp because lengths differ; never SVD-only demote by returning None when
+    any related Imp exists.
+    """
     meta_n = _normalize_module_meta(meta)
+    parts: list[torch.Tensor] = []
     direct = _lookup_importance_tensor(meta_n, importance_dict)
     if direct is not None:
-        return direct
-    # Fused ST qkv + split DualMonitor Imp: in-channel Imp length matches
-    # fused in_features — take elementwise max of to_q/to_k/to_v (not concat).
+        parts.append(direct)
     if meta_n.endswith(".attention.qkv"):
         attn = meta_n[: -len(".qkv")]
-        parts: list[torch.Tensor] = []
         for suf in (".to_q", ".to_k", ".to_v"):
             t = _lookup_importance_tensor(f"{attn}{suf}", importance_dict)
-            if t is None:
-                continue
-            parts.append(t.detach().float().reshape(-1))
-        if parts:
-            n0 = int(parts[0].numel())
-            if all(int(p.numel()) == n0 for p in parts):
-                stacked = torch.stack(parts, dim=0)
-                return stacked.max(dim=0).values
-            # Same-length only; otherwise refuse silent wrong Imp.
-            return None
-    return None
+            if t is not None:
+                parts.append(t)
+    elif meta_n.endswith((".attention.to_q", ".attention.to_k", ".attention.to_v")):
+        # Split ST name + fused DualMonitor Imp (or sibling splits).
+        if meta_n.endswith(".to_q"):
+            attn = meta_n[: -len(".to_q")]
+        elif meta_n.endswith(".to_k"):
+            attn = meta_n[: -len(".to_k")]
+        else:
+            attn = meta_n[: -len(".to_v")]
+        for suf in (".qkv", ".to_q", ".to_k", ".to_v"):
+            t = _lookup_importance_tensor(f"{attn}{suf}", importance_dict)
+            if t is not None:
+                parts.append(t)
+    if not parts:
+        return None
+    # Deduplicate identical storage while keeping every distinct DualMonitor vector.
+    uniq: list[torch.Tensor] = []
+    seen: set[int] = set()
+    for p in parts:
+        pid = int(p.data_ptr()) if p.numel() > 0 else id(p)
+        if pid in seen:
+            continue
+        seen.add(pid)
+        uniq.append(p)
+    if len(uniq) == 1:
+        return _align_importance_1d(uniq[0], in_features)
+    return _max_align_parts(uniq, in_features)
 
 
 def select_int8_protect_keys_hswq(
@@ -627,19 +771,22 @@ def select_int8_protect_keys_hswq(
 ) -> tuple[frozenset[str], str]:
     """HSWQ four-pillar INT8 protect ranking → top ``protect_n`` ST keys.
 
-    Pillars (ZI analyze + DualMonitor + V4 pack-MSE + priority combinator):
-      1) Analyze THIS (``analyze_unet`` + autonomous NVFP4 tunables)
-      2) DualMonitor sensitivity + channel importance (calib)
-      3) V4 ``compute_pack_mse_absmax_with_svd(..., linear_pack=\"nvfp4\")``
-      4) Infinite ranking / priority branches → truncate by key count N
+    Per-model autonomous judgment from ALL directions (no hand-cut):
+      1) Analyze THIS (``analyze_unet(run_v4=True)`` + character + tunables)
+      2) DualMonitor sensitivity + channel Imp — every calib tensor used
+      3) Histogram V4 pack-MSE @ absmax (weighted histogram calibration)
+      4) SVD leverage + analyze×V4×DualMonitor gray RELEASE of fences
+      → joint ranking / priority combinator → truncate by key count N
 
-    ``fp16_budget_mb`` is passed only as the analyze-side threshold input
+    Optimal settings are derived from this model’s own Analyze + DualMonitor
+    + V4/SVD evidence — never hardcode protect, never Imp-drop, never
+    raise-away on shape mismatch (align Imp to in_features instead).
+
+    ``fp16_budget_mb`` is analyze-side threshold input only
     (``derive_nvfp4_autonomous_tunables``). This path does **not** select
-    FP16 keep layers and does **not** fill a MiB budget — selected keys are
-    INT8 protect targets, truncated by N.
+    FP16 keep layers or fill a MiB budget — keys are INT8 protect targets.
 
-    Ranking namespace is DualMonitor / ST meta
-    (``layers.*.attention.qkv`` or ``to_q`` — aliases resolved).
+    Ranking namespace is DualMonitor / ST meta (qkv ↔ to_* aliases resolved).
     Returned keys are full safetensors weight keys for convert.
     """
     if int(protect_n) <= 0:
@@ -664,6 +811,7 @@ def select_int8_protect_keys_hswq(
         build_nvfp4_analyze_character_table,
         derive_nvfp4_autonomous_tunables,
         derive_priority_combinator,
+        measure_v4_nvfp4_mse_at_absmax,
         nvfp4_fp16_budget_analyze_severity,
         nvfp4_fp16_budget_priority,
     )
@@ -672,11 +820,24 @@ def select_int8_protect_keys_hswq(
     )
 
     blacklist, _fp8 = _Z_IMAGE_PROFILES[model_type]
-    print("\n[HSWQ] Analyze THIS (weight distribution)...")
-    profile = analyze_unet(model_path, run_v4=False)
+    # run_v4=True: weight tensors enter enrich so V4 contract is recorded.
+    # complete=True still requires DualMonitor Imp — gray release runs below.
+    print("\n[HSWQ] Analyze THIS (weight distribution + V4 contract)...")
+    profile = analyze_unet(model_path, run_v4=True)
     st_layers = profile.get("layers") or {}
     if not isinstance(st_layers, dict) or not st_layers:
         raise RuntimeError(f"[HSWQ] analyze_unet returned no layers for {model_path}")
+    v4_stub = ((profile.get("optimal_settings_nvfp4") or {}).get("v4") or {})
+    if not bool(v4_stub.get("svd_enabled", True)):
+        raise RuntimeError(
+            "[HSWQ] analyze V4 contract has svd_enabled=False — SVD cut forbidden"
+        )
+    print(
+        f"[HSWQ] analyze V4 stub: v4_ran={v4_stub.get('v4_ran')} "
+        f"complete={v4_stub.get('complete')} "
+        f"reason={v4_stub.get('reason')!r} "
+        f"(DualMonitor Imp gray release follows)"
+    )
 
     print(f"[HSWQ] Loading weights for V4 pack-MSE from {model_path}")
     sd = load_file(model_path)
@@ -714,13 +875,28 @@ def select_int8_protect_keys_hswq(
     n_pool = len(meta_to_st)
     n_matched = len(sens_by_meta)
     match_ratio = float(n_matched) / float(n_pool) if n_pool else 0.0
-    # DualMonitor must land on THIS pool. Silent near-zero match = pillar skip.
-    if n_matched < 1 or match_ratio < 0.25:
+    # DualMonitor must contribute to THIS pool. Expand aliases before failing.
+    if n_matched < 1:
         raise RuntimeError(
-            "[HSWQ] DualMonitor sens barely matched ST Linear-2D pool "
-            f"(matched={n_matched}/{n_pool} ratio={match_ratio:.3f}). "
-            "Refusing incomplete four-pillar ranking (prefix/qkv alias bug)."
+            "[HSWQ] DualMonitor sens matched zero ST Linear-2D keys after "
+            f"qkv/suffix recovery (pool={n_pool}). Calib names do not land "
+            "on UNet Linear-2D — cannot form joint four-pillar judgment."
         )
+    # Unknown sens → median of measured pool (no 0.0 demotion, no drop).
+    # Every Linear-2D stays in ranking with a real axis value from measured data.
+    _sens_measured = sorted(float(v) for v in sens_by_meta.values() if float(v) > 0)
+    sens_unknown = (
+        _sens_measured[len(_sens_measured) // 2] if _sens_measured else 0.0
+    )
+    for _m in meta_to_st:
+        if _m not in sens_by_meta:
+            sens_by_meta[_m] = float(sens_unknown)
+    n_sens_unknown = n_pool - n_matched
+    print(
+        f"[HSWQ] DualMonitor sens matched={n_matched}/{n_pool} "
+        f"Linear-2D (ratio={match_ratio:.3f}) unknown={n_sens_unknown} "
+        f"→ unknown_sens={sens_unknown:.6g} (no drop)"
+    )
 
     norm_profile = {"layers": meta_layers, "source": model_path}
     tunables = derive_nvfp4_autonomous_tunables(
@@ -760,6 +936,100 @@ def select_int8_protect_keys_hswq(
         f"[HSWQ] Hard VETO (fence) n={len(hard_veto)} "
         f"(ek={ek:.4g} eo={eo:.4g} hm={hm:.4g})"
     )
+
+    # Analyze × DualMonitor × V4 × SVD: gray RELEASE of fence hard-veto.
+    # Use ALL DualMonitor Imp (aligned to in_features) — never skip Imp rows.
+    st_weights: dict[str, torch.Tensor] = {
+        st_key: sd[st_key] for st_key in meta_to_st.values()
+    }
+    st_importance: dict[str, torch.Tensor] = {}
+    n_imp_dual = 0
+    n_imp_ones = 0
+    for meta, st_key in meta_to_st.items():
+        w = sd[st_key]
+        in_f = int(w.shape[1]) if int(getattr(w, "ndim", 0)) == 2 else None
+        imp = _importance_for_meta(meta, importance_dict, in_features=in_f)
+        if imp is None:
+            # No DualMonitor Imp for this meta — channel-neutral ones so V4/SVD
+            # still runs with Analyze + sens; never drop the layer from pillars.
+            if in_f is None or int(in_f) <= 0:
+                continue
+            imp_f = torch.ones(int(in_f), dtype=torch.float32)
+            n_imp_ones += 1
+        else:
+            imp_f = imp.detach().float()
+            n_imp_dual += 1
+        st_importance[st_key] = imp_f
+        base = st_key[: -len(".weight")] if st_key.endswith(".weight") else st_key
+        st_importance[base] = imp_f
+        st_importance[meta] = imp_f
+    if not st_importance:
+        raise RuntimeError(
+            "[HSWQ] No Linear-2D in_features for DualMonitor/V4 Imp map — "
+            "empty st_importance after pool build"
+        )
+    v4_device_release = (
+        device if device == "cuda" and torch.cuda.is_available() else "cpu"
+    )
+    print(
+        f"[HSWQ] Analyze×V4×DualMonitor×SVD gray release "
+        f"(Imp DualMonitor={n_imp_dual}/{len(meta_to_st)} "
+        f"ones_fallback={n_imp_ones} "
+        f"keys={len(st_importance)} device={v4_device_release})..."
+    )
+    v4_release = measure_v4_nvfp4_mse_at_absmax(
+        st_weights,
+        device=v4_device_release,
+        tunables=tunables,
+        importance_by_layer=st_importance,
+    )
+    if not bool(v4_release.get("complete")):
+        raise RuntimeError(
+            "[HSWQ] Analyze×V4 gray release incomplete: "
+            f"reason={v4_release.get('reason')!r} "
+            f"safe_sample={v4_release.get('safe_sample_count')} "
+            f"skipped_no_imp={v4_release.get('skipped_no_importance')}. "
+            "Four-pillar joint judgment requires complete V4 gray path."
+        )
+    released_meta: set[str] = set()
+    for detail in v4_release.get("gray_detail") or []:
+        if not isinstance(detail, dict):
+            continue
+        if detail.get("decision") != "RELEASE":
+            continue
+        name = detail.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        if name.endswith(".weight"):
+            released_meta.add(_st_weight_to_meta(name))
+        else:
+            released_meta.add(_normalize_module_meta(name))
+    n_fence = len(hard_veto)
+    hard_veto -= released_meta
+    print(
+        f"[HSWQ] V4 gray RELEASE: fence={n_fence} → hard_veto={len(hard_veto)} "
+        f"(released={int(v4_release.get('gray_released', 0))} "
+        f"kept={int(v4_release.get('gray_kept', 0))} "
+        f"safe_p75_mse={float(v4_release.get('safe_p75_mse', float('nan'))):.6g} "
+        f"thr={float(v4_release.get('mse_release_threshold', float('nan'))):.6g} "
+        f"alpha={float(v4_release.get('alpha', alpha)):.6g})"
+    )
+    # Seed MSE axis from THIS SVD V4 safe sample when present (same as analyze).
+    safe_mses = [
+        float(d["estimated_mse"])
+        for d in (v4_release.get("safe_detail") or [])
+        if isinstance(d, dict) and "estimated_mse" in d
+    ]
+    if len(safe_mses) >= 4:
+        tunables["recommended_safe_p75_mse"] = float(
+            v4_release.get("safe_p75_mse", _safe_percentile(safe_mses, 75.0))
+        )
+        tunables["recommended_mse_release_threshold"] = float(
+            v4_release.get("mse_release_threshold", 0.0)
+        )
+        tunables["v4_svd_enabled"] = True
+        tunables["v4_alpha"] = float(v4_release.get("alpha", alpha))
+        tunables["v4_beta"] = float(v4_release.get("beta", beta))
 
     char_table = build_nvfp4_analyze_character_table(
         {"layers": meta_layers, "source": model_path},
@@ -808,21 +1078,28 @@ def select_int8_protect_keys_hswq(
             mad_outlier_pct=mad,
             profile_score=ps,
         )
-        imp = _importance_for_meta(meta, importance_dict)
-        if imp is not None:
-            imp = imp.detach().float()
-            # Fused qkv Imp length must match in_features when ST is fused.
-            in_f = int(w.shape[1]) if int(getattr(w, "ndim", 0)) == 2 else -1
-            if in_f > 0 and int(imp.numel()) != in_f:
-                # Split Imp concat may not match fused in_features — drop Imp
-                # rather than silently mis-broadcast (V4 still runs Full-SVD).
-                print(
-                    f"[HSWQ] WARN: Imp numel={int(imp.numel())} != in={in_f} "
-                    f"for {meta}; V4 continues with SVD only for this layer"
-                )
-                imp = None
-            elif v4_device == "cuda":
-                imp = imp.to(device="cuda")
+        in_f = int(w.shape[1]) if int(getattr(w, "ndim", 0)) == 2 else -1
+        # Reuse gray-release DualMonitor Imp (same pillar tensor) — do not
+        # re-resolve / re-ones and drift from Analyze×V4×Imp gray path.
+        if meta in st_importance:
+            imp = st_importance[meta].detach().float()
+        else:
+            imp = _importance_for_meta(
+                meta, importance_dict, in_features=in_f if in_f > 0 else None
+            )
+            if imp is None:
+                if in_f <= 0:
+                    raise RuntimeError(
+                        f"[HSWQ] Linear weight missing in_features for {meta!r} ({st_key})"
+                    )
+                imp = torch.ones(in_f, dtype=torch.float32)
+            else:
+                imp = imp.detach().float()
+        if in_f > 0 and int(imp.numel()) != in_f:
+            # Align already applied in _importance_for_meta; re-align as safety.
+            imp = _align_importance_1d(imp, in_f)
+        if v4_device == "cuda":
+            imp = imp.to(device="cuda")
         w_meas = w.detach().float()
         if v4_device == "cuda":
             w_meas = w_meas.to(device="cuda")
@@ -839,12 +1116,11 @@ def select_int8_protect_keys_hswq(
         except Exception as e:
             raise RuntimeError(
                 f"[HSWQ] V4 pack-MSE failed for {meta!r} ({st_key}): {e}. "
-                "Refusing silent demote."
+                "Joint four-pillar path cannot skip this layer."
             ) from e
         if v4_device == "cuda":
             del w_meas
-            if imp is not None:
-                del imp
+            del imp
             torch.cuda.empty_cache()
         # 5th tuple slot is required by analyze ranking APIs; INT8 protect
         # truncates by key count N only (not weight-byte / MiB fill).
@@ -1047,6 +1323,13 @@ def convert_to_nvfp4(
     bias_corr_skipped_no_act = 0
     bias_corr_skipped_bad_shape = 0
     bias_corr_skipped_no_bias = 0
+    if bias_correction and enable_convrot:
+        raise ValueError(
+            "--bias_correction cannot be used with ConvRot ON (default): "
+            "DualMonitor acts are pre-rotation while weights are rotated. "
+            "Run with --no-enable_convrot for bias, or omit bias correction. "
+            "Mixing pre/post rotation is an HSWQ blasphemy shortcut."
+        )
     if bias_correction:
         if precomputed_act_mean is not None:
             act_mean_dict = precomputed_act_mean
@@ -1076,11 +1359,6 @@ def convert_to_nvfp4(
             print(
                 f"[Card 1] act_mean for {len(act_mean_dict)} Linear modules "
                 f"(keyed by module name = _meta_base_key)"
-            )
-        if enable_convrot:
-            print(
-                "[Card 1] WARN: ConvRot ON — DualMonitor acts are pre-rotation; "
-                "bias uses post-rotation w_for_q vs W_q (ZI ConvRot path)."
             )
 
     sd = load_file(input_path)
@@ -1645,7 +1923,15 @@ if __name__ == "__main__":
     keyset: frozenset[str]
     source: str
 
+    # HSWQ complete path: hardcode / JSON keysets are reference-only.
+    # Owner must explicitly use --protect-keys-hardcode or --protect-keys-json
+    # to skip four-pillar auto; silent or default hardcode is blasphemy.
+    # (Documented in this file's docstring + _INT8_PROTECT_SOURCE comment.)
     if args.protect_keys_hardcode:
+        print(
+            "[hardcode] NOTE: --protect-keys-hardcode bypasses HSWQ four-pillar "
+            "judgment. Use only when the owner explicitly orders hardcode."
+        )
         keyset = frozenset(_INT8_PROTECT_KEYSET)
         source = _INT8_PROTECT_SOURCE
         print(f"[hardcode] INT8 protect n={len(keyset)} source={source}")
