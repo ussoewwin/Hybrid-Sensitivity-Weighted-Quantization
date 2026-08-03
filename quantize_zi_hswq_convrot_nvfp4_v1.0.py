@@ -48,6 +48,7 @@ import math
 import os
 import subprocess
 import sys
+import time
 from collections import OrderedDict
 
 import torch
@@ -1753,6 +1754,42 @@ def run_post_convert_zi_convrot_nvfp4_bench(
 
 
 if __name__ == "__main__":
+    # ------------------------------------------------------------------
+    # Full run log: stdout + stderr duplicated to log/<script>_<ts>.txt
+    # ------------------------------------------------------------------
+    _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
+    os.makedirs(_log_dir, exist_ok=True)
+    _log_path = os.path.join(
+        _log_dir,
+        f"{os.path.splitext(os.path.basename(__file__))[0]}_"
+        f"{time.strftime('%Y%m%d_%H%M%S')}.txt",
+    )
+    _log_fh = open(_log_path, "w", encoding="utf-8", buffering=1)
+
+    class _Tee:
+        def __init__(self, *streams):
+            self._streams = streams
+
+        def write(self, data):
+            for s in self._streams:
+                try:
+                    s.write(data)
+                    s.flush()
+                except Exception:
+                    pass
+
+        def flush(self):
+            for s in self._streams:
+                try:
+                    s.flush()
+                except Exception:
+                    pass
+
+    _orig_stdout, _orig_stderr = sys.stdout, sys.stderr
+    sys.stdout = _Tee(_orig_stdout, _log_fh)
+    sys.stderr = _Tee(_orig_stderr, _log_fh)
+    print(f"[log] Full run log: {_log_path}")
+
     parser = argparse.ArgumentParser(
         description=(
             "Z-Image / ZIT NVFP4 + HSWQ ConvRot INT8 protect. "
