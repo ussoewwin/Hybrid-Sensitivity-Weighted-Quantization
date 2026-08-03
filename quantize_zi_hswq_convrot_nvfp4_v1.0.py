@@ -1755,8 +1755,12 @@ def run_post_convert_zi_convrot_nvfp4_bench(
 
 if __name__ == "__main__":
     # ------------------------------------------------------------------
-    # Full run log: stdout + stderr duplicated to log/<script>_<ts>.txt
+    # Full run log: capture stdout + stderr in memory; write one complete
+    # log/<script>_<ts>.txt at process end (normal or error).
     # ------------------------------------------------------------------
+    import io
+    import traceback
+
     _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
     os.makedirs(_log_dir, exist_ok=True)
     _log_path = os.path.join(
@@ -1764,7 +1768,7 @@ if __name__ == "__main__":
         f"{os.path.splitext(os.path.basename(__file__))[0]}_"
         f"{time.strftime('%Y%m%d_%H%M%S')}.txt",
     )
-    _log_fh = open(_log_path, "w", encoding="utf-8", buffering=1)
+    _log_buf = io.StringIO()
 
     class _Tee:
         def __init__(self, *streams):
@@ -1774,7 +1778,6 @@ if __name__ == "__main__":
             for s in self._streams:
                 try:
                     s.write(data)
-                    s.flush()
                 except Exception:
                     pass
 
@@ -1786,9 +1789,29 @@ if __name__ == "__main__":
                     pass
 
     _orig_stdout, _orig_stderr = sys.stdout, sys.stderr
-    sys.stdout = _Tee(_orig_stdout, _log_fh)
-    sys.stderr = _Tee(_orig_stderr, _log_fh)
-    print(f"[log] Full run log: {_log_path}")
+    sys.stdout = _Tee(_orig_stdout, _log_buf)
+    sys.stderr = _Tee(_orig_stderr, _log_buf)
+
+    _log_flushed = False
+
+    def _flush_full_log() -> None:
+        nonlocal _log_flushed
+        if _log_flushed:
+            return
+        _log_flushed = True
+        sys.stdout = _orig_stdout
+        sys.stderr = _orig_stderr
+        with open(_log_path, "w", encoding="utf-8") as fh:
+            fh.write(_log_buf.getvalue())
+        print(f"[log] Full run log written: {_log_path}")
+
+    _orig_exit = sys.exit
+
+    def _exit_with_log(code=0):
+        _flush_full_log()
+        _orig_exit(code)
+
+    sys.exit = _exit_with_log
 
     parser = argparse.ArgumentParser(
         description=(
@@ -2076,3 +2099,5 @@ if __name__ == "__main__":
             sys.exit(bench_rc)
     else:
         print("[*] Post-convert bench skipped (--no-bench)")
+
+    _flush_full_log()
