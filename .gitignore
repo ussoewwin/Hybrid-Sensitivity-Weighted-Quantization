@@ -28,9 +28,12 @@ cache/
 
 # Local test folder (never commit or push)
 test/*
-!test/benchmark_zit.md
-!test/benchmark_test.md
-!test/benchmark_sdxl_int8.md
+
+# All .txt ignored (score logs / dumps); keep product / ComfyUI / sample prompts
+*.txt
+!requirements.txt
+!sample/*.txt
+!ComfyUI-master/**/*.txt
 
 # Local / private
 反省文/

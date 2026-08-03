@@ -279,8 +279,8 @@ See per-family benchmark documents for exact numbers; this is the high-level pic
 
 Detailed per-model tables:
 
-- SDXL: [`test/benchmark_test.md`](../test/benchmark_test.md)
-- Z Image: [`test/benchmark_zit.md`](../test/benchmark_zit.md)
+- SDXL: [`benchmark result/benchmark_test.md`](../benchmark%20result/benchmark_test.md)
+- Z Image: [`benchmark result/benchmark_zit.md`](../benchmark%20result/benchmark_zit.md)
 
 ---
 

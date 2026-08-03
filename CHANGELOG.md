@@ -35,7 +35,7 @@ Release notes: [v1.1.7](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted
 ## 1.1.6
 
 **Z-Anime Base benchmark results published** — Added and aligned `z anime base` benchmark results in the ZIT benchmark document, including HSWQ vs Official FP8 comparison and VRAM-saving analysis notes.
-Benchmark: [test/benchmark_zit.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_zit.md)  
+Benchmark: [benchmark result/benchmark_zit.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/benchmark%20result/benchmark_zit.md)  
 
 ## 1.1.5
 
