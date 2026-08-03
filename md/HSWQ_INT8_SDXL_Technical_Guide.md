@@ -388,7 +388,7 @@ python quantize_sdxl_hswq_v3.0.py ^
 
 Target quality band (README): **SSIM 0.94–0.98** vs FP16, with ComfyUI INT8 loader compatibility.
 
-Detailed per-model tables: [`test/benchmark_sdxl_int8.md`](../test/benchmark_sdxl_int8.md) (from `test/score_sdxl_int8.txt`).
+Detailed per-model tables: [`benchmark result/benchmark_sdxl_int8.md`](../benchmark%20result/benchmark_sdxl_int8.md) (from `benchmark result/score_sdxl_int8.txt`).
 
 | Variant | SSIM (typical) | Size vs FP16 | Compatibility |
 |---|---|---|---|
@@ -396,7 +396,7 @@ Detailed per-model tables: [`test/benchmark_sdxl_int8.md`](../test/benchmark_sdx
 | Naive INT8 | lower / unstable | ~50% | High |
 | **HSWQ INT8 V3.0** | **0.94–0.98** | ~60–70% (FP16 mixed ≤ +300 MiB) | **High — ComfyUI int8_tensorwise** |
 
-FP8 SDXL / Z Image benches remain in [`test/benchmark_test.md`](../test/benchmark_test.md) and [`test/benchmark_zit.md`](../test/benchmark_zit.md).
+FP8 SDXL / Z Image benches remain in [`benchmark result/benchmark_test.md`](../benchmark%20result/benchmark_test.md) and [`benchmark result/benchmark_zit.md`](../benchmark%20result/benchmark_zit.md).
 
 ---
 
@@ -461,5 +461,5 @@ FP8 SDXL / Z Image benches remain in [`test/benchmark_test.md`](../test/benchmar
 - **Quantizer script:** `quantize_sdxl_hswq_v3.0.py`
 - **Analyze:** `analyze/analyze_sdxl_distribution.py`
 - **Histogram:** `histogram/weighted_histogram_mse_v4.py` (`INT8Quantizer`, `compute_optimal_amax_with_stats_int8_range`)
-- **Benchmarks:** [`test/benchmark_sdxl_int8.md`](../test/benchmark_sdxl_int8.md)
+- **Benchmarks:** [`benchmark result/benchmark_sdxl_int8.md`](../benchmark%20result/benchmark_sdxl_int8.md)
 - **HF collection:** [Hybrid-Sensitivity-Weighted-Quantization-SDXL-INT8](https://huggingface.co/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization-SDXL-INT8)
