@@ -1792,13 +1792,12 @@ if __name__ == "__main__":
     sys.stdout = _Tee(_orig_stdout, _log_buf)
     sys.stderr = _Tee(_orig_stderr, _log_buf)
 
-    _log_flushed = False
+    _log_state = {"flushed": False}
 
     def _flush_full_log() -> None:
-        nonlocal _log_flushed
-        if _log_flushed:
+        if _log_state["flushed"]:
             return
-        _log_flushed = True
+        _log_state["flushed"] = True
         sys.stdout = _orig_stdout
         sys.stderr = _orig_stderr
         with open(_log_path, "w", encoding="utf-8") as fh:
