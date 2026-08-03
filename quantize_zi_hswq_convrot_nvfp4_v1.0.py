@@ -31,7 +31,9 @@ Calib recipe (HSWQ How-to): 32 samples / 25 steps DualMonitor (sens + Imp).
 Optional ``--protect-keys-json`` skips auto ranking. Optional Card1 bias.
 
 Post-convert bench (default ON): after save, subprocess
-  benchmark/zi_convrot_nvfp4_bench.py. Pass --no-bench to skip.
+  benchmark/zi_convrot_nvfp4_bench.py; capture stdout into quantize log;
+  always emit ``[HSWQ] MSE (Error)`` / ``[HSWQ] SSIM (Sim)``.
+  Pass --no-bench to skip.
 
 Example:
   D:\\USERFILES\\fp8e4m3\\venv\\Scripts\\python.exe \\
@@ -1136,18 +1138,18 @@ def select_int8_protect_keys_hswq(
     measured, branch_repairs, branch_profile = apply_fp16_infinite_ranking_branches(
         measured, veto_mask_pre,
     )
-    _sib_modes = {
-        str(d.get("target_mode") or "")
+    _branch_ids = sorted({
+        str(d.get("branch") or "")
         for d in branch_repairs
-        if str(d.get("branch") or "").startswith("keypattern_sibling")
-    }
+        if d.get("branch")
+    })
     _n_axis = sum(
         1 for d in branch_repairs
         if str(d.get("branch") or "") == "axis_mismatch_continuous"
     )
     print(
         f"[HSWQ] Infinite ranking branches: "
-        f"sibling={sorted(_sib_modes) or ['none']} "
+        f"ids={_branch_ids or ['none']} "
         f"axis_mismatch_lifts={_n_axis} "
         f"cv(s/v/m)={branch_profile.get('cv_sens', float('nan')):.4g}/"
         f"{branch_profile.get('cv_sev', float('nan')):.4g}/"
@@ -1687,6 +1689,75 @@ _FIXED_ZI_CONVROT_BENCH_STEPS = 25
 _FIXED_ZI_CONVROT_BENCH_SEED = 42
 
 
+def _resolve_bench_vae_path(
+    vae_path: str | None, *, script_dir: str, comfy_path: str | None
+) -> str | None:
+    """Resolve --vae to an existing file; basename → search common roots."""
+    if not vae_path:
+        return None
+    if os.path.isfile(vae_path):
+        return os.path.abspath(vae_path)
+    name = os.path.basename(vae_path)
+    roots: list[str] = [
+        os.getcwd(),
+        script_dir,
+        os.path.join(script_dir, "models"),
+        os.path.join(script_dir, "ComfyUI-master", "models", "vae"),
+    ]
+    if comfy_path:
+        roots.append(os.path.join(comfy_path, "models", "vae"))
+        roots.append(comfy_path)
+    for root in roots:
+        cand = os.path.join(root, name)
+        if os.path.isfile(cand):
+            print(f"[HSWQ] Post-convert bench: resolved --vae → {cand}")
+            return os.path.abspath(cand)
+    return None
+
+
+def _parse_bench_mse_ssim(text: str) -> tuple[float | None, float | None]:
+    """Parse MSE / SSIM from zi_convrot_nvfp4_bench RESULTS block."""
+    mse_v: float | None = None
+    ssim_v: float | None = None
+    for line in text.splitlines():
+        s = line.strip()
+        # "MSE (latent): 1.2345" / "MSE (0-255 view): ..."
+        if s.startswith("MSE") and ":" in s:
+            try:
+                mse_v = float(s.rsplit(":", 1)[-1].strip())
+            except ValueError:
+                pass
+        # "SSIM (decoded): 0.74" / "SSIM (0-255 view): ..."
+        if s.startswith("SSIM") and ":" in s and "target" not in s.lower():
+            try:
+                ssim_v = float(s.rsplit(":", 1)[-1].strip())
+            except ValueError:
+                pass
+    return mse_v, ssim_v
+
+
+def _emit_post_convert_metrics(
+    *,
+    mse: float | None,
+    ssim: float | None,
+    reason: str | None = None,
+) -> None:
+    """Always write MSE/SSIM into the quantize full log (owner audit)."""
+    print("=" * 60)
+    print("[HSWQ] Post-convert fidelity (written into quantize log)")
+    if mse is not None:
+        print(f"[HSWQ] MSE (Error): {mse:.4f}")
+    else:
+        print("[HSWQ] MSE (Error): N/A")
+    if ssim is not None:
+        print(f"[HSWQ] SSIM (Sim): {ssim:.4f}")
+    else:
+        print("[HSWQ] SSIM (Sim): N/A")
+    if reason:
+        print(f"[HSWQ] Post-convert metrics note: {reason}")
+    print("=" * 60)
+
+
 def run_post_convert_zi_convrot_nvfp4_bench(
     *,
     script_dir: str,
@@ -1702,36 +1773,61 @@ def run_post_convert_zi_convrot_nvfp4_bench(
     Owner body argv order + seed fixed inside:
       --fp16 --nvfp4 --clip_path --comfy_path
       [--vae] [--token] --prompt --steps 25 --seed <fixed>
+
+    Child stdout/stderr are captured and re-printed through this process so the
+    quantize Tee log always contains bench SSIM/MSE (subprocess inherit alone
+    bypasses the Python Tee and left SSIM out of log/*.txt).
     """
     bench_script = os.path.join(
         script_dir, "benchmark", "zi_convrot_nvfp4_bench.py"
     )
     if not os.path.isfile(bench_script):
         print(f"[FATAL] Post-convert bench script not found: {bench_script}")
+        _emit_post_convert_metrics(
+            mse=None, ssim=None, reason="bench script missing"
+        )
         return 1
     if not os.path.isfile(fp16_path):
         print(
             f"[FATAL] Post-convert bench: FP16 (--model) missing: {fp16_path}"
+        )
+        _emit_post_convert_metrics(
+            mse=None, ssim=None, reason="fp16 missing"
         )
         return 1
     if not os.path.isfile(nvfp4_path):
         print(
             f"[FATAL] Post-convert bench: NVFP4 (--output) missing: {nvfp4_path}"
         )
+        _emit_post_convert_metrics(
+            mse=None, ssim=None, reason="nvfp4 missing"
+        )
         return 1
     if not clip_path or not os.path.isfile(clip_path):
         print(
             f"[FATAL] Post-convert bench: --clip_path missing: {clip_path}"
+        )
+        _emit_post_convert_metrics(
+            mse=None, ssim=None, reason="clip_path missing"
         )
         return 1
     if not comfy_path or not os.path.isdir(comfy_path):
         print(
             f"[FATAL] Post-convert bench: --comfy_path missing: {comfy_path}"
         )
+        _emit_post_convert_metrics(
+            mse=None, ssim=None, reason="comfy_path missing"
+        )
         return 1
-    if vae_path and not os.path.isfile(vae_path):
-        print(f"[FATAL] Post-convert bench: --vae missing: {vae_path}")
-        return 1
+
+    resolved_vae = _resolve_bench_vae_path(
+        vae_path, script_dir=script_dir, comfy_path=comfy_path
+    )
+    if vae_path and resolved_vae is None:
+        print(
+            f"[HSWQ] Post-convert bench: --vae not found ({vae_path}); "
+            "running without --vae (SSIM still computed)"
+        )
 
     _release_vram("pre-zi_convrot_nvfp4_bench subprocess")
 
@@ -1748,8 +1844,8 @@ def run_post_convert_zi_convrot_nvfp4_bench(
         "--comfy_path",
         comfy_path,
     ]
-    if vae_path:
-        cmd.extend(["--vae", vae_path])
+    if resolved_vae:
+        cmd.extend(["--vae", resolved_vae])
     if token:
         cmd.extend(["--token", token])
     cmd.extend(
@@ -1770,15 +1866,42 @@ def run_post_convert_zi_convrot_nvfp4_bench(
     print(f"    --nvfp4: {nvfp4_path}")
     print(f"    --clip_path: {clip_path}")
     print(f"    --comfy_path: {comfy_path}")
-    if vae_path:
-        print(f"    --vae: {vae_path}")
+    if resolved_vae:
+        print(f"    --vae: {resolved_vae}")
+    else:
+        print("    --vae: (none; latent/0-255 SSIM)")
     if token:
         print("    --token: (provided)")
     print(f"    --prompt: {_FIXED_ZI_CONVROT_BENCH_PROMPT}")
     print(f"    --steps: {_FIXED_ZI_CONVROT_BENCH_STEPS}")
     print(f"    --seed: {_FIXED_ZI_CONVROT_BENCH_SEED} (fixed inside)")
     print("=" * 60)
-    completed = subprocess.run(cmd, check=False)
+
+    # Capture child I/O and re-print so Tee writes SSIM into log/*.txt.
+    completed = subprocess.run(
+        cmd,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    combined = ""
+    if completed.stdout:
+        combined += completed.stdout
+        print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
+    if completed.stderr:
+        combined += completed.stderr
+        print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n")
+
+    mse_v, ssim_v = _parse_bench_mse_ssim(combined)
+    reason = None
+    if ssim_v is None:
+        reason = (
+            f"bench exit={int(completed.returncode)}; "
+            "SSIM line not found in captured output"
+        )
+    _emit_post_convert_metrics(mse=mse_v, ssim=ssim_v, reason=reason)
     return int(completed.returncode)
 
 
@@ -1828,6 +1951,10 @@ if __name__ == "__main__":
         "Done.",
         "Error",
         "Traceback",
+        "Fidelity:",
+        "SSIM",
+        "MSE",
+        "ZI CONVROT NVFP4 BENCHMARK RESULTS",
     )
 
     class _Tee:
@@ -2026,7 +2153,8 @@ if __name__ == "__main__":
         default=None,
         help=(
             "Optional VAE path for post-convert bench "
-            "(forwarded as --vae when provided)"
+            "(resolved if basename; if missing, bench still runs "
+            "without --vae and SSIM is written into the quantize log)"
         ),
     )
     parser.add_argument(
@@ -2046,6 +2174,8 @@ if __name__ == "__main__":
             "After save, run benchmark/zi_convrot_nvfp4_bench.py "
             "(fp16/nvfp4/clip/comfy/prompt/steps=25; "
             "optional --vae/--token when provided). "
+            "Bench stdout is captured into the quantize log; "
+            "[HSWQ] MSE (Error) / SSIM (Sim) are always printed. "
             "Pass --no-bench to skip."
         ),
     )

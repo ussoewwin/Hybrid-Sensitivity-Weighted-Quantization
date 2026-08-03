@@ -1322,25 +1322,25 @@ def apply_fp16_infinite_ranking_branches(
     List[Dict[str, Any]],
     Dict[str, Any],
 ]:
-    """Continuous infinite ranking branches for THIS checkpoint's measured pool.
+    """Infinite ranking branches — **identity** for ZI ConvRot NVFP4 protect-N.
 
-    Branch A (key-pattern sibling DualMonitor lift) is **disabled** for ZI
-    ConvRot NVFP4 protect-N. Proven collapse (log 20260803_091015):
+    Both Branch A (keypattern sibling DualMonitor lift) and Branch B
+    (axis_mismatch_continuous) are disabled. Measured DualMonitor sens /
+    V4 MSE / severity pass through unchanged into the priority combinator.
 
-      - ``family_p50_only`` + under-median gate still ran → repairs≈198
-      - protect-60 composition → w2≈30 + attention.out≈30, qkv=0
-      - Done.Size ≈4.86 GiB (moody protect-60 good ≈5.06 GiB / SSIM≥0.97)
+    Proven collapse (log 20260803_091015 + post-A-disable 4.86 GiB):
 
-    Half-fixes (max→p50, under-median only) do not restore within-family
-    order when ``cv_sens`` is extreme: strength→1 flattens large suffixes
-    (w2 / out) onto family_p50 and crowds out qkv/w1/w3/adaLN.
+      - Branch A ``family_p50_only`` → repairs≈198 → w2/out monopoly, qkv=0
+      - Branch B alone still rewrites ``row[1]`` (dm_sens → ranking_sens)
+        and can keep the same light fingerprint (Done.Size ≈4.86 GiB vs
+        healthy protect-60 ≈5.06 GiB)
 
-    Branch B — axis mismatch: layers whose analyze severity / V4 MSE exceed
-    DualMonitor sens (relative to THIS refs) get a continuous ranking_sens
-    lift scaled by ``mismatch_gain`` from THIS VETO-alignment character.
+    Half-fixes of A (max→p50, under-median only) did not restore order.
+    Disabling A while leaving B on is the same class of score rewrite.
+    Protect selection remains four-pillar measure → combinator → top N.
+    No family quota / qkv reservation / composition recipe.
 
-    No binary skew gate. No model-name map. No absolute KEEP.
-    ``family_suffixes`` retained for API compatibility (unused while A off).
+    ``family_suffixes`` retained for API compatibility (unused).
     """
     if not measured:
         empty_p = branch_profile or derive_fp16_infinite_branch_profile(
@@ -1354,60 +1354,22 @@ def apply_fp16_infinite_ranking_branches(
     profile = branch_profile or derive_fp16_infinite_branch_profile(
         measured, is_hard_veto,
     )
-    eps = 1e-30
-    out = [list(row) for row in measured]
-    details: List[Dict[str, Any]] = []
-    _ = family_suffixes  # Branch A off — keep signature stable
-
-    # Branch A disabled — see docstring (4.86 GiB / w2+out monopoly).
-    details.append({
-        "branch": "keypattern_sibling_disabled",
-        "target_mode": "identity",
-        "reason": "zi_protect_n_collapse_4p86gib_w2_out_monopoly",
-    })
-
-    sref = float(profile.get("sens_ref", eps) or eps)
-    vref = float(profile.get("sev_ref", eps) or eps)
-    mref = float(profile.get("mse_ref", eps) or eps)
-    mg = float(profile.get("mismatch_gain", 0.0) or 0.0)
-    aw = max(float(profile.get("align_sev", 0.0) or 0.0), 0.0)
-    am = max(float(profile.get("align_mse", 0.0) or 0.0), 0.0)
-    as_ = max(float(profile.get("align_sens", 0.0) or 0.0), 0.0)
-    wsum = aw + am + as_
-    if wsum < eps:
-        wv, wm, ws = 1.0, 1.0, 1.0
-    else:
-        wv, wm, ws = aw / wsum, am / wsum, as_ / wsum
-    for i, row in enumerate(out):
-        s = max(float(row[1]), 0.0)
-        mse = max(float(row[2]), 0.0)
-        sev = max(float(row[3]), 0.0)
-        rs = s / sref
-        rv = sev / vref
-        rm = mse / mref
-        excess = float(wv * rv + wm * rm - ws * rs)
-        if excess <= 0.0 or mg <= 0.0:
-            continue
-        # Soft continuous lift — unique per layer × THIS profile.
-        lift = float(mg * math.log1p(excess))
-        ranking = float(s * (1.0 + lift))
-        if ranking <= s:
-            continue
-        out[i][1] = ranking
-        details.append({
-            "branch": "axis_mismatch_continuous",
-            "name": str(out[i][0]),
-            "dm_sens": float(s),
-            "ranking_sens": float(ranking),
-            "excess": excess,
-            "lift": lift,
-            "severity": float(sev),
-            "v4_mse": float(mse),
-        })
-
+    _ = family_suffixes  # A/B off — keep signature stable
+    details: List[Dict[str, Any]] = [
+        {
+            "branch": "keypattern_sibling_disabled",
+            "target_mode": "identity",
+            "reason": "zi_protect_n_collapse_4p86gib_w2_out_monopoly",
+        },
+        {
+            "branch": "axis_mismatch_disabled",
+            "target_mode": "identity",
+            "reason": "zi_protect_n_collapse_4p86gib_score_rewrite",
+        },
+    ]
     restored = [
         (str(r[0]), float(r[1]), float(r[2]), float(r[3]), int(r[4]))
-        for r in out
+        for r in measured
     ]
     return restored, details, profile
 
