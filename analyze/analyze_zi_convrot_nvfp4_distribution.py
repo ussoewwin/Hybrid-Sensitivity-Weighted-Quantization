@@ -1327,16 +1327,22 @@ def apply_fp16_infinite_ranking_branches(
     Replaces the banned unified family floor (fixed median / geom gate).
 
     Branch A — key-pattern siblings: for every architectural suffix with ≥2
-    members, skew = span/family_p50 (continuous). Strength and blend are
-    ``1 - exp(-skew * gamma_*)`` with gammas from ``branch_profile`` (THIS
-    model). skew→0 ⇒ identity (wai-like balanced families). Large skew +
-    DualMonitor starvation (``dm_sens < family_p50`` only) ⇒ pull those
-    starved siblings toward a p50↔max continuous target.
+    members, skew = span/family_p50 (continuous). Strength is
+    ``1 - exp(-skew * gamma_sibling)`` from ``branch_profile`` (THIS model).
+    skew→0 ⇒ identity (wai-like balanced families). Large skew + DualMonitor
+    starvation (``dm_sens < family_p50`` only) ⇒ pull those starved siblings
+    **toward family_p50 only** (never toward family max).
 
-    Must NOT lift non-starved siblings (``dm_sens >= family_p50``) toward
-    family max. Doing so collapsed all ``feed_forward.w2`` ranking_sens to
-    layers.1's 3.288e6 on ZI ConvRot NVFP4 protect-60, excluded qkv, and
-    left the artifact ~560 MiB light (≈4.86 GiB vs moody protect-60).
+    Must NOT:
+      - lift non-starved siblings (``dm_sens >= family_p50``)
+      - blend the target toward family max
+
+    Blending toward max under extreme skew (even with the under-median gate)
+    still collapses ~half of ``feed_forward.w2`` ranking_sens onto layers.1's
+    3.288e6, fills protect-60 with w2/out, excludes qkv, and leaves the
+    artifact ~560 MiB light (≈4.86 GiB vs moody protect-60). Target = p50
+    restores within-family order while still helping true under-median
+    starvation.
 
     Branch B — axis mismatch: layers whose analyze severity / V4 MSE exceed
     DualMonitor sens (relative to THIS refs) get a continuous ranking_sens
@@ -1369,7 +1375,6 @@ def apply_fp16_infinite_ranking_branches(
                 break
 
     g_sib = float(profile.get("gamma_sibling", 0.0) or 0.0)
-    g_blend = float(profile.get("gamma_blend", 0.0) or 0.0)
     for suf, idxs in by_suf.items():
         if len(idxs) < 2:
             continue
@@ -1383,13 +1388,11 @@ def apply_fp16_infinite_ranking_branches(
         skew = float(span / max(fam_p50, eps))
         # Continuous — never "if skew < 1: skip" unified gate.
         strength = 1.0 - math.exp(-skew * g_sib)
-        blend = 1.0 - math.exp(-skew * g_blend)
-        target = float(fam_p50 * (1.0 - blend) + s_max * blend)
+        # Cap at family median — never blend toward family max (4.86 GiB).
+        target = float(fam_p50)
         for i, s in zip(idxs, sens):
             # Same starvation gate as apply_fp16_infinite_priority_branches:
-            # only under-median DualMonitor siblings may be lifted. Lifting
-            # every s < target (near max under extreme skew) erased within-
-            # family ranking and filled protect-N with one class (w2/out).
+            # only under-median DualMonitor siblings may be lifted.
             if s >= fam_p50 or target <= s or strength <= 0.0:
                 continue
             ranking = float(s + strength * (target - s))
@@ -1404,8 +1407,8 @@ def apply_fp16_infinite_ranking_branches(
                 "ranking_sens": float(ranking),
                 "skew": skew,
                 "strength": float(strength),
-                "blend": float(blend),
                 "target": float(target),
+                "target_mode": "family_p50_only",
                 "family_p50": float(fam_p50),
                 "family_max": float(s_max),
                 "family_min": float(s_min),
@@ -1476,7 +1479,6 @@ def apply_fp16_infinite_priority_branches(
         return [], []
     eps = 1e-30
     g_sib = float(branch_profile.get("prio_sibling_gamma", 0.0) or 0.0)
-    g_blend = float(branch_profile.get("prio_blend_gamma", 0.0) or 0.0)
     out = [list(row) for row in candidates]
     by_suf: Dict[str, List[int]] = {}
     for i, row in enumerate(out):
@@ -1499,12 +1501,13 @@ def apply_fp16_infinite_priority_branches(
         span = float(s_max - s_min)
         skew = float(span / max(fam_p50, eps))
         strength = 1.0 - math.exp(-skew * g_sib)
-        blend = 1.0 - math.exp(-skew * g_blend)
         p_p50 = _true_median(prios)
         p_max = max(prios)
         if p_p50 <= 0.0 and p_max <= 0.0:
             continue
-        target_p = float(p_p50 * (1.0 - blend) + p_max * blend)
+        # Cap at priority median — never blend toward priority max (same
+        # 4.86 GiB collapse class as ranking Branch A max-blend).
+        target_p = float(p_p50)
         for i, s, p in zip(idxs, sens, prios):
             # Under-measured DM siblings only (continuous strength still
             # scales with family skew even when p is already high).
@@ -1522,8 +1525,8 @@ def apply_fp16_infinite_priority_branches(
                 "priority_after": float(new_p),
                 "skew": skew,
                 "strength": float(strength),
-                "blend": float(blend),
                 "target_priority": float(target_p),
+                "target_mode": "priority_p50_only",
                 "dm_sens": float(s),
                 "family_p50_sens": float(fam_p50),
             })
@@ -2018,6 +2021,14 @@ def _assert_nvfp4_auto_optimal_complete(d: Dict[str, Any]) -> None:
             f"(got {d.get('protect_size_mode')!r}); "
             "MiB / fp16_budget_mb remnant is forbidden on this path"
         )
+    # Fail loud if a stale / wrong-module derive left MiB stamps in base.
+    for banned in ("fp16_budget_mb", "fp16_budget_mb_hard"):
+        if banned in d:
+            raise ValueError(
+                f"ZI ConvRot NVFP4 auto-optimal forbids {banned}="
+                f"{d.get(banned)!r} on this path "
+                "(protect size is --protect-n key count only)"
+            )
     if not bool(d.get("autonomous")):
         raise ValueError("NVFP4 auto-optimal requires autonomous=True from derive")
     # Finite / non-NaN on continuous auto knobs.
