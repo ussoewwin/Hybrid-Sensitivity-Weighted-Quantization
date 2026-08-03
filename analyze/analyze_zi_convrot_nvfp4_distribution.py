@@ -10,7 +10,8 @@ Produces per-layer statistics and:
   - derive_nvfp4_autonomous_tunables()
       auto analysis → DualMonitor × severity × V4 MSE priority combinator
   - nvfp4_fp16_budget_analyze_severity / nvfp4_fp16_budget_priority
-      ranking axes for INT8-protect key selection (N=60 truncate in quantize)
+      ranking axes for INT8-protect key selection
+      (protect size = key count N via --protect-n in quantize; not MiB)
 
 All VETO / V4-link thresholds come from this checkpoint's layer distribution
 (no model-name hardcoding). quant_format is stamped "nvfp4".
@@ -975,7 +976,7 @@ def nvfp4_fp16_budget_analyze_severity(
     FP8 path must NOT call this. Continuous score for
     derive_priority_combinator → nvfp4_fp16_budget_priority. Denominators are
     derive_veto_tunables_nvfp4 fences for THIS model — not a fixed recipe.
-    Higher = more FP16-deserving under --fp16_budget_mb.
+    Higher = more INT8-protect-deserving under --protect-n ranking.
 
     Must NOT flatten Hard VETO to a constant (e.g. max(sev, 1.0)): that
     erases relative danger, collapses sev IQR, and makes
@@ -983,8 +984,8 @@ def nvfp4_fp16_budget_analyze_severity(
     """
     if tunables.get("quant_format") != "nvfp4":
         raise ValueError(
-            "nvfp4_fp16_budget_analyze_severity for NVFP4 convert requires "
-            "quant_format=nvfp4 (Linear NVFP4 + Conv NVFP4 protect); "
+            "nvfp4_fp16_budget_analyze_severity for ZI ConvRot NVFP4 requires "
+            "quant_format=nvfp4 (Linear NVFP4 + INT8 protect ranking); "
             f"got {tunables.get('quant_format')!r}"
         )
 
@@ -1537,7 +1538,7 @@ def nvfp4_fp16_budget_priority(
     *,
     combinator: Dict[str, Any],
 ) -> float:
-    """Per-checkpoint FP16 priority via THIS model's autonomous combinator.
+    """Per-checkpoint INT8-protect priority via THIS model's autonomous combinator.
 
     Inputs are three ranking axes measured after arranging:
       DualMonitor sens × analyze severity × V4 estimated_mse
@@ -1564,7 +1565,7 @@ def nvfp4_fp16_budget_priority(
 
     w_sum = w_s + w_v + w_m
     # Thinking-stop ban: never flatten every layer to identical priority
-    # (old form=uniform → return 1.0 → size-only budget fill).
+    # (old form=uniform → return 1.0 → key-count ranking collapses).
     if w_sum < 1e-30 or str(combinator.get("form", "")) == "uniform":
         w_s = w_v = w_m = 1.0 / 3.0
     else:
@@ -1631,16 +1632,10 @@ def build_nvfp4_analyze_character_table(
 
 # ---------------------------------------------------------------------------
 # Fully autonomous tunable derivation.
-# Owner hard ceiling NVFP4_FP16_BUDGET_MB_HARD (default 300 MiB; ZI V1.0 may
-# raise the same named ceiling to 600) is NOT a thinking-stop recipe:
-# auto knobs fill inside that frame and must never exceed it.
+# Protect size for ZI ConvRot INT8 path = key count N (--protect-n), not MiB.
 # Every knob below is derived from THIS checkpoint's profile + DualMonitor
 # sensitivity distribution. Covers degenerate / tiny / huge / skewed cases.
 # ---------------------------------------------------------------------------
-
-# Default = SDXL NVFP4 convert budget ceiling (600 MiB).
-# Module attribute may be set before derive / assert; ranking / fill unchanged.
-NVFP4_FP16_BUDGET_MB_HARD = 600.0
 
 
 def _safe_percentile(values: List[float], pct: float) -> float:
@@ -1671,17 +1666,14 @@ def derive_nvfp4_autonomous_tunables(
     profile: Dict[str, Any],
     *,
     dualmonitor_sensitivities: Optional[Dict[str, float]] = None,
-    layer_extra_bytes: Optional[Dict[str, int]] = None,
-    fp16_budget_mb: float = NVFP4_FP16_BUDGET_MB_HARD,
 ) -> Dict[str, Any]:
     """Derive EVERY NVFP4 knob from this checkpoint + calibration.
 
-    Owner hard ceiling: fp16_budget_mb must equal NVFP4_FP16_BUDGET_MB_HARD
-    (600 MiB for NVFP4 convert).
-    Inside that frame: THIS model's auto analysis → extreme auto-optimal
-    settings (Hard VETO fences, ranking weights, MSE release, BC scope,
+    ZI ConvRot INT8-protect path: protect size is key count N in quantize
+    (--protect-n). No MiB / fp16_budget_mb ceiling on this module.
+    Inside: THIS model's auto analysis → extreme auto-optimal settings
+    (Hard VETO fences, ranking weights, MSE release, BC scope,
     gray-zone, alpha/beta, search_low, sens_veto percentile).
-    Never redefine/exceed the hard ceiling; never treat it as removable.
 
     Degenerate-input safe:
       - empty / single-layer profile
@@ -1690,14 +1682,6 @@ def derive_nvfp4_autonomous_tunables(
       - extreme outliers dominating max
       - tiny UNet (<50 layers) or huge (>5000)
     """
-    hard = float(NVFP4_FP16_BUDGET_MB_HARD)
-    if abs(float(fp16_budget_mb) - hard) > 1e-6:
-        raise ValueError(
-            f"fp16_budget_mb must be exactly {hard:g} MiB "
-            f"(owner hard ceiling; got {fp16_budget_mb})"
-        )
-    fp16_budget_mb = hard
-
     profile = _normalize_profile(profile)
     profile = _unet_only_profile(profile)
     layers = profile.get("layers", {})
@@ -1863,10 +1847,8 @@ def derive_nvfp4_autonomous_tunables(
             }
         )
 
-    # ---- FP16 hard ceiling (owner); auto settings fill inside ----
-    base["fp16_budget_mb"] = float(NVFP4_FP16_BUDGET_MB_HARD)
-    base["fp16_budget_bytes"] = int(float(NVFP4_FP16_BUDGET_MB_HARD) * 1024 * 1024)
-
+    # Protect size = key count N in quantize (--protect-n); no MiB stamp.
+    base["protect_size_mode"] = "key_count_n"
 
     # Autonomous priority combinator seed (analyze severity axis only here;
     # quantize re-derives from measured sens/sev/mse after calibration).
@@ -1934,7 +1916,7 @@ def derive_nvfp4_autonomous_tunables(
             "model-specific auto analysis -> infinitely branching "
             "dynamic auto-optimal settings - full dump, hide nothing"
         ),
-        "fp16_budget_mb_hard": float(fp16_budget_mb),
+        "protect_size_mode": "key_count_n",
         "n_unet_layers": int(n_layers),
         "n_dualmonitor_sens_positive": int(len(sens_values)),
         "dualmonitor_sensitivities_full": {
@@ -2001,7 +1983,7 @@ _NVFP4_AUTO_OPTIMAL_REQUIRED = (
     "score_m_weight",
     "quant_format",
     "autonomous",
-    "fp16_budget_mb",
+    "protect_size_mode",
 )
 
 
@@ -2019,9 +2001,12 @@ def _assert_nvfp4_auto_optimal_complete(d: Dict[str, Any]) -> None:
             "NVFP4 auto-optimal requires quant_format=nvfp4 "
             f"(got {d.get('quant_format')!r})"
         )
-    if abs(float(d.get("fp16_budget_mb", 0.0)) - float(NVFP4_FP16_BUDGET_MB_HARD)) > 1e-6:
+    if str(d.get("protect_size_mode")) != "key_count_n":
         raise ValueError(
-            f"NVFP4 auto-optimal requires fp16_budget_mb={float(NVFP4_FP16_BUDGET_MB_HARD):g}"
+            "ZI ConvRot NVFP4 auto-optimal requires "
+            "protect_size_mode='key_count_n' "
+            f"(got {d.get('protect_size_mode')!r}); "
+            "MiB / fp16_budget_mb remnant is forbidden on this path"
         )
     if not bool(d.get("autonomous")):
         raise ValueError("NVFP4 auto-optimal requires autonomous=True from derive")

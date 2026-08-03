@@ -783,9 +783,8 @@ def select_int8_protect_keys_hswq(
     + V4/SVD evidence — never hardcode protect, never Imp-drop, never
     raise-away on shape mismatch (align Imp to in_features instead).
 
-    ``fp16_budget_mb`` is analyze-side threshold input only
-    (``derive_nvfp4_autonomous_tunables``). This path does **not** select
-    FP16 keep layers or fill a MiB budget — keys are INT8 protect targets.
+    Protect size is **key count N only** (``--protect-n``, default 60).
+    No MiB / ``fp16_budget_mb`` fill — keys are INT8 protect targets.
 
     Ranking namespace is DualMonitor / ST meta (qkv ↔ to_* aliases resolved).
     Returned keys are full safetensors weight keys for convert.
@@ -803,7 +802,6 @@ def select_int8_protect_keys_hswq(
         )
 
     from analyze.analyze_zi_convrot_nvfp4_distribution import (
-        NVFP4_FP16_BUDGET_MB_HARD,
         _robust_iqr,
         _safe_percentile,
         analyze_unet,
@@ -903,7 +901,6 @@ def select_int8_protect_keys_hswq(
     tunables = derive_nvfp4_autonomous_tunables(
         norm_profile,
         dualmonitor_sensitivities=sens_by_meta,
-        fp16_budget_mb=float(NVFP4_FP16_BUDGET_MB_HARD),
     )
     if str(tunables.get("quant_format")) != "nvfp4":
         raise RuntimeError(
