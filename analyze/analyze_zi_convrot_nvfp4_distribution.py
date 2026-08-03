@@ -1330,7 +1330,13 @@ def apply_fp16_infinite_ranking_branches(
     members, skew = span/family_p50 (continuous). Strength and blend are
     ``1 - exp(-skew * gamma_*)`` with gammas from ``branch_profile`` (THIS
     model). skew→0 ⇒ identity (wai-like balanced families). Large skew +
-    DualMonitor starvation ⇒ strong pull toward a p50↔max continuous target.
+    DualMonitor starvation (``dm_sens < family_p50`` only) ⇒ pull those
+    starved siblings toward a p50↔max continuous target.
+
+    Must NOT lift non-starved siblings (``dm_sens >= family_p50``) toward
+    family max. Doing so collapsed all ``feed_forward.w2`` ranking_sens to
+    layers.1's 3.288e6 on ZI ConvRot NVFP4 protect-60, excluded qkv, and
+    left the artifact ~560 MiB light (≈4.86 GiB vs moody protect-60).
 
     Branch B — axis mismatch: layers whose analyze severity / V4 MSE exceed
     DualMonitor sens (relative to THIS refs) get a continuous ranking_sens
@@ -1380,7 +1386,11 @@ def apply_fp16_infinite_ranking_branches(
         blend = 1.0 - math.exp(-skew * g_blend)
         target = float(fam_p50 * (1.0 - blend) + s_max * blend)
         for i, s in zip(idxs, sens):
-            if target <= s or strength <= 0.0:
+            # Same starvation gate as apply_fp16_infinite_priority_branches:
+            # only under-median DualMonitor siblings may be lifted. Lifting
+            # every s < target (near max under extreme skew) erased within-
+            # family ranking and filled protect-N with one class (w2/out).
+            if s >= fam_p50 or target <= s or strength <= 0.0:
                 continue
             ranking = float(s + strength * (target - s))
             if ranking <= s:
