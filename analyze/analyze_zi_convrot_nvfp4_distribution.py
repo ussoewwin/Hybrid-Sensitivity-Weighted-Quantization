@@ -1324,31 +1324,23 @@ def apply_fp16_infinite_ranking_branches(
 ]:
     """Continuous infinite ranking branches for THIS checkpoint's measured pool.
 
-    Replaces the banned unified family floor (fixed median / geom gate).
+    Branch A (key-pattern sibling DualMonitor lift) is **disabled** for ZI
+    ConvRot NVFP4 protect-N. Proven collapse (log 20260803_091015):
 
-    Branch A — key-pattern siblings: for every architectural suffix with ≥2
-    members, skew = span/family_p50 (continuous). Strength is
-    ``1 - exp(-skew * gamma_sibling)`` from ``branch_profile`` (THIS model).
-    skew→0 ⇒ identity (wai-like balanced families). Large skew + DualMonitor
-    starvation (``dm_sens < family_p50`` only) ⇒ pull those starved siblings
-    **toward family_p50 only** (never toward family max).
+      - ``family_p50_only`` + under-median gate still ran → repairs≈198
+      - protect-60 composition → w2≈30 + attention.out≈30, qkv=0
+      - Done.Size ≈4.86 GiB (moody protect-60 good ≈5.06 GiB / SSIM≥0.97)
 
-    Must NOT:
-      - lift non-starved siblings (``dm_sens >= family_p50``)
-      - blend the target toward family max
-
-    Blending toward max under extreme skew (even with the under-median gate)
-    still collapses ~half of ``feed_forward.w2`` ranking_sens onto layers.1's
-    3.288e6, fills protect-60 with w2/out, excludes qkv, and leaves the
-    artifact ~560 MiB light (≈4.86 GiB vs moody protect-60). Target = p50
-    restores within-family order while still helping true under-median
-    starvation.
+    Half-fixes (max→p50, under-median only) do not restore within-family
+    order when ``cv_sens`` is extreme: strength→1 flattens large suffixes
+    (w2 / out) onto family_p50 and crowds out qkv/w1/w3/adaLN.
 
     Branch B — axis mismatch: layers whose analyze severity / V4 MSE exceed
     DualMonitor sens (relative to THIS refs) get a continuous ranking_sens
     lift scaled by ``mismatch_gain`` from THIS VETO-alignment character.
 
     No binary skew gate. No model-name map. No absolute KEEP.
+    ``family_suffixes`` retained for API compatibility (unused while A off).
     """
     if not measured:
         empty_p = branch_profile or derive_fp16_infinite_branch_profile(
@@ -1365,54 +1357,14 @@ def apply_fp16_infinite_ranking_branches(
     eps = 1e-30
     out = [list(row) for row in measured]
     details: List[Dict[str, Any]] = []
+    _ = family_suffixes  # Branch A off — keep signature stable
 
-    by_suf: Dict[str, List[int]] = {}
-    for i, row in enumerate(out):
-        name = str(row[0])
-        for suf in family_suffixes:
-            if name.endswith(suf):
-                by_suf.setdefault(suf, []).append(i)
-                break
-
-    g_sib = float(profile.get("gamma_sibling", 0.0) or 0.0)
-    for suf, idxs in by_suf.items():
-        if len(idxs) < 2:
-            continue
-        sens = [max(float(out[i][1]), 0.0) for i in idxs]
-        s_max = max(sens)
-        s_min = min(sens)
-        fam_p50 = _true_median(sens)
-        if fam_p50 <= 0.0 or s_max <= 0.0:
-            continue
-        span = float(s_max - s_min)
-        skew = float(span / max(fam_p50, eps))
-        # Continuous — never "if skew < 1: skip" unified gate.
-        strength = 1.0 - math.exp(-skew * g_sib)
-        # Cap at family median — never blend toward family max (4.86 GiB).
-        target = float(fam_p50)
-        for i, s in zip(idxs, sens):
-            # Same starvation gate as apply_fp16_infinite_priority_branches:
-            # only under-median DualMonitor siblings may be lifted.
-            if s >= fam_p50 or target <= s or strength <= 0.0:
-                continue
-            ranking = float(s + strength * (target - s))
-            if ranking <= s:
-                continue
-            out[i][1] = ranking
-            details.append({
-                "branch": "keypattern_sibling_continuous",
-                "name": str(out[i][0]),
-                "suffix": suf,
-                "dm_sens": float(s),
-                "ranking_sens": float(ranking),
-                "skew": skew,
-                "strength": float(strength),
-                "target": float(target),
-                "target_mode": "family_p50_only",
-                "family_p50": float(fam_p50),
-                "family_max": float(s_max),
-                "family_min": float(s_min),
-            })
+    # Branch A disabled — see docstring (4.86 GiB / w2+out monopoly).
+    details.append({
+        "branch": "keypattern_sibling_disabled",
+        "target_mode": "identity",
+        "reason": "zi_protect_n_collapse_4p86gib_w2_out_monopoly",
+    })
 
     sref = float(profile.get("sens_ref", eps) or eps)
     vref = float(profile.get("sev_ref", eps) or eps)
@@ -1469,79 +1421,21 @@ def apply_fp16_infinite_priority_branches(
     List[Tuple[float, float, float, float, int, str]],
     List[Dict[str, Any]],
 ]:
-    """Continuous priority-space sibling branch (THIS family's priorities).
+    """Priority-space sibling branch — **identity** for ZI protect-N.
 
-    ``candidates``: ``(priority, v4_mse, severity, dm_sens, extra, name)``.
-    Same continuous skew×gamma form as sens branches — not ``max(p, p50)``
-    unified priority floor. Strength→0 when THIS family is balanced.
+    Same collapse class as ranking Branch A (4.86 GiB / w2+out monopoly).
+    ``candidates`` / ``branch_profile`` / ``family_suffixes`` kept for API
+    compatibility; no priority values are rewritten.
     """
     if not candidates:
         return [], []
-    eps = 1e-30
-    g_sib = float(branch_profile.get("prio_sibling_gamma", 0.0) or 0.0)
-    out = [list(row) for row in candidates]
-    by_suf: Dict[str, List[int]] = {}
-    for i, row in enumerate(out):
-        name = str(row[5])
-        for suf in family_suffixes:
-            if name.endswith(suf):
-                by_suf.setdefault(suf, []).append(i)
-                break
-    details: List[Dict[str, Any]] = []
-    for suf, idxs in by_suf.items():
-        if len(idxs) < 2:
-            continue
-        sens = [max(float(out[i][3]), 0.0) for i in idxs]
-        prios = [max(float(out[i][0]), 0.0) for i in idxs]
-        s_max = max(sens)
-        s_min = min(sens)
-        fam_p50 = _true_median(sens)
-        if fam_p50 <= 0.0:
-            continue
-        span = float(s_max - s_min)
-        skew = float(span / max(fam_p50, eps))
-        strength = 1.0 - math.exp(-skew * g_sib)
-        p_p50 = _true_median(prios)
-        p_max = max(prios)
-        if p_p50 <= 0.0 and p_max <= 0.0:
-            continue
-        # Cap at priority median — never blend toward priority max (same
-        # 4.86 GiB collapse class as ranking Branch A max-blend).
-        target_p = float(p_p50)
-        for i, s, p in zip(idxs, sens, prios):
-            # Under-measured DM siblings only (continuous strength still
-            # scales with family skew even when p is already high).
-            if s >= fam_p50 or target_p <= p or strength <= 0.0:
-                continue
-            new_p = float(p + strength * (target_p - p))
-            if new_p <= p:
-                continue
-            out[i][0] = new_p
-            details.append({
-                "branch": "keypattern_priority_continuous",
-                "name": str(out[i][5]),
-                "suffix": suf,
-                "priority_before": float(p),
-                "priority_after": float(new_p),
-                "skew": skew,
-                "strength": float(strength),
-                "target_priority": float(target_p),
-                "target_mode": "priority_p50_only",
-                "dm_sens": float(s),
-                "family_p50_sens": float(fam_p50),
-            })
-    restored = [
-        (
-            float(r[0]),
-            float(r[1]),
-            float(r[2]),
-            float(r[3]),
-            int(r[4]),
-            str(r[5]),
-        )
-        for r in out
-    ]
-    return restored, details
+    _ = (branch_profile, family_suffixes)
+    details: List[Dict[str, Any]] = [{
+        "branch": "keypattern_priority_disabled",
+        "target_mode": "identity",
+        "reason": "zi_protect_n_collapse_4p86gib_w2_out_monopoly",
+    }]
+    return list(candidates), details
 
 
 def nvfp4_fp16_budget_priority(

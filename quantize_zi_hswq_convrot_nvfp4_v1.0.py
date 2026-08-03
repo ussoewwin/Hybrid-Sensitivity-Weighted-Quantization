@@ -49,7 +49,7 @@ import os
 import subprocess
 import sys
 import time
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 
 import torch
 from safetensors.torch import load_file, save_file
@@ -1141,12 +1141,17 @@ def select_int8_protect_keys_hswq(
         for d in branch_repairs
         if str(d.get("branch") or "").startswith("keypattern_sibling")
     }
+    _n_axis = sum(
+        1 for d in branch_repairs
+        if str(d.get("branch") or "") == "axis_mismatch_continuous"
+    )
     print(
-        f"[HSWQ] Infinite ranking branches: repairs={len(branch_repairs)} "
+        f"[HSWQ] Infinite ranking branches: "
+        f"sibling={sorted(_sib_modes) or ['none']} "
+        f"axis_mismatch_lifts={_n_axis} "
         f"cv(s/v/m)={branch_profile.get('cv_sens', float('nan')):.4g}/"
         f"{branch_profile.get('cv_sev', float('nan')):.4g}/"
-        f"{branch_profile.get('cv_mse', float('nan')):.4g} "
-        f"sibling_target={sorted(_sib_modes) or ['none']}"
+        f"{branch_profile.get('cv_mse', float('nan')):.4g}"
     )
 
     sens_all = [float(row[1]) for row in measured]
@@ -1200,6 +1205,27 @@ def select_int8_protect_keys_hswq(
     print(
         f"[HSWQ] Selected INT8 protect n={len(selected_st)}/{protect_n} "
         f"(pool={len(candidates)} source={source})"
+    )
+    _zi_suf = (
+        ".attention.qkv",
+        ".attention.out",
+        ".feed_forward.w1",
+        ".feed_forward.w2",
+        ".feed_forward.w3",
+        ".adaLN_modulation.0",
+        ".adaLN_modulation.1",
+    )
+
+    def _protect_bucket(st_key: str) -> str:
+        for suf in _zi_suf:
+            if st_key.endswith(suf) or st_key.endswith(suf + ".weight"):
+                return suf.lstrip(".")
+        return "other"
+
+    _comp = Counter(_protect_bucket(k) for k in selected_st)
+    print(
+        "[HSWQ] protect composition: "
+        + ", ".join(f"{k}={v}" for k, v in sorted(_comp.items()))
     )
     for i, (meta, st_key) in enumerate(zip(selected_meta, selected_st)):
         pr, mse, sev, sens, _ex, _n = candidates[i]
@@ -1758,10 +1784,11 @@ def run_post_convert_zi_convrot_nvfp4_bench(
 
 if __name__ == "__main__":
     # ------------------------------------------------------------------
-    # Full run log: capture stdout + stderr in memory; write one complete
-    # log/<script>_<ts>.txt at process end (normal or error).
+    # Full run log: incremental file write (no giant StringIO).
+    # JupyterLab: do NOT mirror every byte into the cell (freezes UI on
+    # multi‑MB DualMonitor dumps). File gets everything; cell gets
+    # heartbeats + high-signal lines only.
     # ------------------------------------------------------------------
-    import io
     import traceback
 
     _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
@@ -1771,29 +1798,102 @@ if __name__ == "__main__":
         f"{os.path.splitext(os.path.basename(__file__))[0]}_"
         f"{time.strftime('%Y%m%d_%H%M%S')}.txt",
     )
-    _log_buf = io.StringIO()
+
+    def _detect_jupyter() -> bool:
+        try:
+            from IPython import get_ipython  # type: ignore
+
+            ip = get_ipython()
+            if ip is None:
+                return False
+            return ip.__class__.__name__ == "ZMQInteractiveShell"
+        except Exception:
+            return False
+
+    _jupyter = _detect_jupyter()
+    _log_fh = open(_log_path, "w", encoding="utf-8", buffering=1)
+    _log_fh.write(
+        f"# log start jupyter={_jupyter} "
+        f"ts={time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+    )
+    _log_fh.flush()
+
+    _CELL_PREFIXES = (
+        "[HSWQ]",
+        "[log]",
+        "[hardcode]",
+        "[json]",
+        "[FATAL]",
+        "[*]",
+        "Done.",
+        "Error",
+        "Traceback",
+    )
 
     class _Tee:
-        def __init__(self, *streams):
-            self._streams = streams
+        def __init__(self, live_stream, log_fh, *, jupyter: bool):
+            self._live = live_stream
+            self._log = log_fh
+            self._jupyter = jupyter
+            self._partial = ""
+            self._n_lines = 0
+            self._last_hb = time.time()
 
         def write(self, data):
-            for s in self._streams:
+            if not data:
+                return 0
+            try:
+                self._log.write(data)
+            except Exception:
+                pass
+            if not self._jupyter:
                 try:
-                    s.write(data)
+                    self._live.write(data)
                 except Exception:
                     pass
+                return len(data)
+            # Jupyter: line-gated cell mirror (file already has full text).
+            self._partial += data
+            while "\n" in self._partial:
+                line, self._partial = self._partial.split("\n", 1)
+                self._n_lines += 1
+                show = any(line.startswith(p) for p in _CELL_PREFIXES)
+                show = show or line.startswith("  [")  # protect ranking rows
+                now = time.time()
+                if (not show) and (
+                    self._n_lines % 400 == 0 or (now - self._last_hb) >= 30.0
+                ):
+                    show = True
+                    line = (
+                        f"[log] …{self._n_lines} lines → {_log_path}"
+                    )
+                    self._last_hb = now
+                if show:
+                    try:
+                        self._live.write(line + "\n")
+                    except Exception:
+                        pass
+            return len(data)
 
         def flush(self):
-            for s in self._streams:
-                try:
-                    s.flush()
-                except Exception:
-                    pass
+            try:
+                self._log.flush()
+            except Exception:
+                pass
+            try:
+                self._live.flush()
+            except Exception:
+                pass
 
     _orig_stdout, _orig_stderr = sys.stdout, sys.stderr
-    sys.stdout = _Tee(_orig_stdout, _log_buf)
-    sys.stderr = _Tee(_orig_stderr, _log_buf)
+    sys.stdout = _Tee(_orig_stdout, _log_fh, jupyter=_jupyter)
+    sys.stderr = _Tee(_orig_stderr, _log_fh, jupyter=_jupyter)
+    if _jupyter:
+        _orig_stdout.write(
+            f"[log] Jupyter mode: full log → {_log_path} "
+            f"(cell shows HSWQ/Done/errors + heartbeats only)\n"
+        )
+        _orig_stdout.flush()
 
     _log_state = {"flushed": False}
 
@@ -1803,8 +1903,11 @@ if __name__ == "__main__":
         _log_state["flushed"] = True
         sys.stdout = _orig_stdout
         sys.stderr = _orig_stderr
-        with open(_log_path, "w", encoding="utf-8") as fh:
-            fh.write(_log_buf.getvalue())
+        try:
+            _log_fh.flush()
+            _log_fh.close()
+        except Exception:
+            pass
         print(f"[log] Full run log written: {_log_path}")
 
     _orig_exit = sys.exit
@@ -1814,6 +1917,8 @@ if __name__ == "__main__":
         _orig_exit(code)
 
     sys.exit = _exit_with_log
+    import atexit
+    atexit.register(_flush_full_log)
 
     parser = argparse.ArgumentParser(
         description=(
