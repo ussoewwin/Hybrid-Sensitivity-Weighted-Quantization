@@ -1136,11 +1136,17 @@ def select_int8_protect_keys_hswq(
     measured, branch_repairs, branch_profile = apply_fp16_infinite_ranking_branches(
         measured, veto_mask_pre,
     )
+    _sib_modes = {
+        str(d.get("target_mode") or "")
+        for d in branch_repairs
+        if str(d.get("branch") or "").startswith("keypattern_sibling")
+    }
     print(
         f"[HSWQ] Infinite ranking branches: repairs={len(branch_repairs)} "
         f"cv(s/v/m)={branch_profile.get('cv_sens', float('nan')):.4g}/"
         f"{branch_profile.get('cv_sev', float('nan')):.4g}/"
-        f"{branch_profile.get('cv_mse', float('nan')):.4g}"
+        f"{branch_profile.get('cv_mse', float('nan')):.4g} "
+        f"sibling_target={sorted(_sib_modes) or ['none']}"
     )
 
     sens_all = [float(row[1]) for row in measured]
