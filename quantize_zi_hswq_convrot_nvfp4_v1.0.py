@@ -1160,21 +1160,23 @@ def select_int8_protect_keys_hswq(
     sens_all = [float(row[1]) for row in measured]
     sev_all = [float(row[3]) for row in measured]
     mse_all = [float(row[2]) for row in measured]
+    name_all = [str(row[0]) for row in measured]
     veto_mask = [row[0] in hard_veto for row in measured]
-    # §5: arrange DualMonitor × severity × V4 MSE on commensurate pool
-    # midranks before geometric mean. Raw DualMonitor variance (10^6 span)
-    # must not collapse w_sens→1 and erase the other pillars.
-    # VETO alignment on midranks is forbidden here: midrank already flattens
-    # scale, and Cohen's-d on ranks re-monopolizes one pillar (cloud
-    # 20260804_004651: w_sev≈0.49 → SSIM 0.7377 / 4.95 GiB). Alignment
-    # stays available for RAW-scale combinator paths only.
-    # Not a composition recipe / family quota / qkv reservation.
+    # §5: DualMonitor × severity × V4 MSE on keypattern-family midranks
+    # before geometric mean. Global pool midrank alone still let
+    # attention.out / feed_forward.w2 monopolize top-N (log 004651;
+    # physical r32 INT8 vs moody protect-60: same skeleton, wrong keys).
+    # Within-family midrank = sibling competition only — not a family
+    # quota / qkv reservation / baked moody keyset (HSWQ blasphemy ban).
+    # VETO alignment on midranks stays forbidden (w_sev≈0.49 → SSIM 0.7377).
     rank_s, rank_m, rank_v, axis_meta = commensurate_priority_axes(
         sens_all, mse_all, sev_all,
+        layer_names=name_all,
     )
     print(
         f"[HSWQ] Priority axis scale={axis_meta['axis_scale']} "
-        f"n={axis_meta['n']}"
+        f"n={axis_meta['n']} "
+        f"n_families={axis_meta.get('n_families', '?')}"
     )
     s_p50 = _safe_percentile(rank_s, 50.0) if len(rank_s) >= 2 else 0.0
     s_iqr = _robust_iqr(rank_s) if len(rank_s) >= 4 else 0.0

@@ -1103,28 +1103,160 @@ def _pool_midranks(values: Sequence[float]) -> List[float]:
     return ranks
 
 
+# Architectural key-pattern suffixes (structure only — not a KEEP table).
+# Sibling DualMonitor under-measure is repaired by continuous THIS-model
+# branches below, never by a unified median/geom floor recipe.
+# Structure endings only (Diffusers UNet / NextDiT / Lumina-style) — never a
+# frozen per-model priority recipe. Also used for within-family midrank so
+# global pool midrank cannot let one family monopolize top-N protect.
+_KEYPATTERN_FAMILY_SENS_SUFFIXES = (
+    ".to_q",
+    ".to_k",
+    ".to_v",
+    ".to_out.0",
+    ".add_q_proj",
+    ".add_k_proj",
+    ".add_v_proj",
+    ".to_add_out",
+    ".ff.net.0.proj",
+    ".ff.net.2",
+    ".proj_in",
+    ".proj_out",
+    ".proj",
+    ".upsamplers.0.conv",
+    ".downsamplers.0.conv",
+    ".conv_in",
+    ".conv_out",
+    # NextDiT / Comfy Lumina fused attention + FFN (ZI / ZIB structure keys)
+    ".attention.qkv",
+    ".attention.out",
+    ".feed_forward.w1",
+    ".feed_forward.w2",
+    ".feed_forward.w3",
+    # NextDiT / ZI-Turbo layers: Linear is Sequential index 0 (ST: *.0.weight).
+    # final_layer (and some Diffusers layouts) use index 1 — keep both suffixes.
+    # Missing .0 was a thinking-stop: sibling DualMonitor repair never ran for
+    # the 32 layer adaLN weights that dominate ZIT checkpoints.
+    ".adaLN_modulation.0",
+    ".adaLN_modulation.1",
+)
+
+
+def _keypattern_family_suffix(
+    name: str,
+    suffixes: Sequence[str] = _KEYPATTERN_FAMILY_SENS_SUFFIXES,
+) -> Optional[str]:
+    """Longest ``.endswith`` family match after stripping trailing ``.weight``."""
+    n = str(name)
+    if n.endswith(".weight"):
+        n = n[: -len(".weight")]
+    best: Optional[str] = None
+    best_len = -1
+    for suf in suffixes:
+        s = str(suf)
+        if n.endswith(s) and len(s) > best_len:
+            best = s
+            best_len = len(s)
+    return best
+
+
+def _family_midranks(
+    values: Sequence[float],
+    layer_names: Sequence[str],
+    suffixes: Sequence[str],
+) -> List[float]:
+    """Midrank one axis inside each keypattern family (sibling competition).
+
+    Global pool midrank alone still lets ``attention.out`` / ``feed_forward.w2``
+    monopolize top-N when their raw DualMonitor or severity sit systematically
+    above peers (log 20260804_004651; physical zi_hswq_r32 vs moody protect-60:
+    same skeleton, wrong 60 INT8 keys). Within-family midrank is ranking hygiene
+    — not a family quota and not a baked moody keyset.
+    """
+    n = len(values)
+    if n == 0:
+        return []
+    if len(layer_names) != n:
+        raise ValueError(
+            f"_family_midranks length mismatch: values={n} names={len(layer_names)}"
+        )
+    groups: Dict[str, List[int]] = {}
+    for i, name in enumerate(layer_names):
+        suf = _keypattern_family_suffix(str(name), suffixes)
+        key = suf if suf is not None else f"__unmatched_{i}"
+        groups.setdefault(key, []).append(i)
+    out = [0.0] * n
+    for idxs in groups.values():
+        if len(idxs) == 1:
+            out[idxs[0]] = 1.0
+            continue
+        sub = [float(values[i]) for i in idxs]
+        local = _pool_midranks(sub)
+        for j, i in enumerate(idxs):
+            out[i] = local[j]
+    return out
+
+
 def commensurate_priority_axes(
     sens_vals: Sequence[float],
     mse_vals: Sequence[float],
     sev_vals: Sequence[float],
+    *,
+    layer_names: Optional[Sequence[str]] = None,
+    family_suffixes: Sequence[str] = _KEYPATTERN_FAMILY_SENS_SUFFIXES,
 ) -> Tuple[List[float], List[float], List[float], Dict[str, Any]]:
-    """Pool-midrank DualMonitor / V4 MSE / severity for §5 side-by-side ranking.
+    """Map DualMonitor Imp / MSE / severity onto a shared midrank scale.
 
-    Returns ``(rank_sens, rank_mse, rank_sev, meta)``. Callers pass the ranked
-    axes into ``derive_priority_combinator`` and ``nvfp4_fp16_budget_priority``;
-    raw measured values remain for logging / fingerprints only.
+    When ``layer_names`` is provided (quantize protect path): **keypattern-
+    family midrank** — each axis is midranked among ``.endswith`` suffix peers
+    so top-N draws across qkv/out/w1/w2/w3/adaLN without baking family quotas.
+
+    When names are omitted: global pool midrank only (legacy / diagnostics).
+
+    Hard VETO is not folded into the scale — callers keep binary VETO as a
+    separate gate. Aligning VETO into midrank re-created severity monopoly
+    (``w_sev≈0.49``, SSIM 0.7377).
     """
     if not (len(sens_vals) == len(mse_vals) == len(sev_vals)):
         raise ValueError(
             "commensurate_priority_axes: axis lengths must match "
             f"(sens={len(sens_vals)} mse={len(mse_vals)} sev={len(sev_vals)})"
         )
+    n = len(sens_vals)
+    if n == 0:
+        return [], [], [], {
+            "axis_scale": "keypattern_family_midrank",
+            "n": 0,
+            "n_families": 0,
+        }
+
+    if layer_names is not None:
+        if len(layer_names) != n:
+            raise ValueError(
+                "commensurate_priority_axes: names length must match "
+                f"vals={n} names={len(layer_names)}"
+            )
+        rs = _family_midranks(sens_vals, layer_names, family_suffixes)
+        rm = _family_midranks(mse_vals, layer_names, family_suffixes)
+        rv = _family_midranks(sev_vals, layer_names, family_suffixes)
+        n_fam = len(
+            {
+                _keypattern_family_suffix(str(nm), family_suffixes) or f"__u_{i}"
+                for i, nm in enumerate(layer_names)
+            }
+        )
+        return rs, rm, rv, {
+            "axis_scale": "keypattern_family_midrank",
+            "n": int(n),
+            "n_families": int(n_fam),
+        }
+
     rs = _pool_midranks(sens_vals)
     rm = _pool_midranks(mse_vals)
     rv = _pool_midranks(sev_vals)
     return rs, rm, rv, {
         "axis_scale": "pool_midrank",
-        "n": int(len(sens_vals)),
+        "n": int(n),
     }
 
 
@@ -1237,42 +1369,8 @@ def derive_priority_combinator(
     }
 
 
-# Architectural key-pattern suffixes (structure only — not a KEEP table).
-# Sibling DualMonitor under-measure is repaired by continuous THIS-model
-# branches below, never by a unified median/geom floor recipe.
-# Structure endings only (Diffusers UNet / NextDiT / Lumina-style) — never a
-# frozen per-model priority recipe.
-_KEYPATTERN_FAMILY_SENS_SUFFIXES = (
-    ".to_q",
-    ".to_k",
-    ".to_v",
-    ".to_out.0",
-    ".add_q_proj",
-    ".add_k_proj",
-    ".add_v_proj",
-    ".to_add_out",
-    ".ff.net.0.proj",
-    ".ff.net.2",
-    ".proj_in",
-    ".proj_out",
-    ".proj",
-    ".upsamplers.0.conv",
-    ".downsamplers.0.conv",
-    ".conv_in",
-    ".conv_out",
-    # NextDiT / Comfy Lumina fused attention + FFN (ZI / ZIB structure keys)
-    ".attention.qkv",
-    ".attention.out",
-    ".feed_forward.w1",
-    ".feed_forward.w2",
-    ".feed_forward.w3",
-    # NextDiT / ZI-Turbo layers: Linear is Sequential index 0 (ST: *.0.weight).
-    # final_layer (and some Diffusers layouts) use index 1 — keep both suffixes.
-    # Missing .0 was a thinking-stop: sibling DualMonitor repair never ran for
-    # the 32 layer adaLN weights that dominate ZIT checkpoints.
-    ".adaLN_modulation.0",
-    ".adaLN_modulation.1",
-)
+# _KEYPATTERN_FAMILY_SENS_SUFFIXES is defined above (near commensurate_priority_axes)
+# — shared by family midrank and Branch A/B sibling detection.
 
 
 def _true_median(vals: List[float]) -> float:
