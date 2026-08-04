@@ -810,6 +810,7 @@ def select_int8_protect_keys_hswq(
         apply_fp16_infinite_priority_branches,
         apply_fp16_infinite_ranking_branches,
         build_nvfp4_analyze_character_table,
+        commensurate_priority_axes,
         derive_nvfp4_autonomous_tunables,
         derive_priority_combinator,
         measure_v4_nvfp4_mse_at_absmax,
@@ -1160,20 +1161,28 @@ def select_int8_protect_keys_hswq(
     sev_all = [float(row[3]) for row in measured]
     mse_all = [float(row[2]) for row in measured]
     veto_mask = [row[0] in hard_veto for row in measured]
-    sens_meas = [v for v in sens_all if v > 0]
-    sev_meas = list(sev_all)
-    mse_meas = [v for v in mse_all if v > 0]
-    s_p50 = _safe_percentile(sens_meas, 50.0) if len(sens_meas) >= 2 else 0.0
-    s_iqr = _robust_iqr(sens_meas) if len(sens_meas) >= 4 else 0.0
-    v_p50 = _safe_percentile(sev_meas, 50.0) if len(sev_meas) >= 2 else 0.0
-    v_iqr = _robust_iqr(sev_meas) if len(sev_meas) >= 4 else 0.0
-    m_p50 = _safe_percentile(mse_meas, 50.0) if len(mse_meas) >= 2 else 0.0
-    m_iqr = _robust_iqr(mse_meas) if len(mse_meas) >= 4 else 0.0
+    # §5: arrange DualMonitor × severity × V4 MSE on commensurate pool
+    # midranks before combinator / geometric mean. Raw DualMonitor variance
+    # (10^6 family span) must not collapse w_sens→1 and erase the other
+    # pillars. Not a composition recipe / family quota / qkv reservation.
+    rank_s, rank_m, rank_v, axis_meta = commensurate_priority_axes(
+        sens_all, mse_all, sev_all,
+    )
+    print(
+        f"[HSWQ] Priority axis scale={axis_meta['axis_scale']} "
+        f"n={axis_meta['n']}"
+    )
+    s_p50 = _safe_percentile(rank_s, 50.0) if len(rank_s) >= 2 else 0.0
+    s_iqr = _robust_iqr(rank_s) if len(rank_s) >= 4 else 0.0
+    v_p50 = _safe_percentile(rank_v, 50.0) if len(rank_v) >= 2 else 0.0
+    v_iqr = _robust_iqr(rank_v) if len(rank_v) >= 4 else 0.0
+    m_p50 = _safe_percentile(rank_m, 50.0) if len(rank_m) >= 2 else 0.0
+    m_iqr = _robust_iqr(rank_m) if len(rank_m) >= 4 else 0.0
     combinator = derive_priority_combinator(
         s_iqr, v_iqr, m_iqr, s_p50, v_p50, m_p50,
-        sens_vals=sens_all,
-        sev_vals=sev_all,
-        mse_vals=mse_all,
+        sens_vals=rank_s,
+        sev_vals=rank_v,
+        mse_vals=rank_m,
         is_hard_veto=veto_mask,
     )
     print(
@@ -1183,9 +1192,9 @@ def select_int8_protect_keys_hswq(
     )
 
     candidates: list[tuple[float, float, float, float, int, str]] = []
-    for name, dm_sens, v4_mse, severity, extra in measured:
+    for i, (name, dm_sens, v4_mse, severity, extra) in enumerate(measured):
         priority = nvfp4_fp16_budget_priority(
-            dm_sens, v4_mse, severity, combinator=combinator,
+            rank_s[i], rank_m[i], rank_v[i], combinator=combinator,
         )
         candidates.append(
             (priority, v4_mse, severity, dm_sens, int(extra), name)
@@ -1193,8 +1202,14 @@ def select_int8_protect_keys_hswq(
     candidates, prio_repairs = apply_fp16_infinite_priority_branches(
         candidates, branch_profile,
     )
-    if prio_repairs:
-        print(f"[HSWQ] Infinite priority repairs={len(prio_repairs)}")
+    _n_prio_live = sum(
+        1
+        for d in prio_repairs
+        if str(d.get("target_mode") or "") != "identity"
+        and "disabled" not in str(d.get("branch") or "")
+    )
+    if _n_prio_live:
+        print(f"[HSWQ] Infinite priority repairs={_n_prio_live}")
     candidates.sort(
         key=lambda t: (t[0], t[1], t[2], t[3], t[5]),
         reverse=True,
