@@ -33,7 +33,7 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 
 **Post-convert fidelity bench (integrated, default ON):** After save, `hswq_convert_nvfp4_1.0.py` and `native_convert_nvfp4.py` **clear parent VRAM**, then automatically run `benchmark/nvfp4bench_sdxl.py` with `--fp16` = the FP16 input, `--nvfp4` = the saved pack, and a fixed `--prompt` / `--seed` (not inventable parent CLI overrides). Pass `--no-bench` to skip. Standalone re-runs use the same `nvfp4bench_sdxl.py` command shape as in the How-to.
 
-**SDXL ConvRot NVFP4 Benchmark Test Results (published tables):** [test/benchmark_convrotnvfp4.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_convrotnvfp4.md)
+**SDXL ConvRot NVFP4 Benchmark Test Results (published tables):** [benchmark result/benchmark_convrotnvfp4.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/benchmark%20result/benchmark_convrotnvfp4.md)
 
 ---
 
