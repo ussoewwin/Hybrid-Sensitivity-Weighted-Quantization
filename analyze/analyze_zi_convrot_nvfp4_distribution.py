@@ -1149,14 +1149,19 @@ def derive_priority_combinator(
 
     Prefer commensurate (pool-midrank) axis values from
     ``commensurate_priority_axes`` so raw DualMonitor scale cannot erase
-    severity / V4 MSE from the judgment (§5). Dispersion and VETO alignment
-    then compete on the same [0,1] midrank scale.
+    severity / V4 MSE from the judgment (§5).
 
-    When per-layer measured triples + analyze Hard VETO masks are provided,
+    VETO alignment (``is_hard_veto``) is for RAW-scale axes only. Do NOT pass
+    Hard VETO masks together with pool-midrank values: midrank already removes
+    DualMonitor scale monopoly, and Cohen's-d on ranks re-monopolizes one
+    pillar (observed: w_sev≈0.49 → protect composition out-heavy, SSIM
+    collapse). Midrank callers should pass ``is_hard_veto=None`` and let
+    midrank IQR/median set continuous weights on the three pillars.
+
+    When RAW measured triples + analyze Hard VETO masks are provided,
     dispersion (IQR/median) is gated by THIS model's signed VETO alignment
-    per axis: anti-aligned axes (high DualMonitor sens / low V4 MSE on
-    demoted VETO layers, etc.) fade automatically so auto-optimal ranking
-    follows analyze danger character for THIS checkpoint.
+    per axis: anti-aligned axes fade so auto-optimal ranking follows analyze
+    danger character for THIS checkpoint.
     """
     eps = 1e-12
     s_i = max(float(sens_iqr), 0.0)
