@@ -37,7 +37,7 @@ ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Lin
 
 **Post-quantize fidelity bench (integrated, default ON):** After save, `quantize_sdxl_hswq_v3.1.py` and `native_convert_int8_sdxl.py` **clear parent VRAM**, then automatically run `benchmark/int8bench_sdxl.py` with `--fp16` = the FP16 input, `--int8` = the saved pack, and a fixed `--prompt` / `--seed` (not inventable parent CLI overrides). Pass `--no-bench` to skip. Standalone re-runs use the same `int8bench_sdxl.py` command shape as in the How-to.
 
-**SDXL ConvRot INT8 Benchmark Test Results (published tables):** [test/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/test/benchmark_sdxl_int8.md)
+**SDXL ConvRot INT8 Benchmark Test Results (published tables):** [benchmark result/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/benchmark%20result/benchmark_sdxl_int8.md)
 
 ---
 
