@@ -3,7 +3,7 @@
 Benchmark comparison: **FP16 reference** vs **HSWQ FP8 quantized** output.  
 Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
-**Source:** `test/score.txt`
+**Source:** `benchmark result/score.txt`
 
 ---
 
