@@ -32,8 +32,6 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 
 **ComfyUI Loader for ConvRot NVFP4:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
 
-**Post-convert fidelity bench (integrated, default ON):** After save, `hswq_convert_nvfp4_1.0.py` and `native_convert_nvfp4.py` **clear parent VRAM**, then automatically run `benchmark/nvfp4bench_sdxl.py` with `--fp16` = the FP16 input, `--nvfp4` = the saved pack, and a fixed `--prompt` / `--seed` (not inventable parent CLI overrides). Pass `--no-bench` to skip.
-
 ---
 
 ## Benchmark (Reference)
