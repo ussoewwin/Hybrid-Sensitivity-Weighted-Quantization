@@ -1923,9 +1923,11 @@ def run_post_convert_zi_convrot_nvfp4_bench(
 if __name__ == "__main__":
     # ------------------------------------------------------------------
     # Full run log: incremental file write (no giant StringIO).
-    # JupyterLab: do NOT mirror every byte into the cell (freezes UI on
-    # multi‑MB DualMonitor dumps). File gets everything; cell gets
-    # heartbeats + high-signal lines only.
+    # Sparse console (JupyterLab / !python / pipes): do NOT mirror every
+    # byte into the cell or Lab buffer — DualMonitor dumps are ~10MB+ and
+    # freeze the UI. File gets everything; live gets heartbeats +
+    # high-signal lines only.
+    # Opt out: HSWQ_JUPYTER_SPARSE=0  (full live mirror).
     # ------------------------------------------------------------------
     import traceback
 
@@ -1937,27 +1939,76 @@ if __name__ == "__main__":
         f"{time.strftime('%Y%m%d_%H%M%S')}.txt",
     )
 
-    def _detect_jupyter() -> bool:
+    def _parent_cmdline_hints_jupyter() -> bool:
+        """Linux cloud notebooks: parent may be jupyter/ipykernel."""
+        try:
+            ppid = os.getppid()
+            raw = open(f"/proc/{ppid}/cmdline", "rb").read()
+            cmd = raw.replace(b"\x00", b" ").decode("utf-8", "replace").lower()
+            return any(
+                tok in cmd
+                for tok in (
+                    "jupyter",
+                    "ipykernel",
+                    "ipython",
+                    "notebook",
+                    "jupyter-lab",
+                    "jupyterlab",
+                )
+            )
+        except Exception:
+            return False
+
+    def _detect_sparse_console() -> bool:
+        """True → gate live stdout/stderr (full text still goes to log file)."""
+        explicit = os.environ.get("HSWQ_JUPYTER_SPARSE", "").strip().lower()
+        if explicit in ("1", "true", "yes", "on"):
+            return True
+        if explicit in ("0", "false", "no", "off"):
+            return False
         try:
             from IPython import get_ipython  # type: ignore
 
             ip = get_ipython()
-            if ip is None:
-                return False
-            return ip.__class__.__name__ == "ZMQInteractiveShell"
+            if ip is not None and "ZMQ" in type(ip).__name__:
+                return True
         except Exception:
-            return False
+            pass
+        for key in (
+            "JPY_PARENT_PID",
+            "JPY_SESSION_NAME",
+            "JUPYTERHUB_API_TOKEN",
+            "JUPYTER_SERVER_ROOT",
+            "JUPYTER_RUNTIME_DIR",
+            "NB_PREFIX",
+        ):
+            if os.environ.get(key):
+                return True
+        if _parent_cmdline_hints_jupyter():
+            return True
+        # `!python` / notebook capture: stdout is a pipe, not a TTY.
+        try:
+            if not sys.__stdout__.isatty():
+                return True
+        except Exception:
+            pass
+        return False
 
-    _jupyter = _detect_jupyter()
+    _jupyter = _detect_sparse_console()
+    if _jupyter:
+        # tqdm CR updates explode Lab buffers; file log still has progress
+        # if something else writes newlines. Prefer silence on live.
+        os.environ["TQDM_DISABLE"] = "1"
     _log_fh = open(_log_path, "w", encoding="utf-8", buffering=1)
     _log_fh.write(
-        f"# log start jupyter={_jupyter} "
+        f"# log start sparse_console={_jupyter} "
         f"ts={time.strftime('%Y-%m-%d %H:%M:%S')}\n"
     )
     _log_fh.flush()
 
     _CELL_PREFIXES = (
         "[HSWQ]",
+        "[Card1]",
         "[log]",
         "[hardcode]",
         "[json]",
@@ -1970,6 +2021,9 @@ if __name__ == "__main__":
         "SSIM",
         "MSE",
         "ZI CONVROT NVFP4 BENCHMARK RESULTS",
+        "Converting (",
+        "Saving |",
+        "Detected Z-Image",
     )
 
     class _Tee:
@@ -1994,21 +2048,27 @@ if __name__ == "__main__":
                 except Exception:
                     pass
                 return len(data)
-            # Jupyter: line-gated cell mirror (file already has full text).
+            # Sparse: drop CR-only tqdm spam (do not grow _partial forever).
+            if "\r" in data and "\n" not in data:
+                return len(data)
+            if "\r" in data:
+                data = data.replace("\r", "\n")
+            # Line-gated live mirror (file already has full text).
             self._partial += data
+            # Cap pathological partial without newline (safety).
+            if len(self._partial) > 65536 and "\n" not in self._partial:
+                self._partial = ""
+                return len(data)
             while "\n" in self._partial:
                 line, self._partial = self._partial.split("\n", 1)
                 self._n_lines += 1
                 show = any(line.startswith(p) for p in _CELL_PREFIXES)
-                show = show or line.startswith("  [")  # protect ranking rows
                 now = time.time()
                 if (not show) and (
-                    self._n_lines % 400 == 0 or (now - self._last_hb) >= 30.0
+                    self._n_lines % 500 == 0 or (now - self._last_hb) >= 30.0
                 ):
                     show = True
-                    line = (
-                        f"[log] …{self._n_lines} lines → {_log_path}"
-                    )
+                    line = f"[log] …{self._n_lines} lines → {_log_path}"
                     self._last_hb = now
                 if show:
                     try:
@@ -2032,8 +2092,9 @@ if __name__ == "__main__":
     sys.stderr = _Tee(_orig_stderr, _log_fh, jupyter=_jupyter)
     if _jupyter:
         _orig_stdout.write(
-            f"[log] Jupyter mode: full log → {_log_path} "
-            f"(cell shows HSWQ/Done/errors + heartbeats only)\n"
+            f"[log] Sparse console: full log → {_log_path} "
+            f"(live shows HSWQ/Card1/Done/errors + heartbeats only; "
+            f"set HSWQ_JUPYTER_SPARSE=0 for full live mirror)\n"
         )
         _orig_stdout.flush()
 
