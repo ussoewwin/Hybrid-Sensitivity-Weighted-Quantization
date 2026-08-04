@@ -1075,6 +1075,59 @@ def _signed_veto_axis_effect(
     return float((ma - mb) / pooled)
 
 
+def _pool_midranks(values: Sequence[float]) -> List[float]:
+    """Average midrank / n in (0, 1] within THIS measured pool (ties share).
+
+    Used so DualMonitor sens / analyze severity / V4 MSE can sit side-by-side
+    for §5 joint judgment. Raw DualMonitor output variance often spans 10^6
+    across families while severity/MSE stay O(1)–O(10^-3); IQR/median on that
+    raw sens makes ``w_sens≈1`` and collapses the combinator to DualMonitor-
+    only ranking (= arranging surfaces then ignoring three of them).
+    Pool midrank is NOT a protect composition recipe / family quota / qkv
+    reservation — only a commensurate scale for THIS pool's three axes.
+    """
+    n = len(values)
+    if n == 0:
+        return []
+    order = sorted(range(n), key=lambda i: (float(values[i]), i))
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and float(values[order[j + 1]]) == float(values[order[i]]):
+            j += 1
+        mid = 0.5 * float((i + 1) + (j + 1))
+        for k in range(i, j + 1):
+            ranks[order[k]] = mid / float(n)
+        i = j + 1
+    return ranks
+
+
+def commensurate_priority_axes(
+    sens_vals: Sequence[float],
+    mse_vals: Sequence[float],
+    sev_vals: Sequence[float],
+) -> Tuple[List[float], List[float], List[float], Dict[str, Any]]:
+    """Pool-midrank DualMonitor / V4 MSE / severity for §5 side-by-side ranking.
+
+    Returns ``(rank_sens, rank_mse, rank_sev, meta)``. Callers pass the ranked
+    axes into ``derive_priority_combinator`` and ``nvfp4_fp16_budget_priority``;
+    raw measured values remain for logging / fingerprints only.
+    """
+    if not (len(sens_vals) == len(mse_vals) == len(sev_vals)):
+        raise ValueError(
+            "commensurate_priority_axes: axis lengths must match "
+            f"(sens={len(sens_vals)} mse={len(mse_vals)} sev={len(sev_vals)})"
+        )
+    rs = _pool_midranks(sens_vals)
+    rm = _pool_midranks(mse_vals)
+    rv = _pool_midranks(sev_vals)
+    return rs, rm, rv, {
+        "axis_scale": "pool_midrank",
+        "n": int(len(sens_vals)),
+    }
+
+
 def derive_priority_combinator(
     sens_iqr: float,
     sev_iqr: float,
@@ -1093,6 +1146,11 @@ def derive_priority_combinator(
 
     Continuous weighted geometric mean — NO fixed product, NO fixed
     V4*(1+sev), NO discrete form switch, NO Hard-VETO absolute reservation.
+
+    Prefer commensurate (pool-midrank) axis values from
+    ``commensurate_priority_axes`` so raw DualMonitor scale cannot erase
+    severity / V4 MSE from the judgment (§5). Dispersion and VETO alignment
+    then compete on the same [0,1] midrank scale.
 
     When per-layer measured triples + analyze Hard VETO masks are provided,
     dispersion (IQR/median) is gated by THIS model's signed VETO alignment
