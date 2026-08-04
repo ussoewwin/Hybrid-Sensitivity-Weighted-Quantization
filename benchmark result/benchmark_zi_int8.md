@@ -3,7 +3,7 @@
 Benchmark comparison: **FP16 reference** vs **HSWQ INT8 quantized** output (Z Image Turbo family).  
 Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
-**Source:** `test/score_zi_int8.txt`
+**Source:** `benchmark result/score_zi_int8.txt`
 
 ---
 

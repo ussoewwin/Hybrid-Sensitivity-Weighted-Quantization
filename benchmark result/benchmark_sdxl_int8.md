@@ -3,7 +3,7 @@
 Benchmark comparison: **FP16 reference** vs **HSWQ ConvRot INT8 quantized** output.  
 Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
-**Source:** `test/score_sdxl_int8.txt`
+**Source:** `benchmark result/score_sdxl_int8.txt`
 
 **Bias correction (column labels from the score log):**
 
