@@ -1162,9 +1162,13 @@ def select_int8_protect_keys_hswq(
     mse_all = [float(row[2]) for row in measured]
     veto_mask = [row[0] in hard_veto for row in measured]
     # §5: arrange DualMonitor × severity × V4 MSE on commensurate pool
-    # midranks before combinator / geometric mean. Raw DualMonitor variance
-    # (10^6 family span) must not collapse w_sens→1 and erase the other
-    # pillars. Not a composition recipe / family quota / qkv reservation.
+    # midranks before geometric mean. Raw DualMonitor variance (10^6 span)
+    # must not collapse w_sens→1 and erase the other pillars.
+    # VETO alignment on midranks is forbidden here: midrank already flattens
+    # scale, and Cohen's-d on ranks re-monopolizes one pillar (cloud
+    # 20260804_004651: w_sev≈0.49 → SSIM 0.7377 / 4.95 GiB). Alignment
+    # stays available for RAW-scale combinator paths only.
+    # Not a composition recipe / family quota / qkv reservation.
     rank_s, rank_m, rank_v, axis_meta = commensurate_priority_axes(
         sens_all, mse_all, sev_all,
     )
@@ -1183,7 +1187,7 @@ def select_int8_protect_keys_hswq(
         sens_vals=rank_s,
         sev_vals=rank_v,
         mse_vals=rank_m,
-        is_hard_veto=veto_mask,
+        is_hard_veto=None,
     )
     print(
         f"[HSWQ] Priority combinator form={combinator['form']} "
