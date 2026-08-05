@@ -575,6 +575,7 @@ _OPS_PATCH_VER = 4  # Conv2d ConvRot: cache H on module GPU (no per-fwd CPU→CU
 
 
 def _build_hadamard(size: int, device="cpu", dtype=None):
+    """Build Hadamard in float32 then cast (bf16/fp16 kron destroys online fidelity)."""
     import math
 
     import torch
@@ -586,9 +587,10 @@ def _build_hadamard(size: int, device="cpu", dtype=None):
         return _HADAMARD_CACHE[cache_key]
     if size < 4 or (size & (size - 1)) != 0 or math.log(size, 4) % 1 != 0:
         raise ValueError(f"Regular Hadamard size must be a power of 4, got {size}")
+    # Always kron in float32 (matches offline W@H^T / nvfp4_hadamard.build_hadamard).
     h4 = torch.tensor(
         [[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]],
-        dtype=dtype,
+        dtype=torch.float32,
         device=device,
     )
     h_matrix = h4
@@ -597,11 +599,14 @@ def _build_hadamard(size: int, device="cpu", dtype=None):
         h_matrix = torch.kron(h_matrix, h4)
         current_size *= 4
     h_matrix = h_matrix / (size**0.5)
+    if dtype != torch.float32:
+        h_matrix = h_matrix.to(dtype=dtype)
     _HADAMARD_CACHE[cache_key] = h_matrix
     return h_matrix
 
 
 def _rotate_last_dim(x, h_matrix, group_size: int):
+    """Online act rotation → float32 (no bf16 mid-cast before Conv/Linear)."""
     import torch
 
     orig_shape = x.shape
@@ -609,9 +614,12 @@ def _rotate_last_dim(x, h_matrix, group_size: int):
     if features % group_size != 0:
         raise ValueError(f"features {features} not divisible by group_size {group_size}")
     group_count = features // group_size
-    x_grouped = x.reshape(-1, group_count, group_size)
-    h = h_matrix.to(dtype=x.dtype, device=x.device)
-    return torch.matmul(x_grouped, h).reshape(orig_shape)
+    if x.dtype == torch.float32 and h_matrix.device == x.device and h_matrix.dtype == torch.float32:
+        x_grouped = x.reshape(-1, group_count, group_size)
+        return torch.matmul(x_grouped, h_matrix).reshape(orig_shape)
+    x_f = x.reshape(-1, group_count, group_size).float()
+    h = h_matrix.to(dtype=torch.float32, device=x.device)
+    return torch.matmul(x_f, h).reshape(orig_shape)
 
 
 def _rotate_activation_nchw(x, h_matrix, group_size: int):
@@ -623,14 +631,23 @@ def _rotate_activation_nchw(x, h_matrix, group_size: int):
 
 
 def _unrotate_last_dim(x, h_matrix, group_size: int):
+    """Inverse of ``_rotate_last_dim`` (H is orthogonal → same matmul with H^T).
+
+    Matmul in float32 for the same reason as online rotate.
+    """
     import torch
 
     orig_shape = x.shape
     features = orig_shape[-1]
     group_count = features // group_size
-    x_grouped = x.reshape(-1, group_count, group_size)
-    h = h_matrix.to(dtype=x.dtype, device=x.device)
-    return torch.matmul(x_grouped, h).reshape(orig_shape)
+    h_t = h_matrix.T
+    if x.dtype == torch.float32 and h_t.device == x.device and h_t.dtype == torch.float32:
+        x_grouped = x.reshape(-1, group_count, group_size)
+        return torch.matmul(x_grouped, h_t).reshape(orig_shape)
+    x_f = x.reshape(-1, group_count, group_size).float()
+    h = h_t.to(dtype=torch.float32, device=x.device)
+    out = torch.matmul(x_f, h).reshape(orig_shape)
+    return out.to(dtype=x.dtype)
 
 
 def _unrotate_weight_conv2d(weight, h_matrix, group_size: int):
@@ -1683,6 +1700,88 @@ def _patch_load_lora_key_counts() -> bool:
     return True
 
 
+def _patch_kitchen_convrot_float32_act_rotate() -> bool:
+    """Force kitchen INT8 ConvRot online act rotation to float32 matmul.
+
+    Offline W@H^T uses float32 H. bf16 ``x @ H`` alone adds ~1e-2 MSE/layer and
+    compounds across UNet Linears into latent SSIM collapse. Also disable CUDA
+    fused ConvRot kernels so rotation goes through the patched Python path.
+    """
+    import importlib
+
+    import torch
+
+    try:
+        iu = importlib.import_module("comfy_kitchen.tensor.int8_utils")
+    except Exception as e:
+        logger.warning("[HSWQ INT8] kitchen int8_utils not found: %s", e)
+        return False
+
+    def _rotate_activation_f32(x, h, group_size: int):
+        # Keep float32 into int8_linear's rowwise quant (bf16 mid-cast breaks H identity).
+        orig_shape = x.shape
+        features = orig_shape[-1]
+        if features % group_size != 0:
+            raise ValueError(f"features {features} not divisible by group_size {group_size}")
+        n_groups = features // group_size
+        if x.dtype == torch.float32 and h.dtype == torch.float32 and h.device == x.device:
+            x_grouped = x.reshape(-1, n_groups, group_size)
+            return torch.matmul(x_grouped, h).reshape(orig_shape)
+        x_f = x.reshape(-1, n_groups, group_size).float()
+        h_f = h.to(dtype=torch.float32, device=x.device)
+        return torch.matmul(x_f, h_f).reshape(orig_shape)
+
+    iu._rotate_activation = _rotate_activation_f32
+
+    # Always construct Hadamard in float32. int8_linear passes dtype=x.dtype (often
+    # bf16); casting H to bf16 then back for matmul reintroduces mid-cast noise.
+    _orig_build = iu._build_hadamard
+
+    def _build_hadamard_f32_always(size, device="cpu", dtype=torch.float32):
+        del dtype  # ConvRot online rotate must keep exact ±1/√n float32 entries.
+        return _orig_build(size, device=device, dtype=torch.float32)
+
+    iu._build_hadamard = _build_hadamard_f32_always
+
+    rebound = ["comfy_kitchen.tensor.int8_utils"]
+    for modname in (
+        "comfy_kitchen.backends.eager.quantization",
+        "comfy_kitchen.backends.triton.quantization",
+        "comfy_kitchen.backends.cuda",
+        "comfy_kitchen.backends.eager.convrot_w4a4",
+    ):
+        try:
+            m = importlib.import_module(modname)
+        except Exception:
+            continue
+        if hasattr(m, "_rotate_activation"):
+            m._rotate_activation = _rotate_activation_f32
+            rebound.append(modname)
+        if hasattr(m, "_build_hadamard"):
+            # Keep cuda/eager local builders if they are separate copies; only
+            # rebind when they imported from int8_utils (same object family).
+            m._build_hadamard = _build_hadamard_f32_always
+
+    # Disable CUDA fused ConvRot so int8_linear uses patched float32 rotate path.
+    try:
+        cuda_mod = importlib.import_module("comfy_kitchen.backends.cuda")
+        if hasattr(cuda_mod, "_CONVROT_FUSED_MAX_K"):
+            cuda_mod._CONVROT_FUSED_MAX_K = -1
+        if hasattr(cuda_mod, "_should_use_convrot_fused_kernel"):
+            cuda_mod._should_use_convrot_fused_kernel = lambda *a, **k: False
+        if hasattr(cuda_mod, "_should_use_convrot_dequant_kernel"):
+            cuda_mod._should_use_convrot_dequant_kernel = lambda *a, **k: False
+        rebound.append("comfy_kitchen.backends.cuda(fused_off)")
+    except Exception as e:
+        logger.warning("[HSWQ INT8] could not disable CUDA fused ConvRot: %s", e)
+
+    _console(
+        "[HSWQ INT8] kitchen ConvRot act-rotate → float32 matmul "
+        f"(rebound={','.join(rebound)})"
+    )
+    return True
+
+
 def apply_comfy_quant_int8_patches() -> bool:
     """Install INT8 comfy_quant patches once. Returns True if applied (or already applied)."""
     global _PATCHES_APPLIED
@@ -1692,6 +1791,12 @@ def apply_comfy_quant_int8_patches() -> bool:
     ok_torch = _patch_load_torch_file_lora_name()
     ok_lowvram = _patch_lowvram_patch_float_intermediate()
     ok_dyn_bake = _patch_model_patcher_dynamic_int8_lora_bake()
+    # Kitchen float32 rotate must run even if ops patches were applied earlier
+    # in-process (bench / loader re-entry).
+    ok_kitchen_f32 = False
+    if not getattr(apply_comfy_quant_int8_patches, "_kitchen_f32_done", False):
+        ok_kitchen_f32 = _patch_kitchen_convrot_float32_act_rotate()
+        apply_comfy_quant_int8_patches._kitchen_f32_done = bool(ok_kitchen_f32)
     if _PATCHES_APPLIED:
         return True
     ok_utils = _patch_convert_old_quants()
@@ -1707,7 +1812,8 @@ def apply_comfy_quant_int8_patches() -> bool:
             f"{' + LoRA key counts' if ok_keys else ''}"
             f"{' + LoRA name' if ok_name or ok_path or ok_torch else ''}"
             f"{' + LowVramPatch float dtype' if ok_lowvram else ''}"
-            f"{' + Dynamic INT8 LoRA bake' if ok_dyn_bake else ''})"
+            f"{' + Dynamic INT8 LoRA bake' if ok_dyn_bake else ''}"
+            f"{' + kitchen float32 ConvRot rotate' if ok_kitchen_f32 else ''})"
         )
         return True
     logger.warning(
