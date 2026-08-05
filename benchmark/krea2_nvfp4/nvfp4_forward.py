@@ -66,7 +66,6 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     """Kitchen / tritant NVFP4 linear (QT path; used as fallback)."""
     global _TC_HITS, _DEQUANT_FALLBACKS
     import torch
-    import torch.nn.functional as F
     import comfy_kitchen as ck
     from comfy_kitchen.tensor.base import QuantizedTensor
     from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
@@ -78,15 +77,24 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
         and weight_qt._layout_cls == "TensorCoreNVFP4Layout"
     ):
         _DEQUANT_FALLBACKS += 1
-        return F.linear(input_qt, weight_qt, bias)
+        raise RuntimeError(
+            "[HSWQ NVFP4] scaled_mm_nvfp4_linear: non-NVFP4 QT operands "
+            "(F.linear dequant banned — VRAM dual residency)"
+        )
     if input_qt._qdata.dim() != 2:
         _DEQUANT_FALLBACKS += 1
-        return F.linear(input_qt, weight_qt, bias)
+        raise RuntimeError(
+            "[HSWQ NVFP4] scaled_mm_nvfp4_linear: qdata not 2D "
+            "(F.linear dequant banned — VRAM dual residency)"
+        )
     if getattr(input_qt._params, "transposed", False) or getattr(
         weight_qt._params, "transposed", False
     ):
         _DEQUANT_FALLBACKS += 1
-        return F.linear(input_qt, weight_qt, bias)
+        raise RuntimeError(
+            "[HSWQ NVFP4] scaled_mm_nvfp4_linear: transposed QT "
+            "(F.linear dequant banned — VRAM dual residency)"
+        )
 
     if isinstance(bias, QuantizedTensor):
         bias = bias.dequantize()
@@ -96,7 +104,10 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     out_dtype = input_qt._params.orig_dtype
     if not nvfp4_tc_enabled():
         _DEQUANT_FALLBACKS += 1
-        return F.linear(input_qt, weight_qt, bias)
+        raise RuntimeError(
+            "[HSWQ NVFP4] scaled_mm_nvfp4_linear: TC disabled "
+            "(F.linear dequant banned — VRAM dual residency)"
+        )
 
     try:
         result = ck.scaled_mm_nvfp4(
@@ -116,7 +127,10 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     except (RuntimeError, TypeError) as e:
         note_scaled_mm_failure(e)
         _DEQUANT_FALLBACKS += 1
-        return F.linear(input_qt, weight_qt, bias)
+        raise RuntimeError(
+            f"[HSWQ NVFP4] scaled_mm_nvfp4 failed ({type(e).__name__}: {e}); "
+            "F.linear dequant fallback banned — VRAM dual residency"
+        ) from e
 
 
 def _plain_weight_cached(module, weight_qt):
@@ -285,7 +299,7 @@ def make_nvfp4_linear_forward(stock_forward):
     """
     import torch
     import comfy.model_management
-    from comfy.ops import cast_bias_weight, run_every_op, uncast_bias_weight
+    from comfy.ops import run_every_op
 
     def forward_nvfp4(self, input, *args, **kwargs):
         global _CONVROT_ACT_ROTATES
@@ -293,34 +307,24 @@ def make_nvfp4_linear_forward(stock_forward):
         if not getattr(self, "_hswq_nvfp4", False):
             return stock_forward(self, input, *args, **kwargs)
 
-        # Training / LoRA / forced cast: fall back to stock.
-        # ConvRot + full_precision_mm still needs act rotation before stock dequant.
+        # Training / LoRA / forced cast: stock path dequants — banned for armed NVFP4.
         if input.requires_grad or getattr(self, "comfy_force_cast_weights", False):
-            return stock_forward(self, input, *args, **kwargs)
+            raise RuntimeError(
+                "[HSWQ NVFP4] grad/force_cast on armed Linear "
+                "(stock dequant banned — VRAM dual residency)"
+            )
         if len(getattr(self, "weight_function", [])) or len(getattr(self, "bias_function", [])):
-            return stock_forward(self, input, *args, **kwargs)
+            raise RuntimeError(
+                "[HSWQ NVFP4] weight_function/bias_function on armed Linear "
+                "(stock dequant banned — VRAM dual residency)"
+            )
 
-        # GPU lacks NVFP4 TC: stock dequant mm, but MUST rotate acts if ConvRot.
+        # full_precision_mm forces stock F.linear dequant — never on TC benches.
         if getattr(self, "_full_precision_mm", False):
-            if not getattr(self, "_hswq_nvfp4_convrot", False):
-                return stock_forward(self, input, *args, **kwargs)
-            input_shape = input.shape
-            reshaped_nd = input.ndim >= 3
-            input_2d = input.reshape(-1, input_shape[-1]) if reshaped_nd else input
-            if input_2d.ndim != 2:
-                return stock_forward(self, input, *args, **kwargs)
-            gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
-            h = getattr(self, "_hswq_nvfp4_H", None)
-            if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
-                h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
-                self._hswq_nvfp4_H = h
-            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
-            _CONVROT_ACT_ROTATES += 1
-            if reshaped_nd:
-                input = input_2d.reshape((*input_shape[:-1], input_shape[-1]))
-            else:
-                input = input_2d
-            return stock_forward(self, input, *args, **kwargs)
+            raise RuntimeError(
+                "[HSWQ NVFP4] _full_precision_mm=True on armed Linear "
+                "(stock dequant banned — VRAM dual residency)"
+            )
 
         run_every_op()
         input_shape = input.shape
@@ -330,7 +334,9 @@ def make_nvfp4_linear_forward(stock_forward):
         reshaped_nd = input.ndim >= 3
         input_2d = input.reshape(-1, input_shape[-1]) if reshaped_nd else input
         if input_2d.ndim != 2:
-            return stock_forward(self, input, *args, **kwargs)
+            raise RuntimeError(
+                f"[HSWQ NVFP4] input rank unsupported after reshape: {tuple(input_2d.shape)}"
+            )
 
         # 2) FULL ConvRot: dense Hadamard GEMM (gs=256 butterfly is ~15x slower)
         if getattr(self, "_hswq_nvfp4_convrot", False):
@@ -342,44 +348,43 @@ def make_nvfp4_linear_forward(stock_forward):
             input_2d = rotate_last_dim_pooled(input_2d, h, gs)
             _CONVROT_ACT_ROTATES += 1
 
-        # 3) Weight / bias: skip cast_bias_weight when already on-device QT
-        #    (cast+sync every Linear was a major share of NVFP4 > FP16 wall time).
-        offload_stream = None
+        # 3) Weight / bias: device move ONLY.
+        #    Never cast_bias_weight(..., want_requant=True) — that dequantizes QT
+        #    to compute_dtype (packed + FP16 dual residency / Task Manager ~27 GB).
+        #    Never hasattr(_v) force-cast (same dequant path).
         weight = self.weight
         if isinstance(weight, torch.nn.Parameter):
             weight = weight.data
         bias = self.bias.data if self.bias is not None else None
-        need_cast = weight.device != input_2d.device or (
-            bias is not None and bias.device != input_2d.device
-        )
-        if need_cast or hasattr(self, "_v"):
-            weight, bias, offload_stream = cast_bias_weight(
-                self,
-                input_2d,
-                offloadable=True,
-                compute_dtype=compute_dtype,
-                want_requant=True,
+        if weight.device != input_2d.device:
+            weight = comfy.model_management.cast_to_device(
+                weight, input_2d.device, None
             )
+        if bias is not None and bias.device != input_2d.device:
+            bias = comfy.model_management.cast_to_device(bias, input_2d.device, None)
 
         scale = getattr(self, "input_scale", None)
         if scale is not None:
             if isinstance(scale, torch.nn.Parameter):
                 scale = scale.data
-            if scale.device != input.device:
-                scale = comfy.model_management.cast_to_device(scale, input.device, None)
+            if scale.device != input_2d.device:
+                scale = comfy.model_management.cast_to_device(
+                    scale, input_2d.device, None
+                )
 
         layout = getattr(self, "layout_type", None)
         if layout is None:
-            if offload_stream is not None:
-                uncast_bias_weight(self, weight, bias, offload_stream)
-            return stock_forward(self, input, *args, **kwargs)
+            raise RuntimeError(
+                "[HSWQ NVFP4] layout_type missing on armed Linear "
+                "(stock forward banned — VRAM dual residency)"
+            )
 
         # 4) Pooled Tensor Core path (no QuantizedTensor.from_float alloc)
         out_2d = _tc_forward_pooled(
             self, input_2d, weight, bias, scale, compute_dtype
         )
         if out_2d is None:
-            # Fallback: stock QT path
+            # Second chance: QT act + kitchen scaled_mm (still no F.linear dequant)
             from comfy.quant_ops import QuantizedTensor
 
             q_input = QuantizedTensor.from_float(input_2d, layout, scale=scale)
@@ -391,8 +396,6 @@ def make_nvfp4_linear_forward(stock_forward):
         else:
             out = out_2d
 
-        if offload_stream is not None:
-            uncast_bias_weight(self, weight, bias, offload_stream)
         return out
 
     forward_nvfp4._hswq_nvfp4_full_forward = True  # type: ignore[attr-defined]

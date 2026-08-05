@@ -1,72 +1,47 @@
 """
-Krea2 NVFP4 bench — force ComfyUI MixedPrecision path (ops.py) verbatim.
+Krea2 NVFP4 bench — keep HSWQ load + HSWQ TC forward (VRAM-correct).
 
 Package-local under benchmark/krea2_nvfp4/ only. Never import benchmark/nvfp4/.
 
 After apply_comfy_quant_nvfp4_patches():
-  1) NVFP4 Linear load → Comfy ops._load_quantized_module (no HSWQ arm / ones(1))
-  2) Linear.forward → unwrap to stock Comfy ops.py MixedPrecision Linear.forward
-  3) NVFP4 convrot (Hadamard-rotated weights in ckpt):
-     stock load drops the comfy_quant stamp, so the load wrapper re-arms
-     _hswq_nvfp4_convrot(_groupsize) from the stamp, and the parity forward
-     applies the REQUIRED online act rotation (x @ H, per group) right before
-     stock MixedPrecision F.linear: (x @ H) @ (W @ H^T)^T == x @ W^T.
-     Without this, convrot-stamped ckpts measure as pure garbage (SSIM ~0.04).
-     Still ComfyUI-only: stock load + stock Linear.forward (ops.py).
-     Kitchen lacked aten.addmm for NVFP4 (bias F.linear → full dequant); that gap
-     is filled at runtime by nvfp4_addmm_patch (scaled_mm_nvfp4), not HSWQ TC wrap.
+  1) Keep HSWQ ``load_nvfp4_linear_module`` (do NOT replace with stock Comfy
+     ``_orig_load`` — that path was the VRAM crime: stock + full_precision /
+     float×NVFP4 dequant → packed + FP16 dual residency ~27 GB Task Manager).
+  2) Linear.forward → KEEP HSWQ TC wrap (act rotate → NVFP4 quant → scaled_mm).
+  3) Kitchen addmm/linear/mm float×NVFP4 gap filled by nvfp4_addmm_patch.
 
-No invented amax / freeze / ensure_act_scale. Inference + load = ComfyUI only.
+ConvRot: TC forward already does online x@H when ``_hswq_nvfp4_convrot``.
 """
 from __future__ import annotations
 
 _APPLIED = False
 
 
-def _closure_named(fn, name: str):
-    if fn is None or fn.__closure__ is None:
-        return None
-    for n, cell in zip(fn.__code__.co_freevars, fn.__closure__):
-        if n == name:
-            return cell.cell_contents
-    return None
-
-
-def _unwrap_stock_forward(fwd):
-    """Extract closed-over stock_forward from make_nvfp4_linear_forward wrap."""
-    if not getattr(fwd, "_hswq_nvfp4_full_forward", False):
-        return None
-    return _closure_named(fwd, "stock_forward")
-
-
-def _make_convrot_parity_forward(stock_forward):
-    """Stock MixedPrecision forward + required online act rotation for convrot ckpts.
-
-    The HSWQ TC forward (disabled here for parity) is the only other place this
-    rotation exists. ConvRot weights are stored pre-rotated (W @ H^T); the math
-    only closes if activations are rotated too: (x @ H) @ (W @ H^T)^T == x @ W^T.
-    Modules without the armed flag pass through untouched (bit-exact stock).
-    """
-    from .nvfp4_hadamard import build_hadamard, rotate_last_dim
-
-    def forward_convrot_parity(self, input, *args, **kwargs):
-        if getattr(self, "_hswq_nvfp4_convrot", False):
-            gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
-            h = getattr(self, "_hswq_nvfp4_parity_H", None)
-            if h is None or h.device != input.device or h.dtype != input.dtype:
-                h = build_hadamard(gs, device=input.device, dtype=input.dtype)
-                self._hswq_nvfp4_parity_H = h
-            input = rotate_last_dim(input, h, gs)
-        return stock_forward(self, input, *args, **kwargs)
-
-    forward_convrot_parity._hswq_nvfp4_convrot_parity = True  # type: ignore[attr-defined]
-    return forward_convrot_parity
+def _load_chain_has_hswq_full_load(load_fn) -> bool:
+    """True if any wrapper in the load chain is HSWQ NVFP4 full load."""
+    seen = set()
+    cur = load_fn
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if getattr(cur, "_hswq_nvfp4_full_load", False):
+            return True
+        # INT8 / other wrappers close over previous load as ``original_load``
+        nxt = None
+        if getattr(cur, "__closure__", None) is not None:
+            for n, cell in zip(cur.__code__.co_freevars, cur.__closure__):
+                if n in ("_orig_load", "original_load", "patched_load"):
+                    try:
+                        nxt = cell.cell_contents
+                    except ValueError:
+                        nxt = None
+                    break
+        cur = nxt
+    return False
 
 
 def apply_nvfp4_comfy_parity() -> bool:
     """Runtime only. Imports stay inside krea2_nvfp4 (never benchmark/nvfp4/)."""
     global _APPLIED
-    # Stock F.linear(bias=...) → aten.addmm; kitchen NVFP4 had no handler → dequant.
     from .nvfp4_addmm_patch import register_nvfp4_addmm_handler
 
     register_nvfp4_addmm_handler()
@@ -76,91 +51,85 @@ def apply_nvfp4_comfy_parity() -> bool:
 
     import comfy.ops as ops
 
-    # --- Load: use Comfy ops._load_quantized_module for nvfp4 (no ones(1) arm) ---
-    patched_load = ops._load_quantized_module
-    orig_load = _closure_named(patched_load, "_orig_load")
-    if orig_load is None:
+    # --- Load: MUST keep HSWQ nvfp4_load (never stock _orig_load) ---
+    if not _load_chain_has_hswq_full_load(ops._load_quantized_module):
         raise RuntimeError(
-            "[BENCH] nvfp4 Comfy parity: could not recover Comfy _orig_load from patch closure"
+            "[BENCH] nvfp4 parity: HSWQ load_nvfp4_linear_module missing from "
+            "ops._load_quantized_module chain; apply_comfy_quant_nvfp4_patches() "
+            "must run first (stock Comfy load destroys VRAM)"
         )
 
-    def _load_quantized_module_comfy_only(
-        module,
-        super_load,
-        state_dict,
-        prefix,
-        local_metadata,
-        strict,
-        missing_keys,
-        unexpected_keys,
-        error_msgs,
-        load_extra_params=False,
-    ):
-        from .nvfp4_conf import (
-            convrot_flags_from_conf,
-            decode_comfy_quant_conf,
-            is_nvfp4_conf,
-        )
-
-        # Peek before orig_load pops the stamp.
-        conf = decode_comfy_quant_conf(state_dict.get(f"{prefix}comfy_quant"))
-        # Always Comfy stock load — including nvfp4 (input_scale only if in ckpt)
-        out = orig_load(
-            module,
-            super_load,
-            state_dict,
-            prefix,
-            local_metadata,
-            strict,
-            missing_keys,
-            unexpected_keys,
-            error_msgs,
-            load_extra_params=load_extra_params,
-        )
-        # Stock load drops the stamp; re-arm convrot flags so the parity forward
-        # applies the online act rotation the offline-rotated weights require.
-        if is_nvfp4_conf(conf):
-            enabled, gs = convrot_flags_from_conf(conf)
-            module._hswq_nvfp4_convrot = bool(enabled)
-            module._hswq_nvfp4_convrot_groupsize = int(gs)
-        return out
-
-    _load_quantized_module_comfy_only._hswq_nvfp4_full_load = True  # type: ignore[attr-defined]
-    ops._load_quantized_module = _load_quantized_module_comfy_only
-
-    # --- Forward: unwrap HSWQ TC wrap → Comfy MixedPrecision Linear.forward ---
-    _cur_mp = ops.mixed_precision_ops
-
-    def mixed_precision_ops_comfy_only(*args, **kwargs):
-        mp = _cur_mp(*args, **kwargs)
-        Lin = mp.Linear
-        stock = _unwrap_stock_forward(Lin.forward)
-        if stock is None and getattr(Lin.forward, "_hswq_nvfp4_full_forward", False):
-            raise RuntimeError(
-                "[BENCH] nvfp4 Comfy parity: HSWQ TC wrap still on Linear.forward; "
-                "refusing to leave non-Comfy forward (SSIM target >=0.9)"
-            )
-        if stock is not None:
-            Lin.forward = _make_convrot_parity_forward(stock)
-        return mp
-
-    ops.mixed_precision_ops = mixed_precision_ops_comfy_only
-
-    # Prove unwrap works once at install time (no silent leave-TC-on)
-    mp0 = _cur_mp()
-    stock0 = _unwrap_stock_forward(mp0.Linear.forward)
-    if stock0 is None and getattr(mp0.Linear.forward, "_hswq_nvfp4_full_forward", False):
+    # --- Forward: KEEP TC wrap (do not unwrap to stock dequant) ---
+    mp0 = ops.mixed_precision_ops()
+    lin_fwd = mp0.Linear.forward
+    if not getattr(lin_fwd, "_hswq_nvfp4_full_forward", False):
         raise RuntimeError(
-            "[BENCH] nvfp4 Comfy parity: failed to unwrap Linear.forward to Comfy stock"
+            "[BENCH] nvfp4 parity: HSWQ TC Linear.forward missing; "
+            "apply_comfy_quant_nvfp4_patches() must run first "
+            "(stock F.linear dequant destroys VRAM)"
         )
-    if stock0 is not None:
-        mp0.Linear.forward = _make_convrot_parity_forward(stock0)
 
     _APPLIED = True
     print(
-        "[BENCH] nvfp4 ComfyUI-only: load=_load_quantized_module; "
-        "Linear.forward=ops.py stock + convrot act-rotate; "
-        "NVFP4 addmm->scaled_mm_nvfp4 registered (no full-weight dequant); "
-        "SSIM target >=0.9"
+        "[BENCH] nvfp4 HSWQ load + HSWQ TC forward: "
+        "load=load_nvfp4_linear_module (_hswq_nvfp4 arm); "
+        "Linear.forward=TC (act rot → quant → scaled_mm); "
+        "addmm/linear/mm float×NVFP4 registered; "
+        "stock Comfy load NOT used",
+        flush=True,
     )
     return True
+
+
+def audit_nvfp4_loaded_modules(model) -> dict:
+    """Count NVFP4 / HSWQ / full_precision_mm flags after load (VRAM path audit)."""
+    root = getattr(model, "model", model)
+    n_qf = 0
+    n_hswq = 0
+    n_fp_mm = 0
+    n_convrot = 0
+    for mod in root.modules():
+        if getattr(mod, "quant_format", None) != "nvfp4":
+            continue
+        n_qf += 1
+        if getattr(mod, "_hswq_nvfp4", False):
+            n_hswq += 1
+        if getattr(mod, "_full_precision_mm", False):
+            n_fp_mm += 1
+        if getattr(mod, "_hswq_nvfp4_convrot", False):
+            n_convrot += 1
+    return {
+        "nvfp4_layers": n_qf,
+        "hswq_armed": n_hswq,
+        "full_precision_mm": n_fp_mm,
+        "convrot_armed": n_convrot,
+    }
+
+
+def require_nvfp4_vram_safe_load(model) -> None:
+    """Abort if loaded NVFP4 layers are on the dual-residency (dequant) path."""
+    from .nvfp4_tc_gate import nvfp4_tc_enabled
+
+    stats = audit_nvfp4_loaded_modules(model)
+    print(
+        f"  [BENCH] NVFP4 load audit: layers={stats['nvfp4_layers']} "
+        f"hswq={stats['hswq_armed']} convrot={stats['convrot_armed']} "
+        f"full_precision_mm={stats['full_precision_mm']}",
+        flush=True,
+    )
+    if stats["nvfp4_layers"] == 0:
+        raise RuntimeError(
+            "[BENCH] NVFP4 load audit: zero quant_format=nvfp4 layers "
+            "(wrong ckpt or stock load path)"
+        )
+    if stats["hswq_armed"] < stats["nvfp4_layers"]:
+        raise RuntimeError(
+            f"[BENCH] NVFP4 load audit: only {stats['hswq_armed']}/"
+            f"{stats['nvfp4_layers']} layers have _hswq_nvfp4 "
+            "(stock load — VRAM dual residency)"
+        )
+    if nvfp4_tc_enabled() and stats["full_precision_mm"] > 0:
+        raise RuntimeError(
+            f"[BENCH] NVFP4 load audit: {stats['full_precision_mm']} layers still "
+            "have _full_precision_mm=True on a TC GPU (stock dequant — VRAM crime)"
+        )
