@@ -26,20 +26,19 @@ BF16 keep (structure-sensitive; same spirit as native_convert_nvfp4_krea2):
   vae. / text_encoders / non-diffusion markers.
 
 DualMonitor calib (--calib_file + --clip_path, CLIPType.KREA2):
-  Runs whenever BOTH paths are provided — independent of --bias_correction.
-  Bias OFF must NOT kill DualMonitor / act moments.
-  Shared by Card 1 bias and reverse protect (--keep_sensitive).
-  Encode prompts with Comfy CLIP → unload CLIP → load SingleStreamDiT →
-  DualMonitor on Linear+Conv2d → act mean / E[x^2].
+  DualMonitor and calibration are ONE unit (run_card1_calib only).
+  No DualMonitor without calibration. No calibration-less DualMonitor path.
+  BOTH paths → always run_card1_calib (bias ON/OFF does not matter).
+  Shared by Card 1 bias (mu_x) and reverse protect (E[x^2]).
 
 Card 1 (--bias_correction):
   Requires DualMonitor calib. bias += -(W_q - W) @ mu_x.
-  Bias OFF = skip bias delta only; DualMonitor still runs if calib paths set.
+  Bias OFF = skip bias delta ONLY. Calibration remains mandatory when paths set.
 
 Reverse protect (--keep_sensitive N):
-  Rank layers by activation-weighted ||W-W_q||/||W|| when E[x^2] available;
-  else plain Frobenius. Top-N → original dtype. Runs with bias OFF.
-  No Static Profile VETO / no V4 FP16 keep / no SDXL pipeline.
+  Requires DualMonitor calib (--calib_file + --clip_path). No Frobenius escape.
+  Rank by activation-weighted ||W-W_q||/||W||. Top-N → original dtype.
+  Runs with bias OFF. No Static Profile VETO / no V4 FP16 keep / no SDXL.
 """
 from __future__ import annotations
 
@@ -867,18 +866,24 @@ def convert_to_int8(
                 "float DiT; BC uses rotated W vs W_q (approximate for ConvRot)"
             )
 
-    # DualMonitor = --calib_file + --clip_path (BOTH). Independent of bias.
-    # Bias OFF must NOT drop DualMonitor; it only skips applying bias deltas.
+    # DualMonitor == run_card1_calib only. No DualMonitor without calibration.
+    # Bias OFF must NOT skip calibration; it only skips bias delta apply.
     need_calib_for_bias = bool(bias_correction)
     need_calib_for_protect = int(keep_sensitive) > 0
     have_calib_paths = bool(calib_file) and bool(clip_path)
-    # Paths given → always DualMonitor (bias ON/OFF / keep_sensitive ON/OFF).
+    # BOTH paths → always calibrate (bias ON/OFF irrelevant).
     run_dual_monitor = have_calib_paths
 
     if need_calib_for_bias and not have_calib_paths:
         raise ValueError(
             "Card 1 --bias_correction requires DualMonitor calib "
             "(--calib_file and --clip_path)"
+        )
+    if need_calib_for_protect and not have_calib_paths:
+        raise ValueError(
+            "Reverse protect --keep_sensitive requires DualMonitor calib "
+            "(--calib_file and --clip_path); calibration is mandatory "
+            "(bias OFF does not waive it)"
         )
 
     if run_dual_monitor:
@@ -889,17 +894,9 @@ def convert_to_int8(
         if device != "cuda":
             raise RuntimeError("Krea2 DualMonitor calib requires CUDA.")
 
-        uses = []
-        if need_calib_for_bias:
-            uses.append("bias Card 1")
-        if need_calib_for_protect:
-            uses.append("reverse protect keep_sensitive")
-        if not uses:
-            uses.append("act moments (bias OFF)")
         print(
             "  [DualMonitor calib] ON | CLIPType.KREA2 DiT | "
-            f"uses={'+'.join(uses)} | "
-            "mu_x / E[x^2] for Linear+Conv"
+            "run_card1_calib (mu_x / E[x^2] for Linear+Conv)"
         )
         if need_calib_for_bias:
             print(
@@ -910,7 +907,7 @@ def convert_to_int8(
         else:
             print(
                 "  [Bias Correction Card 1] OFF | "
-                "DualMonitor still ON (no bias delta applied)"
+                "calibration still runs (no bias delta applied)"
             )
 
         calib = run_card1_calib(
@@ -928,22 +925,6 @@ def convert_to_int8(
         print(
             f"  [DualMonitor] Captured act means for {len(act_mean_dict)} layers, "
             f"act sq means for {len(act_sq_mean_dict)} layers"
-        )
-    elif int(keep_sensitive) > 0 and (bool(calib_file) or bool(clip_path)):
-        missing = []
-        if not calib_file:
-            missing.append("--calib_file")
-        if not clip_path:
-            missing.append("--clip_path")
-        print(
-            "  [DualMonitor calib] SKIPPED | incomplete paths "
-            f"(missing {', '.join(missing)}); "
-            "keep_sensitive falls back to plain Frobenius"
-        )
-    elif int(keep_sensitive) > 0:
-        print(
-            "  [Sensitivity] keep_sensitive>0 without --calib_file/--clip_path | "
-            "plain Frobenius ranking (no activation weighting)"
         )
 
     print(f"Loading model: {input_path}")
@@ -1206,10 +1187,11 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Krea2 DiT INT8 convert with FULL ConvRot (Linear+Conv2d) ON by default. "
-            "DualMonitor calib = --calib_file + --clip_path (always runs when both "
-            "are set; independent of --bias_correction). Card 1 = --bias_correction "
-            "(optional; bias OFF skips delta only). Reverse protect = "
-            "--keep_sensitive N (works with bias OFF). "
+            "DualMonitor and calibration are one unit (run_card1_calib). "
+            "Both --calib_file and --clip_path → always calibrate "
+            "(bias OFF does not skip). Card 1 = --bias_correction "
+            "(optional; OFF skips bias delta only). Reverse protect = "
+            "--keep_sensitive N (requires calib paths; works with bias OFF). "
             "Card 3 = --per_channel_int8 for non-ConvRot plain packs. "
             "Use --no-convrot for plain INT8 only. No Approach A / no VETO / no SDXL."
         )
@@ -1298,10 +1280,10 @@ def main():
         default=0,
         help=(
             "Reverse protect: keep top N most quantization-error-prone layers "
-            "in original dtype instead of INT8. Ranking uses activation-weighted "
-            "||W-W_q||/||W|| when DualMonitor E[x^2] is available "
-            "(--calib_file + --clip_path; works with bias OFF); else plain "
-            "Frobenius. 0 = disabled."
+            "in original dtype instead of INT8. Requires DualMonitor calib "
+            "(--calib_file + --clip_path; works with bias OFF). Ranking uses "
+            "activation-weighted ||W-W_q||/||W|| from DualMonitor E[x^2]. "
+            "0 = disabled."
         ),
     )
     parser.set_defaults(enable_convrot=True)
