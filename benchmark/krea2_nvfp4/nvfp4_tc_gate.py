@@ -78,7 +78,8 @@ def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
         print(
             f"[HSWQ NVFP4] TensorCore scaled_mm disabled for this run "
             f"(GPU={name}, CC={cc}): {_DISABLE_REASON}. "
-            f"Using dequant mm; further CUBLAS/kitchen WARNINGs suppressed.",
+            f"Weight dequant is FORBIDDEN (VRAM dual residency); "
+            f"subsequent GEMMs must raise. Kitchen WARNINGs muted.",
             flush=True,
         )
 
@@ -86,7 +87,7 @@ def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
 def note_scaled_mm_failure(exc: BaseException) -> bool:
     """If failure is permanent (NOT_SUPPORTED / unsupported), disable TC.
 
-    Returns True if TC is now disabled (caller should dequant without retry storm).
+    Returns True if TC is now disabled (caller must raise — never dequant).
     """
     msg = str(exc)
     permanent = (

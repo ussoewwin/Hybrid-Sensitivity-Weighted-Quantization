@@ -26,15 +26,13 @@ BF16 keep (structure-sensitive; same spirit as native_convert_nvfp4_krea2):
   vae. / text_encoders / non-diffusion markers.
 
 DualMonitor calib (--calib_file + --clip_path, CLIPType.KREA2):
-  Runs whenever BOTH paths are provided — independent of --bias_correction.
-  Bias OFF must NOT kill DualMonitor / act moments.
   Shared by Card 1 bias and reverse protect (--keep_sensitive).
   Encode prompts with Comfy CLIP → unload CLIP → load SingleStreamDiT →
   DualMonitor on Linear+Conv2d → act mean / E[x^2].
 
 Card 1 (--bias_correction):
   Requires DualMonitor calib. bias += -(W_q - W) @ mu_x.
-  Bias OFF = skip bias delta only; DualMonitor still runs if calib paths set.
+  Bias OFF does NOT disable DualMonitor when --keep_sensitive needs it.
 
 Reverse protect (--keep_sensitive N):
   Rank layers by activation-weighted ||W-W_q||/||W|| when E[x^2] available;
@@ -867,21 +865,25 @@ def convert_to_int8(
                 "float DiT; BC uses rotated W vs W_q (approximate for ConvRot)"
             )
 
-    # DualMonitor = --calib_file + --clip_path (BOTH). Independent of bias.
-    # Bias OFF must NOT drop DualMonitor; it only skips applying bias deltas.
+    # DualMonitor calib is shared: Card 1 bias (mu_x) and/or reverse protect (E[x^2]).
+    # Bias OFF must still allow calib when --keep_sensitive needs activation weighting.
     need_calib_for_bias = bool(bias_correction)
-    need_calib_for_protect = int(keep_sensitive) > 0
-    have_calib_paths = bool(calib_file) and bool(clip_path)
-    # Paths given → always DualMonitor (bias ON/OFF / keep_sensitive ON/OFF).
-    run_dual_monitor = have_calib_paths
-
-    if need_calib_for_bias and not have_calib_paths:
-        raise ValueError(
-            "Card 1 --bias_correction requires DualMonitor calib "
-            "(--calib_file and --clip_path)"
-        )
+    need_calib_for_protect = int(keep_sensitive) > 0 and (
+        bool(calib_file) or bool(clip_path)
+    )
+    run_dual_monitor = need_calib_for_bias or need_calib_for_protect
 
     if run_dual_monitor:
+        if not calib_file:
+            raise ValueError(
+                "DualMonitor calib requires --calib_file "
+                "(needed by --bias_correction and/or --keep_sensitive)"
+            )
+        if not clip_path:
+            raise ValueError(
+                "DualMonitor calib requires --clip_path "
+                "(Qwen3-VL-4B safetensors for Comfy CLIPType.KREA2)"
+            )
         if not os.path.isfile(calib_file):
             raise FileNotFoundError(f"calib_file not found: {calib_file}")
         if not os.path.isfile(clip_path):
@@ -894,8 +896,6 @@ def convert_to_int8(
             uses.append("bias Card 1")
         if need_calib_for_protect:
             uses.append("reverse protect keep_sensitive")
-        if not uses:
-            uses.append("act moments (bias OFF)")
         print(
             "  [DualMonitor calib] ON | CLIPType.KREA2 DiT | "
             f"uses={'+'.join(uses)} | "
@@ -910,7 +910,7 @@ def convert_to_int8(
         else:
             print(
                 "  [Bias Correction Card 1] OFF | "
-                "DualMonitor still ON (no bias delta applied)"
+                "calib runs for reverse protect only (no bias delta)"
             )
 
         calib = run_card1_calib(
@@ -928,17 +928,6 @@ def convert_to_int8(
         print(
             f"  [DualMonitor] Captured act means for {len(act_mean_dict)} layers, "
             f"act sq means for {len(act_sq_mean_dict)} layers"
-        )
-    elif int(keep_sensitive) > 0 and (bool(calib_file) or bool(clip_path)):
-        missing = []
-        if not calib_file:
-            missing.append("--calib_file")
-        if not clip_path:
-            missing.append("--clip_path")
-        print(
-            "  [DualMonitor calib] SKIPPED | incomplete paths "
-            f"(missing {', '.join(missing)}); "
-            "keep_sensitive falls back to plain Frobenius"
         )
     elif int(keep_sensitive) > 0:
         print(
@@ -1206,10 +1195,9 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Krea2 DiT INT8 convert with FULL ConvRot (Linear+Conv2d) ON by default. "
-            "DualMonitor calib = --calib_file + --clip_path (always runs when both "
-            "are set; independent of --bias_correction). Card 1 = --bias_correction "
-            "(optional; bias OFF skips delta only). Reverse protect = "
-            "--keep_sensitive N (works with bias OFF). "
+            "DualMonitor calib = --calib_file + --clip_path (shared by Card 1 bias "
+            "and reverse protect). Card 1 = --bias_correction (optional). "
+            "Reverse protect = --keep_sensitive N (works with bias OFF). "
             "Card 3 = --per_channel_int8 for non-ConvRot plain packs. "
             "Use --no-convrot for plain INT8 only. No Approach A / no VETO / no SDXL."
         )
@@ -1239,7 +1227,7 @@ def main():
         help=(
             "Card 1 ON: apply bias += -(W_q - W) @ mu_x on ALL INT8 Linear+Conv. "
             "Requires DualMonitor calib (--calib_file + --clip_path). "
-            "Bias OFF does not disable DualMonitor when calib paths are set."
+            "Bias OFF does not disable reverse protect (--keep_sensitive)."
         ),
     )
     parser.add_argument(
@@ -1248,8 +1236,8 @@ def main():
         default=None,
         help=(
             "Calibration prompts text file (one prompt per line). "
-            "With --clip_path, DualMonitor always runs (bias ON or OFF). "
-            "Used for Card 1 mu_x and/or keep_sensitive E[x^2] weighting."
+            "Required with --bias_correction; also used with --keep_sensitive "
+            "for activation-weighted reverse protect (works with bias OFF)."
         ),
     )
     parser.add_argument(
@@ -1258,8 +1246,8 @@ def main():
         default=None,
         help=(
             "Qwen3-VL-4B CLIP safetensors for Comfy CLIPType.KREA2. "
-            "With --calib_file, DualMonitor always runs "
-            "(bias Card 1 and/or keep_sensitive; bias OFF still calib)."
+            "Required with --calib_file for DualMonitor "
+            "(bias Card 1 and/or keep_sensitive weighting)."
         ),
     )
     parser.add_argument(

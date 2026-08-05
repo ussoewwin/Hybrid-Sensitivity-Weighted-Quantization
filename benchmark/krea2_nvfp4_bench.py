@@ -521,6 +521,10 @@ def run_branch(
 
     # NVFP4 branches: abort before sample if load still on dual-residency path.
     from krea2_nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
+    from krea2_nvfp4.nvfp4_addmm_patch import (
+        nvfp4_addmm_stats,
+        reset_nvfp4_addmm_stats,
+    )
     from krea2_nvfp4.nvfp4_comfy_parity import require_nvfp4_vram_safe_load
     from krea2_nvfp4.nvfp4_forward import nvfp4_forward_stats, reset_nvfp4_forward_stats
 
@@ -530,6 +534,7 @@ def run_branch(
     if is_nvfp4_run:
         require_nvfp4_vram_safe_load(model)
         reset_nvfp4_forward_stats()
+        reset_nvfp4_addmm_stats()
 
     latent = make_empty_latent(model, args.width, args.height, batch=1)
 
@@ -559,6 +564,7 @@ def run_branch(
     print(f"  sample: {sample_s:.2f}s  peak_vram={peak_gb:.2f} GiB")
     if is_nvfp4_run:
         fwd = nvfp4_forward_stats()
+        addmm = nvfp4_addmm_stats()
         print(
             f"  [BENCH] NVFP4 forward stats: "
             f"scaled_mm_hits={fwd['scaled_mm_hits']} "
@@ -566,10 +572,25 @@ def run_branch(
             f"convrot_act_rotates={fwd['convrot_act_rotates']}",
             flush=True,
         )
+        print(
+            f"  [BENCH] NVFP4 addmm stats: "
+            f"addmm_scaled_mm_hits={addmm['addmm_scaled_mm_hits']} "
+            f"addmm_dequant_fallbacks={addmm.get('addmm_dequant_fallbacks', 0)}",
+            flush=True,
+        )
         if fwd["scaled_mm_hits"] == 0 and fwd["dequant_fallbacks"] > 0:
             raise RuntimeError(
                 "[BENCH] NVFP4 sample used only dequant fallbacks "
                 f"(hits=0, fallbacks={fwd['dequant_fallbacks']}) — VRAM dual path"
+            )
+        if (
+            fwd["scaled_mm_hits"] == 0
+            and addmm["addmm_scaled_mm_hits"] == 0
+            and is_nvfp4_run
+        ):
+            raise RuntimeError(
+                "[BENCH] NVFP4 sample had zero scaled_mm hits "
+                "(forward + addmm) — TC path never ran"
             )
 
     samples_t = out["samples"]
