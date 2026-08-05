@@ -1,35 +1,33 @@
-"""Krea2 DiT — ComfyUI-native FULL ConvRot INT8 convert + Card 1 Bias Correction.
+"""Krea2 DiT — FULL ConvRot Kitchen NVFP4 then post-measure ConvRot INT8 protect.
 
 Krea2-only. FATAL if txtfusion.projector + blocks.0.attn.wq signature missing.
 SDXL / Diffusers UNet path is not used.
 
-Pack (ComfyUI MixedPrecisionOps + comfy_kitchen TensorWiseINT8Layout):
+Pipeline (same spirit as native_convert_int8_krea2_2 --keep_sensitive):
+  1) Structure blacklist / non-diffusion → bfloat16 keep
+  2) float32 DiT weights → keep float32 (never NVFP4 / never INT8)
+  3) Remaining Linear 2D → FULL tentative ConvRot Kitchen NVFP4
+     (W @ H^T when groupable; plain NVFP4 fallback otherwise)
+  4) Optional DualMonitor calib (r32 recipe: 32 samples × 25 steps) for
+     activation-weighted ||W_rot-W_q|| / ||W_rot|| ranking
+  5) --keep_sensitive N → top-N highest NVFP4 error → ConvRot INT8 protect
+     (not BF16 revert; INT8 shelter for layers NVFP4 breaks)
+
+NVFP4 pack (ComfyUI Kitchen TensorCoreNVFP4Layout + ConvRot):
+  <layer>.weight / .weight_scale / .weight_scale_2
+  metadata: {"format":"nvfp4","convrot":true,"convrot_groupsize":N}
+  (plain {"format":"nvfp4"} if no eligible Hadamard group)
+
+ConvRot INT8 protect pack (same as int8protect / INT8 converter):
   <layer>.weight           int8
-  <layer>.weight_scale     float32
-      plain INT8:          scalar (tensorwise)  OR  --per_channel_int8 → [O,1] / [O,1,1,1]
-      ConvRot Linear:      [out, 1] (row-wise) — kitchen online act rotate
-      ConvRot Conv2d:      [out, 1, 1, 1] (per-out-channel)
-  <layer>.comfy_quant      uint8 JSON (compact)
-      plain:  {"format":"int8_tensorwise"}
-      ConvRot:{"format":"int8_tensorwise","convrot":true,"convrot_groupsize":N}
+  <layer>.weight_scale     float32 [out, 1]
+  metadata: {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":N}
+  (plain int8_tensorwise if no eligible Hadamard group)
 
-FULL ConvRot (default ON; --no-convrot for plain INT8):
-  Linear 2D:  W_rot = W @ H^T, row-wise INT8, stamp.
-  Conv2d 4D:  rotate along in_channels, channelwise INT8, stamp.
-  Hadamard / rotate_weight / rotate_weight_conv2d live in THIS file
-  (same math as comfy_kitchen ConvRot; no import of native_convert_int8.py).
-  If in_features / in_channels is not divisible by a power-of-4 group size,
-  that layer stays plain tensorwise (or Card 3 channelwise).
-
-BF16 keep (structure-sensitive; same spirit as native_convert_nvfp4_krea2):
-  first / last / mod. / norm / projector / tmlp / tproj / bias /
-  vae. / text_encoders / non-diffusion markers.
-
-Card 1 (--bias_correction):
-  Requires --calib_file AND --clip_path (Qwen3-VL-4B / CLIPType.KREA2).
-  Encode prompts with Comfy CLIP → unload CLIP → load SingleStreamDiT →
-  DualMonitor on Linear+Conv2d → bias += -(W_q - W) @ mu_x.
-  No Static Profile VETO / no V4 FP16 keep / no SDXL pipeline.
+Calib (optional, for sensitivity ranking):
+  --calib_file + --clip_path (Qwen3-VL-4B / CLIPType.KREA2)
+  Defaults follow the r32 How-to recipe: num_calib_samples=32,
+  num_inference_steps=25. No Bias Correction Card 1 in this converter.
 """
 from __future__ import annotations
 
@@ -41,10 +39,17 @@ import os
 import re
 import sys
 import types
+from collections import OrderedDict
 
 import torch
 from safetensors.torch import load_file, save_file
 from tqdm import tqdm
+
+try:
+    from comfy_kitchen.tensor import TensorCoreNVFP4Layout
+except ImportError:
+    print("Error: comfy_kitchen not found (install in the active venv).")
+    sys.exit(1)
 
 _DEFAULT_GROUPSIZE = 256
 _MODEL_TYPE = "Krea2"
@@ -224,7 +229,7 @@ def convrot_group_size_for_features(
 def rotate_weight(
     weight: torch.Tensor, h_matrix: torch.Tensor, group_size: int
 ) -> torch.Tensor:
-    """Offline Linear: W_rot = W @ H^T (group-wise). Matches kitchen ConvRot."""
+    """Linear: W_rot = W @ H^T (group-wise). Matches kitchen ConvRot."""
     out_features, in_features = weight.shape
     if in_features % group_size != 0:
         raise ValueError(
@@ -240,7 +245,7 @@ def rotate_weight(
 def rotate_weight_conv2d(
     weight: torch.Tensor, h_matrix: torch.Tensor, group_size: int
 ) -> torch.Tensor:
-    """Offline Conv2d: rotate along in_channels. weight (O, I, kH, kW)."""
+    """Conv2d: rotate along in_channels. weight (O, I, kH, kW)."""
     if weight.ndim != 4:
         raise ValueError(f"Conv2d weight must be 4D, got ndim={weight.ndim}")
     out_c, in_c, k_h, k_w = weight.shape
@@ -792,11 +797,15 @@ def run_card1_calib(
         h.remove()
 
     act_mean_dict = {}
+    act_sq_mean_dict = {}
     for name, mon in dual_monitors.items():
         if mon.channel_act_mean is not None:
             act_mean_dict[name] = mon.channel_act_mean.detach().float().cpu()
+        if mon.channel_act_sq_mean is not None:
+            act_sq_mean_dict[name] = mon.channel_act_sq_mean.detach().float().cpu()
     print(
-        f"  [Card 1 DualMonitor] act_mean layers={len(act_mean_dict)} "
+        f"  [Card 1 DualMonitor] act_mean layers={len(act_mean_dict)}, "
+        f"act_sq_mean layers={len(act_sq_mean_dict)} "
         f"(full Card 1; no VETO; no Approach A)"
     )
 
@@ -808,6 +817,7 @@ def run_card1_calib(
 
     return {
         "act_mean_dict": act_mean_dict,
+        "act_sq_mean_dict": act_sq_mean_dict,
         "comfyui_to_module_map": comfyui_to_module_map,
     }
 
@@ -815,12 +825,54 @@ def run_card1_calib(
 # ---------------------------------------------------------------------------
 # Convert
 # ---------------------------------------------------------------------------
-def convert_to_int8(
+def _pack_int8_protect(
+    w_fp: torch.Tensor,
+    *,
+    enable_convrot: bool,
+    group_size: int,
+) -> tuple[torch.Tensor, torch.Tensor, dict]:
+    """ConvRot INT8 protect pack for a Linear 2D float weight."""
+    used_gs = None
+    if enable_convrot:
+        used_gs = convrot_group_size_for_features(int(w_fp.shape[1]), group_size)
+    if used_gs is not None:
+        h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
+        w_rot = rotate_weight(w_fp, h_matrix, used_gs)
+        q, scale = pack_channelwise(w_rot)
+        quant_config = {
+            "format": "int8_tensorwise",
+            "convrot": True,
+            "convrot_groupsize": int(used_gs),
+        }
+    else:
+        q, scale = pack_tensorwise(w_fp)
+        quant_config = {"format": "int8_tensorwise"}
+    return q, scale, quant_config
+
+
+def _nvfp4_rel_err(
+    w_fp: torch.Tensor,
+    w_dq: torch.Tensor,
+    *,
+    act_sq: torch.Tensor | None,
+) -> float:
+    """Relative Frobenius error; optional act-weighted when E[x²] matches in_features."""
+    err = w_fp - w_dq
+    if act_sq is not None and act_sq.shape[0] == w_fp.shape[1]:
+        act_scale = act_sq.sqrt().to(device=err.device, dtype=err.dtype)
+        weighted_err = err * act_scale.unsqueeze(0)
+        weighted_base = w_fp * act_scale.unsqueeze(0)
+        return float(weighted_err.norm().item()) / max(
+            float(weighted_base.norm().item()), 1e-8
+        )
+    return float(err.norm().item()) / max(float(w_fp.norm().item()), 1e-8)
+
+
+def convert_to_nvfp4(
     input_path: str,
     output_path: str,
     *,
-    per_channel_int8: bool = False,
-    bias_correction: bool = False,
+    device: str | None = None,
     calib_file: str | None = None,
     clip_path: str | None = None,
     comfy_path: str | None = None,
@@ -828,48 +880,55 @@ def convert_to_int8(
     num_inference_steps: int = 25,
     enable_convrot: bool = True,
     group_size: int = _DEFAULT_GROUPSIZE,
+    keep_sensitive: int = 0,
 ):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    act_mean_dict: dict[str, torch.Tensor] = {}
+    """FULL ConvRot Kitchen NVFP4 then optional post-measure ConvRot INT8 protect."""
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    act_sq_mean_dict: dict[str, torch.Tensor] = {}
     comfyui_to_module_map: dict[str, str] = {}
-    convrot_linear = 0
-    convrot_conv2d = 0
-    bf16_keep = 0
+    n_nvfp4 = 0
+    n_nvfp4_convrot = 0
+    n_plain_nvfp4 = 0
+    n_bf16 = 0
+    n_fp32 = 0
+    n_skipped = 0
+    n_int8_protect = 0
+    n_int8_convrot = 0
+    n_int8_plain = 0
 
-    print(f"Mode {_MODEL_TYPE} | device={device} | FULL ConvRot INT8 (Krea2-only)")
-
+    print(
+        f"Mode {_MODEL_TYPE} | device={device} | "
+        f"FULL ConvRot Kitchen NVFP4 + post-measure ConvRot INT8 protect"
+    )
     if enable_convrot:
         print(
-            f"  [ConvRot] FULL ON | Linear + Conv2d "
-            f"(preferred groupsize={group_size}; adaptive power-of-4 divisor) "
-            f"| Hadamard self-contained in this file"
+            f"  [ConvRot] ON for NVFP4 path and INT8 protect | "
+            f"preferred groupsize={group_size} (power-of-4 adaptive)"
         )
-        if bias_correction:
-            print(
-                "  [ConvRot] WARN: Card 1 DualMonitor means are from unrotated "
-                "float DiT; BC uses rotated W vs W_q (approximate for ConvRot)"
-            )
+    else:
+        print(
+            "  [ConvRot] OFF | plain Kitchen NVFP4 + plain int8_tensorwise protect"
+        )
 
-    if bias_correction:
-        if not calib_file:
-            raise ValueError("--bias_correction requires --calib_file")
-        if not clip_path:
+    # Optional DualMonitor calib for activation-weighted ranking (r32 recipe).
+    run_sens_calib = bool(calib_file) or bool(clip_path)
+    if run_sens_calib:
+        if not calib_file or not clip_path:
             raise ValueError(
-                "--bias_correction requires --clip_path "
-                "(Qwen3-VL-4B safetensors for Comfy CLIPType.KREA2)"
+                "Sensitivity calib requires both --calib_file and --clip_path "
+                "(Qwen3-VL-4B / CLIPType.KREA2)."
             )
         if not os.path.isfile(calib_file):
             raise FileNotFoundError(f"calib_file not found: {calib_file}")
         if not os.path.isfile(clip_path):
             raise FileNotFoundError(f"clip_path not found: {clip_path}")
         if device != "cuda":
-            raise RuntimeError("Card 1 Krea2 calib requires CUDA.")
+            raise RuntimeError("Krea2 DualMonitor calib requires CUDA.")
         print(
-            "  [Bias Correction Card 1] ON | ALL INT8 Linear+Conv | "
-            "CLIPType.KREA2 + DualMonitor DiT calib | "
-            "mu_x = DualMonitor.channel_act_mean | "
-            "bias += -(W_q - W) @ mu_x | "
-            "no Approach A / no top_ratio gate"
+            "  [Sensitivity calib] DualMonitor ON | "
+            f"r32 defaults samples={num_calib_samples} steps={num_inference_steps} | "
+            "act_sq_mean for weighted ||W_rot-W_q|| ranking | no Bias Correction"
         )
         calib = run_card1_calib(
             input_path=input_path,
@@ -880,10 +939,11 @@ def convert_to_int8(
             device=device,
             comfy_path=comfy_path,
         )
-        act_mean_dict = calib["act_mean_dict"]
+        act_sq_mean_dict = calib["act_sq_mean_dict"]
         comfyui_to_module_map = calib["comfyui_to_module_map"]
         print(
-            f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers"
+            f"  [Sensitivity calib] Captured act sq means for "
+            f"{len(act_sq_mean_dict)} layers"
         )
 
     print(f"Loading model: {input_path}")
@@ -893,164 +953,238 @@ def convert_to_int8(
 
     new_state_dict: dict[str, torch.Tensor] = {}
     quant_meta_layers: dict[str, dict] = {}
-    converted_count = 0
-    skipped_count = 0
-    plain_int8_count = 0
-    bias_corr_pending: dict[str, torch.Tensor] = {}
-    bias_corr_applied = 0
-    bias_corr_skipped_no_bias = 0
-    bias_corr_skipped_no_act = 0
-    bias_corr_skipped_bad_shape = 0
-    mode = "per-channel" if per_channel_int8 else "tensorwise"
-    rot_tag = " + ConvRot(Linear+Conv2d)" if enable_convrot else ""
+    layer_quant_errors: dict[str, float] = {}
+    # Original float Linear weights for later INT8 protect (key → cpu float).
+    orig_fp_for_protect: dict[str, torch.Tensor] = {}
+
     print(
-        f"Converting Krea2 DiT Linear/Conv weights to INT8 "
-        f"({mode}{rot_tag}, amax/127)..."
+        f"Converting ({len(state_dict)} tensors) → tentative FULL ConvRot "
+        f"Kitchen NVFP4 (2D Linear)..."
     )
 
     for key, tensor in tqdm(list(state_dict.items())):
-        # Structure-sensitive / non-diffusion → keep original dtype
         if _is_blacklisted(key) or _is_non_diffusion_key(key):
-            new_state_dict[key] = tensor
-            bf16_keep += 1
+            new_state_dict[key] = tensor.to(dtype=torch.bfloat16)
+            n_bf16 += 1
             continue
 
         under_prefix = (not prefix) or key.startswith(prefix)
-        is_dit_weight = (
+
+        # fp32 layers are precision-critical — keep as float32, never quantize.
+        if (
             under_prefix
             and key.endswith(".weight")
             and tensor.ndim in (2, 4)
-            and tensor.dtype
-            in (torch.float16, torch.float32, torch.bfloat16)
-        )
-
-        if not is_dit_weight:
+            and tensor.dtype == torch.float32
+        ):
             new_state_dict[key] = tensor
-            skipped_count += 1
+            n_fp32 += 1
             continue
 
-        w_fp = tensor.float()
+        is_nvfp4_candidate = (
+            under_prefix
+            and key.endswith(".weight")
+            and tensor.ndim == 2
+            and tensor.dtype in (torch.float16, torch.bfloat16)
+        )
+        if not is_nvfp4_candidate:
+            if key.endswith(".weight") and tensor.ndim == 2:
+                new_state_dict[key] = tensor.to(dtype=torch.bfloat16)
+                n_bf16 += 1
+            else:
+                new_state_dict[key] = (
+                    tensor.to(dtype=torch.bfloat16)
+                    if tensor.is_floating_point()
+                    else tensor
+                )
+                n_skipped += 1
+            continue
+
+        base_k_file = key[: -len(".weight")]
+        base_k_meta = _meta_base_key(base_k_file)
+        w_fp = tensor.float().cpu()
+        orig_fp_for_protect[key] = w_fp
+
+        v_tensor = tensor.to(device=device, dtype=torch.bfloat16)
         used_gs = None
+        do_rotate = False
+        w_for_q = v_tensor
+        w_ref_fp = w_fp  # error vs the tensor that was actually quantized
         if enable_convrot:
-            used_gs = convrot_group_size_for_features(int(w_fp.shape[1]), group_size)
+            used_gs = convrot_group_size_for_features(
+                int(v_tensor.shape[1]), int(group_size)
+            )
+            if used_gs is not None:
+                h_matrix = build_hadamard(
+                    int(used_gs), device="cpu", dtype=torch.float32
+                )
+                w_rot = rotate_weight(w_fp, h_matrix, int(used_gs))
+                w_for_q = w_rot.to(device=device, dtype=torch.bfloat16)
+                w_ref_fp = w_rot
+                do_rotate = True
 
-        if used_gs is not None and tensor.ndim == 2:
-            h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-            w_fp = rotate_weight(w_fp, h_matrix, used_gs)
-            q, scale = pack_channelwise(w_fp)
-            quant_config = {
-                "format": "int8_tensorwise",
-                "convrot": True,
-                "convrot_groupsize": int(used_gs),
-            }
-            convrot_linear += 1
-        elif used_gs is not None and tensor.ndim == 4:
-            h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-            w_fp = rotate_weight_conv2d(w_fp, h_matrix, used_gs)
-            q, scale = pack_channelwise(w_fp)
-            quant_config = {
-                "format": "int8_tensorwise",
-                "convrot": True,
-                "convrot_groupsize": int(used_gs),
-            }
-            convrot_conv2d += 1
-        elif per_channel_int8:
-            q, scale = pack_channelwise(w_fp)
-            quant_config = {"format": "int8_tensorwise"}
-            plain_int8_count += 1
-        else:
-            q, scale = pack_tensorwise(w_fp)
-            quant_config = {"format": "int8_tensorwise"}
-            plain_int8_count += 1
+        try:
+            qdata, params = TensorCoreNVFP4Layout.quantize(w_for_q)
+            packed = TensorCoreNVFP4Layout.state_dict_tensors(qdata, params)
+            for suffix, pt in packed.items():
+                new_state_dict[f"{base_k_file}.weight{suffix}"] = pt.cpu()
+            if do_rotate and used_gs is not None:
+                quant_meta_layers[base_k_meta] = {
+                    "format": "nvfp4",
+                    "convrot": True,
+                    "convrot_groupsize": int(used_gs),
+                }
+                n_nvfp4_convrot += 1
+            else:
+                quant_meta_layers[base_k_meta] = {"format": "nvfp4"}
+                n_plain_nvfp4 += 1
+            n_nvfp4 += 1
 
-        weight_dq = q.float() * scale
-        module_key = key[: -len(".weight")]
-        new_state_dict[key] = q
-        new_state_dict[f"{module_key}.weight_scale"] = scale
-        new_state_dict[f"{module_key}.comfy_quant"] = _encode_comfy_quant(quant_config)
-        quant_meta_layers[_meta_base_key(module_key)] = dict(quant_config)
-        converted_count += 1
-
-        if bias_correction:
+            w_dq = TensorCoreNVFP4Layout.dequantize(qdata, params).float().cpu()
             module_w_key = comfyui_to_module_map.get(key)
             module_name = None
             if module_w_key and module_w_key.endswith(".weight"):
                 module_name = module_w_key[: -len(".weight")]
-            act_mean = (
-                act_mean_dict.get(module_name) if module_name is not None else None
+            act_sq = (
+                act_sq_mean_dict.get(module_name) if module_name is not None else None
             )
-            if act_mean is None:
-                bias_corr_skipped_no_act += 1
-            else:
-                # BC target weight = pre-quant float (rotated when ConvRot).
-                delta = compute_int8_bias_delta(w_fp, weight_dq, act_mean)
-                if delta is None:
-                    bias_corr_skipped_bad_shape += 1
-                else:
-                    bias_corr_pending[module_key] = (-delta).detach().float().cpu()
+            layer_quant_errors[key] = _nvfp4_rel_err(w_ref_fp, w_dq, act_sq=act_sq)
+        except Exception:
+            new_state_dict[key] = tensor.to(dtype=torch.bfloat16)
+            n_bf16 += 1
+            orig_fp_for_protect.pop(key, None)
+        finally:
+            if device == "cuda":
+                if do_rotate:
+                    del w_for_q
+                del v_tensor
 
-    if bias_correction and bias_corr_pending:
-        print(
-            f"\n[Bias Correction] Applying deltas to {len(bias_corr_pending)} "
-            f"INT8 Linear+Conv layers (full Card 1)..."
+    # --- Post-measure: top-N NVFP4-error layers → ConvRot INT8 protect ---
+    if keep_sensitive > 0 and layer_quant_errors:
+        sorted_errs = sorted(
+            layer_quant_errors.items(), key=lambda x: x[1], reverse=True
         )
-        for module_key, delta in bias_corr_pending.items():
-            bias_key = f"{module_key}.bias"
-            if bias_key not in new_state_dict:
-                bias_corr_skipped_no_bias += 1
+        protect_keys = sorted_errs[: keep_sensitive]
+        print(
+            f"\n[Sensitivity] Protecting top {len(protect_keys)} highest NVFP4-error "
+            f"layers with ConvRot INT8 "
+            f"(enable_convrot={enable_convrot}):"
+        )
+        for rk, rerr in protect_keys:
+            mk = rk[: -len(".weight")]
+            w_orig = orig_fp_for_protect.get(rk)
+            if w_orig is None:
+                print(f"    SKIP {rk} (no float original)")
                 continue
-            bias = new_state_dict[bias_key]
-            corrected = bias.float() + delta.to(
-                device=bias.device, dtype=torch.float32
+            # Drop NVFP4 pack artifacts
+            for suffix in ("", "_scale", "_scale_2"):
+                pk = f"{mk}.weight{suffix}"
+                if pk in new_state_dict:
+                    del new_state_dict[pk]
+            cq = f"{mk}.comfy_quant"
+            if cq in new_state_dict:
+                del new_state_dict[cq]
+            meta_bk = _meta_base_key(mk)
+            prev_meta = quant_meta_layers.pop(meta_bk, None)
+            if prev_meta is not None:
+                if prev_meta.get("convrot"):
+                    n_nvfp4_convrot = max(0, n_nvfp4_convrot - 1)
+                else:
+                    n_plain_nvfp4 = max(0, n_plain_nvfp4 - 1)
+
+            q, scale, quant_config = _pack_int8_protect(
+                w_orig,
+                enable_convrot=enable_convrot,
+                group_size=int(group_size),
             )
-            new_state_dict[bias_key] = corrected.to(dtype=bias.dtype)
-            bias_corr_applied += 1
+            new_state_dict[rk] = q
+            new_state_dict[f"{mk}.weight_scale"] = scale
+            quant_meta_layers[meta_bk] = dict(quant_config)
+            n_nvfp4 = max(0, n_nvfp4 - 1)
+            n_int8_protect += 1
+            if quant_config.get("convrot"):
+                n_int8_convrot += 1
+            else:
+                n_int8_plain += 1
+            print(
+                f"    {rk}  nvfp4_rel_err={rerr:.6f}  "
+                f"→ int8{'+convrot' if quant_config.get('convrot') else ''}"
+            )
+
+        remaining = sorted_errs[keep_sensitive:]
+        if remaining:
+            print(
+                f"  [Sensitivity] Next worst (stays NVFP4): {remaining[0][0]} "
+                f"rel_err={remaining[0][1]:.6f}"
+            )
+            print(
+                f"  [Sensitivity] Best (stays NVFP4): {remaining[-1][0]} "
+                f"rel_err={remaining[-1][1]:.6f}"
+            )
+    elif keep_sensitive > 0:
         print(
-            f"  [Bias Correction] applied={bias_corr_applied}, "
-            f"no_bias={bias_corr_skipped_no_bias}, "
-            f"no_act={bias_corr_skipped_no_act}, "
-            f"bad_shape={bias_corr_skipped_bad_shape}"
-        )
-    elif bias_correction:
-        print(
-            f"  [Bias Correction] No deltas pending "
-            f"(no_act={bias_corr_skipped_no_act}, "
-            f"bad_shape={bias_corr_skipped_bad_shape})"
+            "\n[Sensitivity] keep_sensitive>0 but no NVFP4 error ranks "
+            "(no eligible layers)."
         )
 
-    metadata = {
-        "_quantization_metadata": json.dumps(
-            {"format_version": "1.0", "layers": quant_meta_layers}
-        )
-    }
+    final_metadata = OrderedDict()
+    final_metadata["_quantization_metadata"] = json.dumps(
+        {"format_version": "1.0", "layers": quant_meta_layers}
+    )
+    final_metadata["converted_by"] = (
+        "HSWQ Krea2 ConvRot NVFP4 post-measure ConvRot INT8 protect"
+        if enable_convrot
+        else "HSWQ Krea2 NVFP4 post-measure INT8 protect"
+    )
+    final_metadata["converter_url"] = (
+        "https://github.com/tritant/ComfyUI_Kitchen_nvfp4_Converter"
+    )
+    final_metadata["hswq_model"] = "krea2"
+    final_metadata["hswq_nvfp4_post_measure"] = "1"
+    final_metadata["hswq_nvfp4_convrot"] = "1" if enable_convrot else "0"
+    final_metadata["hswq_keep_sensitive"] = str(int(keep_sensitive))
+    final_metadata["hswq_int8_protect_n"] = str(n_int8_protect)
 
-    print(f"Saving to: {output_path}")
-    print(f"Converted layers: {converted_count}, Kept (other): {skipped_count}")
-    print(f"BF16 keep (blacklist / non-diffusion): {bf16_keep}")
-    print(f"Per-channel INT8 (Card 3 plain packs): {per_channel_int8}")
-    print(f"Bias correction (Card 1): {bias_correction}")
-    if bias_correction:
-        print(f"  Bias-corrected INT8 layers: {bias_corr_applied}")
-    print(f"ConvRot FULL (Linear+Conv2d): {enable_convrot}")
-    if enable_convrot:
-        print(
-            f"  ConvRot Linear: {convrot_linear}, ConvRot Conv2d: {convrot_conv2d}, "
-            f"plain INT8 (no eligible group size): {plain_int8_count}"
-        )
-    else:
-        print(f"  plain INT8: {plain_int8_count}")
+    print(f"Saving | Type: {_MODEL_TYPE} | Path: {output_path}")
+    save_file(new_state_dict, output_path, metadata=final_metadata)
+    total_bytes = os.path.getsize(output_path)
+    print(f"Done. Size: {round(total_bytes / (1024**3), 2)} GiB")
+    print(
+        f"NVFP4 layers in metadata: "
+        f"{sum(1 for c in quant_meta_layers.values() if c.get('format') == 'nvfp4')}"
+    )
+    print(
+        f"  nvfp4 packs={n_nvfp4} "
+        f"(convrot={n_nvfp4_convrot}, plain={n_plain_nvfp4}) | "
+        f"int8 protect={n_int8_protect} "
+        f"(convrot={n_int8_convrot}, plain={n_int8_plain}) | "
+        f"bf16 keep={n_bf16} | fp32 keep={n_fp32} | other={n_skipped}"
+    )
+    print(f"Sensitivity calib (DualMonitor): {run_sens_calib}")
+    print(f"FULL ConvRot enabled (NVFP4 path + INT8 protect): {enable_convrot}")
 
-    save_file(new_state_dict, output_path, metadata=metadata)
+    del state_dict
+    del new_state_dict
+    del quant_meta_layers
+    del orig_fp_for_protect
+    gc.collect()
+    if device == "cuda" and torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
     print("Done!")
 
 
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Krea2 DiT INT8 convert with FULL ConvRot (Linear+Conv2d) ON by default. "
-            "Card 1 = --bias_correction + --calib_file + --clip_path (CLIPType.KREA2). "
-            "Card 3 = --per_channel_int8 for non-ConvRot plain packs. "
-            "Use --no-convrot for plain INT8 only. No Approach A / no VETO / no SDXL."
+            "Krea2 DiT: FULL ConvRot Kitchen NVFP4 then post-measure "
+            "ConvRot INT8 protect. Optional DualMonitor calib "
+            "(--calib_file + --clip_path) for activation-weighted ranking "
+            "(r32 defaults: 32 samples × 25 steps). --keep_sensitive N "
+            "replaces top-N NVFP4-error Linear layers with ConvRot INT8. "
+            "float32 DiT weights stay float32. No Bias Correction."
         )
     )
     parser.add_argument(
@@ -1065,27 +1199,20 @@ def main():
         "--output", type=str, required=True, help="Path to output .safetensors"
     )
     parser.add_argument(
-        "--per_channel_int8",
-        action="store_true",
-        help=(
-            "Card 3: per-out-channel amax/scale for plain (non-ConvRot) packs. "
-            "ConvRot layers always use channelwise. Format stays int8_tensorwise."
-        ),
-    )
-    parser.add_argument(
-        "--bias_correction",
-        action="store_true",
-        help=(
-            "Card 1 ON: CLIPType.KREA2 encode + DualMonitor DiT calib; "
-            "bias += -(W_q - W) @ mu_x on ALL INT8 Linear+Conv. "
-            "Requires --calib_file and --clip_path."
-        ),
+        "--device",
+        type=str,
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        choices=["cuda", "cpu"],
+        help="NVFP4 quantize device",
     )
     parser.add_argument(
         "--calib_file",
         type=str,
         default=None,
-        help="Calibration prompts text file (one prompt per line).",
+        help=(
+            "Calibration prompts (one per line). With --clip_path enables "
+            "DualMonitor act_sq ranking (r32 recipe defaults)."
+        ),
     )
     parser.add_argument(
         "--clip_path",
@@ -1093,7 +1220,7 @@ def main():
         default=None,
         help=(
             "Qwen3-VL-4B CLIP safetensors for Comfy CLIPType.KREA2. "
-            "Required with --bias_correction."
+            "Required with --calib_file for sensitivity weighting."
         ),
     )
     parser.add_argument(
@@ -1106,19 +1233,22 @@ def main():
         "--num_calib_samples",
         type=int,
         default=32,
-        help="Card 1 calib samples (default 32).",
+        help="Sensitivity calib samples (r32 recipe default 32).",
     )
     parser.add_argument(
         "--num_inference_steps",
         type=int,
         default=25,
-        help="Card 1 DiT timestep sweeps per sample (default 25).",
+        help="Sensitivity DiT timestep sweeps per sample (r32 recipe default 25).",
     )
     parser.add_argument(
         "--no-convrot",
         dest="enable_convrot",
         action="store_false",
-        help="Disable ConvRot; pack plain int8_tensorwise only.",
+        help=(
+            "Disable ConvRot on both NVFP4 path and INT8 protect "
+            "(plain Kitchen NVFP4 + plain int8_tensorwise)."
+        ),
     )
     parser.add_argument(
         "--group_size",
@@ -1126,14 +1256,24 @@ def main():
         default=_DEFAULT_GROUPSIZE,
         help=f"Preferred ConvRot Hadamard group size (default {_DEFAULT_GROUPSIZE}).",
     )
+    parser.add_argument(
+        "--keep_sensitive",
+        type=int,
+        default=0,
+        help=(
+            "After FULL ConvRot NVFP4, replace top N highest NVFP4-error "
+            "Linear layers with ConvRot INT8 protect. Ranked by "
+            "||W_rot-W_q||/||W_rot|| (act-weighted when DualMonitor calib "
+            "runs). 0 = NVFP4 only."
+        ),
+    )
     parser.set_defaults(enable_convrot=True)
     args = parser.parse_args()
 
-    convert_to_int8(
+    convert_to_nvfp4(
         args.model,
         args.output,
-        per_channel_int8=bool(args.per_channel_int8),
-        bias_correction=bool(args.bias_correction),
+        device=str(args.device),
         calib_file=args.calib_file,
         clip_path=args.clip_path,
         comfy_path=args.comfy_path,
@@ -1141,6 +1281,7 @@ def main():
         num_inference_steps=int(args.num_inference_steps),
         enable_convrot=bool(args.enable_convrot),
         group_size=int(args.group_size),
+        keep_sensitive=int(args.keep_sensitive),
     )
 
 
