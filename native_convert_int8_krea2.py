@@ -909,12 +909,9 @@ def convert_to_int8(
     )
 
     for key, tensor in tqdm(list(state_dict.items())):
-        # Structure-sensitive / non-diffusion → BF16 keep
+        # Structure-sensitive / non-diffusion → keep original dtype
         if _is_blacklisted(key) or _is_non_diffusion_key(key):
-            if torch.is_floating_point(tensor):
-                new_state_dict[key] = tensor.to(dtype=torch.bfloat16)
-            else:
-                new_state_dict[key] = tensor
+            new_state_dict[key] = tensor
             bf16_keep += 1
             continue
 

@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """
-Krea2 NVFP4 ComfyUI Native Benchmark
-====================================
-Compare BF16/FP16 Krea2 DiT vs HSWQ NVFP4 (3-tier: NVFP4 + INT8 shelter + FP16).
+Krea2 ConvRot NVFP4 + ConvRot INT8-protect ComfyUI Native Benchmark
+=================================================================
+Compare BF16/FP16 Krea2 DiT vs HSWQ Kitchen NVFP4 (ConvRot) with
+ConvRot INT8 protect layers in the same checkpoint
+(native_convert_nvfp4_krea2_2 output).
 
-Example (matches owner CLI):
+NVFP4 runtime MUST import only from benchmark/krea2_nvfp4.
+Never import benchmark/nvfp4.
+
+Example:
   python krea2_nvfp4_bench.py \\
     --fp16  "D:\\...\\moodyKrea2Mix_v40BF16.safetensors" \\
-    --nvfp4 "D:\\...\\moodyKrea2Mix_v40_native_nvfp4.safetensors" \\
+    --nvfp4 "D:\\...\\moodyKrea2Mix_v40_nvfp4_convrot.safetensors" \\
     --clip_path "D:\\...\\Qwen3_VL_4B_Thinking_abliterated.safetensors" \\
     --comfy_path "D:\\USERFILES\\GitHub\\hswq\\ComfyUI-master" \\
     --token "hf_..." \\
     --prompt "A beautiful cyberpunk city at night, high detail." \\
     --steps 25
 
-Optional: --vae PATH for pixel-space decode (same metrics path as nvfp4bench_sdxl).
+Optional: --vae PATH for pixel-space decode (same metrics path as int8bench_sdxl).
 Without --vae: Wan21 latent-RGB preview image, still MSE/SSIM like SDXL printout.
 """
 
@@ -166,33 +171,89 @@ def setup_comfy(comfy_path: str) -> None:
         sys.modules["psutil"] = ps
 
 
-def apply_nvfp4_patches() -> None:
-    """Match nvfp4bench_sdxl: HSWQ detect/load, then ComfyUI-only forward.
+SSIM_TARGET = 0.9
 
-    Without apply_nvfp4_comfy_parity(), native Kitchen weights run TC
-    scaled_mm_nvfp4 + ConvRot act and Pixel SSIM collapses (~0.65).
-    Parity restores stock MixedPrecision.forward (same as SDXL NVFP4 bench).
+
+def require_convrot_parity_forward() -> None:
+    """Fail if Linear.forward is not the ConvRot act-rotate parity wrapper."""
+    import comfy.ops
+
+    lin_fwd = comfy.ops.mixed_precision_ops().Linear.forward
+    if getattr(lin_fwd, "_hswq_nvfp4_full_forward", False):
+        raise RuntimeError(
+            "ConvRot bench: Linear.forward still has HSWQ TC wrap "
+            "(_hswq_nvfp4_full_forward); SSIM would be destroyed"
+        )
+    if not getattr(lin_fwd, "_hswq_nvfp4_convrot_parity", False):
+        raise RuntimeError(
+            "ConvRot bench: Linear.forward missing _hswq_nvfp4_convrot_parity "
+            "(online act rotation required for W@H^T weights)"
+        )
+
+
+def _forbid_benchmark_nvfp4_import() -> None:
+    """Hard ban: this bench must never pull benchmark/nvfp4."""
+    bad = [
+        k
+        for k in sys.modules
+        if k == "nvfp4" or k.startswith("nvfp4.")
+    ]
+    if bad:
+        raise RuntimeError(
+            "FORBIDDEN: imported benchmark/nvfp4 modules "
+            f"{bad[:8]}; use krea2_nvfp4 only"
+        )
+
+
+def apply_quant_patches() -> None:
+    """NVFP4 from krea2_nvfp4 + INT8 protect from benchmark/int8.
+
+    ConvRot NVFP4 needs comfy_quant_nvfp4 + Comfy parity (online x@H).
+    INT8 protect layers need comfy_quant_int8 (same ckpt).
+    Never import benchmark/nvfp4. Does not touch ComfyUI-master.
     """
     import comfy.ops
 
-    from nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
-    from nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+    from krea2_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
+    from krea2_nvfp4.nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+    import krea2_nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
+
+    from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
+    import int8.comfy_quant_int8 as _cq_int8
 
     apply_comfy_quant_nvfp4_patches()
     if not apply_nvfp4_comfy_parity():
         raise RuntimeError(
-            "nvfp4 ComfyUI-only parity failed to apply "
+            "krea2_nvfp4 ComfyUI-only parity failed to apply "
             "(need [BENCH] nvfp4 ComfyUI-only log; TC forward must be off)"
         )
+    require_convrot_parity_forward()
+    print(
+        "  [CONVROT] Parity forward armed: "
+        "stock Comfy GEMM + online act rotate (x @ H)"
+    )
+    print(f"  [BENCH] nvfp4 patch file: {os.path.abspath(_cq_nvfp4.__file__)}")
+    print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
 
-    # Hard gate: refuse to run if Linear.forward is still HSWQ TC-wrapped.
-    lin_fwd = comfy.ops.mixed_precision_ops().Linear.forward
-    if getattr(lin_fwd, "_hswq_nvfp4_full_forward", False):
+    apply_comfy_quant_int8_patches()
+    print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+    print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
+    print(
+        f"  [BENCH] mixed_precision_ops Conv2d inject: "
+        f"{getattr(comfy.ops.mixed_precision_ops, '_hswq_int8_conv_patched', False)}"
+    )
+    print(f"  [BENCH] int8 patch file: {os.path.abspath(_cq_int8.__file__)}")
+    if not _cq_int8._PATCHES_APPLIED:
         raise RuntimeError(
-            "nvfp4 ComfyUI-only parity incomplete: "
-            "Linear.forward still has _hswq_nvfp4_full_forward "
-            "(TC path would destroy Pixel SSIM)"
+            "comfy_quant_int8 patches failed to apply "
+            "(need [BENCH] comfy_quant_int8 patched: True)"
         )
+
+    _forbid_benchmark_nvfp4_import()
+    print(
+        f"  [BENCH] SSIM target >={SSIM_TARGET} "
+        "(ConvRot NVFP4 + INT8 protect + ComfyUI stock GEMM + online act rotate)"
+    )
 
 
 def set_hf_token(token: str | None) -> None:
@@ -313,6 +374,25 @@ def _hard_free_vram() -> None:
         torch.cuda.synchronize()
 
 
+def _load_diffusion_model(unet_path: str):
+    """Load DiT; wrap INT8-protect layers in Conv2d inject scope when present."""
+    import comfy.sd
+    from int8.comfy_quant_int8 import (
+        _int8_quant_conv_scope,
+        checkpoint_looks_like_comfy_quant_int8,
+    )
+    from krea2_nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
+
+    looks_nvfp4 = checkpoint_looks_like_comfy_quant_nvfp4(unet_path)
+    use_int8_scope = checkpoint_looks_like_comfy_quant_int8(unet_path)
+    print(f"  [BENCH] NVFP4 comfy_quant detect: {looks_nvfp4}")
+    print(f"  [BENCH] INT8 Conv2d load scope: {use_int8_scope}")
+    if use_int8_scope:
+        with _int8_quant_conv_scope():
+            return comfy.sd.load_diffusion_model(unet_path, {})
+    return comfy.sd.load_diffusion_model(unet_path, {})
+
+
 def run_branch(
     *,
     label: str,
@@ -322,13 +402,11 @@ def run_branch(
     negative,
     args,
 ) -> tuple[Image.Image, torch.Tensor, float, float]:
-    import comfy.sd
-
     print(f"\n=== {label}: loading UNet ===")
     print(f"  path: {unet_path}")
     t0 = time.perf_counter()
     # Do NOT load_models_gpu([unet, clip]) — master CPU-offloads via sample().
-    model = comfy.sd.load_diffusion_model(unet_path, {})
+    model = _load_diffusion_model(unet_path)
     load_s = time.perf_counter() - t0
     print(f"  load: {load_s:.2f}s")
 
@@ -395,7 +473,7 @@ def run_branch(
 
 
 def calculate_metrics(img1, img2):
-    """Same as nvfp4bench_sdxl.calculate_metrics (pixel RGB, 見た目)."""
+    """Same as int8bench_sdxl.calculate_metrics (pixel RGB)."""
     arr1 = np.array(img1)
     arr2 = np.array(img2)
 
@@ -409,9 +487,20 @@ def calculate_metrics(img1, img2):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Krea2 NVFP4 ComfyUI Native Benchmark")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Krea2 ConvRot NVFP4 + ConvRot INT8-protect ComfyUI Native Benchmark"
+        )
+    )
     parser.add_argument("--fp16", required=True, help="BF16/FP16 Krea2 DiT safetensors")
-    parser.add_argument("--nvfp4", required=True, help="HSWQ NVFP4 Krea2 DiT safetensors")
+    parser.add_argument(
+        "--nvfp4",
+        required=True,
+        help=(
+            "Kitchen NVFP4 ConvRot + INT8-protect Krea2 DiT safetensors "
+            "(native_convert_nvfp4_krea2_2 output)"
+        ),
+    )
     parser.add_argument("--clip_path", required=True, help="Qwen3-VL-4B CLIP safetensors (Krea2)")
     parser.add_argument("--comfy_path", required=True, help="ComfyUI-master root")
     parser.add_argument("--token", default=None, help="HF token (env HF_TOKEN / HUGGING_FACE_HUB_TOKEN)")
@@ -436,7 +525,7 @@ def main() -> int:
     set_hf_token(args.token)
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Ensure benchmark/ is on path for nvfp4 package
+    # Ensure benchmark/ is on path for krea2_nvfp4 + int8 packages
     bench_dir = Path(__file__).resolve().parent
     if str(bench_dir) not in sys.path:
         sys.path.insert(0, str(bench_dir))
@@ -444,7 +533,7 @@ def main() -> int:
     saved_argv = _clear_argv_for_comfy()
     try:
         setup_comfy(args.comfy_path)
-        apply_nvfp4_patches()
+        apply_quant_patches()
 
         import folder_paths  # noqa: F401
         import comfy.model_management as mm
@@ -499,28 +588,30 @@ def main() -> int:
         img_fp16.save(p16)
         print(f"FP16 Time: {t16:.2f}s  peak={v16:.2f}GiB")
 
-        img_nv, _lat_nv, t4, v4 = run_branch(
-            label="2. Quantized (NVFP4)",
+        img_q, _lat_q, tq, vq = run_branch(
+            label="2. Quantized (ConvRot NVFP4 + INT8 protect)",
             unet_path=args.nvfp4,
             vae=vae,
             positive=positive,
             negative=negative,
             args=args,
         )
-        # Same filename pattern as nvfp4bench_sdxl (quantized side = bench_result_fp8.png)
-        p8 = os.path.join(args.output_dir, "bench_result_fp8.png")
-        img_nv.save(p8)
-        print(f"NVFP4 Time: {t4:.2f}s  peak={v4:.2f}GiB")
+        pq = os.path.join(args.output_dir, "bench_result_nvfp4.png")
+        img_q.save(pq)
+        print(f"NVFP4+INT8protect Time: {tq:.2f}s  peak={vq:.2f}GiB")
 
-        # 3. Comparison — same printout as nvfp4bench_sdxl
+        # 3. Comparison — same printout as int8bench_sdxl
         print("\n=== 3. Calculating Metrics ===")
 
-        if img_fp16.size != img_nv.size:
-            print(f"Error: Image sizes do not match! FP16:{img_fp16.size}, NVFP4:{img_nv.size}")
+        if img_fp16.size != img_q.size:
+            print(
+                f"Error: Image sizes do not match! "
+                f"FP16:{img_fp16.size}, NVFP4:{img_q.size}"
+            )
             print("Different models or settings used.")
             return 1
 
-        mse, score = calculate_metrics(img_fp16, img_nv)
+        mse, score = calculate_metrics(img_fp16, img_q)
 
         print(f"--------------------------------------------------")
         print(f"MSE (Error): {mse:.4f} \t(0 is perfect match)")
@@ -537,13 +628,15 @@ def main() -> int:
             grade = "WARNING (C)"
 
         print(f"Quality Grade: {grade}")
+        target_grade = "PASS" if score >= SSIM_TARGET else "FAIL"
+        print(f"  SSIM target >={SSIM_TARGET}: {target_grade}")
 
-        diff_img = ImageChops.difference(img_fp16, img_nv)
+        diff_img = ImageChops.difference(img_fp16, img_q)
         diff_img = ImageChops.multiply(diff_img, Image.new("RGB", diff_img.size, (10, 10, 10)))
         diff_path = os.path.join(args.output_dir, "bench_result_diff.png")
         diff_img.save(diff_path)
         print(f"Diff image saved: {diff_path}")
-        return 0
+        return 0 if score >= SSIM_TARGET else 1
     finally:
         _restore_argv(saved_argv)
 
