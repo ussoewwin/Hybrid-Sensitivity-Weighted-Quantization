@@ -1,7 +1,10 @@
-"""Krea2 DiT — ComfyUI-native FULL ConvRot INT8 convert + Card 1 Bias Correction.
+"""Krea2 DiT — simple ComfyUI-native FULL ConvRot INT8 convert + Card 1 Bias Correction.
 
 Krea2-only. FATAL if txtfusion.projector + blocks.0.attn.wq signature missing.
 SDXL / Diffusers UNet path is not used.
+
+No structure blacklist / no BF16 keep on first/last/mod/norm/projector/etc.
+DiT Linear/Conv2d .weight (fp16/fp32/bf16) are ConvRot-INT8 packed when eligible.
 
 Pack (ComfyUI MixedPrecisionOps + comfy_kitchen TensorWiseINT8Layout):
   <layer>.weight           int8
@@ -21,9 +24,7 @@ FULL ConvRot (default ON; --no-convrot for plain INT8):
   If in_features / in_channels is not divisible by a power-of-4 group size,
   that layer stays plain tensorwise (or Card 3 channelwise).
 
-BF16 keep (structure-sensitive; same spirit as native_convert_nvfp4_krea2):
-  first / last / mod. / norm / projector / tmlp / tproj / bias /
-  vae. / text_encoders / non-diffusion markers.
+Non-DiT / non-diffusion tensors: keep original dtype as-is (incl. float32).
 
 Card 1 (--bias_correction):
   Requires --calib_file AND --clip_path (Qwen3-VL-4B / CLIPType.KREA2).
@@ -49,20 +50,6 @@ from tqdm import tqdm
 _DEFAULT_GROUPSIZE = 256
 _MODEL_TYPE = "Krea2"
 _HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
-
-# Krea2 SingleStreamDiT — structure-sensitive layers stay BF16.
-_KREA2_BLACKLIST: list[str] = [
-    "first",
-    "last",
-    "mod.",
-    "norm",
-    "projector",
-    "tmlp",
-    "tproj",
-    "bias",
-    "vae.",
-    "text_encoders",
-]
 
 _NON_DIFFUSION_MARKERS: tuple[str, ...] = (
     "conditioner.",
@@ -288,10 +275,6 @@ def _meta_base_key(base_k_file: str) -> str:
     if "diffusion_model." in base_k_file:
         return base_k_file.split("diffusion_model.")[-1]
     return base_k_file
-
-
-def _is_blacklisted(key: str) -> bool:
-    return any(name in key for name in _KREA2_BLACKLIST)
 
 
 def pack_tensorwise(weight: torch.Tensor):
@@ -834,9 +817,12 @@ def convert_to_int8(
     comfyui_to_module_map: dict[str, str] = {}
     convrot_linear = 0
     convrot_conv2d = 0
-    bf16_keep = 0
+    orig_dtype_keep = 0
 
-    print(f"Mode {_MODEL_TYPE} | device={device} | FULL ConvRot INT8 (Krea2-only)")
+    print(
+        f"Mode {_MODEL_TYPE} | device={device} | "
+        f"simple FULL ConvRot INT8 (Krea2-only; no structure blacklist)"
+    )
 
     if enable_convrot:
         print(
@@ -909,10 +895,10 @@ def convert_to_int8(
     )
 
     for key, tensor in tqdm(list(state_dict.items())):
-        # Structure-sensitive / non-diffusion → keep original dtype
-        if _is_blacklisted(key) or _is_non_diffusion_key(key):
+        # Non-diffusion (VAE / text encoders / etc.) → keep original dtype (incl. f32)
+        if _is_non_diffusion_key(key):
             new_state_dict[key] = tensor
-            bf16_keep += 1
+            orig_dtype_keep += 1
             continue
 
         under_prefix = (not prefix) or key.startswith(prefix)
@@ -925,6 +911,7 @@ def convert_to_int8(
         )
 
         if not is_dit_weight:
+            # bias / norm / scale / etc.: keep original dtype (incl. f32)
             new_state_dict[key] = tensor
             skipped_count += 1
             continue
@@ -1026,7 +1013,7 @@ def convert_to_int8(
 
     print(f"Saving to: {output_path}")
     print(f"Converted layers: {converted_count}, Kept (other): {skipped_count}")
-    print(f"BF16 keep (blacklist / non-diffusion): {bf16_keep}")
+    print(f"Original-dtype keep (non-diffusion): {orig_dtype_keep}")
     print(f"Per-channel INT8 (Card 3 plain packs): {per_channel_int8}")
     print(f"Bias correction (Card 1): {bias_correction}")
     if bias_correction:
@@ -1047,7 +1034,7 @@ def convert_to_int8(
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Krea2 DiT INT8 convert with FULL ConvRot (Linear+Conv2d) ON by default. "
+            "Simple Krea2 DiT FULL ConvRot INT8 (no structure blacklist / no BF16 keep). "
             "Card 1 = --bias_correction + --calib_file + --clip_path (CLIPType.KREA2). "
             "Card 3 = --per_channel_int8 for non-ConvRot plain packs. "
             "Use --no-convrot for plain INT8 only. No Approach A / no VETO / no SDXL."
