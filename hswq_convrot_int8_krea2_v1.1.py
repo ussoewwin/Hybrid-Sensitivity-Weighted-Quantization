@@ -22,8 +22,8 @@ FULL ConvRot (default ON; --no-convrot for plain INT8):
   that layer stays plain tensorwise (or Card 3 channelwise).
 
 BF16 keep (structure-sensitive; same spirit as native_convert_nvfp4_krea2):
-  first / last / mod. / norm / projector / tmlp / tproj / bias /
-  vae. / text_encoders / non-diffusion markers.
+  first. / last. / mod. / norm / projector / tmlp / txtmlp / tproj /
+  txtfusion / bias. Non-diffusion markers cover vae. / text_encoders.
 
 DualMonitor calib (--calib_file + --clip_path, CLIPType.KREA2):
   DualMonitor and calibration are ONE unit (run_card1_calib only).
@@ -62,16 +62,16 @@ _HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
 
 # Krea2 SingleStreamDiT — structure-sensitive layers stay BF16.
 _KREA2_BLACKLIST: list[str] = [
-    "first",
-    "last",
+    "first.",
+    "last.",
     "mod.",
     "norm",
     "projector",
     "tmlp",
+    "txtmlp",
     "tproj",
+    "txtfusion",
     "bias",
-    "vae.",
-    "text_encoders",
 ]
 
 _NON_DIFFUSION_MARKERS: tuple[str, ...] = (
