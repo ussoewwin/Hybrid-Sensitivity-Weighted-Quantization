@@ -1144,6 +1144,7 @@ def convert_to_int8(
             continue
 
         w_fp = tensor.float()
+        module_key = key[: -len(".weight")]
         used_gs = None
         if enable_convrot:
             used_gs = convrot_group_size_for_features(int(w_fp.shape[1]), group_size)
@@ -1180,7 +1181,6 @@ def convert_to_int8(
             plain_int8_count += 1
 
         weight_dq = q.float() * scale
-        module_key = key[: -len(".weight")]
         new_state_dict[key] = q
         new_state_dict[f"{module_key}.weight_scale"] = scale
         new_state_dict[f"{module_key}.comfy_quant"] = _encode_comfy_quant(quant_config)
