@@ -36,7 +36,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | Model | BF16 protect layers | Bias correction | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Baseline | Winner |
 |-------|---------------------|-----------------|----------|--------------|-------|-----------|---------------|--------|----------|--------|
 | unstableDissolution_Bf16 | +20 | 1off | 6.84 | 17.13 | +10.29 | 0.9700 | 0.8015 | −0.1685 | Native ConvRot INT8 | HSWQ |
-| moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 10.49 | +7.92 | 0.9869 | 0.9039 | −0.0830 | Native ConvRot INT8 | HSWQ |
+| moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 4.34 | +1.77 | 0.9869 | 0.9743 | −0.0126 | Native ConvRot INT8 | HSWQ |
 | moodyCutieMixKrea2_v20BF16 | +18 | 1off | 5.30 | 19.55 | +14.25 | 0.9757 | 0.8538 | −0.1219 | Native ConvRot INT8 | HSWQ |
 | gonzalomoKrea2_v20 | +26 | 1off | 6.27 | 11.94 | +5.67 | 0.9573 | 0.8601 | −0.0972 | Native ConvRot INT8 | HSWQ |
 | darkBeast30BF16INT8_darkBeast330 | +20 | 1off | 7.90 | 20.85 | +12.95 | 0.9613 | 0.7976 | −0.1637 | Native ConvRot INT8 | HSWQ |
