@@ -123,7 +123,7 @@ class DualMonitor:
         self.channel_act_mean = None
         self.channel_act_sq_mean = None
 
-    def update(self, input_tensor, output_tensor, module=None):
+    def update(self, input_tensor, output_tensor, module=None, weight: float = 1.0):
         with torch.no_grad():
             out_detached = output_tensor.detach().float()
             out_clamped = torch.clamp(out_detached, -65504.0, 65504.0)
@@ -155,30 +155,36 @@ class DualMonitor:
                 current_imp = inp_detached.abs().mean(dim=reduce_dims)
                 current_act = inp_detached.mean(dim=reduce_dims)
                 current_sq = (inp_detached ** 2).mean(dim=reduce_dims)
+            w = float(weight)
+            self.output_sum *= self.count / max(self.count + w, 1e-12)
+            self.output_sq_sum *= self.count / max(self.count + w, 1e-12)
+            self.output_sum += mean_val * w
+            self.output_sq_sum += sq_mean_val * w
             if self.channel_importance is None:
                 self.channel_importance = current_imp
                 self.channel_act_mean = current_act
                 self.channel_act_sq_mean = current_sq
             elif current_imp.shape == self.channel_importance.shape:
                 self.channel_importance = (
-                    self.channel_importance * self.count + current_imp
-                ) / (self.count + 1)
+                    self.channel_importance * self.count + current_imp * w
+                ) / (self.count + w)
                 self.channel_act_mean = (
-                    self.channel_act_mean * self.count + current_act
-                ) / (self.count + 1)
+                    self.channel_act_mean * self.count + current_act * w
+                ) / (self.count + w)
                 self.channel_act_sq_mean = (
-                    self.channel_act_sq_mean * self.count + current_sq
-                ) / (self.count + 1)
-            self.count += 1
+                    self.channel_act_sq_mean * self.count + current_sq * w
+                ) / (self.count + w)
+            self.count += w
 
 
 dual_monitors: dict[str, DualMonitor] = {}
+_dm_timestep_weight: float = 1.0
 
 
 def hook_fn(module, input, output, name):
     if name not in dual_monitors:
         dual_monitors[name] = DualMonitor()
-    dual_monitors[name].update(input[0], output, module)
+    dual_monitors[name].update(input[0], output, module, weight=_dm_timestep_weight)
 
 
 def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
@@ -819,6 +825,7 @@ def run_card1_calib(
 
     Does NOT run Static Profile VETO or V4 FP16 keep.
     """
+    global _dm_timestep_weight
     if not str(device).startswith("cuda"):
         raise RuntimeError("Card 1 Krea2 calib requires CUDA.")
 
@@ -912,6 +919,7 @@ def run_card1_calib(
                     device=device,
                     dtype=torch.float32,
                 )
+                _dm_timestep_weight = float(1.0 - t.item())  # t→0 (image side) gets weight→1
                 if attn_mask is not None:
                     model(x, t, context, attention_mask=attn_mask)
                 else:
@@ -980,6 +988,7 @@ def convert_to_int8(
     convrot_linear = 0
     convrot_conv2d = 0
     bf16_keep = 0
+    layer_convrot_gs: dict[str, int] = {}
 
     print(f"Mode {_MODEL_TYPE} | device={device} | FULL ConvRot INT8 (Krea2-only)")
 
@@ -1149,6 +1158,7 @@ def convert_to_int8(
                 "convrot_groupsize": int(used_gs),
             }
             convrot_linear += 1
+            layer_convrot_gs[module_key] = int(used_gs)
         elif used_gs is not None and tensor.ndim == 4:
             h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
             w_fp = rotate_weight_conv2d(w_fp, h_matrix, used_gs)
@@ -1159,6 +1169,7 @@ def convert_to_int8(
                 "convrot_groupsize": int(used_gs),
             }
             convrot_conv2d += 1
+            layer_convrot_gs[module_key] = int(used_gs)
         elif per_channel_int8:
             q, scale = pack_channelwise(w_fp)
             quant_config = {"format": "int8_tensorwise"}
@@ -1226,6 +1237,13 @@ def convert_to_int8(
                 if module_name_sens is not None
                 else None
             )
+            if imp is None:
+                # Fallback: weight L1 norm per input channel as proxy importance
+                # Match DualMonitor orientation: input-channel (dim=1) importance
+                if w_fp.ndim == 4:
+                    imp = w_fp.abs().mean(dim=(0, 2, 3))
+                else:
+                    imp = w_fp.abs().mean(dim=0)
             try:
                 layer_hist_mse[key] = _histogram_mse_score(w_fp, imp, hist_opt)
             except Exception:
@@ -1243,6 +1261,14 @@ def convert_to_int8(
             if act_mean is None:
                 bias_corr_skipped_no_act += 1
             else:
+                # Rotate mu_x to match rotated weight space when ConvRot was used.
+                rot_gs = layer_convrot_gs.get(module_key)
+                if rot_gs is not None:
+                    h_bc = build_hadamard(rot_gs, device="cpu", dtype=torch.float32)
+                    act_mean = rotate_weight(
+                        act_mean.unsqueeze(0).to(dtype=torch.float32),
+                        h_bc, rot_gs
+                    ).squeeze(0)
                 # BC target weight = pre-quant float (rotated when ConvRot).
                 delta = compute_int8_bias_delta(w_fp, weight_dq, act_mean)
                 if delta is None:
