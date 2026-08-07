@@ -49,17 +49,13 @@ def _make_convrot_parity_forward(stock_forward):
     only closes if activations are rotated too: (x @ H) @ (W @ H^T)^T == x @ W^T.
     Modules without the armed flag pass through untouched (bit-exact stock).
     """
-    from .nvfp4_hadamard import build_hadamard, rotate_last_dim
+    from .nvfp4_hadamard import rotate_last_dim_fast
 
     _LOGGED_FIRST_ROT = [False]
 
     def forward_convrot_parity(self, input, *args, **kwargs):
         if getattr(self, "_hswq_nvfp4_convrot", False):
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
-            h = getattr(self, "_hswq_nvfp4_parity_H", None)
-            if h is None or h.device != input.device or h.dtype != input.dtype:
-                h = build_hadamard(gs, device=input.device, dtype=input.dtype)
-                self._hswq_nvfp4_parity_H = h
             if not _LOGGED_FIRST_ROT[0]:
                 _LOGGED_FIRST_ROT[0] = True
                 print(
@@ -67,7 +63,7 @@ def _make_convrot_parity_forward(stock_forward):
                     f"input shape={tuple(input.shape)} dtype={input.dtype} groupsize={gs}",
                     flush=True,
                 )
-            input = rotate_last_dim(input, h, gs)
+            input = rotate_last_dim_fast(input, gs)
         return stock_forward(self, input, *args, **kwargs)
 
     forward_convrot_parity._hswq_nvfp4_convrot_parity = True  # type: ignore[attr-defined]
