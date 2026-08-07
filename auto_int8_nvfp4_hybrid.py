@@ -516,7 +516,8 @@ def convert(input_path, output_path, *, device="cuda",
     hist_dev = "cuda" if torch.cuda.is_available() else "cpu"
     with contextlib.redirect_stdout(io.StringIO()):
         hist_opt = HSWQWeightedHistogramOptimizerV5(
-            bins=4096, num_candidates=200, refinement_iterations=3, device=hist_dev)
+            bins=8192, num_candidates=2000, refinement_iterations=20, device=hist_dev,
+            loss_type="cosine")
     print(f"HistMSE V5: ready (device={hist_dev})")
 
     # =========================================================================
@@ -567,7 +568,7 @@ def convert(input_path, output_path, *, device="cuda",
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 hybrid_imp = compute_hybrid_leverage_scores(
-                    w_dq, alpha=0.7, beta=0.3)
+                    w_dq, alpha=0.7, beta=0.3, top_p=1.0, max_k=None)
         except Exception:
             pass
 
