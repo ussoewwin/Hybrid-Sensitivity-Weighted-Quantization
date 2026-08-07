@@ -2,7 +2,7 @@
 
 Reads a ConvRot INT8 checkpoint, ranks all INT8 layers by a 4-axis composite:
   Axis 1: DualMonitor E[x^2]-weighted INT8 quantization error (needs calib)
-  Axis 2: HistMSE V5 (SVD+RMS leverage, Cosine loss) -- weight distribution
+  Axis 2: Hist Cosine V5 (SVD+RMS leverage, loss = 1 - cosine) -- weight direction
   Axis 3: NVFP4 measured error (INT8 dequant -> NVFP4 quant -> compare)
   Axis 4: SVD Leverage score (structural importance, standalone)
 
@@ -12,7 +12,7 @@ Higher composite = keep as INT8 (protection).
 DualMonitor calibration is OPTIONAL.  Without --calib_file/--clip_path,
 Axis 1 is skipped and ranking uses Axes 2-4 only.
 
-Requires: comfy_kitchen (TensorCoreNVFP4Layout), weighted_histogram_mse_v5
+Requires: comfy_kitchen (TensorCoreNVFP4Layout), weighted_histogram_cosine_v5
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ import math
 import os
 import re
 import sys
+import time
 import types
 from typing import Optional, Sequence
 
@@ -55,15 +56,15 @@ from native_convert_int8 import (
     rotate_weight,
 )
 
-# HistMSE V5 import
+# Hist Cosine V5 import (amax search loss = 1 - cosine; not MSE)
 _HIST_DIR = os.path.join(_REPO_ROOT, "histogram")
 if _HIST_DIR not in sys.path:
     sys.path.insert(0, _HIST_DIR)
 try:
-    from weighted_histogram_mse_v5 import HSWQWeightedHistogramOptimizerV5
-    from weighted_histogram_mse_v5 import compute_hybrid_leverage_scores
+    from weighted_histogram_cosine_v5 import HSWQWeightedHistogramOptimizerV5
+    from weighted_histogram_cosine_v5 import compute_hybrid_leverage_scores
 except ImportError:
-    print("Error: weighted_histogram_mse_v5 not found in histogram/ dir")
+    print("Error: weighted_histogram_cosine_v5 not found in histogram/ dir")
     sys.exit(1)
 
 # =========================================================================
@@ -461,7 +462,8 @@ def _match_type(key, types):
 def convert(input_path, output_path, *, device="cuda",
             nvfp4_keep=0, nvfp4_types=None, all_mlp=False,
             calib_file=None, clip_path=None, comfy_path=None,
-            num_calib_samples=32, num_inference_steps=25):
+            num_calib_samples=32, num_inference_steps=25,
+            hist_bins=4096, hist_candidates=200, hist_refine=3):
 
     print(f"Input:  {input_path}")
     print(f"Output: {output_path}")
@@ -512,24 +514,40 @@ def convert(input_path, output_path, *, device="cuda",
         for key in tqdm(sorted(all_keys), desc="Load"):
             new_sd[key] = f.get_tensor(key)
 
-    # HistMSE V5 optimizer
+    # Hist Cosine V5 optimizer — amax via 1-cosine (not MSE / L2)
+    # (was wrongly labeled HistMSE; bins default match krea2 v1.5)
     hist_dev = "cuda" if torch.cuda.is_available() else "cpu"
     with contextlib.redirect_stdout(io.StringIO()):
         hist_opt = HSWQWeightedHistogramOptimizerV5(
-            bins=8192, num_candidates=2000, refinement_iterations=20, device=hist_dev,
+            bins=int(hist_bins),
+            num_candidates=int(hist_candidates),
+            refinement_iterations=int(hist_refine),
+            device=hist_dev,
             loss_type="cosine")
-    print(f"HistMSE V5: ready (device={hist_dev})")
+    print(
+        f"HistCosine V5: ready (device={hist_dev}, "
+        f"bins={hist_bins}, candidates={hist_candidates}, refine={hist_refine})"
+    )
 
     # =========================================================================
     # 4-axis scoring
     # =========================================================================
+    n_layers = len(int8_layers)
     print("\n=== 4-Axis Scoring ===")
+    print(
+        f"  Scoring {n_layers} INT8 layers "
+        f"(per-layer progress; HistCosine bins={hist_bins}/"
+        f"cand={hist_candidates}/refine={hist_refine})",
+        flush=True,
+    )
     axis_dm = {}       # Axis 1: DM E[x^2]-weighted INT8 error
-    axis_hist = {}     # Axis 2: HistMSE V5 (SVD+Cosine)
+    axis_hist = {}     # Axis 2: Hist Cosine V5 (1 - cos_sim; not MSE)
     axis_nvfp4 = {}    # Axis 3: NVFP4 measured error
     axis_svd = {}      # Axis 4: SVD Leverage standalone
+    t_score0 = time.perf_counter()
 
     for i, layer in enumerate(int8_layers):
+        t0 = time.perf_counter()
         key = layer["key"]; base = layer["base"]; conf = layer["conf"]
         q = new_sd[key]
         scale_key = f"{base}.weight_scale"
@@ -550,9 +568,9 @@ def convert(input_path, output_path, *, device="cuda",
 
         # --- Axis 1: DM E[x^2]-weighted INT8 error ---
         module_name = None
-        mk = ck_map.get(key)
+        mk = ck_map.get(key) if act_sq_dict is not None else None
         if mk and mk.endswith(".weight"): module_name = mk[:-len(".weight")]
-        act_sq = act_sq_dict.get(module_name) if module_name else None
+        act_sq = act_sq_dict.get(module_name) if (act_sq_dict and module_name) else None
         if act_sq is not None and act_sq.shape[0] == w_dq.shape[1]:
             act_scale = act_sq.sqrt()
             err_int8 = w_dq - q.float() * (scale if scale.dim() == 0 else scale)
@@ -564,15 +582,21 @@ def convert(input_path, output_path, *, device="cuda",
             axis_dm[key] = float(we.norm().item()) / max(float(wb.norm().item()), 1e-8)
 
         # --- Pre-compute SVD hybrid leverage ONCE (used by Axis 2 and Axis 4) ---
+        # Run SVD on hist_dev (cuda when available); CPU full-SVD on large Krea2
+        # mats was the main "stuck after === 4-Axis Scoring ===" cause.
         hybrid_imp = None
         try:
+            w_svd = w_dq.to(device=hist_dev, dtype=torch.float32)
             with contextlib.redirect_stdout(io.StringIO()):
                 hybrid_imp = compute_hybrid_leverage_scores(
-                    w_dq, alpha=0.7, beta=0.3)
+                    w_svd, alpha=0.7, beta=0.3)
+            if hybrid_imp is not None and hybrid_imp.device.type != "cpu":
+                hybrid_imp = hybrid_imp.detach().cpu()
+            del w_svd
         except Exception:
-            pass
+            hybrid_imp = None
 
-        # --- Axis 2: HistMSE V5 (Cosine loss, reuse pre-computed importance) ---
+        # --- Axis 2: Hist Cosine V5 (1 - cosine; reuse pre-computed importance) ---
         # Pass hybrid_imp as importance with use_svd_leverage=False to avoid 2nd SVD
         try:
             with contextlib.redirect_stdout(io.StringIO()):
@@ -580,7 +604,7 @@ def convert(input_path, output_path, *, device="cuda",
                     w_dq, importance=hybrid_imp, use_svd_leverage=False,
                     scaled=False, loss_type="cosine")
                 # Build histogram with same importance to get estimated loss
-                from weighted_histogram_mse_v5 import WeightedHistogram
+                from weighted_histogram_cosine_v5 import WeightedHistogram
                 wh = WeightedHistogram(bins=hist_opt.bins, device=hist_opt.device)
                 wh.build(w_dq, hybrid_imp)
                 hist = wh.get_histogram()
@@ -611,19 +635,32 @@ def convert(input_path, output_path, *, device="cuda",
                 axis_svd[key] = float(hybrid_imp.mean().item())
             else:
                 # Fallback: direct SVD (only if pre-compute failed)
-                U, S, Vh = torch.linalg.svd(w_dq, full_matrices=False)
+                U, S, Vh = torch.linalg.svd(
+                    w_dq.to(device=hist_dev, dtype=torch.float32),
+                    full_matrices=False)
                 leverage = (U ** 2 * S.unsqueeze(0) ** 2).sum(dim=1).mean().item()
                 axis_svd[key] = leverage
+                del U, S, Vh
         except Exception:
             pass
 
-        if (i+1) % 32 == 0 or i == len(int8_layers) - 1:
-            dm_v = axis_dm.get(key, -1)
-            hi_v = axis_hist.get(key, -1)
-            nv_v = axis_nvfp4.get(key, -1)
-            sv_v = axis_svd.get(key, -1)
-            print(f"  [{i+1}/{len(int8_layers)}] {key}")
-            print(f"    DM={dm_v:.6f}  HistMSE={hi_v:.6e}  NVFP4={nv_v:.6f}  SVD={sv_v:.4f}")
+        dm_v = axis_dm.get(key, -1)
+        hi_v = axis_hist.get(key, -1)
+        nv_v = axis_nvfp4.get(key, -1)
+        sv_v = axis_svd.get(key, -1)
+        dt = time.perf_counter() - t0
+        elapsed = time.perf_counter() - t_score0
+        done = i + 1
+        eta = (elapsed / done) * (n_layers - done) if done else 0.0
+        print(
+            f"  [{done}/{n_layers}] {key}  "
+            f"shape={tuple(w_dq.shape)}  {dt:.1f}s  ETA={eta/60.0:.1f}m",
+            flush=True,
+        )
+        print(
+            f"    DM={dm_v:.6f}  HistCosine={hi_v:.6e}  NVFP4={nv_v:.6f}  SVD={sv_v:.4f}",
+            flush=True,
+        )
 
     # =========================================================================
     # Composite ranking
@@ -631,7 +668,7 @@ def convert(input_path, output_path, *, device="cuda",
     print("\n=== Composite Ranking ===")
     available_axes = {}
     if axis_dm: available_axes["DM"] = list(axis_dm.values())
-    if axis_hist: available_axes["HistMSE"] = list(axis_hist.values())
+    if axis_hist: available_axes["HistCosine"] = list(axis_hist.values())
     if axis_nvfp4: available_axes["NVFP4"] = list(axis_nvfp4.values())
     if axis_svd: available_axes["SVD"] = list(axis_svd.values())
 
@@ -640,7 +677,7 @@ def convert(input_path, output_path, *, device="cuda",
 
     # Normalize each axis to [0,1] via min-max, then midrank
     axis_ranks = {}  # key -> {axis_name: rank}
-    for axis_name, scores_dict in [("DM", axis_dm), ("HistMSE", axis_hist),
+    for axis_name, scores_dict in [("DM", axis_dm), ("HistCosine", axis_hist),
                                      ("NVFP4", axis_nvfp4), ("SVD", axis_svd)]:
         if not scores_dict: continue
         keys_sorted = list(scores_dict.keys())
@@ -651,7 +688,7 @@ def convert(input_path, output_path, *, device="cuda",
             axis_ranks[k][axis_name] = r
 
     # Derive weights
-    raw_scores = {name: list(d.values()) for name, d in [("DM", axis_dm), ("HistMSE", axis_hist),
+    raw_scores = {name: list(d.values()) for name, d in [("DM", axis_dm), ("HistCosine", axis_hist),
                                                           ("NVFP4", axis_nvfp4), ("SVD", axis_svd)] if d}
     weights = _derive_weights(raw_scores)
     print(f"  Form: {weights.get('form', '?')}")
@@ -813,6 +850,12 @@ def main():
     p.add_argument("--comfy_path", default=None)
     p.add_argument("--num_calib_samples", type=int, default=32)
     p.add_argument("--num_inference_steps", type=int, default=25)
+    p.add_argument("--hist_bins", type=int, default=4096,
+                   help="Hist Cosine bins (default 4096; was 8192 and hung)")
+    p.add_argument("--hist_candidates", type=int, default=200,
+                   help="Hist Cosine candidates (default 200; was 2000)")
+    p.add_argument("--hist_refine", type=int, default=3,
+                   help="Hist Cosine refinement iters (default 3; was 20)")
     args = p.parse_args()
 
     if not os.path.exists(args.input):
@@ -823,7 +866,10 @@ def main():
             all_mlp=args.all_mlp, calib_file=args.calib_file,
             clip_path=args.clip_path, comfy_path=args.comfy_path,
             num_calib_samples=args.num_calib_samples,
-            num_inference_steps=args.num_inference_steps)
+            num_inference_steps=args.num_inference_steps,
+            hist_bins=args.hist_bins,
+            hist_candidates=args.hist_candidates,
+            hist_refine=args.hist_refine)
 
 if __name__ == "__main__":
     main()

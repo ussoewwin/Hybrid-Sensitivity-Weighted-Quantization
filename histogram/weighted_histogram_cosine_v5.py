@@ -2,11 +2,15 @@
 HSWQ Weighted Histogram Optimizer V5 (SVD & RMS Magnitude Hybrid + Cosine Loss)
 ================================================================================
 
-V4 hybrid importance + Cosine Similarity Loss (1 - cosine similarity) for amax search.
-Attention/FFN: direction alignment matters more than L2 magnitude.
+V4 hybrid importance + Cosine Similarity Loss for amax search.
+Default objective is NOT MSE:
 
-Default loss_type is "cosine"; pass loss_type="mse" for legacy L2 behavior.
-compute_weighted_mse remains as a backward-compatible alias (delegates to cosine).
+  MSE (v4 / legacy):     L = Σ h_i (x_i - q_i)^2          # absolute magnitude error
+  Cosine (v5 default):   L = 1 - (x·q) / (||x|| ||q||)   # direction misalignment
+
+Attention/FFN care about direction; Cosine matches that. Pass loss_type="mse" only
+for legacy L2 behavior. compute_weighted_mse is a backward-compatible alias that
+still defaults to cosine in V5 (name is historical, not the V5 objective).
 """
 
 DEFAULT_LOSS_TYPE = "cosine"
