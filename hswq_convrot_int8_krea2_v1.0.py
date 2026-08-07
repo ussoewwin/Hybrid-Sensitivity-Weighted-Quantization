@@ -25,6 +25,11 @@ BF16 keep (structure-sensitive; same spirit as native_convert_nvfp4_krea2):
   first / last / mod. / norm / projector / tmlp / tproj / bias /
   vae. / text_encoders / non-diffusion markers.
 
+DiT float32 .weight (ndim 2/4): keep as float32 — never INT8
+  (precision-critical; independent of structure blacklist).
+
+DiT Linear/Conv2d .weight quantized only when dtype is fp16/bf16.
+
 Card 1 (--bias_correction):
   Requires --calib_file AND --clip_path (Qwen3-VL-4B / CLIPType.KREA2).
   Encode prompts with Comfy CLIP → unload CLIP → load SingleStreamDiT →
@@ -916,12 +921,23 @@ def convert_to_int8(
             continue
 
         under_prefix = (not prefix) or key.startswith(prefix)
+
+        # fp32 layers are precision-critical — keep as float32, never quantize.
+        if (
+            under_prefix
+            and key.endswith(".weight")
+            and tensor.ndim in (2, 4)
+            and tensor.dtype == torch.float32
+        ):
+            new_state_dict[key] = tensor
+            bf16_keep += 1
+            continue
+
         is_dit_weight = (
             under_prefix
             and key.endswith(".weight")
             and tensor.ndim in (2, 4)
-            and tensor.dtype
-            in (torch.float16, torch.float32, torch.bfloat16)
+            and tensor.dtype in (torch.float16, torch.bfloat16)
         )
 
         if not is_dit_weight:
