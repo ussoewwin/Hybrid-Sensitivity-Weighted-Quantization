@@ -39,7 +39,7 @@ Fixed structure blacklist (safety net; same as v1.1/v1.2):
 
 Data-driven reverse ranking (on top of fixed blacklist):
   --blacklist_keep N: top N highest-error DiT weights (from 4-axis
-    composite: DM E[x^2] × HistMSE V5 × NVFP4 measured × SVD Leverage)
+    composite: DM E[x^2] × HistCosine V5 × NVFP4 measured × SVD Leverage)
     -> original dtype. Applied AFTER fixed
     blacklist; picks from the pool of INT8-quantized layers.
   --keep_sensitive M: next M from the remaining ranked pool -> original dtype.
@@ -64,7 +64,7 @@ import torch
 from safetensors.torch import load_file, save_file
 from tqdm import tqdm
 
-# Histogram Cosine V5 (repo histogram/; amax via 1-cosine, not MSE).
+# Histogram Cosine V5 (repo histogram/; amax via Cosine Similarity Loss).
 _HIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "histogram")
 if _HIST_DIR not in sys.path:
     sys.path.insert(0, _HIST_DIR)
@@ -211,7 +211,7 @@ def compute_int8_bias_delta(weight_fp, weight_dq, act_mean):
 
 
 # ---------------------------------------------------------------------------
-# Histogram MSE complement (SDXL V1.3 origin) — DualMonitor math UNCHANGED
+# Histogram Cosine complement (SDXL V1.3 origin) — DualMonitor math UNCHANGED
 # ---------------------------------------------------------------------------
 def _pool_midranks(values: Sequence[float]) -> list[float]:
     """Average midrank / n in (0, 1] within THIS measured pool (ties share)."""
@@ -300,10 +300,9 @@ def _histogram_mse_score(
     importance: Optional[torch.Tensor],
     hist_opt: HSWQWeightedHistogramOptimizerFast,
 ) -> float:
-    """V5 weighted histogram MSE at optimal amax (Cosine loss, SVD leverage).
+    """V5 weighted histogram Cosine loss at optimal amax (SVD+RMS hybrid).
 
-    Probe of static weight-distribution distortion; does NOT alter DualMonitor.
-    Uses V5's SVD+RMS hybrid leverage and Cosine loss for direction sensitivity.
+    Probe of static weight-direction distortion; does NOT alter DualMonitor.
     """
     with contextlib.redirect_stdout(io.StringIO()):
         optimal_amax = hist_opt.compute_optimal_amax(
@@ -1148,13 +1147,13 @@ def convert_to_int8(
             )
         if use_blacklist_keep:
             print(
-                "  [blacklist_keep] ON | DualMonitor E[x^2] × HistMSE composite | "
+                "  [blacklist_keep] ON | DualMonitor E[x^2] × HistCosine composite | "
                 f"top-N={int(blacklist_keep)} → original dtype (data-driven, after fixed blacklist)"
             )
         if use_keep_sensitive:
             print(
                 "  [keep_sensitive] ON | DualMonitor E[x^2] (unchanged) × "
-                f"HistMSE midrank | next-M={int(keep_sensitive)} → original dtype"
+                f"HistCosine midrank | next-M={int(keep_sensitive)} → original dtype"
             )
 
         calib = run_card1_calib(
@@ -1214,7 +1213,7 @@ def convert_to_int8(
                 loss_type="cosine",
             )
         print(
-            f"  [HistMSE V5] Axis 2 ON | SVD+RMS Leverage + Cosine Loss "
+            f"  [HistCosine V5] Axis 2 ON | SVD+RMS Leverage + Cosine Loss "
             f"on {hist_dev} (bins=4096, candidates=200, refine=3)"
         )
 
@@ -1334,10 +1333,10 @@ def convert_to_int8(
             )
             layer_quant_errors[key] = rel_err
 
-        # Histogram MSE complement (static weight distortion).
+        # Histogram Cosine complement (static weight direction distortion).
         # Collected for ALL INT8-converted layers (act_sq-independent) so that
         # act_sq-missing layers can still enter composite ranking via the
-        # HistMSE axis with neutral DualMonitor midrank (0.5).
+        # HistCosine axis with neutral DualMonitor midrank (0.5).
         if use_reverse_rank and hist_opt is not None:
             # Pre-compute SVD hybrid leverage once (shared by Axis 2 and Axis 4)
             hybrid_imp = None
@@ -1348,7 +1347,7 @@ def convert_to_int8(
             except Exception:
                 pass
 
-            # Axis 2: HistMSE V5 (Cosine loss, reuse pre-computed importance)
+            # Axis 2: HistCosine V5 (reuse pre-computed importance)
             imp = hybrid_imp
             if imp is None:
                 # Fallback: weight L1 norm per input channel as proxy importance
@@ -1397,7 +1396,7 @@ def convert_to_int8(
                     bias_corr_pending[module_key] = (-delta).detach().float().cpu()
 
     # --- Reverse ranking: blacklist_keep then keep_sensitive (no double-count) ---
-    # HistMSE is the floor: every INT8 layer gets a hist MSE score.
+    # HistCosine is the floor: every INT8 layer gets a Cosine loss score.
     # DualMonitor axis: real act_sq-weighted rel_err ranks the act_sq-available
     # subset; act_sq-missing layers receive neutral midrank 0.5 on the DM axis
     # (DualMonitor formula UNCHANGED — no Frobenius escape).
@@ -1407,7 +1406,7 @@ def convert_to_int8(
     if use_reverse_rank and not layer_hist_mse:
         raise RuntimeError(
             "blacklist_keep / keep_sensitive 4-axis composite "
-            "requires the HistMSE V5 axis, but no layer produced a "
+            "requires the HistCosine V5 axis, but no layer produced a "
             "score (check V5 import / hist_opt init)"
         )
 
@@ -1434,7 +1433,7 @@ def convert_to_int8(
         print(
             f"    [{label}] {rk}  composite={cscore:.6f}  "
             f"dm_rel={dm_display}  "
-            f"hist_mse={layer_hist_mse[rk]:.6e}  "
+            f"hist_cosine={layer_hist_mse[rk]:.6e}  "
             f"dtype={state_dict[rk].dtype}"
         )
 
@@ -1485,7 +1484,7 @@ def convert_to_int8(
         )
         n_dm_neutral = len(pool_keys) - len(dm_real_keys)
         print(
-            f"\n[Reverse ranking] DualMonitor x HistMSE midrank composite "
+            f"\n[Reverse ranking] DualMonitor x HistCosine midrank composite "
             f"(form={weights['form']}, w_dm={w_dm:.4f}, w_hist={w_hist:.4f}) | "
             f"pool={len(pool_keys)} "
             f"(DM-real={len(dm_real_keys)}, DM-neutral={n_dm_neutral})"
@@ -1579,7 +1578,7 @@ def convert_to_int8(
     print(f"Reverse protect keep_sensitive: {int(keep_sensitive)}")
     if use_reverse_rank:
         print(
-            "  Ranking: 4-axis composite (DM E[x^2] × HistMSE V5 × NVFP4 × SVD) "
+            "  Ranking: 4-axis composite (DM E[x^2] × HistCosine V5 × NVFP4 × SVD) "
             "midrank weighted geometric (auto IQR/median weights)"
         )
     print(f"ConvRot FULL (Linear+Conv2d): {enable_convrot}")
@@ -1602,7 +1601,7 @@ def main():
             "DualMonitor and calibration are one unit (run_card1_calib). "
             "--blacklist_keep N and --keep_sensitive M force DualMonitor calib "
             "(need --calib_file + --clip_path); both pick original-dtype layers "
-            "from the same DualMonitor E[x^2] x HistMSE composite ranking "
+            "from the same DualMonitor E[x^2] x HistCosine composite ranking "
             "(blacklist first, then sensitive). Fixed structure blacklist "
             "(first/last/mod/norm/...) always applies as safety net. "
             "Paths alone also calibrate. Card 1 = --bias_correction "
@@ -1696,7 +1695,7 @@ def main():
         help=(
             "Forces DualMonitor / run_card1_calib (needs --calib_file + "
             "--clip_path). After the fixed structure blacklist, revert top N "
-            "INT8-quantized DiT weights ranked by DualMonitor E[x^2] x HistMSE "
+            "INT8-quantized DiT weights ranked by DualMonitor E[x^2] x HistCosine "
             "composite to original dtype. Data-driven complement to the fixed "
             "blacklist. Applied before --keep_sensitive on the same ranked pool. "
             "0 = disabled."
@@ -1709,7 +1708,7 @@ def main():
         help=(
             "Forces DualMonitor / run_card1_calib (needs --calib_file + "
             "--clip_path). After --blacklist_keep, revert next M layers from "
-            "the same DualMonitor E[x^2] x HistMSE composite ranking to "
+            "the same DualMonitor E[x^2] x HistCosine composite ranking to "
             "original dtype. Works with bias OFF. No Frobenius escape. "
             "0 = disabled."
         ),
