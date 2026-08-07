@@ -208,15 +208,13 @@ def _forbid_benchmark_nvfp4_import() -> None:
         )
 
 
-def apply_quant_patches() -> None:
-    """NVFP4 from krea2_nvfp4 + INT8 protect from benchmark/int8.
+def apply_quant_patches(mode: str = "tc"):
+    """Runtime monkey-patches for NVFP4 + INT8 protect.
 
-    ConvRot NVFP4 needs comfy_quant_nvfp4 + Comfy parity (online x@H).
-    INT8 protect layers need comfy_quant_int8 (same ckpt).
-    Never import benchmark/nvfp4. Does not touch ComfyUI-master.
+    mode='tc': Native HSWQ hardware Tensor Core forward (scaled_mm_nvfp4, no dequant).
+    mode='parity': ComfyUI stock ops.py Linear.forward + dequantization.
     """
     import comfy.ops
-
     from krea2_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
     from krea2_nvfp4.nvfp4_comfy_parity import apply_nvfp4_comfy_parity
     import krea2_nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
@@ -225,16 +223,19 @@ def apply_quant_patches() -> None:
     import int8.comfy_quant_int8 as _cq_int8
 
     apply_comfy_quant_nvfp4_patches()
-    if not apply_nvfp4_comfy_parity():
-        raise RuntimeError(
-            "krea2_nvfp4 ComfyUI-only parity failed to apply "
-            "(need [BENCH] nvfp4 ComfyUI-only log; TC forward must be off)"
+    if mode == "parity":
+        if not apply_nvfp4_comfy_parity():
+            raise RuntimeError("krea2_nvfp4 ComfyUI-only parity failed to apply")
+        require_convrot_parity_forward()
+        print(
+            "  [CONVROT] Parity forward armed: "
+            "stock Comfy GEMM + fast O(N log N) float32 butterfly act-rotate (zero accumulation error)"
         )
-    require_convrot_parity_forward()
-    print(
-        "  [CONVROT] Parity forward armed: "
-        "stock Comfy GEMM + fast O(N log N) float32 butterfly act-rotate (zero accumulation error)"
-    )
+    else:
+        print(
+            "  [CONVROT] Native Hardware Tensor Core forward armed: "
+            "scaled_mm_nvfp4 on Blackwell Tensor Cores (fastest, zero weight dequant)"
+        )
     print(f"  [BENCH] nvfp4 patch file: {os.path.abspath(_cq_nvfp4.__file__)}")
     print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
 
@@ -636,7 +637,12 @@ def main() -> int:
     parser.add_argument("--scheduler", default="simple")
     parser.add_argument("--vae", default=None, help="Optional VAE safetensors for pixel decode")
     parser.add_argument("--output_dir", default=".")
-    parser.add_argument("--save_image", action="store_true")
+    parser.add_argument(
+        "--mode",
+        choices=["tc", "parity"],
+        default="tc",
+        help="NVFP4 execution mode: 'tc' for native hardware Tensor Core speed, 'parity' for stock dequantization",
+    )
     args = parser.parse_args()
 
     for p, name in ((args.fp16, "--fp16"), (args.nvfp4, "--nvfp4"), (args.clip_path, "--clip_path")):
@@ -719,9 +725,8 @@ def main() -> int:
         img_fp16.save(p16)
         print(f"FP16 Time: {t16:.2f}s  peak={v16:.2f}GiB")
 
-        print("Applying NVFP4 ConvRot parity + INT8 + addmm patches (after BF16)...")
-        apply_quant_patches()
-        require_convrot_parity_forward()
+        print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches (after BF16)...")
+        apply_quant_patches(mode=args.mode)
 
         img_q, _lat_q, tq, vq, diag_q = run_branch(
             label="2. Quantized (ConvRot NVFP4 + INT8 protect)",
