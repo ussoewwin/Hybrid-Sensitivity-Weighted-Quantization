@@ -616,7 +616,7 @@ def convert(input_path, output_path, *, device="cuda",
                     wh.build(w_dq, hybrid_imp)
                     hist = wh.get_histogram()
                     bc = wh.get_bin_centers()
-                    est_loss = hist_opt.mse_optimizer.compute_weighted_loss(
+                    est_loss = hist_opt.cosine_optimizer.compute_weighted_cosine(
                         hist, bc, optimal_amax, scaled=False, loss_type="cosine")
                 axis_hist[key] = float(est_loss)
             except Exception:
