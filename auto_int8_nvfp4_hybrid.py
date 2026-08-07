@@ -568,7 +568,7 @@ def convert(input_path, output_path, *, device="cuda",
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 hybrid_imp = compute_hybrid_leverage_scores(
-                    w_dq, alpha=0.7, beta=0.3, top_p=1.0, max_k=None)
+                    w_dq, alpha=0.7, beta=0.3)
         except Exception:
             pass
 
