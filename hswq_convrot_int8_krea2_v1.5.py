@@ -1207,15 +1207,15 @@ def convert_to_int8(
         hist_dev = "cuda" if torch.cuda.is_available() else "cpu"
         with contextlib.redirect_stdout(io.StringIO()):
             hist_opt = HSWQWeightedHistogramOptimizerFast(
-                bins=8192,
-                num_candidates=2000,
-                refinement_iterations=20,
+                bins=4096,
+                num_candidates=200,
+                refinement_iterations=3,
                 device=hist_dev,
                 loss_type="cosine",
             )
         print(
             f"  [HistMSE V5] Axis 2 ON | SVD+RMS Leverage + Cosine Loss "
-            f"on {hist_dev} (bins=8192, candidates=2000, refine=20)"
+            f"on {hist_dev} (bins=4096, candidates=200, refine=3)"
         )
 
     for key, tensor in tqdm(list(state_dict.items())):
