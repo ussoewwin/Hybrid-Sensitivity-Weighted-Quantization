@@ -23,6 +23,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 0.9869 |
 | moodyCutieMixKrea2_v20BF16 | +0 | 1off | 4.79 | 0.9771 |
 | gonzalomoKrea2_v20 | +10 | 1off | 6.26 | 0.9573 |
+| fasciumKREA2_3MERGE | +10 | 1off | 6.81 | 0.9607 |
 | darkBeast30BF16INT8_darkBeast330 | +10 | 1off | 7.98 | 0.9587 |
 
 ---
@@ -39,6 +40,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 3.72 | +1.15 | 0.9869 | 0.9805 | −0.0064 | Native ConvRot INT8 | HSWQ |
 | moodyCutieMixKrea2_v20BF16 | +0 | 1off | 4.79 | 12.83 | +8.04 | 0.9771 | 0.9184 | −0.0587 | Native ConvRot INT8 | HSWQ |
 | gonzalomoKrea2_v20 | +10 | 1off | 6.26 | 6.63 | +0.37 | 0.9573 | 0.9531 | −0.0042 | Native ConvRot INT8 | HSWQ |
+| fasciumKREA2_3MERGE | +10 | 1off | 6.81 | 11.44 | +4.63 | 0.9607 | 0.9170 | −0.0437 | Native ConvRot INT8 | HSWQ |
 | darkBeast30BF16INT8_darkBeast330 | +10 | 1off | 7.98 | 10.74 | +2.76 | 0.9587 | 0.9396 | −0.0191 | Native ConvRot INT8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM.
