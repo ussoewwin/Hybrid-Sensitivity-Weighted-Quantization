@@ -20,6 +20,8 @@ No invented amax / freeze / ensure_act_scale. Inference + load = ComfyUI only.
 """
 from __future__ import annotations
 
+import torch
+
 _APPLIED = False
 
 
@@ -53,10 +55,11 @@ def _make_convrot_parity_forward(stock_forward):
         if getattr(self, "_hswq_nvfp4_convrot", False):
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
             h = getattr(self, "_hswq_nvfp4_parity_H", None)
-            if h is None or h.device != input.device or h.dtype != input.dtype:
-                h = build_hadamard(gs, device=input.device, dtype=input.dtype)
+            if h is None or h.device != input.device or h.dtype != torch.float32:
+                h = build_hadamard(gs, device=input.device, dtype=torch.float32)
                 self._hswq_nvfp4_parity_H = h
-            input = rotate_last_dim(input, h, gs)
+            orig_dtype = input.dtype
+            input = rotate_last_dim(input.float(), h, gs).to(orig_dtype)
         return stock_forward(self, input, *args, **kwargs)
 
     forward_convrot_parity._hswq_nvfp4_convrot_parity = True  # type: ignore[attr-defined]
@@ -66,6 +69,8 @@ def _make_convrot_parity_forward(stock_forward):
 def apply_nvfp4_comfy_parity() -> bool:
     """Runtime only. Imports stay inside krea2_nvfp4 (never benchmark/nvfp4/)."""
     global _APPLIED
+    import logging
+    logging.getLogger("comfy_kitchen.tensor.nvfp4").setLevel(logging.ERROR)
     # Stock F.linear(bias=...) → aten.addmm; kitchen NVFP4 had no handler → dequant.
     from .nvfp4_addmm_patch import register_nvfp4_addmm_handler
 
