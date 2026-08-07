@@ -55,11 +55,10 @@ def _make_convrot_parity_forward(stock_forward):
         if getattr(self, "_hswq_nvfp4_convrot", False):
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
             h = getattr(self, "_hswq_nvfp4_parity_H", None)
-            if h is None or h.device != input.device or h.dtype != torch.float32:
-                h = build_hadamard(gs, device=input.device, dtype=torch.float32)
+            if h is None or h.device != input.device or h.dtype != input.dtype:
+                h = build_hadamard(gs, device=input.device, dtype=input.dtype)
                 self._hswq_nvfp4_parity_H = h
-            orig_dtype = input.dtype
-            input = rotate_last_dim(input.float(), h, gs).to(orig_dtype)
+            input = rotate_last_dim(input, h, gs)
         return stock_forward(self, input, *args, **kwargs)
 
     forward_convrot_parity._hswq_nvfp4_convrot_parity = True  # type: ignore[attr-defined]
