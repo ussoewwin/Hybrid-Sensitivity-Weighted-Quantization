@@ -505,7 +505,8 @@ def run_branch(
     n_nvfp4 = 0
     n_convrot = 0
     n_int8 = 0
-    for m in model.model.diffusion_model.modules():
+    armed_samples = []
+    for name, m in model.model.diffusion_model.named_modules():
         is_lin = (
             isinstance(m, torch.nn.Linear)
             or hasattr(m, "out_features")
@@ -519,12 +520,16 @@ def run_branch(
                 n_nvfp4 += 1
             if getattr(m, "_hswq_nvfp4_convrot", False):
                 n_convrot += 1
+                if len(armed_samples) < 5:
+                    armed_samples.append(name)
             if getattr(m, "int8_quant", False) or getattr(m, "_hswq_int8", False):
                 n_int8 += 1
     print(
         f"  [{label} module diag] total_linears={n_total_linear} "
         f"nvfp4_loaded={n_nvfp4} convrot_armed={n_convrot} int8_loaded={n_int8}"
     )
+    if armed_samples:
+        print(f"  [{label} armed convrot samples] {armed_samples}")
 
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
@@ -771,6 +776,8 @@ def main() -> int:
         lat_cos = float(torch.nn.functional.cosine_similarity(
             lat_fp16.unsqueeze(0), lat_q.unsqueeze(0), dim=1).item())
         print(f"\n--- Latent-Space (direct, no RGB projection) ---")
+        print(f"FP16 latent stats:  min={lat_fp16.min():.4f} max={lat_fp16.max():.4f} mean={lat_fp16.mean():.4f} std={lat_fp16.std():.4f}")
+        print(f"NVFP4 latent stats: min={lat_q.min():.4f} max={lat_q.max():.4f} mean={lat_q.mean():.4f} std={lat_q.std():.4f}")
         print(f"Latent MSE:      {lat_mse:.6f}  (0 = perfect)")
         print(f"Latent Cosine:   {lat_cos:.6f}  (1.0 = perfect)")
         # Pixel-space comparison follows (reliable only for INT8; NVFP4 mix diverges)
