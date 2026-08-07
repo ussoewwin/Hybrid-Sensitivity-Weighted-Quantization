@@ -37,6 +37,9 @@ import torch
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
 
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 
 def _clear_argv_for_comfy() -> list[str]:
     """ComfyUI cli_args swallows unknown flags; keep only argv[0] during import."""
@@ -280,6 +283,27 @@ def make_empty_latent(model, width: int, height: int, batch: int = 1) -> dict:
     return {"samples": latent}
 
 
+def _diag_model_sampling(model, label: str) -> dict:
+    """Print model_sampling diagnostics for sigma schedule verification."""
+    info = {}
+    try:
+        ms = model.get_model_object("model_sampling")
+        info["ms_type"] = type(ms).__name__
+        info["sigma_min"] = float(ms.sigma_min)
+        info["sigma_max"] = float(ms.sigma_max)
+        inner = getattr(model, "model", None)
+        info["model_type"] = type(inner).__name__ if inner else "unknown"
+        print(
+            f"  [{label}] model_type={info['model_type']} "
+            f"model_sampling={info['ms_type']} "
+            f"sigma_min={info['sigma_min']:.6f} sigma_max={info['sigma_max']:.6f}"
+        )
+    except Exception as e:
+        print(f"  [{label}] model_sampling diagnostic failed: {e}")
+        info["error"] = str(e)
+    return info
+
+
 def latent_to_rgb_preview(latent_t: torch.Tensor, model) -> Image.Image:
     """Wan21 latent_rgb_factors preview when no VAE is provided."""
     fmt = getattr(getattr(model, "model", model), "latent_format", None)
@@ -351,7 +375,7 @@ def sample_once(
         disable_noise=False,
         start_step=None,
         last_step=None,
-        force_full_denoise=False,
+        force_full_denoise=True,
         noise_mask=noise_mask,
         callback=callback,
         disable_pbar=disable_pbar,
@@ -462,7 +486,7 @@ def run_branch(
     positive,
     negative,
     args,
-) -> tuple[Image.Image, torch.Tensor, float, float]:
+) -> tuple[Image.Image, torch.Tensor, float, float, dict]:
     print(f"\n=== {label}: loading UNet ===")
     print(f"  path: {unet_path}")
     _report_gpu_memory(f"before_load/{label}")
@@ -473,6 +497,8 @@ def run_branch(
     print(f"  load: {load_s:.2f}s")
 
     latent = make_empty_latent(model, args.width, args.height, batch=1)
+    diag = _diag_model_sampling(model, label)
+    print(f"  latent shape: {latent['samples'].shape}")
 
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
@@ -533,7 +559,7 @@ def run_branch(
         del model, out, samples_t
 
     _hard_free_vram()
-    return img, lat_cpu, sample_s, peak_gb
+    return img, lat_cpu, sample_s, peak_gb, diag
 
 
 def calculate_metrics(img1, img2):
@@ -650,7 +676,7 @@ def main() -> int:
         print(f"Prompt: {args.prompt[:80]}...")
         print("------------------------")
 
-        img_fp16, _lat_fp16, t16, v16 = run_branch(
+        img_fp16, _lat_fp16, t16, v16, diag_fp16 = run_branch(
             label="1. Baseline (FP16/BF16)",
             unet_path=args.fp16,
             vae_path=vae_path,
@@ -666,7 +692,7 @@ def main() -> int:
         apply_quant_patches()
         require_convrot_parity_forward()
 
-        img_q, _lat_q, tq, vq = run_branch(
+        img_q, _lat_q, tq, vq, diag_q = run_branch(
             label="2. Quantized (ConvRot NVFP4 + INT8 protect)",
             unet_path=args.nvfp4,
             vae_path=vae_path,
@@ -678,10 +704,41 @@ def main() -> int:
         img_q.save(pq)
         print(f"NVFP4+INT8protect Time: {tq:.2f}s  peak={vq:.2f}GiB")
 
+        # --- Sigma schedule & model type comparison ---
+        print("\n--- Sigma Schedule Diagnostics ---")
+        _sigma_mismatch = False
+        for _dk in ("model_type", "ms_type", "sigma_min", "sigma_max"):
+            _v16 = diag_fp16.get(_dk)
+            _vq = diag_q.get(_dk)
+            if isinstance(_v16, float) and isinstance(_vq, float):
+                _dm = "OK" if abs(_v16 - _vq) < 1e-6 else "MISMATCH"
+            else:
+                _dm = "OK" if _v16 == _vq else "MISMATCH"
+            if _dm != "OK":
+                _sigma_mismatch = True
+            print(f"  {_dk}: FP16={_v16}  NVFP4={_vq}  [{_dm}]")
+        if _sigma_mismatch:
+            print(
+                "  *** SIGMA SCHEDULE MISMATCH DETECTED ***\n"
+                "  BF16 and NVFP4 use different model configs / noise schedules.\n"
+                "  Images WILL be completely different regardless of quant quality.\n"
+                "  Fix: ensure both branches detect the same model type "
+                "(check fix_unet_config_packed_dims)."
+            )
+        else:
+            print("  All sigma schedule parameters match.")
+
         # 3. Comparison — same printout as int8bench_sdxl
         print("\n=== 3. Calculating Metrics ===")
 
         # Latent-space: direct comparison (NVFP4 divergence makes pixel SSIM unreliable)
+        if _lat_fp16.shape != _lat_q.shape:
+            print(
+                f"\n  *** LATENT SHAPE MISMATCH: "
+                f"FP16={tuple(_lat_fp16.shape)} NVFP4={tuple(_lat_q.shape)} ***\n"
+                f"  Different latent shapes = model configs differ = "
+                f"metrics invalid."
+            )
         lat_fp16 = _lat_fp16.reshape(-1)
         lat_q = _lat_q.reshape(-1)
         lat_mse = float((lat_fp16 - lat_q).pow(2).mean().item())
