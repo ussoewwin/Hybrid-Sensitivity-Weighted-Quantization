@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import os
 
-from .nvfp4_hadamard import build_hadamard
+from .nvfp4_hadamard import build_hadamard, rotate_last_dim_fast
 from .nvfp4_runtime import (
     ensure_act_scale_cached,
     clear_nvfp4_cudagraphs,
@@ -315,11 +315,7 @@ def make_nvfp4_linear_forward(stock_forward):
             if input_2d.ndim != 2:
                 return stock_forward(self, input, *args, **kwargs)
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
-            h = getattr(self, "_hswq_nvfp4_H", None)
-            if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
-                h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
-                self._hswq_nvfp4_H = h
-            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
+            input_2d = rotate_last_dim_fast(input_2d, gs)
             _CONVROT_ACT_ROTATES += 1
             if reshaped_nd:
                 input = input_2d.reshape((*input_shape[:-1], input_shape[-1]))
@@ -337,14 +333,10 @@ def make_nvfp4_linear_forward(stock_forward):
         if input_2d.ndim != 2:
             return stock_forward(self, input, *args, **kwargs)
 
-        # 2) FULL ConvRot: dense Hadamard GEMM (gs=256 butterfly is ~15x slower)
+        # 2) FULL ConvRot: fast O(N log N) float32 butterfly act rotation
         if getattr(self, "_hswq_nvfp4_convrot", False):
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
-            h = getattr(self, "_hswq_nvfp4_H", None)
-            if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
-                h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
-                self._hswq_nvfp4_H = h
-            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
+            input_2d = rotate_last_dim_fast(input_2d, gs)
             _CONVROT_ACT_ROTATES += 1
 
         # 3) Weight / bias: skip cast_bias_weight when already on-device QT
