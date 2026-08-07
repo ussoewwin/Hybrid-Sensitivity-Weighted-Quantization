@@ -64,11 +64,11 @@ import torch
 from safetensors.torch import load_file, save_file
 from tqdm import tqdm
 
-# Histogram MSE fast path (repo histogram/; not V1.3 quantize script).
+# Histogram Cosine V5 (repo histogram/; amax via 1-cosine, not MSE).
 _HIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "histogram")
 if _HIST_DIR not in sys.path:
     sys.path.insert(0, _HIST_DIR)
-from weighted_histogram_mse_v5 import (  # noqa: E402
+from weighted_histogram_cosine_v5 import (  # noqa: E402
     HSWQWeightedHistogramOptimizerV5 as HSWQWeightedHistogramOptimizerFast,
     compute_hybrid_leverage_scores,
 )
@@ -310,7 +310,7 @@ def _histogram_mse_score(
             weight, importance=importance, use_svd_leverage=False,
             scaled=False, loss_type="cosine"
         )
-        from weighted_histogram_mse_v5 import WeightedHistogram
+        from weighted_histogram_cosine_v5 import WeightedHistogram
         wh = WeightedHistogram(bins=hist_opt.bins, device=hist_opt.device)
         wh.build(weight, importance)
         hist = wh.get_histogram()
