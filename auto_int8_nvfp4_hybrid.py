@@ -61,6 +61,7 @@ if _HIST_DIR not in sys.path:
     sys.path.insert(0, _HIST_DIR)
 try:
     from weighted_histogram_mse_v5 import HSWQWeightedHistogramOptimizerV5
+    from weighted_histogram_mse_v5 import compute_hybrid_leverage_scores
 except ImportError:
     print("Error: weighted_histogram_mse_v5 not found in histogram/ dir")
     sys.exit(1)
@@ -561,13 +562,31 @@ def convert(input_path, output_path, *, device="cuda",
                 we = err_int8; wb = w_dq
             axis_dm[key] = float(we.norm().item()) / max(float(wb.norm().item()), 1e-8)
 
-        # --- Axis 2: HistMSE V5 (SVD+RMS leverage, Cosine loss) ---
+        # --- Pre-compute SVD hybrid leverage ONCE (used by Axis 2 and Axis 4) ---
+        hybrid_imp = None
         try:
             with contextlib.redirect_stdout(io.StringIO()):
-                stats = hist_opt.compute_optimal_amax_with_stats(
-                    w_dq, importance=None, use_svd_leverage=True,
+                hybrid_imp = compute_hybrid_leverage_scores(
+                    w_dq, alpha=0.7, beta=0.3)
+        except Exception:
+            pass
+
+        # --- Axis 2: HistMSE V5 (Cosine loss, reuse pre-computed importance) ---
+        # Pass hybrid_imp as importance with use_svd_leverage=False to avoid 2nd SVD
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                optimal_amax = hist_opt.compute_optimal_amax(
+                    w_dq, importance=hybrid_imp, use_svd_leverage=False,
                     scaled=False, loss_type="cosine")
-            axis_hist[key] = float(stats["estimated_mse"])
+                # Build histogram with same importance to get estimated loss
+                from weighted_histogram_mse_v5 import WeightedHistogram
+                wh = WeightedHistogram(bins=hist_opt.bins, device=hist_opt.device)
+                wh.build(w_dq, hybrid_imp)
+                hist = wh.get_histogram()
+                bc = wh.get_bin_centers()
+                est_loss = hist_opt.mse_optimizer.compute_weighted_loss(
+                    hist, bc, optimal_amax, scaled=False, loss_type="cosine")
+            axis_hist[key] = float(est_loss)
         except Exception:
             pass
 
@@ -584,14 +603,16 @@ def convert(input_path, output_path, *, device="cuda",
         except Exception:
             pass
 
-        # --- Axis 4: SVD Leverage (standstandalone structural score) ---
+        # --- Axis 4: SVD Leverage (reuse pre-computed hybrid_imp) ---
         try:
-            # Use the SVD leverage magnitude as a standalone score
-            # High leverage = structurally important = keep INT8
-            U, S, Vh = torch.linalg.svd(w_dq, full_matrices=False)
-            # Leverage = sum of sigma^2 weighted by U and V contributions
-            leverage = (U ** 2 * S.unsqueeze(0) ** 2).sum(dim=1).mean().item()
-            axis_svd[key] = leverage
+            if hybrid_imp is not None:
+                # Mean leverage = average structural importance per element
+                axis_svd[key] = float(hybrid_imp.mean().item())
+            else:
+                # Fallback: direct SVD (only if pre-compute failed)
+                U, S, Vh = torch.linalg.svd(w_dq, full_matrices=False)
+                leverage = (U ** 2 * S.unsqueeze(0) ** 2).sum(dim=1).mean().item()
+                axis_svd[key] = leverage
         except Exception:
             pass
 
