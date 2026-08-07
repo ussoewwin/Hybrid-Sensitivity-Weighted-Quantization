@@ -40,7 +40,7 @@ venv_site_packages = os.path.join(os.path.dirname(current_dir), "venv", "Lib", "
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
     sys.path.append(venv_site_packages)
 
-from weighted_histogram_mse_v5 import HSWQWeightedHistogramOptimizerV5
+from weighted_histogram_cosine_v5 import HSWQWeightedHistogramOptimizerV5
 
 # Enforce C++20
 if sys.platform == "win32":
