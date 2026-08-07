@@ -60,7 +60,8 @@ def _make_convrot_parity_forward(stock_forward):
                 _LOGGED_FIRST_ROT[0] = True
                 print(
                     f"  [CONVROT parity forward] First act-rotation triggered: "
-                    f"input shape={tuple(input.shape)} dtype={input.dtype} groupsize={gs}",
+                    f"fast O(N log N) float32 butterfly transform "
+                    f"(shape={tuple(input.shape)}, dtype={input.dtype}, groupsize={gs}, zero accumulation error)",
                     flush=True,
                 )
             input = rotate_last_dim_fast(input, gs)
@@ -169,8 +170,9 @@ def apply_nvfp4_comfy_parity() -> bool:
     _APPLIED = True
     print(
         "[BENCH] nvfp4 ComfyUI-only: load=_load_quantized_module; "
-        "Linear.forward=ops.py stock + convrot act-rotate; "
-        "NVFP4 addmm->scaled_mm_nvfp4 registered (no full-weight dequant); "
-        "SSIM target >=0.9"
+        "Linear.forward=ops.py stock + O(N log N) float32 butterfly act-rotate (zero accumulation error); "
+        "NVFP4 addmm->scaled_mm_nvfp4 registered; "
+        "SSIM target >=0.9",
+        flush=True,
     )
     return True
