@@ -173,10 +173,7 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         bias = bias.dequantize()
 
     orig_m, orig_k = int(input_2d.shape[0]), int(input_2d.shape[1])
-    needs_padding = TensorCoreNVFP4Layout.get_padded_shape((orig_m, orig_k)) != (
-        orig_m,
-        orig_k,
-    )
+    needs_padding = (orig_m % 16 != 0) or (orig_k % 16 != 0)
 
     # Checkpoints omit input_scale (placeholder ones). Must amax once per
     # module — ones as tensor_scale collapses NVFP4 act grids (SSIM~0.18).
