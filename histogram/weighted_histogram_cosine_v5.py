@@ -2,15 +2,17 @@
 HSWQ Weighted Histogram Optimizer V5 (SVD & RMS Magnitude Hybrid + Cosine Loss)
 ================================================================================
 
-V4 hybrid importance + Cosine Similarity Loss for amax search.
-Default objective is NOT MSE:
+Amax search objective is Cosine Similarity Loss only:
 
-  MSE (v4 / legacy):     L = Σ h_i (x_i - q_i)^2          # absolute magnitude error
-  Cosine (v5 default):   L = 1 - (x·q) / (||x|| ||q||)   # direction misalignment
+  L = 1 - (x · q) / (||x|| ||q||)
 
-Attention/FFN care about direction; Cosine matches that. Pass loss_type="mse" only
-for legacy L2 behavior. compute_weighted_mse is a backward-compatible alias that
-still defaults to cosine in V5 (name is historical, not the V5 objective).
+with histogram weights:
+  dot    = Σ h · x · q
+  norm_x = Σ h · x²
+  norm_q = Σ h · q²
+
+Importance for the histogram comes from SVD leverage + RMS magnitude hybrid.
+Attention / FFN care about weight direction; Cosine measures that misalignment.
 """
 
 DEFAULT_LOSS_TYPE = "cosine"
@@ -175,13 +177,14 @@ class WeightedHistogram:
 
 
 class MSEOptimizer:
-    """MSE optimizer."""
+    """Cosine-loss amax grid search over a weighted histogram (V5)."""
     
     def __init__(self, device: str = "cuda"):
         self.device = device
         self.fp8_quantizer = FP8E4M3Quantizer(device)
     
     def compute_weighted_loss(self, histogram: torch.Tensor, bin_centers: torch.Tensor, amax: float, scaled: bool = True, loss_type: str = "cosine") -> float:
+        """Cosine loss: 1 - (dot / sqrt(norm_x * norm_q)) under histogram weights."""
         dequantized = self.fp8_quantizer.quantize_dequantize(bin_centers.float(), amax, scaled=scaled).double()
         
         if loss_type == "cosine":
@@ -194,12 +197,11 @@ class MSEOptimizer:
             cos_sim = dot / denom
             return (1.0 - cos_sim).item()
         else:
-            # Standard MSE
             error_sq = (dequantized - bin_centers) ** 2
             return (histogram * error_sq).sum().item()
 
     def compute_weighted_mse(self, histogram, bin_centers, amax, scaled=True, loss_type=None):
-        """Backward-compatible alias for v4 callers (defaults to cosine loss in v5)."""
+        """Alias of compute_weighted_loss (Cosine by default)."""
         if loss_type is None:
             loss_type = DEFAULT_LOSS_TYPE
         return self.compute_weighted_loss(
@@ -207,6 +209,7 @@ class MSEOptimizer:
         )
 
     def find_optimal_amax(self, weighted_hist: WeightedHistogram, num_candidates: int = 200, search_range: Tuple[float, float] = (0.5, 1.0), refinement_iterations: int = 3, scaled: bool = True, loss_type: str = None) -> float:
+        """Grid-search amax that minimizes Cosine loss on the weighted histogram."""
         if loss_type is None:
             loss_type = DEFAULT_LOSS_TYPE
         if weighted_hist.histogram is None or weighted_hist.max_val <= 0:
@@ -219,12 +222,12 @@ class MSEOptimizer:
         low = max_val * search_range[0]
         high = max_val * search_range[1]
         
-        # [PROVE-OF-WORK] Log effective search range (avoid fake-looking bounds)
+        # Log effective search range
         if max_val > 0:
-            print(f"  [LOSS SEARCH DEBUG] loss={loss_type} max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f}")
+            print(f"  [COSINE SEARCH DEBUG] max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f}")
         
         best_amax = max_val
-        min_mse = float('inf')
+        min_loss = float('inf')
         
         for iteration in range(refinement_iterations + 1):
             candidates = torch.linspace(low, high, num_candidates, device=self.device)
@@ -233,8 +236,8 @@ class MSEOptimizer:
                 amax = amax_tensor.item()
                 loss = self.compute_weighted_loss(histogram, bin_centers, amax, scaled=scaled, loss_type=loss_type)
                 
-                if loss < min_mse:
-                    min_mse = loss
+                if loss < min_loss:
+                    min_loss = loss
                     best_amax = amax
             
             if iteration < refinement_iterations:
@@ -246,12 +249,13 @@ class MSEOptimizer:
 
 
 # ==============================================================================
-# V4 Hybrid: SVD Leverage + RMS Magnitude Calculator
+# Hybrid: SVD Leverage + RMS Magnitude Calculator
 # ==============================================================================
 def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, beta: float = 0.3, top_p: float = 1.0, min_k: int = 1, max_k: int = 4096) -> torch.Tensor:
     """
-    Outputs blended importance matrix: SVD-based structural leverage and RMS magnitude,
-    each L2-normalized and combined with weights (alpha, beta).
+    Blended importance: SVD structural leverage and RMS magnitude,
+    each L2-normalized then combined with (alpha, beta). Used as histogram weights
+    for Cosine amax search.
     """
     device = weight.device
     original_shape = weight.shape
@@ -317,7 +321,8 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
 
 class HSWQWeightedHistogramOptimizerV5:
     """
-    HSWQ weighted histogram optimizer (V5: SVD-Magnitude Hybrid + Cosine Loss).
+    HSWQ weighted histogram optimizer V5:
+    SVD + RMS hybrid importance, amax by Cosine Similarity Loss.
     """
     
     def __init__(self, bins: int = 8192, num_candidates: int = 1000, refinement_iterations: int = 10, device: str = "cuda", alpha: float = 0.7, beta: float = 0.3, loss_type: str = None):
@@ -335,11 +340,11 @@ class HSWQWeightedHistogramOptimizerV5:
         )
     
     def compute_optimal_amax(self, weight: torch.Tensor, importance: Optional[torch.Tensor] = None, use_svd_leverage: bool = True, search_range: Tuple[float, float] = (0.5, 1.0), scaled: bool = True, loss_type: str = None) -> float:
+        """
+        Compute optimal amax for weight tensor (hybrid importance + Cosine loss).
+        """
         if loss_type is None:
             loss_type = self.loss_type
-        """
-        Compute optimal amax for weight tensor (V4 Hybrid).
-        """
         # Apply SVD+Magnitude hybrid importance
         combined_importance = None
         
@@ -376,12 +381,12 @@ class HSWQWeightedHistogramOptimizerV5:
         weighted_hist = WeightedHistogram(bins=self.bins, device=self.device)
         weighted_hist.build(weight, combined_importance)
         
-        # Search for optimal amax
+        # Search for optimal amax (Cosine loss)
         max_val = weighted_hist.max_val
         low = max_val * search_range[0]
         high = max_val * search_range[1]
         if max_val > 0:
-            print(f"  [HSWQ V5 DEBUG] loss={loss_type} max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f}")
+            print(f"  [HSWQ V5 DEBUG] Cosine max_val: {max_val:.6f} | range: {search_range[0]:.3f}-{search_range[1]:.3f} | BOUNDS: {low:.6f} to {high:.6f}")
 
         optimal_amax = self.mse_optimizer.find_optimal_amax(
             weighted_hist,
@@ -445,11 +450,11 @@ if __name__ == "__main__":
     
     optimizer = HSWQWeightedHistogramOptimizerV5(device=device, alpha=0.7, beta=0.3, loss_type="cosine")
     
-    print("\n1. Conventional MSE search (Hybrid-Aware: False)")
+    print("\n1. Cosine amax search (Hybrid-Aware: False)")
     result_v1 = optimizer.compute_optimal_amax_with_stats(weight, importance=None, use_svd_leverage=False)
     print(f"  Optimal amax: {result_v1['optimal_amax']:.4f}")
     
-    print("\n2. Hybrid SVD+RMS MSE search (Hybrid-Aware: True)")
+    print("\n2. Cosine amax search (Hybrid SVD+RMS: True)")
     result_v2 = optimizer.compute_optimal_amax_with_stats(weight, importance=None, use_svd_leverage=True)
     print(f"  Optimal amax: {result_v2['optimal_amax']:.4f}")
     
