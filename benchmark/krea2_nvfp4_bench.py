@@ -27,9 +27,7 @@ from __future__ import annotations
 
 import argparse
 import gc
-import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -38,10 +36,6 @@ import numpy as np
 import torch
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
-
-# Parent orchestrator sets this so each branch runs in a fresh process
-# (Windows WDDM reserved + shared GPU memory is released on process exit).
-_BRANCH_ENV = "HSWQ_KREA2_BRANCH"
 
 
 def _clear_argv_for_comfy() -> list[str]:
@@ -181,25 +175,19 @@ SSIM_TARGET = 0.9
 
 
 def require_convrot_parity_forward() -> None:
-    """Fail unless HSWQ load + HSWQ TC forward are both active.
-
-    Stock F.linear + kitchen both-QT gate dequants every Linear → packed + FP16
-    dual residency (~27 GB Task Manager). TC forward is the VRAM-correct path;
-    ConvRot online x@H is inside TC when ``_hswq_nvfp4_convrot`` is armed at load.
-    """
+    """Fail if Linear.forward is not the ConvRot act-rotate parity wrapper."""
     import comfy.ops
-    from krea2_nvfp4.nvfp4_comfy_parity import _load_chain_has_hswq_full_load
 
-    if not _load_chain_has_hswq_full_load(comfy.ops._load_quantized_module):
-        raise RuntimeError(
-            "NVFP4 bench: HSWQ load_nvfp4_linear_module missing from "
-            "ops._load_quantized_module (stock Comfy load destroys VRAM)"
-        )
     lin_fwd = comfy.ops.mixed_precision_ops().Linear.forward
-    if not getattr(lin_fwd, "_hswq_nvfp4_full_forward", False):
+    if getattr(lin_fwd, "_hswq_nvfp4_full_forward", False):
         raise RuntimeError(
-            "NVFP4 bench: Linear.forward missing HSWQ TC wrap "
-            "(_hswq_nvfp4_full_forward); stock F.linear would destroy VRAM"
+            "ConvRot bench: Linear.forward still has HSWQ TC wrap "
+            "(_hswq_nvfp4_full_forward); SSIM would be destroyed"
+        )
+    if not getattr(lin_fwd, "_hswq_nvfp4_convrot_parity", False):
+        raise RuntimeError(
+            "ConvRot bench: Linear.forward missing _hswq_nvfp4_convrot_parity "
+            "(online act rotation required for W@H^T weights)"
         )
 
 
@@ -236,14 +224,13 @@ def apply_quant_patches() -> None:
     apply_comfy_quant_nvfp4_patches()
     if not apply_nvfp4_comfy_parity():
         raise RuntimeError(
-            "krea2_nvfp4 HSWQ load + HSWQ TC forward failed to apply "
-            "(need [BENCH] nvfp4 HSWQ load + HSWQ TC forward log)"
+            "krea2_nvfp4 ComfyUI-only parity failed to apply "
+            "(need [BENCH] nvfp4 ComfyUI-only log; TC forward must be off)"
         )
     require_convrot_parity_forward()
     print(
-        "  [NVFP4] HSWQ load + TC forward armed: "
-        "act rotate (ConvRot) → NVFP4 quant → scaled_mm "
-        "(stock Comfy load OFF; no full-weight dequant)"
+        "  [CONVROT] Parity forward armed: "
+        "stock Comfy GEMM + online act rotate (x @ H)"
     )
     print(f"  [BENCH] nvfp4 patch file: {os.path.abspath(_cq_nvfp4.__file__)}")
     print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
@@ -375,111 +362,67 @@ def sample_once(
     return out
 
 
-def _hard_free_vram() -> None:
-    """Drop loaded models and return VRAM to the pool (CPU-offload path)."""
-    import comfy.model_management as mm
-
+def _nvidia_smi_used_mib() -> int | None:
+    """nvidia-smi used MiB for this process; None if unavailable."""
     try:
-        from krea2_nvfp4.nvfp4_runtime import clear_nvfp4_runtime_pools
+        import subprocess
 
-        clear_nvfp4_runtime_pools()
-    except Exception:
-        pass
-    mm.unload_all_models()
-    mm.soft_empty_cache()
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-
-
-def _nvidia_smi_used_mib() -> float | None:
-    """Dedicated VRAM used (MiB) from nvidia-smi, or None if unavailable."""
-    try:
         out = subprocess.check_output(
             [
                 "nvidia-smi",
-                "--query-gpu=memory.used",
+                "--query-compute-apps=pid,used_memory",
                 "--format=csv,noheader,nounits",
             ],
             text=True,
             stderr=subprocess.DEVNULL,
-            timeout=15,
+            timeout=5,
         )
-        # Multi-GPU: use the max (NVIDIA card under load).
-        vals = [float(x.strip()) for x in out.strip().splitlines() if x.strip()]
-        return max(vals) if vals else None
     except Exception:
         return None
+    pid = os.getpid()
+    total = 0
+    found = False
+    for line in out.splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 2:
+            continue
+        try:
+            if int(parts[0]) != pid:
+                continue
+            total += int(parts[1].split()[0])
+            found = True
+        except ValueError:
+            continue
+    return total if found else 0
 
 
 def _report_gpu_memory(tag: str) -> None:
-    """Print nvidia-smi + torch allocated/reserved (Task Manager parity aid)."""
+    """Print torch + nvidia-smi VRAM so TE offload is auditable."""
     smi = _nvidia_smi_used_mib()
-    smi_s = f"{smi:.0f} MiB" if smi is not None else "n/a"
     if torch.cuda.is_available():
-        try:
-            alloc = torch.cuda.memory_allocated() / (1024**2)
-            reserved = torch.cuda.memory_reserved() / (1024**2)
-            print(
-                f"  [GPU] {tag}: nvidia-smi used={smi_s}  "
-                f"torch alloc={alloc:.0f} MiB reserved={reserved:.0f} MiB",
-                flush=True,
-            )
-            return
-        except Exception:
-            pass
-    print(f"  [GPU] {tag}: nvidia-smi used={smi_s}", flush=True)
-
-
-def _require_gpu_headroom_for_nvfp4(
-    *,
-    max_used_mib: float = 3072.0,
-    timeout_s: float = 45.0,
-) -> None:
-    """
-    Abort if dedicated VRAM is still bloated before NVFP4 load.
-
-    After an FP16 worker exits, WDDM should release reserved+shared. If
-    nvidia-smi still shows many GiB, loading NVFP4 on top recreates the
-    Task Manager ~27 GB picture (15 GB dedicated + shared spill).
-    """
-    t0 = time.perf_counter()
-    while True:
-        used = _nvidia_smi_used_mib()
-        _report_gpu_memory("pre_nvfp4_gate")
-        if used is None:
-            print(
-                "  [GPU] pre_nvfp4_gate: nvidia-smi unavailable — "
-                "continuing without WDDM gate",
-                flush=True,
-            )
-            return
-        if used <= max_used_mib:
-            print(
-                f"  [GPU] pre_nvfp4_gate OK: used={used:.0f} MiB "
-                f"<= {max_used_mib:.0f} MiB",
-                flush=True,
-            )
-            return
-        elapsed = time.perf_counter() - t0
-        if elapsed >= timeout_s:
-            raise RuntimeError(
-                f"[BENCH] GPU still {used:.0f} MiB used before NVFP4 load "
-                f"(limit {max_used_mib:.0f} MiB after {timeout_s:.0f}s). "
-                "WDDM reserved/shared not released — run with default "
-                "subprocess isolation (omit --inprocess), or close other "
-                "GPU apps. Task Manager ~27 GB is this failure mode."
-            )
+        alloc = torch.cuda.memory_allocated() / (1024**2)
+        reserved = torch.cuda.memory_reserved() / (1024**2)
+        smi_s = f"{smi} MiB" if smi is not None else "n/a"
         print(
-            f"  [GPU] waiting for WDDM release: used={used:.0f} MiB "
-            f"(>{max_used_mib:.0f}); retry...",
-            flush=True,
+            f"  [GPU] {tag}: nvidia-smi used={smi_s}  "
+            f"torch alloc={alloc:.0f} MiB reserved={reserved:.0f} MiB"
         )
-        time.sleep(2.0)
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    else:
+        print(f"  [GPU] {tag}: CUDA unavailable")
+
+
+def _hard_free_vram() -> None:
+    """Drop loaded models and return VRAM to the pool (CPU-offload path)."""
+    import comfy.model_management as mm
+
+    mm.unload_all_models()
+    # force=True path still runs empty_cache + ipc_collect on CUDA.
+    mm.soft_empty_cache(force=True)
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+        torch.cuda.synchronize()
 
 
 def _load_diffusion_model(unet_path: str):
@@ -501,11 +444,21 @@ def _load_diffusion_model(unet_path: str):
     return comfy.sd.load_diffusion_model(unet_path, {})
 
 
+def _load_vae(vae_path: str):
+    """Construct VAE only when decode needs it (after DiT sample frees VRAM)."""
+    import comfy.sd
+    import comfy.utils
+
+    print(f"  Loading VAE (deferred until decode): {vae_path}")
+    sd = comfy.utils.load_torch_file(vae_path)
+    return comfy.sd.VAE(sd=sd)
+
+
 def run_branch(
     *,
     label: str,
     unet_path: str,
-    vae,
+    vae_path: str | None,
     positive,
     negative,
     args,
@@ -518,23 +471,6 @@ def run_branch(
     model = _load_diffusion_model(unet_path)
     load_s = time.perf_counter() - t0
     print(f"  load: {load_s:.2f}s")
-
-    # NVFP4 branches: abort before sample if load still on dual-residency path.
-    from krea2_nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
-    from krea2_nvfp4.nvfp4_addmm_patch import (
-        nvfp4_addmm_stats,
-        reset_nvfp4_addmm_stats,
-    )
-    from krea2_nvfp4.nvfp4_comfy_parity import require_nvfp4_vram_safe_load
-    from krea2_nvfp4.nvfp4_forward import nvfp4_forward_stats, reset_nvfp4_forward_stats
-
-    is_nvfp4_run = checkpoint_looks_like_comfy_quant_nvfp4(unet_path) or (
-        "NVFP4" in label.upper() or "nvfp4" in unet_path.lower()
-    )
-    if is_nvfp4_run:
-        require_nvfp4_vram_safe_load(model)
-        reset_nvfp4_forward_stats()
-        reset_nvfp4_addmm_stats()
 
     latent = make_empty_latent(model, args.width, args.height, batch=1)
 
@@ -562,41 +498,11 @@ def run_branch(
         torch.cuda.max_memory_allocated() / (1024**3) if torch.cuda.is_available() else 0.0
     )
     print(f"  sample: {sample_s:.2f}s  peak_vram={peak_gb:.2f} GiB")
-    if is_nvfp4_run:
-        fwd = nvfp4_forward_stats()
-        addmm = nvfp4_addmm_stats()
-        print(
-            f"  [BENCH] NVFP4 forward stats: "
-            f"scaled_mm_hits={fwd['scaled_mm_hits']} "
-            f"dequant_fallbacks={fwd['dequant_fallbacks']} "
-            f"convrot_act_rotates={fwd['convrot_act_rotates']}",
-            flush=True,
-        )
-        print(
-            f"  [BENCH] NVFP4 addmm stats: "
-            f"addmm_scaled_mm_hits={addmm['addmm_scaled_mm_hits']} "
-            f"addmm_dequant_fallbacks={addmm.get('addmm_dequant_fallbacks', 0)}",
-            flush=True,
-        )
-        if fwd["scaled_mm_hits"] == 0 and fwd["dequant_fallbacks"] > 0:
-            raise RuntimeError(
-                "[BENCH] NVFP4 sample used only dequant fallbacks "
-                f"(hits=0, fallbacks={fwd['dequant_fallbacks']}) — VRAM dual path"
-            )
-        if (
-            fwd["scaled_mm_hits"] == 0
-            and addmm["addmm_scaled_mm_hits"] == 0
-            and is_nvfp4_run
-        ):
-            raise RuntimeError(
-                "[BENCH] NVFP4 sample had zero scaled_mm hits "
-                "(forward + addmm) — TC path never ran"
-            )
 
     samples_t = out["samples"]
     lat_cpu = samples_t.detach().float().cpu()
 
-    if vae is not None:
+    if vae_path is not None:
         # Free DiT VRAM before VAE decode. Keeping UNet loaded leaves ~100 MiB
         # free on 32 GiB cards → regular decode OOM → tiled decode → Comfy
         # process_output inplace (add_/div_) crashes under InferenceMode.
@@ -605,7 +511,9 @@ def run_branch(
             latent = latent.unbind()[0]
         del model, out, samples_t
         _hard_free_vram()
+        _report_gpu_memory(f"pre_vae_decode/{label}")
 
+        vae = _load_vae(vae_path)
         print("  decoding with VAE...")
         # Bench-only: non-inplace process_output (do not edit ComfyUI-master).
         _po = vae.process_output
@@ -619,13 +527,12 @@ def run_branch(
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         img_array = 255.0 * images[0].detach().cpu().numpy()
         img = Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
-        del latent, images
+        del latent, images, vae
     else:
         img = latent_to_rgb_preview(samples_t, model)
         del model, out, samples_t
 
     _hard_free_vram()
-    _report_gpu_memory(f"after_branch/{label}")
     return img, lat_cpu, sample_s, peak_gb
 
 
@@ -641,101 +548,6 @@ def calculate_metrics(img1, img2):
     score_ssim = ssim(arr1, arr2, win_size=3, channel_axis=2, data_range=255)
 
     return mse, score_ssim
-
-
-def _write_branch_meta(output_dir: str, branch: str, sample_s: float, peak_gb: float) -> None:
-    path = Path(output_dir) / f"bench_meta_{branch}.json"
-    path.write_text(
-        json.dumps(
-            {"branch": branch, "sample_s": sample_s, "peak_gb": peak_gb},
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-
-
-def _print_quality_report(img_fp16: Image.Image, img_q: Image.Image, output_dir: str) -> int:
-    print("\n=== 3. Calculating Metrics ===")
-    if img_fp16.size != img_q.size:
-        print(
-            f"Error: Image sizes do not match! "
-            f"FP16:{img_fp16.size}, NVFP4:{img_q.size}"
-        )
-        print("Different models or settings used.")
-        return 1
-
-    mse, score = calculate_metrics(img_fp16, img_q)
-
-    print(f"--------------------------------------------------")
-    print(f"MSE (Error): {mse:.4f} \t(0 is perfect match)")
-    print(f"SSIM (Sim) : {score:.4f} \t(1.0 is perfect match)")
-    print(f"--------------------------------------------------")
-
-    if score > 0.98:
-        grade = "PERFECT (S)"
-    elif score > 0.95:
-        grade = "EXCELLENT (A)"
-    elif score > 0.90:
-        grade = "GOOD (B)"
-    else:
-        grade = "WARNING (C)"
-
-    print(f"Quality Grade: {grade}")
-    target_grade = "PASS" if score >= SSIM_TARGET else "FAIL"
-    print(f"  SSIM target >={SSIM_TARGET}: {target_grade}")
-
-    diff_img = ImageChops.difference(img_fp16, img_q)
-    diff_img = ImageChops.multiply(diff_img, Image.new("RGB", diff_img.size, (10, 10, 10)))
-    diff_path = os.path.join(output_dir, "bench_result_diff.png")
-    diff_img.save(diff_path)
-    print(f"Diff image saved: {diff_path}")
-    return 0 if score >= SSIM_TARGET else 1
-
-
-def _run_parent_orchestrator(argv_rest: list[str], output_dir: str) -> int:
-    """
-    Spawn FP16 then NVFP4 in separate processes so WDDM releases
-    reserved + shared GPU memory between branches.
-    """
-    script = str(Path(__file__).resolve())
-    py = sys.executable
-    print(
-        "[BENCH] Subprocess isolation ON "
-        "(each branch exits → OS reclaim reserved/shared GPU memory). "
-        "Use --inprocess only for debug.",
-        flush=True,
-    )
-    for branch in ("fp16", "nvfp4"):
-        env = os.environ.copy()
-        env[_BRANCH_ENV] = branch
-        _report_gpu_memory(f"parent_before_{branch}_worker")
-        if branch == "nvfp4":
-            _require_gpu_headroom_for_nvfp4()
-        print(f"\n[BENCH] spawning {branch} worker...", flush=True)
-        r = subprocess.run([py, "-u", script, *argv_rest], env=env)
-        if r.returncode != 0:
-            print(
-                f"[BENCH] {branch} worker failed with exit={r.returncode}",
-                flush=True,
-            )
-            return int(r.returncode)
-        _report_gpu_memory(f"parent_after_{branch}_worker_exit")
-        meta_path = Path(output_dir) / f"bench_meta_{branch}.json"
-        if meta_path.is_file():
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            print(
-                f"[BENCH] {branch} worker meta: "
-                f"sample={meta.get('sample_s', '?')}s "
-                f"peak_vram={meta.get('peak_gb', '?')} GiB",
-                flush=True,
-            )
-
-    p16 = os.path.join(output_dir, "bench_result_fp16.png")
-    pq = os.path.join(output_dir, "bench_result_nvfp4.png")
-    if not Path(p16).is_file() or not Path(pq).is_file():
-        print(f"[BENCH] missing output PNGs: {p16!r} / {pq!r}", flush=True)
-        return 1
-    return _print_quality_report(Image.open(p16), Image.open(pq), output_dir)
 
 
 def main() -> int:
@@ -768,48 +580,25 @@ def main() -> int:
     parser.add_argument("--vae", default=None, help="Optional VAE safetensors for pixel decode")
     parser.add_argument("--output_dir", default=".")
     parser.add_argument("--save_image", action="store_true")
-    parser.add_argument(
-        "--inprocess",
-        action="store_true",
-        help=(
-            "DEBUG: run FP16 then NVFP4 in one process. "
-            "WDDM may keep reserved+shared (~27 GB Task Manager). "
-            "Default is subprocess isolation per branch."
-        ),
-    )
     args = parser.parse_args()
 
     for p, name in ((args.fp16, "--fp16"), (args.nvfp4, "--nvfp4"), (args.clip_path, "--clip_path")):
         if not Path(p).is_file():
             raise FileNotFoundError(f"{name} not found: {p}")
 
-    os.makedirs(args.output_dir, exist_ok=True)
-
-    branch = (os.environ.get(_BRANCH_ENV) or "").strip().lower()
-    # Parent: spawn isolated workers (default). Workers set HSWQ_KREA2_BRANCH.
-    if not branch and not args.inprocess:
-        # Drop --inprocess from child argv if present (should not be).
-        child_argv = [a for a in sys.argv[1:] if a != "--inprocess"]
-        return _run_parent_orchestrator(child_argv, args.output_dir)
-
     set_hf_token(args.token)
+    os.makedirs(args.output_dir, exist_ok=True)
 
     # Ensure benchmark/ is on path for krea2_nvfp4 + int8 packages
     bench_dir = Path(__file__).resolve().parent
     if str(bench_dir) not in sys.path:
         sys.path.insert(0, str(bench_dir))
 
-    run_fp16 = branch in ("", "fp16") or args.inprocess
-    run_nvfp4 = branch in ("", "nvfp4") or args.inprocess
-    if branch == "fp16":
-        run_nvfp4 = False
-    elif branch == "nvfp4":
-        run_fp16 = False
-
     saved_argv = _clear_argv_for_comfy()
     try:
         setup_comfy(args.comfy_path)
-        apply_quant_patches()
+        # Do NOT apply_quant_patches before BF16 — stock Comfy ops (UI-like).
+        # NVFP4 parity / INT8 / addmm patches are applied after BF16 sample.
 
         import folder_paths  # noqa: F401
         import comfy.model_management as mm
@@ -818,92 +607,114 @@ def main() -> int:
         mm.get_torch_device()
         _report_gpu_memory("after_comfy_init")
 
-        print("Loading CLIP (Krea2 / Qwen3-VL-4B)...")
+        vae_path = None
+        if args.vae:
+            if not Path(args.vae).is_file():
+                raise FileNotFoundError(f"--vae not found: {args.vae}")
+            vae_path = args.vae
+            print(f"VAE path (load deferred until decode): {vae_path}")
+        else:
+            print("No --vae: using Wan21 RGB preview for metrics (same printout as SDXL)")
+
+        # CLIP stays on CPU for encode so Qwen3-VL never lands on GPU
+        # (WDDM residual after .cpu() left ~4 GiB and starved BF16 DiT).
+        _cpu = torch.device("cpu")
+        print("Loading CLIP on CPU (Krea2 / Qwen3-VL-4B)...")
         clip = comfy.sd.load_clip(
             ckpt_paths=[args.clip_path],
             embedding_directory=None,
             clip_type=comfy.sd.CLIPType.KREA2,
+            model_options={
+                "load_device": _cpu,
+                "offload_device": _cpu,
+                "initial_device": _cpu,
+            },
         )
+        _report_gpu_memory("after_clip_load_cpu")
 
-        vae = None
-        if args.vae:
-            if not Path(args.vae).is_file():
-                raise FileNotFoundError(f"--vae not found: {args.vae}")
-            print(f"Loading VAE: {args.vae}")
-            sd = comfy.utils.load_torch_file(args.vae)
-            vae = comfy.sd.VAE(sd=sd)
-        else:
-            print("No --vae: using Wan21 RGB preview for metrics (same printout as SDXL)")
-
-        print("Encoding prompt...")
+        print("Encoding prompt (CPU TE)...")
         positive = encode_prompt(clip, args.prompt)
         negative = encode_prompt(clip, args.negative) if args.negative else encode_prompt(clip, "")
-        # ZIT same shape: encode on GPU, then offload TE before DiT sample (no CLIP+UNet co-load).
         if getattr(clip, "cond_stage_model", None) is not None:
             clip.cond_stage_model.cpu()
         if getattr(clip, "patcher", None) is not None:
             mm.unload_model_and_clones(clip.patcher)
         del clip
         _hard_free_vram()
-        print("  [Offload] CLIP on CPU / unloaded (VRAM freed for Krea2 DiT benchmark).")
+        print("  [Offload] CLIP unloaded (never GPU-resident for this bench).")
         _report_gpu_memory("after_clip_offload")
 
         print("--- Benchmark Config ---")
         print(f"Seed: {args.seed}  Steps: {args.steps}  CFG: {args.cfg}")
         print(f"Size: {args.width}x{args.height}  sampler={args.sampler}/{args.scheduler}")
         print(f"Prompt: {args.prompt[:80]}...")
-        if branch:
-            print(f"Worker branch: {branch} (subprocess isolation)")
-        elif args.inprocess:
-            print("Mode: --inprocess (both branches; WDDM may retain memory)")
         print("------------------------")
 
-        img_fp16 = None
-        img_q = None
+        img_fp16, _lat_fp16, t16, v16 = run_branch(
+            label="1. Baseline (FP16/BF16)",
+            unet_path=args.fp16,
+            vae_path=vae_path,
+            positive=positive,
+            negative=negative,
+            args=args,
+        )
+        p16 = os.path.join(args.output_dir, "bench_result_fp16.png")
+        img_fp16.save(p16)
+        print(f"FP16 Time: {t16:.2f}s  peak={v16:.2f}GiB")
 
-        if run_fp16:
-            img_fp16, _lat_fp16, t16, v16 = run_branch(
-                label="1. Baseline (FP16/BF16)",
-                unet_path=args.fp16,
-                vae=vae,
-                positive=positive,
-                negative=negative,
-                args=args,
+        print("Applying NVFP4 ConvRot parity + INT8 + addmm patches (after BF16)...")
+        apply_quant_patches()
+        require_convrot_parity_forward()
+
+        img_q, _lat_q, tq, vq = run_branch(
+            label="2. Quantized (ConvRot NVFP4 + INT8 protect)",
+            unet_path=args.nvfp4,
+            vae_path=vae_path,
+            positive=positive,
+            negative=negative,
+            args=args,
+        )
+        pq = os.path.join(args.output_dir, "bench_result_nvfp4.png")
+        img_q.save(pq)
+        print(f"NVFP4+INT8protect Time: {tq:.2f}s  peak={vq:.2f}GiB")
+
+        # 3. Comparison — same printout as int8bench_sdxl
+        print("\n=== 3. Calculating Metrics ===")
+
+        if img_fp16.size != img_q.size:
+            print(
+                f"Error: Image sizes do not match! "
+                f"FP16:{img_fp16.size}, NVFP4:{img_q.size}"
             )
-            p16 = os.path.join(args.output_dir, "bench_result_fp16.png")
-            img_fp16.save(p16)
-            print(f"FP16 Time: {t16:.2f}s  peak={v16:.2f}GiB")
-            _write_branch_meta(args.output_dir, "fp16", t16, v16)
-
-        if run_nvfp4:
-            if args.inprocess and run_fp16:
-                # Same-process FP16→NVFP4: require WDDM release or abort.
-                _require_gpu_headroom_for_nvfp4()
-            elif branch == "nvfp4":
-                _require_gpu_headroom_for_nvfp4()
-            img_q, _lat_q, tq, vq = run_branch(
-                label="2. Quantized (ConvRot NVFP4 + INT8 protect)",
-                unet_path=args.nvfp4,
-                vae=vae,
-                positive=positive,
-                negative=negative,
-                args=args,
-            )
-            pq = os.path.join(args.output_dir, "bench_result_nvfp4.png")
-            img_q.save(pq)
-            print(f"NVFP4+INT8protect Time: {tq:.2f}s  peak={vq:.2f}GiB")
-            _write_branch_meta(args.output_dir, "nvfp4", tq, vq)
-
-        # Worker: exit after one branch (parent computes metrics).
-        if branch in ("fp16", "nvfp4"):
-            print(f"[BENCH] worker {branch} done — exiting process (VRAM reclaim)", flush=True)
-            return 0
-
-        # In-process both branches: metrics here.
-        if img_fp16 is None or img_q is None:
-            print("[BENCH] inprocess missing a branch image", flush=True)
+            print("Different models or settings used.")
             return 1
-        return _print_quality_report(img_fp16, img_q, args.output_dir)
+
+        mse, score = calculate_metrics(img_fp16, img_q)
+
+        print(f"--------------------------------------------------")
+        print(f"MSE (Error): {mse:.4f} \t(0 is perfect match)")
+        print(f"SSIM (Sim) : {score:.4f} \t(1.0 is perfect match)")
+        print(f"--------------------------------------------------")
+
+        if score > 0.98:
+            grade = "PERFECT (S)"
+        elif score > 0.95:
+            grade = "EXCELLENT (A)"
+        elif score > 0.90:
+            grade = "GOOD (B)"
+        else:
+            grade = "WARNING (C)"
+
+        print(f"Quality Grade: {grade}")
+        target_grade = "PASS" if score >= SSIM_TARGET else "FAIL"
+        print(f"  SSIM target >={SSIM_TARGET}: {target_grade}")
+
+        diff_img = ImageChops.difference(img_fp16, img_q)
+        diff_img = ImageChops.multiply(diff_img, Image.new("RGB", diff_img.size, (10, 10, 10)))
+        diff_path = os.path.join(args.output_dir, "bench_result_diff.png")
+        diff_img.save(diff_path)
+        print(f"Diff image saved: {diff_path}")
+        return 0 if score >= SSIM_TARGET else 1
     finally:
         _restore_argv(saved_argv)
 

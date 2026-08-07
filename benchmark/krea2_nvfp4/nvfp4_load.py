@@ -31,8 +31,6 @@ def arm_nvfp4_module(module, conf: Optional[dict]) -> None:
         return
     import torch
 
-    from .nvfp4_tc_gate import nvfp4_tc_enabled
-
     module._hswq_nvfp4 = True
     enabled, gs = convrot_flags_from_conf(conf)
     module._hswq_nvfp4_convrot = bool(enabled)
@@ -52,10 +50,6 @@ def arm_nvfp4_module(module, conf: Optional[dict]) -> None:
     else:
         module._hswq_nvfp4_scale_from_ckpt = True
         module._hswq_nvfp4_scale_placeholder = False
-    # TC GPUs must NOT keep checkpoint full_precision_matrix_mult / disabled_formats
-    # as True — that forces stock dequant → packed + FP16 dual residency (~27 GB).
-    if nvfp4_tc_enabled():
-        module._full_precision_mm = False
     if enabled:
         logger.debug(
             "[HSWQ NVFP4] ConvRot armed groupsize=%s on %s",

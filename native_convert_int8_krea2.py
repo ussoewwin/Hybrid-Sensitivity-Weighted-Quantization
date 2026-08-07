@@ -4,8 +4,7 @@ Krea2-only. FATAL if txtfusion.projector + blocks.0.attn.wq signature missing.
 SDXL / Diffusers UNet path is not used.
 
 No structure blacklist / no BF16 keep on first/last/mod/norm/projector/etc.
-DiT Linear/Conv2d .weight (fp16/bf16) are ConvRot-INT8 packed when eligible.
-float32 DiT .weight (ndim 2/4) are kept as float32 — never quantized.
+DiT Linear/Conv2d .weight (fp16/fp32/bf16) are ConvRot-INT8 packed when eligible.
 
 Pack (ComfyUI MixedPrecisionOps + comfy_kitchen TensorWiseINT8Layout):
   <layer>.weight           int8
@@ -26,7 +25,6 @@ FULL ConvRot (default ON; --no-convrot for plain INT8):
   that layer stays plain tensorwise (or Card 3 channelwise).
 
 Non-DiT / non-diffusion tensors: keep original dtype as-is (incl. float32).
-DiT float32 .weight: keep as float32 (precision-critical; never INT8).
 
 Card 1 (--bias_correction):
   Requires --calib_file AND --clip_path (Qwen3-VL-4B / CLIPType.KREA2).
@@ -904,23 +902,12 @@ def convert_to_int8(
             continue
 
         under_prefix = (not prefix) or key.startswith(prefix)
-
-        # fp32 layers are precision-critical — keep as float32, never quantize.
-        if (
-            under_prefix
-            and key.endswith(".weight")
-            and tensor.ndim in (2, 4)
-            and tensor.dtype == torch.float32
-        ):
-            new_state_dict[key] = tensor
-            orig_dtype_keep += 1
-            continue
-
         is_dit_weight = (
             under_prefix
             and key.endswith(".weight")
             and tensor.ndim in (2, 4)
-            and tensor.dtype in (torch.float16, torch.bfloat16)
+            and tensor.dtype
+            in (torch.float16, torch.float32, torch.bfloat16)
         )
 
         if not is_dit_weight:
@@ -1026,9 +1013,7 @@ def convert_to_int8(
 
     print(f"Saving to: {output_path}")
     print(f"Converted layers: {converted_count}, Kept (other): {skipped_count}")
-    print(
-        f"Original-dtype keep (non-diffusion + DiT float32 .weight): {orig_dtype_keep}"
-    )
+    print(f"Original-dtype keep (non-diffusion): {orig_dtype_keep}")
     print(f"Per-channel INT8 (Card 3 plain packs): {per_channel_int8}")
     print(f"Bias correction (Card 1): {bias_correction}")
     if bias_correction:
@@ -1050,7 +1035,6 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Simple Krea2 DiT FULL ConvRot INT8 (no structure blacklist / no BF16 keep). "
-            "DiT float32 .weight kept as float32; only fp16/bf16 Linear/Conv2d INT8. "
             "Card 1 = --bias_correction + --calib_file + --clip_path (CLIPType.KREA2). "
             "Card 3 = --per_channel_int8 for non-ConvRot plain packs. "
             "Use --no-convrot for plain INT8 only. No Approach A / no VETO / no SDXL."
