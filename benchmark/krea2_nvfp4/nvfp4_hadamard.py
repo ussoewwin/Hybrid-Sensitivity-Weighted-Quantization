@@ -101,8 +101,8 @@ def rotate_last_dim(x, h_matrix, group_size: int):
 def rotate_last_dim_fast(x, group_size: int):
     """Same math as ``rotate_last_dim`` + ``build_hadamard``, O(n log n) butterflies.
 
-    Avoids materializing the dense ``group_size x group_size`` Hadamard and the
-    large GEMM that dominates online FULL ConvRot act rotation.
+    Computes butterfly additions in float32 to eliminate bfloat16 accumulation
+    rounding errors during online activation rotation.
     """
     import torch
 
@@ -110,7 +110,8 @@ def rotate_last_dim_fast(x, group_size: int):
     features = orig_shape[-1]
     if features % group_size != 0:
         raise ValueError(f"features {features} not divisible by group_size {group_size}")
-    flat = x.reshape(-1, group_size)
+    orig_dtype = x.dtype
+    flat = x.reshape(-1, group_size).float()
     y = _apply_kron_h4_unnorm(flat, group_size)
     y = y * (group_size**-0.5)
-    return y.reshape(orig_shape)
+    return y.to(dtype=orig_dtype).reshape(orig_shape)
