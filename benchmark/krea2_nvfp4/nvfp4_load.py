@@ -21,8 +21,23 @@ logger = logging.getLogger(__name__)
 
 
 def peek_nvfp4_conf(state_dict, prefix: str) -> Optional[dict]:
-    """Read comfy_quant without popping (for routing before stock load)."""
-    return decode_comfy_quant_conf(state_dict.get(f"{prefix}comfy_quant"))
+    """Read comfy_quant without popping (for routing before stock load).
+
+    Robustly handles prefix mismatches (e.g. state_dict keys carrying
+    model.diffusion_model. prefix while local module load receives a
+    short prefix).
+    """
+    k_direct = f"{prefix}comfy_quant"
+    if k_direct in state_dict:
+        return decode_comfy_quant_conf(state_dict[k_direct])
+
+    clean = prefix.rstrip(".")
+    target_suffix = f"{clean}.comfy_quant" if clean else "comfy_quant"
+    for k, v in state_dict.items():
+        if k.endswith(target_suffix) or k == target_suffix:
+            return decode_comfy_quant_conf(v)
+
+    return None
 
 
 def arm_nvfp4_module(module, conf: Optional[dict]) -> None:

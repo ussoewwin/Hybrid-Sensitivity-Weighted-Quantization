@@ -102,12 +102,12 @@ def apply_nvfp4_comfy_parity() -> bool:
     ):
         from .nvfp4_conf import (
             convrot_flags_from_conf,
-            decode_comfy_quant_conf,
             is_nvfp4_conf,
         )
+        from .nvfp4_load import peek_nvfp4_conf
 
-        # Peek before orig_load pops the stamp.
-        conf = decode_comfy_quant_conf(state_dict.get(f"{prefix}comfy_quant"))
+        # Peek robustly before orig_load pops the stamp.
+        conf = peek_nvfp4_conf(state_dict, prefix)
         # Always Comfy stock load — including nvfp4 (input_scale only if in ckpt)
         out = orig_load(
             module,
@@ -124,6 +124,7 @@ def apply_nvfp4_comfy_parity() -> bool:
         # Stock load drops the stamp; re-arm convrot flags so the parity forward
         # applies the online act rotation the offline-rotated weights require.
         if is_nvfp4_conf(conf):
+            module._hswq_nvfp4 = True
             enabled, gs = convrot_flags_from_conf(conf)
             module._hswq_nvfp4_convrot = bool(enabled)
             module._hswq_nvfp4_convrot_groupsize = int(gs)
