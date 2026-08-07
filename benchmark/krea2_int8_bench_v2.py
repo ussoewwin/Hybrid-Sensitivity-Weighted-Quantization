@@ -217,10 +217,20 @@ def make_empty_latent(model, width: int, height: int, batch: int = 1) -> dict:
 
 
 def latent_to_img(l):
-    """Same as zi_int8_bench: min-max normalize latent -> 0-255 uint8 RGB."""
-    l = l[0].permute(1, 2, 0).cpu().float().numpy()
-    l = (l - l.min()) / (l.max() - l.min() + 1e-6) * 255
-    return Image.fromarray(l[:, :, :3].astype(np.uint8))
+    """Same as zi_int8_bench: min-max normalize latent -> 0-255 uint8 RGB.
+    Handles 4D [B,C,H,W] and Wan21 5D [B,C,T,H,W] latents."""
+    x = l.detach().float().cpu()
+    if x.ndim == 5:
+        x = x[0, :, 0]          # [C,H,W]
+    elif x.ndim == 4:
+        x = x[0]                # [C,H,W]
+    elif x.ndim == 3:
+        pass                     # already [C,H,W]
+    else:
+        raise ValueError(f"unexpected latent shape {tuple(x.shape)}")
+    x = x.permute(1, 2, 0).numpy()
+    x = (x - x.min()) / (x.max() - x.min() + 1e-6) * 255
+    return Image.fromarray(x[:, :, :3].astype(np.uint8))
 
 def sample_once(
     model,
