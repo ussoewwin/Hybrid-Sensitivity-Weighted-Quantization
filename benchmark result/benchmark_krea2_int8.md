@@ -19,7 +19,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 | Model | BF16 protect layers | Bias correction | MSE (↓ better) | SSIM (↑ better) |
 |-------|---------------------|-----------------|----------------|-----------------|
-| unstableDissolution_Bf16 | +20 | 1off | 6.84 | 0.9700 |
+| unstableDissolution_Bf16 | +20 | 1off | 6.52 | 0.9737 |
 | moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 0.9869 |
 | moodyCutieMixKrea2_v20BF16 | +0 | 1off | 4.79 | 0.9771 |
 | gonzalomoKrea2_v20 | +10 | 1off | 6.26 | 0.9573 |
@@ -35,7 +35,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 
 | Model | BF16 protect layers | Bias correction | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Baseline | Winner |
 |-------|---------------------|-----------------|----------|--------------|-------|-----------|---------------|--------|----------|--------|
-| unstableDissolution_Bf16 | +20 | 1off | 6.84 | 17.13 | +10.29 | 0.9700 | 0.8015 | −0.1685 | Native ConvRot INT8 | HSWQ |
+| unstableDissolution_Bf16 | +20 | 1off | 6.52 | 10.92 | +4.40 | 0.9737 | 0.9355 | −0.0382 | Native ConvRot INT8 | HSWQ |
 | moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 3.72 | +1.15 | 0.9869 | 0.9805 | −0.0064 | Native ConvRot INT8 | HSWQ |
 | moodyCutieMixKrea2_v20BF16 | +0 | 1off | 4.79 | 12.83 | +8.04 | 0.9771 | 0.9184 | −0.0587 | Native ConvRot INT8 | HSWQ |
 | gonzalomoKrea2_v20 | +10 | 1off | 6.26 | 6.63 | +0.37 | 0.9573 | 0.9531 | −0.0042 | Native ConvRot INT8 | HSWQ |
