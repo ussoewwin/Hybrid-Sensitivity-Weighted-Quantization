@@ -681,6 +681,17 @@ def main() -> int:
         # 3. Comparison — same printout as int8bench_sdxl
         print("\n=== 3. Calculating Metrics ===")
 
+        # Latent-space: direct comparison (NVFP4 divergence makes pixel SSIM unreliable)
+        lat_fp16 = _lat_fp16.reshape(-1)
+        lat_q = _lat_q.reshape(-1)
+        lat_mse = float((lat_fp16 - lat_q).pow(2).mean().item())
+        lat_cos = float(torch.nn.functional.cosine_similarity(
+            lat_fp16.unsqueeze(0), lat_q.unsqueeze(0), dim=1).item())
+        print(f"\n--- Latent-Space (direct, no RGB projection) ---")
+        print(f"Latent MSE:      {lat_mse:.6f}  (0 = perfect)")
+        print(f"Latent Cosine:   {lat_cos:.6f}  (1.0 = perfect)")
+        # Pixel-space comparison follows (reliable only for INT8; NVFP4 mix diverges)
+
         if img_fp16.size != img_q.size:
             print(
                 f"Error: Image sizes do not match! "
