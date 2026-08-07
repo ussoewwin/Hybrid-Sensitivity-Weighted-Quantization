@@ -140,8 +140,41 @@ def _probe_path_comfy_quant_nvfp4(path: str) -> bool:
     return False
 
 
+def _nvfp4_logical_linear_shape(state_dict: dict, weight_key: str):
+    """Return (out_features, in_features) for an NVFP4 Linear weight, or None.
+
+    Prefers ``orig_shape`` / ``in_features`` written by auto_int8_nvfp4_hybrid.py
+    into comfy_quant. Packed ``weight.shape`` alone is not the logical shape.
+    """
+    import torch
+
+    if weight_key not in state_dict:
+        return None
+    cq_key = comfy_quant_key_for_weight(weight_key)
+    conf = decode_comfy_quant_conf(state_dict.get(cq_key))
+    if not is_nvfp4_conf(conf):
+        # Hybrid may leave weight_scale_2 without injecting cq yet; still NVFP4.
+        base = weight_key[: -len(".weight")] if weight_key.endswith(".weight") else weight_key
+        if f"{base}.weight_scale_2" not in state_dict:
+            return None
+        conf = conf if isinstance(conf, dict) else {}
+
+    if isinstance(conf, dict):
+        orig = conf.get("orig_shape")
+        if isinstance(orig, (list, tuple)) and len(orig) >= 2:
+            return int(orig[0]), int(orig[1])
+        if conf.get("in_features") is not None and conf.get("out_features") is not None:
+            return int(conf["out_features"]), int(conf["in_features"])
+        if conf.get("in_features") is not None:
+            weight = state_dict[weight_key]
+            if torch.is_tensor(weight) and weight.ndim >= 1:
+                # out_features unknown; caller may only need in_features
+                return None, int(conf["in_features"])
+    return None
+
+
 def fix_unet_config_packed_dims(unet_config: dict, state_dict: dict, key_prefix: str) -> dict:
-    """Rewrite context_dim / adm_in_channels using logical NVFP4 in_features."""
+    """Rewrite context_dim / adm_in_channels / Krea2 txtlayers for NVFP4 packed K."""
     if not isinstance(unet_config, dict):
         return unet_config
 
@@ -164,5 +197,35 @@ def fix_unet_config_packed_dims(unet_config: dict, state_dict: dict, key_prefix:
                 unet_config["context_dim"] = logical_linear_in_features(state_dict, attn_k)
             except Exception as e:
                 logger.warning("[HSWQ NVFP4] context_dim fix skipped: %s", e)
+
+    # Krea2: stock detect sets txtlayers = projector.weight.shape[1] (packed K
+    # after hybrid NVFP4). Restore logical in_features from comfy_quant
+    # orig_shape, else KREA2_TAP_LAYERS length (matches CLIP fused width).
+    if unet_config.get("txtlayers") is not None:
+        proj = f"{key_prefix}txtfusion.projector.weight"
+        if proj in state_dict:
+            try:
+                logical = _nvfp4_logical_linear_shape(state_dict, proj)
+                if logical is not None and logical[1] is not None:
+                    unet_config["txtlayers"] = int(logical[1])
+                else:
+                    cq = decode_comfy_quant_conf(
+                        state_dict.get(comfy_quant_key_for_weight(proj))
+                    )
+                    base = proj[: -len(".weight")]
+                    is_proj_nvfp4 = is_nvfp4_conf(cq) or (
+                        f"{base}.weight_scale_2" in state_dict
+                    )
+                    if is_proj_nvfp4:
+                        from comfy.text_encoders.krea2 import KREA2_TAP_LAYERS
+
+                        unet_config["txtlayers"] = len(KREA2_TAP_LAYERS)
+                        logger.info(
+                            "[HSWQ NVFP4] txtlayers <- len(KREA2_TAP_LAYERS)=%s "
+                            "(no orig_shape on projector)",
+                            unet_config["txtlayers"],
+                        )
+            except Exception as e:
+                logger.warning("[HSWQ NVFP4] txtlayers fix skipped: %s", e)
 
     return unet_config

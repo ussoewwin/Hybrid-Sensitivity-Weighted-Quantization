@@ -295,7 +295,7 @@ def _composite_dm_hist(
     )
 
 
-def _histogram_mse_score(
+def _histogram_cosine_score(
     weight: torch.Tensor,
     importance: Optional[torch.Tensor],
     hist_opt: HSWQWeightedHistogramOptimizerFast,
@@ -303,6 +303,7 @@ def _histogram_mse_score(
     """V5 weighted histogram Cosine loss at optimal amax (SVD+RMS hybrid).
 
     Probe of static weight-direction distortion; does NOT alter DualMonitor.
+    Completely separate from V4 histogram MSE (`estimated_mse`).
     """
     with contextlib.redirect_stdout(io.StringIO()):
         optimal_amax = hist_opt.compute_optimal_amax(
@@ -314,7 +315,7 @@ def _histogram_mse_score(
         wh.build(weight, importance)
         hist = wh.get_histogram()
         bc = wh.get_bin_centers()
-        est_loss = hist_opt.mse_optimizer.compute_weighted_loss(
+        est_loss = hist_opt.cosine_optimizer.compute_weighted_cosine(
             hist, bc, optimal_amax, scaled=False, loss_type="cosine"
         )
     loss = float(est_loss)
@@ -1186,7 +1187,7 @@ def convert_to_int8(
     skipped_count = 0
     plain_int8_count = 0
     layer_quant_errors: dict[str, float] = {}
-    layer_hist_mse: dict[str, float] = {}
+    layer_hist_cosine: dict[str, float] = {}
     layer_nvfp4_err: dict[str, float] = {}
     layer_svd_lev: dict[str, float] = {}
     bias_corr_pending: dict[str, torch.Tensor] = {}
@@ -1356,7 +1357,7 @@ def convert_to_int8(
                 else:
                     imp = w_fp.abs().mean(dim=0)
             try:
-                layer_hist_mse[key] = _histogram_mse_score(w_fp, imp, hist_opt)
+                layer_hist_cosine[key] = _histogram_cosine_score(w_fp, imp, hist_opt)
             except Exception:
                 pass
 
@@ -1403,7 +1404,7 @@ def convert_to_int8(
     # Composite weights w_dm/w_hist are derived ONLY from the matched subset
     # (keys with both axes measured), so DM-neutral entries do not dilute
     # the DM spread used for weight derivation.
-    if use_reverse_rank and not layer_hist_mse:
+    if use_reverse_rank and not layer_hist_cosine:
         raise RuntimeError(
             "blacklist_keep / keep_sensitive 4-axis composite "
             "requires the HistCosine V5 axis, but no layer produced a "
@@ -1433,13 +1434,13 @@ def convert_to_int8(
         print(
             f"    [{label}] {rk}  composite={cscore:.6f}  "
             f"dm_rel={dm_display}  "
-            f"hist_cosine={layer_hist_mse[rk]:.6e}  "
+            f"hist_cosine={layer_hist_cosine[rk]:.6e}  "
             f"dtype={state_dict[rk].dtype}"
         )
 
     remaining_errs: list[tuple[str, float]] = []
-    if use_reverse_rank and layer_hist_mse:
-        pool_keys = list(layer_hist_mse.keys())
+    if use_reverse_rank and layer_hist_cosine:
+        pool_keys = list(layer_hist_cosine.keys())
         dm_real_keys = [k for k in pool_keys if k in layer_quant_errors]
         dm_real_vals = [float(layer_quant_errors[k]) for k in dm_real_keys]
         dm_real_ranks = _pool_midranks(dm_real_vals)
@@ -1450,7 +1451,7 @@ def convert_to_int8(
         # Derive composite weights from matched subset only.
         if dm_real_keys:
             hist_real_vals_subset = [
-                float(layer_hist_mse[k]) for k in dm_real_keys
+                float(layer_hist_cosine[k]) for k in dm_real_keys
             ]
             hist_real_ranks_subset = _pool_midranks(hist_real_vals_subset)
             weights = _derive_dm_hist_weights(
@@ -1470,7 +1471,7 @@ def convert_to_int8(
         w_hist = float(weights["w_hist"])
 
         # Hist ranks over full pool.
-        hist_vals_full = [float(layer_hist_mse[k]) for k in pool_keys]
+        hist_vals_full = [float(layer_hist_cosine[k]) for k in pool_keys]
         hist_ranks_full = _pool_midranks(hist_vals_full)
 
         composite: dict[str, float] = {}
