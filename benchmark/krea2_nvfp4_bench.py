@@ -233,7 +233,7 @@ def apply_quant_patches() -> None:
     require_convrot_parity_forward()
     print(
         "  [CONVROT] Parity forward armed: "
-        "stock Comfy GEMM + online act rotate (x @ H)"
+        "stock Comfy GEMM + fast O(N log N) float32 butterfly act-rotate (zero accumulation error)"
     )
     print(f"  [BENCH] nvfp4 patch file: {os.path.abspath(_cq_nvfp4.__file__)}")
     print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
