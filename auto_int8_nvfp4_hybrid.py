@@ -793,14 +793,23 @@ def convert(input_path, output_path, *, device="cuda",
                 new_sd[f"{base}.weight{suffix}"] = t.cpu()
 
             mk = layer["meta_key"]
+            # Keep logical Linear shape for Krea2 detect (txtfusion.projector
+            # → txtlayers). Packed weight.shape[1] is storage K, not in_features.
+            orig_shape = [int(x) for x in params.orig_shape]
+            layer_nvfp4 = {
+                "format": "nvfp4",
+                "orig_shape": orig_shape,
+                "in_features": int(orig_shape[1]) if len(orig_shape) > 1 else None,
+                "out_features": int(orig_shape[0]) if len(orig_shape) > 0 else None,
+            }
             if is_convrot and used_gs is not None:
-                layers_meta[mk] = {"format":"nvfp4","convrot":True,"convrot_groupsize":int(used_gs)}
+                layer_nvfp4["convrot"] = True
+                layer_nvfp4["convrot_groupsize"] = int(used_gs)
                 n_convrot += 1
-            else:
-                layers_meta[mk] = {"format":"nvfp4"}
+            layers_meta[mk] = layer_nvfp4
             n_nvfp4 += 1
 
-            print(f"  [OK] {key} -> NVFP4")
+            print(f"  [OK] {key} -> NVFP4  orig_shape={tuple(orig_shape)}")
             del w_bf16, qdata, params
             if device == "cuda": torch.cuda.empty_cache()
         except Exception as e:
