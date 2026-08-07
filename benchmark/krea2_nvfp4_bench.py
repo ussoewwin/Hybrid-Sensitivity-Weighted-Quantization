@@ -506,7 +506,14 @@ def run_branch(
     n_convrot = 0
     n_int8 = 0
     for m in model.model.diffusion_model.modules():
-        if isinstance(m, torch.nn.Linear):
+        is_lin = (
+            isinstance(m, torch.nn.Linear)
+            or hasattr(m, "out_features")
+            or type(m).__name__ in ("Linear", "QuantizedTensor")
+            or getattr(m, "_hswq_nvfp4", False)
+            or getattr(m, "_hswq_nvfp4_convrot", False)
+        )
+        if is_lin:
             n_total_linear += 1
             if getattr(m, "_hswq_nvfp4", False):
                 n_nvfp4 += 1
