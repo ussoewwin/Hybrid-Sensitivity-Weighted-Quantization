@@ -21,20 +21,30 @@ FULL ConvRot (default ON; --no-convrot for plain INT8):
   If in_features / in_channels is not divisible by a power-of-4 group size,
   that layer stays plain tensorwise (or Card 3 channelwise).
 
-BF16 keep (structure-sensitive; same spirit as native_convert_nvfp4_krea2):
-  first / last / mod. / norm / projector / tmlp / tproj / bias /
-  vae. / text_encoders / non-diffusion markers.
+Non-diffusion tensors (VAE / text encoders / markers): keep original dtype.
+DiT bias 1D / non-.weight: keep original dtype (never INT8).
 
-DiT float32 .weight (ndim 2/4): keep as float32 — never INT8
-  (precision-critical; independent of structure blacklist).
+No fixed structure-token blacklist (first/last/mod/norm/projector/…).
+DiT Linear/Conv2d .weight are quantized first; BF16 keep layers are chosen
+ONLY from reverse ranking after W vs W_q comparison.
 
-DiT Linear/Conv2d .weight quantized only when dtype is fp16/bf16.
+DualMonitor calib (--calib_file + --clip_path, CLIPType.KREA2):
+  DualMonitor and calibration are ONE unit (run_card1_calib only).
+  No DualMonitor without calibration. No calibration-less DualMonitor path.
+  Runs when blacklist_keep>0 OR keep_sensitive>0 OR bias_correction OR
+  BOTH paths are set. Reverse ranking FORCES run_card1_calib
+  (bias ON/OFF does not matter). Paths are required for that run.
 
 Card 1 (--bias_correction):
-  Requires --calib_file AND --clip_path (Qwen3-VL-4B / CLIPType.KREA2).
-  Encode prompts with Comfy CLIP → unload CLIP → load SingleStreamDiT →
-  DualMonitor on Linear+Conv2d → bias += -(W_q - W) @ mu_x.
-  No Static Profile VETO / no V4 FP16 keep / no SDXL pipeline.
+  DualMonitor consumer: bias += -(W_q - W) @ mu_x.
+  Bias OFF = skip bias delta ONLY. Does not cancel DualMonitor.
+
+Reverse ranking (shared DualMonitor E[x^2]-weighted ||W-W_q||/||W||):
+  --blacklist_keep N: top N highest-error DiT weights → original dtype
+    (replaces the old hard-coded structure blacklist selection).
+  --keep_sensitive M: next M from the remaining ranked pool → original dtype.
+  Both force DualMonitor. Works with bias OFF.
+  No Frobenius escape / no Static Profile VETO / no SDXL.
 """
 from __future__ import annotations
 
@@ -54,20 +64,6 @@ from tqdm import tqdm
 _DEFAULT_GROUPSIZE = 256
 _MODEL_TYPE = "Krea2"
 _HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
-
-# Krea2 SingleStreamDiT — structure-sensitive layers stay BF16.
-_KREA2_BLACKLIST: list[str] = [
-    "first",
-    "last",
-    "mod.",
-    "norm",
-    "projector",
-    "tmlp",
-    "tproj",
-    "bias",
-    "vae.",
-    "text_encoders",
-]
 
 _NON_DIFFUSION_MARKERS: tuple[str, ...] = (
     "conditioner.",
@@ -293,10 +289,6 @@ def _meta_base_key(base_k_file: str) -> str:
     if "diffusion_model." in base_k_file:
         return base_k_file.split("diffusion_model.")[-1]
     return base_k_file
-
-
-def _is_blacklisted(key: str) -> bool:
-    return any(name in key for name in _KREA2_BLACKLIST)
 
 
 def pack_tensorwise(weight: torch.Tensor):
@@ -797,11 +789,15 @@ def run_card1_calib(
         h.remove()
 
     act_mean_dict = {}
+    act_sq_mean_dict = {}
     for name, mon in dual_monitors.items():
         if mon.channel_act_mean is not None:
             act_mean_dict[name] = mon.channel_act_mean.detach().float().cpu()
+        if mon.channel_act_sq_mean is not None:
+            act_sq_mean_dict[name] = mon.channel_act_sq_mean.detach().float().cpu()
     print(
-        f"  [Card 1 DualMonitor] act_mean layers={len(act_mean_dict)} "
+        f"  [Card 1 DualMonitor] act_mean layers={len(act_mean_dict)}, "
+        f"act_sq_mean layers={len(act_sq_mean_dict)} "
         f"(full Card 1; no VETO; no Approach A)"
     )
 
@@ -813,6 +809,7 @@ def run_card1_calib(
 
     return {
         "act_mean_dict": act_mean_dict,
+        "act_sq_mean_dict": act_sq_mean_dict,
         "comfyui_to_module_map": comfyui_to_module_map,
     }
 
@@ -833,13 +830,16 @@ def convert_to_int8(
     num_inference_steps: int = 25,
     enable_convrot: bool = True,
     group_size: int = _DEFAULT_GROUPSIZE,
+    blacklist_keep: int = 0,
+    keep_sensitive: int = 0,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     act_mean_dict: dict[str, torch.Tensor] = {}
+    act_sq_mean_dict: dict[str, torch.Tensor] = {}
     comfyui_to_module_map: dict[str, str] = {}
     convrot_linear = 0
     convrot_conv2d = 0
-    bf16_keep = 0
+    orig_dtype_keep = 0
 
     print(f"Mode {_MODEL_TYPE} | device={device} | FULL ConvRot INT8 (Krea2-only)")
 
@@ -855,27 +855,60 @@ def convert_to_int8(
                 "float DiT; BC uses rotated W vs W_q (approximate for ConvRot)"
             )
 
-    if bias_correction:
-        if not calib_file:
-            raise ValueError("--bias_correction requires --calib_file")
-        if not clip_path:
-            raise ValueError(
-                "--bias_correction requires --clip_path "
-                "(Qwen3-VL-4B safetensors for Comfy CLIPType.KREA2)"
-            )
+    # DualMonitor == run_card1_calib only. No DualMonitor without calibration.
+    # Bias OFF skips bias delta only.
+    # Reverse ranking (blacklist_keep / keep_sensitive) FORCES DualMonitor.
+    use_bias = bool(bias_correction)
+    use_blacklist_keep = int(blacklist_keep) > 0
+    use_keep_sensitive = int(keep_sensitive) > 0
+    use_reverse_rank = use_blacklist_keep or use_keep_sensitive
+    calib_file = (str(calib_file).strip() if calib_file else "") or None
+    clip_path = (str(clip_path).strip() if clip_path else "") or None
+    have_calib_paths = bool(calib_file) and bool(clip_path)
+    run_dual_monitor = use_reverse_rank or use_bias or have_calib_paths
+
+    if run_dual_monitor and not have_calib_paths:
+        raise ValueError(
+            "DualMonitor requires --calib_file and --clip_path "
+            "(blacklist_keep / keep_sensitive force DualMonitor; bias and "
+            "path-only also require both paths; there is no DualMonitor-less path)"
+        )
+
+    if run_dual_monitor:
         if not os.path.isfile(calib_file):
             raise FileNotFoundError(f"calib_file not found: {calib_file}")
         if not os.path.isfile(clip_path):
             raise FileNotFoundError(f"clip_path not found: {clip_path}")
         if device != "cuda":
-            raise RuntimeError("Card 1 Krea2 calib requires CUDA.")
+            raise RuntimeError("Krea2 DualMonitor calib requires CUDA.")
+
         print(
-            "  [Bias Correction Card 1] ON | ALL INT8 Linear+Conv | "
-            "CLIPType.KREA2 + DualMonitor DiT calib | "
-            "mu_x = DualMonitor.channel_act_mean | "
-            "bias += -(W_q - W) @ mu_x | "
-            "no Approach A / no top_ratio gate"
+            "  [DualMonitor calib] ON | CLIPType.KREA2 DiT | "
+            "run_card1_calib (mu_x / E[x^2] for Linear+Conv)"
         )
+        if use_bias:
+            print(
+                "  [Bias Correction Card 1] ON | DualMonitor mu_x | "
+                "bias += -(W_q - W) @ mu_x | "
+                "no Approach A / no top_ratio gate"
+            )
+        else:
+            print(
+                "  [Bias Correction Card 1] OFF | "
+                "calibration still runs (no bias delta applied)"
+            )
+        if use_blacklist_keep:
+            print(
+                "  [blacklist_keep] ON | reverse-rank DualMonitor E[x^2] | "
+                f"top-N={int(blacklist_keep)} → original dtype "
+                "(replaces fixed structure-token blacklist)"
+            )
+        if use_keep_sensitive:
+            print(
+                "  [keep_sensitive] ON | DualMonitor E[x^2] ranking | "
+                f"next-M={int(keep_sensitive)} after blacklist_keep → original dtype"
+            )
+
         calib = run_card1_calib(
             input_path=input_path,
             calib_file=calib_file,
@@ -886,9 +919,11 @@ def convert_to_int8(
             comfy_path=comfy_path,
         )
         act_mean_dict = calib["act_mean_dict"]
+        act_sq_mean_dict = calib["act_sq_mean_dict"]
         comfyui_to_module_map = calib["comfyui_to_module_map"]
         print(
-            f"  [Bias Correction] Captured act means for {len(act_mean_dict)} layers"
+            f"  [DualMonitor] Captured act means for {len(act_mean_dict)} layers, "
+            f"act sq means for {len(act_sq_mean_dict)} layers"
         )
 
     print(f"Loading model: {input_path}")
@@ -901,6 +936,9 @@ def convert_to_int8(
     converted_count = 0
     skipped_count = 0
     plain_int8_count = 0
+    layer_quant_errors: dict[str, float] = {}
+    blacklist_reverted = 0
+    sensitivity_reverted = 0
     bias_corr_pending: dict[str, torch.Tensor] = {}
     bias_corr_applied = 0
     bias_corr_skipped_no_bias = 0
@@ -914,10 +952,11 @@ def convert_to_int8(
     )
 
     for key, tensor in tqdm(list(state_dict.items())):
-        # Structure-sensitive / non-diffusion → keep original dtype
-        if _is_blacklisted(key) or _is_non_diffusion_key(key):
+        # Non-diffusion (VAE / text encoders / markers) → keep original dtype.
+        # Structure-token blacklist is NOT applied here; reverse ranking decides.
+        if _is_non_diffusion_key(key):
             new_state_dict[key] = tensor
-            bf16_keep += 1
+            orig_dtype_keep += 1
             continue
 
         under_prefix = (not prefix) or key.startswith(prefix)
@@ -930,7 +969,7 @@ def convert_to_int8(
             and tensor.dtype == torch.float32
         ):
             new_state_dict[key] = tensor
-            bf16_keep += 1
+            orig_dtype_keep += 1
             continue
 
         is_dit_weight = (
@@ -987,6 +1026,44 @@ def convert_to_int8(
         quant_meta_layers[_meta_base_key(module_key)] = dict(quant_config)
         converted_count += 1
 
+        # Track per-layer quantization error for reverse ranking.
+        # When calibration E[x^2] is available, use activation-weighted error.
+        module_w_key_sens = comfyui_to_module_map.get(key)
+        module_name_sens = None
+        if module_w_key_sens and module_w_key_sens.endswith(".weight"):
+            module_name_sens = module_w_key_sens[: -len(".weight")]
+        act_sq = (
+            act_sq_mean_dict.get(module_name_sens)
+            if module_name_sens is not None
+            else None
+        )
+        err = w_fp - weight_dq
+        if act_sq is not None and act_sq.shape[0] == w_fp.shape[1]:
+            # Activation-weighted: scale each input column by sqrt(E[x_j^2]).
+            act_scale = act_sq.sqrt().to(device=err.device)
+            if err.ndim == 2:
+                weighted_err = err * act_scale.unsqueeze(0)
+                weighted_base = w_fp * act_scale.unsqueeze(0)
+            elif err.ndim == 4:
+                weighted_err = err * act_scale.view(1, -1, 1, 1)
+                weighted_base = w_fp * act_scale.view(1, -1, 1, 1)
+            else:
+                weighted_err = err
+                weighted_base = w_fp
+            rel_err = float(weighted_err.norm().item()) / max(
+                float(weighted_base.norm().item()), 1e-8
+            )
+            layer_quant_errors[key] = rel_err
+        elif use_reverse_rank:
+            # Reverse ranking uses DualMonitor E[x^2] only — no Frobenius escape.
+            pass
+        else:
+            # Plain relative Frobenius (non-reverse-rank path only).
+            rel_err = float(err.norm().item()) / max(
+                float(w_fp.norm().item()), 1e-8
+            )
+            layer_quant_errors[key] = rel_err
+
         if bias_correction:
             module_w_key = comfyui_to_module_map.get(key)
             module_name = None
@@ -1004,6 +1081,78 @@ def convert_to_int8(
                     bias_corr_skipped_bad_shape += 1
                 else:
                     bias_corr_pending[module_key] = (-delta).detach().float().cpu()
+
+    def _revert_to_original(rk: str, rerr: float, label: str) -> None:
+        nonlocal converted_count
+        mk = rk[: -len(".weight")]
+        new_state_dict[rk] = state_dict[rk]
+        scale_key = f"{mk}.weight_scale"
+        quant_key = f"{mk}.comfy_quant"
+        if scale_key in new_state_dict:
+            del new_state_dict[scale_key]
+        if quant_key in new_state_dict:
+            del new_state_dict[quant_key]
+        meta_bk = _meta_base_key(mk)
+        if meta_bk in quant_meta_layers:
+            del quant_meta_layers[meta_bk]
+        bias_corr_pending.pop(mk, None)
+        converted_count -= 1
+        print(
+            f"    [{label}] {rk}  rel_err={rerr:.6f}  "
+            f"dtype={state_dict[rk].dtype}"
+        )
+
+    # --- Reverse ranking: blacklist_keep then keep_sensitive (no double-count) ---
+    if use_reverse_rank and not layer_quant_errors:
+        raise RuntimeError(
+            "blacklist_keep / keep_sensitive require DualMonitor E[x^2] ranking, "
+            "but no activation-weighted layer errors were produced "
+            "(run_card1_calib / act_sq_mean_dict must feed ranking)"
+        )
+
+    remaining_errs: list[tuple[str, float]] = []
+    if use_reverse_rank and layer_quant_errors:
+        remaining_errs = sorted(
+            layer_quant_errors.items(), key=lambda x: x[1], reverse=True
+        )
+
+    if use_blacklist_keep and remaining_errs:
+        n_bl = min(int(blacklist_keep), len(remaining_errs))
+        bl_keys = remaining_errs[:n_bl]
+        remaining_errs = remaining_errs[n_bl:]
+        print(
+            f"\n[blacklist_keep] Reverting top {len(bl_keys)} highest-error "
+            f"layers to original dtype (reverse ranking):"
+        )
+        for rk, rerr in bl_keys:
+            _revert_to_original(rk, rerr, "blacklist_keep")
+            blacklist_reverted += 1
+
+    if use_keep_sensitive and remaining_errs:
+        n_ks = min(int(keep_sensitive), len(remaining_errs))
+        ks_keys = remaining_errs[:n_ks]
+        remaining_errs = remaining_errs[n_ks:]
+        print(
+            f"\n[keep_sensitive] Reverting next {len(ks_keys)} highest-error "
+            f"layers to original dtype (after blacklist_keep):"
+        )
+        for rk, rerr in ks_keys:
+            _revert_to_original(rk, rerr, "keep_sensitive")
+            sensitivity_reverted += 1
+
+    if use_reverse_rank and remaining_errs:
+        print(
+            f"  [reverse-rank] Next worst kept INT8: {remaining_errs[0][0]} "
+            f"rel_err={remaining_errs[0][1]:.6f}"
+        )
+        print(
+            f"  [reverse-rank] Best kept INT8: {remaining_errs[-1][0]} "
+            f"rel_err={remaining_errs[-1][1]:.6f}"
+        )
+    elif use_keep_sensitive and not remaining_errs and blacklist_reverted > 0:
+        print(
+            "  [keep_sensitive] No remaining ranked layers after blacklist_keep"
+        )
 
     if bias_correction and bias_corr_pending:
         print(
@@ -1042,11 +1191,21 @@ def convert_to_int8(
 
     print(f"Saving to: {output_path}")
     print(f"Converted layers: {converted_count}, Kept (other): {skipped_count}")
-    print(f"BF16 keep (blacklist / non-diffusion): {bf16_keep}")
+    print(f"Original-dtype keep (non-diffusion / fp32): {orig_dtype_keep}")
+    if blacklist_reverted > 0:
+        print(
+            f"blacklist_keep reverted to original dtype: {blacklist_reverted}"
+        )
+    if sensitivity_reverted > 0:
+        print(f"keep_sensitive reverted to original dtype: {sensitivity_reverted}")
     print(f"Per-channel INT8 (Card 3 plain packs): {per_channel_int8}")
     print(f"Bias correction (Card 1): {bias_correction}")
     if bias_correction:
         print(f"  Bias-corrected INT8 layers: {bias_corr_applied}")
+    print(f"Reverse blacklist_keep: {int(blacklist_keep)}")
+    print(f"Reverse protect keep_sensitive: {int(keep_sensitive)}")
+    if use_reverse_rank:
+        print("  Ranking: DualMonitor E[x^2] activation-weighted (shared pool)")
     print(f"ConvRot FULL (Linear+Conv2d): {enable_convrot}")
     if enable_convrot:
         print(
@@ -1064,7 +1223,12 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Krea2 DiT INT8 convert with FULL ConvRot (Linear+Conv2d) ON by default. "
-            "Card 1 = --bias_correction + --calib_file + --clip_path (CLIPType.KREA2). "
+            "DualMonitor and calibration are one unit (run_card1_calib). "
+            "--blacklist_keep N and --keep_sensitive M force DualMonitor calib "
+            "(need --calib_file + --clip_path); both pick original-dtype layers "
+            "from the same reverse ranking (blacklist first, then sensitive). "
+            "Paths alone also calibrate. Card 1 = --bias_correction "
+            "(OFF skips bias delta only, not DualMonitor). "
             "Card 3 = --per_channel_int8 for non-ConvRot plain packs. "
             "Use --no-convrot for plain INT8 only. No Approach A / no VETO / no SDXL."
         )
@@ -1092,16 +1256,21 @@ def main():
         "--bias_correction",
         action="store_true",
         help=(
-            "Card 1 ON: CLIPType.KREA2 encode + DualMonitor DiT calib; "
-            "bias += -(W_q - W) @ mu_x on ALL INT8 Linear+Conv. "
-            "Requires --calib_file and --clip_path."
+            "Card 1 ON: DualMonitor consumer — bias += -(W_q - W) @ mu_x on "
+            "ALL INT8 Linear+Conv. DualMonitor needs --calib_file + --clip_path. "
+            "Bias OFF does not disable DualMonitor when calib paths are set."
         ),
     )
     parser.add_argument(
         "--calib_file",
         type=str,
         default=None,
-        help="Calibration prompts text file (one prompt per line).",
+        help=(
+            "Calibration prompts text file (one prompt per line). "
+            "With --clip_path, DualMonitor always runs (bias ON or OFF). "
+            "DualMonitor mu_x / E[x^2] feed Card 1, blacklist_keep, and "
+            "keep_sensitive."
+        ),
     )
     parser.add_argument(
         "--clip_path",
@@ -1109,7 +1278,9 @@ def main():
         default=None,
         help=(
             "Qwen3-VL-4B CLIP safetensors for Comfy CLIPType.KREA2. "
-            "Required with --bias_correction."
+            "With --calib_file, DualMonitor always runs "
+            "(bias OFF still calib; blacklist_keep / keep_sensitive consume "
+            "DualMonitor E[x^2])."
         ),
     )
     parser.add_argument(
@@ -1122,13 +1293,13 @@ def main():
         "--num_calib_samples",
         type=int,
         default=32,
-        help="Card 1 calib samples (default 32).",
+        help="DualMonitor calib samples (default 32).",
     )
     parser.add_argument(
         "--num_inference_steps",
         type=int,
         default=25,
-        help="Card 1 DiT timestep sweeps per sample (default 25).",
+        help="DualMonitor DiT timestep sweeps per sample (default 25).",
     )
     parser.add_argument(
         "--no-convrot",
@@ -1141,6 +1312,29 @@ def main():
         type=int,
         default=_DEFAULT_GROUPSIZE,
         help=f"Preferred ConvRot Hadamard group size (default {_DEFAULT_GROUPSIZE}).",
+    )
+    parser.add_argument(
+        "--blacklist_keep",
+        type=int,
+        default=0,
+        help=(
+            "Forces DualMonitor / run_card1_calib (needs --calib_file + "
+            "--clip_path). Keep top N DiT weights ranked by DualMonitor "
+            "E[x^2]-weighted ||W-W_q||/||W|| in original dtype. Replaces the "
+            "old fixed structure-token blacklist. Applied before "
+            "--keep_sensitive on the same ranked pool. 0 = disabled."
+        ),
+    )
+    parser.add_argument(
+        "--keep_sensitive",
+        type=int,
+        default=0,
+        help=(
+            "Forces DualMonitor / run_card1_calib (needs --calib_file + "
+            "--clip_path). After --blacklist_keep, keep next M layers from the "
+            "same DualMonitor E[x^2] ranking in original dtype. "
+            "Works with bias OFF. No Frobenius escape. 0 = disabled."
+        ),
     )
     parser.set_defaults(enable_convrot=True)
     args = parser.parse_args()
@@ -1157,6 +1351,8 @@ def main():
         num_inference_steps=int(args.num_inference_steps),
         enable_convrot=bool(args.enable_convrot),
         group_size=int(args.group_size),
+        blacklist_keep=int(args.blacklist_keep),
+        keep_sensitive=int(args.keep_sensitive),
     )
 
 
