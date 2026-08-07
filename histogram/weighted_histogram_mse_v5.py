@@ -244,7 +244,7 @@ class MSEOptimizer:
 # ==============================================================================
 # V4 Hybrid: SVD Leverage + RMS Magnitude Calculator
 # ==============================================================================
-def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, beta: float = 0.3, top_p: float = 1.0, min_k: int = 1, max_k: int = 4096) -> torch.Tensor:
+def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, beta: float = 0.3, top_p: float = 1.0, min_k: int = 1, max_k: int = None) -> torch.Tensor:
     """
     Outputs blended importance matrix: SVD-based structural leverage and RMS magnitude,
     each L2-normalized and combined with weights (alpha, beta).
@@ -265,8 +265,11 @@ def compute_hybrid_leverage_scores(weight: torch.Tensor, alpha: float = 0.7, bet
 
     M, N = w_float.shape
     max_rank = min(M, N)
-    k = min(max_k, max(min_k, int(math.floor(top_p * max_rank))))
-    k = min(k, max_rank)
+    if max_k is None:
+        k = max_rank  # Full SVD: use all singular values
+    else:
+        k = min(max_k, max(min_k, int(math.floor(top_p * max_rank))))
+        k = min(k, max_rank)
 
     # console log
     if w_float.shape[0] > 100 or w_float.shape[1] > 100:
