@@ -500,6 +500,25 @@ def run_branch(
     diag = _diag_model_sampling(model, label)
     print(f"  latent shape: {latent['samples'].shape}")
 
+    # Inspect model modules for quant / convrot status
+    n_total_linear = 0
+    n_nvfp4 = 0
+    n_convrot = 0
+    n_int8 = 0
+    for m in model.model.diffusion_model.modules():
+        if isinstance(m, torch.nn.Linear):
+            n_total_linear += 1
+            if getattr(m, "_hswq_nvfp4", False):
+                n_nvfp4 += 1
+            if getattr(m, "_hswq_nvfp4_convrot", False):
+                n_convrot += 1
+            if getattr(m, "int8_quant", False) or getattr(m, "_hswq_int8", False):
+                n_int8 += 1
+    print(
+        f"  [{label} module diag] total_linears={n_total_linear} "
+        f"nvfp4_loaded={n_nvfp4} convrot_armed={n_convrot} int8_loaded={n_int8}"
+    )
+
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
         torch.cuda.synchronize()
