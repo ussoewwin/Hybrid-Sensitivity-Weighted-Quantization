@@ -129,6 +129,9 @@ def apply_nvfp4_comfy_parity() -> bool:
         )
         # Stock load drops the stamp; re-arm convrot flags so the parity forward
         # applies the online act rotation the offline-rotated weights require.
+        ik = f"{prefix}input_scale"
+        if ik in missing_keys:
+            missing_keys.remove(ik)
         if is_nvfp4_conf(conf):
             module._hswq_nvfp4 = True
             enabled, gs = convrot_flags_from_conf(conf)

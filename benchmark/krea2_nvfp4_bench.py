@@ -219,8 +219,9 @@ def apply_quant_patches(mode: str = "tc"):
     from krea2_nvfp4.nvfp4_comfy_parity import apply_nvfp4_comfy_parity
     import krea2_nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
 
-    from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
-    import int8.comfy_quant_int8 as _cq_int8
+    import importlib
+    _cq_int8 = importlib.import_module("krea2 int8.comfy_quant_int8")
+    apply_comfy_quant_int8_patches = _cq_int8.apply_comfy_quant_int8_patches
 
     apply_comfy_quant_nvfp4_patches()
     if mode == "parity":
@@ -453,10 +454,10 @@ def _hard_free_vram() -> None:
 def _load_diffusion_model(unet_path: str):
     """Load DiT; wrap INT8-protect layers in Conv2d inject scope when present."""
     import comfy.sd
-    from int8.comfy_quant_int8 import (
-        _int8_quant_conv_scope,
-        checkpoint_looks_like_comfy_quant_int8,
-    )
+    import importlib
+    _cq_int8 = importlib.import_module("krea2 int8.comfy_quant_int8")
+    _int8_quant_conv_scope = _cq_int8._int8_quant_conv_scope
+    checkpoint_looks_like_comfy_quant_int8 = _cq_int8.checkpoint_looks_like_comfy_quant_int8
     from krea2_nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
 
     looks_nvfp4 = checkpoint_looks_like_comfy_quant_nvfp4(unet_path)
@@ -523,7 +524,19 @@ def run_branch(
                 n_convrot += 1
                 if len(armed_samples) < 5:
                     armed_samples.append(name)
-            if getattr(m, "int8_quant", False) or getattr(m, "_hswq_int8", False):
+            w = getattr(m, "weight", None)
+            w_params = getattr(w, "_params", None)
+            layout_name = str(getattr(m, "layout_type", getattr(w_params, "__class__", "")))
+            qfmt = str(getattr(m, "quant_format", ""))
+
+            is_int8 = (
+                getattr(m, "int8_quant", False)
+                or getattr(m, "_hswq_int8", False)
+                or qfmt == "int8_tensorwise"
+                or "int8" in layout_name.lower()
+                or "tensorwiseint8" in type(w_params).__name__.lower()
+            )
+            if is_int8:
                 n_int8 += 1
     print(
         f"  [{label} module diag] total_linears={n_total_linear} "
