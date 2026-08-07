@@ -21,9 +21,9 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 |-------|---------------------|-----------------|----------------|-----------------|
 | unstableDissolution_Bf16 | +20 | 1off | 6.84 | 0.9700 |
 | moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 0.9869 |
-| moodyCutieMixKrea2_v20BF16 | +18 | 1off | 5.30 | 0.9757 |
-| gonzalomoKrea2_v20 | +26 | 1off | 6.27 | 0.9573 |
-| darkBeast30BF16INT8_darkBeast330 | +20 | 1off | 7.90 | 0.9613 |
+| moodyCutieMixKrea2_v20BF16 | +0 | 1off | 4.79 | 0.9771 |
+| gonzalomoKrea2_v20 | +10 | 1off | 6.26 | 0.9573 |
+| darkBeast30BF16INT8_darkBeast330 | +10 | 1off | 7.98 | 0.9587 |
 
 ---
 
@@ -36,10 +36,10 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | Model | BF16 protect layers | Bias correction | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Baseline | Winner |
 |-------|---------------------|-----------------|----------|--------------|-------|-----------|---------------|--------|----------|--------|
 | unstableDissolution_Bf16 | +20 | 1off | 6.84 | 17.13 | +10.29 | 0.9700 | 0.8015 | −0.1685 | Native ConvRot INT8 | HSWQ |
-| moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 4.34 | +1.77 | 0.9869 | 0.9743 | −0.0126 | Native ConvRot INT8 | HSWQ |
-| moodyCutieMixKrea2_v20BF16 | +18 | 1off | 5.30 | 19.55 | +14.25 | 0.9757 | 0.8538 | −0.1219 | Native ConvRot INT8 | HSWQ |
-| gonzalomoKrea2_v20 | +26 | 1off | 6.27 | 11.94 | +5.67 | 0.9573 | 0.8601 | −0.0972 | Native ConvRot INT8 | HSWQ |
-| darkBeast30BF16INT8_darkBeast330 | +20 | 1off | 7.90 | 20.85 | +12.95 | 0.9613 | 0.7976 | −0.1637 | Native ConvRot INT8 | HSWQ |
+| moodyKrea2Mix_v50BF16 | +15 | 1off | 2.57 | 3.72 | +1.15 | 0.9869 | 0.9805 | −0.0064 | Native ConvRot INT8 | HSWQ |
+| moodyCutieMixKrea2_v20BF16 | +0 | 1off | 4.79 | 12.83 | +8.04 | 0.9771 | 0.9184 | −0.0587 | Native ConvRot INT8 | HSWQ |
+| gonzalomoKrea2_v20 | +10 | 1off | 6.26 | 6.63 | +0.37 | 0.9573 | 0.9531 | −0.0042 | Native ConvRot INT8 | HSWQ |
+| darkBeast30BF16INT8_darkBeast330 | +10 | 1off | 7.98 | 10.74 | +2.76 | 0.9587 | 0.9396 | −0.0191 | Native ConvRot INT8 | HSWQ |
 
 **Winner** = better on both MSE and SSIM.
 
