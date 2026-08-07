@@ -51,6 +51,8 @@ def _make_convrot_parity_forward(stock_forward):
     """
     from .nvfp4_hadamard import build_hadamard, rotate_last_dim
 
+    _LOGGED_FIRST_ROT = [False]
+
     def forward_convrot_parity(self, input, *args, **kwargs):
         if getattr(self, "_hswq_nvfp4_convrot", False):
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
@@ -58,6 +60,13 @@ def _make_convrot_parity_forward(stock_forward):
             if h is None or h.device != input.device or h.dtype != input.dtype:
                 h = build_hadamard(gs, device=input.device, dtype=input.dtype)
                 self._hswq_nvfp4_parity_H = h
+            if not _LOGGED_FIRST_ROT[0]:
+                _LOGGED_FIRST_ROT[0] = True
+                print(
+                    f"  [CONVROT parity forward] First act-rotation triggered: "
+                    f"input shape={tuple(input.shape)} dtype={input.dtype} groupsize={gs}",
+                    flush=True,
+                )
             input = rotate_last_dim(input, h, gs)
         return stock_forward(self, input, *args, **kwargs)
 
