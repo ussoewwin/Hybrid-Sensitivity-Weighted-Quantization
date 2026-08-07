@@ -98,6 +98,11 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
         _DEQUANT_FALLBACKS += 1
         return F.linear(input_qt, weight_qt, bias)
 
+    if scale_a.dtype != torch.float32 or scale_a.dim() != 1:
+        scale_a = scale_a.reshape(-1).float()
+    if scale_b.dtype != torch.float32 or scale_b.dim() != 1:
+        scale_b = scale_b.reshape(-1).float()
+
     try:
         result = ck.scaled_mm_nvfp4(
             a_qdata,

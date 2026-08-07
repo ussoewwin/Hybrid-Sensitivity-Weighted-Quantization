@@ -84,6 +84,11 @@ def register_nvfp4_addmm_handler() -> bool:
         weight_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(mat2)
         out_dtype = kwargs.get("out_dtype", mat1._params.orig_dtype)
 
+        if scale_a.dtype != torch.float32 or scale_a.dim() != 1:
+            scale_a = scale_a.reshape(-1).float()
+        if scale_b.dtype != torch.float32 or scale_b.dim() != 1:
+            scale_b = scale_b.reshape(-1).float()
+
         try:
             result = ck.scaled_mm_nvfp4(
                 input_qdata,
