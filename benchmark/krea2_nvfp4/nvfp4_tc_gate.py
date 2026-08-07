@@ -1,11 +1,13 @@
 """NVFP4 TensorCore availability gate (shared by addmm patch + TC forward).
 
-cuBLAS NVFP4 GEMM needs compute capability >= 10.0 (Blackwell). Cloud hosts are
-often Ada / Hopper / Ampere — every ``scaled_mm_nvfp4`` then raises
-``CUBLAS_STATUS_NOT_SUPPORTED`` and kitchen / addmm log WARNING per Linear.
+cuBLAS NVFP4 GEMM needs compute capability >= 10.0 (Blackwell architecture family:
+RTX 5050, RTX 5060, RTX 5070, RTX 5080, RTX 5090, B200, GB200, etc.).
+
+Cloud/older GPUs (Ada CC 8.9, Hopper CC 9.0, Ampere CC 8.6) raise
+CUBLAS_STATUS_NOT_SUPPORTED; kitchen / addmm log WARNING per Linear.
 
 This module:
-  1) probes CC once
+  1) probes CC once (checks CC >= 10.0 for any Blackwell GPU)
   2) after first NOT_SUPPORTED (or CC < 10.0), disables further TC attempts
   3) emits a single clear line; mutes kitchen nvfp4 WARNING spam
 """
@@ -30,7 +32,7 @@ def _mute_nvfp4_warning_spam() -> None:
 
 
 def probe_nvfp4_tc_support(device_index: int = 0) -> bool:
-    """Return True if GPU CC looks NVFP4-TC capable (kitchen min is (10, 0))."""
+    """Return True if GPU CC is Blackwell NVFP4-TC capable (CC >= 10.0: RTX 5050-5090 / B200)."""
     global _PROBED, _TC_OK
     if _PROBED and _TC_OK is not None:
         return bool(_TC_OK)
@@ -42,7 +44,7 @@ def probe_nvfp4_tc_support(device_index: int = 0) -> bool:
             _TC_OK = False
             return False
         major, minor = torch.cuda.get_device_capability(device_index)
-        # comfy_kitchen CUDA scaled_mm_nvfp4: min_compute_capability=(10, 0)
+        # All Blackwell family GPUs (RTX 5050..5090, B200) have CC >= 10.0
         _TC_OK = (int(major), int(minor)) >= (10, 0)
         return bool(_TC_OK)
     except Exception:
