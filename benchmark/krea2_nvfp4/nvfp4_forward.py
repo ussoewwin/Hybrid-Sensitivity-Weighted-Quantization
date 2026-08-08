@@ -11,7 +11,7 @@ This module owns the full inference path for HSWQ NVFP4 (+ optional ConvRot):
   2) FULL ConvRot via dense Hadamard GEMM (butterfly is slower for gs=256)
   3) cast weight/bias when off-device
   4) pooled CUDA quantize_nvfp4 (no per-call alloc)
-  5) pooled cuBLAS scaled_mm_nvfp4
+  5) stock ``ck.scaled_mm_nvfp4`` (registry; not direct ``_C``)
   6) reshape with module.out_features (never QT storage shape[0])
 
 Never edits ComfyUI-master; installed via monkey-patch on MixedPrecision Linear.
@@ -144,7 +144,7 @@ def _plain_weight_cached(module, weight_qt):
 
 
 def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
-    """Act float → pooled NVFP4 quant → pooled cuBLAS mm (no QT alloc).
+    """Act float → pooled NVFP4 quant → stock ``ck.scaled_mm_nvfp4``.
 
     Prefers CUDA Graph (quantize+mm) after first capture per shape/weight; falls
     back to eager pooled kernels if capture/replay fails.
