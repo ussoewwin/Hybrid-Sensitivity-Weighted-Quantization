@@ -203,9 +203,9 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         _DEQUANT_FALLBACKS += 1
         return None
 
-    # Checkpoints may omit input_scale (placeholder ones). amax once per module
-    # in the ROTATED domain (converter: rotate first, then amax) — ones as
-    # tensor_scale collapses NVFP4 act grids (SSIM~0.18).
+    # Checkpoints may omit input_scale (placeholder ones). Per-call amax in the
+    # ROTATED domain (converter: rotate first, then amax) — ones as tensor_scale
+    # collapses NVFP4 act grids (SSIM~0.18); step-0 freeze mis-scales later steps.
     scale_a = ensure_act_scale_cached(module, input_2d, act_scale)
     try:
         w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(

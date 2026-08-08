@@ -12,8 +12,8 @@ ORDER (wrong order = death):
   2) Cosine / SVD / composite ranking are AFTER convert (report only).
      Never gate NVFP4 pack on cosine/SVD.
 
-Default convert set = ALL INT8 layers (optional --all_mlp / --nvfp4_types filter).
---nvfp4_keep only annotates lowest-N in the post-convert ranking JSON.
+Convert set requires explicit selection: --nvfp4_keep N / --nvfp4_types / --all_mlp
+(no flag = WARNING + abort; nothing is converted by default).
 
 ConvRot NVFP4 math (no hand-wave):
   - Source INT8 is ConvRot (Hadamard space). PLAIN INT8 is NOT scattered
@@ -569,6 +569,23 @@ def load_krea2(path, device="cuda", comfy_path=None):
         for k, v in sd.items():
             if prefix and k.startswith(prefix): stripped[k[len(prefix):]] = v
             elif not prefix: stripped[k] = v
+        # Dequantize int8_tensorwise layers BEFORE load: plain load_state_dict
+        # would cast raw int8 codes (±127) into bf16 params without weight_scale
+        # -> calibration activations ~100x off -> garbage .input_scale amax.
+        # ConvRot weights stay in Hadamard space after dequant (never unrotate).
+        n_dq = 0
+        for k in list(stripped.keys()):
+            if not k.endswith(".weight"):
+                continue
+            base_k = k[: -len(".weight")]
+            if f"{base_k}.weight_scale_2" in stripped:
+                continue  # NVFP4-packed (not present in INT8 source)
+            scale_t = stripped.get(f"{base_k}.weight_scale")
+            if scale_t is None or stripped[k].dtype != torch.int8:
+                continue
+            stripped[k] = _dequant_int8_weight(stripped[k], scale_t).to(torch.bfloat16)
+            n_dq += 1
+        print(f"  int8 dequant for calib: {n_dq} layers")
         m, u = dit.load_state_dict(stripped, strict=False)
         print(f"  missing={len(m)} unexpected={len(u)}")
         dev = str(next(dit.parameters()).device)

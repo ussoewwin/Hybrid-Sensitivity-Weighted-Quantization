@@ -16,10 +16,21 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from collections import OrderedDict
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# HSWQ_NVFP4_ACT_AMAX_FREEZE=1: legacy first-forward amax freeze (speed debug
+# only). Default is per-call amax — no-calib checkpoints (all convrot layers
+# missing .input_scale) depend on it: step-0 sigma=1.0 noise amax mis-scales
+# every later step and cost ~0.05 SSIM on Krea2 (0.88 frozen vs 0.93 stock).
+_ACT_AMAX_FREEZE = os.environ.get("HSWQ_NVFP4_ACT_AMAX_FREEZE", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # (padded_rows, padded_cols, device_str) -> (qx uint8, sx_uint8)
 # Safe to reuse: only live during one Linear forward (quantize → mm reads sync).
@@ -538,23 +549,33 @@ def ensure_act_scale(x, scale):
 
 
 def ensure_act_scale_amax(x):
-    """Online amax scale (GPU-only multiply)."""
+    """Online amax scale (GPU-only, no host sync).
+
+    Degenerate inputs (all-zero / non-finite amax) fall back to 1.0 for THIS
+    call only via ``torch.where`` — zero input still maps to zero output and no
+    frozen poison state is ever stored (SeedVR2 A2_rot black-output guard).
+    """
     import torch
 
     s = torch.amax(x.abs()).to(dtype=torch.float32) * _inv_amax_denom(x.device)
-    return s.reshape(1)
+    s = s.reshape(1)
+    ok = torch.isfinite(s) & (s > 0)
+    return torch.where(ok, s, torch.ones_like(s))
 
 
 def ensure_act_scale_cached(module, x, scale):
-    """Act scale with **one amax per module** when checkpoint omits input_scale.
+    """Act scale when checkpoint omits input_scale (placeholder ones).
 
-    ``test.safetensors`` has zero ``input_scale`` keys. Doing amax on every
-    Linear (~18k/sample) made NVFP4 slower than FP16. Freezing after the first
-    forward keeps quality near online-amax while removing the steady-state cost.
+    Default: **per-call amax** (matches stock kitchen NVFP4; converter expects
+    "runtime amax" for no-calib layers). ``HSWQ_NVFP4_ACT_AMAX_FREEZE=1``
+    restores the legacy first-forward freeze — cheaper on 18k-Linear/sample
+    models but mis-scales Krea2 steps (sigma drift vs frozen step-0 noise amax).
     """
     import torch
 
     if getattr(module, "_hswq_nvfp4_scale_placeholder", False) or scale is None:
+        if not _ACT_AMAX_FREEZE:
+            return ensure_act_scale_amax(x)
         cached = getattr(module, "_hswq_nvfp4_act_scale", None)
         if cached is not None and cached.device == x.device:
             return cached
