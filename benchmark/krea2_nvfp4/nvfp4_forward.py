@@ -67,6 +67,7 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     global _TC_HITS, _DEQUANT_FALLBACKS
     import torch
     import torch.nn.functional as F
+    import comfy_kitchen as ck
     from comfy_kitchen.tensor.base import QuantizedTensor
     from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
 
@@ -102,14 +103,8 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     if scale_b.dtype != torch.float32 or scale_b.dim() != 1:
         scale_b = scale_b.reshape(-1).float()
 
-    orig_m = input_qt._params.orig_shape[0]
-    orig_n = weight_qt._params.orig_shape[0]  # (out, in)
-    if a_qdata.shape[0] % 16 != 0:
-        pad_m = ((a_qdata.shape[0] + 15) // 16) * 16
-        a_qdata = F.pad(a_qdata, (0, 0, 0, pad_m - a_qdata.shape[0]))
-    alpha = (scale_a * scale_b).to(torch.float32).reshape(1)
     try:
-        result = scaled_mm_nvfp4_pooled(
+        result = ck.scaled_mm_nvfp4(
             a_qdata,
             w_qdata,
             tensor_scale_a=scale_a,
@@ -118,12 +113,11 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
             block_scale_b=block_scale_b,
             bias=bias,
             out_dtype=out_dtype,
-            alpha=alpha,
-            orig_m=orig_m,
-            orig_n=orig_n,
         )
+        orig_m = input_qt._params.orig_shape[0]
+        orig_n = weight_qt._params.orig_shape[0]  # (out, in)
         _TC_HITS += 1
-        return result
+        return _slice_nvfp4_mm_out(result, orig_m, orig_n)
     except (RuntimeError, TypeError) as e:
         note_scaled_mm_failure(e)
         _DEQUANT_FALLBACKS += 1

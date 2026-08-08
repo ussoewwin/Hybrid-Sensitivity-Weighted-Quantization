@@ -26,7 +26,7 @@ def register_nvfp4_addmm_handler() -> bool:
 
     try:
         import torch
-        import torch.nn.functional as F
+        import comfy_kitchen as ck
         from comfy_kitchen.tensor.base import (
             QuantizedTensor,
             dequantize_args,
@@ -42,7 +42,6 @@ def register_nvfp4_addmm_handler() -> bool:
             note_scaled_mm_failure,
             nvfp4_tc_enabled,
         )
-        from krea2_nvfp4.nvfp4_runtime import scaled_mm_nvfp4_pooled
     except Exception as e:
         logger.warning("[HSWQ NVFP4] addmm register skipped (import): %s", e)
         return False
@@ -90,14 +89,8 @@ def register_nvfp4_addmm_handler() -> bool:
         if scale_b.dtype != torch.float32 or scale_b.dim() != 1:
             scale_b = scale_b.reshape(-1).float()
 
-        orig_m = mat1._params.orig_shape[0]
-        orig_n = mat2._params.orig_shape[1]
-        if input_qdata.shape[0] % 16 != 0:
-            pad_m = ((input_qdata.shape[0] + 15) // 16) * 16
-            input_qdata = F.pad(input_qdata, (0, 0, 0, pad_m - input_qdata.shape[0]))
-        alpha = (scale_a * scale_b).to(torch.float32).reshape(1)
         try:
-            result = scaled_mm_nvfp4_pooled(
+            result = ck.scaled_mm_nvfp4(
                 input_qdata,
                 weight_qdata,
                 tensor_scale_a=scale_a,
@@ -106,11 +99,10 @@ def register_nvfp4_addmm_handler() -> bool:
                 block_scale_b=block_scale_b,
                 bias=bias,
                 out_dtype=out_dtype,
-                alpha=alpha,
-                orig_m=orig_m,
-                orig_n=orig_n,
             )
-            return result
+            orig_m = mat1._params.orig_shape[0]
+            orig_n = mat2._params.orig_shape[1]
+            return _slice_to_original_shape(result, orig_m, orig_n)
         except (RuntimeError, TypeError) as e:
             note_scaled_mm_failure(e)
             return torch.addmm(*dequantize_args((bias, mat1, mat2)))
