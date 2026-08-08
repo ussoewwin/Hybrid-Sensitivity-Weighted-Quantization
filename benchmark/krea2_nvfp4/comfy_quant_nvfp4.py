@@ -56,6 +56,12 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
 
     register_nvfp4_addmm_handler()
 
+    # Branch A (stock healthy): no rebind — plain NVFP4 stays Comfy path.
+    # Branch B (Asym bulk-import stubs): submodule rebind only.
+    from .kitchen_quant_ops_repair import ensure_kitchen_quant_ops
+
+    ensure_kitchen_quant_ops()
+
     if _PATCHES_APPLIED:
         return True
 

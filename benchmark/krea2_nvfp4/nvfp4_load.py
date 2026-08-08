@@ -156,6 +156,18 @@ def load_nvfp4_linear_module(
     qconfig = QUANT_ALGOS["nvfp4"]
     module.layout_type = qconfig["comfy_tensor_layout"]
     layout_cls = get_layout_class(module.layout_type)
+    # Stub-only fallback (kitchen bulk-import failed). Healthy stock path
+    # already has Params — do not replace Comfy's TensorCoreNVFP4Layout.
+    if layout_cls is None or not hasattr(layout_cls, "Params"):
+        from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout as _KitchenNVFP4
+
+        layout_cls = _KitchenNVFP4
+        logger.warning(
+            "[HSWQ NVFP4] get_layout_class(%s) stubbed; using kitchen.tensor.nvfp4 "
+            "for Params only (layer=%s)",
+            module.layout_type,
+            layer_name,
+        )
 
     ts = pop_scale("weight_scale_2")
     bs = pop_scale("weight_scale", torch.float8_e4m3fn)
