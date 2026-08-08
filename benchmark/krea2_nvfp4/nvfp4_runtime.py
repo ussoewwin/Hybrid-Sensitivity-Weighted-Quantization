@@ -1,9 +1,16 @@
-"""Pooled NVFP4 act quantize + HSWQ-owned GEMM.
+"""Pooled NVFP4 act quantize + true FP4 Tensor-Core GEMM.
 
 Stock ``ck.quantize_nvfp4`` allocates fresh tensors on every Linear call.
-GEMM is **HSWQ-owned** (``nvfp4_gemm.hswq_scaled_mm_nvfp4``): never kitchen
-``scaled_mm_nvfp4`` / registry cuda CUBLAS. Act quant buffers are pooled by
-shape to cut allocation overhead when a packed-act path is used.
+Act quant buffers are pooled by shape to cut allocation overhead.
+
+GEMM is the raw cuBLAS blockwise FP4 primitive (kitchen ``_C`` extension,
+``cublas_gemm_blockwise_fp4``) — the same extension already used for act
+quantize. ComfyUI/kitchen ship no ConvRot×NVFP4 Linear: ConvRot rotation,
+act-scale conventions, pooling, and dispatch here are HSWQ-owned. The torch
+native FP4 ``F.scaled_mm`` (path A) fails on SM120 with
+CUBLAS_STATUS_NOT_SUPPORTED; the direct extension call (path B) is verified
+on RTX 50xx (mm rel diff ~0.5%). ``hswq_scaled_mm_nvfp4`` (eager dequant) is
+kept only for residual QT×QT addmm edges.
 """
 from __future__ import annotations
 
@@ -167,23 +174,108 @@ def scaled_mm_nvfp4_pooled(
     orig_n: Optional[int] = None,
     out: Optional["torch.Tensor"] = None,
 ):
-    """NVFP4 GEMM via HSWQ-owned ``hswq_scaled_mm_nvfp4`` (never kitchen)."""
-    from .nvfp4_gemm import hswq_scaled_mm_nvfp4
+    """True cuBLAS NVFP4 GEMM (kitchen ``_C`` raw primitive). ``out`` optional for CUDA Graph.
 
-    return hswq_scaled_mm_nvfp4(
-        a_qdata,
-        w_qdata,
-        tensor_scale_a=tensor_scale_a,
-        tensor_scale_b=tensor_scale_b,
-        block_scale_a=block_scale_a,
-        block_scale_b=block_scale_b,
-        bias=bias,
-        out_dtype=out_dtype,
-        alpha=alpha,
-        orig_m=orig_m,
-        orig_n=orig_n,
-        out=out,
+    HSWQ-owned dispatch: shapes/scales validated here before the C call so
+    cuBLAS never sees an unsupported config (avoids SM120 sticky CUDA poison).
+    """
+    import torch
+    from comfy_kitchen.backends.cuda import (
+        _C,
+        _wrap_for_dlpack,
+        get_cublas_workspace,
+        roundup,
+        DTYPE_TO_CODE,
     )
+
+    if isinstance(tensor_scale_a, torch.nn.Parameter):
+        tensor_scale_a = tensor_scale_a.data
+    if isinstance(tensor_scale_b, torch.nn.Parameter):
+        tensor_scale_b = tensor_scale_b.data
+    if isinstance(a_qdata, torch.nn.Parameter):
+        a_qdata = a_qdata.data
+    if isinstance(w_qdata, torch.nn.Parameter):
+        w_qdata = w_qdata.data
+    if isinstance(block_scale_a, torch.nn.Parameter):
+        block_scale_a = block_scale_a.data
+    if isinstance(block_scale_b, torch.nn.Parameter):
+        block_scale_b = block_scale_b.data
+
+    if alpha is None:
+        alpha = tensor_scale_a * tensor_scale_b
+    elif isinstance(alpha, torch.nn.Parameter):
+        alpha = alpha.data
+    if alpha.dtype != torch.float32:
+        alpha = alpha.to(torch.float32)
+    if alpha.dim() == 0:
+        alpha = alpha.reshape(1)
+
+    m, k_a = a_qdata.shape
+    n, k_b = w_qdata.shape
+    if k_a != k_b:
+        raise ValueError("Matrix dimensions do not match")
+    if n % 8 != 0:
+        raise ValueError("B tensor must have 8 alignment in N dimension")
+    # cuBLAS FP4 TN: K (FP4 elements) must be %32 → packed K bytes %16.
+    if (2 * k_a) % 32 != 0:
+        raise ValueError(f"NVFP4 GEMM unsupported K={2 * k_a} (need K%32==0)")
+
+    k = 2 * k_a
+    block_length = 16
+    if block_scale_a.dtype != torch.float8_e4m3fn:
+        raise ValueError(f"Unsupported scale dtype: {block_scale_a.dtype}")
+
+    roundup_m = roundup(m, 128)
+    roundup_n = roundup(n, 128)
+    roundup_sk = roundup(k // block_length, 4)
+    if block_scale_a.size() != (roundup_m, roundup_sk):
+        raise ValueError(f"Invalid A scale shape {tuple(block_scale_a.shape)}")
+    if block_scale_b.size() != (roundup_n, roundup_sk):
+        raise ValueError(f"Invalid B scale shape {tuple(block_scale_b.shape)}")
+
+    if out is None:
+        out = torch.empty(m, n, dtype=out_dtype, device=a_qdata.device)
+    elif out.shape != (m, n) or out.dtype != out_dtype or out.device != a_qdata.device:
+        raise ValueError("out buffer shape/dtype/device mismatch")
+
+    if bias is None or (isinstance(bias, torch.Tensor) and bias.numel() == 0):
+        bias_arg = torch.empty(0, device=a_qdata.device, dtype=torch.float16)
+    else:
+        if isinstance(bias, torch.nn.Parameter):
+            bias = bias.data
+        bias_arg = bias
+
+    out_dtype_code = DTYPE_TO_CODE[out_dtype]
+    stream_ptr = torch.cuda.current_stream(a_qdata.device).cuda_stream
+    try:
+        _C.cublas_gemm_blockwise_fp4(
+            _wrap_for_dlpack(w_qdata),
+            _wrap_for_dlpack(block_scale_b.view(torch.uint8)),
+            _wrap_for_dlpack(a_qdata),
+            _wrap_for_dlpack(block_scale_a.view(torch.uint8)),
+            _wrap_for_dlpack(out),
+            out_dtype_code,
+            _wrap_for_dlpack(bias_arg),
+            _wrap_for_dlpack(get_cublas_workspace()),
+            False,  # accumulate
+            _wrap_for_dlpack(alpha),
+            stream_ptr,
+        )
+    except RuntimeError:
+        # Clear sticky CUDA/cuBLAS error so caller fallback can run.
+        try:
+            torch.cuda.synchronize()
+        except RuntimeError:
+            pass
+        raise
+
+    if orig_m is None:
+        orig_m = m
+    if orig_n is None:
+        orig_n = n
+    if out.shape[0] != orig_m or out.shape[1] != orig_n:
+        return out[:orig_m, :orig_n]
+    return out
 
 
 # CUDA Graph helpers (cache lives at module top as _GRAPH_CACHE).

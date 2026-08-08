@@ -1,17 +1,18 @@
-"""HSWQ-owned NVFP4 GEMM (ConvRot NVFP4).
+"""HSWQ-owned NVFP4 GEMM helpers (ConvRot NVFP4).
 
 ComfyUI / comfy_kitchen do **not** ship ConvRot×NVFP4 load+forward.
-Do **not** call kitchen ``scaled_mm_nvfp4`` / registry cuda CUBLAS from this
-package — those paths are stock NVFP4 helpers, not a ConvRot product, and on
-SM120 they sticky-poison CUDA.
+The Linear hot path lives in ``nvfp4_forward._tc_forward_pooled`` →
+``nvfp4_runtime.scaled_mm_nvfp4_pooled`` (raw ``_C.cublas_gemm_blockwise_fp4``
+with pre-validated shapes; weight stays packed). Never torch native
+``F.scaled_mm`` FP4 / registry dispatch — path A sticky-poisons SM120.
 
 This module owns:
   - NVFP4 unpack / dequant (FP4 E2M1 + block scales)
-  - one-shot weight bake (replace QT Parameter → dense float; free packed)
-  - float GEMM ``a @ b.T`` (+ optional bias) for residual QT×QT edges
+  - one-shot weight bake (replace QT Parameter → dense float; free packed) —
+    TC-failure fallback only, never the hot path
+  - float GEMM ``a @ b.T`` (+ optional bias) for residual QT×QT addmm edges
 
 Runtime patches under ``benchmark/krea2_nvfp4`` must use these entry points.
-ConvRot Linear hot path: bake once → ``F.linear`` (never dual-hold QT+float).
 """
 from __future__ import annotations
 
