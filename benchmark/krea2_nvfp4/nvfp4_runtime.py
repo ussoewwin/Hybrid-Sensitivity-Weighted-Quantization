@@ -1,8 +1,9 @@
 """Pooled NVFP4 act quantize + scaled_mm (HSWQ).
 
-Stock ``ck.quantize_nvfp4`` / ``ck.scaled_mm_nvfp4`` allocate fresh tensors on
-every Linear call. With ~18k TC hits per SDXL sample that allocation overhead
-dominates wall time vs FP16. This module reuses CUDA buffers keyed by shape.
+Stock ``ck.quantize_nvfp4`` allocates fresh tensors on every Linear call.
+GEMM uses kitchen **eager** ``scaled_mm_nvfp4`` (not registry cuda CUBLAS):
+shape-gate + sticky-clear dequant on SM120 miss. Act quant / mm buffers are
+pooled by shape to cut allocation overhead.
 """
 from __future__ import annotations
 
@@ -166,16 +167,23 @@ def scaled_mm_nvfp4_pooled(
     orig_n: Optional[int] = None,
     out: Optional["torch.Tensor"] = None,
 ):
-    """NVFP4 GEMM via stock ``ck.scaled_mm_nvfp4`` (registry: cuda / eager).
+    """NVFP4 GEMM via kitchen **eager** ``scaled_mm_nvfp4`` (not registry cuda).
 
-    Previously called the kitchen CUDA extension GEMM entry directly, bypassing
-    kitchen registry selection (and eager fallback). That is not how Comfy
-    plain NVFP4 runs. Stock path: ``comfy_kitchen.tensor.nvfp4`` → ``ck.scaled_mm_nvfp4``.
+    ``ck.scaled_mm_nvfp4`` prefers the CUDA backend (``cublas_gemm_blockwise_fp4``).
+    On RTX 5090 / SM120 that path often returns ``CUBLAS_STATUS_NOT_SUPPORTED``
+    from ``cublasLtMatmulAlgoGetHeuristic``, leaves a sticky CUDA error, then
+    kitchen ``aten.mm`` WARNING-spams dequant and eventually hits illegal memory
+    access. Kitchen **eager** already:
+      - shape-gates before TC (packed_K%16==0, N%8==0)
+      - tries ``torch._scaled_mm``
+      - on failure: synchronize sticky clear + float dequant (never re-raises)
 
-    ``out`` (CUDA Graph) is filled by copy from the stock result when provided.
+    HSWQ must call that eager entry directly. Do not route through registry cuda.
+
+    ``out`` (CUDA Graph) is filled by copy from the result when provided.
     """
     import torch
-    import comfy_kitchen as ck
+    from comfy_kitchen.backends.eager import quantization as eager_q
 
     if isinstance(tensor_scale_a, torch.nn.Parameter):
         tensor_scale_a = tensor_scale_a.data
@@ -190,14 +198,8 @@ def scaled_mm_nvfp4_pooled(
     if isinstance(block_scale_b, torch.nn.Parameter):
         block_scale_b = block_scale_b.data
 
-    if alpha is None:
-        alpha = tensor_scale_a * tensor_scale_b
-    elif isinstance(alpha, torch.nn.Parameter):
-        alpha = alpha.data
-    if alpha.dtype != torch.float32:
-        alpha = alpha.to(torch.float32)
-    if alpha.dim() == 0:
-        alpha = alpha.reshape(1)
+    # alpha is cuda-cublas only; eager uses block+tensor scales inside scaled_mm_v2.
+    _ = alpha
 
     m, k_a = a_qdata.shape
     n, k_b = w_qdata.shape
@@ -210,7 +212,7 @@ def scaled_mm_nvfp4_pooled(
     elif isinstance(bias, torch.nn.Parameter):
         bias_arg = bias.data
 
-    result = ck.scaled_mm_nvfp4(
+    result = eager_q.scaled_mm_nvfp4(
         a_qdata,
         w_qdata,
         tensor_scale_a=tensor_scale_a,
@@ -219,7 +221,6 @@ def scaled_mm_nvfp4_pooled(
         block_scale_b=block_scale_b,
         bias=bias_arg,
         out_dtype=out_dtype,
-        alpha=alpha,
     )
 
     if orig_m is None:

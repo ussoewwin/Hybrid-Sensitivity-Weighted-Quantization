@@ -1,13 +1,13 @@
 """NVFP4 TensorCore availability gate (shared by addmm patch + TC forward).
 
-Stock Comfy / kitchen NVFP4 (comfy_kitchen.tensor.nvfp4) does NOT permanently
-disable TC after CUBLAS_STATUS_NOT_SUPPORTED. It falls back to dequant for
-**that call only**, then retries TC on the next Linear.
+HSWQ GEMM uses kitchen **eager** ``scaled_mm_nvfp4`` (shape-gate + sticky-clear),
+not registry cuda ``cublas_gemm_blockwise_fp4`` (SM120 often CUBLAS NOT_SUPPORTED
+→ sticky CUDA → illegal memory access if retried via registry).
 
-This module matches that contract:
+Gate contract:
   1) probe CC once (Blackwell family: CC >= 10.0)
   2) permanent disable ONLY when hardware cannot do NVFP4 TC (CC < 10.0)
-  3) CUBLAS / RuntimeError on a call → per-call dequant (no process-wide kill)
+  3) rare RuntimeError → sticky clear + per-call dequant (no process-wide kill)
 
 Never edits ComfyUI-master.
 """
@@ -30,6 +30,21 @@ _FORWARD_LOG = "nvfp4.nvfp4_forward"
 def _mute_nvfp4_warning_spam() -> None:
     for name in (_KITCHEN_NVFP4_LOG, _ADDMM_LOG, _FORWARD_LOG):
         logging.getLogger(name).setLevel(logging.ERROR)
+
+
+def clear_cuda_sticky_error() -> None:
+    """Clear sticky CUDA / cuBLAS error so follow-up kernels can run."""
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            return
+        try:
+            torch.cuda.synchronize()
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
 
 
 def probe_nvfp4_tc_support(device_index: int = 0) -> bool:
@@ -91,22 +106,23 @@ def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
 
 
 def note_scaled_mm_failure(exc: BaseException) -> bool:
-    """Stock-aligned: per-call failure only — do NOT kill TC for the process.
+    """Per-call failure: sticky-clear + do NOT kill TC for the process.
 
-    Kitchen ``aten.mm`` / ``aten.linear`` NVFP4 handlers catch RuntimeError and
-    dequant that call. Same here. Returns False so callers keep retrying TC.
+    Eager ``scaled_mm_nvfp4`` normally never raises on SM120 CUBLAS miss.
+    This path is for capture/OOM/import edges. Always clear sticky CUDA first.
 
     Permanent disable remains only via ``disable_nvfp4_tc`` (CC < 10.0 probe).
     """
     global _CALL_FAIL_WARNED
+    clear_cuda_sticky_error()
     if _DISABLED:
         return True
     if not _CALL_FAIL_WARNED:
         _CALL_FAIL_WARNED = True
         msg = str(exc).split("\n", 1)[0][:240]
         print(
-            f"[HSWQ NVFP4] scaled_mm_nvfp4 call failed (stock-like per-call "
-            f"dequant; TC stays enabled for later layers): {msg}",
+            f"[HSWQ NVFP4] scaled_mm path exception (sticky cleared; per-call "
+            f"float dequant; TC stays enabled): {msg}",
             flush=True,
         )
     return False
@@ -129,7 +145,8 @@ def announce_tc_status_at_register() -> None:
     if ok:
         print(
             f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} - "
-            f"ck.scaled_mm_nvfp4 enabled (min CC 10.0; stock registry path)",
+            f"kitchen eager scaled_mm_nvfp4 enabled "
+            f"(min CC 10.0; shape-gate + sticky-clear; not registry cuda)",
             flush=True,
         )
     else:
