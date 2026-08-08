@@ -9,8 +9,18 @@ Reads a ConvRot INT8 checkpoint, ranks all INT8 layers by a 4-axis composite:
 Lower composite = safer to NVFP4.  --nvfp4_keep N converts the lowest-N layers.
 Higher composite = keep as INT8 (protection).
 
-DualMonitor calibration is OPTIONAL.  Without --calib_file/--clip_path,
-Axis 1 is skipped and ranking uses Axes 2-4 only.
+Finished-product NVFP4 pack (Comfy / krea2nvfp4 style — do not stamp ConvRot):
+  .weight / .weight_scale / .weight_scale_2
+  .input_scale   f32  (act amax / (F8_E4M3_MAX * F4_E2M1_MAX); needs calib)
+  .comfy_quant   uint8 JSON  {"format":"nvfp4"}
+  meta layers: format nvfp4, no convrot
+  If source INT8 had ConvRot, weights are unrotated before NVFP4 quant so the
+  pack matches plain NVFP4 (online act rotate must not be required).
+
+INT8 shelter layers keep int8_tensorwise + ConvRot as in the source.
+
+DualMonitor calibration is OPTIONAL for ranking. Without --calib_file/--clip_path,
+Axis 1 is skipped; converted NVFP4 layers will lack .input_scale (WARN).
 
 Requires: comfy_kitchen (TensorCoreNVFP4Layout), weighted_histogram_cosine_v5
 """
@@ -54,6 +64,8 @@ from native_convert_int8 import (
     build_hadamard,
     convrot_group_size_for_features,
     rotate_weight,
+    unrotate_weight,
+    unrotate_weight_conv2d,
 )
 
 # Hist Cosine V5 import (amax search: L = 1 - cosine)
@@ -156,6 +168,7 @@ class DualMonitor:
         self.channel_importance = None
         self.channel_act_mean = None
         self.channel_act_sq_mean = None
+        self.act_amax = 0.0
 
     def update(self, input_tensor, output_tensor, module=None, weight: float = 1.0):
         with torch.no_grad():
@@ -167,6 +180,10 @@ class DualMonitor:
                 self.output_sum += mean_val
                 self.output_sq_sum += sq_mean_val
             inp_detached = input_tensor.detach().float()
+            # Global absmax for NVFP4 input_scale (plain = unrotated act at module in)
+            amax_val = float(inp_detached.abs().amax().item())
+            if math.isfinite(amax_val) and amax_val > self.act_amax:
+                self.act_amax = amax_val
             is_conv2d = isinstance(module, torch.nn.Conv2d)
             if is_conv2d and inp_detached.dim() == 4:
                 reduce_dims = (0, 2, 3)
@@ -433,13 +450,16 @@ def run_calibration(input_path, calib_file, clip_path, num_samples, num_steps, d
     for h in handles: h.remove()
 
     act_sq = {}
+    act_amax = {}
     for name, mon in dual_monitors.items():
         if mon.channel_act_sq_mean is not None:
             act_sq[name] = mon.channel_act_sq_mean.detach().float().cpu()
-    print(f"  DualMonitor: {len(act_sq)} layers captured")
+        if mon.act_amax > 0.0 and math.isfinite(mon.act_amax):
+            act_amax[name] = float(mon.act_amax)
+    print(f"  DualMonitor: {len(act_sq)} layers act_sq, {len(act_amax)} layers act_amax")
     del model, ctx_bank; dual_monitors.clear()
     gc.collect(); torch.cuda.empty_cache()
-    return act_sq, ck_map
+    return act_sq, act_amax, ck_map
 
 # =========================================================================
 # Helpers
@@ -455,6 +475,20 @@ def _meta_key(key, prefix):
 
 def _match_type(key, types):
     return any(f".{t}.weight" in key for t in types)
+
+def _encode_comfy_quant(config: dict) -> torch.Tensor:
+    """Comfy sidecar: uint8 JSON bytes (same as hswq_convert_nvfp4_krea2)."""
+    return torch.tensor(
+        list(json.dumps(config, separators=(",", ":")).encode("utf-8")),
+        dtype=torch.uint8,
+    )
+
+def _nvfp4_input_scale_from_amax(amax: float) -> torch.Tensor:
+    """Kitchen TensorCoreNVFP4Layout input_scale: amax / (F8_E4M3_MAX * F4_E2M1_MAX)."""
+    from comfy_kitchen.float_utils import F4_E2M1_MAX, F8_E4M3_MAX
+
+    denom = float(F8_E4M3_MAX) * float(F4_E2M1_MAX)
+    return torch.tensor(max(float(amax), 1e-12) / denom, dtype=torch.float32)
 
 # =========================================================================
 # Main convert
@@ -495,18 +529,20 @@ def convert(input_path, output_path, *, device="cuda",
     print(f"INT8 layers: {len(int8_layers)}")
     print(f"Krea2 prefix: {prefix!r}")
 
-    # Optional: DualMonitor calibration
+    # Optional: DualMonitor calibration (Axis 1 + NVFP4 input_scale amax)
     act_sq_dict = {}
+    act_amax_dict = {}
     ck_map = {}
     use_calib = bool(calib_file) and bool(clip_path)
     if use_calib:
         print("\n=== DualMonitor Calibration ===")
-        act_sq_dict, ck_map = run_calibration(
+        act_sq_dict, act_amax_dict, ck_map = run_calibration(
             input_path, calib_file, clip_path,
             int(num_calib_samples), int(num_inference_steps),
             device, comfy_path)
     else:
-        print("\n[SKIP] No calibration -- Axis 1 (DM E[x^2]) disabled")
+        print("\n[SKIP] No calibration -- Axis 1 (DM E[x^2]) disabled; "
+              "NVFP4 .input_scale will be missing (WARN)")
 
     # Load all tensors
     print("\nLoading checkpoint...")
@@ -749,24 +785,33 @@ def convert(input_path, output_path, *, device="cuda",
     print(f"Staying INT8:   {len(int8_layers) - len(convert_keys)}")
 
     # =========================================================================
-    # Convert: INT8 -> NVFP4 for selected layers
+    # Convert: INT8 -> plain NVFP4 (Comfy finished-product pack)
+    # Ranking / Axis scoring above is unchanged. Here we only fix packaging:
+    # unrotate ConvRot INT8 → NVFP4 quant → comfy_quant + input_scale, no convrot.
     # =========================================================================
-    print("\n=== Converting ===")
-    n_nvfp4 = 0; n_int8_kept = 0; n_convrot = 0
+    print("\n=== Converting (plain NVFP4 pack) ===")
+    n_nvfp4 = 0
+    n_unrotated = 0
+    input_scale_written = 0
+    input_scale_missing = 0
 
     for layer in int8_layers:
         key = layer["key"]
-        if key not in convert_keys: continue
+        if key not in convert_keys:
+            continue
 
-        base = layer["base"]; conf = layer["conf"]
+        base = layer["base"]
+        conf = layer["conf"]
         q = new_sd[key]
         scale_key = f"{base}.weight_scale"
         cq_key = f"{base}.comfy_quant"
+        is_key = f"{base}.input_scale"
         scale = new_sd.get(scale_key)
 
-        if scale is None: continue
+        if scale is None:
+            continue
 
-        # Dequantize
+        # Dequantize INT8 (source may still be ConvRot-rotated)
         if scale.dim() == 0:
             w_dq = q.float() * scale.item()
         elif scale.dim() == 2 and scale.shape[1] == 1:
@@ -774,12 +819,28 @@ def convert(input_path, output_path, *, device="cuda",
         else:
             w_dq = q.float() * scale
 
-        w_bf16 = w_dq.to(dtype=torch.bfloat16, device=device)
-        is_convrot = conf.get("convrot", False)
-        gs = conf.get("convrot_groupsize", 256)
+        is_convrot = bool(conf.get("convrot", False))
+        gs = int(conf.get("convrot_groupsize", 256))
         used_gs = None
         if is_convrot:
-            used_gs = convrot_group_size_for_features(int(w_bf16.shape[1]), gs)
+            # Features for Linear = in_features (dim1); Conv2d = in_channels (dim1)
+            feat = int(w_dq.shape[1])
+            used_gs = convrot_group_size_for_features(feat, gs)
+            if used_gs is not None:
+                h = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
+                if w_dq.ndim == 2:
+                    w_dq = unrotate_weight(w_dq, h, used_gs)
+                elif w_dq.ndim == 4:
+                    w_dq = unrotate_weight_conv2d(w_dq, h, used_gs)
+                else:
+                    print(f"  [ERR] {key}: ConvRot unrotate unsupported ndim={w_dq.ndim}")
+                    continue
+                n_unrotated += 1
+            else:
+                print(f"  [WARN] {key}: ConvRot set but no valid group_size; "
+                      f"packing without unrotate")
+
+        w_bf16 = w_dq.to(dtype=torch.bfloat16, device=device)
 
         try:
             qdata, params = TensorCoreNVFP4Layout.quantize(w_bf16)
@@ -787,37 +848,52 @@ def convert(input_path, output_path, *, device="cuda",
 
             del new_sd[key]
             del new_sd[scale_key]
-            if cq_key in new_sd: del new_sd[cq_key]
+            if cq_key in new_sd:
+                del new_sd[cq_key]
+            if is_key in new_sd:
+                del new_sd[is_key]
 
             for suffix, t in tensors.items():
                 new_sd[f"{base}.weight{suffix}"] = t.cpu()
+
+            # Finished-product: plain NVFP4 sidecar (never stamp ConvRot here)
+            new_sd[cq_key] = _encode_comfy_quant({"format": "nvfp4"})
+
+            module_name = None
+            mk_mod = ck_map.get(key)
+            if mk_mod and mk_mod.endswith(".weight"):
+                module_name = mk_mod[: -len(".weight")]
+            amax = act_amax_dict.get(module_name) if module_name else None
+            if amax is None:
+                input_scale_missing += 1
+            else:
+                new_sd[is_key] = _nvfp4_input_scale_from_amax(float(amax))
+                input_scale_written += 1
 
             mk = layer["meta_key"]
             # Keep logical Linear shape for Krea2 detect (txtfusion.projector
             # → txtlayers). Packed weight.shape[1] is storage K, not in_features.
             orig_shape = [int(x) for x in params.orig_shape]
-            layer_nvfp4 = {
+            layers_meta[mk] = {
                 "format": "nvfp4",
                 "orig_shape": orig_shape,
                 "in_features": int(orig_shape[1]) if len(orig_shape) > 1 else None,
                 "out_features": int(orig_shape[0]) if len(orig_shape) > 0 else None,
             }
-            if is_convrot and used_gs is not None:
-                layer_nvfp4["convrot"] = True
-                layer_nvfp4["convrot_groupsize"] = int(used_gs)
-                n_convrot += 1
-            layers_meta[mk] = layer_nvfp4
             n_nvfp4 += 1
 
-            print(f"  [OK] {key} -> NVFP4  orig_shape={tuple(orig_shape)}")
-            del w_bf16, qdata, params
-            if device == "cuda": torch.cuda.empty_cache()
+            print(
+                f"  [OK] {key} -> plain NVFP4  orig_shape={tuple(orig_shape)}"
+                + ("  (unrotated)" if is_convrot and used_gs is not None else "")
+                + ("  +input_scale" if amax is not None else "  (no input_scale)")
+            )
+            del w_bf16, qdata, params, w_dq
+            if device == "cuda":
+                torch.cuda.empty_cache()
         except Exception as e:
             print(f"  [ERR] {key}: {e}")
-            n_int8_kept += 1
 
-    for layer in int8_layers:
-        if layer["key"] in new_sd: n_int8_kept += 1
+    n_int8_kept = len(int8_layers) - n_nvfp4
 
     # Save
     quant_meta["layers"] = layers_meta
@@ -828,10 +904,12 @@ def convert(input_path, output_path, *, device="cuda",
     fm["hswq_mixed"] = "1"
     fm["hswq_nvfp4_count"] = str(n_nvfp4)
     fm["hswq_int8_count"] = str(n_int8_kept)
+    fm["hswq_nvfp4_pack"] = "plain"
     fm["hswq_axes"] = ",".join(available_axes.keys())
     for k, v in metadata.items():
         if k not in fm and k != "_quantization_metadata":
-            if isinstance(v, bytes): v = v.decode("utf-8")
+            if isinstance(v, bytes):
+                v = v.decode("utf-8")
             fm[k] = v
 
     print(f"\nSaving: {output_path}")
@@ -839,8 +917,14 @@ def convert(input_path, output_path, *, device="cuda",
     out_sz = os.path.getsize(output_path)
     in_sz = os.path.getsize(input_path)
     print(f"Done: {out_sz/(1024**3):.2f} GiB (was {in_sz/(1024**3):.2f}, saved {(in_sz-out_sz)/(1024**3):.2f})")
-    print(f"  NVFP4: {n_nvfp4} (convrot={n_convrot})")
-    print(f"  INT8:  {n_int8_kept}")
+    print(f"  NVFP4 (plain): {n_nvfp4}  unrotated_from_ConvRot={n_unrotated}")
+    print(f"  input_scale written={input_scale_written}  missing={input_scale_missing}")
+    if input_scale_missing:
+        print(
+            f"  [WARN] {input_scale_missing} NVFP4 layers lack .input_scale "
+            f"(need --calib_file + --clip_path)"
+        )
+    print(f"  INT8 kept: {n_int8_kept}")
 
     # Save ranking JSON
     ranking_path = output_path.replace(".safetensors", "_ranking.json")
