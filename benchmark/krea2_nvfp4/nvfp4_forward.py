@@ -11,7 +11,8 @@ This module owns the full inference path for HSWQ NVFP4 (+ optional ConvRot):
   2) FULL ConvRot via dense Hadamard GEMM (butterfly is slower for gs=256)
   3) cast weight/bias when off-device
   4) pooled CUDA quantize_nvfp4 (no per-call alloc)
-  5) stock ``ck.scaled_mm_nvfp4`` (registry; not direct ``_C``)
+  5) kitchen **eager** ``scaled_mm_nvfp4`` (shape-gate + sticky-clear;
+     never registry cuda ``cublas_gemm_blockwise_fp4`` — SM120 CUBLAS sticky)
   6) reshape with module.out_features (never QT storage shape[0])
 
 Never edits ComfyUI-master; installed via monkey-patch on MixedPrecision Linear.
@@ -63,11 +64,11 @@ def _slice_nvfp4_mm_out(result, orig_m: int, orig_n: int):
 
 
 def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
-    """Kitchen / tritant NVFP4 linear (QT path; used as fallback)."""
+    """QT path via kitchen **eager** scaled_mm (never registry cuda CUBLAS)."""
     global _TC_HITS, _DEQUANT_FALLBACKS
     import torch
     import torch.nn.functional as F
-    import comfy_kitchen as ck
+    from comfy_kitchen.backends.eager import quantization as eager_q
     from comfy_kitchen.tensor.base import QuantizedTensor
     from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
 
@@ -103,25 +104,21 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     if scale_b.dtype != torch.float32 or scale_b.dim() != 1:
         scale_b = scale_b.reshape(-1).float()
 
-    try:
-        result = ck.scaled_mm_nvfp4(
-            a_qdata,
-            w_qdata,
-            tensor_scale_a=scale_a,
-            tensor_scale_b=scale_b,
-            block_scale_a=block_scale_a,
-            block_scale_b=block_scale_b,
-            bias=bias,
-            out_dtype=out_dtype,
-        )
-        orig_m = input_qt._params.orig_shape[0]
-        orig_n = weight_qt._params.orig_shape[0]  # (out, in)
-        _TC_HITS += 1
-        return _slice_nvfp4_mm_out(result, orig_m, orig_n)
-    except (RuntimeError, TypeError) as e:
-        note_scaled_mm_failure(e)
-        _DEQUANT_FALLBACKS += 1
-        return F.linear(input_qt, weight_qt, bias)
+    # Eager never re-raises on SM120 CUBLAS miss — sticky-cleared dequant.
+    result = eager_q.scaled_mm_nvfp4(
+        a_qdata,
+        w_qdata,
+        tensor_scale_a=scale_a,
+        tensor_scale_b=scale_b,
+        block_scale_a=block_scale_a,
+        block_scale_b=block_scale_b,
+        bias=bias,
+        out_dtype=out_dtype,
+    )
+    orig_m = input_qt._params.orig_shape[0]
+    orig_n = weight_qt._params.orig_shape[0]  # (out, in)
+    _TC_HITS += 1
+    return _slice_nvfp4_mm_out(result, orig_m, orig_n)
 
 
 def _plain_weight_cached(module, weight_qt):
@@ -144,7 +141,7 @@ def _plain_weight_cached(module, weight_qt):
 
 
 def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
-    """Act float → pooled NVFP4 quant → stock ``ck.scaled_mm_nvfp4``.
+    """Act float → pooled NVFP4 quant → kitchen **eager** ``scaled_mm_nvfp4``.
 
     Prefers CUDA Graph (quantize+mm) after first capture per shape/weight; falls
     back to eager pooled kernels if capture/replay fails.
@@ -373,11 +370,16 @@ def make_nvfp4_linear_forward(stock_forward):
             self, input_2d, weight, bias, scale, compute_dtype
         )
         if out_2d is None:
-            # Fallback: stock QT path
-            from comfy.quant_ops import QuantizedTensor
+            # Do NOT re-enter registry cuda CUBLAS via QT→ck.scaled_mm.
+            # Float dequant GEMM only (sticky-safe; ConvRot already applied).
+            import torch.nn.functional as F
+            from comfy_kitchen.tensor.base import QuantizedTensor as _QT
 
-            q_input = QuantizedTensor.from_float(input_2d, layout, scale=scale)
-            out_2d = scaled_mm_nvfp4_linear(q_input, weight, bias)
+            w_f = weight.dequantize() if isinstance(weight, _QT) else weight
+            b_f = bias
+            if isinstance(b_f, _QT):
+                b_f = b_f.dequantize()
+            out_2d = F.linear(input_2d, w_f, b_f)
 
         # 5) Restore rank with logical out_features (never QT storage shape[0])
         if reshaped_nd:

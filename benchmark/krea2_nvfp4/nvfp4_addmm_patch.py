@@ -26,7 +26,7 @@ def register_nvfp4_addmm_handler() -> bool:
 
     try:
         import torch
-        import comfy_kitchen as ck
+        from comfy_kitchen.backends.eager import quantization as eager_q
         from comfy_kitchen.tensor.base import (
             QuantizedTensor,
             dequantize_args,
@@ -58,7 +58,7 @@ def register_nvfp4_addmm_handler() -> bool:
 
     @register_layout_op(op, TensorCoreNVFP4Layout)
     def _handle_nvfp4_addmm(qt, args, kwargs):
-        """NVFP4 addmm: bias + input @ weight.T (F.linear with bias decomposition)."""
+        """NVFP4 addmm via kitchen eager scaled_mm (not registry cuda CUBLAS)."""
         bias, mat1, mat2 = args[0], args[1], args[2]
 
         if not (isinstance(mat1, QuantizedTensor) and isinstance(mat2, QuantizedTensor)):
@@ -75,8 +75,6 @@ def register_nvfp4_addmm_handler() -> bool:
             )
             return torch.addmm(*dequantize_args((bias, mat1, mat2)))
 
-        # Cloud Ada/Hopper etc.: skip scaled_mm after first CUBLAS NOT_SUPPORTED
-        # (otherwise WARNING floods every Linear every step).
         if not nvfp4_tc_enabled():
             return torch.addmm(*dequantize_args((bias, mat1, mat2)))
 
@@ -90,7 +88,8 @@ def register_nvfp4_addmm_handler() -> bool:
             scale_b = scale_b.reshape(-1).float()
 
         try:
-            result = ck.scaled_mm_nvfp4(
+            # Eager: shape-gate + sticky-clear dequant; never cuda CUBLAS sticky.
+            result = eager_q.scaled_mm_nvfp4(
                 input_qdata,
                 weight_qdata,
                 tensor_scale_a=scale_a,
@@ -110,7 +109,7 @@ def register_nvfp4_addmm_handler() -> bool:
     _REGISTERED = True
     print(
         "[HSWQ NVFP4] registered aten.addmm.default for TensorCoreNVFP4Layout "
-        "(stock F.linear+bias -> scaled_mm_nvfp4; was dequant-only)",
+        "(F.linear+bias -> kitchen eager scaled_mm_nvfp4; was dequant-only)",
         flush=True,
     )
     return True
