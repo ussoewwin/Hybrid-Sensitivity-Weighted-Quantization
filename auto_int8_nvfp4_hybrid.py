@@ -19,8 +19,14 @@ Finished-product NVFP4 pack (Comfy / krea2nvfp4 style — do not stamp ConvRot):
 
 INT8 shelter layers keep int8_tensorwise + ConvRot as in the source.
 
-DualMonitor calibration is OPTIONAL for ranking. Without --calib_file/--clip_path,
-Axis 1 is skipped; converted NVFP4 layers will lack .input_scale (WARN).
+DualMonitor calibration is OPTIONAL for ranking (Axis 1). Without
+--calib_file/--clip_path, Axis 1 is skipped.
+
+NVFP4 pack ALWAYS requires act amax → .input_scale. Missing amax keeps INT8
+(never pack with ones(1) placeholder). So practical NVFP4 convert needs calib.
+
+With calib, INT8(+ConvRot) weights are dequantized (and unrotated) to BF16 before
+DiT load — raw int8 into bf16 DiT breaks act amax / input_scale coverage.
 
 Requires: comfy_kitchen (TensorCoreNVFP4Layout), weighted_histogram_cosine_v5
 """
@@ -355,6 +361,96 @@ def _encode_krea2_calib_contexts(clip_path, prompts, expected_fused, comfy_path=
     finally:
         _restore_argv(saved)
 
+def _decode_comfy_quant_bytes(t: torch.Tensor) -> dict:
+    try:
+        raw = bytes(t.detach().cpu().numpy().tobytes()).decode("utf-8", "replace")
+        return json.loads(raw.rstrip("\x00"))
+    except Exception:
+        return {}
+
+
+def _dequant_int8_weight(q: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
+    sc = scale.float()
+    if sc.dim() == 0:
+        return q.float() * float(sc.item())
+    return q.float() * sc
+
+
+def _materialize_bf16_sd_for_calib(
+    sd: dict, prefix: str, layers_meta: dict
+) -> dict:
+    """INT8 (+ optional ConvRot) safetensors → BF16 plain weights for DiT calib.
+
+    Loading raw int8 ``.weight`` into a bf16 DiT leaves wrong magnitudes and
+    dumps ``weight_scale`` / ``comfy_quant`` as unexpected keys. DualMonitor
+    then sees near-zero / garbage activations and most NVFP4 layers lack
+    ``input_scale``. Dequant (+ unrotate when ConvRot) matches plain NVFP4
+    act space used for ``input_scale``.
+    """
+    skip_suffixes = (
+        ".weight_scale",
+        ".weight_scale_2",
+        ".comfy_quant",
+        ".input_scale",
+    )
+    out: dict = {}
+    n_dequant = 0
+    n_unrot = 0
+    n_passthrough = 0
+
+    for k, v in sd.items():
+        if any(k.endswith(suf) for suf in skip_suffixes):
+            continue
+        if not k.endswith(".weight"):
+            out[k] = v
+            continue
+
+        base = k[: -len(".weight")]
+        scale_k = f"{base}.weight_scale"
+        cq_k = f"{base}.comfy_quant"
+        if scale_k not in sd:
+            out[k] = v
+            n_passthrough += 1
+            continue
+
+        mk = base[len(prefix) :] if prefix and base.startswith(prefix) else base
+        conf = dict(layers_meta.get(mk, {}) or {})
+        if cq_k in sd:
+            cq_cfg = _decode_comfy_quant_bytes(sd[cq_k])
+            if cq_cfg:
+                conf = {**cq_cfg, **conf}
+
+        fmt = str(conf.get("format", "")).lower()
+        # Dequant any tensor that has weight_scale (INT8 pack). Skip NVFP4.
+        if "nvfp4" in fmt:
+            out[k] = v
+            n_passthrough += 1
+            continue
+
+        w = _dequant_int8_weight(sd[k], sd[scale_k])
+        is_convrot = bool(conf.get("convrot", False))
+        gs = int(conf.get("convrot_groupsize", 256) or 256)
+        if is_convrot and w.ndim in (2, 4):
+            feat = int(w.shape[1])
+            used_gs = convrot_group_size_for_features(feat, gs)
+            if used_gs is not None:
+                h = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
+                if w.ndim == 2:
+                    w = unrotate_weight(w, h, used_gs)
+                else:
+                    w = unrotate_weight_conv2d(w, h, used_gs)
+                n_unrot += 1
+
+        out[k] = w.to(dtype=torch.bfloat16)
+        n_dequant += 1
+
+    print(
+        f"  [calib] INT8→BF16 dequant={n_dequant} "
+        f"unrotated={n_unrot} passthrough_weight={n_passthrough}"
+    )
+    return out
+
+
 def load_krea2(path, device="cuda", comfy_path=None):
     if str(device).startswith("cpu"):
         raise RuntimeError("Calibration requires CUDA.")
@@ -369,21 +465,34 @@ def load_krea2(path, device="cuda", comfy_path=None):
         sd = {}
         with safe_open(path, framework="pt", device="cpu") as f:
             for k in f.keys(): sd[k] = f.get_tensor(k)
-            metadata = f.metadata()
+            metadata = f.metadata() or {}
         prefix = None
         for p in ("model.diffusion_model.", "diffusion_model.", ""):
             if f"{p}txtfusion.projector.weight" in sd: prefix = p; break
         if not prefix: raise ValueError("Not a Krea2 checkpoint")
+        qm_str = metadata.get("_quantization_metadata", "{}")
+        if isinstance(qm_str, bytes):
+            qm_str = qm_str.decode("utf-8")
+        try:
+            layers_meta = json.loads(qm_str).get("layers", {}) or {}
+        except Exception:
+            layers_meta = {}
         cfg = detect_krea2_dit_config(sd, prefix)
         print(f"Config: {cfg}")
         kw = {k:v for k,v in cfg.items() if k != "image_model"}
         dit = SingleStreamDiT(**kw, device=device, dtype=torch.bfloat16, operations=comfy.ops.manual_cast)
+        # Materialize BF16 plain weights; never load raw int8 + scale sidecars.
+        materialized = _materialize_bf16_sd_for_calib(sd, prefix, layers_meta)
         stripped = {}
-        for k, v in sd.items():
+        for k, v in materialized.items():
             if prefix and k.startswith(prefix): stripped[k[len(prefix):]] = v
             elif not prefix: stripped[k] = v
         m, u = dit.load_state_dict(stripped, strict=False)
         print(f"  missing={len(m)} unexpected={len(u)}")
+        if u:
+            # After dequant, unexpected should be near zero (bias/extra only).
+            sample = list(u)[:8]
+            print(f"  unexpected sample: {sample}")
         dev = str(next(dit.parameters()).device)
         if not dev.startswith("cuda"): raise RuntimeError(f"DiT on {dev}, not CUDA")
         ck_map = {}
@@ -516,15 +625,18 @@ def convert(input_path, output_path, *, device="cuda",
     quant_meta = json.loads(qm_str)
     layers_meta = quant_meta.get("layers", {})
 
-    # Find INT8 layers
+    # Find INT8 layers (skip already-NVFP4 / weight_scale_2 packs)
     int8_layers = []
     for key in sorted(all_keys):
         if not key.endswith(".weight"): continue
         if key.endswith(".weight_scale") or key.endswith(".weight_blocks"): continue
         base = key.replace(".weight", "")
         if f"{base}.comfy_quant" not in all_keys: continue
+        if f"{base}.weight_scale_2" in all_keys: continue
         mk = _meta_key(base, prefix)
-        conf = layers_meta.get(mk, {})
+        conf = dict(layers_meta.get(mk, {}) or {})
+        fmt = str(conf.get("format", "")).lower()
+        if "nvfp4" in fmt: continue
         int8_layers.append({"key": key, "base": base, "meta_key": mk, "conf": conf})
     print(f"INT8 layers: {len(int8_layers)}")
     print(f"Krea2 prefix: {prefix!r}")
@@ -542,7 +654,7 @@ def convert(input_path, output_path, *, device="cuda",
             device, comfy_path)
     else:
         print("\n[SKIP] No calibration -- Axis 1 (DM E[x^2]) disabled; "
-              "NVFP4 .input_scale will be missing (WARN)")
+              "NVFP4 pack will keep INT8 for every candidate (no act amax)")
 
     # Load all tensors
     print("\nLoading checkpoint...")
@@ -793,7 +905,7 @@ def convert(input_path, output_path, *, device="cuda",
     n_nvfp4 = 0
     n_unrotated = 0
     input_scale_written = 0
-    input_scale_missing = 0
+    n_skip_no_amax = 0
 
     for layer in int8_layers:
         key = layer["key"]
@@ -809,6 +921,21 @@ def convert(input_path, output_path, *, device="cuda",
         scale = new_sd.get(scale_key)
 
         if scale is None:
+            continue
+
+        # Require act amax → input_scale always. Missing scale becomes ones(1)
+        # at load and collapses quality (see SSIM ~0.20 packs).
+        module_name = None
+        mk_mod = ck_map.get(key)
+        if mk_mod and mk_mod.endswith(".weight"):
+            module_name = mk_mod[: -len(".weight")]
+        amax = act_amax_dict.get(module_name) if module_name else None
+        if amax is None:
+            n_skip_no_amax += 1
+            print(
+                f"  [SKIP] {key}: no act amax → keep INT8 "
+                f"(module={module_name!r}; need calib DualMonitor coverage)"
+            )
             continue
 
         # Dequantize INT8 (source may still be ConvRot-rotated)
@@ -859,16 +986,8 @@ def convert(input_path, output_path, *, device="cuda",
             # Finished-product: plain NVFP4 sidecar (never stamp ConvRot here)
             new_sd[cq_key] = _encode_comfy_quant({"format": "nvfp4"})
 
-            module_name = None
-            mk_mod = ck_map.get(key)
-            if mk_mod and mk_mod.endswith(".weight"):
-                module_name = mk_mod[: -len(".weight")]
-            amax = act_amax_dict.get(module_name) if module_name else None
-            if amax is None:
-                input_scale_missing += 1
-            else:
-                new_sd[is_key] = _nvfp4_input_scale_from_amax(float(amax))
-                input_scale_written += 1
+            new_sd[is_key] = _nvfp4_input_scale_from_amax(float(amax))
+            input_scale_written += 1
 
             mk = layer["meta_key"]
             # Keep logical Linear shape for Krea2 detect (txtfusion.projector
@@ -885,7 +1004,7 @@ def convert(input_path, output_path, *, device="cuda",
             print(
                 f"  [OK] {key} -> plain NVFP4  orig_shape={tuple(orig_shape)}"
                 + ("  (unrotated)" if is_convrot and used_gs is not None else "")
-                + ("  +input_scale" if amax is not None else "  (no input_scale)")
+                + "  +input_scale"
             )
             del w_bf16, qdata, params, w_dq
             if device == "cuda":
@@ -918,11 +1037,16 @@ def convert(input_path, output_path, *, device="cuda",
     in_sz = os.path.getsize(input_path)
     print(f"Done: {out_sz/(1024**3):.2f} GiB (was {in_sz/(1024**3):.2f}, saved {(in_sz-out_sz)/(1024**3):.2f})")
     print(f"  NVFP4 (plain): {n_nvfp4}  unrotated_from_ConvRot={n_unrotated}")
-    print(f"  input_scale written={input_scale_written}  missing={input_scale_missing}")
-    if input_scale_missing:
+    print(f"  input_scale written={input_scale_written}")
+    if n_skip_no_amax:
         print(
-            f"  [WARN] {input_scale_missing} NVFP4 layers lack .input_scale "
-            f"(need --calib_file + --clip_path)"
+            f"  [WARN] {n_skip_no_amax} ranked NVFP4 candidates kept as INT8 "
+            f"(no DualMonitor act amax — refusing pack without .input_scale)"
+            + ("" if use_calib else "  [no --calib_file/--clip_path]")
+        )
+    if n_nvfp4 > 0 and input_scale_written != n_nvfp4:
+        raise RuntimeError(
+            f"internal: input_scale_written={input_scale_written} != n_nvfp4={n_nvfp4}"
         )
     print(f"  INT8 kept: {n_int8_kept}")
 
