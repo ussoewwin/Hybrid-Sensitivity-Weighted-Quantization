@@ -56,8 +56,9 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
 
     register_nvfp4_addmm_handler()
 
-    # Branch A (stock healthy): no rebind — plain NVFP4 stays Comfy path.
-    # Branch B (Asym bulk-import stubs): submodule rebind only.
+    # Branch A (stock healthy): no rebind — plain NVFP4 layouts untouched.
+    # Branch B (Asym bulk-import stubs only): submodule rebind. No shortcuts.
+    # ConvRot load+forward is always this package (krea2_nvfp4), not ComfyUI.
     from .kitchen_quant_ops_repair import ensure_kitchen_quant_ops
 
     ensure_kitchen_quant_ops()
