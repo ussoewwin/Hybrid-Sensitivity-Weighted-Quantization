@@ -24,6 +24,8 @@ DualMonitor calibration is OPTIONAL for ranking (Axis 1). Without
 
 NVFP4 pack ALWAYS requires act amax → .input_scale. Missing amax keeps INT8
 (never pack with ones(1) placeholder). So practical NVFP4 convert needs calib.
+ConvRot source layers MUST unrotate before plain NVFP4; if group_size/ndim
+blocks unrotate, keep INT8 (never pack rotated weights as plain).
 
 With calib, INT8(+ConvRot) weights are dequantized (and unrotated) to BF16 before
 DiT load — raw int8 into bf16 DiT breaks act amax / input_scale coverage.
@@ -430,16 +432,24 @@ def _materialize_bf16_sd_for_calib(
         w = _dequant_int8_weight(sd[k], sd[scale_k])
         is_convrot = bool(conf.get("convrot", False))
         gs = int(conf.get("convrot_groupsize", 256) or 256)
-        if is_convrot and w.ndim in (2, 4):
+        if is_convrot:
+            if w.ndim not in (2, 4):
+                raise RuntimeError(
+                    f"calib: ConvRot weight {k} ndim={w.ndim} cannot unrotate"
+                )
             feat = int(w.shape[1])
             used_gs = convrot_group_size_for_features(feat, gs)
-            if used_gs is not None:
-                h = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-                if w.ndim == 2:
-                    w = unrotate_weight(w, h, used_gs)
-                else:
-                    w = unrotate_weight_conv2d(w, h, used_gs)
-                n_unrot += 1
+            if used_gs is None:
+                raise RuntimeError(
+                    f"calib: ConvRot weight {k} has no valid Hadamard group_size "
+                    f"(feat={feat}, conf_gs={gs}); refuse rotated BF16 for DualMonitor"
+                )
+            h = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
+            if w.ndim == 2:
+                w = unrotate_weight(w, h, used_gs)
+            else:
+                w = unrotate_weight_conv2d(w, h, used_gs)
+            n_unrot += 1
 
         out[k] = w.to(dtype=torch.bfloat16)
         n_dequant += 1
@@ -906,6 +916,7 @@ def convert(input_path, output_path, *, device="cuda",
     n_unrotated = 0
     input_scale_written = 0
     n_skip_no_amax = 0
+    n_skip_no_unrotate = 0
 
     for layer in int8_layers:
         key = layer["key"]
@@ -921,6 +932,7 @@ def convert(input_path, output_path, *, device="cuda",
         scale = new_sd.get(scale_key)
 
         if scale is None:
+            print(f"  [SKIP] {key}: missing weight_scale → keep INT8")
             continue
 
         # Require act amax → input_scale always. Missing scale becomes ones(1)
@@ -950,22 +962,31 @@ def convert(input_path, output_path, *, device="cuda",
         gs = int(conf.get("convrot_groupsize", 256))
         used_gs = None
         if is_convrot:
-            # Features for Linear = in_features (dim1); Conv2d = in_channels (dim1)
+            # Plain NVFP4 pack must unrotate. Packing rotated weights as plain
+            # (no convrot stamp) is a quality death path — keep INT8 instead.
+            if w_dq.ndim not in (2, 4):
+                n_skip_no_unrotate += 1
+                print(
+                    f"  [SKIP] {key}: ConvRot but ndim={w_dq.ndim} "
+                    f"cannot unrotate → keep INT8"
+                )
+                continue
             feat = int(w_dq.shape[1])
             used_gs = convrot_group_size_for_features(feat, gs)
-            if used_gs is not None:
-                h = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-                if w_dq.ndim == 2:
-                    w_dq = unrotate_weight(w_dq, h, used_gs)
-                elif w_dq.ndim == 4:
-                    w_dq = unrotate_weight_conv2d(w_dq, h, used_gs)
-                else:
-                    print(f"  [ERR] {key}: ConvRot unrotate unsupported ndim={w_dq.ndim}")
-                    continue
-                n_unrotated += 1
+            if used_gs is None:
+                n_skip_no_unrotate += 1
+                print(
+                    f"  [SKIP] {key}: ConvRot but no valid group_size "
+                    f"(feat={feat}, conf_gs={gs}) → keep INT8 "
+                    f"(refuse plain NVFP4 without unrotate)"
+                )
+                continue
+            h = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
+            if w_dq.ndim == 2:
+                w_dq = unrotate_weight(w_dq, h, used_gs)
             else:
-                print(f"  [WARN] {key}: ConvRot set but no valid group_size; "
-                      f"packing without unrotate")
+                w_dq = unrotate_weight_conv2d(w_dq, h, used_gs)
+            n_unrotated += 1
 
         w_bf16 = w_dq.to(dtype=torch.bfloat16, device=device)
 
@@ -1043,6 +1064,11 @@ def convert(input_path, output_path, *, device="cuda",
             f"  [WARN] {n_skip_no_amax} ranked NVFP4 candidates kept as INT8 "
             f"(no DualMonitor act amax — refusing pack without .input_scale)"
             + ("" if use_calib else "  [no --calib_file/--clip_path]")
+        )
+    if n_skip_no_unrotate:
+        print(
+            f"  [WARN] {n_skip_no_unrotate} ConvRot candidates kept as INT8 "
+            f"(refuse plain NVFP4 pack without successful unrotate)"
         )
     if n_nvfp4 > 0 and input_scale_written != n_nvfp4:
         raise RuntimeError(
