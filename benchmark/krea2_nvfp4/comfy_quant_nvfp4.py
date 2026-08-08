@@ -48,6 +48,156 @@ def _console(msg: str) -> None:
     logger.info(msg)
 
 
+def _patch_kitchen_nvfp4_dispatch():
+    """Monkey-patch comfy_kitchen's internal _handle_nvfp4_mm and _handle_nvfp4_linear
+    to use _C.cublas_gemm_blockwise_fp4 (path B) instead of ck.scaled_mm_nvfp4 (path A).
+
+    Path A fails on sm120 with CUBLAS_STATUS_NOT_SUPPORTED.
+    Path B works via comfy_kitchen's own C++ extension.
+    """
+    import torch
+    try:
+        from comfy_kitchen.tensor import nvfp4 as _ck_nvfp4
+        from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout, _slice_to_original_shape
+        from comfy_kitchen.tensor.base import dequantize_args
+        from comfy_kitchen.backends.cuda import _C, _wrap_for_dlpack, get_cublas_workspace, roundup, DTYPE_TO_CODE
+        import comfy_kitchen as ck
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("[HSWQ NVFP4] kitchen dispatch patch skipped: %s", e)
+        return
+
+    if getattr(_ck_nvfp4, "_hswq_path_b_patched", False):
+        return
+
+    def _scaled_mm_nvfp4_pooled(a_qdata, b_qdata, tensor_scale_a, tensor_scale_b,
+                                block_scale_a, block_scale_b, bias=None, out_dtype=None, alpha=None):
+        m, k_a = a_qdata.shape
+        n, k_b = b_qdata.shape
+        k = 2 * k_a
+        block_length = 16
+        roundup_m = roundup(m, 128)
+        roundup_n = roundup(n, 128)
+        roundup_sk = roundup(k // block_length, 4)
+        if block_scale_a.size() != (roundup_m, roundup_sk):
+            bs_a = block_scale_a[:roundup_m, :roundup_sk]
+        else:
+            bs_a = block_scale_a
+        if block_scale_b.size() != (roundup_n, roundup_sk):
+            bs_b = block_scale_b[:roundup_n, :roundup_sk]
+        else:
+            bs_b = block_scale_b
+        if isinstance(tensor_scale_a, torch.nn.Parameter):
+            tensor_scale_a = tensor_scale_a.data
+        if isinstance(tensor_scale_b, torch.nn.Parameter):
+            tensor_scale_b = tensor_scale_b.data
+        if isinstance(a_qdata, torch.nn.Parameter):
+            a_qdata = a_qdata.data
+        if isinstance(b_qdata, torch.nn.Parameter):
+            b_qdata = b_qdata.data
+        if isinstance(bs_a, torch.nn.Parameter):
+            bs_a = bs_a.data
+        if isinstance(bs_b, torch.nn.Parameter):
+            bs_b = bs_b.data
+        if alpha is None:
+            alpha = (tensor_scale_a * tensor_scale_b).to(torch.float32).reshape(1)
+        elif isinstance(alpha, torch.nn.Parameter):
+            alpha = alpha.data
+        if alpha.dtype != torch.float32:
+            alpha = alpha.to(torch.float32)
+        if alpha.dim() == 0:
+            alpha = alpha.reshape(1)
+        out = torch.empty(m, n, dtype=out_dtype, device=a_qdata.device)
+        if bias is None or (isinstance(bias, torch.Tensor) and bias.numel() == 0):
+            bias_arg = torch.empty(0, device=a_qdata.device, dtype=torch.float16)
+        else:
+            if isinstance(bias, torch.nn.Parameter):
+                bias = bias.data
+            bias_arg = bias
+        out_dtype_code = DTYPE_TO_CODE[out_dtype]
+        stream_ptr = torch.cuda.current_stream(a_qdata.device).cuda_stream
+        _C.cublas_gemm_blockwise_fp4(
+            _wrap_for_dlpack(b_qdata),
+            _wrap_for_dlpack(bs_b.view(torch.uint8)),
+            _wrap_for_dlpack(a_qdata),
+            _wrap_for_dlpack(bs_a.view(torch.uint8)),
+            _wrap_for_dlpack(out),
+            out_dtype_code,
+            _wrap_for_dlpack(bias_arg),
+            _wrap_for_dlpack(get_cublas_workspace()),
+            False,
+            _wrap_for_dlpack(alpha),
+            stream_ptr,
+        )
+        return out
+
+    import logging
+    _logger = logging.getLogger("comfy_kitchen.tensor.nvfp4")
+
+    # Patch _handle_nvfp4_mm
+    def _handle_nvfp4_mm_patched(qt, args, kwargs):
+        from comfy_kitchen.tensor.base import QuantizedTensor
+        a, b = args[0], args[1]
+        if not (isinstance(a, QuantizedTensor) and isinstance(b, QuantizedTensor)):
+            return torch.mm(*dequantize_args(args))
+        if a._qdata.dim() != 2:
+            return torch.mm(*dequantize_args(args))
+        a_transposed = getattr(a._params, "transposed", False)
+        b_transposed = getattr(b._params, "transposed", False)
+        if a_transposed or not b_transposed:
+            return torch.mm(*dequantize_args(args))
+        a_qdata, scale_a, block_scale_a = TensorCoreNVFP4Layout.get_plain_tensors(a)
+        b_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(b)
+        out_dtype = kwargs.get("out_dtype", a._params.orig_dtype)
+        orig_m = a._params.orig_shape[0]
+        orig_n = b._params.orig_shape[1]
+        alpha = (scale_a * scale_b).to(torch.float32).reshape(1)
+        try:
+            result = _scaled_mm_nvfp4_pooled(
+                a_qdata, b_qdata, tensor_scale_a=scale_a, tensor_scale_b=scale_b,
+                block_scale_a=block_scale_a, block_scale_b=block_scale_b,
+                out_dtype=out_dtype, alpha=alpha,
+            )
+            return _slice_to_original_shape(result, orig_m, orig_n)
+        except (RuntimeError, TypeError) as e:
+            return torch.mm(*dequantize_args(args))
+
+    # Patch _handle_nvfp4_linear
+    def _handle_nvfp4_linear_patched(qt, args, kwargs):
+        from comfy_kitchen.tensor.base import QuantizedTensor
+        input_tensor, weight = args[0], args[1]
+        bias = args[2] if len(args) > 2 else None
+        if not (isinstance(input_tensor, QuantizedTensor) and isinstance(weight, QuantizedTensor)):
+            return torch.nn.functional.linear(*dequantize_args((input_tensor, weight, bias)))
+        if input_tensor._qdata.dim() != 2:
+            return torch.nn.functional.linear(*dequantize_args((input_tensor, weight, bias)))
+        input_transposed = getattr(input_tensor._params, "transposed", False)
+        weight_transposed = getattr(weight._params, "transposed", False)
+        if input_transposed or weight_transposed:
+            return torch.nn.functional.linear(*dequantize_args((input_tensor, weight, bias)))
+        input_qdata, scale_a, block_scale_a = TensorCoreNVFP4Layout.get_plain_tensors(input_tensor)
+        weight_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(weight)
+        out_dtype = kwargs.get("out_dtype", input_tensor._params.orig_dtype)
+        orig_m = input_tensor._params.orig_shape[0]
+        orig_n = weight._params.orig_shape[0]
+        alpha = (scale_a * scale_b).to(torch.float32).reshape(1)
+        try:
+            result = _scaled_mm_nvfp4_pooled(
+                input_qdata, weight_qdata, tensor_scale_a=scale_a, tensor_scale_b=scale_b,
+                block_scale_a=block_scale_a, block_scale_b=block_scale_b,
+                bias=bias, out_dtype=out_dtype, alpha=alpha,
+            )
+            return _slice_to_original_shape(result, orig_m, orig_n)
+        except (RuntimeError, TypeError) as e:
+            return torch.nn.functional.linear(*dequantize_args((input_tensor, weight, bias)))
+
+    # Replace the dispatch handlers in the module
+    _ck_nvfp4._handle_nvfp4_mm = _handle_nvfp4_mm_patched
+    _ck_nvfp4._handle_nvfp4_linear = _handle_nvfp4_linear_patched
+    _ck_nvfp4._hswq_path_b_patched = True
+    print("[HSWQ NVFP4] comfy_kitchen dispatch patched: path B (_C.cublas_gemm_blockwise_fp4)", flush=True)
+
+
 def apply_comfy_quant_nvfp4_patches() -> bool:
     """Install NVFP4 detection + full load + full TC Linear forward once."""
     global _PATCHES_APPLIED
@@ -55,6 +205,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
     from .nvfp4_addmm_patch import register_nvfp4_addmm_handler
 
     register_nvfp4_addmm_handler()
+    _patch_kitchen_nvfp4_dispatch()
 
     if _PATCHES_APPLIED:
         return True
