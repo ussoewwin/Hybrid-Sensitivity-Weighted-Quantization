@@ -1,8 +1,8 @@
 """NVFP4 TensorCore availability gate (shared by addmm patch + TC forward).
 
-HSWQ GEMM uses kitchen **eager** ``scaled_mm_nvfp4`` (shape-gate + sticky-clear),
-not registry cuda ``cublas_gemm_blockwise_fp4`` (SM120 often CUBLAS NOT_SUPPORTED
-→ sticky CUDA → illegal memory access if retried via registry).
+HSWQ GEMM is **owned** (``nvfp4_gemm.hswq_scaled_mm_nvfp4`` / weight dequant +
+``F.linear``). Never kitchen ``scaled_mm_nvfp4`` / registry cuda CUBLAS
+(SM120 often CUBLAS NOT_SUPPORTED → sticky CUDA → illegal memory access).
 
 Gate contract:
   1) probe CC once (Blackwell family: CC >= 10.0)
@@ -98,9 +98,9 @@ def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
         except Exception:
             pass
         print(
-            f"[HSWQ NVFP4] TensorCore scaled_mm disabled for this run "
+            f"[HSWQ NVFP4] TensorCore path disabled for this run "
             f"(GPU={name}, CC={cc}): {_DISABLE_REASON}. "
-            f"Using dequant mm; further CUBLAS/kitchen WARNINGs suppressed.",
+            f"Using float dequant mm; further kitchen WARNINGs suppressed.",
             flush=True,
         )
 
@@ -108,9 +108,7 @@ def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
 def note_scaled_mm_failure(exc: BaseException) -> bool:
     """Per-call failure: sticky-clear + do NOT kill TC for the process.
 
-    Eager ``scaled_mm_nvfp4`` normally never raises on SM120 CUBLAS miss.
-    This path is for capture/OOM/import edges. Always clear sticky CUDA first.
-
+    HSWQ GEMM / weight-dequant edges (OOM/import). Always clear sticky CUDA first.
     Permanent disable remains only via ``disable_nvfp4_tc`` (CC < 10.0 probe).
     """
     global _CALL_FAIL_WARNED
@@ -121,7 +119,7 @@ def note_scaled_mm_failure(exc: BaseException) -> bool:
         _CALL_FAIL_WARNED = True
         msg = str(exc).split("\n", 1)[0][:240]
         print(
-            f"[HSWQ NVFP4] scaled_mm path exception (sticky cleared; per-call "
+            f"[HSWQ NVFP4] GEMM path exception (sticky cleared; per-call "
             f"float dequant; TC stays enabled): {msg}",
             flush=True,
         )
@@ -145,8 +143,8 @@ def announce_tc_status_at_register() -> None:
     if ok:
         print(
             f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} - "
-            f"kitchen eager scaled_mm_nvfp4 enabled "
-            f"(min CC 10.0; shape-gate + sticky-clear; not registry cuda)",
+            f"HSWQ-owned nvfp4_gemm enabled "
+            f"(min CC 10.0; never kitchen scaled_mm / CUBLAS)",
             flush=True,
         )
     else:

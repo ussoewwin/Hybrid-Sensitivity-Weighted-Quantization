@@ -8,6 +8,9 @@ That is why stock MixedPrecision Linear (Comfy ops.py) can look "NVFP4 loaded"
 (uint8 packed weights in state_dict) while peak VRAM exceeds FP16: packed
 storage stays resident AND dequant materializes FP16 weights every forward.
 
+HSWQ path: ``hswq_scaled_mm_nvfp4`` (dequant + float mm). Never kitchen
+``scaled_mm_nvfp4`` / registry cuda CUBLAS.
+
 Runtime-only registration — does not edit ComfyUI-master or site-packages files.
 """
 from __future__ import annotations
@@ -19,14 +22,13 @@ _REGISTERED = False
 
 
 def register_nvfp4_addmm_handler() -> bool:
-    """Register aten.addmm.default → scaled_mm_nvfp4 (same contract as MXFP8 addmm)."""
+    """Register aten.addmm.default → HSWQ ``hswq_scaled_mm_nvfp4``."""
     global _REGISTERED
     if _REGISTERED:
         return True
 
     try:
         import torch
-        from comfy_kitchen.backends.eager import quantization as eager_q
         from comfy_kitchen.tensor.base import (
             QuantizedTensor,
             dequantize_args,
@@ -37,6 +39,7 @@ def register_nvfp4_addmm_handler() -> bool:
             TensorCoreNVFP4Layout,
             _slice_to_original_shape,
         )
+        from .nvfp4_gemm import hswq_scaled_mm_nvfp4
         from .nvfp4_tc_gate import (
             announce_tc_status_at_register,
             note_scaled_mm_failure,
@@ -58,7 +61,7 @@ def register_nvfp4_addmm_handler() -> bool:
 
     @register_layout_op(op, TensorCoreNVFP4Layout)
     def _handle_nvfp4_addmm(qt, args, kwargs):
-        """NVFP4 addmm via kitchen eager scaled_mm (not registry cuda CUBLAS)."""
+        """NVFP4 addmm via HSWQ-owned dequant GEMM (never kitchen scaled_mm)."""
         bias, mat1, mat2 = args[0], args[1], args[2]
 
         if not (isinstance(mat1, QuantizedTensor) and isinstance(mat2, QuantizedTensor)):
@@ -88,8 +91,7 @@ def register_nvfp4_addmm_handler() -> bool:
             scale_b = scale_b.reshape(-1).float()
 
         try:
-            # Eager: shape-gate + sticky-clear dequant; never cuda CUBLAS sticky.
-            result = eager_q.scaled_mm_nvfp4(
+            result = hswq_scaled_mm_nvfp4(
                 input_qdata,
                 weight_qdata,
                 tensor_scale_a=scale_a,
@@ -109,7 +111,7 @@ def register_nvfp4_addmm_handler() -> bool:
     _REGISTERED = True
     print(
         "[HSWQ NVFP4] registered aten.addmm.default for TensorCoreNVFP4Layout "
-        "(F.linear+bias -> kitchen eager scaled_mm_nvfp4; was dequant-only)",
+        "(F.linear+bias -> HSWQ hswq_scaled_mm_nvfp4; never kitchen CUBLAS)",
         flush=True,
     )
     return True

@@ -6,7 +6,7 @@ Runtime only — never permanently edit ComfyUI-master.
 Owns (via sibling modules under benchmark/krea2_nvfp4/):
   - packed-K UNet detection (logical in_features)
   - full NVFP4 Linear load (scales, QT, ConvRot flags, storage validation)
-  - full Tensor Core forward (act ConvRot → NVFP4 quant → scaled_mm_nvfp4)
+  - full Tensor Core forward (act ConvRot → HSWQ weight dequant → F.linear)
 
 This is not an INT8/FP8 “small tweak”: load + forward are HSWQ-owned stacks.
 """
@@ -51,7 +51,7 @@ def _console(msg: str) -> None:
 def apply_comfy_quant_nvfp4_patches() -> bool:
     """Install NVFP4 detection + full load + full TC Linear forward once."""
     global _PATCHES_APPLIED
-    # Kitchen gap fill: always (re)ensure addmm → scaled_mm_nvfp4 (idempotent).
+    # Gap fill: always (re)ensure addmm → HSWQ hswq_scaled_mm_nvfp4 (idempotent).
     from .nvfp4_addmm_patch import register_nvfp4_addmm_handler
 
     register_nvfp4_addmm_handler()
@@ -228,7 +228,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
     _PATCHES_APPLIED = True
     _console(
         "[HSWQ NVFP4] full stack applied "
-        "(detect packed K + nvfp4_load + TC forward scaled_mm_nvfp4 + ConvRot act; "
+        "(detect packed K + nvfp4_load + HSWQ nvfp4_gemm forward + ConvRot act; "
         "ComfyUI-master untouched)"
     )
     return True
