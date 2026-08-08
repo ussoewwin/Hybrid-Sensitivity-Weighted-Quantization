@@ -166,15 +166,16 @@ def scaled_mm_nvfp4_pooled(
     orig_n: Optional[int] = None,
     out: Optional["torch.Tensor"] = None,
 ):
-    """cuBLAS NVFP4 GEMM (kitchen CUDA path). ``out`` optional for CUDA Graph."""
+    """NVFP4 GEMM via stock ``ck.scaled_mm_nvfp4`` (registry: cuda / eager).
+
+    Previously called the kitchen CUDA extension GEMM entry directly, bypassing
+    kitchen registry selection (and eager fallback). That is not how Comfy
+    plain NVFP4 runs. Stock path: ``comfy_kitchen.tensor.nvfp4`` → ``ck.scaled_mm_nvfp4``.
+
+    ``out`` (CUDA Graph) is filled by copy from the stock result when provided.
+    """
     import torch
-    from comfy_kitchen.backends.cuda import (
-        _C,
-        _wrap_for_dlpack,
-        get_cublas_workspace,
-        roundup,
-        DTYPE_TO_CODE,
-    )
+    import comfy_kitchen as ck
 
     if isinstance(tensor_scale_a, torch.nn.Parameter):
         tensor_scale_a = tensor_scale_a.data
@@ -202,57 +203,38 @@ def scaled_mm_nvfp4_pooled(
     n, k_b = w_qdata.shape
     if k_a != k_b:
         raise ValueError("Matrix dimensions do not match")
-    if n % 8 != 0:
-        raise ValueError("B tensor must have 8 alignment in N dimension")
 
-    k = 2 * k_a
-    block_length = 16
-    if block_scale_a.dtype != torch.float8_e4m3fn:
-        raise ValueError(f"Unsupported scale dtype: {block_scale_a.dtype}")
-
-    roundup_m = roundup(m, 128)
-    roundup_n = roundup(n, 128)
-    roundup_sk = roundup(k // block_length, 4)
-    if block_scale_a.size() != (roundup_m, roundup_sk):
-        raise ValueError(f"Invalid A scale shape {tuple(block_scale_a.shape)}")
-    if block_scale_b.size() != (roundup_n, roundup_sk):
-        raise ValueError(f"Invalid B scale shape {tuple(block_scale_b.shape)}")
-
-    if out is None:
-        out = torch.empty(m, n, dtype=out_dtype, device=a_qdata.device)
-    elif out.shape != (m, n) or out.dtype != out_dtype or out.device != a_qdata.device:
-        raise ValueError("out buffer shape/dtype/device mismatch")
-
+    bias_arg = bias
     if bias is None or (isinstance(bias, torch.Tensor) and bias.numel() == 0):
-        bias_arg = torch.empty(0, device=a_qdata.device, dtype=torch.float16)
-    else:
-        if isinstance(bias, torch.nn.Parameter):
-            bias = bias.data
-        bias_arg = bias
+        bias_arg = None
+    elif isinstance(bias, torch.nn.Parameter):
+        bias_arg = bias.data
 
-    out_dtype_code = DTYPE_TO_CODE[out_dtype]
-    stream_ptr = torch.cuda.current_stream(a_qdata.device).cuda_stream
-    _C.cublas_gemm_blockwise_fp4(
-        _wrap_for_dlpack(w_qdata),
-        _wrap_for_dlpack(block_scale_b.view(torch.uint8)),
-        _wrap_for_dlpack(a_qdata),
-        _wrap_for_dlpack(block_scale_a.view(torch.uint8)),
-        _wrap_for_dlpack(out),
-        out_dtype_code,
-        _wrap_for_dlpack(bias_arg),
-        _wrap_for_dlpack(get_cublas_workspace()),
-        False,  # accumulate
-        _wrap_for_dlpack(alpha),
-        stream_ptr,
+    result = ck.scaled_mm_nvfp4(
+        a_qdata,
+        w_qdata,
+        tensor_scale_a=tensor_scale_a,
+        tensor_scale_b=tensor_scale_b,
+        block_scale_a=block_scale_a,
+        block_scale_b=block_scale_b,
+        bias=bias_arg,
+        out_dtype=out_dtype,
+        alpha=alpha,
     )
 
     if orig_m is None:
         orig_m = m
     if orig_n is None:
         orig_n = n
-    if out.shape[0] != orig_m or out.shape[1] != orig_n:
-        return out[:orig_m, :orig_n]
-    return out
+    if result.shape[0] != orig_m or result.shape[1] != orig_n:
+        result = result[:orig_m, :orig_n]
+
+    if out is not None:
+        if out.shape != result.shape or out.dtype != result.dtype or out.device != result.device:
+            raise ValueError("out buffer shape/dtype/device mismatch")
+        out.copy_(result)
+        return out
+    return result
 
 
 # CUDA Graph helpers (cache lives at module top as _GRAPH_CACHE).
