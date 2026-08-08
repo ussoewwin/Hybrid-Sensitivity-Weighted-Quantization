@@ -1,13 +1,14 @@
-"""NVFP4 TensorCore availability gate (shared by addmm patch + TC forward).
+"""NVFP4 path gate (shared by addmm patch + ConvRot Linear forward).
 
-HSWQ GEMM is **owned** (``nvfp4_gemm.hswq_scaled_mm_nvfp4`` / weight dequant +
-``F.linear``). Never kitchen ``scaled_mm_nvfp4`` / registry cuda CUBLAS
+HSWQ Linear hot path: one-shot NVFP4→float bake + ConvRot act + ``F.linear``.
+Residual QT×QT edges: ``hswq_scaled_mm_nvfp4`` (dequant both → float mm).
+Never kitchen ``scaled_mm_nvfp4`` / registry cuda CUBLAS
 (SM120 often CUBLAS NOT_SUPPORTED → sticky CUDA → illegal memory access).
 
 Gate contract:
   1) probe CC once (Blackwell family: CC >= 10.0)
   2) permanent disable ONLY when hardware cannot do NVFP4 TC (CC < 10.0)
-  3) rare RuntimeError → sticky clear + per-call dequant (no process-wide kill)
+  3) rare RuntimeError → sticky clear + per-call float path (no process-wide kill)
 
 Never edits ComfyUI-master.
 """
@@ -143,8 +144,8 @@ def announce_tc_status_at_register() -> None:
     if ok:
         print(
             f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} - "
-            f"HSWQ-owned nvfp4_gemm enabled "
-            f"(min CC 10.0; never kitchen scaled_mm / CUBLAS)",
+            f"HSWQ path enabled: bake NVFP4→float + ConvRot + F.linear "
+            f"(min CC 10.0; never kitchen scaled_mm / CUBLAS; no QT+float dual hold)",
             flush=True,
         )
     else:
