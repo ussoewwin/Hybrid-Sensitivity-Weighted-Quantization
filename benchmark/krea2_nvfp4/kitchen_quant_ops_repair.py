@@ -1,16 +1,39 @@
 """Repair ``comfy.quant_ops`` **only** when kitchen bulk-import left stubs.
 
-Branch contract (do not break plain NVFP4):
+Branch contract (do not break plain NVFP4; no branch shortcuts):
 
   A) Stock healthy
      ``_CK_AVAILABLE`` and ``get_layout_class("TensorCoreNVFP4Layout").Params``
-     work → **no rebind**. Plain / ConvRot NVFP4 keep ComfyUI-master path.
+     work → **no rebind at all**. Stock / plain NVFP4 layout path stays
+     Comfy+kitchen as imported. Do not half-rebind, do not "also fix" ops.
 
-  B) Stubbed (Vast-style)
+  B) Stubbed (Vast-style) — only when A is false
      ``from comfy_kitchen.tensor import (..., AsymW4A8Int8Layout, ...)`` failed
      → ``get_layout_class`` always ``None`` → load dies on ``.Params``.
      Submodules (``.base`` / ``.nvfp4`` / ``.int8``) still import → rebind those
      onto ``comfy.quant_ops`` / ``comfy.ops`` only.
+
+ConvRot NVFP4 load+forward is **not** in ComfyUI. It lives only under
+``benchmark/krea2_nvfp4/``. Branch A/B is kitchen **layout-import health** only.
+ConvRot is unrelated to CUBLAS / scaled_mm TC gate.
+
+Prebind (before first ``comfy.quant_ops`` import):
+  Older Vast kitchen packages load ``comfy_kitchen.tensor`` but omit names that
+  Comfy bulk-imports (e.g. ``AsymW4A8Int8Layout``; Comfy also imports
+  ``TensorCoreConvRotW4A4Layout``). One missing name → entire kitchen try fails
+  → stubs → forced Branch B (breaks plain NVFP4). Call
+  ``prebind_missing_kitchen_tensor_exports()`` from
+  ``benchmark/krea2_nvfp4_bench.py`` ``setup_comfy`` **before** any import that
+  pulls ``comfy.quant_ops``. Then call ``ensure_kitchen_quant_ops()`` once
+  ``comfy.quant_ops`` is importable so Branch B still runs if prebind was not
+  enough. Scope is **krea2 NVFP4 only** (this package + that bench).
+
+  Policy: bind real submodule classes when package ``__init__`` omitted them.
+  Name-only stubs allowed **only** for import-gate spoilers unused by plain
+  NVFP4 / Krea2 ConvRot load+forward: ``AsymW4A8Int8Layout`` and
+  ``TensorCoreConvRotW4A4Layout`` (Krea2 ConvRot uses ``TensorCoreNVFP4Layout``
+  + ``benchmark/krea2_nvfp4`` act-rotate, not kitchen ConvRotW4A4). Never
+  empty-stub TensorCore NVFP4 / FP8 / INT8.
 
 Never call rebind when A is true. Never edit ComfyUI-master.
 """
@@ -22,6 +45,155 @@ from typing import Any
 logger = logging.getLogger(__name__)
 _REPAIR_DONE = False
 _LAST_STATUS: dict[str, Any] = {"repaired": False, "reason": "not_run"}
+_PREBIND_STATUS: dict[str, Any] = {"bound": False, "reason": "not_run"}
+
+# Matches ComfyUI-master ``comfy/quant_ops.py`` bulk ``from comfy_kitchen.tensor
+# import (...)`` layout names. ``allow_name_stub`` only for import-gate spoilers
+# unused by plain NVFP4 / Krea2 ConvRot (NVFP4 layout + krea2_nvfp4 act-rotate).
+_PREBIND_LAYOUTS: tuple[tuple[str, str, str, bool], ...] = (
+    (
+        "TensorCoreFP8Layout",
+        "comfy_kitchen.tensor.fp8",
+        "TensorCoreFP8Layout",
+        False,
+    ),
+    (
+        "TensorCoreNVFP4Layout",
+        "comfy_kitchen.tensor.nvfp4",
+        "TensorCoreNVFP4Layout",
+        False,
+    ),
+    (
+        "TensorCoreConvRotW4A4Layout",
+        "comfy_kitchen.tensor.convrot_w4a4",
+        "TensorCoreConvRotW4A4Layout",
+        True,
+    ),
+    (
+        "TensorWiseINT8Layout",
+        "comfy_kitchen.tensor.int8",
+        "TensorWiseINT8Layout",
+        False,
+    ),
+    (
+        "AsymW4A8Int8Layout",
+        "comfy_kitchen.tensor.w4a8_int8",
+        "AsymW4A8Int8Layout",
+        True,
+    ),
+)
+
+
+def prebind_missing_kitchen_tensor_exports() -> dict[str, Any]:
+    """Attach missing kitchen layout exports onto ``comfy_kitchen.tensor``.
+
+    Must run **before** ``import comfy.quant_ops`` (Comfy bulk-import). Prefer
+    real submodules; only Asym / kitchen ConvRotW4A4 may fall back to a name
+    stub so Branch A stock layouts (NVFP4 / FP8 / INT8) remain available.
+    """
+    global _PREBIND_STATUS
+    import importlib
+
+    try:
+        tensor_pkg = importlib.import_module("comfy_kitchen.tensor")
+    except Exception as e:
+        _PREBIND_STATUS = {
+            "bound": False,
+            "reason": "tensor_pkg_import_failed",
+            "error": f"{type(e).__name__}: {e}",
+        }
+        print(
+            f"  [BENCH] kitchen tensor prebind FAILED: {_PREBIND_STATUS['error']}",
+            flush=True,
+        )
+        return _PREBIND_STATUS
+
+    actions: list[dict[str, str]] = []
+    for export_name, mod_path, attr, allow_stub in _PREBIND_LAYOUTS:
+        if hasattr(tensor_pkg, export_name):
+            actions.append(
+                {"name": export_name, "action": "already_present", "source": "package"}
+            )
+            continue
+        try:
+            mod = importlib.import_module(mod_path)
+            cls = getattr(mod, attr)
+            setattr(tensor_pkg, export_name, cls)
+            actions.append(
+                {
+                    "name": export_name,
+                    "action": "setattr_from_submodule",
+                    "source": mod_path,
+                }
+            )
+            print(
+                f"  [BENCH] kitchen tensor prebind: {export_name} from "
+                f"{mod_path} (bulk-import can succeed → Branch A)",
+                flush=True,
+            )
+            continue
+        except Exception as e:
+            logger.info(
+                "[HSWQ kitchen prebind] %s via %s unavailable (%s)",
+                export_name,
+                mod_path,
+                e,
+            )
+        if not allow_stub:
+            actions.append(
+                {
+                    "name": export_name,
+                    "action": "still_missing",
+                    "source": "none",
+                }
+            )
+            print(
+                f"  [BENCH] kitchen tensor prebind: {export_name} still missing "
+                f"(no name-stub; bulk-import may force Branch B)",
+                flush=True,
+            )
+            continue
+
+        # Name-only stub: Comfy bulk-import needs the symbol. Plain NVFP4 and
+        # Krea2 ConvRot (TensorCoreNVFP4Layout + krea2_nvfp4 act-rotate) do not
+        # use Asym / kitchen ConvRotW4A4 (import-gate only → Branch A).
+        stub = type(export_name, (), {})
+        setattr(tensor_pkg, export_name, stub)
+        actions.append(
+            {"name": export_name, "action": "setattr_name_stub", "source": "stub"}
+        )
+        print(
+            f"  [BENCH] kitchen tensor prebind: {export_name} name-stub "
+            f"(import-gate only; stock bulk-import can succeed → Branch A)",
+            flush=True,
+        )
+
+    bound_n = sum(
+        1
+        for a in actions
+        if a["action"] in ("setattr_from_submodule", "setattr_name_stub")
+    )
+    missing_n = sum(1 for a in actions if a["action"] == "still_missing")
+    if bound_n == 0 and missing_n == 0:
+        print(
+            "  [BENCH] kitchen tensor prebind: all layout exports already present "
+            "(no-op)",
+            flush=True,
+        )
+        _PREBIND_STATUS = {
+            "bound": False,
+            "reason": "already_present",
+            "actions": actions,
+        }
+    else:
+        _PREBIND_STATUS = {
+            "bound": bound_n > 0,
+            "reason": "prebind_done",
+            "bound_count": bound_n,
+            "still_missing": missing_n,
+            "actions": actions,
+        }
+    return _PREBIND_STATUS
 
 
 def _layout_ok(layout_cls: Any) -> bool:
@@ -68,10 +240,16 @@ def repair_comfy_quant_ops_from_kitchen_submodules(force: bool = False) -> dict[
         return _LAST_STATUS
 
     if _REPAIR_DONE and not force:
+        # Do not mislabel a prior Branch A success as B_stub_rebind.
+        branch = (
+            "A_stock_healthy"
+            if kitchen_quant_ops_healthy()
+            else "B_stub_rebind"
+        )
         _LAST_STATUS = {
             "repaired": False,
             "reason": "already_repaired",
-            "branch": "B_stub_rebind",
+            "branch": branch,
             "prior": dict(_LAST_STATUS),
         }
         return _LAST_STATUS
@@ -241,15 +419,16 @@ def repair_comfy_quant_ops_from_kitchen_submodules(force: bool = False) -> dict[
 
 
 def ensure_kitchen_quant_ops() -> bool:
-    """Branch A → True no-op. Branch B → repair; True if healthy after."""
+    """Branch A → True, zero rebind. Branch B → rebind only if A is false."""
     if kitchen_quant_ops_healthy():
-        if _LAST_STATUS.get("reason") != "already_ok":
+        # Record Branch A via repair's early-return; never touch layouts.
+        status = repair_comfy_quant_ops_from_kitchen_submodules()
+        if status.get("branch") == "A_stock_healthy":
             print(
                 "  [BENCH] kitchen quant_ops branch=A (stock healthy; "
-                "plain NVFP4 path untouched)",
+                "plain NVFP4 layouts untouched; no rebind)",
                 flush=True,
             )
-        repair_comfy_quant_ops_from_kitchen_submodules()  # records already_ok
         return True
 
     status = repair_comfy_quant_ops_from_kitchen_submodules()

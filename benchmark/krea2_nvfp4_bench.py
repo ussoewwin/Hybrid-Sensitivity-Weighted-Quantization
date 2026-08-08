@@ -129,6 +129,16 @@ def setup_comfy(comfy_path: str) -> None:
     # Always stub before any comfy.* import (real torchaudio may CUDA-mismatch).
     _install_torchaudio_stub()
 
+    # Before first comfy.quant_ops import: attach missing kitchen tensor exports
+    # (Asym / kitchen ConvRotW4A4 import-gate) so bulk-import succeeds → Branch A.
+    # Krea2 ConvRot load+forward stays in benchmark/krea2_nvfp4 only (not ComfyUI).
+    from krea2_nvfp4.kitchen_quant_ops_repair import (
+        ensure_kitchen_quant_ops,
+        prebind_missing_kitchen_tensor_exports,
+    )
+
+    prebind_missing_kitchen_tensor_exports()
+
     import comfy.options
 
     comfy.options.enable_args_parsing(False)
@@ -172,6 +182,12 @@ def setup_comfy(comfy_path: str) -> None:
         ps.virtual_memory = lambda: _VM()
         ps.Process = lambda: _Proc()
         sys.modules["psutil"] = ps
+
+    # Resolve quant_ops now (after prebind) and apply Branch A/B before model load.
+    # Branch A: healthy → zero rebind. Branch B: stubs → submodule rebind only.
+    import comfy.quant_ops  # noqa: F401
+
+    ensure_kitchen_quant_ops()
 
 
 SSIM_TARGET = 0.9
