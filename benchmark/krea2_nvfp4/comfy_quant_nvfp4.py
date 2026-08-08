@@ -6,7 +6,8 @@ Runtime only — never permanently edit ComfyUI-master.
 Owns (via sibling modules under benchmark/krea2_nvfp4/):
   - packed-K UNet detection (logical in_features)
   - full NVFP4 Linear load (scales, QT, ConvRot flags, storage validation)
-  - full ConvRot forward (act ConvRot → one-shot NVFP4→float bake → F.linear)
+  - full ConvRot forward (act ConvRot → pooled act NVFP4 quant → cuBLAS FP4
+    TC GEMM, weight packed resident; bake→float F.linear is fallback only)
 
 This is not an INT8/FP8 “small tweak”: load + forward are HSWQ-owned stacks.
 """
@@ -228,7 +229,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
     _PATCHES_APPLIED = True
     _console(
         "[HSWQ NVFP4] full stack applied "
-        "(detect packed K + nvfp4_load + bake→float F.linear + ConvRot act; "
-        "no QT+float dual hold; ComfyUI-master untouched)"
+        "(detect packed K + nvfp4_load + ConvRot act + FP4 TC GEMM, weight "
+        "packed resident; bake fallback; ComfyUI-master untouched)"
     )
     return True
