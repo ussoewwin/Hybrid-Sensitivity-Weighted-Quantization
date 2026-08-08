@@ -1,37 +1,24 @@
 """
-HSWQ-owned NVFP4 Linear Tensor Core forward path.
+HSWQ-owned NVFP4 Linear forward path (ConvRot × NVFP4).
 
-Stock MixedPrecision Linear inference does:
-  reshape → QuantizedTensor.from_float(act) → F.linear → often aten.addmm
-  → unregistered → full dequant (slow), or wrong reshape via weight.shape[0]
-  (QT storage dim).
+ComfyUI / comfy_kitchen do **not** ship ConvRot×NVFP4 load+forward. This
+package owns the full inference path:
 
-This module owns the full inference path for HSWQ NVFP4 (+ optional ConvRot):
   1) reshape act to 2D
-  2) FULL ConvRot via dense Hadamard GEMM (butterfly is slower for gs=256)
+  2) FULL ConvRot act rotation (Hadamard / butterfly)
   3) cast weight/bias when off-device
-  4) pooled CUDA quantize_nvfp4 (no per-call alloc)
-  5) kitchen **eager** ``scaled_mm_nvfp4`` (shape-gate + sticky-clear;
-     never registry cuda ``cublas_gemm_blockwise_fp4`` — SM120 CUBLAS sticky)
-  6) reshape with module.out_features (never QT storage shape[0])
+  4) HSWQ dequant of packed NVFP4 weights (cached) → ``F.linear``
+     (never kitchen ``scaled_mm_nvfp4`` / CUBLAS blockwise FP4)
+  5) reshape with module.out_features (never QT storage shape[0])
 
 Never edits ComfyUI-master; installed via monkey-patch on MixedPrecision Linear.
 """
 from __future__ import annotations
 
 import logging
-import os
 
-from .nvfp4_hadamard import build_hadamard, rotate_last_dim_fast
-from .nvfp4_runtime import (
-    ensure_act_scale_cached,
-    clear_nvfp4_cudagraphs,
-    nvfp4_quant_mm_cudagraph,
-    quantize_nvfp4_act_pooled,
-    rotate_last_dim_pooled,
-    scaled_mm_nvfp4_pooled,
-    _GRAPH_MAX_M,
-)
+from .nvfp4_gemm import dequantize_weight_cached, hswq_scaled_mm_nvfp4
+from .nvfp4_hadamard import rotate_last_dim_fast
 from .nvfp4_tc_gate import note_scaled_mm_failure, nvfp4_tc_enabled
 
 logger = logging.getLogger(__name__)
@@ -64,11 +51,10 @@ def _slice_nvfp4_mm_out(result, orig_m: int, orig_n: int):
 
 
 def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
-    """QT path via kitchen **eager** scaled_mm (never registry cuda CUBLAS)."""
+    """QT×QT path via HSWQ-owned dequant GEMM (never kitchen scaled_mm)."""
     global _TC_HITS, _DEQUANT_FALLBACKS
     import torch
     import torch.nn.functional as F
-    from comfy_kitchen.backends.eager import quantization as eager_q
     from comfy_kitchen.tensor.base import QuantizedTensor
     from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
 
@@ -104,8 +90,7 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     if scale_b.dtype != torch.float32 or scale_b.dim() != 1:
         scale_b = scale_b.reshape(-1).float()
 
-    # Eager never re-raises on SM120 CUBLAS miss — sticky-cleared dequant.
-    result = eager_q.scaled_mm_nvfp4(
+    result = hswq_scaled_mm_nvfp4(
         a_qdata,
         w_qdata,
         tensor_scale_a=scale_a,
@@ -121,35 +106,19 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     return _slice_nvfp4_mm_out(result, orig_m, orig_n)
 
 
-def _plain_weight_cached(module, weight_qt):
-    """Cache get_plain_tensors on the module (weight QT identity stable after load)."""
-    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
-
-    cached = getattr(module, "_hswq_nvfp4_w_plain", None)
-    if cached is not None and cached[0] is weight_qt._qdata:
-        return cached[1], cached[2], cached[3], cached[4]
-    w_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(weight_qt)
-    orig_n = int(weight_qt._params.orig_shape[0])
-    module._hswq_nvfp4_w_plain = (
-        weight_qt._qdata,
-        w_qdata,
-        scale_b,
-        block_scale_b,
-        orig_n,
-    )
-    return w_qdata, scale_b, block_scale_b, orig_n
-
-
 def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
-    """Act float → pooled NVFP4 quant → kitchen **eager** ``scaled_mm_nvfp4``.
+    """ConvRot act (already rotated) + HSWQ weight dequant → ``F.linear``.
 
-    Prefers CUDA Graph (quantize+mm) after first capture per shape/weight; falls
-    back to eager pooled kernels if capture/replay fails.
+    Never calls kitchen ``scaled_mm_nvfp4``. Packed weights stay on disk/VRAM;
+    dense weight is cached per module after first dequant.
+    ``act_scale`` is unused on this path (kept for call-site API).
     """
     global _TC_HITS, _DEQUANT_FALLBACKS
     import torch
+    import torch.nn.functional as F
     from comfy_kitchen.tensor.base import QuantizedTensor
-    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
+
+    _ = act_scale
 
     if not (
         isinstance(weight_qt, QuantizedTensor)
@@ -161,7 +130,6 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         _DEQUANT_FALLBACKS += 1
         return None
 
-    # Cloud Ada/Hopper: skip cuBLAS NVFP4 after gate disables TC.
     if not nvfp4_tc_enabled():
         _DEQUANT_FALLBACKS += 1
         return None
@@ -169,104 +137,15 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
     if isinstance(bias, QuantizedTensor):
         bias = bias.dequantize()
 
-    orig_m, orig_k = int(input_2d.shape[0]), int(input_2d.shape[1])
-    needs_padding = (orig_m % 16 != 0) or (orig_k % 16 != 0)
-
-    # Checkpoints omit input_scale (placeholder ones). Must amax once per
-    # module — ones as tensor_scale collapses NVFP4 act grids (SSIM~0.18).
-    scale_a = ensure_act_scale_cached(module, input_2d, act_scale)
     try:
-        w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(module, weight_qt)
-
-        # Cache alpha only after scale_a is the real (amax or calib) tensor.
-        # Rebind if act scale object changed (first amax after placeholder).
-        cached_alpha = getattr(module, "_hswq_nvfp4_alpha", None)
-        bound = getattr(module, "_hswq_nvfp4_alpha_bound_scale", None)
-        if cached_alpha is None or bound is not scale_a:
-            alpha = scale_a * scale_b
-            if alpha.dtype != torch.float32:
-                alpha = alpha.to(dtype=torch.float32)
-            if alpha.dim() == 0:
-                alpha = alpha.reshape(1)
-            module._hswq_nvfp4_alpha = alpha
-            module._hswq_nvfp4_alpha_bound_scale = scale_a
-        else:
-            alpha = cached_alpha
-
-        # CUDA Graph is OFF by default: shape-shared replay copies full weight
-        # every call and was slower than eager (13.05s vs ~11.8s). Opt-in:
-        # HSWQ_NVFP4_CUDAGRAPH=1
-        use_cg = (
-            os.environ.get("HSWQ_NVFP4_CUDAGRAPH", "").strip() == "1"
-            and orig_m <= _GRAPH_MAX_M
-            and not getattr(module, "_hswq_nvfp4_no_cudagraph", False)
-        )
-        if use_cg:
-            try:
-                result = nvfp4_quant_mm_cudagraph(
-                    input_2d,
-                    w_qdata=w_qdata,
-                    weight_scale=scale_b,
-                    block_scale_w=block_scale_b,
-                    scale_a=scale_a,
-                    bias=bias,
-                    out_dtype=out_dtype,
-                    alpha=alpha,
-                    pad_16x=needs_padding,
-                    orig_n=orig_n,
-                )
-                _TC_HITS += 1
-                return result
-            except torch.cuda.OutOfMemoryError:
-                clear_nvfp4_cudagraphs()
-                torch.cuda.empty_cache()
-                logger.warning(
-                    "[HSWQ NVFP4] CUDA Graph OOM — cache cleared; eager pooled"
-                )
-            except (RuntimeError, TypeError, ValueError) as e:
-                if "out of memory" in str(e).lower():
-                    clear_nvfp4_cudagraphs()
-                    torch.cuda.empty_cache()
-                    logger.warning(
-                        "[HSWQ NVFP4] CUDA Graph OOM (%s); eager pooled", e
-                    )
-                else:
-                    module._hswq_nvfp4_no_cudagraph = True
-                    logger.warning(
-                        "[HSWQ NVFP4] CUDA Graph disabled for module (%s); eager pooled",
-                        e,
-                    )
-
-        a_qdata, block_scale_a, _pr, _pc = quantize_nvfp4_act_pooled(
-            input_2d, scale_a, pad_16x=needs_padding
-        )
-        result = scaled_mm_nvfp4_pooled(
-            a_qdata,
-            w_qdata,
-            tensor_scale_a=scale_a,
-            tensor_scale_b=scale_b,
-            block_scale_a=block_scale_a,
-            block_scale_b=block_scale_b,
-            bias=bias,
-            out_dtype=out_dtype,
-            alpha=alpha,
-            orig_m=orig_m,
-            orig_n=orig_n,
-        )
-        if os.environ.get("HSWQ_NVFP4_NANSCAN", "").strip() == "1":
-            n_nan = int(torch.isnan(result).sum())
-            n_inf = int(torch.isinf(result).sum())
-            if n_nan or n_inf:
-                logger.warning(
-                    "[HSWQ NVFP4 NANSCAN] %s mm OUT nan=%d inf=%d "
-                    "out_dtype=%s in_dtype=%s in_amax=%.3e",
-                    getattr(module, "_hswq_nvfp4_name", "?"),
-                    n_nan,
-                    n_inf,
-                    result.dtype,
-                    input_2d.dtype,
-                    float(input_2d.detach().float().abs().max()),
-                )
+        w_f = dequantize_weight_cached(module, weight_qt, out_dtype)
+        if bias is not None and (
+            bias.device != input_2d.device or bias.dtype != out_dtype
+        ):
+            bias = bias.to(device=input_2d.device, dtype=out_dtype)
+        if w_f.device != input_2d.device or w_f.dtype != out_dtype:
+            w_f = w_f.to(device=input_2d.device, dtype=out_dtype)
+        result = F.linear(input_2d, w_f, bias)
         _TC_HITS += 1
         return result
     except (RuntimeError, TypeError, ValueError) as e:
@@ -365,7 +244,7 @@ def make_nvfp4_linear_forward(stock_forward):
                 uncast_bias_weight(self, weight, bias, offload_stream)
             return stock_forward(self, input, *args, **kwargs)
 
-        # 4) Pooled Tensor Core path (no QuantizedTensor.from_float alloc)
+        # 4) HSWQ weight dequant (cached) → F.linear (never kitchen scaled_mm)
         out_2d = _tc_forward_pooled(
             self, input_2d, weight, bias, scale, compute_dtype
         )

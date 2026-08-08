@@ -1,9 +1,9 @@
-"""Pooled NVFP4 act quantize + scaled_mm (HSWQ).
+"""Pooled NVFP4 act quantize + HSWQ-owned GEMM.
 
 Stock ``ck.quantize_nvfp4`` allocates fresh tensors on every Linear call.
-GEMM uses kitchen **eager** ``scaled_mm_nvfp4`` (not registry cuda CUBLAS):
-shape-gate + sticky-clear dequant on SM120 miss. Act quant / mm buffers are
-pooled by shape to cut allocation overhead.
+GEMM is **HSWQ-owned** (``nvfp4_gemm.hswq_scaled_mm_nvfp4``): never kitchen
+``scaled_mm_nvfp4`` / registry cuda CUBLAS. Act quant buffers are pooled by
+shape to cut allocation overhead when a packed-act path is used.
 """
 from __future__ import annotations
 
@@ -167,75 +167,23 @@ def scaled_mm_nvfp4_pooled(
     orig_n: Optional[int] = None,
     out: Optional["torch.Tensor"] = None,
 ):
-    """NVFP4 GEMM via kitchen **eager** ``scaled_mm_nvfp4`` (not registry cuda).
+    """NVFP4 GEMM via HSWQ-owned ``hswq_scaled_mm_nvfp4`` (never kitchen)."""
+    from .nvfp4_gemm import hswq_scaled_mm_nvfp4
 
-    ``ck.scaled_mm_nvfp4`` prefers the CUDA backend (``cublas_gemm_blockwise_fp4``).
-    On RTX 5090 / SM120 that path often returns ``CUBLAS_STATUS_NOT_SUPPORTED``
-    from ``cublasLtMatmulAlgoGetHeuristic``, leaves a sticky CUDA error, then
-    kitchen ``aten.mm`` WARNING-spams dequant and eventually hits illegal memory
-    access. Kitchen **eager** already:
-      - shape-gates before TC (packed_K%16==0, N%8==0)
-      - tries ``torch._scaled_mm``
-      - on failure: synchronize sticky clear + float dequant (never re-raises)
-
-    HSWQ must call that eager entry directly. Do not route through registry cuda.
-
-    ``out`` (CUDA Graph) is filled by copy from the result when provided.
-    """
-    import torch
-    from comfy_kitchen.backends.eager import quantization as eager_q
-
-    if isinstance(tensor_scale_a, torch.nn.Parameter):
-        tensor_scale_a = tensor_scale_a.data
-    if isinstance(tensor_scale_b, torch.nn.Parameter):
-        tensor_scale_b = tensor_scale_b.data
-    if isinstance(a_qdata, torch.nn.Parameter):
-        a_qdata = a_qdata.data
-    if isinstance(w_qdata, torch.nn.Parameter):
-        w_qdata = w_qdata.data
-    if isinstance(block_scale_a, torch.nn.Parameter):
-        block_scale_a = block_scale_a.data
-    if isinstance(block_scale_b, torch.nn.Parameter):
-        block_scale_b = block_scale_b.data
-
-    # alpha is cuda-cublas only; eager uses block+tensor scales inside scaled_mm_v2.
-    _ = alpha
-
-    m, k_a = a_qdata.shape
-    n, k_b = w_qdata.shape
-    if k_a != k_b:
-        raise ValueError("Matrix dimensions do not match")
-
-    bias_arg = bias
-    if bias is None or (isinstance(bias, torch.Tensor) and bias.numel() == 0):
-        bias_arg = None
-    elif isinstance(bias, torch.nn.Parameter):
-        bias_arg = bias.data
-
-    result = eager_q.scaled_mm_nvfp4(
+    return hswq_scaled_mm_nvfp4(
         a_qdata,
         w_qdata,
         tensor_scale_a=tensor_scale_a,
         tensor_scale_b=tensor_scale_b,
         block_scale_a=block_scale_a,
         block_scale_b=block_scale_b,
-        bias=bias_arg,
+        bias=bias,
         out_dtype=out_dtype,
+        alpha=alpha,
+        orig_m=orig_m,
+        orig_n=orig_n,
+        out=out,
     )
-
-    if orig_m is None:
-        orig_m = m
-    if orig_n is None:
-        orig_n = n
-    if result.shape[0] != orig_m or result.shape[1] != orig_n:
-        result = result[:orig_m, :orig_n]
-
-    if out is not None:
-        if out.shape != result.shape or out.dtype != result.dtype or out.device != result.device:
-            raise ValueError("out buffer shape/dtype/device mismatch")
-        out.copy_(result)
-        return out
-    return result
 
 
 # CUDA Graph helpers (cache lives at module top as _GRAPH_CACHE).
