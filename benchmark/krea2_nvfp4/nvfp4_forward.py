@@ -7,8 +7,8 @@ package owns the full inference path:
   1) reshape act to 2D
   2) FULL ConvRot act rotation (Hadamard / butterfly)
   3) cast weight/bias when off-device
-  4) HSWQ dequant of packed NVFP4 weights (cached) → ``F.linear``
-     (never kitchen ``scaled_mm_nvfp4`` / CUBLAS blockwise FP4)
+  4) one-shot bake packed NVFP4 → dense float Parameter (free QT) → ``F.linear``
+     (never kitchen ``scaled_mm_nvfp4`` / CUBLAS; no QT+float dual VRAM)
   5) reshape with module.out_features (never QT storage shape[0])
 
 Never edits ComfyUI-master; installed via monkey-patch on MixedPrecision Linear.
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-from .nvfp4_gemm import dequantize_weight_cached, hswq_scaled_mm_nvfp4
+from .nvfp4_gemm import bake_nvfp4_weight_inplace, hswq_scaled_mm_nvfp4
 from .nvfp4_hadamard import rotate_last_dim_fast
 from .nvfp4_tc_gate import note_scaled_mm_failure, nvfp4_tc_enabled
 
@@ -107,10 +107,11 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
 
 
 def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
-    """ConvRot act (already rotated) + HSWQ weight dequant → ``F.linear``.
+    """ConvRot act (already rotated) + bake NVFP4 weight → ``F.linear``.
 
-    Never calls kitchen ``scaled_mm_nvfp4``. Packed weights stay on disk/VRAM;
-    dense weight is cached per module after first dequant.
+    Never calls kitchen ``scaled_mm_nvfp4``. First call replaces packed QT
+    ``module.weight`` with dense float (single residency). Later calls are
+    plain float Linear (+ ConvRot already applied by caller).
     ``act_scale`` is unused on this path (kept for call-site API).
     """
     global _TC_HITS, _DEQUANT_FALLBACKS
@@ -120,17 +121,34 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
 
     _ = act_scale
 
-    if not (
-        isinstance(weight_qt, QuantizedTensor)
-        and weight_qt._layout_cls == "TensorCoreNVFP4Layout"
-    ):
-        _DEQUANT_FALLBACKS += 1
-        return None
-    if getattr(weight_qt._params, "transposed", False):
+    if not nvfp4_tc_enabled():
         _DEQUANT_FALLBACKS += 1
         return None
 
-    if not nvfp4_tc_enabled():
+    # Already baked on a prior step: weight is plain float Parameter.
+    if not isinstance(weight_qt, QuantizedTensor):
+        try:
+            w_f = weight_qt
+            if isinstance(bias, QuantizedTensor):
+                bias = bias.dequantize()
+            if bias is not None and (
+                bias.device != input_2d.device or bias.dtype != out_dtype
+            ):
+                bias = bias.to(device=input_2d.device, dtype=out_dtype)
+            if w_f.device != input_2d.device or w_f.dtype != out_dtype:
+                w_f = w_f.to(device=input_2d.device, dtype=out_dtype)
+            result = F.linear(input_2d, w_f, bias)
+            _TC_HITS += 1
+            return result
+        except (RuntimeError, TypeError, ValueError) as e:
+            note_scaled_mm_failure(e)
+            _DEQUANT_FALLBACKS += 1
+            return None
+
+    if weight_qt._layout_cls != "TensorCoreNVFP4Layout":
+        _DEQUANT_FALLBACKS += 1
+        return None
+    if getattr(weight_qt._params, "transposed", False):
         _DEQUANT_FALLBACKS += 1
         return None
 
@@ -138,7 +156,7 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         bias = bias.dequantize()
 
     try:
-        w_f = dequantize_weight_cached(module, weight_qt, out_dtype)
+        w_f = bake_nvfp4_weight_inplace(module, weight_qt, out_dtype)
         if bias is not None and (
             bias.device != input_2d.device or bias.dtype != out_dtype
         ):
@@ -244,17 +262,27 @@ def make_nvfp4_linear_forward(stock_forward):
                 uncast_bias_weight(self, weight, bias, offload_stream)
             return stock_forward(self, input, *args, **kwargs)
 
-        # 4) HSWQ weight dequant (cached) → F.linear (never kitchen scaled_mm)
+        # 4) one-shot bake QT→float Parameter (free packed) → F.linear
         out_2d = _tc_forward_pooled(
             self, input_2d, weight, bias, scale, compute_dtype
         )
+        # Drop local QT ref so baked-away packed weight can be GC'd.
+        weight = (
+            self.weight.data
+            if isinstance(self.weight, torch.nn.Parameter)
+            else self.weight
+        )
         if out_2d is None:
             # Do NOT re-enter registry cuda CUBLAS via QT→ck.scaled_mm.
-            # Float dequant GEMM only (sticky-safe; ConvRot already applied).
+            # Bake + float Linear only (sticky-safe; ConvRot already applied).
             import torch.nn.functional as F
             from comfy_kitchen.tensor.base import QuantizedTensor as _QT
 
-            w_f = weight.dequantize() if isinstance(weight, _QT) else weight
+            if isinstance(weight, _QT):
+                w_f = bake_nvfp4_weight_inplace(self, weight, compute_dtype)
+                weight = self.weight.data
+            else:
+                w_f = weight
             b_f = bias
             if isinstance(b_f, _QT):
                 b_f = b_f.dequantize()
