@@ -7,9 +7,11 @@ SM120 they sticky-poison CUDA.
 
 This module owns:
   - NVFP4 unpack / dequant (FP4 E2M1 + block scales)
-  - float GEMM ``a @ b.T`` (+ optional bias)
+  - one-shot weight bake (replace QT Parameter → dense float; free packed)
+  - float GEMM ``a @ b.T`` (+ optional bias) for residual QT×QT edges
 
 Runtime patches under ``benchmark/krea2_nvfp4`` must use these entry points.
+ConvRot Linear hot path: bake once → ``F.linear`` (never dual-hold QT+float).
 """
 from __future__ import annotations
 
@@ -189,25 +191,56 @@ def hswq_scaled_mm_nvfp4(
     return result
 
 
-def dequantize_weight_cached(module, weight_qt, out_dtype):
-    """Cache dense weight ``(out, in)`` for float Linear after ConvRot act rotate."""
+def bake_nvfp4_weight_inplace(module, weight_qt, out_dtype):
+    """One-shot NVFP4 → dense float bake; drop packed QT (no dual VRAM).
+
+    Prior ``_hswq_nvfp4_w_dequant`` cache kept packed ``_qdata`` **and** a full
+    BF16/FP16 matrix → peak VRAM ≈ BF16 (or worse) while still paying ConvRot +
+    dequant cost. Bake replaces ``module.weight`` with a plain Parameter and
+    releases the QuantizedTensor so only one residency remains.
+    """
     import torch
+    from comfy_kitchen.tensor.base import QuantizedTensor
     from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
 
-    cached = getattr(module, "_hswq_nvfp4_w_dequant", None)
-    if (
-        cached is not None
-        and cached[0] is weight_qt._qdata
-        and cached[1].dtype == out_dtype
-        and cached[1].device == weight_qt._qdata.device
-    ):
-        return cached[1]
+    cur = module.weight
+    if isinstance(cur, torch.nn.Parameter):
+        cur_data = cur.data
+    else:
+        cur_data = cur
+    if not isinstance(cur_data, QuantizedTensor):
+        # Already baked; align dtype for this forward if needed.
+        if cur_data.dtype != out_dtype:
+            return cur_data.to(dtype=out_dtype)
+        return cur_data
 
-    w_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(weight_qt)
-    orig_n = int(weight_qt._params.orig_shape[0])
-    orig_k = int(weight_qt._params.orig_shape[1])
-    w_f = dequantize_nvfp4(w_qdata, scale_b, block_scale_b, output_type=out_dtype)
-    if w_f.shape[0] != orig_n or w_f.shape[1] != orig_k:
-        w_f = w_f[:orig_n, :orig_k].contiguous()
-    module._hswq_nvfp4_w_dequant = (weight_qt._qdata, w_f)
-    return w_f
+    # Prefer layout-owned dequant (CUDA path when kitchen provides it); HSWQ
+    # LUT unpack is the fallback if dequantize is unavailable.
+    try:
+        w_f = weight_qt.dequantize()
+        if not isinstance(w_f, torch.Tensor):
+            raise TypeError("dequantize did not return a Tensor")
+        w_f = w_f.to(dtype=out_dtype)
+    except Exception:
+        w_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(
+            weight_qt
+        )
+        orig_n = int(weight_qt._params.orig_shape[0])
+        orig_k = int(weight_qt._params.orig_shape[1])
+        w_f = dequantize_nvfp4(w_qdata, scale_b, block_scale_b, output_type=out_dtype)
+        if w_f.shape[0] != orig_n or w_f.shape[1] != orig_k:
+            w_f = w_f[:orig_n, :orig_k].contiguous()
+
+    w_f = w_f.detach().contiguous()
+    module.weight = torch.nn.Parameter(w_f, requires_grad=False)
+    if hasattr(module, "_hswq_nvfp4_w_dequant"):
+        try:
+            delattr(module, "_hswq_nvfp4_w_dequant")
+        except Exception:
+            module._hswq_nvfp4_w_dequant = None
+    return module.weight.data
+
+
+def dequantize_weight_cached(module, weight_qt, out_dtype):
+    """Backward-compatible alias → ``bake_nvfp4_weight_inplace`` (no dual cache)."""
+    return bake_nvfp4_weight_inplace(module, weight_qt, out_dtype)

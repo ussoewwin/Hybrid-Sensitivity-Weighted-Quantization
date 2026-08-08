@@ -5,7 +5,7 @@ Stock Comfy ``_load_quantized_module`` loads NVFP4 weights/scales into a
 QuantizedTensor, but does **not**:
   - stamp FULL ConvRot flags (Params have no convrot for NVFP4)
   - validate storage shape against logical (out, in)
-  - mark the module for the HSWQ Tensor Core forward path
+  - mark the module for the HSWQ bake→float + ConvRot forward path
 
 This module owns that load logic entirely. It never edits ComfyUI-master;
 callers monkey-patch ``ops._load_quantized_module`` to route nvfp4 here.
