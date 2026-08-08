@@ -1,15 +1,15 @@
 """NVFP4 TensorCore availability gate (shared by addmm patch + TC forward).
 
-cuBLAS NVFP4 GEMM needs compute capability >= 10.0 (Blackwell architecture family:
-RTX 5050, RTX 5060, RTX 5070, RTX 5080, RTX 5090, B200, GB200, etc.).
+Stock Comfy / kitchen NVFP4 (comfy_kitchen.tensor.nvfp4) does NOT permanently
+disable TC after CUBLAS_STATUS_NOT_SUPPORTED. It falls back to dequant for
+**that call only**, then retries TC on the next Linear.
 
-Cloud/older GPUs (Ada CC 8.9, Hopper CC 9.0, Ampere CC 8.6) raise
-CUBLAS_STATUS_NOT_SUPPORTED; kitchen / addmm log WARNING per Linear.
+This module matches that contract:
+  1) probe CC once (Blackwell family: CC >= 10.0)
+  2) permanent disable ONLY when hardware cannot do NVFP4 TC (CC < 10.0)
+  3) CUBLAS / RuntimeError on a call → per-call dequant (no process-wide kill)
 
-This module:
-  1) probes CC once (checks CC >= 10.0 for any Blackwell GPU)
-  2) after first NOT_SUPPORTED (or CC < 10.0), disables further TC attempts
-  3) emits a single clear line; mutes kitchen nvfp4 WARNING spam
+Never edits ComfyUI-master.
 """
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ _TC_OK: bool | None = None
 _DISABLED = False
 _WARNED = False
 _DISABLE_REASON = ""
+_CALL_FAIL_WARNED = False
 
 _KITCHEN_NVFP4_LOG = "comfy_kitchen.tensor.nvfp4"
 _ADDMM_LOG = "nvfp4.nvfp4_addmm_patch"
@@ -59,7 +60,11 @@ def nvfp4_tc_enabled() -> bool:
 
 
 def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
-    """Permanent disable for this process; warn once then mute spam loggers."""
+    """Permanent disable for this process (CC < 10.0 only).
+
+    Do NOT call this for CUBLAS_STATUS_NOT_SUPPORTED — stock kitchen dequants
+    that call only and keeps TC enabled for later Linears.
+    """
     global _DISABLED, _WARNED, _DISABLE_REASON
     _DISABLED = True
     _DISABLE_REASON = str(reason) if reason else "unknown"
@@ -86,20 +91,25 @@ def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
 
 
 def note_scaled_mm_failure(exc: BaseException) -> bool:
-    """If failure is permanent (NOT_SUPPORTED / unsupported), disable TC.
+    """Stock-aligned: per-call failure only — do NOT kill TC for the process.
 
-    Returns True if TC is now disabled (caller should dequant without retry storm).
+    Kitchen ``aten.mm`` / ``aten.linear`` NVFP4 handlers catch RuntimeError and
+    dequant that call. Same here. Returns False so callers keep retrying TC.
+
+    Permanent disable remains only via ``disable_nvfp4_tc`` (CC < 10.0 probe).
     """
-    msg = str(exc)
-    permanent = (
-        "CUBLAS_STATUS_NOT_SUPPORTED" in msg
-        or "NOT_SUPPORTED" in msg
-        or "not supported" in msg.lower()
-    )
-    if permanent:
-        disable_nvfp4_tc(msg.split("\n", 1)[0][:240])
+    global _CALL_FAIL_WARNED
+    if _DISABLED:
         return True
-    return _DISABLED
+    if not _CALL_FAIL_WARNED:
+        _CALL_FAIL_WARNED = True
+        msg = str(exc).split("\n", 1)[0][:240]
+        print(
+            f"[HSWQ NVFP4] scaled_mm_nvfp4 call failed (stock-like per-call "
+            f"dequant; TC stays enabled for later layers): {msg}",
+            flush=True,
+        )
+    return False
 
 
 def announce_tc_status_at_register() -> None:
@@ -118,8 +128,8 @@ def announce_tc_status_at_register() -> None:
         name, cc = "?", "?"
     if ok:
         print(
-        f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} - "
-        f"scaled_mm_nvfp4 enabled (min CC 10.0)",
+            f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} - "
+            f"ck.scaled_mm_nvfp4 enabled (min CC 10.0; stock registry path)",
             flush=True,
         )
     else:
