@@ -5,10 +5,11 @@ ComfyUI / comfy_kitchen do **not** ship ConvRot×NVFP4 load+forward. This
 package owns the full inference path:
 
   1) reshape act to 2D
-  2) FULL ConvRot act rotation (Hadamard / butterfly)
+  2) FULL ConvRot act rotation (dense Hadamard GEMM, fp32 accumulation)
   3) cast weight/bias when off-device
-  4) one-shot bake packed NVFP4 → dense float Parameter (free QT) → ``F.linear``
-     (never kitchen ``scaled_mm_nvfp4`` / CUBLAS; no QT+float dual VRAM)
+  4) pooled act NVFP4 quantize → cuBLAS FP4 Tensor-Core GEMM with the weight
+     kept PACKED (single packed residency — no dense float copy, VRAM win).
+     Fallback only: bake packed NVFP4 → dense float Parameter → ``F.linear``.
   5) reshape with module.out_features (never QT storage shape[0])
 
 Never edits ComfyUI-master; installed via monkey-patch on MixedPrecision Linear.
@@ -18,7 +19,8 @@ from __future__ import annotations
 import logging
 
 from .nvfp4_gemm import bake_nvfp4_weight_inplace, hswq_scaled_mm_nvfp4
-from .nvfp4_hadamard import rotate_last_dim_fast
+from .nvfp4_hadamard import build_hadamard
+from .nvfp4_runtime import rotate_last_dim_pooled
 from .nvfp4_tc_gate import note_scaled_mm_failure, nvfp4_tc_enabled
 
 logger = logging.getLogger(__name__)
@@ -106,26 +108,55 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     return _slice_nvfp4_mm_out(result, orig_m, orig_n)
 
 
-def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
-    """ConvRot act (already rotated) + bake NVFP4 weight → ``F.linear``.
+def _plain_weight_cached(module, weight_qt):
+    """Extract packed weight primitives once per module (weight stays packed).
 
-    Never calls kitchen ``scaled_mm_nvfp4``. First call replaces packed QT
-    ``module.weight`` with dense float (single residency). Later calls are
-    plain float Linear (+ ConvRot already applied by caller).
-    ``act_scale`` is unused on this path (kept for call-site API).
+    Returns (w_qdata uint8 (N_pad, K_pad/2), scale_b f32 (1,), block_scale_b
+    f8e4m3 swizzled, orig_n). Packed residency is the VRAM win — never bake
+    on the TC path.
+    """
+    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
+
+    cached = getattr(module, "_hswq_nvfp4_w_plain", None)
+    if cached is not None and cached[0] is weight_qt._qdata:
+        return cached[1], cached[2], cached[3], cached[4]
+    import torch
+
+    w_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(
+        weight_qt
+    )
+    if scale_b.dtype != torch.float32 or scale_b.dim() != 1:
+        scale_b = scale_b.reshape(-1).float()
+    orig_n = int(weight_qt._params.orig_shape[0])
+    module._hswq_nvfp4_w_plain = (
+        weight_qt._qdata,
+        w_qdata,
+        scale_b,
+        block_scale_b,
+        orig_n,
+    )
+    return w_qdata, scale_b, block_scale_b, orig_n
+
+
+def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
+    """ConvRot act (already rotated) → pooled NVFP4 quant → cuBLAS FP4 TC GEMM.
+
+    Weight stays PACKED NVFP4 resident (VRAM win vs bake); act is quantized
+    per call into pooled buffers; GEMM is the raw ``_C.cublas_gemm_blockwise_fp4``
+    primitive (SM120-verified path B — never torch native ``F.scaled_mm``).
+    Any failure → ``None`` → caller bakes weight + ``F.linear`` (dense fallback).
     """
     global _TC_HITS, _DEQUANT_FALLBACKS
     import torch
     import torch.nn.functional as F
     from comfy_kitchen.tensor.base import QuantizedTensor
-
-    _ = act_scale
+    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
 
     if not nvfp4_tc_enabled():
         _DEQUANT_FALLBACKS += 1
         return None
 
-    # Already baked on a prior step: weight is plain float Parameter.
+    # Already baked on a prior fallback: weight is plain float Parameter.
     if not isinstance(weight_qt, QuantizedTensor):
         try:
             w_f = weight_qt
@@ -155,15 +186,63 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
     if isinstance(bias, QuantizedTensor):
         bias = bias.dequantize()
 
+    from .nvfp4_runtime import (
+        ensure_act_scale_cached,
+        quantize_nvfp4_act_pooled,
+        scaled_mm_nvfp4_pooled,
+    )
+
+    orig_m, orig_k = int(input_2d.shape[0]), int(input_2d.shape[1])
+    needs_padding = TensorCoreNVFP4Layout.get_padded_shape((orig_m, orig_k)) != (
+        orig_m,
+        orig_k,
+    )
+    # cuBLAS FP4 TN gate: padded K must hold K%32==0 (packed K bytes %16).
+    # Checked pre-C-call: unsupported shapes inside cuBLAS = sticky poison.
+    if ((orig_k + 15) // 16 * 16) % 32 != 0:
+        _DEQUANT_FALLBACKS += 1
+        return None
+
+    # Checkpoints may omit input_scale (placeholder ones). amax once per module
+    # in the ROTATED domain (converter: rotate first, then amax) — ones as
+    # tensor_scale collapses NVFP4 act grids (SSIM~0.18).
+    scale_a = ensure_act_scale_cached(module, input_2d, act_scale)
     try:
-        w_f = bake_nvfp4_weight_inplace(module, weight_qt, out_dtype)
-        if bias is not None and (
-            bias.device != input_2d.device or bias.dtype != out_dtype
-        ):
-            bias = bias.to(device=input_2d.device, dtype=out_dtype)
-        if w_f.device != input_2d.device or w_f.dtype != out_dtype:
-            w_f = w_f.to(device=input_2d.device, dtype=out_dtype)
-        result = F.linear(input_2d, w_f, bias)
+        w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(
+            module, weight_qt
+        )
+
+        # Cache alpha; rebind only when the act scale object changes
+        # (placeholder → frozen amax swap).
+        cached_alpha = getattr(module, "_hswq_nvfp4_alpha", None)
+        bound = getattr(module, "_hswq_nvfp4_alpha_bound_scale", None)
+        if cached_alpha is None or bound is not scale_a:
+            alpha = scale_a * scale_b
+            if alpha.dtype != torch.float32:
+                alpha = alpha.to(dtype=torch.float32)
+            if alpha.dim() == 0:
+                alpha = alpha.reshape(1)
+            module._hswq_nvfp4_alpha = alpha
+            module._hswq_nvfp4_alpha_bound_scale = scale_a
+        else:
+            alpha = cached_alpha
+
+        a_qdata, block_scale_a, _pr, _pc = quantize_nvfp4_act_pooled(
+            input_2d, scale_a, pad_16x=needs_padding
+        )
+        result = scaled_mm_nvfp4_pooled(
+            a_qdata,
+            w_qdata,
+            tensor_scale_a=scale_a,
+            tensor_scale_b=scale_b,
+            block_scale_a=block_scale_a,
+            block_scale_b=block_scale_b,
+            bias=bias,
+            out_dtype=out_dtype,
+            alpha=alpha,
+            orig_m=orig_m,
+            orig_n=orig_n,
+        )
         _TC_HITS += 1
         return result
     except (RuntimeError, TypeError, ValueError) as e:
@@ -206,7 +285,11 @@ def make_nvfp4_linear_forward(stock_forward):
             if input_2d.ndim != 2:
                 return stock_forward(self, input, *args, **kwargs)
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
-            input_2d = rotate_last_dim_fast(input_2d, gs)
+            h = getattr(self, "_hswq_nvfp4_H", None)
+            if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
+                h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
+                self._hswq_nvfp4_H = h
+            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
             _CONVROT_ACT_ROTATES += 1
             if reshaped_nd:
                 input = input_2d.reshape((*input_shape[:-1], input_shape[-1]))
@@ -224,10 +307,16 @@ def make_nvfp4_linear_forward(stock_forward):
         if input_2d.ndim != 2:
             return stock_forward(self, input, *args, **kwargs)
 
-        # 2) FULL ConvRot: fast O(N log N) float32 butterfly act rotation
+        # 2) FULL ConvRot: dense Hadamard GEMM act rotation (fp32 accumulation).
+        #    rotate_last_dim_pooled rotates in fp32 like the butterfly did, but a
+        #    dense 256x256 GEMM measured ~15x faster than the butterfly stages.
         if getattr(self, "_hswq_nvfp4_convrot", False):
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
-            input_2d = rotate_last_dim_fast(input_2d, gs)
+            h = getattr(self, "_hswq_nvfp4_H", None)
+            if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
+                h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
+                self._hswq_nvfp4_H = h
+            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
             _CONVROT_ACT_ROTATES += 1
 
         # 3) Weight / bias: skip cast_bias_weight when already on-device QT
@@ -262,7 +351,8 @@ def make_nvfp4_linear_forward(stock_forward):
                 uncast_bias_weight(self, weight, bias, offload_stream)
             return stock_forward(self, input, *args, **kwargs)
 
-        # 4) one-shot bake QT→float Parameter (free packed) → F.linear
+        # 4) packed-NVFP4 FP4 TC GEMM (weight stays packed); bake+F.linear only
+        #    as fallback inside _tc_forward_pooled / below.
         out_2d = _tc_forward_pooled(
             self, input_2d, weight, bias, scale, compute_dtype
         )

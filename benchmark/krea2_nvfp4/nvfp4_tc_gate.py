@@ -1,9 +1,11 @@
 """NVFP4 path gate (shared by addmm patch + ConvRot Linear forward).
 
-HSWQ Linear hot path: one-shot NVFP4→float bake + ConvRot act + ``F.linear``.
-Residual QT×QT edges: ``hswq_scaled_mm_nvfp4`` (dequant both → float mm).
-Never kitchen ``scaled_mm_nvfp4`` / registry cuda CUBLAS
-(SM120 often CUBLAS NOT_SUPPORTED → sticky CUDA → illegal memory access).
+HSWQ Linear hot path: ConvRot act rotate → pooled act NVFP4 quant → cuBLAS
+FP4 Tensor-Core GEMM (raw kitchen ``_C`` primitive; weight stays packed).
+Bake→float + ``F.linear`` is the per-call fallback only. Residual QT×QT
+edges: ``hswq_scaled_mm_nvfp4`` (dequant both → float mm).
+Never torch native ``F.scaled_mm`` FP4 (SM120: CUBLAS NOT_SUPPORTED → sticky
+CUDA → illegal memory access); the direct ``_C`` call is the verified path.
 
 Gate contract:
   1) probe CC once (Blackwell family: CC >= 10.0)
@@ -144,8 +146,8 @@ def announce_tc_status_at_register() -> None:
     if ok:
         print(
             f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} - "
-            f"HSWQ path enabled: bake NVFP4→float + ConvRot + F.linear "
-            f"(min CC 10.0; never kitchen scaled_mm / CUBLAS; no QT+float dual hold)",
+            f"HSWQ path enabled: ConvRot act + pooled NVFP4 quant + cuBLAS FP4 "
+            f"TC GEMM (weight packed resident; bake fallback; never F.scaled_mm)",
             flush=True,
         )
     else:
