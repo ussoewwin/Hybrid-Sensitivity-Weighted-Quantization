@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2
+
+**Histogram cosine theory published** — Published the Stage-3 weighted-histogram cosine objective documentation for HSWQ V5 (`histogram/weighted_histogram_cosine_v5.py`): same SVD×RMS hybrid importance family as V4, cosine similarity loss on the importance-weighted magnitude histogram against the physical FP8 E4M3 grid, and a full mathematical comparison of cosine vs weighted MSE for quantization fidelity. README Architecture and technical-details links updated.
+Release notes: [v2.2](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.2)
+
 ## 2.1
 
 **SDXL NVFP4 no-ConvRot script added** — Added `hswq_sdxl_convert_nvfp4_1.2.py`, which provides an option to quantize SDXL to NVFP4 without applying FULL ConvRot. This serves as an alternative for checkpoints where native/plain packs score higher. Options and usage match the 1.0 version.
