@@ -11,7 +11,8 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 - **Z Image INT8 (HSWQ):** **Development and public release ended.** For Z Image, **native ConvRot INT8** already reaches roughly **SSIM > 0.99** in general, so a separate HSWQ Z Image 8-bit line is no longer developed or published. Use native ConvRot INT8 for Z Image 8-bit; HSWQ INT8 work continues for **SDXL**.
 
 **Technical details (FP8):** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) — **FP8 development has ended**; this document is retained as a technical asset.  
-**Technical details (INT8 FP16-protect / pack overview — ConvRot pack guide not published yet):** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md)
+**Technical details (INT8 FP16-protect / pack overview — ConvRot pack guide not published yet):** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md)  
+**Technical details (V5 histogram cosine):** [md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md) — Stage-3 amax search with the same SVD×RMS hybrid importance as V4, but **cosine similarity loss** on the importance-weighted magnitude histogram (not weighted MSE); includes a full MSE↔cosine mathematical comparison for quantization fidelity.
 
 **ComfyUI Loader for ConvRot INT8 / INT8:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
 **ComfyUI Loader for ConvRot NVFP4:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
@@ -64,9 +65,10 @@ File size is reduced by about **30–40%** vs FP16 while keeping best quality pe
    - **ConvRot INT8 (SDXL):** natural absmax pack point for the symmetric INT8 grid; V4 weighted-histogram MSE ranks FP16 protection candidates (does not choose pack amax). **SDXL V3.1** then applies **FULL ConvRot** (Hadamard rotate → channelwise absmax) on remaining Linear/Conv2d, identical to `native_convert_int8_convrot.py`.
    - **ConvRot NVFP4 (SDXL):** absmax pack point for Linear→NVFP4 and Conv2d→INT8; V4 pack-MSE ranks FP16 protection under the **600 MiB** budget, then **FULL ConvRot** on eligible remainder.
 
-3. **Weighted MSE Optimization** — Finds parameters that minimize quantization error using an importance-weighted histogram (not a plain frequency histogram).
+3. **Weighted Histogram Optimization** — Finds parameters that minimize quantization error using an importance-weighted histogram (not a plain frequency histogram).
    - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
-   - **V4 (SVD × RMS hybrid):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers. Used by **SDXL ConvRot INT8** and **ConvRot NVFP4** for FP16-candidate ranking at the absmax pack point. **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
+   - **V4 (SVD × RMS hybrid, MSE):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers. Used by **SDXL ConvRot INT8** and **ConvRot NVFP4** for FP16-candidate ranking at the absmax pack point. **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
+   - **V5 (SVD × RMS hybrid, cosine):** same hybrid importance family as V4; Stage-3 objective is **importance-weighted cosine loss** \(L=1-\langle x,q\rangle_H/(\|x\|_H\|q\|_H)\) against the physical FP8 E4M3 quantize–dequantize map (scale-invariant angular fidelity; reduces absolute-tail blackmail of \(\Delta^*\)). Source: `histogram/weighted_histogram_cosine_v5.py`. **Technical details:** [HSWQ V5 SVD-RMS Cosine — Technical Guide](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md).
 
 ---
 
