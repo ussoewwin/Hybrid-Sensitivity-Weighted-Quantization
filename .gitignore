@@ -93,3 +93,9 @@ assets/guidebook/
 _comfyui_full/
 コマンド.txt
 guidebook/
+
+# Analysis JSON dumps (bench meta / ranking / analysis outputs) - never track
+bench_meta_*.json
+*_analysis.json
+*_analysis_*.json
+*_ranking.json
