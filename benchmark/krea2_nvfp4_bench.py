@@ -129,16 +129,6 @@ def setup_comfy(comfy_path: str) -> None:
     # Always stub before any comfy.* import (real torchaudio may CUDA-mismatch).
     _install_torchaudio_stub()
 
-    # Before first comfy.quant_ops import: attach missing kitchen tensor exports
-    # (Asym / kitchen ConvRotW4A4 import-gate) so bulk-import succeeds → Branch A.
-    # Krea2 ConvRot load+forward stays in benchmark/krea2_nvfp4 only (not ComfyUI).
-    from krea2_nvfp4.kitchen_quant_ops_repair import (
-        ensure_kitchen_quant_ops,
-        prebind_missing_kitchen_tensor_exports,
-    )
-
-    prebind_missing_kitchen_tensor_exports()
-
     import comfy.options
 
     comfy.options.enable_args_parsing(False)
@@ -182,12 +172,6 @@ def setup_comfy(comfy_path: str) -> None:
         ps.virtual_memory = lambda: _VM()
         ps.Process = lambda: _Proc()
         sys.modules["psutil"] = ps
-
-    # Resolve quant_ops now (after prebind) and apply Branch A/B before model load.
-    # Branch A: healthy → zero rebind. Branch B: stubs → submodule rebind only.
-    import comfy.quant_ops  # noqa: F401
-
-    ensure_kitchen_quant_ops()
 
 
 SSIM_TARGET = 0.9
@@ -635,8 +619,8 @@ def main() -> int:
         "--nvfp4",
         required=True,
         help=(
-            "Kitchen NVFP4 ConvRot + INT8-protect Krea2 DiT safetensors "
-            "(native_convert_nvfp4_krea2_2 output)"
+            "Kitchen NVFP4 (unrotated) + INT8-protect Krea2 DiT safetensors "
+            "(native_convert_nvfp4_krea2_int8protect_plainnvfp4 output)"
         ),
     )
     parser.add_argument("--clip_path", required=True, help="Qwen3-VL-4B CLIP safetensors (Krea2)")
