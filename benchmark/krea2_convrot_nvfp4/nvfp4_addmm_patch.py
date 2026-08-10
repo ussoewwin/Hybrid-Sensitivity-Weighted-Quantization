@@ -113,7 +113,7 @@ def register_nvfp4_addmm_handler() -> bool:
     print(
         "[HSWQ NVFP4] registered aten.addmm.default for TensorCoreNVFP4Layout "
         "(residual QT×QT F.linear+bias -> HSWQ dequant+mm; "
-        "Linear hot path = pooled act quant + FP4 TC GEMM, weight packed)",
+        "Linear hot path = ConvRot + FP4 TC GEMM, weight packed)",
         flush=True,
     )
     return True

@@ -6,7 +6,8 @@ Runtime only — never permanently edit ComfyUI-master.
 Owns (via sibling modules under benchmark/krea2_nvfp4/):
   - packed-K UNet detection (logical in_features)
   - full NVFP4 Linear load (scales, QT, ConvRot flags, storage validation)
-  - full Tensor Core forward (act ConvRot → NVFP4 quant → scaled_mm_nvfp4)
+  - full ConvRot forward (act ConvRot → pooled act NVFP4 quant → cuBLAS FP4
+    TC GEMM, weight packed resident; bake→float F.linear is fallback only)
 
 This is not an INT8/FP8 “small tweak”: load + forward are HSWQ-owned stacks.
 """
@@ -51,10 +52,17 @@ def _console(msg: str) -> None:
 def apply_comfy_quant_nvfp4_patches() -> bool:
     """Install NVFP4 detection + full load + full TC Linear forward once."""
     global _PATCHES_APPLIED
-    # Kitchen gap fill: always (re)ensure addmm → scaled_mm_nvfp4 (idempotent).
+    # Gap fill: always (re)ensure addmm → HSWQ hswq_scaled_mm_nvfp4 (idempotent).
     from .nvfp4_addmm_patch import register_nvfp4_addmm_handler
 
     register_nvfp4_addmm_handler()
+
+    # Branch A (stock healthy): no rebind — plain NVFP4 layouts untouched.
+    # Branch B (Asym bulk-import stubs only): submodule rebind. No shortcuts.
+    # ConvRot load+forward is always this package (krea2_nvfp4), not ComfyUI.
+    from .kitchen_quant_ops_repair import ensure_kitchen_quant_ops
+
+    ensure_kitchen_quant_ops()
 
     if _PATCHES_APPLIED:
         return True
@@ -221,7 +229,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
     _PATCHES_APPLIED = True
     _console(
         "[HSWQ NVFP4] full stack applied "
-        "(detect packed K + nvfp4_load + TC forward scaled_mm_nvfp4 + ConvRot act; "
-        "ComfyUI-master untouched)"
+        "(detect packed K + nvfp4_load + ConvRot act + FP4 TC GEMM, weight "
+        "packed resident; bake fallback; ComfyUI-master untouched)"
     )
     return True

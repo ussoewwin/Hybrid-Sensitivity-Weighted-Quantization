@@ -1,8 +1,16 @@
-"""Pooled NVFP4 act quantize + scaled_mm (HSWQ).
+"""Pooled NVFP4 act quantize + true FP4 Tensor-Core GEMM.
 
-Stock ``ck.quantize_nvfp4`` / ``ck.scaled_mm_nvfp4`` allocate fresh tensors on
-every Linear call. With ~18k TC hits per SDXL sample that allocation overhead
-dominates wall time vs FP16. This module reuses CUDA buffers keyed by shape.
+Stock ``ck.quantize_nvfp4`` allocates fresh tensors on every Linear call.
+Act quant buffers are pooled by shape to cut allocation overhead.
+
+GEMM is the raw cuBLAS blockwise FP4 primitive (kitchen ``_C`` extension,
+``cublas_gemm_blockwise_fp4``) — the same extension already used for act
+quantize. ComfyUI/kitchen ship no ConvRot×NVFP4 Linear: ConvRot rotation,
+act-scale conventions, pooling, and dispatch here are HSWQ-owned. The torch
+native FP4 ``F.scaled_mm`` (path A) fails on SM120 with
+CUBLAS_STATUS_NOT_SUPPORTED; the direct extension call (path B) is verified
+on RTX 50xx (mm rel diff ~0.5%). ``hswq_scaled_mm_nvfp4`` (eager dequant) is
+kept only for residual QT×QT addmm edges.
 """
 from __future__ import annotations
 
@@ -15,9 +23,9 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # HSWQ_NVFP4_ACT_AMAX_FREEZE=1: legacy first-forward amax freeze (speed debug
-# only). Default is per-call amax — no-calib checkpoints (layers missing
-# .input_scale) depend on it: step-0 sigma=1.0 noise amax mis-scales every
-# later step and cost ~0.05 SSIM on Krea2 (0.88 frozen vs 0.93 stock).
+# only). Default is per-call amax — no-calib checkpoints (all convrot layers
+# missing .input_scale) depend on it: step-0 sigma=1.0 noise amax mis-scales
+# every later step and cost ~0.05 SSIM on Krea2 (0.88 frozen vs 0.93 stock).
 _ACT_AMAX_FREEZE = os.environ.get("HSWQ_NVFP4_ACT_AMAX_FREEZE", "").lower() in (
     "1",
     "true",
@@ -177,7 +185,11 @@ def scaled_mm_nvfp4_pooled(
     orig_n: Optional[int] = None,
     out: Optional["torch.Tensor"] = None,
 ):
-    """cuBLAS NVFP4 GEMM (kitchen CUDA path). ``out`` optional for CUDA Graph."""
+    """True cuBLAS NVFP4 GEMM (kitchen ``_C`` raw primitive). ``out`` optional for CUDA Graph.
+
+    HSWQ-owned dispatch: shapes/scales validated here before the C call so
+    cuBLAS never sees an unsupported config (avoids SM120 sticky CUDA poison).
+    """
     import torch
     from comfy_kitchen.backends.cuda import (
         _C,

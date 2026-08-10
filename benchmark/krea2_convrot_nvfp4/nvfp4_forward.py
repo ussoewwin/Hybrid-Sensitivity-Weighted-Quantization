@@ -1,11 +1,11 @@
 """
-HSWQ-owned NVFP4 Linear forward path.
+HSWQ-owned NVFP4 Linear forward path (ConvRot × NVFP4).
 
-ComfyUI / comfy_kitchen do **not** ship an HSWQ NVFP4 load+forward. This
+ComfyUI / comfy_kitchen do **not** ship ConvRot×NVFP4 load+forward. This
 package owns the full inference path:
 
   1) reshape act to 2D
-  2) ConvRot act rotation when armed (dense Hadamard GEMM, fp32 accumulation)
+  2) FULL ConvRot act rotation (dense Hadamard GEMM, fp32 accumulation)
   3) cast weight/bias when off-device
   4) pooled act NVFP4 quantize → cuBLAS FP4 Tensor-Core GEMM with the weight
      kept PACKED (single packed residency — no dense float copy, VRAM win).
@@ -139,7 +139,7 @@ def _plain_weight_cached(module, weight_qt):
 
 
 def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
-    """Act float → pooled NVFP4 quant → cuBLAS FP4 TC GEMM.
+    """ConvRot act (already rotated) → pooled NVFP4 quant → cuBLAS FP4 TC GEMM.
 
     Weight stays PACKED NVFP4 resident (VRAM win vs bake); act is quantized
     per call into pooled buffers; GEMM is the raw ``_C.cublas_gemm_blockwise_fp4``
@@ -203,9 +203,9 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         _DEQUANT_FALLBACKS += 1
         return None
 
-    # Checkpoints may omit input_scale (placeholder ones). Per-call amax is
-    # the default — ones as tensor_scale collapses NVFP4 act grids
-    # (SSIM~0.18); step-0 freeze mis-scales later steps.
+    # Checkpoints may omit input_scale (placeholder ones). Per-call amax in the
+    # ROTATED domain (converter: rotate first, then amax) — ones as tensor_scale
+    # collapses NVFP4 act grids (SSIM~0.18); step-0 freeze mis-scales later steps.
     scale_a = ensure_act_scale_cached(module, input_2d, act_scale)
     try:
         w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(
@@ -307,9 +307,9 @@ def make_nvfp4_linear_forward(stock_forward):
         if input_2d.ndim != 2:
             return stock_forward(self, input, *args, **kwargs)
 
-        # 2) ConvRot (when armed): dense Hadamard GEMM act rotation (fp32
-        #    accumulation). rotate_last_dim_pooled rotates in fp32 like the
-        #    butterfly did, but a dense 256x256 GEMM measured ~15x faster.
+        # 2) FULL ConvRot: dense Hadamard GEMM act rotation (fp32 accumulation).
+        #    rotate_last_dim_pooled rotates in fp32 like the butterfly did, but a
+        #    dense 256x256 GEMM measured ~15x faster than the butterfly stages.
         if getattr(self, "_hswq_nvfp4_convrot", False):
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
             h = getattr(self, "_hswq_nvfp4_H", None)

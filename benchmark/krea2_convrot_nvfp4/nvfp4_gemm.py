@@ -1,6 +1,6 @@
-"""HSWQ-owned NVFP4 GEMM helpers.
+"""HSWQ-owned NVFP4 GEMM helpers (ConvRot NVFP4).
 
-ComfyUI / comfy_kitchen do **not** ship an HSWQ NVFP4 load+forward.
+ComfyUI / comfy_kitchen do **not** ship ConvRot×NVFP4 load+forward.
 The Linear hot path lives in ``nvfp4_forward._tc_forward_pooled`` →
 ``nvfp4_runtime.scaled_mm_nvfp4_pooled`` (raw ``_C.cublas_gemm_blockwise_fp4``
 with pre-validated shapes; weight stays packed). Never torch native
@@ -137,7 +137,7 @@ def hswq_scaled_mm_nvfp4(
     orig_n: Optional[int] = None,
     out=None,
 ):
-    """HSWQ NVFP4 GEMM: dequant both sides → ``a @ w.T`` (+ bias).
+    """HSWQ ConvRot-NVFP4 GEMM: dequant both sides → ``a @ w.T`` (+ bias).
 
     Never calls ``comfy_kitchen`` ``scaled_mm_nvfp4`` / CUBLAS blockwise FP4.
     ``alpha`` is ignored (scales live inside dequant).
@@ -196,7 +196,7 @@ def bake_nvfp4_weight_inplace(module, weight_qt, out_dtype):
     """One-shot NVFP4 → dense float bake; drop packed QT (no dual VRAM).
 
     Prior ``_hswq_nvfp4_w_dequant`` cache kept packed ``_qdata`` **and** a full
-    BF16/FP16 matrix → peak VRAM ≈ BF16 (or worse) while still paying
+    BF16/FP16 matrix → peak VRAM ≈ BF16 (or worse) while still paying ConvRot +
     dequant cost. Bake replaces ``module.weight`` with a plain Parameter and
     releases the QuantizedTensor so only one residency remains.
     """

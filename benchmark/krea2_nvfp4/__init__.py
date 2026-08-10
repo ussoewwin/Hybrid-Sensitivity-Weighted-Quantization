@@ -1,2 +1,2 @@
-# Krea2 NVFP4 / comfy_quant — HSWQ-owned load + bake→float + ConvRot forward.
+# SDXL NVFP4 / comfy_quant — HSWQ-owned load + Tensor Core forward (runtime patches).
 # Never edit ComfyUI-master; all logic lives under this package.
