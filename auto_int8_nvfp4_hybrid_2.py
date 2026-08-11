@@ -16,7 +16,7 @@ Output : NVFP4 checkpoint with top-N sensitive layers kept as BF16
 --protect_n N: keep top-N highest-composite layers as BF16 (protection)
 --fast: skip SVD axes (DM × NVFP4 only, much faster)
 
-Blacklist matches native_nvfp4_krea2_1.py (original, SSIM 0.928 baseline).
+No BF16 blacklist — all DiT 2D .weight layers are NVFP4 candidates.
 
 Requires: comfy_kitchen, weighted_histogram_cosine_v5, ComfyUI (calib only)
 """
@@ -71,19 +71,6 @@ except ImportError:
 # Krea2 constants (matches native_nvfp4_krea2_1.py — SSIM 0.928 baseline)
 # =========================================================================
 
-_KREA2_BLACKLIST: list[str] = [
-    "first",
-    "last",
-    "mod.",
-    "norm",
-    "projector",
-    "tmlp",
-    "tproj",
-    "bias",
-    "vae.",
-    "text_encoders",
-]
-
 _NON_DIFFUSION_MARKERS: tuple[str, ...] = (
     "conditioner.", "cond_stage_model.", "text_encoders.",
     "text_encoder.", "text_encoder_2.", "text_encoder_3.",
@@ -94,10 +81,6 @@ _NON_DIFFUSION_MARKERS: tuple[str, ...] = (
 
 def _is_non_diffusion_key(key: str) -> bool:
     return any(marker in key for marker in _NON_DIFFUSION_MARKERS)
-
-
-def _is_blacklisted(key: str) -> bool:
-    return any(name in key for name in _KREA2_BLACKLIST)
 
 
 def _find_krea2_prefix(state_dict) -> str:
@@ -602,7 +585,7 @@ def convert(input_path, output_path, *, device="cuda",
             continue
         if key.endswith(".weight_scale") or key.endswith(".weight_blocks"):
             continue
-        if _is_blacklisted(key) or _is_non_diffusion_key(key):
+        if _is_non_diffusion_key(key):
             continue
         # Check if 2D via peek
         with safe_open(input_path, framework="pt", device="cpu") as f:
@@ -812,7 +795,7 @@ def convert(input_path, output_path, *, device="cuda",
     quant_map = {"format_version": "1.0", "layers": {}}
     n_nvfp4 = 0
     n_bf16_protect = 0
-    n_bf16_blacklist = 0
+    n_bf16_skip = 0
     input_scale_written = 0
     input_scale_missing = 0
 
@@ -821,16 +804,16 @@ def convert(input_path, output_path, *, device="cuda",
         if not k.endswith(".weight") or k.endswith(".weight_scale") or k.endswith(".weight_blocks"):
             continue
 
-        # Blacklist / non-diffusion → BF16 (always)
-        if _is_blacklisted(k) or _is_non_diffusion_key(k):
+        # Non-diffusion → BF16 (always)
+        if _is_non_diffusion_key(k):
             new_sd[k] = v.to(dtype=torch.bfloat16)
-            n_bf16_blacklist += 1
+            n_bf16_skip += 1
             continue
 
         # Non-2D → BF16
         if v.ndim != 2:
             new_sd[k] = v.to(dtype=torch.bfloat16)
-            n_bf16_blacklist += 1
+            n_bf16_skip += 1
             continue
 
         # Protected layer → BF16 (skip NVFP4)
@@ -885,7 +868,7 @@ def convert(input_path, output_path, *, device="cuda",
             print(f"  [NVFP4] {k}  orig_shape={tuple(orig_shape)}")
         except Exception as e:
             new_sd[k] = v.to(dtype=torch.bfloat16)
-            n_bf16_blacklist += 1
+            n_bf16_skip += 1
             print(f"  [FALLBACK BF16] {k}: {e}")
 
         if device == "cuda":
@@ -901,7 +884,7 @@ def convert(input_path, output_path, *, device="cuda",
     final_metadata["hswq_model"] = "krea2"
     final_metadata["hswq_nvfp4_count"] = str(n_nvfp4)
     final_metadata["hswq_bf16_protect"] = str(n_bf16_protect)
-    final_metadata["hswq_bf16_blacklist"] = str(n_bf16_blacklist)
+
     final_metadata["hswq_nvfp4_pack"] = "plain"
     final_metadata["hswq_axes"] = ",".join(available_axes.keys())
     if use_calib:
@@ -912,7 +895,7 @@ def convert(input_path, output_path, *, device="cuda",
     out_sz = os.path.getsize(output_path)
     in_sz = os.path.getsize(input_path)
     print(f"Done: {out_sz/(1024**3):.2f} GiB (was {in_sz/(1024**3):.2f})")
-    print(f"  NVFP4: {n_nvfp4}  BF16 protect: {n_bf16_protect}  BF16 blacklist: {n_bf16_blacklist}")
+    print(f"  NVFP4: {n_nvfp4}  BF16 protect: {n_bf16_protect}  BF16 skip(non-2D/non-diffusion): {n_bf16_skip}")
     print(f"  input_scale: written={input_scale_written}  missing={input_scale_missing}")
 
     # Save ranking JSON
