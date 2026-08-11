@@ -249,7 +249,7 @@ def convert_to_nvfp4(
                     del v_tensor
                 continue
 
-            # --- SmoothQuant pre-scaling (optional) ---
+            # --- SmoothQuant pre-scaling (optional, fp32 precision) ---
             sq_applied = False
             if use_smoothquant:
                 # Look up per-channel act stats for this layer
@@ -260,10 +260,16 @@ def convert_to_nvfp4(
                 act_sq = act_sq_dict.get(module_name) if module_name else None
 
                 if act_sq is not None and act_sq.shape[0] == v_tensor.shape[1]:
+                    # Compute and apply SmoothQuant in float32 to avoid
+                    # bfloat16 rounding error in W' = W * s.
+                    v_f32 = v_tensor.to(dtype=torch.float32)
                     s = _compute_smoothquant_scale(
-                        act_sq.cpu(), v_tensor.cpu(), alpha=smoothquant_alpha
+                        act_sq.cpu(), v_f32.cpu(), alpha=smoothquant_alpha
                     )
-                    v_tensor = _apply_smoothquant(v_tensor, s.to(device=v_tensor.device))
+                    v_f32 = _apply_smoothquant(v_f32, s.to(device=v_f32.device))
+                    # Cast to bfloat16 only at the last moment (right before NVFP4 quantize)
+                    v_tensor = v_f32.to(dtype=torch.bfloat16)
+                    del v_f32
                     # Save scale tensor for runtime (x' = x / s)
                     new_sd[f"{base_k_file}.smoothquant_scale"] = s.cpu()
                     sq_applied = True
