@@ -53,12 +53,17 @@ def _dev_key(t) -> str:
     return str(t.device)
 
 
-def rotate_last_dim_pooled(x, h_matrix, group_size: int):
+def rotate_last_dim_pooled(x, h_matrix, group_size: int, *, keep_fp32: bool = False):
     """Same as ``rotate_last_dim`` but reuses the matmul output buffer.
 
     fp16/bf16 inputs rotate in fp32: with gs=256 a sign-aligned group of large
     activations overflows fp16 gemm partial sums (±inf -> inf-inf = NaN).
     Observed as NaN act-amax in deep SeedVR2 DiT blocks (A2_rot bench).
+
+    When ``keep_fp32=True`` the result stays float32 (skips the bf16 copy-back).
+    Use this when the caller feeds the rotated tensor directly into NVFP4
+    quantization — eliminates a needless bf16 round-trip that accumulates
+    rounding error across 284 layers x 25 denoise steps.
     """
     import torch
 
@@ -83,6 +88,8 @@ def rotate_last_dim_pooled(x, h_matrix, group_size: int):
     else:
         out32, out = buf
     torch.matmul(x_grouped.to(compute_dtype), h_matrix, out=out32)
+    if keep_fp32:
+        return out32.reshape(orig_shape)
     out.copy_(out32)
     return out.reshape(orig_shape)
 
