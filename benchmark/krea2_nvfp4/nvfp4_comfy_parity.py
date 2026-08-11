@@ -49,7 +49,7 @@ def _make_convrot_parity_forward(stock_forward):
     only closes if activations are rotated too: (x @ H) @ (W @ H^T)^T == x @ W^T.
     Modules without the armed flag pass through untouched (bit-exact stock).
     """
-    from .nvfp4_hadamard import rotate_last_dim_fast
+    from .nvfp4_hadamard import rotate_last_dim_fast, soft_clip_outliers
 
     _LOGGED_FIRST_ROT = [False]
 
@@ -64,6 +64,7 @@ def _make_convrot_parity_forward(stock_forward):
                     f"(shape={tuple(input.shape)}, dtype={input.dtype}, groupsize={gs}, zero accumulation error)",
                     flush=True,
                 )
+            input = soft_clip_outliers(input)
             input = rotate_last_dim_fast(input, gs)
         return stock_forward(self, input, *args, **kwargs)
 

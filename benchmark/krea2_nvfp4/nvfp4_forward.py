@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 
 from .nvfp4_gemm import bake_nvfp4_weight_inplace, hswq_scaled_mm_nvfp4
-from .nvfp4_hadamard import build_hadamard
+from .nvfp4_hadamard import build_hadamard, soft_clip_outliers
 from .nvfp4_runtime import rotate_last_dim_pooled
 from .nvfp4_tc_gate import note_scaled_mm_failure, nvfp4_tc_enabled
 
@@ -289,6 +289,7 @@ def make_nvfp4_linear_forward(stock_forward):
             if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
                 h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
                 self._hswq_nvfp4_H = h
+            input_2d = soft_clip_outliers(input_2d)
             input_2d = rotate_last_dim_pooled(input_2d, h, gs, keep_fp32=True)
             _CONVROT_ACT_ROTATES += 1
             if reshaped_nd:
@@ -307,15 +308,17 @@ def make_nvfp4_linear_forward(stock_forward):
         if input_2d.ndim != 2:
             return stock_forward(self, input, *args, **kwargs)
 
-        # 2) ConvRot (when armed): dense Hadamard GEMM act rotation (fp32
-        #    accumulation). rotate_last_dim_pooled rotates in fp32 like the
-        #    butterfly did, but a dense 256x256 GEMM measured ~15x faster.
+        # 2) ConvRot (when armed): soft-clip outliers → dense Hadamard GEMM act
+        #    rotation (fp32 accumulation). rotate_last_dim_pooled rotates in
+        #    fp32 like the butterfly did, but a dense 256x256 GEMM measured
+        #    ~15x faster.
         if getattr(self, "_hswq_nvfp4_convrot", False):
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
             h = getattr(self, "_hswq_nvfp4_H", None)
             if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
                 h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
                 self._hswq_nvfp4_H = h
+            input_2d = soft_clip_outliers(input_2d)
             input_2d = rotate_last_dim_pooled(input_2d, h, gs, keep_fp32=True)
             _CONVROT_ACT_ROTATES += 1
 
