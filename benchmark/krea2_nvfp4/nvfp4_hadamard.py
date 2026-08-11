@@ -115,3 +115,32 @@ def rotate_last_dim_fast(x, group_size: int):
     y = _apply_kron_h4_unnorm(flat, group_size)
     y = y * (group_size**-0.5)
     return y.to(dtype=orig_dtype).reshape(orig_shape)
+
+def soft_clip_outliers(x, percentile: float = 99.9):
+    """Soft-clip extreme activation outliers before Hadamard rotation.
+
+    Values below the percentile threshold pass through unchanged; values above
+    are smoothly compressed via tanh, reducing block-scale dynamic range after
+    rotation and improving NVFP4 4-bit quantization precision.
+
+    Tanh compression: identity for |x| <= threshold, asymptote at 2*threshold.
+    """
+    import torch
+
+    if x.numel() == 0:
+        return x
+    compute_dtype = torch.float32 if x.dtype in (torch.float16, torch.bfloat16) else x.dtype
+    xf = x.to(compute_dtype) if x.dtype != compute_dtype else x
+
+    threshold = torch.quantile(xf.abs().flatten(), percentile / 100.0)
+    if not torch.isfinite(threshold) or threshold <= 0:
+        return x
+
+    abs_x = xf.abs()
+    clipped_abs = torch.where(
+        abs_x <= threshold,
+        abs_x,
+        threshold + threshold * torch.tanh((abs_x - threshold) / threshold),
+    )
+    result = torch.sign(xf) * clipped_abs
+    return result.to(x.dtype) if x.dtype != compute_dtype else result
