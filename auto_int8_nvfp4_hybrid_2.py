@@ -14,7 +14,6 @@ Output : NVFP4 checkpoint with top-N sensitive layers kept as BF16
   Axis 4: SVD Leverage score (structural importance)
 
 --protect_n N: keep top-N highest-composite layers as BF16 (protection)
---fast: skip SVD axes (DM × NVFP4 only, much faster)
 
 No BF16 blacklist — all DiT 2D .weight layers are NVFP4 candidates.
 
@@ -500,7 +499,7 @@ def run_calibration(input_path, calib_file, clip_path, num_samples, num_steps, d
                 _dm_timestep_weight = float(1.0 - t.item())
                 if am is not None:
                     model(x, t, context, attention_mask=am)
-                else:
+            else:
                     model(x, t, context)
         if (i + 1) % 10 == 0:
             gc.collect()
@@ -563,8 +562,7 @@ def convert(input_path, output_path, *, device="cuda",
             protect_n=0,
             calib_file=None, clip_path=None, comfy_path=None,
             num_calib_samples=32, num_inference_steps=25,
-            hist_bins=4096, hist_candidates=200, hist_refine=3,
-            fast=False):
+            hist_bins=4096, hist_candidates=200, hist_refine=3):
 
     print(f"Input:  {input_path}")
     print(f"Output: {output_path}")
@@ -650,6 +648,20 @@ def convert(input_path, output_path, *, device="cuda",
         if ck_val and ck_val.endswith(".weight"):
             module_name = ck_val[:-len(".weight")]
         act_sq = act_sq_dict.get(module_name) if module_name else None
+
+        # --- Pre-compute SVD hybrid leverage (used by Axis 2 + Axis 4) ---
+        hybrid_imp = None
+        try:
+            w_svd = w.to(device=hist_dev, dtype=torch.float32)
+            with contextlib.redirect_stdout(io.StringIO()):
+                hybrid_imp = compute_hybrid_leverage_scores(w_svd, alpha=0.7, beta=0.3)
+            if hybrid_imp is not None and hybrid_imp.device.type != "cpu":
+                hybrid_imp = hybrid_imp.detach().cpu()
+            del w_svd
+        except Exception:
+            hybrid_imp = None
+
+        # --- Axis 1: DM E[x^2]-weighted NVFP4 error ---
         if act_sq is not None and act_sq.shape[0] == w.shape[1]:
             act_scale = act_sq.sqrt()
             try:
@@ -661,44 +673,30 @@ def convert(input_path, output_path, *, device="cuda",
                     we = err * act_scale.unsqueeze(0)
                     wb = w * act_scale.unsqueeze(0)
                     axis_dm[key] = float(we.norm().item()) / max(float(wb.norm().item()), 1e-8)
-                del qdata, params
+                del qdata, params, w_dq, err
                 if device == "cuda":
                     torch.cuda.empty_cache()
             except Exception:
                 pass
 
-        # --- Pre-compute SVD hybrid leverage ---
-        hybrid_imp = None
-        if not fast:
-            try:
-                w_svd = w.to(device=hist_dev, dtype=torch.float32)
-                with contextlib.redirect_stdout(io.StringIO()):
-                    hybrid_imp = compute_hybrid_leverage_scores(w_svd, alpha=0.7, beta=0.3)
-                if hybrid_imp is not None and hybrid_imp.device.type != "cpu":
-                    hybrid_imp = hybrid_imp.detach().cpu()
-                del w_svd
-            except Exception:
-                hybrid_imp = None
+        # --- Axis 2: Hist Cosine V5 (1 - cosine; SVD importance) ---
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                optimal_amax = hist_opt.compute_optimal_amax(
+                    w, importance=hybrid_imp, use_svd_leverage=False,
+                    scaled=False, loss_type="cosine")
+                from weighted_histogram_cosine_v5 import WeightedHistogram
+                wh = WeightedHistogram(bins=hist_opt.bins, device=hist_opt.device)
+                wh.build(w, hybrid_imp)
+                hist = wh.get_histogram()
+                bc = wh.get_bin_centers()
+                est_loss = hist_opt.cosine_optimizer.compute_weighted_cosine(
+                    hist, bc, optimal_amax, scaled=False, loss_type="cosine")
+            axis_hist[key] = float(est_loss)
+        except Exception:
+            pass
 
-        # --- Axis 2: Hist Cosine V5 ---
-        if not fast:
-            try:
-                with contextlib.redirect_stdout(io.StringIO()):
-                    optimal_amax = hist_opt.compute_optimal_amax(
-                        w, importance=hybrid_imp, use_svd_leverage=False,
-                        scaled=False, loss_type="cosine")
-                    from weighted_histogram_cosine_v5 import WeightedHistogram
-                    wh = WeightedHistogram(bins=hist_opt.bins, device=hist_opt.device)
-                    wh.build(w, hybrid_imp)
-                    hist = wh.get_histogram()
-                    bc = wh.get_bin_centers()
-                    est_loss = hist_opt.cosine_optimizer.compute_weighted_cosine(
-                        hist, bc, optimal_amax, scaled=False, loss_type="cosine")
-                axis_hist[key] = float(est_loss)
-            except Exception:
-                pass
-
-        # --- Axis 3: NVFP4 measured error ---
+        # --- Axis 3: NVFP4 measured error (independent of DM) ---
         try:
             w_nv = w_bf16.to(device=device)
             qdata, params = TensorCoreNVFP4Layout.quantize(w_nv)
@@ -706,24 +704,22 @@ def convert(input_path, output_path, *, device="cuda",
                 w_dq = TensorCoreNVFP4Layout.dequantize(qdata, params).float().cpu()
                 err = w - w_dq
                 axis_nvfp4[key] = float(err.norm().item()) / max(float(w.norm().item()), 1e-8)
-            del qdata, params
+            del qdata, params, w_dq, err
             if device == "cuda":
                 torch.cuda.empty_cache()
         except Exception:
             pass
 
-        # --- Axis 4: SVD Leverage ---
-        if not fast:
-            try:
-                if hybrid_imp is not None:
-                    axis_svd[key] = float(hybrid_imp.mean().item())
-                else:
-                    U, S, Vh = torch.linalg.svd(w.to(device=hist_dev, dtype=torch.float32), full_matrices=False)
-                    axis_svd[key] = float((U ** 2 * S.unsqueeze(0) ** 2).sum(dim=1).mean().item())
-                    del U, S, Vh
-            except Exception:
-                pass
-
+        # --- Axis 4: SVD Leverage (structural importance) ---
+        try:
+            if hybrid_imp is not None:
+                axis_svd[key] = float(hybrid_imp.mean().item())
+            else:
+                U, S, Vh = torch.linalg.svd(w.to(device=hist_dev, dtype=torch.float32), full_matrices=False)
+                axis_svd[key] = float((U ** 2 * S.unsqueeze(0) ** 2).sum(dim=1).mean().item())
+                del U, S, Vh
+        except Exception:
+            pass
         dt = time.perf_counter() - t0
         elapsed = time.perf_counter() - t_score0
         done = i + 1
@@ -860,8 +856,6 @@ def convert(input_path, output_path, *, device="cuda",
                 if is_t is not None:
                     new_sd[f"{base_k}.input_scale"] = is_t
                     input_scale_written += 1
-                else:
-                    input_scale_missing += 1
             else:
                 input_scale_missing += 1
 
@@ -932,8 +926,6 @@ def main():
     p.add_argument("--hist_bins", type=int, default=4096)
     p.add_argument("--hist_candidates", type=int, default=200)
     p.add_argument("--hist_refine", type=int, default=3)
-    p.add_argument("--fast", action="store_true",
-                   help="Skip SVD axes (DM × NVFP4 only)")
     args = p.parse_args()
 
     if not os.path.exists(args.input):
@@ -951,8 +943,8 @@ def main():
             num_inference_steps=args.num_inference_steps,
             hist_bins=args.hist_bins,
             hist_candidates=args.hist_candidates,
-            hist_refine=args.hist_refine,
-            fast=args.fast)
+            hist_refine=args.hist_refine)
+
 
 
 if __name__ == "__main__":
