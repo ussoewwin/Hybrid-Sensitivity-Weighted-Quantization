@@ -289,7 +289,7 @@ def make_nvfp4_linear_forward(stock_forward):
             if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
                 h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
                 self._hswq_nvfp4_H = h
-            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
+            input_2d = rotate_last_dim_pooled(input_2d, h, gs, keep_fp32=True)
             _CONVROT_ACT_ROTATES += 1
             if reshaped_nd:
                 input = input_2d.reshape((*input_shape[:-1], input_shape[-1]))
@@ -316,7 +316,7 @@ def make_nvfp4_linear_forward(stock_forward):
             if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
                 h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
                 self._hswq_nvfp4_H = h
-            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
+            input_2d = rotate_last_dim_pooled(input_2d, h, gs, keep_fp32=True)
             _CONVROT_ACT_ROTATES += 1
 
         # 3) Weight / bias: skip cast_bias_weight when already on-device QT
