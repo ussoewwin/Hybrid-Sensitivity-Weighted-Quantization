@@ -74,6 +74,11 @@ from native_convert_int8 import (
     unrotate_weight_conv2d,
 )
 
+# Only integer-typed .weight tensors are real INT8 layers. bf16/fp16/
+# fp32 weights carrying a stale .comfy_quant (leftover from an earlier
+# conversion) must never be scored or converted -- keep them as-is.
+_INT8_WEIGHT_DTYPES = (torch.int8, torch.uint8)
+
 # Hist Cosine V5 import (amax search: L = 1 - cosine)
 _HIST_DIR = os.path.join(_REPO_ROOT, "histogram")
 if _HIST_DIR not in sys.path:
@@ -591,6 +596,7 @@ def convert(input_path, output_path, *, device="cuda",
         layers_meta = quant_meta.get("layers", {})
 
         int8_layers = []
+        non_int8_layers = []
         n_conf_sidecar = 0
         n_conf_full = 0
         n_conf_stripped = 0
@@ -604,6 +610,19 @@ def convert(input_path, output_path, *, device="cuda",
             base = key.replace(".weight", "")
             cq_key = f"{base}.comfy_quant"
             if cq_key not in all_keys:
+                continue
+            # Guard: only integer-typed weights are INT8 layers.
+            # bf16/fp16/fp32 layers that carry a stale .comfy_quant
+            # must NOT be scored/converted -- keep them as-is.
+            try:
+                w_dtype = f.get_slice(key).get_dtype()
+            except Exception:
+                w_dtype = f.get_tensor(key).dtype
+            if w_dtype not in _INT8_WEIGHT_DTYPES:
+                non_int8_layers.append(
+                    {"key": key, "base": base,
+                     "meta_key": _meta_key(base, prefix)}
+                )
                 continue
             mk = _meta_key(base, prefix)
             cq_raw = f.get_tensor(cq_key)
@@ -625,6 +644,7 @@ def convert(input_path, output_path, *, device="cuda",
                 {"key": key, "base": base, "meta_key": mk, "conf": conf}
             )
     print(f"INT8 layers: {len(int8_layers)}")
+    print(f"Non-INT8 layers w/ stale quant sidecar (kept as-is): {len(non_int8_layers)}")
     print(f"Krea2 prefix: {prefix!r}")
     print(
         f"  conf resolve: sidecar={n_conf_sidecar}  full_meta={n_conf_full}  "
@@ -653,6 +673,23 @@ def convert(input_path, output_path, *, device="cuda",
     with safe_open(input_path, framework="pt", device="cpu") as f:
         for key in tqdm(sorted(all_keys), desc="Load"):
             new_sd[key] = f.get_tensor(key)
+
+    # Scrub stale quantization sidecars from non-INT8 (bf16/fp16/fp32)
+    # layers so the finished file holds a clean plain layer -- loaders
+    # read .comfy_quant first and would otherwise misinterpret the
+    # bf16 weight as quantized.
+    for layer in non_int8_layers:
+        base = layer["base"]
+        for suf in (".comfy_quant", ".weight_scale",
+                    ".weight_blocks", ".input_scale"):
+            new_sd.pop(f"{base}{suf}", None)
+        if base in layers_meta:
+            del layers_meta[base]
+        mk = layer["meta_key"]
+        if mk in layers_meta:
+            del layers_meta[mk]
+        print(f"  [FIX] {layer['key']}: non-INT8 weight -> kept bf16, "
+              f"stale quant sidecar scrubbed")
 
     # Hist Cosine V5 — amax via Cosine loss (bins default match krea2 v1.5)
     hist_dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -1063,6 +1100,8 @@ def convert(input_path, output_path, *, device="cuda",
             f"(no .input_scale; runtime amax)"
         )
     print(f"  INT8 kept: {n_int8_kept}")
+    if non_int8_layers:
+        print(f"  non-INT8 (bf16/fp16/fp32) kept as-is: {len(non_int8_layers)}")
 
     # Save ranking JSON
     ranking_path = output_path.replace(".safetensors", "_ranking.json")
