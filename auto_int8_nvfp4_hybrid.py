@@ -78,6 +78,23 @@ from native_convert_int8 import (
 # fp32 weights carrying a stale .comfy_quant (leftover from an earlier
 # conversion) must never be scored or converted -- keep them as-is.
 _INT8_WEIGHT_DTYPES = (torch.int8, torch.uint8)
+# safetensors get_slice().get_dtype() returns dtype-code STRINGS like
+# "I8"/"U8" on some versions, torch.dtype on others -- normalize.
+_SAFE_DTYPE_CODES = {
+    "I8": torch.int8, "U8": torch.uint8,
+    "I16": torch.int16, "U16": torch.uint16,
+    "I32": torch.int32, "U32": torch.uint32,
+    "I64": torch.int64, "U64": torch.uint64,
+    "F16": torch.float16, "BF16": torch.bfloat16,
+    "F32": torch.float32, "F64": torch.float64,
+    "F8_E4M3": getattr(torch, "float8_e4m3fn", None),
+    "F8_E5M2": getattr(torch, "float8_e5m2", None),
+}
+
+def _is_int8_weight_dtype(d) -> bool:
+    if isinstance(d, str):
+        d = _SAFE_DTYPE_CODES.get(d)
+    return d in _INT8_WEIGHT_DTYPES
 
 # Hist Cosine V5 import (amax search: L = 1 - cosine)
 _HIST_DIR = os.path.join(_REPO_ROOT, "histogram")
@@ -618,7 +635,7 @@ def convert(input_path, output_path, *, device="cuda",
                 w_dtype = f.get_slice(key).get_dtype()
             except Exception:
                 w_dtype = f.get_tensor(key).dtype
-            if w_dtype not in _INT8_WEIGHT_DTYPES:
+            if not _is_int8_weight_dtype(w_dtype):
                 non_int8_layers.append(
                     {"key": key, "base": base,
                      "meta_key": _meta_key(base, prefix)}
