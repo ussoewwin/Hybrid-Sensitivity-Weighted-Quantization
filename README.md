@@ -33,6 +33,7 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 - **SDXL (ConvRot INT8):** [MSE / SSIM](benchmark%20result/benchmark_sdxl_int8.md)
 - **SDXL (ConvRot NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_convrotnvfp4.md)
 - **Krea2 (ConvRot INT8):** [MSE / SSIM](benchmark%20result/benchmark_krea2_int8.md)
+- **Krea2 (Hybrid NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_krea2_nvfp4.md)
 
 ---
 
