@@ -635,7 +635,9 @@ def run_calibration(input_path, calib_file, clip_path, num_samples, num_steps,
     else:
         prompts = prompts[:num_samples]
 
-    _ensure_comfyui(comfy_path)
+    resolved_comfy = _ensure_comfyui(comfy_path)
+    if resolved_comfy:
+        comfy_path = resolved_comfy
     saved = _clear_argv_for_comfy()
     try:
         import comfy.options; comfy.options.enable_args_parsing(False)
@@ -662,7 +664,22 @@ def run_calibration(input_path, calib_file, clip_path, num_samples, num_steps,
         else:
             mid = tokenizer_path if tokenizer_path else "Qwen/Qwen2.5-7B-Instruct"
             print(f"  [calib] Tokenizer repo id: {mid}")
-            tokenizer = Qwen2Tokenizer.from_pretrained(mid, local_files_only=True)
+            try:
+                tokenizer = Qwen2Tokenizer.from_pretrained(
+                    mid, local_files_only=True)
+            except Exception as e:
+                print(f"  [calib] local_files_only failed ({e}); retrying with download...")
+                tokenizer = Qwen2Tokenizer.from_pretrained(mid)
+        # transformers 5.x silently returns a vocab-1 tokenizer when the model
+        # files are missing (no OSError). Fail loudly instead of feeding the
+        # text encoder 0 tokens (which crashes deep in llama.py).
+        if getattr(tokenizer, "vocab_size", 0) < 1000:
+            raise RuntimeError(
+                "Tokenizer loaded with degenerate vocab "
+                f"({getattr(tokenizer, 'vocab_size', '?')} tokens). "
+                "Qwen2.5 tokenizer not found. Pass --tokenizer_path <dir> or "
+                "ensure ComfyUI comfy/text_encoders/qwen25_tokenizer is present."
+            )
 
         resolved_clip = resolve_path(clip_path, is_file=True)
         text_encoder = llama_module.Qwen3_4B(
