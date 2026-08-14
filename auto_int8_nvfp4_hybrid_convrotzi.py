@@ -33,9 +33,9 @@ DualMonitor calibration is OPTIONAL (Axis 1 only; this format writes no
 .input_scale). Without --calib_file/--clip_path, Axis 1 is skipped.
 
 Post-convert axes (reporting):
-  Axis 1: DualMonitor E[x^2]-weighted INT8 error (needs calib)
+  Axis 1: DM E[x^2]-weighted NVFP4 error (needs calib for act weights)
   Axis 2: Hist Cosine V5 (SVD+RMS leverage) -- AFTER rotate domain
-  Axis 3: NVFP4 error in rotated space
+  Axis 3: NVFP4 error in rotated space (uniform weight)
   Axis 4: SVD Leverage -- AFTER rotate domain
 
 Requires: comfy_kitchen (TensorCoreNVFP4Layout), weighted_histogram_cosine_v5,
@@ -283,6 +283,7 @@ if _HIST_DIR not in sys.path:
 try:
     from weighted_histogram_cosine_v5 import HSWQWeightedHistogramOptimizerV5
     from weighted_histogram_cosine_v5 import compute_hybrid_leverage_scores
+    from weighted_histogram_cosine_v5 import WeightedHistogram
 except ImportError:
     print("Error: weighted_histogram_cosine_v5 not found in histogram/ dir")
     sys.exit(1)
@@ -919,12 +920,11 @@ def convert(input_path, output_path, *, device="cuda",
     # Optional: DualMonitor calibration (Axis 1 only; no .input_scale in this
     # format -- matches hswq_convert_nvfp4_zi_int8protect output)
     act_sq_dict = {}
-    act_amax_dict = {}
     ck_map = {}
     use_calib = bool(calib_file) and bool(clip_path)
     if use_calib:
         print("\n=== DualMonitor Calibration ===")
-        act_sq_dict, act_amax_dict, ck_map = run_calibration(
+        act_sq_dict, _amax_unused, ck_map = run_calibration(
             input_path, calib_file, clip_path,
             int(num_calib_samples), int(num_inference_steps),
             device, comfy_path, tokenizer_path)
@@ -980,7 +980,7 @@ def convert(input_path, output_path, *, device="cuda",
         + ("  [FAST: DM x NVFP4 only]" if fast else ""),
         flush=True,
     )
-    axis_dm = {}       # Axis 1: DM E[x^2]-weighted INT8 error
+    axis_dm = {}       # Axis 1: DM E[x^2]-weighted NVFP4 error
     axis_hist = {}     # Axis 2: Hist Cosine V5 (1 - cos_sim)
     axis_nvfp4 = {}    # Axis 3: NVFP4 error in rotated space
     axis_svd = {}      # Axis 4: SVD Leverage standalone
@@ -1004,23 +1004,38 @@ def convert(input_path, output_path, *, device="cuda",
         else:
             w_dq = q.float()
 
-        w_bf16 = w_dq.to(dtype=torch.bfloat16)
         print(f"  [{i+1}/{n_layers}] {key}  shape={tuple(w_dq.shape)}  scoring...",
               flush=True)
 
-        # --- Axis 1: DM E[x^2]-weighted INT8 error ---
+        # --- Pre-compute NVFP4 dequant (used by Axis 1 and Axis 3) ---
+        w_rot_3, _gs3, st3 = _prepare_weight_rotated_for_nvfp4(w_dq, conf)
+        nvfp4_dq = None
+        if w_rot_3 is not None and w_rot_3.ndim == 2 and st3 == "kept_rotated":
+            try:
+                w_nv = w_rot_3.to(dtype=torch.bfloat16, device=device)
+                qdata_3, params_3 = TensorCoreNVFP4Layout.quantize(w_nv)
+                if hasattr(TensorCoreNVFP4Layout, "dequantize"):
+                    nvfp4_dq = TensorCoreNVFP4Layout.dequantize(
+                        qdata_3, params_3).float().cpu()
+                del qdata_3, params_3, w_nv
+                if device == "cuda":
+                    torch.cuda.empty_cache()
+            except Exception:
+                nvfp4_dq = None
+
+        # --- Axis 1: DM E[x^2]-weighted NVFP4 error ---
         module_name = None
         mk = ck_map.get(key)
         if mk and mk.endswith(".weight"): module_name = mk[:-len(".weight")]
         act_sq = act_sq_dict.get(module_name) if module_name else None
-        if act_sq is not None and act_sq.shape[0] == w_dq.shape[1]:
+        if act_sq is not None and nvfp4_dq is not None and act_sq.shape[0] == w_dq.shape[1]:
             act_scale = act_sq.sqrt()
-            err_int8 = w_dq - q.float() * (scale if scale.dim() == 0 else scale)
-            if err_int8.ndim == 2:
-                we = err_int8 * act_scale.unsqueeze(0)
-                wb = w_dq * act_scale.unsqueeze(0)
+            err_nv = w_dq.float().cpu() - nvfp4_dq
+            if err_nv.ndim == 2:
+                we = err_nv * act_scale.unsqueeze(0)
+                wb = w_dq.float().cpu() * act_scale.unsqueeze(0)
             else:
-                we = err_int8; wb = w_dq
+                we = err_nv; wb = w_dq.float().cpu()
             axis_dm[key] = float(we.norm().item()) / max(float(wb.norm().item()), 1e-8)
 
         # --- Pre-compute SVD hybrid leverage ONCE (used by Axis 2 and Axis 4) ---
@@ -1046,7 +1061,6 @@ def convert(input_path, output_path, *, device="cuda",
                     optimal_amax = hist_opt.compute_optimal_amax(
                         w_dq, importance=hybrid_imp, use_svd_leverage=False,
                         scaled=False, loss_type="cosine")
-                    from weighted_histogram_cosine_v5 import WeightedHistogram
                     wh = WeightedHistogram(bins=hist_opt.bins, device=hist_opt.device)
                     wh.build(w_dq, hybrid_imp)
                     hist = wh.get_histogram()
@@ -1057,24 +1071,12 @@ def convert(input_path, output_path, *, device="cuda",
             except Exception:
                 pass
 
-        # --- Axis 3: NVFP4 error in rotated space (same domain as pack) ---
-        try:
-            w_rot, _gs3, st3 = _prepare_weight_rotated_for_nvfp4(w_dq, conf)
-            if w_rot is not None and w_rot.ndim == 2 and st3 == "kept_rotated":
-                w_nv = w_rot.to(dtype=torch.bfloat16, device=device)
-                qdata, params = TensorCoreNVFP4Layout.quantize(w_nv)
-                if hasattr(TensorCoreNVFP4Layout, "dequantize"):
-                    w_nvfp4_dq = TensorCoreNVFP4Layout.dequantize(
-                        qdata, params).float().cpu()
-                    w_ref = w_rot.float().cpu()
-                    err_nv = w_ref - w_nvfp4_dq
-                    axis_nvfp4[key] = float(err_nv.norm().item()) / max(
-                        float(w_ref.norm().item()), 1e-8)
-                del qdata, params, w_nv, w_rot
-                if device == "cuda":
-                    torch.cuda.empty_cache()
-        except Exception:
-            pass
+        # --- Axis 3: NVFP4 error in rotated space (uniform weight) ---
+        if nvfp4_dq is not None:
+            w_ref = w_rot_3.float().cpu() if w_rot_3 is not None else w_dq.float().cpu()
+            err_nv3 = w_ref - nvfp4_dq
+            axis_nvfp4[key] = float(err_nv3.norm().item()) / max(
+                float(w_ref.norm().item()), 1e-8)
 
         # --- Axis 4: SVD Leverage (reuse pre-computed hybrid_imp) ---
         # --fast skips (needs full SVD).
@@ -1091,6 +1093,11 @@ def convert(input_path, output_path, *, device="cuda",
                     del U, S, Vh
             except Exception:
                 pass
+
+        # Cleanup per-layer temporaries
+        del nvfp4_dq, w_rot_3
+        if device == "cuda":
+            torch.cuda.empty_cache()
 
         dm_v = axis_dm.get(key, -1)
         hi_v = axis_hist.get(key, -1)
