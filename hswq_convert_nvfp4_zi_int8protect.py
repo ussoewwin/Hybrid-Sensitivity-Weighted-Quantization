@@ -288,7 +288,21 @@ def run_card1_calib(
     else:
         mid = tokenizer_path if tokenizer_path else "Qwen/Qwen2.5-7B-Instruct"
         print(f"[Card1] Tokenizer repo id: {mid}")
-        tokenizer = Qwen2Tokenizer.from_pretrained(mid, local_files_only=True)
+        try:
+            tokenizer = Qwen2Tokenizer.from_pretrained(mid, local_files_only=True)
+        except Exception as e:
+            print(f"[Card1] local_files_only failed ({e}); retrying with download...")
+            tokenizer = Qwen2Tokenizer.from_pretrained(mid)
+    # transformers 5.x silently returns a vocab-1 tokenizer when the model
+    # files are missing (no OSError). Fail loudly instead of feeding the text
+    # encoder 0 tokens (which crashes deep in llama.py).
+    if getattr(tokenizer, "vocab_size", 0) < 1000:
+        raise RuntimeError(
+            "Tokenizer loaded with degenerate vocab "
+            f"({getattr(tokenizer, 'vocab_size', '?')} tokens). "
+            "Qwen2.5 tokenizer not found. Pass --tokenizer_path <dir> or "
+            "ensure ComfyUI comfy/text_encoders/qwen25_tokenizer is present."
+        )
 
     resolved_clip = resolve_path(clip_path, is_file=True)
     text_encoder = llama_module.Qwen3_4B(
