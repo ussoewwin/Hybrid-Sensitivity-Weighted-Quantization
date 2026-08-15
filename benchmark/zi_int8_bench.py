@@ -22,12 +22,26 @@ def resolve_path(path, is_file=True):
     return path if os.path.exists(path) else None
 
 def resolve_tokenizer_offline(provided_path, comfy_path=None):
-    """Validate explicit --tokenizer_path only. No local auto-discovery."""
-    del comfy_path  # unused; kept for call-site compatibility
+    """Resolve tokenizer: optional explicit path, else ComfyUI-bundled qwen25_tokenizer.
+
+    No recursive walk, no cwd hunt, no Hub fallback.
+    Bundled path matches comfy/text_encoders/z_image.py under --comfy_path.
+    """
     validation_files = ["tokenizer.json", "vocab.json", "config.json"]
-    if provided_path and os.path.isdir(provided_path):
-        if any(os.path.exists(os.path.join(provided_path, f)) for f in validation_files):
-            return provided_path
+
+    def _ok(path):
+        return path and os.path.isdir(path) and any(
+            os.path.exists(os.path.join(path, f)) for f in validation_files
+        )
+
+    if _ok(provided_path):
+        return provided_path
+    if comfy_path:
+        bundled = os.path.join(
+            comfy_path, "comfy", "text_encoders", "qwen25_tokenizer"
+        )
+        if _ok(bundled):
+            return bundled
     return None
 
 
@@ -443,8 +457,11 @@ def main():
     parser.add_argument("--clip_path", required=True, help="Qwen3-4B text encoder path (required; no auto-discovery)")
     parser.add_argument(
         "--tokenizer_path",
-        required=True,
-        help="Local Qwen tokenizer directory (required; no auto-discovery)",
+        default=None,
+        help=(
+            "Optional tokenizer directory override; default is "
+            "comfy/text_encoders/qwen25_tokenizer under --comfy_path"
+        ),
     )
     parser.add_argument("--comfy_path", required=True, help="ComfyUI root path (required; no auto-discovery)")
     parser.add_argument("--vae", default=None, help="VAE path; if set, decode latents with VAE and compute SSIM on decoded pixel images (like Flux)")
@@ -507,12 +524,15 @@ def main():
     
     print("Starting Text Encoder Initialization...")
 
-    # Tokenizer: explicit --tokenizer_path only (no discovery / Hub fallback).
-    tokenizer_path = resolve_tokenizer_offline(args.tokenizer_path)
+    # Tokenizer: optional override, else ComfyUI-bundled qwen25_tokenizer under --comfy_path.
+    tokenizer_path = resolve_tokenizer_offline(args.tokenizer_path, args.comfy_path)
     if not tokenizer_path:
+        bundled = os.path.join(
+            args.comfy_path, "comfy", "text_encoders", "qwen25_tokenizer"
+        )
         print(
-            f"FATAL: --tokenizer_path must be an existing local tokenizer directory: "
-            f"{args.tokenizer_path}"
+            "FATAL: tokenizer not found. Ensure ComfyUI-bundled path exists: "
+            f"{bundled}"
         )
         sys.exit(1)
     print(f"  Loading tokenizer from disk: {tokenizer_path}")
