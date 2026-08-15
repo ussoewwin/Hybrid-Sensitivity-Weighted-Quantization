@@ -47,7 +47,7 @@ python native_convert_int8_convrot_zi.py --model "<path-to-unet>/<zit_unet>.safe
 - **FULL ConvRot** (Linear + Conv2d when `in_dim` is divisible by a power-of-4 group size) is **ON by default**. Pass `--no-convrot` only for plain INT8 without ConvRot.
 - **`--per_channel_int8`:** use per-out-channel amax/scale instead of a single per-tensor scale when packing layers that do **not** go through ConvRot. Under default FULL ConvRot, almost all eligible Linear/Conv2d already use rotate + per-channel scale, so this flag has **little effect** in practice; keep it as **insurance** for any remaining non-ConvRot packs. Format tag stays `int8_tensorwise`.
 - **Post-convert bench:** **ON by default**. After save, the script runs `benchmark/zi_int8_bench.py` with the same `--clip_path` / `--comfy_path` (prompt / steps=`25` / seed=`42` fixed inside). A non-zero bench exit code fails the convert process.
-- **ComfyUI:** Load the output with [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools).
+- **ComfyUI:** Load the ConvRot INT8 output with the **standard ComfyUI loader**. A dedicated HSWQ loader is not required.
 
 ## Z-Anime page
 
