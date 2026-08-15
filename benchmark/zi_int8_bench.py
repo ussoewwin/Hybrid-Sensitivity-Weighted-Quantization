@@ -13,60 +13,21 @@ import json
 
 print("Starting Z Image INT8 HSWQ Bench (based on zit_bench.py)...")
 
-# Helper for path resolution
+# Path helpers: explicit paths only (no recursive / ComfyUI auto-discovery).
 def resolve_path(path, is_file=True):
-    if not path: return None
-    if os.path.exists(path): return path
-    
-    target = os.path.basename(path)
-    print(f"  Note: {target} not found at {path}. Searching recursively...")
-    for root, dirs, files in os.walk("."):
-        # Skip hidden directories (like .local, .cache, .Trash)
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
-        
-        root_abs = os.path.abspath(root)
-        if "ComfyUI" in root_abs or "node_modules" in root_abs:
-            continue
-        if is_file:
-            if target in files:
-                found = os.path.join(root, target)
-                print(f"  Found: {found}")
-                return found
-    return path
+    if not path:
+        return None
+    if is_file:
+        return path if os.path.isfile(path) else None
+    return path if os.path.exists(path) else None
 
-def resolve_tokenizer_offline(provided_path, comfy_path):
-    """Offline-only logic to find a local tokenizer."""
+def resolve_tokenizer_offline(provided_path, comfy_path=None):
+    """Validate explicit --tokenizer_path only. No local auto-discovery."""
+    del comfy_path  # unused; kept for call-site compatibility
     validation_files = ["tokenizer.json", "vocab.json", "config.json"]
-    
-    # Candidate 1: explicit path
     if provided_path and os.path.isdir(provided_path):
         if any(os.path.exists(os.path.join(provided_path, f)) for f in validation_files):
             return provided_path
-
-    # Candidate 2: ComfyUI standard locations
-    if comfy_path:
-        search_roots = [
-            os.path.join(comfy_path, "models", "clip"),
-            os.path.join(comfy_path, "models", "tokenizers"),
-            comfy_path
-        ]
-        for root_dir in search_roots:
-            if not os.path.exists(root_dir): continue
-            for root, dirs, files in os.walk(root_dir):
-                if any(f in files for f in validation_files):
-                    if any(x in root.lower() for x in ["qwen", "qwen2.5", "zit"]):
-                        print(f"  [Offline Discovery] Found tokenizer in ComfyUI: {root}")
-                        return root
-
-    # Candidate 3: recursive search (skip ComfyUI etc.)
-    print("  Note: Searching recursively for any local Qwen tokenizer...")
-    for root, dirs, files in os.walk("."):
-        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ["ComfyUI-master", "node_modules"]]
-        if any(f in files for f in validation_files):
-            if any(x in root.lower() for x in ["qwen", "qwen2.5", "zit"]):
-                print(f"  [Offline Discovery] Found potential tokenizer: {root}")
-                return root
-                
     return None
 
 
@@ -209,6 +170,8 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_int8=False):
         int8_scope_cm = _ensure_int8_comfy_quant_patches()
     
     args_path = resolve_path(path, is_file=True)
+    if not args_path:
+        raise FileNotFoundError(f"Model not found at given path: {path}")
     print(f"Loading state_dict: {os.path.basename(args_path)}")
     state_dict = load_file(args_path)
     
@@ -477,13 +440,17 @@ def main():
     parser = argparse.ArgumentParser(description="Z Image INT8 HSWQ Fidelity & VRAM Benchmark (zit_bench-based)")
     parser.add_argument("--fp16", required=True, help="Baseline model path")
     parser.add_argument("--fp8", required=True, help="Quantized model path")
-    parser.add_argument("--clip_path", required=True, help="Qwen3-4B text encoder path")
-    parser.add_argument("--tokenizer_path", default=None, help="Tokenizer path or Repo ID")
-    parser.add_argument("--comfy_path", required=True, help="ComfyUI root path")
+    parser.add_argument("--clip_path", required=True, help="Qwen3-4B text encoder path (required; no auto-discovery)")
+    parser.add_argument(
+        "--tokenizer_path",
+        required=True,
+        help="Local Qwen tokenizer directory (required; no auto-discovery)",
+    )
+    parser.add_argument("--comfy_path", required=True, help="ComfyUI root path (required; no auto-discovery)")
     parser.add_argument("--vae", default=None, help="VAE path; if set, decode latents with VAE and compute SSIM on decoded pixel images (like Flux)")
     parser.add_argument("--prompt", default="A beautiful cyberpunk city at night, high detail.", help="Benchmark prompt")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--steps", type=int, default=20)
+    parser.add_argument("--steps", type=int, default=25)
     args = parser.parse_args()
 
     # Safety Check for Tokenizer
@@ -539,36 +506,33 @@ def main():
         sys.exit(1)
     
     print("Starting Text Encoder Initialization...")
-    
-    # Load tokenizer: Strictly Offline with Discovery
-    tokenizer_path = resolve_tokenizer_offline(args.tokenizer_path, args.comfy_path)
-    
-    if tokenizer_path:
-        print(f"  Loading tokenizer from disk: {tokenizer_path}")
-        try:
-            tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path, local_files_only=True)
-        except Exception as e:
-            print(f"  Warning: Failed to load found path {tokenizer_path} with local_files_only. Error: {e}")
-            print("  Retrying without local_files_only constraint (Risk of 403)...")
-            tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path)
-    else:
-        # Last resort: try Repo ID with local_files_only
-        model_id = args.tokenizer_path if args.tokenizer_path else "Qwen/Qwen2.5-7B-Instruct"
-        print(f"  CRITICAL: Local tokenizer not found in common paths. Trying Repo ID: {model_id} (STRICT LOCAL)")
-        try:
-            tokenizer = Qwen2Tokenizer.from_pretrained(model_id, local_files_only=True)
-        except Exception as e:
-            print(f"  FATAL: Offine load failed. No local tokenizer found and Hub access is blocked (403).")
-            print(f"  Error: {e}")
-            print(f"  [PROMPT] Please place tokenizer files in {os.path.join(args.comfy_path, 'models/clip/qwen_tokenizer')} or similar.")
-            sys.exit(1)
+
+    # Tokenizer: explicit --tokenizer_path only (no discovery / Hub fallback).
+    tokenizer_path = resolve_tokenizer_offline(args.tokenizer_path)
+    if not tokenizer_path:
+        print(
+            f"FATAL: --tokenizer_path must be an existing local tokenizer directory: "
+            f"{args.tokenizer_path}"
+        )
+        sys.exit(1)
+    print(f"  Loading tokenizer from disk: {tokenizer_path}")
+    try:
+        tokenizer = Qwen2Tokenizer.from_pretrained(
+            tokenizer_path, local_files_only=True
+        )
+    except Exception as e:
+        print(f"FATAL: Failed to load tokenizer from {tokenizer_path}: {e}")
+        sys.exit(1)
 
     resolved_clip = resolve_path(args.clip_path, is_file=True)
+    if not resolved_clip:
+        print(f"FATAL: --clip_path not found: {args.clip_path}")
+        sys.exit(1)
 
     text_encoder = llama_module.Qwen3_4B(
         config_dict={}, device=device, dtype=torch.float16, operations=comfy.ops.disable_weight_init
     ).to(device)
-    
+
     print(f"Loading CLIP weights from: {resolved_clip}")
     text_encoder.load_state_dict(load_file(resolved_clip), strict=False)
     text_encoder.eval()
