@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Reverse hybrid converter: sci_1off (all INT8, already rotated) -> convert K lowest-impact layers to ConvRot NVFP4.
 
-Reverse hybrid NVFP4 method (see md/How to quantize Z Image - Hybrid NVFP4.md).\nRequires the pip package `comfy-kitchen` (pip install comfy-kitchen).
+Reverse hybrid NVFP4 method (see md/How to quantize Z Image - Hybrid NVFP4.md).
+Requires the pip package `comfy-kitchen` (pip install comfy-kitchen).
 Weights in the sci_1off INT8 artifact are already ROTATED (W@H^T): dequant gives the W_rot
 approximation, which is quantized directly with Kitchen (NO re-rotation).
 
