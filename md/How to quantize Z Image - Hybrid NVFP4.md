@@ -31,7 +31,7 @@ valid**. All 3 models achieved **SSIM ≥ 0.97 on all 5 seeds** with the existin
 | comfy_kitchen | pip package `comfy-kitchen` (`pip install comfy-kitchen`) — required by `gen_reverse_nvfp4.py` (`TensorCoreNVFP4Layout`) |
 | Input ① | `<model>.safetensors` (base fp16/bf16) |
 | Input ② | `<model>_sci_1off_convrot_int8.safetensors` (208-layer ConvRot INT8 from the INT8 how-to; int8_tensorwise, convrot:true, `model.diffusion_model.` prefix, ≈5.74GiB) |
-| GPU | 1 card (VRAM ≥12GB recommended) · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
+| GPU | **VRAM ≥ 12GB** (RTX 4070 12GB or higher recommended) · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
 
 ## 2. Overall flow
 
