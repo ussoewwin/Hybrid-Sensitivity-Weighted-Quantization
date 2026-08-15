@@ -1,6 +1,6 @@
 # How to quantize Z Image (ZI)
 
-Use **native ConvRot INT8** with `native_convert_int8_convrot.py`.
+Use **native ConvRot INT8** with `native_convert_int8_convrot_zi.py` (quantize + **integrated post-convert bench**).
 
 **HSWQ Z Image INT8 development and public release ended.** For Z Image 8-bit, use this native path (typically **SSIM > 0.99**). HSWQ INT8 continues for **SDXL** only.
 
@@ -25,22 +25,28 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 ## Install other libraries
 
 ```bash
-pip install safetensors tqdm
+pip install safetensors tqdm scikit-image
 ```
+
+`scikit-image` is required for SSIM in `benchmark/zi_int8_bench.py` (post-convert bench).
 
 ## Quantize a ZI model
 
-Replace every `<...>` placeholder with a real path on your machine (no invented filenames). `--model` and `--input` are aliases for the same argument.
+Replace every `<...>` placeholder with a real path on your machine (no invented filenames; no machine-local drive hardcoding in published examples). `--model` and `--input` are aliases for the same argument.
+
+**Default flow:** convert → save → run **`benchmark/zi_int8_bench.py`** automatically (`--fp16` = `--model`, `--fp8` = `--output`). You do **not** need a second manual bench command after a normal run.
+
+Required: **`--model`**, **`--output`**, **`--per_channel_int8`**, **`--clip_path`**, **`--comfy_path`** only. Tokenizer uses ComfyUI-bundled `comfy/text_encoders/qwen25_tokenizer` under `--comfy_path`.
 
 ```bash
-python native_convert_int8_convrot.py --model "<path-to-unet>/<zit_unet>.safetensors" --output "<path-to-unet>/<zit_unet>_convrot_int8.safetensors" --per_channel_int8
+python native_convert_int8_convrot_zi.py --model "<path-to-unet>/<zit_unet>.safetensors" --output "<path-to-unet>/<zit_unet>_convrot_int8.safetensors" --per_channel_int8 --clip_path "<path-to-qwen3-4b>" --comfy_path "<path-to-ComfyUI>"
 ```
 
 **Notes:**
 
 - **FULL ConvRot** (Linear + Conv2d when `in_dim` is divisible by a power-of-4 group size) is **ON by default**. Pass `--no-convrot` only for plain INT8 without ConvRot.
 - **`--per_channel_int8`:** use per-out-channel amax/scale instead of a single per-tensor scale when packing layers that do **not** go through ConvRot. Under default FULL ConvRot, almost all eligible Linear/Conv2d already use rotate + per-channel scale, so this flag has **little effect** in practice; keep it as **insurance** for any remaining non-ConvRot packs. Format tag stays `int8_tensorwise`.
-- **`--groupsize`:** ConvRot Hadamard group size (power of 4; default `256`).
+- **Post-convert bench:** **ON by default**. After save, the script runs `benchmark/zi_int8_bench.py` with the same `--clip_path` / `--comfy_path` (prompt / steps=`25` / seed=`42` fixed inside). A non-zero bench exit code fails the convert process.
 - **ComfyUI:** Load the output with [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools).
 
 ## Z-Anime page
