@@ -18,7 +18,7 @@ valid**. All 3 models achieved **SSIM ≥ 0.97 on all 5 seeds** with the existin
 | Model | Final | INT8/NVFP4 | 5-seed range | Avg SSIM | Size |
 |---|---|---|---|---|---|
 | moodyProMix_collectorsEdition (CE) | nv89 | 119/89 | 0.9877–0.9956 | 0.9938 | 4.73GiB |
-| moodyProMix_zitV13 | nv120 | 88/120 | 0.9882–0.9909 | 0.9897 | 4.29GiB |
+| moodyProMix_zitV13 | nv115 | 93/115 | 0.9897–0.9918 | 0.9908 | 4.35GiB |
 | moodyRealMix_zitV7 | nv74 | 134/74 | 0.9774–0.9987 | 0.9889 | 4.82GiB |
 
 ## 1. Requirements
