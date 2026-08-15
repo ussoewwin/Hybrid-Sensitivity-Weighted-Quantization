@@ -26,7 +26,7 @@ valid**. All 3 models achieved **SSIM ≥ 0.97 on all 5 seeds** with the existin
 | Item | Value |
 |---|---|
 | Python | CUDA-enabled PyTorch, `safetensors`, `scikit-image` (SSIM) |
-| Bench | `Z_Image/zi_convrot_nvfp4_bench_native.py` (this repo, **unmodified**) |
+| Bench | `benchmark/zi_convrot_nvfp4_bench_native.py` (this repo, **unmodified**) |
 | ComfyUI | local ComfyUI checkout (used by the bench for Z-Image loading / Qwen3-4B text encoder) |
 | comfy_kitchen | pip package `comfy-kitchen` (`pip install comfy-kitchen`) — required by `gen_reverse_nvfp4.py` (`TensorCoreNVFP4Layout`) |
 | Input ① | `<model>.safetensors` (base fp16/bf16) |
@@ -93,7 +93,7 @@ python Z_Image/gen_reverse_nvfp4.py 74 \
 
 ```bash
 cd <this-repo-root>
-python Z_Image/zi_convrot_nvfp4_bench_native.py \
+python benchmark/zi_convrot_nvfp4_bench_native.py \
   --fp16 "<model>.safetensors" \
   --nvfp4 "<model>_hswq_hybrid_nv{K}_convrot_nvfp4.safetensors" \
   --clip_path "<qwen3-4b-fp16-converted.safetensors>" \
@@ -168,6 +168,6 @@ V7 measured non-monotonic recovery (evidence of error cancellation):
 |---|---|
 | `Z_Image/diag_impact.py` | Step 1: per-layer NVFP4 trajectory impact measurement |
 | `Z_Image/gen_reverse_nvfp4.py` | Step 2: reverse hybrid converter (INT8 → NVFP4, K lowest-impact layers) |
-| `Z_Image/zi_convrot_nvfp4_bench_native.py` | Step 3: native bench (bf16 native baseline, `--native-dtype`) |
+| `benchmark/zi_convrot_nvfp4_bench_native.py` | Step 3: native bench (bf16 native baseline, `--native-dtype`) |
 | `native_convert_int8_convrot_zi.py` | INT8 prerequisite (see [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md)) |
-> **Dependencies**: `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py` (stays in `benchmark/`, shared with the older HSWQ scripts) — resolve it with `--repo-root <this-repo-root>`. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen` (`pip install comfy-kitchen`). The native bench is self-contained (torch / PIL / safetensors / scikit-image only).
+> **Dependencies**: `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py` (stays in `benchmark/`, shared with the older HSWQ scripts) — resolve it with `--repo-root <this-repo-root>`. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen` (`pip install comfy-kitchen`). The native bench `benchmark/zi_convrot_nvfp4_bench_native.py` stays in `benchmark/` because it shares local modules (`kitchen_rms_rope_fallback.py`, `nvfp4/`, `nvfp4_comfy_parity.py`) with sibling bench scripts - run it from `benchmark/`.
