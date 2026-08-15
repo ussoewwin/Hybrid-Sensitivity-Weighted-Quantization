@@ -26,7 +26,7 @@ valid**. All 3 models achieved **SSIM ≥ 0.97 on all 5 seeds** with the existin
 | Item | Value |
 |---|---|
 | Python | CUDA-enabled PyTorch, `safetensors`, `scikit-image` (SSIM) |
-| Bench | `benchmark/zi_convrot_nvfp4_bench_native.py` (this repo, **unmodified**) |
+| Bench | `Z_Image/zi_convrot_nvfp4_bench_native.py` (this repo, **unmodified**) |
 | ComfyUI | local ComfyUI checkout (used by the bench for Z-Image loading / Qwen3-4B text encoder) |
 | comfy_kitchen | pip package `comfy-kitchen` (`pip install comfy-kitchen`) — required by `gen_reverse_nvfp4.py` (`TensorCoreNVFP4Layout`) |
 | Input ① | `<model>.safetensors` (base fp16/bf16) |
@@ -57,7 +57,7 @@ run a fixed-seed 4-step denoising trajectory, and measure how far the final x dr
 This measures the layer's **true importance under real trajectory propagation**.
 
 ```bash
-python diag_impact.py "<model>.safetensors" \
+python Z_Image/diag_impact.py "<model>.safetensors" \
   "<model>_sci_1off_convrot_int8.safetensors" \
   "impact_<model>.json" \
   --comfy-path "<comfyui-root>" --repo-root "<this-repo-root>"
@@ -77,7 +77,7 @@ The INT8 weights are stored **already rotated (W@H^T)**, so dequantizing gives t
 W_rot approximation directly — quantize it with Kitchen **without re-rotating**.
 
 ```bash
-python gen_reverse_nvfp4.py 74 \
+python Z_Image/gen_reverse_nvfp4.py 74 \
   "<model>_hswq_hybrid_nv74_convrot_nvfp4.safetensors" \
   "<model>_sci_1off_convrot_int8.safetensors" \
   "impact_<model>.json" --out-dir "<output-dir>"
@@ -93,7 +93,7 @@ python gen_reverse_nvfp4.py 74 \
 
 ```bash
 cd <this-repo-root>
-python benchmark/zi_convrot_nvfp4_bench_native.py \
+python Z_Image/zi_convrot_nvfp4_bench_native.py \
   --fp16 "<model>.safetensors" \
   --nvfp4 "<model>_hswq_hybrid_nv{K}_convrot_nvfp4.safetensors" \
   --clip_path "<qwen3-4b-fp16-converted.safetensors>" \
@@ -166,7 +166,8 @@ V7 measured non-monotonic recovery (evidence of error cancellation):
 
 | File | Purpose |
 |---|---|
-| `diag_impact.py` | Step 1: per-layer NVFP4 trajectory impact measurement |
-| `gen_reverse_nvfp4.py` | Step 2: reverse hybrid converter (INT8 → NVFP4, K lowest-impact layers) |
-| `benchmark/zi_convrot_nvfp4_bench_native.py` | Step 3: native bench (bf16 native baseline, `--native-dtype`) |
+| `Z_Image/diag_impact.py` | Step 1: per-layer NVFP4 trajectory impact measurement |
+| `Z_Image/gen_reverse_nvfp4.py` | Step 2: reverse hybrid converter (INT8 → NVFP4, K lowest-impact layers) |
+| `Z_Image/zi_convrot_nvfp4_bench_native.py` | Step 3: native bench (bf16 native baseline, `--native-dtype`) |
 | `native_convert_int8_convrot_zi.py` | INT8 prerequisite (see [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md)) |
+> **Dependencies**: `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py` (stays in `benchmark/`, shared with the older HSWQ scripts) — resolve it with `--repo-root <this-repo-root>`. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen` (`pip install comfy-kitchen`). The native bench is self-contained (torch / PIL / safetensors / scikit-image only).

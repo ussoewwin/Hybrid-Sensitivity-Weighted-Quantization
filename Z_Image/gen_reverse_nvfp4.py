@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Reverse hybrid converter: sci_1off (all INT8, already rotated) -> convert K lowest-impact layers to ConvRot NVFP4.
 
-Reverse hybrid NVFP4 method (see md/How to quantize Z Image - Hybrid NVFP4.md).
+Reverse hybrid NVFP4 method (see md/How to quantize Z Image - Hybrid NVFP4.md).\nRequires the pip package `comfy-kitchen` (pip install comfy-kitchen).
 Weights in the sci_1off INT8 artifact are already ROTATED (W@H^T): dequant gives the W_rot
 approximation, which is quantized directly with Kitchen (NO re-rotation).
 
 Usage:
-    python gen_reverse_nvfp4.py <K> <out_name.safetensors> <src_int8.safetensors> <impact.json> \
+    python Z_Image/gen_reverse_nvfp4.py <K> <out_name.safetensors> <src_int8.safetensors> <impact.json> \
         [--out-dir <output-dir>]
 
 Storage spec (Kitchen TensorCoreNVFP4Layout): .weight U8 packed [out, in/2],
@@ -21,7 +21,6 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import save_file
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # repo root (comfy_kitchen)
 from comfy_kitchen.tensor import TensorCoreNVFP4Layout
 
 

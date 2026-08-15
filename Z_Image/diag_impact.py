@@ -4,10 +4,10 @@
 Reverse hybrid NVFP4 method (see md/How to quantize Z Image - Hybrid NVFP4.md):
 1. diag_impact.py  -> impact_<model>.json (relative MSE per layer, ascending = safest first)
 2. gen_reverse_nvfp4.py -> hybrid nv{K} artifact
-3. benchmark/zi_convrot_nvfp4_bench_native.py -> all-5-seed SSIM check (>= 0.97 each)
+3. Z_Image/zi_convrot_nvfp4_bench_native.py -> all-5-seed SSIM check (>= 0.97 each)
 
 Usage:
-    python diag_impact.py <base_model.safetensors> <sci_1off_artifact.safetensors> <impact_out.json> \
+    python Z_Image/diag_impact.py <base_model.safetensors> <sci_1off_artifact.safetensors> <impact_out.json> \
         [--comfy-path <comfyui-root>] [--repo-root <repo-root>]
 """
 import argparse
@@ -25,7 +25,7 @@ def parse_args():
     ap.add_argument("artifact", help="sci_1off complete ConvRot INT8 safetensors (layer list source)")
     ap.add_argument("out", help="output impact json path")
     ap.add_argument("--comfy-path", default="ComfyUI-master", help="ComfyUI root path")
-    ap.add_argument("--repo-root", default=".", help="repo root containing benchmark/ (for the bench module)")
+    ap.add_argument("--repo-root", default=None, help="repo root containing benchmark/ (for the bench module); default = parent of this script dir")
     return ap.parse_args()
 
 
@@ -60,7 +60,8 @@ def main():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    repo = os.path.abspath(a.repo_root)
+    repo = os.path.abspath(a.repo_root) if a.repo_root else os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     sys.path.insert(0, os.path.join(repo, "benchmark"))
     sys.path.insert(0, repo)
     spec = importlib.util.spec_from_file_location(
