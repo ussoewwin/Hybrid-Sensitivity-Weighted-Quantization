@@ -4,7 +4,7 @@
 Reverse hybrid NVFP4 method (see md/How to quantize Z Image - Hybrid NVFP4.md):
 1. diag_impact.py  -> impact_<model>.json (relative MSE per layer, ascending = safest first)
 2. gen_reverse_nvfp4.py -> hybrid nv{K} artifact
-3. Z_Image/zi_convrot_nvfp4_bench_native.py -> all-5-seed SSIM check (>= 0.97 each)
+3. benchmark/zi_convrot_nvfp4_bench_native.py -> all-5-seed SSIM check (>= 0.97 each)
 
 Usage:
     python Z_Image/diag_impact.py <base_model.safetensors> <sci_1off_artifact.safetensors> <impact_out.json> \
