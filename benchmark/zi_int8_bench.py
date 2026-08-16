@@ -175,7 +175,8 @@ def _ensure_int8_comfy_quant_patches():
 def load_zit_model(path, device="cuda", comfy_path=None, is_int8=False):
     if comfy_path and comfy_path not in sys.path:
         sys.path.insert(0, comfy_path)
-    
+    _install_torchaudio_stub()
+
     from comfy.ldm.lumina.model import NextDiT
     import comfy.ops
 
@@ -450,6 +451,74 @@ def print_model_stats(model, name, original_state_dict=None):
     if q_params:
         print(f"[{name}] Detected Quantization Metadata: {len(q_params)} parameters.")
 
+
+def _install_torchaudio_stub() -> None:
+    """Prevent real torchaudio from loading if comfy.sd is pulled in.
+
+    comfy.sd imports comfy.ldm.lightricks.vae.audio_vae, which does a hard
+    ``import torchaudio``. On cloud hosts torch/torchaudio CUDA builds often
+    mismatch (e.g. torch 13.2 vs torchaudio 13.0) and abort before bench load.
+    Z Image INT8 bench uses Qwen3 TE + NextDiT only — never AudioVAE — so
+    replace torchaudio in sys.modules with a local stub.
+    Does not touch ComfyUI-master.
+    """
+    import importlib.machinery
+    import types
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        # transformers uses importlib.util.find_spec("torchaudio"); a ModuleType
+        # without __spec__ raises ValueError: torchaudio.__spec__ is None.
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(
+                name, loader=None, is_package=True
+            )
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    ta = _stub_mod("torchaudio", is_package=True)
+    functional = _stub_mod("torchaudio.functional")
+
+    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
+        return waveform
+
+    functional.resample = _resample
+
+    transforms = _stub_mod("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
 def main():
     parser = argparse.ArgumentParser(description="Z Image INT8 HSWQ Fidelity & VRAM Benchmark (zit_bench-based)")
     parser.add_argument("--fp16", required=True, help="Baseline model path")
@@ -481,6 +550,8 @@ def main():
     if args.comfy_path not in sys.path:
         sys.path.insert(0, args.comfy_path)
     print(f"  ComfyUI Path set to: {args.comfy_path}")
+    # Always stub before any comfy.* / nodes import (real torchaudio may CUDA-mismatch).
+    _install_torchaudio_stub()
 
     vae_obj = None
     if args.vae:
