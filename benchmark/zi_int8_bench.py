@@ -1,467 +1,36 @@
+#!/usr/bin/env python3
+"""Z Image INT8 HSWQ Fidelity & VRAM Benchmark.
+
+Uses ComfyUI-master load_diffusion_model, load_clip, and comfy.sample.sample.
+Does not edit ComfyUI-master.
+"""
+
+from __future__ import annotations
+
 import argparse
-import torch
-import torch.nn as nn
-from safetensors.torch import load_file
-import os
 import gc
-import time
+import os
 import sys
+import time
+from pathlib import Path
+
 import numpy as np
+import torch
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
-import json
-
-print("Starting Z Image INT8 HSWQ Bench (based on zit_bench.py)...")
-
-# Path helpers: explicit paths only (no recursive / ComfyUI auto-discovery).
-def resolve_path(path, is_file=True):
-    if not path:
-        return None
-    if is_file:
-        return path if os.path.isfile(path) else None
-    return path if os.path.exists(path) else None
-
-def resolve_tokenizer_offline(provided_path, comfy_path=None):
-    """Resolve tokenizer: optional explicit path, else ComfyUI-bundled qwen25_tokenizer.
-
-    No recursive walk, no cwd hunt, no Hub fallback.
-    Bundled path matches comfy/text_encoders/z_image.py under --comfy_path.
-    """
-    validation_files = ["tokenizer.json", "vocab.json", "config.json"]
-
-    def _ok(path):
-        return path and os.path.isdir(path) and any(
-            os.path.exists(os.path.join(path, f)) for f in validation_files
-        )
-
-    if _ok(provided_path):
-        return provided_path
-    if comfy_path:
-        bundled = os.path.join(
-            comfy_path, "comfy", "text_encoders", "qwen25_tokenizer"
-        )
-        if _ok(bundled):
-            return bundled
-    return None
 
 
-def latent_to_img(l):
-    l = l[0].permute(1, 2, 0).cpu().float().numpy()
-    l = (l - l.min()) / (l.max() - l.min() + 1e-6) * 255
-    return Image.fromarray(l[:, :, :3].astype(np.uint8))
-
-# Enforce deterministic behavior
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-
-import re
-
-def _fuse_zanime_attention(state_dict):
-    """Z-Anime (Diffusers/HF style) attention -> ComfyUI NextDiT (lumina) style.
-      <p>.attention.to_q.weight + to_k.weight + to_v.weight -> <p>.attention.qkv.weight (cat dim=0)
-      <p>.attention.to_out.0.weight                          -> <p>.attention.out.weight
-      <p>.attention.norm_q.weight                            -> <p>.attention.q_norm.weight
-      <p>.attention.norm_k.weight                            -> <p>.attention.k_norm.weight
-    Only applied when Z-Anime is detected; ZI/ZIB/ZIT keys (already qkv-fused) are unaffected.
-    """
-    new_dict = dict(state_dict)
-    prefixes = set()
-    for k in list(new_dict.keys()):
-        m = re.match(r"^(.+?\.attention)\.to_q\.weight$", k)
-        if m:
-            prefixes.add(m.group(1))
-    for prefix in prefixes:
-        kq, kk, kv = f"{prefix}.to_q.weight", f"{prefix}.to_k.weight", f"{prefix}.to_v.weight"
-        if kq in new_dict and kk in new_dict and kv in new_dict:
-            qkv = torch.cat([new_dict[kq], new_dict[kk], new_dict[kv]], dim=0)
-            new_dict[f"{prefix}.qkv.weight"] = qkv
-            del new_dict[kq], new_dict[kk], new_dict[kv]
-    rename_map = {
-        ".attention.to_out.0.weight": ".attention.out.weight",
-        ".attention.norm_q.weight":   ".attention.q_norm.weight",
-        ".attention.norm_k.weight":   ".attention.k_norm.weight",
-    }
-    for k in list(new_dict.keys()):
-        for src, dst in rename_map.items():
-            if k.endswith(src):
-                new_dict[k.replace(src, dst)] = new_dict.pop(k)
-                break
-    return new_dict
-
-def normalize_zanime_keys(state_dict):
-    """Normalize Z-Anime specific key naming to standard NextDiT format.
-    Step 1: Strip 'all_<module>.2-1' prefix.
-      all_x_embedder.2-1.weight               -> x_embedder.weight
-      all_layers.0.2-1.attention.to_q.weight  -> layers.0.attention.to_q.weight
-    Step 2: Fuse / rename Diffusers-style attention to ComfyUI NextDiT style.
-      to_q+to_k+to_v -> qkv (cat dim=0), to_out.0 -> out, norm_q/norm_k -> q_norm/k_norm
-    ZI/ZIB/ZIT logic is preserved by only applying this when Z-Anime is detected.
-    """
-    normalized = {}
-    for key, value in state_dict.items():
-        new_key = key
-        if new_key.startswith("all_"):
-            # Pattern: all_<module_path>.2-1<rest>
-            # Uses non-greedy match to capture the shortest module path before .2-1
-            new_key = re.sub(r'^all_(.*?)\.2-1', r'\1', new_key)
-        normalized[new_key] = value
-    normalized = _fuse_zanime_attention(normalized)
-    return normalized
-
-def detect_zit_config_from_keys(state_dict):
-    state_dict_keys = list(state_dict.keys())
-    zit_config = {}
-    layer_indices = set()
-    for key in state_dict_keys:
-        if key.startswith("layers."):
-            parts = key.split(".")
-            if len(parts) > 1 and parts[1].isdigit():
-                layer_indices.add(int(parts[1]))
-    
-    zit_config["num_layers"] = max(layer_indices) + 1 if layer_indices else 30
-    if "x_embedder.weight" in state_dict:
-        zit_config["hidden_size"] = state_dict["x_embedder.weight"].shape[0]
-    elif "all_x_embedder.2-1.weight" in state_dict:
-        zit_config["hidden_size"] = state_dict["all_x_embedder.2-1.weight"].shape[0]
-    else:
-        zit_config["hidden_size"] = 3072
-    
-    refiner_indices = set()
-    for key in state_dict_keys:
-        if key.startswith("context_refiner."):
-            parts = key.split(".")
-            if len(parts) > 1 and parts[1].isdigit():
-                refiner_indices.add(int(parts[1]))
-    zit_config["num_context_refiner"] = max(refiner_indices) + 1 if refiner_indices else 2
-    
-    # Detect Intermediate Size (MLP Dim) to prevent size mismatch
-    # Check layers.0.feed_forward.w1.weight shape -> [intermediate_size, hidden_size]
-    w1_key = "layers.0.feed_forward.w1.weight"
-    if w1_key in state_dict:
-        zit_config["intermediate_size"] = state_dict[w1_key].shape[0]
-        print(f"  Detected Intermediate Size: {zit_config['intermediate_size']}")
-    else:
-        zit_config["intermediate_size"] = None # Let model default logic handle or fail
-
-    # Detect qk_norm (Z-Anime has attention.q_norm/k_norm; ZI/ZIB/ZIT typically not)
-    zit_config["qk_norm"] = any(k.endswith(".attention.q_norm.weight") for k in state_dict_keys)
-    if zit_config["qk_norm"]:
-        print(f"  Detected qk_norm=True (q_norm/k_norm weights present)")
-
-    return zit_config
-
-def _ensure_int8_comfy_quant_patches():
-    """Apply hswq benchmark/int8 monkey-patches (never import nunchaku unofficial-loader)."""
-    bench_dir = os.path.dirname(os.path.abspath(__file__))
-    if bench_dir not in sys.path:
-        sys.path.insert(0, bench_dir)
-    from int8.comfy_quant_int8 import (  # noqa: E402
-        apply_comfy_quant_int8_patches,
-        _int8_quant_conv_scope,
-    )
-    import int8.comfy_quant_int8 as _cq_int8  # noqa: E402
-    import comfy.ops
-
-    apply_comfy_quant_int8_patches()
-    print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
-    print(
-        f"  [BENCH] mixed_precision_ops Conv2d inject: "
-        f"{getattr(comfy.ops.mixed_precision_ops, '_hswq_int8_conv_patched', False)}"
-    )
-    print(f"  [BENCH] patch file: {os.path.abspath(_cq_int8.__file__)}")
-    return _int8_quant_conv_scope
+def _clear_argv_for_comfy() -> list[str]:
+    saved = list(sys.argv)
+    sys.argv = [saved[0]]
+    return saved
 
 
-def load_zit_model(path, device="cuda", comfy_path=None, is_int8=False):
-    if comfy_path and comfy_path not in sys.path:
-        sys.path.insert(0, comfy_path)
-    _install_torchaudio_stub()
-
-    from comfy.ldm.lumina.model import NextDiT
-    import comfy.ops
-
-    int8_scope_cm = None
-    if is_int8:
-        int8_scope_cm = _ensure_int8_comfy_quant_patches()
-    
-    args_path = resolve_path(path, is_file=True)
-    if not args_path:
-        raise FileNotFoundError(f"Model not found at given path: {path}")
-    print(f"Loading state_dict: {os.path.basename(args_path)}")
-    state_dict = load_file(args_path)
-    
-    # === STEP 1: Convert BF16 -> FP16 (leave int8 / scales untouched) ===
-    converted_dict = {}
-    for k, v in state_dict.items():
-        if v.dtype == torch.bfloat16:
-            converted_dict[k] = v.to(torch.float16)
-        else:
-            converted_dict[k] = v
-    
-    # === STEP 2: Detect and Strip Prefix BEFORE config detection ===
-    prefixes_to_try = [
-        "",                          # HSWQ / No prefix
-        "model.",                    # Some ComfyUI exports
-        "model.diffusion_model.",    # Third-party (e.g., ggml, official FP8)
-        "diffusion_model.",          # Alternative format
-    ]
-    
-    best_prefix = ""
-    for prefix in prefixes_to_try:
-        if prefix == "":
-            continue
-        # Check if this prefix exists in keys
-        if any(k.startswith(prefix) for k in converted_dict.keys()):
-            # Check if stripping this prefix would give us recognizable keys
-            sample_key = f"{prefix}layers.0.attention_norm1.weight"
-            if sample_key in converted_dict:
-                best_prefix = prefix
-                print(f"  [Prefix Detection] Detected prefix: '{prefix}'")
-                break
-    
-    # Strip the detected prefix
-    if best_prefix:
-        print(f"  [Prefix Strip] Stripping prefix: '{best_prefix}'")
-        stripped_dict = {}
-        for k, v in converted_dict.items():
-            if k.startswith(best_prefix):
-                new_key = k[len(best_prefix):]
-                stripped_dict[new_key] = v
-            else:
-                stripped_dict[k] = v
-        converted_dict = stripped_dict
-    
-    # === STEP 2b: Z-Anime key normalization ===
-    is_zanime = any(k.startswith("all_x_embedder.2-1") for k in converted_dict.keys())
-    if is_zanime:
-        print("  [Model Detection] Z-Anime key naming detected. Normalizing to standard NextDiT keys...")
-        converted_dict = normalize_zanime_keys(converted_dict)
-    
-    # === STEP 3: Detect config from STRIPPED keys ===
-    config = detect_zit_config_from_keys(converted_dict)
-    print(f"  [Config Detection] hidden_size={config['hidden_size']}, layers={config['num_layers']}")
-    
-    # === STEP 4: Create model with correct dimensions ===
-    kwargs = {}
-    if config.get("intermediate_size"):
-        ratio = config["intermediate_size"] / config["hidden_size"]
-        kwargs["ffn_dim_multiplier"] = ratio
-        print(f"  Calculated FFN Dim Multiplier: {ratio:.4f} (Dim: {config['hidden_size']} -> {config['intermediate_size']})")
-    if config.get("qk_norm"):
-        kwargs["qk_norm"] = True
-
-    import inspect
-    print(f"  Debug: NextDiT Signature: {inspect.signature(NextDiT.__init__)}")
-
-    def _build_and_load(ops):
-        model_local = NextDiT(
-            patch_size=2,
-            in_channels=16,
-            dim=config["hidden_size"],
-            n_layers=config["num_layers"],
-            n_refiner_layers=config["num_context_refiner"],
-            n_heads=config["hidden_size"] // 128,
-            n_kv_heads=config["hidden_size"] // 128,
-            multiple_of=256,
-            norm_eps=1e-5,
-            cap_feat_dim=2560,
-            z_image_modulation=True,
-            pad_tokens_multiple=64,
-            device="cpu",
-            dtype=torch.float16,
-            operations=ops,
-            **kwargs
-        )
-        # === STEP 5: Load weights (assign=True keeps int8 storage / QuantizedTensor layouts) ===
-        try:
-            # assign=True allows the nn.Parameter to physically change its dtype (int8 / FP8)
-            # Without this, PyTorch forces quantized tensors to cast back into the FP16 init wrapper!
-            missing_local, unexpected_local = model_local.load_state_dict(
-                converted_dict, strict=False, assign=True
-            )
-        except TypeError:
-            # Fallback for older PyTorch versions (<2.3) that lack assign=True
-            print("  [Warning] PyTorch version does not support assign=True. INT8 dtype might be cast to FP16.")
-            missing_local, unexpected_local = model_local.load_state_dict(
-                converted_dict, strict=False
-            )
-        except RuntimeError as e:
-            print(f"  CRITICAL ERROR: Model Size Mismatch despite config adjustment.")
-            print(f"  Error: {e}")
-            print(f"  Config: {config}")
-            print(f"  NextDiT Signature: {inspect.signature(NextDiT.__init__)}")
-            sys.exit(1)
-        return model_local, missing_local, unexpected_local
-
-    if is_int8:
-        print(f"Using mixed_precision_ops for INT8 (int8_tensorwise) model load...")
-        print(f"  [BENCH] int8_tensorwise in QUANT_ALGOS: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
-        print(f"  [BENCH] INT8 Conv2d load scope: True")
-        with int8_scope_cm():
-            ops = comfy.ops.mixed_precision_ops(compute_dtype=torch.float16)
-            print(f"  [BENCH] MixedPrecisionOps.Conv2d (INT8 scope): {hasattr(ops, 'Conv2d')}")
-            model, missing, unexpected = _build_and_load(ops)
-    else:
-        print(f"Using standard operations for FP16 model load...")
-        ops = comfy.ops.disable_weight_init
-        model, missing, unexpected = _build_and_load(ops)
-
-    print(f"  [Keys] Matched: {len(converted_dict) - len(unexpected)}, Missing: {len(missing)}, Unexpected: {len(unexpected)}")
-    
-    if len(missing) > len(list(model.parameters())) * 0.5:
-        print(f"  Warning: Many keys are still missing. First 5 missing: {list(missing)[:5]}")
-
-    if is_int8:
-        model = model.to(device)
-        print(f"  Note: INT8 model loaded on {device}. (Weights kept via mixed_precision_ops / assign=True)")
-    else:
-        model = model.to(device).to(torch.float16)
-        print(f"  Note: FP16 model loaded on {device} and cast to float16.")
-        
-    model.eval()
-    return model, converted_dict, is_zanime
-
-def encode_prompt(prompt, text_encoder, tokenizer, device):
-    template = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
-    formatted = template.format(prompt)
-    
-    tokens = tokenizer(
-        formatted,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=256
-    )
-    
-    input_ids = tokens["input_ids"].to(device)
-    attention_mask = tokens["attention_mask"].to(device)
-    
-    with torch.no_grad():
-        outputs = text_encoder(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            intermediate_output=-2
-        )
-        hidden_states = outputs[1]
-    
-    return hidden_states, attention_mask.bool()
-
-def run_inference(model, prompt_embeds, prompt_mask, steps, seed, device):
-    import comfy.k_diffusion.sampling as k_sampling
-    
-    class ZITWrapper:
-        def __init__(self, model, embeds, mask):
-            self.model = model
-            self.embeds = embeds
-            self.mask = mask
-        def __call__(self, x, sigma, **kwargs):
-            dtype = torch.float16
-            
-            # DEBUG: Inspect Ghost Weight
-            if sigma[0] > 0.9:
-                try:
-                    for name, module in self.model.named_modules():
-                        if "layers.10" in name and "attention" in name and hasattr(module, "qkv"):
-                            w = module.qkv.weight
-                            print(f"  [Inference Debug] Active weight 'layers.10...qkv': dtype={w.dtype}, device={w.device}")
-                            sample_val = w.flatten()[:5].detach().cpu().float().tolist()
-                            print(f"  [Inference Debug] Active weight sample: {sample_val}")
-                            break
-                except Exception as e:
-                    print(f"  [Inference Debug] Could not inspect internal weight: {e}")
-
-            out = self.model(x.to(dtype), sigma.to(dtype), self.embeds.to(dtype), None, attention_mask=self.mask)
-            if isinstance(out, tuple): out = out[0]
-            return out.to(x.dtype)
-
-    generator = torch.Generator(device).manual_seed(seed)
-    x = torch.randn(1, 16, 128, 128, device=device, dtype=torch.float16, generator=generator)
-    sigmas = torch.linspace(1.0, 0.0, steps + 1, device=device)
-    
-    wrapper = ZITWrapper(model, prompt_embeds, prompt_mask)
-    
-    torch.cuda.reset_peak_memory_stats()
-    
-    start_time = time.time()
-    with torch.no_grad():
-        result = k_sampling.sample_euler(wrapper, x, sigmas, disable=False)
-    end_time = time.time()
-    
-    peak_vram = torch.cuda.max_memory_allocated() / (1024**2)
-    
-    return result, end_time - start_time, peak_vram
-
-def calculate_latent_mse(l1, l2):
-    """MSE on raw latent tensors."""
-    arr1 = l1[0].cpu().float().numpy()
-    arr2 = l2[0].cpu().float().numpy()
-    if np.array_equal(arr1, arr2):
-        print("  CRITICAL WARNING: Raw latents are bit-perfect identical.")
-    return float(np.mean((arr1 - arr2) ** 2))
-
-
-def calculate_ssim_normalized(img1, img2):
-    """SSIM on 0-255 images (e.g. from latent_to_img)."""
-    a1 = np.array(img1)
-    a2 = np.array(img2)
-    return float(ssim(a1, a2, win_size=3, channel_axis=2, data_range=255))
-
-
-def calculate_normalized_mse(img1, img2):
-    """MSE on the same 0-255 view used by SSIM. Used for Z-Anime where raw latent
-    magnitudes diverge from ZI/ZIB/ZIT and make raw latent MSE non-comparable.
-    Parallel to the historical Z Image SSIM fix (md/ZIT_Benchmark_SSIM_Explanation.md):
-    align the metric input with the perceptual 0-255 view that latent_to_img() produces."""
-    a1 = np.array(img1).astype(np.float32)
-    a2 = np.array(img2).astype(np.float32)
-    return float(np.mean((a1 - a2) ** 2))
-
-def print_model_stats(model, name, original_state_dict=None):
-    try:
-        state = model.state_dict()
-    except (AttributeError, RuntimeError) as e:
-        print(f"[{name}] Note: state_dict() failed ({type(e).__name__}). Using original state_dict for stats.")
-        if original_state_dict is not None:
-            state = original_state_dict
-        else:
-            print(f"[{name}] Warning: No fallback state_dict available. Skipping detailed stats.")
-            print(f"[{name}] Model type: {type(model).__name__}")
-            return
-    
-    target_key = None
-    for key in state.keys():
-        if "layers.10" in key and "weight" in key and "norm" not in key:
-            target_key = key
-            break
-    if target_key is None:
-        target_key = next(iter(state))
-        print(f"  Note: Fallback key: {target_key}")
-
-    weight = state[target_key]
-    print(f"[{name}] Inspecting weight: {target_key}")
-    print(f"[{name}] Shape={tuple(weight.shape)}, dtype={weight.dtype}")
-    
-    flat = weight.flatten()[:5].cpu().float().tolist()
-    print(f"[{name}] First 5 values: {flat}")
-    
-    weight_hash = hash(weight.flatten()[:100].cpu().float().sum().item())
-    print(f"[{name}] Weight hash: {weight_hash}")
-    
-    q_params = [k for k in state if ".comfy_quant" in k]
-    if q_params:
-        print(f"[{name}] Detected Quantization Metadata: {len(q_params)} parameters.")
+def _restore_argv(saved: list[str]) -> None:
+    sys.argv = saved
 
 
 def _install_torchaudio_stub() -> None:
-    """Prevent real torchaudio from loading if comfy.sd is pulled in.
-
-    comfy.sd imports comfy.ldm.lightricks.vae.audio_vae, which does a hard
-    ``import torchaudio``. On cloud hosts torch/torchaudio CUDA builds often
-    mismatch (e.g. torch 13.2 vs torchaudio 13.0) and abort before bench load.
-    Z Image INT8 bench uses Qwen3 TE + NextDiT only — never AudioVAE — so
-    replace torchaudio in sys.modules with a local stub.
-    Does not touch ComfyUI-master.
-    """
     import importlib.machinery
     import types
 
@@ -470,8 +39,6 @@ def _install_torchaudio_stub() -> None:
             del sys.modules[key]
 
     def _stub_mod(name: str, *, is_package: bool = False):
-        # transformers uses importlib.util.find_spec("torchaudio"); a ModuleType
-        # without __spec__ raises ValueError: torchaudio.__spec__ is None.
         mod = types.ModuleType(name)
         mod.__file__ = "<hswq_torchaudio_stub>"
         if is_package:
@@ -519,11 +86,301 @@ def _install_torchaudio_stub() -> None:
     sys.modules["torchaudio.transforms"] = transforms
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Z Image INT8 HSWQ Fidelity & VRAM Benchmark (zit_bench-based)")
+def setup_comfy(comfy_path: str) -> None:
+    comfy_root = Path(comfy_path).resolve()
+    if not comfy_root.is_dir():
+        raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
+    sys.path = [str(comfy_root)] + [p for p in sys.path if Path(p).resolve() != comfy_root]
+
+    _install_torchaudio_stub()
+
+    import comfy.options
+
+    comfy.options.enable_args_parsing(False)
+
+    try:
+        import comfy_aimdo  # noqa: F401
+    except Exception:
+        import types
+
+        m = types.ModuleType("comfy_aimdo")
+        m.__file__ = "<stub>"
+        m.__path__ = []
+        sys.modules["comfy_aimdo"] = m
+        sys.modules["comfy_aimdo.filter"] = types.ModuleType("comfy_aimdo.filter")
+        sys.modules["comfy_aimdo.filter"].filter_modules = lambda *a, **k: None
+
+    try:
+        import psutil  # noqa: F401
+    except Exception:
+        import types
+
+        class _VM:
+            total = 64 * 1024**3
+            available = 32 * 1024**3
+
+        class _Proc:
+            def memory_info(self):
+                return types.SimpleNamespace(rss=0)
+
+            def memory_full_info(self):
+                return types.SimpleNamespace(uss=0)
+
+            def cpu_percent(self, interval=None):
+                return 0.0
+
+            def num_threads(self):
+                return 1
+
+        ps = types.ModuleType("psutil")
+        ps.virtual_memory = lambda: _VM()
+        ps.Process = lambda: _Proc()
+        sys.modules["psutil"] = ps
+
+
+def apply_int8_patches() -> None:
+    import comfy.ops
+
+    from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
+    import int8.comfy_quant_int8 as _cq_int8
+
+    apply_comfy_quant_int8_patches()
+    print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+    print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
+    print(
+        f"  [BENCH] mixed_precision_ops Conv2d inject: "
+        f"{getattr(comfy.ops.mixed_precision_ops, '_hswq_int8_conv_patched', False)}"
+    )
+    print(f"  [BENCH] patch file: {os.path.abspath(_cq_int8.__file__)}")
+    if not _cq_int8._PATCHES_APPLIED:
+        raise RuntimeError(
+            "comfy_quant_int8 patches failed to apply "
+            "(need [BENCH] comfy_quant_int8 patched: True)"
+        )
+
+
+def set_hf_token(token: str | None) -> None:
+    if not token:
+        return
+    os.environ["HF_TOKEN"] = token
+    os.environ["HUGGING_FACE_HUB_TOKEN"] = token
+
+
+def encode_prompt(clip, prompt: str):
+    tokens = clip.tokenize(prompt)
+    return clip.encode_from_tokens_scheduled(tokens)
+
+
+def make_empty_latent(model, width: int, height: int, batch: int = 1) -> dict:
+    import comfy.model_management as mm
+    import comfy.sample as comfy_sample
+
+    device = mm.intermediate_device()
+    latent = torch.zeros([batch, 16, height // 8, width // 8], device=device)
+    latent = comfy_sample.fix_empty_latent_channels(model, latent)
+    return {"samples": latent}
+
+
+def latent_to_img(l: torch.Tensor) -> Image.Image:
+    l = l[0].permute(1, 2, 0).cpu().float().numpy()
+    l = (l - l.min()) / (l.max() - l.min() + 1e-6) * 255
+    return Image.fromarray(l[:, :, :3].astype(np.uint8))
+
+
+def sample_once(
+    model,
+    positive,
+    negative,
+    latent: dict,
+    *,
+    seed: int,
+    steps: int,
+    cfg: float,
+    sampler_name: str,
+    scheduler: str,
+    denoise: float,
+):
+    import comfy.sample as comfy_sample
+    import comfy.utils
+    import latent_preview
+
+    noise = comfy_sample.prepare_noise(latent["samples"], seed, None)
+    noise_mask = latent.get("noise_mask", None)
+    callback = latent_preview.prepare_callback(model, steps)
+    disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
+
+    samples = comfy_sample.sample(
+        model,
+        noise,
+        steps,
+        cfg,
+        sampler_name,
+        scheduler,
+        positive,
+        negative,
+        latent["samples"],
+        denoise=denoise,
+        disable_noise=False,
+        start_step=None,
+        last_step=None,
+        force_full_denoise=False,
+        noise_mask=noise_mask,
+        callback=callback,
+        disable_pbar=disable_pbar,
+        seed=seed,
+    )
+    out = latent.copy()
+    out["samples"] = samples
+    return out
+
+
+def _hard_free_vram() -> None:
+    import comfy.model_management as mm
+
+    mm.unload_all_models()
+    mm.soft_empty_cache()
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
+
+def _load_diffusion_model(unet_path: str):
+    import comfy.sd
+    from int8.comfy_quant_int8 import (
+        _int8_quant_conv_scope,
+        checkpoint_looks_like_comfy_quant_int8,
+    )
+
+    use_int8_scope = checkpoint_looks_like_comfy_quant_int8(unet_path)
+    print(f"  [BENCH] INT8 Conv2d load scope: {use_int8_scope}")
+    if use_int8_scope:
+        with _int8_quant_conv_scope():
+            return comfy.sd.load_diffusion_model(unet_path, {})
+    return comfy.sd.load_diffusion_model(unet_path, {})
+
+
+def print_model_stats(model, name: str) -> None:
+    inner = getattr(model, "model", model)
+    dm = getattr(inner, "diffusion_model", None)
+    target = dm if dm is not None else inner
+    params = list(target.parameters())
+    dtype = params[0].dtype if params else "?"
+    n = sum(p.numel() for p in params)
+    print(
+        f"[{name}] class={type(inner).__name__} "
+        f"unet={type(target).__name__} dtype={dtype} params={n}"
+    )
+
+
+def calculate_latent_mse(lat1: torch.Tensor, lat2: torch.Tensor) -> float:
+    a = lat1.detach().float().cpu()
+    b = lat2.detach().float().cpu()
+    return float(torch.mean((a - b) ** 2).item())
+
+
+def calculate_latent_cosine(lat1: torch.Tensor, lat2: torch.Tensor) -> float:
+    a = lat1.detach().float().cpu().reshape(-1)
+    b = lat2.detach().float().cpu().reshape(-1)
+    return float(
+        torch.nn.functional.cosine_similarity(
+            a.unsqueeze(0), b.unsqueeze(0), dim=1
+        ).item()
+    )
+
+
+def calculate_ssim_normalized(img1: Image.Image, img2: Image.Image) -> float:
+    arr1 = np.array(img1)
+    arr2 = np.array(img2)
+    return float(ssim(arr1, arr2, win_size=3, channel_axis=2, data_range=255))
+
+
+def run_branch(
+    *,
+    label: str,
+    unet_path: str,
+    vae,
+    positive,
+    negative,
+    args,
+) -> tuple[Image.Image, torch.Tensor, float, float]:
+    print(f"\n=== {label} ===")
+    print(f"  path: {unet_path}")
+    t0 = time.perf_counter()
+    model = _load_diffusion_model(unet_path)
+    load_s = time.perf_counter() - t0
+    print(f"  load: {load_s:.2f}s")
+    print_model_stats(model, label)
+
+    latent = make_empty_latent(model, args.width, args.height, batch=1)
+
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.synchronize()
+
+    t1 = time.perf_counter()
+    out = sample_once(
+        model,
+        positive,
+        negative,
+        latent,
+        seed=args.seed,
+        steps=args.steps,
+        cfg=args.cfg,
+        sampler_name=args.sampler,
+        scheduler=args.scheduler,
+        denoise=1.0,
+    )
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    sample_s = time.perf_counter() - t1
+    peak_mb = (
+        torch.cuda.max_memory_allocated() / (1024**2) if torch.cuda.is_available() else 0.0
+    )
+    print(f"  sample: {sample_s:.2f}s  Peak VRAM: {peak_mb:.2f} MB")
+
+    samples_t = out["samples"]
+    lat_cpu = samples_t.detach().float().cpu()
+
+    if vae is not None:
+        latent_t = samples_t.detach()
+        if getattr(latent_t, "is_nested", False):
+            latent_t = latent_t.unbind()[0]
+        del model, out, samples_t
+        _hard_free_vram()
+
+        print("  decoding with VAE...")
+        _po = vae.process_output
+        vae.process_output = lambda image: image.float().add(1.0).mul(0.5).clamp(0.0, 1.0)
+        try:
+            with torch.inference_mode(False):
+                images = vae.decode(latent_t)
+        finally:
+            vae.process_output = _po
+        if len(images.shape) == 5:
+            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+        img_array = 255.0 * images[0].detach().cpu().numpy()
+        img = Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
+        del latent_t, images
+    else:
+        img = latent_to_img(samples_t.detach())
+        del model, out, samples_t
+
+    _hard_free_vram()
+    return img, lat_cpu, sample_s, peak_mb
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Z Image INT8 HSWQ Fidelity & VRAM Benchmark"
+    )
     parser.add_argument("--fp16", required=True, help="Baseline model path")
     parser.add_argument("--fp8", required=True, help="Quantized model path")
-    parser.add_argument("--clip_path", required=True, help="Qwen3-4B text encoder path (required; no auto-discovery)")
+    parser.add_argument(
+        "--clip_path",
+        required=True,
+        help="Qwen3-4B text encoder path (required; no auto-discovery)",
+    )
     parser.add_argument(
         "--tokenizer_path",
         default=None,
@@ -532,181 +389,158 @@ def main():
             "comfy/text_encoders/qwen25_tokenizer under --comfy_path"
         ),
     )
-    parser.add_argument("--comfy_path", required=True, help="ComfyUI root path (required; no auto-discovery)")
-    parser.add_argument("--vae", default=None, help="VAE path; if set, decode latents with VAE and compute SSIM on decoded pixel images (like Flux)")
-    parser.add_argument("--prompt", default="A beautiful cyberpunk city at night, high detail.", help="Benchmark prompt")
+    parser.add_argument(
+        "--comfy_path",
+        required=True,
+        help="ComfyUI root path (required; no auto-discovery)",
+    )
+    parser.add_argument(
+        "--vae",
+        default=None,
+        required=False,
+        help="Optional VAE path. If omitted, fidelity uses latent cosine (no decode).",
+    )
+    parser.add_argument("--token", default=None, help="Optional Hugging Face token")
+    parser.add_argument(
+        "--prompt",
+        default=(
+            "Solid black background only. Empty frame. "
+            "No objects, no lights, no city, no people, no text, no texture. "
+            "Completely black."
+        ),
+        help="Benchmark prompt",
+    )
+    parser.add_argument(
+        "--negative-prompt",
+        default="",
+        help="Negative prompt for CFG (empty string default).",
+    )
+    parser.add_argument(
+        "--cfg",
+        type=float,
+        default=2.5,
+        help="Classifier-free guidance scale (Z-Image reference workflow: 2.5).",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=int, default=25)
+    parser.add_argument("--width", type=int, default=1024)
+    parser.add_argument("--height", type=int, default=1024)
+    parser.add_argument("--sampler", default="euler")
+    parser.add_argument("--scheduler", default="simple")
     args = parser.parse_args()
 
-    # Safety Check for Tokenizer
-    if args.tokenizer_path and args.tokenizer_path.startswith("hf_"):
-        print("  Warning: Detected HF token in tokenizer_path argument. Ignoring invalid path.")
-        args.tokenizer_path = None
+    for p, name in ((args.fp16, "--fp16"), (args.fp8, "--fp8"), (args.clip_path, "--clip_path")):
+        if not Path(p).is_file():
+            raise FileNotFoundError(f"{name} not found: {p}")
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    
-    # Trust the user's provided path blindly
-    if args.comfy_path not in sys.path:
-        sys.path.insert(0, args.comfy_path)
-    print(f"  ComfyUI Path set to: {args.comfy_path}")
-    # Always stub before any comfy.* / nodes import (real torchaudio may CUDA-mismatch).
-    _install_torchaudio_stub()
+    set_hf_token(args.token)
 
-    vae_obj = None
-    if args.vae:
-        if not os.path.isfile(args.vae) and not os.path.isdir(args.vae):
-            print(f"  Warning: --vae path not found: {args.vae}")
-        else:
-            import folder_paths
-            import nodes
-            vae_dir = os.path.dirname(os.path.abspath(args.vae))
-            folder_paths.add_model_folder_path("vae", vae_dir)
-            vae_loader = nodes.VAELoader()
-            vae_obj = vae_loader.load_vae(vae_name=os.path.basename(args.vae))[0]
+    bench_dir = Path(__file__).resolve().parent
+    if str(bench_dir) not in sys.path:
+        sys.path.insert(0, str(bench_dir))
+
+    saved_argv = _clear_argv_for_comfy()
+    try:
+        setup_comfy(args.comfy_path)
+        apply_int8_patches()
+
+        import folder_paths  # noqa: F401
+        import comfy.model_management as mm
+        import comfy.sd
+        import comfy.utils
+
+        mm.get_torch_device()
+
+        print("Starting Z Image INT8 HSWQ Bench...")
+        print(f"Loading CLIP weights from: {args.clip_path}")
+        clip = comfy.sd.load_clip(
+            ckpt_paths=[args.clip_path],
+            embedding_directory=None,
+        )
+
+        vae = None
+        if args.vae:
+            if not Path(args.vae).is_file():
+                raise FileNotFoundError(f"--vae not found: {args.vae}")
             print(f"  Loaded VAE for decode: {os.path.basename(args.vae)}")
-    
-    try:
-        from comfy.text_encoders import llama as llama_module
-        from transformers import Qwen2Tokenizer
-        import comfy.ops
+            sd = comfy.utils.load_torch_file(args.vae)
+            vae = comfy.sd.VAE(sd=sd)
 
-        # INT8 comfy_quant patches live under benchmark/int8 (runtime monkey-patch).
-        bench_dir = os.path.dirname(os.path.abspath(__file__))
-        if bench_dir not in sys.path:
-            sys.path.insert(0, bench_dir)
-        from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches  # noqa: E402
-        import int8.comfy_quant_int8 as _cq_int8  # noqa: E402
+        print("Encoding prompt...")
+        positive = encode_prompt(clip, args.prompt)
+        negative = encode_prompt(clip, args.negative_prompt)
+        if getattr(clip, "cond_stage_model", None) is not None:
+            clip.cond_stage_model.cpu()
+        if getattr(clip, "patcher", None) is not None:
+            mm.unload_model_and_clones(clip.patcher)
+        del clip
+        _hard_free_vram()
+        print("  [Offload] CLIP on CPU / unloaded (VRAM freed for ZI INT8 benchmark).")
 
-        apply_comfy_quant_int8_patches()
-        print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
-        print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
-        print(f"  [BENCH] patch file: {os.path.abspath(_cq_int8.__file__)}")
-    except ImportError as e:
-        print(f"CRITICAL ERROR: Could not import 'comfy'.")
-        print(f"  Current Working Directory: {os.getcwd()}")
-        print(f"  Target ComfyUI Path: {args.comfy_path}")
-        if os.path.exists(args.comfy_path):
-             print(f"  Directory Listing: {os.listdir(args.comfy_path)[:10]}...")
-        else:
-             print(f"  Path does NOT exist.")
-        print(f"  sys.path: {sys.path}")
-        sys.exit(1)
-    
-    print("Starting Text Encoder Initialization...")
+        print("--- Benchmark Config ---")
+        print(f"Seed: {args.seed}  Steps: {args.steps}  CFG: {args.cfg}")
+        print(f"Size: {args.width}x{args.height}  sampler={args.sampler}/{args.scheduler}")
+        print(f"Prompt: {args.prompt[:80]}...")
+        print("------------------------")
 
-    # Tokenizer: optional override, else ComfyUI-bundled qwen25_tokenizer under --comfy_path.
-    tokenizer_path = resolve_tokenizer_offline(args.tokenizer_path, args.comfy_path)
-    if not tokenizer_path:
-        bundled = os.path.join(
-            args.comfy_path, "comfy", "text_encoders", "qwen25_tokenizer"
+        img_fp16, lat_fp16, t16, v16 = run_branch(
+            label="1. Benchmarking Baseline (FP16)",
+            unet_path=args.fp16,
+            vae=vae,
+            positive=positive,
+            negative=negative,
+            args=args,
         )
-        print(
-            "FATAL: tokenizer not found. Ensure ComfyUI-bundled path exists: "
-            f"{bundled}"
+        img_fp16.save("bench_fp16.png")
+        print(f"FP16 Time: {t16:.2f}s | Peak VRAM: {v16:.2f} MB")
+
+        img_int8, lat_int8, t8, v8 = run_branch(
+            label="2. Benchmarking Quantized (INT8 / int8_tensorwise)",
+            unet_path=args.fp8,
+            vae=vae,
+            positive=positive,
+            negative=negative,
+            args=args,
         )
-        sys.exit(1)
-    print(f"  Loading tokenizer from disk: {tokenizer_path}")
-    try:
-        tokenizer = Qwen2Tokenizer.from_pretrained(
-            tokenizer_path, local_files_only=True
-        )
-    except Exception as e:
-        print(f"FATAL: Failed to load tokenizer from {tokenizer_path}: {e}")
-        sys.exit(1)
+        img_int8.save("bench_int8.png")
+        print(f"INT8 Time: {t8:.2f}s | Peak VRAM: {v8:.2f} MB")
 
-    resolved_clip = resolve_path(args.clip_path, is_file=True)
-    if not resolved_clip:
-        print(f"FATAL: --clip_path not found: {args.clip_path}")
-        sys.exit(1)
+        if img_fp16.size != img_int8.size:
+            print(f"Error: Image sizes do not match! FP16:{img_fp16.size}, INT8:{img_int8.size}")
+            return 1
 
-    text_encoder = llama_module.Qwen3_4B(
-        config_dict={}, device=device, dtype=torch.float16, operations=comfy.ops.disable_weight_init
-    ).to(device)
+        mse = calculate_latent_mse(lat_fp16, lat_int8)
+        lat_cos = calculate_latent_cosine(lat_fp16, lat_int8)
 
-    print(f"Loading CLIP weights from: {resolved_clip}")
-    text_encoder.load_state_dict(load_file(resolved_clip), strict=False)
-    text_encoder.eval()
-    
-    # Encode on GPU, then offload text encoder to CPU to free VRAM for benchmark
-    embeds, mask = encode_prompt(args.prompt, text_encoder, tokenizer, device)
-    text_encoder.cpu().to(torch.float16)
-    torch.cuda.empty_cache()
-    # Verify offload: text encoder must reside on CPU during ZI INT8 benchmark
-    te_device = next(text_encoder.parameters()).device
-    print(f"  [Offload] Text encoder on {te_device} (VRAM freed for ZI INT8 benchmark).")
-    
-    # FP16 Benchmark
-    print("\n=== 1. Benchmarking Baseline (FP16) ===")
-    model, state_dict_fp16, is_zanime_fp16 = load_zit_model(args.fp16, device, args.comfy_path, is_int8=False)
-    print_model_stats(model, "FP16 Baseline", state_dict_fp16)
-    latents_fp16, time_fp16, vram_fp16 = run_inference(model, embeds, mask, args.steps, args.seed, device)
-    print(f"FP16 Time: {time_fp16:.2f}s | Peak VRAM: {vram_fp16:.2f} MB")
-    
-    if vae_obj is not None:
-        vae_decode = nodes.VAEDecode()
-        samples = {"samples": latents_fp16}
-        image_tensor = vae_decode.decode(vae=vae_obj, samples=samples)[0]
-        img_fp16 = Image.fromarray(np.clip(255.0 * image_tensor[0].cpu().numpy(), 0, 255).astype(np.uint8))
-    else:
-        img_fp16 = latent_to_img(latents_fp16)
-    img_fp16.save("bench_fp16.png")
-    
-    del model
-    gc.collect()
-    torch.cuda.empty_cache()
+        print("\n" + "=" * 50)
+        print("ZI INT8 BENCHMARK RESULTS")
+        print("=" * 50)
+        vram_saved = v16 - v8
+        vram_saved_pct = (vram_saved / v16) * 100 if v16 else 0.0
 
-    # INT8 Benchmark
-    print("\n=== 2. Benchmarking Quantized (INT8 / int8_tensorwise) ===")
-    model, state_dict_int8, is_zanime_int8 = load_zit_model(args.fp8, device, args.comfy_path, is_int8=True)
-    is_zanime = is_zanime_fp16 or is_zanime_int8
-    print_model_stats(model, "INT8 Quantized", state_dict_int8)
-    latents_int8, time_int8, vram_int8 = run_inference(model, embeds, mask, args.steps, args.seed, device)
-    print(f"INT8 Time: {time_int8:.2f}s | Peak VRAM: {vram_int8:.2f} MB")
-    
-    if vae_obj is not None:
-        vae_decode = nodes.VAEDecode()
-        samples = {"samples": latents_int8}
-        image_tensor = vae_decode.decode(vae=vae_obj, samples=samples)[0]
-        img_int8 = Image.fromarray(np.clip(255.0 * image_tensor[0].cpu().numpy(), 0, 255).astype(np.uint8))
-    else:
-        img_int8 = latent_to_img(latents_int8)
-    img_int8.save("bench_int8.png")
-    
-    # Comparison: MSE and SSIM.
-    # Z-Anime: raw latent magnitudes diverge from ZI, so latent MSE is non-comparable.
-    # Use the same 0-255 view that SSIM uses (latent_to_img output) for Z-Anime MSE.
-    # ZI/ZIB/ZIT: keep legacy latent-space MSE (v1.1.1 Flux precedent).
-    if is_zanime:
-        mse = calculate_normalized_mse(img_fp16, img_int8)
-    else:
-        mse = calculate_latent_mse(latents_fp16, latents_int8)
-    score = calculate_ssim_normalized(img_fp16, img_int8)
-    
-    print("\n" + "="*50)
-    print("ZI INT8 BENCHMARK RESULTS")
-    print("="*50)
-    vram_saved = vram_fp16 - vram_int8
-    vram_saved_pct = (vram_saved / vram_fp16) * 100
-    
-    print(f"Peak VRAM Expansion:  FP16: {vram_fp16:>8.1f} MB")
-    print(f"                      INT8: {vram_int8:>8.1f} MB")
-    print(f"VRAM Saved:           {vram_saved:8.1f} MB ({vram_saved_pct:.1f}%)")
-    print("-" * 50)
-    print(f"Inference Time:       FP16: {time_fp16:>8.2f}s")
-    print(f"                      INT8: {time_int8:>8.2f}s")
-    print("-" * 50)
-    print(f"Fidelity:")
-    mse_label = "MSE (0-255 view)" if is_zanime else "MSE (latent)"
-    ssim_label = "SSIM (decoded)" if vae_obj is not None else "SSIM (0-255 view)"
-    print(f"  {mse_label:<18}: {mse:.4f}")
-    print(f"  {ssim_label:<18}: {score:.4f}")
-    print("="*50)
+        print(f"Peak VRAM Expansion:  FP16: {v16:>8.1f} MB")
+        print(f"                      INT8: {v8:>8.1f} MB")
+        print(f"VRAM Saved:           {vram_saved:8.1f} MB ({vram_saved_pct:.1f}%)")
+        print("-" * 50)
+        print(f"Inference Time:       FP16: {t16:>8.2f}s")
+        print(f"                      INT8: {t8:>8.2f}s")
+        print("-" * 50)
+        print("Fidelity:")
+        print(f"  {'MSE (latent)':<18}: {mse:.4f}")
+        print(f"  {'Cosine (latent)':<18}: {lat_cos:.4f}")
+        if vae is not None:
+            score = calculate_ssim_normalized(img_fp16, img_int8)
+            print(f"  {'SSIM (decoded)':<18}: {score:.4f}")
+        print("=" * 50)
 
-    diff_img = ImageChops.difference(img_fp16, img_int8)
-    diff_img = ImageChops.multiply(diff_img, Image.new('RGB', diff_img.size, (10, 10, 10))) 
-    diff_img.save("bench_diff.png")
-    print("Diff image saved: bench_diff.png")
+        diff_img = ImageChops.difference(img_fp16, img_int8)
+        diff_img = ImageChops.multiply(diff_img, Image.new("RGB", diff_img.size, (10, 10, 10)))
+        diff_img.save("bench_diff.png")
+        print("Diff image saved: bench_diff.png")
+        return 0
+    finally:
+        _restore_argv(saved_argv)
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
