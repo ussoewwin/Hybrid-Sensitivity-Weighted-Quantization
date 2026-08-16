@@ -381,8 +381,14 @@ def set_hf_token(token: str | None) -> None:
 
 
 def load_zit_model(path, device="cuda", comfy_path=None, is_nvfp4=False, require_convrot=False):
-    if comfy_path and comfy_path not in sys.path:
-        sys.path.insert(0, comfy_path)
+    if comfy_path:
+        p = Path(comfy_path)
+        if not p.is_absolute():
+            cand = Path(__file__).resolve().parent.parent / comfy_path
+            p = cand if cand.is_dir() else Path(comfy_path)
+        resolved = str(p.resolve())
+        if resolved not in sys.path:
+            sys.path.insert(0, resolved)
 
     from comfy.ldm.lumina.model import NextDiT
     import comfy.ops
