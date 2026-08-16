@@ -52,6 +52,7 @@ Same placeholder style as [How to quantize Z Image.md](How%20to%20quantize%20Z%2
 | `<path-to-ComfyUI>` | Folder that contains `comfy/`. If you use the tree bundled in this clone, that folder is `ComfyUI-master` (relative to the clone directory) |
 | `<path-to-qwen3-4b>` | Local Qwen3-4B text-encoder `.safetensors` (the same file as `--clip_path` in the INT8 how-to) |
 | `<K>` | Integer: how many lowest-impact layers to convert to NVFP4 (search this; it is not a fixed number) |
+| `impact_<zit_unet>.json` | **Not a download.** Step 1 **creates** this file. The third argument of `Z_Image/diag_impact.py` is the **output path**. Typical location: the clone directory |
 
 **INT8 input:** the `--output` file from the INT8 how-to, typically
 `<path-to-unet>/<zit_unet>_convrot_int8.safetensors`. If you already saved that file under another name,
@@ -72,9 +73,9 @@ use that path as-is.
 
 ```
 ConvRot INT8 (208 layers, error ≈ 0)
-   │  Step 1: per-layer impact measurement (208 layers × 4-step trajectory, ≈12 min)
+   │  Step 1: run Z_Image/diag_impact.py — this **writes** impact_<zit_unet>.json (≈12 min)
    ▼
-impact_<zit_unet>.json (impact per layer, ascending)
+impact_<zit_unet>.json (created here; not shipped in the clone; not copied from another model)
    │  Step 2: reverse conversion (convert K lowest-impact layers to NVFP4, ≈1 min)
    ▼
 <zit_unet>_hswq_hybrid_nv{K}_convrot_nvfp4.safetensors
@@ -88,11 +89,26 @@ that still passes all 5 seeds.
 
 ---
 
-## Step 1. Per-layer impact measurement (all 208 layers, ≈12 min)
+## Step 1. Create `impact_<zit_unet>.json` (all 208 layers, ≈12 min)
 
-Inject NVFP4 error (**e4m3, group 256 reconstruction**) into **one layer at a time**, run a fixed-seed
-4-step denoising trajectory, and measure how far the final x drifts (relative MSE).
-This is the layer's **true importance under real trajectory propagation**.
+**How you make this file:** run `Z_Image/diag_impact.py` from the clone directory. There is **no**
+ready-made `impact_*.json` in the repository and **no** download. You do **not** write the JSON by
+hand. You do **not** reuse another checkpoint's JSON (ranking is not transferable).
+
+The command has **three positional arguments**:
+
+1. **Input** — base fp16/bf16 UNet: `<path-to-unet>/<zit_unet>.safetensors`
+2. **Input** — complete ConvRot INT8 from the INT8 how-to: `<path-to-unet>/<zit_unet>_convrot_int8.safetensors`
+3. **Output** — path of the JSON **this command will create**. A relative name such as
+   `impact_<zit_unet>.json` writes into the **clone directory** (the cwd). Replace `<zit_unet>` with
+   the same stem as the INT8 how-to. Example: if the UNet stem is `my_zit_v1`, the third argument is
+   `impact_my_zit_v1.json`.
+
+What the script does: inject NVFP4 error (**e4m3, group 256 reconstruction**) into **one layer at a
+time**, run a fixed-seed 4-step denoising trajectory, and measure how far the final x drifts
+(relative MSE). That value is the layer's **true importance under real trajectory propagation**.
+When it finishes it prints `saved <that path>` and `DONE`. Until those lines appear, the file is
+not ready for Step 2.
 
 From the **clone directory** (`Hybrid-Sensitivity-Weighted-Quantization`):
 
@@ -105,7 +121,7 @@ python Z_Image/diag_impact.py "<path-to-unet>/<zit_unet>.safetensors" \
 
 If `<path-to-ComfyUI>` is the bundled tree, that last flag is `--comfy-path ComfyUI-master`.
 
-**Output** `impact_<zit_unet>.json` (written in the clone directory) →
+**Created file** (clone directory unless you passed an absolute path) →
 `{"x_ref_norm": ..., "impacts": {<layer>: <relative MSE>, ...}}`
 
 Typical ranking tendencies (always re-measure per checkpoint; ranking is not transferable):
@@ -116,6 +132,9 @@ Typical ranking tendencies (always re-measure per checkpoint; ranking is not tra
 ---
 
 ## Step 2. Reverse conversion (≈1 min)
+
+Use the **same** `impact_<zit_unet>.json` that Step 1 just wrote. If that file is missing, run Step 1;
+do not invent the JSON.
 
 Convert the **K** layers with the smallest impact to NVFP4, in ascending impact order.
 
@@ -217,6 +236,7 @@ layers are safe.
 
 | Symptom | Cause / fix |
 |---|---|
+| `impact_<zit_unet>.json` does not exist | It is **created by Step 1**. Run `Z_Image/diag_impact.py`; the third argument is the output path |
 | 0 layers converted | impact key format mismatch (`.weight` suffix). Check the normalization in `gen_reverse_nvfp4.py` |
 | `save_file` ValueError | `.comfy_quant` must be a **U8 tensor** (`torch.frombuffer(...).clone()`), not raw bytes |
 | Bench CRITICAL ERROR (0 armed) | 0 NVFP4 layers. Regenerate with K ≥ 1 |
@@ -229,7 +249,7 @@ layers are safe.
 
 | File | Purpose |
 |---|---|
-| `Z_Image/diag_impact.py` | Step 1: per-layer NVFP4 trajectory impact measurement |
+| `Z_Image/diag_impact.py` | Step 1: **creates** `impact_<zit_unet>.json` (third argument = output path) |
 | `Z_Image/gen_reverse_nvfp4.py` | Step 2: reverse hybrid converter (INT8 → NVFP4, K lowest-impact layers) |
 | `benchmark/zi_convrot_nvfp4_bench_native.py` | Step 3: native bench (bf16 native baseline, `--native-dtype`) |
 | `native_convert_int8_convrot_zi.py` | INT8 prerequisite (see [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md)) |
