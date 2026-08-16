@@ -67,7 +67,7 @@ use that path as-is.
 | ComfyUI | `<path-to-ComfyUI>` as defined above (Z-Image loading / Qwen3-4B text encoder) |
 | Input ① | `<path-to-unet>/<zit_unet>.safetensors` (base fp16/bf16 NextDiT) |
 | Input ② | `<path-to-unet>/<zit_unet>_convrot_int8.safetensors` (complete ConvRot INT8 from the INT8 how-to; int8_tensorwise, convrot:true, `model.diffusion_model.` prefix) |
-| GPU | **VRAM ≥ 12GB** · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
+| GPU | **VRAM ≥ 16GB** · **RTX 4060 Ti 16GB or above recommended** · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
 
 ## Overall flow
 
