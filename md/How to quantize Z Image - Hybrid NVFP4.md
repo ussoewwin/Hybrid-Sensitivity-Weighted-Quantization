@@ -1,9 +1,8 @@
 # How to create Hybrid NVFP4 from ConvRot INT8 (Z Image, Reverse Method)
 
-> **Prerequisite**: The input **ConvRot INT8 model** (`<model>_sci_1off_convrot_int8.safetensors`) is
-> already created by `native_convert_int8_convrot_zi.py` as described in
+> **Prerequisite**: Create the **ConvRot INT8** UNet first with `native_convert_int8_convrot_zi.py`, as in
 > [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md).
-> This document is the next step: turn that complete INT8 model into a **hybrid NVFP4** model.
+> This document is the next step: turn that complete INT8 UNet into a **hybrid NVFP4** UNet.
 
 This method is **fundamentally different** from the conventional "protect the top-important layers"
 approach (histogram MSE / cosine / SVD saliency). It is a **reverse method**: start from the complete
@@ -12,15 +11,17 @@ The conventional method ignores inter-layer interactions and is not sufficient f
 The reverse method stays in the low-error regime where additivity holds, so **single-layer ranking is
 valid**. Pass only if **every seed** of the native bench meets **SSIM (0-255 view) ≥ 0.97**.
 
-Replace every `<...>` placeholder with a real path on your machine (no invented filenames; no
-machine-local drive hardcoding in published examples).
-
 ## Clone the repository
 
 ```bash
 git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
 cd Hybrid-Sensitivity-Weighted-Quantization
 ```
+
+After `cd`, you are in the **clone directory**. That directory contains `Z_Image/`, `benchmark/`, and
+`ComfyUI-master/`. Run **Step 1** and **Step 2** from here. `Z_Image/diag_impact.py` already treats this
+directory as its default root (it loads `benchmark/zi_convrot_nvfp4_bench.py`). Do **not** pass
+`--repo-root`.
 
 ## Install PyTorch (CUDA)
 
@@ -40,15 +41,31 @@ pip install safetensors tqdm scikit-image comfy-kitchen
 `scikit-image` is required for SSIM in the native bench. `comfy-kitchen` is required by
 `Z_Image/gen_reverse_nvfp4.py` (`TensorCoreNVFP4Layout`).
 
+## Paths (replace every `<...>` with a real path on your machine)
+
+Same placeholder style as [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md).
+
+| Placeholder | Meaning |
+|---|---|
+| `<path-to-unet>` | Folder that holds your Z Image Turbo UNet `.safetensors` files |
+| `<zit_unet>` | UNet filename **without** `.safetensors` (same stem as `--model` / `--output` in the INT8 how-to) |
+| `<path-to-ComfyUI>` | Folder that contains `comfy/`. If you use the tree bundled in this clone, that folder is `ComfyUI-master` (relative to the clone directory) |
+| `<path-to-qwen3-4b>` | Local Qwen3-4B text-encoder `.safetensors` (the same file as `--clip_path` in the INT8 how-to) |
+| `<K>` | Integer: how many lowest-impact layers to convert to NVFP4 (search this; it is not a fixed number) |
+
+**INT8 input:** the `--output` file from the INT8 how-to, typically
+`<path-to-unet>/<zit_unet>_convrot_int8.safetensors`. If you already saved that file under another name,
+use that path as-is.
+
 ## Requirements
 
 | Item | Value |
 |---|---|
 | Python | CUDA-enabled PyTorch, `safetensors`, `scikit-image`, `comfy-kitchen` |
 | Bench | `benchmark/zi_convrot_nvfp4_bench_native.py` (this repo, **unmodified**) |
-| ComfyUI | local ComfyUI checkout (Z-Image loading / Qwen3-4B text encoder) |
-| Input ① | `<path-to-unet>/<model>.safetensors` (base fp16/bf16 NextDiT) |
-| Input ② | `<path-to-unet>/<model>_sci_1off_convrot_int8.safetensors` (208-layer ConvRot INT8 from the INT8 how-to; int8_tensorwise, convrot:true, `model.diffusion_model.` prefix) |
+| ComfyUI | `<path-to-ComfyUI>` as defined above (Z-Image loading / Qwen3-4B text encoder) |
+| Input ① | `<path-to-unet>/<zit_unet>.safetensors` (base fp16/bf16 NextDiT) |
+| Input ② | `<path-to-unet>/<zit_unet>_convrot_int8.safetensors` (complete ConvRot INT8 from the INT8 how-to; int8_tensorwise, convrot:true, `model.diffusion_model.` prefix) |
 | GPU | **VRAM ≥ 12GB** · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
 
 ## Overall flow
@@ -57,10 +74,10 @@ pip install safetensors tqdm scikit-image comfy-kitchen
 ConvRot INT8 (208 layers, error ≈ 0)
    │  Step 1: per-layer impact measurement (208 layers × 4-step trajectory, ≈12 min)
    ▼
-impact_<model>.json (impact per layer, ascending)
+impact_<zit_unet>.json (impact per layer, ascending)
    │  Step 2: reverse conversion (convert K lowest-impact layers to NVFP4, ≈1 min)
    ▼
-<model>_hswq_hybrid_nv{K}_convrot_nvfp4.safetensors
+<zit_unet>_hswq_hybrid_nv{K}_convrot_nvfp4.safetensors
    │  Step 3: native bench (existing, unmodified, all 5 seeds)
    ▼
 Pass only if every seed's SSIM (0-255 view) ≥ 0.97
@@ -77,16 +94,19 @@ Inject NVFP4 error (**e4m3, group 256 reconstruction**) into **one layer at a ti
 4-step denoising trajectory, and measure how far the final x drifts (relative MSE).
 This is the layer's **true importance under real trajectory propagation**.
 
-Run from the **repository root**:
+From the **clone directory** (`Hybrid-Sensitivity-Weighted-Quantization`):
 
 ```bash
-python Z_Image/diag_impact.py "<path-to-unet>/<model>.safetensors" \
-  "<path-to-unet>/<model>_sci_1off_convrot_int8.safetensors" \
-  "impact_<model>.json" \
-  --comfy-path "<path-to-ComfyUI>" --repo-root "<this-repo-root>"
+python Z_Image/diag_impact.py "<path-to-unet>/<zit_unet>.safetensors" \
+  "<path-to-unet>/<zit_unet>_convrot_int8.safetensors" \
+  "impact_<zit_unet>.json" \
+  --comfy-path "<path-to-ComfyUI>"
 ```
 
-**Output** `impact_<model>.json` → `{"x_ref_norm": ..., "impacts": {<layer>: <relative MSE>, ...}}`
+If `<path-to-ComfyUI>` is the bundled tree, that last flag is `--comfy-path ComfyUI-master`.
+
+**Output** `impact_<zit_unet>.json` (written in the clone directory) →
+`{"x_ref_norm": ..., "impacts": {<layer>: <relative MSE>, ...}}`
 
 Typical ranking tendencies (always re-measure per checkpoint; ranking is not transferable):
 
@@ -102,19 +122,22 @@ Convert the **K** layers with the smallest impact to NVFP4, in ascending impact 
 The INT8 weights are stored **already rotated (W@H^T)**. Dequant (`q × scale`) gives the rotated
 W_rot approximation. Quantize that with Kitchen **without re-rotating**.
 
-Run from the **repository root**:
+From the **clone directory**:
 
 ```bash
 python Z_Image/gen_reverse_nvfp4.py <K> \
-  "<model>_hswq_hybrid_nv<K>_convrot_nvfp4.safetensors" \
-  "<path-to-unet>/<model>_sci_1off_convrot_int8.safetensors" \
-  "impact_<model>.json" \
+  "<zit_unet>_hswq_hybrid_nv<K>_convrot_nvfp4.safetensors" \
+  "<path-to-unet>/<zit_unet>_convrot_int8.safetensors" \
+  "impact_<zit_unet>.json" \
   --out-dir "<path-to-unet>"
 ```
 
+Example: if you choose `K=74`, the second argument is
+`<zit_unet>_hswq_hybrid_nv74_convrot_nvfp4.safetensors` (the number in the filename is the same `K`).
+
 What this does:
 
-1. Rank layers by `impact_<model>.json` **ascending** (lowest impact first).
+1. Rank layers by `impact_<zit_unet>.json` **ascending** (lowest impact first).
 2. For each of the first **K**: INT8 dequant (`q × scale` → rotated W_rot) → Kitchen `TensorCoreNVFP4Layout` NVFP4 (`format` nvfp4, `convrot` true, `groupsize` 256).
 3. Replace those layers with `.weight` (U8 packed) / `.weight_scale` (F8_E4M3) / `.weight_scale_2` (F32) / `.comfy_quant`.
 4. Leave the remaining layers as INT8 (keys and conf unchanged). Result: **(208 − K) INT8 + K NVFP4**.
@@ -131,18 +154,25 @@ What this does:
 
 The native bench **must be run from `benchmark/`** (it imports sibling modules `kitchen_rms_rope_fallback.py`, `nvfp4/`, `nvfp4_comfy_parity.py`).
 
+From the clone directory, enter `benchmark/`:
+
+```bash
+cd benchmark
+```
+
 **`--steps 25` and `--native-dtype` are required.** The script default is `--steps 20` and `--native-dtype` off — those defaults will **not** match this procedure.
 
 ```bash
-cd "<this-repo-root>/benchmark"
 python zi_convrot_nvfp4_bench_native.py \
-  --fp16 "<path-to-unet>/<model>.safetensors" \
-  --nvfp4 "<path-to-unet>/<model>_hswq_hybrid_nv<K>_convrot_nvfp4.safetensors" \
+  --fp16 "<path-to-unet>/<zit_unet>.safetensors" \
+  --nvfp4 "<path-to-unet>/<zit_unet>_hswq_hybrid_nv<K>_convrot_nvfp4.safetensors" \
   --clip_path "<path-to-qwen3-4b>" \
   --comfy_path "<path-to-ComfyUI>" \
   --prompt "A beautiful cyberpunk city at night, high detail." \
   --steps 25 --seed 42 --native-dtype
 ```
+
+If `<path-to-ComfyUI>` is the bundled tree, `--comfy_path` is `../ComfyUI-master` (you are inside `benchmark/`).
 
 Then rerun the **same command** with `--seed` set to **123**, **777**, **2024**, and **999**.
 
@@ -204,4 +234,4 @@ layers are safe.
 | `benchmark/zi_convrot_nvfp4_bench_native.py` | Step 3: native bench (bf16 native baseline, `--native-dtype`) |
 | `native_convert_int8_convrot_zi.py` | INT8 prerequisite (see [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md)) |
 
-**Dependencies:** `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py` (stays in `benchmark/`, shared with the older HSWQ scripts) — resolve it with `--repo-root <this-repo-root>`. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen`. The native bench stays in `benchmark/` because it shares local modules with sibling bench scripts — **run it from `benchmark/`**.
+**Dependencies:** `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py`. Run Step 1 from the clone directory so the default root is correct. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen`. The native bench stays in `benchmark/` because it shares local modules with sibling bench scripts — **run it from `benchmark/`**.
