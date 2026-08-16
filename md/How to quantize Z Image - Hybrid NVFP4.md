@@ -121,6 +121,7 @@ python Z_Image/diag_impact.py "<path-to-unet>/<zit_unet>.safetensors" \
 
 If `<path-to-ComfyUI>` is the bundled tree, that last flag is `--comfy-path ComfyUI-master`.
 A relative `--comfy-path` is resolved against the clone directory (the parent of `Z_Image/`), not the process cwd, so `ComfyUI-master` still works when Jupyter `!python` leaves cwd elsewhere. The clone must contain `ComfyUI-master/comfy/` (the `comfy` package lives there, not at the clone root).
+Both weight arguments use the same basename search as the ConvRot bench loader: if the given path is missing (for example `Hybrid-Sensitivity-Weighted-Quantization/test2.safetensors` while cwd is already the clone), the script looks up `test2.safetensors` under cwd / the clone, the same way `test.safetensors` is found.
 
 **Created file** (clone directory unless you passed an absolute path) →
 `{"x_ref_norm": ..., "impacts": {<layer>: <relative MSE>, ...}}`

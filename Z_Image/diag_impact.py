@@ -83,6 +83,10 @@ def main():
 
     embeds = torch.randn(1, 256, 2560, device=device, dtype=torch.float16)
 
+    a.base = a.base.strip()
+    a.artifact = a.artifact.strip()
+    a.out = a.out.strip()
+
     model, _, _ = bench.load_zit_model(a.base, device, comfy_path, is_nvfp4=False)
     model.eval()
     mods = {n: m for n, m in model.named_modules()
@@ -90,7 +94,17 @@ def main():
     print(f"modules with weight/in_features: {len(mods)}", flush=True)
 
     from safetensors import safe_open
-    with safe_open(a.artifact, framework="pt", device="cpu") as f:
+    artifact = bench.resolve_path(a.artifact, is_file=True)
+    if not os.path.isfile(artifact):
+        nested = os.path.join(repo, os.path.basename(a.artifact))
+        if os.path.isfile(nested):
+            artifact = os.path.abspath(nested)
+            print(f"  Found: {artifact}", flush=True)
+    if not os.path.isfile(artifact):
+        raise FileNotFoundError(
+            f"artifact not found: {a.artifact!r} (resolved {artifact!r})"
+        )
+    with safe_open(artifact, framework="pt", device="cpu") as f:
         meta = json.loads(f.metadata()["_quantization_metadata"])
         layers = list(meta["layers"].keys())
     print(f"layers to measure: {len(layers)}", flush=True)
