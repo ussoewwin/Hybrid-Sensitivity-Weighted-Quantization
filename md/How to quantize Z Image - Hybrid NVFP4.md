@@ -120,6 +120,7 @@ python Z_Image/diag_impact.py "<path-to-unet>/<zit_unet>.safetensors" \
 ```
 
 If `<path-to-ComfyUI>` is the bundled tree, that last flag is `--comfy-path ComfyUI-master`.
+A relative `--comfy-path` is resolved against the clone directory (the parent of `Z_Image/`), not the process cwd, so `ComfyUI-master` still works when Jupyter `!python` leaves cwd elsewhere. The clone must contain `ComfyUI-master/comfy/` (the `comfy` package lives there, not at the clone root).
 
 **Created file** (clone directory unless you passed an absolute path) →
 `{"x_ref_norm": ..., "impacts": {<layer>: <relative MSE>, ...}}`

@@ -70,9 +70,20 @@ def main():
     bench = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(bench)
 
+    comfy_path = a.comfy_path
+    if not os.path.isabs(comfy_path):
+        joined = os.path.join(repo, comfy_path)
+        if os.path.isdir(joined):
+            comfy_path = os.path.abspath(joined)
+        else:
+            comfy_path = os.path.abspath(comfy_path)
+    else:
+        comfy_path = os.path.abspath(comfy_path)
+    bench.setup_comfy(comfy_path)
+
     embeds = torch.randn(1, 256, 2560, device=device, dtype=torch.float16)
 
-    model, _, _ = bench.load_zit_model(a.base, device, a.comfy_path, is_nvfp4=False)
+    model, _, _ = bench.load_zit_model(a.base, device, comfy_path, is_nvfp4=False)
     model.eval()
     mods = {n: m for n, m in model.named_modules()
             if hasattr(m, "weight") and hasattr(m, "in_features")}
