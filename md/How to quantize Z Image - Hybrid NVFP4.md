@@ -67,7 +67,7 @@ use that path as-is.
 | ComfyUI | `<path-to-ComfyUI>` as defined above (Z-Image loading / Qwen3-4B text encoder) |
 | Input ① | `<path-to-unet>/<zit_unet>.safetensors` (base fp16/bf16 NextDiT) |
 | Input ② | `<path-to-unet>/<zit_unet>_convrot_int8.safetensors` (complete ConvRot INT8 from the INT8 how-to; int8_tensorwise, convrot:true, `model.diffusion_model.` prefix) |
-| GPU | **VRAM ≥ 12GB** (measured peaks on RTX 4070 12GB: FP16 ≈ 12.4GB / hybrid NVFP4 ≈ 5.9GB) · **RTX 4070 12GB or above recommended** · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
+| GPU | **VRAM ≥ 12GB** · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
 
 ## Overall flow
 
@@ -196,12 +196,12 @@ python zi_convrot_nvfp4_bench_native.py \
 
 If `<path-to-ComfyUI>` is the bundled tree, `--comfy_path` is `../ComfyUI-master` (you are inside `benchmark/`).
 
-Use the **simple prompt** above, not a complex one: quantization error amplifies through a detailed scene, so FP16 and NVFP4 diverge into different images and SSIM no longer measures quantization fidelity (measured 0.5654 with a complex prompt vs 0.9842 with the simple one, same checkpoint).
+Use the **simple prompt** above, not a complex one: quantization error amplifies through a detailed scene, so FP16 and NVFP4 diverge into different images and SSIM no longer measures quantization fidelity.
 
-Then rerun the **same command** with the remaining seeds of the **decoded seed set**: **12345**, **77777**, **2024**, and **999** (replace `42` with the model's first seed; CE uses `43` + four 10-digit seeds). The pathology seeds **123/777** (which collapse every config in the latent view on V7) are excluded for decoded judgement.
+Then rerun the **same command** with the remaining seeds of the **decoded seed set** (e.g. **12345**, **77777**, **2024**, **999**; use a stable per-checkpoint set and exclude any seed that collapses in the latent view from decoded judgement).
 
 - Pass/fail is **per-seed** `SSIM (decoded) ≥ 0.95` (printed when `--vae` is set). Do not pass on the average alone.
-- The latent-view SSIM (`SSIM (0-255 view)`, shown without `--vae`) is blind to scale/shift collapse — measured V7: latent 0.95 → decoded 0.78. Always judge with `--vae`.
+- The latent-view SSIM (`SSIM (0-255 view)`, shown without `--vae`) is blind to scale/shift collapse: it can pass while the decoded image is badly off. Always judge with `--vae`.
 - MSE is informational.
 - **The bench is fully deterministic** (identical results on re-run). Variation across seeds is a real model property, not GPU noise.
 - `--token` is optional (Hugging Face). It is not required when the CLIP file is already local.
