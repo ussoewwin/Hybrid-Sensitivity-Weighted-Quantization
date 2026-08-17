@@ -38,7 +38,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 pip install safetensors tqdm scikit-image comfy-kitchen
 ```
 
-`scikit-image` is required for SSIM in the native bench. `comfy-kitchen` is required by
+`scikit-image` is required for SSIM in the bench. `comfy-kitchen` is required by
 `Z_Image/gen_reverse_nvfp4.py` (`TensorCoreNVFP4Layout`).
 
 ## Paths (replace every `<...>` with a real path on your machine)
@@ -79,7 +79,7 @@ impact_<zit_unet>.json (created here; not shipped in the clone; not copied from 
    │  Step 2: reverse conversion (convert K lowest-impact layers to NVFP4, ≈1 min)
    ▼
 <zit_unet>_hswq_hybrid_nv{K}_convrot_nvfp4.safetensors
-   │  Step 3: native bench (ComfyUI standard pipeline, all 5 seeds)
+   │  Step 3: bench (ComfyUI standard pipeline, all 5 seeds)
    ▼
 Pass only if every seed's **decoded** SSIM ≥ 0.95 (--vae attached)
 ```
@@ -171,9 +171,9 @@ What this does:
 
 ---
 
-## Step 3. Native bench (ComfyUI standard pipeline, all 5 seeds)
+## Step 3. Bench (ComfyUI standard pipeline, all 5 seeds)
 
-The native bench **must be run from `benchmark/`** (it imports sibling modules `kitchen_rms_rope_fallback.py`, `nvfp4/`, `nvfp4_comfy_parity.py`). It uses the **ComfyUI standard pipeline**: `comfy.sd.load_diffusion_model_state_dict` → ModelPatcher → KSampler → `nodes.VAEDecode`. With `--vae` set, the report prints **SSIM (decoded)** on real pixels; without it, only the latent view is compared (**SSIM (0-255 view)**).
+The bench **must be run from `benchmark/`** (it imports sibling modules `kitchen_rms_rope_fallback.py`, `nvfp4/`, `nvfp4_comfy_parity.py`). It uses the **ComfyUI standard pipeline**: `comfy.sd.load_diffusion_model_state_dict` → ModelPatcher → KSampler → `nodes.VAEDecode`. With `--vae` set, the report prints **SSIM (decoded)** on real pixels; without it, only the latent view is compared (**SSIM (0-255 view)**).
 
 From the clone directory, enter `benchmark/`:
 
@@ -260,4 +260,4 @@ layers are safe.
 | `benchmark/zi_convrot_nvfp4_bench_native.py` | Step 3: ComfyUI-standard-pipeline bench (ModelPatcher + KSampler + VAEDecode; `--native-dtype`, `--vae`) |
 | `native_convert_int8_convrot_zi.py` | INT8 prerequisite (see [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md)) |
 
-**Dependencies:** `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py`. Run Step 1 from the clone directory so the default root is correct. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen`. The native bench stays in `benchmark/` because it shares local modules with sibling bench scripts — **run it from `benchmark/`**. Step 1's `Z_Image/diag_impact.py` loads the raw NextDiT through `benchmark/zi_convrot_nvfp4_bench.py` (a raw-model loader kept only for Step 1; the native bench itself uses the ComfyUI standard pipeline).
+**Dependencies:** `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py` (a raw-model loader kept only for Step 1). Run Step 1 from the clone directory so the default root is correct. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen`. The bench stays in `benchmark/` because it shares local modules with sibling bench scripts — **run it from `benchmark/`**.
