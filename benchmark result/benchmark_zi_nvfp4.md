@@ -12,8 +12,8 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | Model | NVFP4 Layers | MSE (latent, ↓ better) | SSIM (decoded, ↑ better) |
 |-------|--------------|------------------------|--------------------------|
 | moodyProMix_zitV13 | 80 | 0.3484 | 0.9700 |
-| moodyProMix_collectorsEdition | 70 | 0.1339 | 0.9806 |
-| moodyRealMix_zitV7 | 71 | 0.0551 | 0.9840 |
+| moodyProMix_collectorsEdition | 90 | 0.1200 | 0.9813 |
+| moodyRealMix_zitV7 | 100 | 0.1445 | 0.9781 |
 | moodyRealMix_xhsEdition | 110 | 0.1937 | 0.9909 |
 
 ---
@@ -27,8 +27,8 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | Model | NVFP4 Layers | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Baseline | Winner |
 |-------|--------------|----------|--------------|-------|-----------|---------------|--------|----------|--------|
 | moodyProMix_zitV13 | 80 | 0.3484 | 0.9634 | +0.6150 | 0.9700 | 0.9548 | −0.0152 | Native NVFP4 | HSWQ |
-| moodyProMix_collectorsEdition | 70 | 0.1339 | 0.7916 | +0.6577 | 0.9806 | 0.9094 | −0.0712 | Native NVFP4 | HSWQ |
-| moodyRealMix_zitV7 | 71 | 0.0551 | 0.8502 | +0.7951 | 0.9840 | 0.8902 | −0.0938 | Native NVFP4 | HSWQ |
+| moodyProMix_collectorsEdition | 90 | 0.1200 | 0.7916 | +0.6716 | 0.9813 | 0.9094 | −0.0719 | Native NVFP4 | HSWQ |
+| moodyRealMix_zitV7 | 100 | 0.1445 | 0.8502 | +0.7057 | 0.9781 | 0.8902 | −0.0879 | Native NVFP4 | HSWQ |
 | moodyRealMix_xhsEdition | 110 | 0.1937 | 1.1270 | +0.9333 | 0.9909 | 0.9244 | −0.0665 | Native NVFP4 | HSWQ |
 
 **Winner** = better on both MSE and SSIM.
