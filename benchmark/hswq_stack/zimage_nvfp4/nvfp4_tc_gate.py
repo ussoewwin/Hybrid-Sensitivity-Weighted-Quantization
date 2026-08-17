@@ -116,8 +116,8 @@ def announce_tc_status_at_register() -> None:
         name, cc = "?", "?"
     if ok:
         print(
-        f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} - "
-        f"scaled_mm_nvfp4 enabled (min CC 10.0)",
+            f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} — "
+            f"scaled_mm_nvfp4 enabled (min CC 10.0)",
             flush=True,
         )
     else:

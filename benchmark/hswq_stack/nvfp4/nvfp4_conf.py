@@ -71,7 +71,13 @@ def convrot_flags_from_conf(conf: Optional[dict]) -> tuple[bool, int]:
 
 
 def logical_linear_in_features(state_dict: dict, weight_key: str) -> int:
-    """Return logical in_features for a Linear weight (expand packed NVFP4 K)."""
+    """Return logical in_features for a Linear weight.
+
+    NVFP4 storage K is packed (and often 16-padded). Never guess
+    ``packed_shape[1] * 2`` — that recovers padded K, not logical in_features
+    (e.g. logical 12 → pad 16 → pack 8 → *2 = 16 ≠ 12). Require
+    ``orig_shape`` / ``in_features`` on comfy_quant (or refuse).
+    """
     import torch
 
     weight = state_dict[weight_key]
@@ -85,7 +91,16 @@ def logical_linear_in_features(state_dict: dict, weight_key: str) -> int:
     cq_key = comfy_quant_key_for_weight(weight_key)
     conf = decode_comfy_quant_conf(state_dict.get(cq_key))
     if is_nvfp4_conf(conf) and weight.ndim == 2:
-        return packed_in * _NVFP4_PACK_FACTOR
+        orig = conf.get("orig_shape") if isinstance(conf, dict) else None
+        if orig is not None and len(orig) >= 2:
+            return int(orig[1])
+        if conf.get("in_features") is not None:
+            return int(conf["in_features"])
+        raise ValueError(
+            f"{weight_key}: nvfp4 packed weight but comfy_quant lacks "
+            f"orig_shape/in_features; refuse packed_K*{_NVFP4_PACK_FACTOR} guess "
+            f"(packed_K={packed_in})"
+        )
     return packed_in
 
 
@@ -121,19 +136,6 @@ def _probe_path_comfy_quant_nvfp4(path: str) -> bool:
                 conf = decode_comfy_quant_conf(f.get_tensor(ck))
                 if is_nvfp4_conf(conf):
                     return True
-            # Kitchen "plain NVFP4" (native_convert_nvfp4.py) has no per-layer
-            # .comfy_quant tensors; it stores a top-level _quantization_metadata
-            # header whose layer entries carry {"format": "nvfp4"}.
-            meta = f.metadata() or {}
-            raw = meta.get("_quantization_metadata")
-            if raw:
-                try:
-                    layers = json.loads(raw).get("layers", {})
-                except (TypeError, ValueError):
-                    layers = {}
-                for v in layers.values():
-                    if is_nvfp4_conf(decode_comfy_quant_conf(v)):
-                        return True
     except Exception as e:
         logger.debug("NVFP4 probe failed for %s: %s", path, e)
         return False
@@ -141,16 +143,17 @@ def _probe_path_comfy_quant_nvfp4(path: str) -> bool:
 
 
 def fix_unet_config_packed_dims(unet_config: dict, state_dict: dict, key_prefix: str) -> dict:
-    """Rewrite context_dim / adm_in_channels using logical NVFP4 in_features."""
+    """Rewrite context_dim / adm_in_channels using logical NVFP4 in_features.
+
+    Fail-closed: if the target weight is nvfp4 and logical in_features cannot
+    be resolved from comfy_quant, raise (do not keep packed/padded K).
+    """
     if not isinstance(unet_config, dict):
         return unet_config
 
     y_input = f"{key_prefix}label_emb.0.0.weight"
     if y_input in state_dict and unet_config.get("adm_in_channels") is not None:
-        try:
-            unet_config["adm_in_channels"] = logical_linear_in_features(state_dict, y_input)
-        except Exception as e:
-            logger.warning("[HSWQ NVFP4] adm_in_channels fix skipped: %s", e)
+        unet_config["adm_in_channels"] = logical_linear_in_features(state_dict, y_input)
 
     if unet_config.get("context_dim") is not None:
         attn_k = None
@@ -160,9 +163,67 @@ def fix_unet_config_packed_dims(unet_config: dict, state_dict: dict, key_prefix:
                 attn_k = k
                 break
         if attn_k is not None:
-            try:
-                unet_config["context_dim"] = logical_linear_in_features(state_dict, attn_k)
-            except Exception as e:
-                logger.warning("[HSWQ NVFP4] context_dim fix skipped: %s", e)
+            unet_config["context_dim"] = logical_linear_in_features(state_dict, attn_k)
 
     return unet_config
+
+
+# ---------------------------------------------------------------------------
+# Blackwell GPU capability detection (SDXL NVFP4 product path only)
+# ---------------------------------------------------------------------------
+_GPU_CC: tuple | None = None
+
+
+def _get_gpu_cc() -> tuple:
+    """Return (major, minor) compute capability, cached."""
+    global _GPU_CC
+    if _GPU_CC is None:
+        import torch
+
+        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+            _GPU_CC = torch.cuda.get_device_capability()
+        else:
+            _GPU_CC = (0, 0)
+    return _GPU_CC
+
+
+def is_blackwell_gpu() -> bool:
+    """True if GPU is Blackwell class (SM >= 100): B200, RTX 5090, etc.
+
+    Called only from nodes/nvfp4 product-TC path guards.  Z Image and INT8
+    never reach this code.
+    """
+    major, _ = _get_gpu_cc()
+    return major >= 10
+
+
+def is_blackwell_datacenter() -> bool:
+    """True if GPU is SM100 datacenter Blackwell (TMA/TMEM available)."""
+    major, minor = _get_gpu_cc()
+    return major == 10 and minor == 0
+
+
+def is_blackwell_consumer() -> bool:
+    """True if GPU is SM120/SM121 consumer Blackwell (RTX 50x0 series)."""
+    major, _ = _get_gpu_cc()
+    return major == 12
+
+
+def is_nvfp4_cudagraph_enabled() -> bool:
+    """Return whether CUDA Graph / Tensor Boost execution is active.
+
+    Evaluates HSWQ_NVFP4_TENSORBOOST and HSWQ_NVFP4_CUDAGRAPH environment variables.
+    Returns True if set to '1' / 'true' / 'on' / 'enable'.
+    Returns False otherwise.
+    """
+    import os
+
+    for env_key in ("HSWQ_NVFP4_CUDAGRAPH", "HSWQ_NVFP4_TENSORBOOST"):
+        val = os.environ.get(env_key, "").strip().lower()
+        if val in ("1", "true", "on", "enable", "enabled"):
+            return True
+        if val in ("0", "false", "off", "disable", "disabled"):
+            return False
+
+    return False
+
