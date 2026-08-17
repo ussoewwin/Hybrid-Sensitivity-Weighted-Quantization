@@ -4,7 +4,6 @@ tags:
 - text-to-image
 - z-image
 - zi
-- sdxl
 - nunchaku
 - svdq
 - quantized
@@ -22,9 +21,7 @@ library_name: nunchaku
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity ConvRot NVFP4 quantization for diffusion models (Z-Image / SDXL). HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. This is highly useful for users who need to strictly manage their VRAM resources while maintaining maximum image quality.
-
-ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed budget. calib writes NVFP4 `.input_scale`. Z-Image pack scripts: `hswq_convert_nvfp4_1.0.py` (HSWQ) and `native_convert_nvfp4.py` (native).
+High-fidelity Hybrid ConvRot NVFP4 quantization for Z-Image Turbo diffusion models. Built from a complete **native ConvRot INT8** UNet via the **reverse method** (converting lowest-impact layers to NVFP4 in ascending order of trajectory impact). This is highly useful for users who need to strictly manage their VRAM resources (~53–58% savings) while maintaining high image fidelity (**SSIM >= 0.97-0.99**).
 
 **Technical details:** [https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
 
@@ -41,7 +38,7 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 | Model | SSIM (Avg) | File size | Compatibility |
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
-| **HSWQ Z-Image ConvRot NVFP4** | **0.97** | 60% (FP16 mixed) | **High** (ComfyUI NVFP4) |
+| **HSWQ Z-Image Hybrid ConvRot NVFP4** | **0.97-0.99** | 60% (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
 ---
 
@@ -49,8 +46,10 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 
 | Filename | Base Model | Version | License |
 | :--- | :--- | :--- | :--- |
-| `moodyProMix_zitV13_hswq_int8protect60_convrot_nvfp4.safetensors` | Moody Pro Mix | v1.3 | CreativeML Open RAIL++-M |
-| `moodyRealMix_zitV7_hswq_int8protect60_convrot_nvfp4.safetensors` | Moody Real Mix | v7.0 | CreativeML Open RAIL++-M |
+| `moodyProMix_zitV13_hswq_hybrid_nv80_convrot_nvfp4.safetensors` | Moody Pro Mix | zit v1.3 (nv80) | CreativeML Open RAIL++-M |
+| `moodyProMix_collectorsEdition_hswq_hybrid_nv90_convrot_nvfp4.safetensors` | Moody Pro Mix | Collector's Edition (nv90) | CreativeML Open RAIL++-M |
+| `moodyRealMix_zitV7_hswq_hybrid_nv100_convrot_nvfp4.safetensors` | Moody Real Mix | zit v7.0 (nv100) | CreativeML Open RAIL++-M |
+| `moodyRealMix_xhsEdition_hswq_hybrid_nv110_convrot_nvfp4.safetensors` | Moody Real Mix | XHS Edition (nv110) | CreativeML Open RAIL++-M |
 
 ---
 
