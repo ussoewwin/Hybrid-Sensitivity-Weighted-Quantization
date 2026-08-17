@@ -74,7 +74,18 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
    - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
    - **V4 (SVD × RMS hybrid, MSE):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers. Used by **SDXL ConvRot INT8** and **ConvRot NVFP4** for FP16-candidate ranking at the absmax pack point. **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
    - **V5 (SVD × RMS hybrid, cosine):** same hybrid importance family as V4; Stage-3 objective is **importance-weighted cosine loss** \(L=1-\langle x,q\rangle_H/(\|x\|_H\|q\|_H)\) against the physical FP8 E4M3 quantize–dequantize map (scale-invariant angular fidelity; reduces absolute-tail blackmail of \(\Delta^*\)). Source: `histogram/weighted_histogram_cosine_v5.py`. **Technical details:** [HSWQ V5 SVD-RMS Cosine — Technical Guide](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md).
-4. **Trajectory-sensitivity impact ranking (reverse method, universal theory):** per-layer impact is the relative divergence of a fixed seed-locked short denoising trajectory with one layer's quantization reconstruction error injected — replaces static saliency; the guide gives the full mathematical treatment of error interaction (Taylor expansion of the sampling map, cross terms, error cancellation), nonlinear amplification (Lyapunov-style growth), the low-error additivity regime where single-layer ranking is valid, marginal effects, and Shapley-style attribution — why per-layer static measures (histogram MSE / cosine / SVD) cannot predict joint quantization error. The theory is universal for iterative sampling systems, not specific to any model. Source: `Z_Image/diag_impact.py`. **Technical details:** [Trajectory-sensitivity impact ranking — Technical Guide](md/diag_impact_trajectory_sensitivity_technical_guide.md).
+4. **Trajectory-Sensitivity Impact Ranking** — Ranks each layer by the divergence its
+   quantization error actually causes after propagating through the full model and sampler
+   (dynamical importance, replacing static weight-space saliency).
+   - **Reverse method:** start from the complete high-precision pack (error ≈ 0) and convert
+     layers to lower precision in ascending impact order; single-layer ranking stays valid in the
+     low-error additivity regime.
+   - **Universal theory:** error interaction (Taylor cross terms, error cancellation), nonlinear
+     amplification (Lyapunov-style growth), marginal effects, and Shapley-style attribution —
+     why per-layer static measures (histogram MSE / cosine / SVD) cannot predict joint quantization
+     error; applies to any iterative sampling system, not a specific model. Source:
+     `Z_Image/diag_impact.py`. **Technical details:** [Trajectory-Sensitivity Impact Ranking —
+     Technical Guide](md/diag_impact_trajectory_sensitivity_technical_guide.md).
 
 ---
 
