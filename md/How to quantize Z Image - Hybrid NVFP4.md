@@ -9,7 +9,7 @@ approach (histogram MSE / cosine / SVD saliency). It is a **reverse method**: st
 ConvRot INT8 model (error ≈ 0) and convert layers to NVFP4 **in ascending order of per-layer impact**.
 The conventional method ignores inter-layer interactions and is not sufficient for this hybrid.
 The reverse method stays in the low-error regime where additivity holds, so **single-layer ranking is
-valid**. Pass only if **every seed** of the native bench meets **SSIM (0-255 view) ≥ 0.97**.
+valid**. Pass only if **every seed** meets **decoded SSIM ≥ 0.95** — run the bench with `--vae` so SSIM is measured on **real pixels** (the latent-view SSIM is blind to scale/shift collapse).
 
 ## Clone the repository
 
@@ -63,11 +63,11 @@ use that path as-is.
 | Item | Value |
 |---|---|
 | Python | CUDA-enabled PyTorch, `safetensors`, `scikit-image`, `comfy-kitchen` |
-| Bench | `benchmark/zi_convrot_nvfp4_bench_native.py` (this repo, **unmodified**) |
+| Bench | `benchmark/zi_convrot_nvfp4_bench_native.py` (this repo, **ComfyUI standard pipeline**) |
 | ComfyUI | `<path-to-ComfyUI>` as defined above (Z-Image loading / Qwen3-4B text encoder) |
 | Input ① | `<path-to-unet>/<zit_unet>.safetensors` (base fp16/bf16 NextDiT) |
 | Input ② | `<path-to-unet>/<zit_unet>_convrot_int8.safetensors` (complete ConvRot INT8 from the INT8 how-to; int8_tensorwise, convrot:true, `model.diffusion_model.` prefix) |
-| GPU | **VRAM ≥ 16GB** · **RTX 4060 Ti 16GB or above recommended** · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
+| GPU | **VRAM ≥ 12GB** (measured peaks on RTX 4070 12GB: FP16 ≈ 12.4GB / hybrid NVFP4 ≈ 5.9GB) · **RTX 4070 12GB or above recommended** · **run one process at a time** (concurrent runs cause VRAM exhaustion) |
 
 ## Overall flow
 
@@ -79,9 +79,9 @@ impact_<zit_unet>.json (created here; not shipped in the clone; not copied from 
    │  Step 2: reverse conversion (convert K lowest-impact layers to NVFP4, ≈1 min)
    ▼
 <zit_unet>_hswq_hybrid_nv{K}_convrot_nvfp4.safetensors
-   │  Step 3: native bench (existing, unmodified, all 5 seeds)
+   │  Step 3: native bench (ComfyUI standard pipeline, all 5 seeds)
    ▼
-Pass only if every seed's SSIM (0-255 view) ≥ 0.97
+Pass only if every seed's **decoded** SSIM ≥ 0.95 (--vae attached)
 ```
 
 `K` is **not** a fixed number. Measure impact, convert, then **search K** until the largest value
@@ -171,9 +171,9 @@ What this does:
 
 ---
 
-## Step 3. Native bench (existing, unmodified, all 5 seeds)
+## Step 3. Native bench (ComfyUI standard pipeline, all 5 seeds)
 
-The native bench **must be run from `benchmark/`** (it imports sibling modules `kitchen_rms_rope_fallback.py`, `nvfp4/`, `nvfp4_comfy_parity.py`).
+The native bench **must be run from `benchmark/`** (it imports sibling modules `kitchen_rms_rope_fallback.py`, `nvfp4/`, `nvfp4_comfy_parity.py`). It uses the **ComfyUI standard pipeline**: `comfy.sd.load_diffusion_model_state_dict` → ModelPatcher → KSampler → `nodes.VAEDecode`. With `--vae` set, the report prints **SSIM (decoded)** on real pixels; without it, only the latent view is compared (**SSIM (0-255 view)**).
 
 From the clone directory, enter `benchmark/`:
 
@@ -181,7 +181,7 @@ From the clone directory, enter `benchmark/`:
 cd benchmark
 ```
 
-**`--steps 25` and `--native-dtype` are required.** The script default is `--steps 20` and `--native-dtype` off — those defaults will **not** match this procedure.
+**`--steps 25`, `--native-dtype` and `--vae` are required** for the pixel-quality judgement. The script default is `--steps 20` and `--native-dtype` off — those defaults will **not** match this procedure.
 
 ```bash
 python zi_convrot_nvfp4_bench_native.py \
@@ -189,15 +189,19 @@ python zi_convrot_nvfp4_bench_native.py \
   --nvfp4 "<path-to-unet>/<zit_unet>_hswq_hybrid_nv<K>_convrot_nvfp4.safetensors" \
   --clip_path "<path-to-qwen3-4b>" \
   --comfy_path "<path-to-ComfyUI>" \
-  --prompt "A beautiful cyberpunk city at night, high detail." \
+  --vae "<path-to-vae>/Ultra-flux1.vae.safetensors" \
+  --prompt "masterpiece, best quality, 1girl, solo, standing, simple background" \
   --steps 25 --seed 42 --native-dtype
 ```
 
 If `<path-to-ComfyUI>` is the bundled tree, `--comfy_path` is `../ComfyUI-master` (you are inside `benchmark/`).
 
-Then rerun the **same command** with `--seed` set to **123**, **777**, **2024**, and **999**.
+Use the **simple prompt** above, not a complex one: quantization error amplifies through a detailed scene, so FP16 and NVFP4 diverge into different images and SSIM no longer measures quantization fidelity (measured 0.5654 with a complex prompt vs 0.9842 with the simple one, same checkpoint).
 
-- Pass/fail is **per-seed** `SSIM (0-255 view) ≥ 0.97`. Do not pass on the average alone.
+Then rerun the **same command** with the remaining seeds of the **decoded seed set**: **12345**, **77777**, **2024**, and **999** (replace `42` with the model's first seed; CE uses `43` + four 10-digit seeds). The pathology seeds **123/777** (which collapse every config in the latent view on V7) are excluded for decoded judgement.
+
+- Pass/fail is **per-seed** `SSIM (decoded) ≥ 0.95` (printed when `--vae` is set). Do not pass on the average alone.
+- The latent-view SSIM (`SSIM (0-255 view)`, shown without `--vae`) is blind to scale/shift collapse — measured V7: latent 0.95 → decoded 0.78. Always judge with `--vae`.
 - MSE is informational.
 - **The bench is fully deterministic** (identical results on re-run). Variation across seeds is a real model property, not GPU noise.
 - `--token` is optional (Hugging Face). It is not required when the CLIP file is already local.
@@ -210,7 +214,7 @@ Then rerun the **same command** with `--seed` set to **123**, **777**, **2024**,
 **change with K**, and quality can **recover then fail again** (error cancellation). Treat that as
 the default search assumption.
 
-1. **Judge on all 5 seeds individually ≥ 0.97** (an average above 0.97 is not a pass).
+1. **Judge on all 5 seeds individually: decoded SSIM ≥ 0.95 with `--vae`** (an average above the bar is not a pass; the latent-view SSIM is blind to scale/shift collapse).
 2. **Screen with a discriminating seed**, then run all 5 seeds only on candidates that pass.
    The discriminating seed is whichever seed fails first in the coarse sweep; it is not the same
    for every checkpoint.
@@ -243,7 +247,7 @@ layers are safe.
 | `save_file` ValueError | `.comfy_quant` must be a **U8 tensor** (`torch.frombuffer(...).clone()`), not raw bytes |
 | Bench CRITICAL ERROR (0 armed) | 0 NVFP4 layers. Regenerate with K ≥ 1 |
 | SSIM stuck around 0.94 | Outside the island. Re-sweep K±1 around the discriminating seed |
-| Numbers do not match a previous run | Confirm `--steps 25`, `--native-dtype`, cwd is `benchmark/`, and the five seeds above |
+| Numbers do not match a previous run | Confirm `--steps 25`, `--native-dtype`, `--vae`, cwd is `benchmark/`, and the model's seed set |
 | Process won't die | Kill the whole parent tree: `taskkill /PID <parent> /T /F` (Windows) |
 | Sudden drop as K increases | Cliff or island edge. Step back and re-check K±1 |
 
@@ -253,7 +257,7 @@ layers are safe.
 |---|---|
 | `Z_Image/diag_impact.py` | Step 1: **creates** `impact_<zit_unet>.json` (third argument = output path) |
 | `Z_Image/gen_reverse_nvfp4.py` | Step 2: reverse hybrid converter (INT8 → NVFP4, K lowest-impact layers) |
-| `benchmark/zi_convrot_nvfp4_bench_native.py` | Step 3: native bench (bf16 native baseline, `--native-dtype`) |
+| `benchmark/zi_convrot_nvfp4_bench_native.py` | Step 3: ComfyUI-standard-pipeline bench (ModelPatcher + KSampler + VAEDecode; `--native-dtype`, `--vae`) |
 | `native_convert_int8_convrot_zi.py` | INT8 prerequisite (see [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md)) |
 
-**Dependencies:** `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py`. Run Step 1 from the clone directory so the default root is correct. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen`. The native bench stays in `benchmark/` because it shares local modules with sibling bench scripts — **run it from `benchmark/`**.
+**Dependencies:** `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py`. Run Step 1 from the clone directory so the default root is correct. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen`. The native bench stays in `benchmark/` because it shares local modules with sibling bench scripts — **run it from `benchmark/`**. Step 1's `Z_Image/diag_impact.py` loads the raw NextDiT through `benchmark/zi_convrot_nvfp4_bench.py` (a raw-model loader kept only for Step 1; the native bench itself uses the ComfyUI standard pipeline).
