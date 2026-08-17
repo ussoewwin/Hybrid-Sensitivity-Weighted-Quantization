@@ -9,22 +9,34 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 ## Results
 
-| Model | NVFP4 Layers | MSE (latent, ↓ better) | SSIM (decoded, ↑ better) | SSIM target >=0.9 |
-|-------|--------------|------------------------|--------------------------|-------------------|
-| moodyProMix_zitV13 | 60 | 0.0136 | 0.9769 | PASS |
+| Model | NVFP4 Layers | MSE (latent, ↓ better) | SSIM (decoded, ↑ better) |
+|-------|--------------|------------------------|--------------------------|
+| moodyProMix_zitV13 | 80 | 0.3484 | 0.9700 |
+| moodyProMix_collectorsEdition | 70 | 0.1339 | 0.9806 |
+| moodyRealMix_zitV7 | 71 | 0.0551 | 0.9840 |
+| moodyRealMix_xhsEdition | 110 | 0.1937 | 0.9909 |
 
 ---
 
-## Performance & Memory
+## HSWQ ConvRot NVFP4 vs Native NVFP4 comparison
 
-- **VRAM Usage:** `12359.3 MB` (FP16) → `5807.8 MB` (NVFP4+ConvRot)
-- **VRAM Saved:** **6551.4 MB (53.0%)**
-- **Inference Time:** `34.95s` (FP16) → `18.85s` (NVFP4+ConvRot)
+Same setup (vs FP16 reference). **HSWQ ConvRot NVFP4** vs baseline **Native NVFP4**.  
+Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ MSE ⇒ HSWQ better; negative Δ SSIM ⇒ HSWQ better, since higher SSIM is better).  
+**Native NVFP4** = naive cast NVFP4.
+
+| Model | NVFP4 Layers | HSWQ MSE | Baseline MSE | Δ MSE | HSWQ SSIM | Baseline SSIM | Δ SSIM | Baseline | Winner |
+|-------|--------------|----------|--------------|-------|-----------|---------------|--------|----------|--------|
+| moodyProMix_zitV13 | 80 | 0.3484 | 0.9634 | +0.6150 | 0.9700 | 0.9548 | −0.0152 | Native NVFP4 | HSWQ |
+| moodyProMix_collectorsEdition | 70 | 0.1339 | 0.7916 | +0.6577 | 0.9806 | 0.9094 | −0.0712 | Native NVFP4 | HSWQ |
+| moodyRealMix_zitV7 | 71 | 0.0551 | 0.8502 | +0.7951 | 0.9840 | 0.8902 | −0.0938 | Native NVFP4 | HSWQ |
+| moodyRealMix_xhsEdition | 110 | 0.1937 | 1.1270 | +0.9333 | 0.9909 | 0.9244 | −0.0665 | Native NVFP4 | HSWQ |
+
+**Winner** = better on both MSE and SSIM.
 
 ---
 
 ## Notes
 
-- **NVFP4 Layers:** Represents the number of layers quantized to NVFP4 (e.g., 60 means 60 NVFP4 layers).
+- **NVFP4 Layers:** Represents the number of layers quantized to NVFP4 (e.g., 80 means 80 NVFP4 layers).
 - **MSE (latent):** Mean squared error on raw latent tensors vs FP16 reference; 0 = perfect match.
 - **SSIM (decoded):** Structural similarity; 1.0 = perfect match. Target is >=0.9.
