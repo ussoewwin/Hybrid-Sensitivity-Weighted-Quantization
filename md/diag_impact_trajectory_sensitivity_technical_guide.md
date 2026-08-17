@@ -1,11 +1,13 @@
-# Z Image Hybrid NVFP4 — Trajectory-Sensitivity Impact Ranking and Interaction Analysis (Technical Guide)
+# Trajectory-Sensitivity Impact Ranking and Error Interaction Analysis (Technical Guide)
 
 **Source:** `Z_Image/diag_impact.py`  
 This document is a complete, mathematical explanation of the per-layer impact-ranking method
-used by the reverse hybrid NVFP4 quantization of a Z Image (ZIT / Lumina2-style NextDiT)
-diffusion model, and — more fundamentally — of **why single-layer importance alone cannot
+used by the reverse hybrid quantization of diffusion models (implemented in `Z_Image/diag_impact.py`),
+and — more fundamentally — of **why single-layer importance alone cannot
 predict joint quantization error**, i.e. the mathematical structure of **error interaction,
 nonlinear amplification, and error cancellation** that the reverse method is built around.
+The theory is universal: it applies to any iterative sampling dynamical system whose weights
+are perturbed by quantization.
 
 ---
 
