@@ -101,3 +101,7 @@ bench_meta_*.json
 *_ranking.json
 _backup_merge_20260806/
 upload.py
+bench_*.png
+*.diff
+*.orig
+*.comfy_bak
