@@ -181,7 +181,7 @@ From the clone directory, enter `benchmark/`:
 cd benchmark
 ```
 
-**`--steps 25`, `--native-dtype` and `--vae` are required** for the pixel-quality judgement. The script default is `--steps 20` and `--native-dtype` off — those defaults will **not** match this procedure.
+**`--steps 12`, `--native-dtype` and `--vae` are required** for the pixel-quality judgement. The script default is `--steps 20` and `--native-dtype` off — those defaults will **not** match this procedure.
 
 ```bash
 python zi_convrot_nvfp4_bench_v2.py \
@@ -190,15 +190,15 @@ python zi_convrot_nvfp4_bench_v2.py \
   --clip_path "<path-to-qwen3-4b>" \
   --comfy_path "<path-to-ComfyUI>" \
   --vae "<path-to-vae>/Ultra-flux1.vae.safetensors" \
-  --prompt "masterpiece, best quality, 1girl, solo, standing, simple background" \
-  --steps 25 --seed 42 --native-dtype
+  --prompt "Solid black background only. Empty frame. No objects, no lights, no city, no people, no text, no texture. Completely black" \
+  --steps 12 --seed 42 --native-dtype
 ```
 
 If `<path-to-ComfyUI>` is the bundled tree, `--comfy_path` is `../ComfyUI-master` (you are inside `benchmark/`).
 
-Use the **simple prompt** above, not a complex one: quantization error amplifies through a detailed scene, so FP16 and NVFP4 diverge into different images and SSIM no longer measures quantization fidelity.
+Use the **solid-black prompt** above, not a scene prompt: quantization error amplifies through a detailed scene, so FP16 and NVFP4 diverge into different images and SSIM no longer measures quantization fidelity. A uniformly black frame minimizes error accumulation and gives a stable, reproducible SSIM.
 
-Then rerun the **same command** with the remaining seeds of the **decoded seed set** (e.g. **12345**, **77777**, **2024**, **999**; use a stable per-checkpoint set and exclude any seed that collapses in the latent view from decoded judgement).
+Then rerun the **same command** with the remaining seeds of the **decoded seed set** (e.g. **3109028000**, **5803675258**, **4307229528**, **1646872390**; use a stable per-checkpoint set and exclude any seed that collapses from the decoded judgement).
 
 - Pass/fail is **per-seed** `SSIM (decoded) ≥ 0.95` (printed when `--vae` is set). Do not pass on the average alone.
 - The latent-view SSIM (`SSIM (0-255 view)`, shown without `--vae`) is blind to scale/shift collapse: it can pass while the decoded image is badly off. Always judge with `--vae`.
@@ -247,7 +247,7 @@ layers are safe.
 | `save_file` ValueError | `.comfy_quant` must be a **U8 tensor** (`torch.frombuffer(...).clone()`), not raw bytes |
 | Bench CRITICAL ERROR (0 armed) | 0 NVFP4 layers. Regenerate with K ≥ 1 |
 | SSIM stuck around 0.94 | Outside the island. Re-sweep K±1 around the discriminating seed |
-| Numbers do not match a previous run | Confirm `--steps 25`, `--native-dtype`, `--vae`, cwd is `benchmark/`, and the model's seed set |
+| Numbers do not match a previous run | Confirm `--steps 12`, `--native-dtype`, `--vae`, cwd is `benchmark/`, and the model's seed set |
 | Process won't die | Kill the whole parent tree: `taskkill /PID <parent> /T /F` (Windows) |
 | Sudden drop as K increases | Cliff or island edge. Step back and re-check K±1 |
 
