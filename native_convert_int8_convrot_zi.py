@@ -23,7 +23,7 @@ This script is the FULL ConvRot converter (default ON):
 Post-convert bench (default ON): after save, subprocess
   benchmark/zi_int8_bench.py (--fp16 <input> --fp8 <output> --clip_path
   --comfy_path required; tokenizer from ComfyUI-bundled qwen25_tokenizer;
-  optional --vae; prompt/steps=25/seed=42 fixed inside). Pass --no-bench to skip.
+  optional --vae; prompt/steps=12/seed=42 fixed inside). Pass --no-bench to skip.
 """
 from __future__ import annotations
 
@@ -230,8 +230,8 @@ def _release_vram(label: str = "post-convert") -> None:
 
 
 # Exact --prompt / --steps from benchmark/zi_int8_bench.py defaults (fixed; not CLI).
-_FIXED_ZI_INT8_BENCH_PROMPT = "A beautiful cyberpunk city at night, high detail."
-_FIXED_ZI_INT8_BENCH_STEPS = 25
+_FIXED_ZI_INT8_BENCH_PROMPT = "Solid black background only. Empty frame. No objects, no lights, no city, no people, no text, no texture. Completely black."
+_FIXED_ZI_INT8_BENCH_STEPS = 12
 _FIXED_ZI_INT8_BENCH_SEED = 42
 
 
@@ -248,7 +248,7 @@ def run_post_convert_zi_int8_bench(
 
     Bench argv:
       --fp16 <input> --fp8 <INT8> --clip_path --comfy_path
-      [--vae] --prompt --steps 25 --seed 42
+      [--vae] --prompt --steps 12 --seed 42
     Tokenizer comes from ComfyUI-bundled qwen25_tokenizer under --comfy_path.
     """
     bench_script = os.path.join(
@@ -670,7 +670,7 @@ if __name__ == "__main__":
         help=(
             "After save, run benchmark/zi_int8_bench.py "
             "(requires --clip_path/--comfy_path; "
-            "optional --vae; prompt/steps=25/seed=42 fixed inside). "
+            "optional --vae; prompt/steps=12/seed=42 fixed inside). "
             "Pass --no-bench to skip."
         ),
     )
