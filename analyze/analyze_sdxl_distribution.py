@@ -29,7 +29,7 @@ from safetensors.torch import load_file
 
 # ---------------------------------------------------------------------------
 # Full visibility — every calc / every knob / every layer (no summary hide)
-# Owner: 全ての計算過程と解析結果をログにだせ / 一バイトでも隠したら殺す
+# Full visibility: output all computation steps and analysis results to logs (no hidden metrics).
 # ---------------------------------------------------------------------------
 
 def _pool_full_stats(values: Sequence[float]) -> Dict[str, Any]:
@@ -889,7 +889,7 @@ def _mad_continuous_fences_from_positives(
     upper quantile of THIS values *below* floor, then caps soft by THIS
     band_w (floor−P50)×max(1−collapse, 0.15) and IQR×0.1 so Soft≠dead
     while soft rises off P50. Body-balanced keeps soft near P50.
-    Forbidden substitute: tip_headroom/tip_step-only (soft≈floor Soft死).
+    Forbidden substitute: tip_headroom/tip_step-only (soft≈floor Soft dead zone).
     """
     mad_sorted = _sorted_pool(positives)
     n = len(positives)
@@ -996,7 +996,7 @@ def _mad_tunables_from_positive_samples(
     """THIS-sample MAD% → auto-optimal floor/soft/p99 (any n≥1).
 
     Deleting the old ×N floor and writing 0.0 when n<4 is forbidden
-    (philosophy §0 / 「固定をただ消すな」). Hard = THIS MAD Q3/P75;
+    (philosophy §0 / "do not blindly remove fixed values"). Hard = THIS MAD Q3/P75;
     soft = collapse-shaped Soft band on THIS below-floor MAD mass.
     P99 = severity tip only — never tip-as-floor, never fixed literals.
 

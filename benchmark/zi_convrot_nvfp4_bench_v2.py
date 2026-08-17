@@ -271,13 +271,13 @@ def set_hf_token(token: str | None) -> None:
 
 
 def load_zit_model(path, device="cuda", comfy_path=None, is_nvfp4=False, require_convrot=False):
-    """ComfyUI 標準ロード: load_diffusion_model_state_dict -> ModelPatcher.
+    """ComfyUI standard loading: load_diffusion_model_state_dict -> ModelPatcher.
 
-    detect_unet_config / model_config / get_model / load_model_weights は
-    ComfyUI-master 側が担当（リファレンス hswq_stack の実行時パッチが
-    NVFP4 packed dims と quant load を処理。ComfyUI-master のファイルは
-    一切書き換えない）。ここでは state_dict の前処理（NVFP4 メタ検証・
-    dtype 決定）だけを行う。
+    detect_unet_config / model_config / get_model / load_model_weights are
+    handled by ComfyUI (runtime patches in reference hswq_stack handle NVFP4
+    packed dims and quant loading without modifying ComfyUI source files).
+    Here, only state_dict preprocessing (NVFP4 metadata verification and
+    dtype resolution) is performed.
     """
     import comfy.sd
     import comfy.utils
@@ -350,7 +350,7 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_nvfp4=False, require
     global bench_native_dtype
     bench_native_dtype = native_dtype
 
-    # ComfyUI 標準ロード（detect -> model_config -> get_model -> load weights）
+    # ComfyUI standard loading (detect -> model_config -> get_model -> load weights)
     model_options = {}
     if not bench_use_native:
         model_options["dtype"] = torch.float16
@@ -389,11 +389,11 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_nvfp4=False, require
 
 
 def load_zit_clip(model_config, state_dict, clip_path, device):
-    """ComfyUI 標準 CLIP ロード（ZImageTokenizer + Qwen3_4B）。
+    """ComfyUI standard CLIP loading (ZImageTokenizer + Qwen3_4B).
 
-    model_config.clip_target() から ClipTarget を作り、comfy.sd.CLIP で
-    ロード。tokenize + encode_from_tokens_scheduled は ComfyUI 標準の
-    条件付け形式（[cond, pooled]）を返す。
+    Creates ClipTarget from model_config.clip_target() and loads via comfy.sd.CLIP.
+    tokenize + encode_from_tokens_scheduled returns ComfyUI standard conditioning
+    format ([cond, pooled]).
     """
     import comfy.sd
     from safetensors.torch import load_file as _lf
@@ -403,9 +403,9 @@ def load_zit_clip(model_config, state_dict, clip_path, device):
     clip_target = model_config.clip_target(state_dict)
     clip = comfy.sd.CLIP(clip_target, embedding_directory=None)
     clip.load_sd(_lf(resolved))
-    # comfy.sd.CLIP 自体は .to() を持たない。cond_stage_model（Qwen3_4B）
-    # を直接 GPU へ。encode_from_tokens_scheduled が内部的にも
-    # patcher.patch_model() でロードデバイスへ移す（ComfyUI 標準）。
+    # comfy.sd.CLIP itself does not have .to(). Move cond_stage_model (Qwen3_4B)
+    # directly to GPU. encode_from_tokens_scheduled also internally moves to load
+    # device via patcher.patch_model() (ComfyUI standard).
     clip.cond_stage_model.to(device)
     return clip
 
@@ -415,10 +415,10 @@ bench_native_dtype = torch.float16  # set by load_zit_model
 
 
 def run_inference(patcher, positive, negative, steps, seed, device, cfg=2.5):
-    """ComfyUI 標準サンプリング: KSampler (euler / simple) + CFG.
+    """ComfyUI standard sampling: KSampler (euler / simple) + CFG.
 
-    戻り値の samples は KSampler が latent_format.process_latent_out を
-    通した VAE 空間の潜在（ComfyUI 標準の VAEDecode 入力そのもの）。
+    Returned samples are latents in VAE space after KSampler latent_format.process_latent_out
+    (equivalent to ComfyUI standard VAEDecode input).
     """
     import comfy.model_management as mm
     from comfy.samplers import KSampler
@@ -429,8 +429,8 @@ def run_inference(patcher, positive, negative, steps, seed, device, cfg=2.5):
     )
     gen = torch.Generator(device).manual_seed(seed)
     noise = torch.randn(1, 16, 128, 128, device=device, generator=gen)
-    # ComfyUI 標準: KSampler は latent_image 必須（EmptyLatentImage 相当の
-    # zero latent を渡す。zero latent + noise = 完全ノイズからの生成）。
+    # ComfyUI standard: KSampler requires latent_image (pass zero latent equivalent
+    # to EmptyLatentImage; zero latent + noise = generation from pure noise).
     latent_image = torch.zeros_like(noise)
 
     torch.cuda.reset_peak_memory_stats()
@@ -497,24 +497,24 @@ def print_model_stats(model, name, quant_meta_count=None):
 
 
 def _disable_transformers_auto_docstring():
-    """transformers の @auto_docstring デコレータ（docstring 自動生成・検証）を無効化。
+    """Disable transformers @auto_docstring decorator (docstring generation & verification).
 
-    transformers は画像プロセッサ/モデルクラス定義時に @auto_docstring で
-    docstring を自動生成し、その過程で「docstring に未記載の kwargs」を
-    '[ERROR] xxx ... but not documented' として stdout に直接 print する。
-    これは開発者向け docstring 品質チェックであり、実行時のモデル動作には
-    無関係（デコレータは docstring を埋めて元オブジェクトを返すだけ）。
+    transformers uses @auto_docstring during image processor / model class definition
+    to automatically generate docstrings, printing '[ERROR] xxx ... but not documented'
+    directly to stdout when undocumented kwargs are encountered. This is an upstream developer
+    docstring quality check and does not affect runtime model execution (the decorator merely
+    populates the docstring and returns the original object).
 
-    python_embeded / ComfyUI-master は不変のため、デコレータを no-op に
-    差し替えて検証機能自体を止める（出力を隠すのではなく機能を無効化）。
-    transformers は遅延ロード（_LazyModule）なので、ComfyUI import 前に
-    ここで差し替えれば、以降のクラス定義は no-op デコレータを使う。
+    To keep the environment clean without modifying ComfyUI / embedded python, replace the
+    decorator with a no-op to disable verification output. Since transformers uses lazy
+    loading (_LazyModule), replacing it before importing ComfyUI ensures subsequent class
+    definitions use the no-op decorator.
     """
     import importlib
 
-    # NOTE: import transformers.utils.auto_docstring as _ad は utils パッケージの
-    # 公開属性（関数）を返すため、モジュール属性の差し替えにならない。
-    # importlib でモジュールを確実に取得する。
+    # NOTE: import transformers.utils.auto_docstring as _ad returns public attributes
+    # (functions) of the utils package, so it does not replace module attributes.
+    # Use importlib to reliably obtain the module.
     _ad = importlib.import_module("transformers.utils.auto_docstring")
 
     if getattr(_ad, "_hswq_auto_docstring_disabled", False):
@@ -527,8 +527,8 @@ def _disable_transformers_auto_docstring():
 
     _noop._hswq_auto_docstring_disabled = True
     _ad.auto_docstring = _noop
-    # transformers.utils パッケージの公開属性も差し替え
-    # （rom transformers.utils import auto_docstring 形式の import 対策）
+    # Also replace public attribute in transformers.utils package
+    # (handles 'from transformers.utils import auto_docstring' imports)
     import transformers.utils as _tu
     if getattr(_tu, "auto_docstring", None) is not None:
         _tu.auto_docstring = _noop
@@ -643,7 +643,7 @@ def main():
     )
     print_model_stats(patcher_fp16.model, "FP16 Baseline")
 
-    # ComfyUI 標準 CLIP（ZImageTokenizer + Qwen3_4B）
+    # ComfyUI standard CLIP (ZImageTokenizer + Qwen3_4B)
     clip = load_zit_clip(
         patcher_fp16.model.model_config, sd_fp16, args.clip_path, device
     )

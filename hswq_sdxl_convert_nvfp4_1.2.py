@@ -363,7 +363,7 @@ def calculate_kurtosis(tensor):
 # --- SDXL NVFP4 autonomous engine tunables (V3.0 protect shape) ---
 # Architectural boundary Conv2d keys (not Linear). Resolution resample is the
 # same class of unet boundary as conv_in/conv_out; Linear-only walk previously
-# made documented .conv_in/.conv_out key-pattern dead code (手抜き).
+# made documented .conv_in/.conv_out key-pattern dead code (unimplemented).
 _SDXL_KP_BOUNDARY_SUFFIXES = (
     ".conv_in",
     ".conv_out",
@@ -1003,7 +1003,7 @@ def _mad_continuous_gates_from_live(
     else:
         soft_tip = float(p50)
         mad_soft = float(p50)
-    # Mirror analyze §3-1 / 8357425: Soft narrow band (not tip_headroom Soft死).
+    # Mirror analyze §3-1 / 8357425: Soft narrow band (not tip_headroom Soft dead zone).
     soft_span = float(max(mad_floor - p50, 0.0))
     band_w = float(
         max(
