@@ -32,6 +32,8 @@ ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4,
 
 **ComfyUI Loader for ConvRot NVFP4:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
 
+**Z Image ConvRot NVFP4 Benchmark Test Results (published tables):** [benchmark result/benchmark_zi_nvfp4.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/benchmark%20result/benchmark_zi_nvfp4.md)
+
 ---
 
 ## Benchmark (Reference)
