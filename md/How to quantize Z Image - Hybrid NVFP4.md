@@ -63,7 +63,7 @@ use that path as-is.
 | Item | Value |
 |---|---|
 | Python | CUDA-enabled PyTorch, `safetensors`, `scikit-image`, `comfy-kitchen` |
-| Bench | `benchmark/zi_convrot_nvfp4_bench_native.py` (this repo, **ComfyUI standard pipeline**) |
+| Bench | `benchmark/zi_convrot_nvfp4_bench_v2.py` (this repo, **ComfyUI standard pipeline**) |
 | ComfyUI | `<path-to-ComfyUI>` as defined above (Z-Image loading / Qwen3-4B text encoder) |
 | Input ① | `<path-to-unet>/<zit_unet>.safetensors` (base fp16/bf16 NextDiT) |
 | Input ② | `<path-to-unet>/<zit_unet>_convrot_int8.safetensors` (complete ConvRot INT8 from the INT8 how-to; int8_tensorwise, convrot:true, `model.diffusion_model.` prefix) |
@@ -184,7 +184,7 @@ cd benchmark
 **`--steps 25`, `--native-dtype` and `--vae` are required** for the pixel-quality judgement. The script default is `--steps 20` and `--native-dtype` off — those defaults will **not** match this procedure.
 
 ```bash
-python zi_convrot_nvfp4_bench_native.py \
+python zi_convrot_nvfp4_bench_v2.py \
   --fp16 "<path-to-unet>/<zit_unet>.safetensors" \
   --nvfp4 "<path-to-unet>/<zit_unet>_hswq_hybrid_nv<K>_convrot_nvfp4.safetensors" \
   --clip_path "<path-to-qwen3-4b>" \
@@ -257,7 +257,7 @@ layers are safe.
 |---|---|
 | `Z_Image/diag_impact.py` | Step 1: **creates** `impact_<zit_unet>.json` (third argument = output path) |
 | `Z_Image/gen_reverse_nvfp4.py` | Step 2: reverse hybrid converter (INT8 → NVFP4, K lowest-impact layers) |
-| `benchmark/zi_convrot_nvfp4_bench_native.py` | Step 3: ComfyUI-standard-pipeline bench (ModelPatcher + KSampler + VAEDecode; `--native-dtype`, `--vae`) |
+| `benchmark/zi_convrot_nvfp4_bench_v2.py` | Step 3: ComfyUI-standard-pipeline bench (ModelPatcher + KSampler + VAEDecode; `--native-dtype`, `--vae`) |
 | `native_convert_int8_convrot_zi.py` | INT8 prerequisite (see [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md)) |
 
 **Dependencies:** `Z_Image/diag_impact.py` loads the Z-Image model via `benchmark/zi_convrot_nvfp4_bench.py` (a raw-model loader kept only for Step 1). Run Step 1 from the clone directory so the default root is correct. `Z_Image/gen_reverse_nvfp4.py` needs the pip package `comfy-kitchen`. The bench stays in `benchmark/` because it shares local modules with sibling bench scripts — **run it from `benchmark/`**.
