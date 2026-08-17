@@ -96,6 +96,15 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 - **Keep ratio:** **0 (fixed)** — FP16 protection is automatic (analyze Hard VETO + DualMonitor + V4 pack-MSE ranking inside the FP16 budget), not a percentage keep-ratio.
 - **Image quality (SSIM):** **0.92-0.98**.
 
+### Z Image Hybrid ConvRot NVFP4
+
+- **Script:** `Z_Image/diag_impact.py` (per-layer impact diagnosis + automatic NVFP4 conversion).
+- **Prerequisite:** A complete **native ConvRot INT8** UNet created by `native_convert_int8_convrot_zi.py`.
+- **Method:** **Reverse method** — start from the complete ConvRot INT8 model (error ≈ 0) and convert layers to NVFP4 in **ascending order of per-layer impact** (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid.
+- **Loader / format:** ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4`; same pack format as SDXL ConvRot NVFP4.
+- **NVFP4 layer count:** Varies per model (e.g. nv60-nv110); determined automatically by impact diagnosis.
+- **Image quality (SSIM):** **0.97-0.99**.
+
 ---
 
 ## Recommended Parameters
@@ -111,11 +120,12 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 | Model | SSIM (Avg) | File size | Compatibility |
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
-| Naive FP8 | 0.75–0.93 | 50% | High |
-| **HSWQ ConvRot INT8** | **0.94–0.98** | **68%** (FP16 mixed) | **High** (ComfyUI INT8) |
+| Naive FP8 | 0.75-0.93 | 50% | High |
+| **HSWQ ConvRot INT8** | **0.94-0.98** | **68%** (FP16 mixed) | **High** (ComfyUI INT8) |
 | **HSWQ ConvRot NVFP4** | **0.92-0.98** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
+| **Z Image Hybrid NVFP4** | **0.97-0.99** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
-HSWQ ConvRot INT8 targets **SSIM 0.94–0.98**; HSWQ ConvRot NVFP4 targets **SSIM 0.92–0.98**. Both keep full loader compatibility on their respective formats.
+HSWQ ConvRot INT8 targets **SSIM 0.94-0.98**; HSWQ ConvRot NVFP4 targets **SSIM 0.92-0.98**; Z Image Hybrid NVFP4 targets **SSIM 0.97-0.99**. All keep full loader compatibility on their respective formats.
 
 ---
 
