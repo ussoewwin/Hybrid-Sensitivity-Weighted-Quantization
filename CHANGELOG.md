@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3
+
+**Z Image Hybrid ConvRot NVFP4 quantization method published** — Released the **reverse method** hybrid NVFP4 quantization for Z Image Turbo models. Starting from a complete native ConvRot INT8 UNet, layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first), staying in the low-error regime where single-layer ranking is valid. The NVFP4 layer count varies per model (e.g. nv60-nv110), determined automatically by `Z_Image/diag_impact.py`. Validated at all-seed decoded **SSIM >= 0.97**. Includes How-to guide, benchmark, and Hugging Face model card updates.
+Release notes: [v2.3](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3)
+
 ## 2.2
 
 **Histogram cosine theory published** — Published the Stage-3 weighted-histogram cosine objective documentation for HSWQ V5 (`histogram/weighted_histogram_cosine_v5.py`): same SVD×RMS hybrid importance family as V4, cosine similarity loss on the importance-weighted magnitude histogram against the physical FP8 E4M3 grid, and a full mathematical comparison of cosine vs weighted MSE for quantization fidelity. README Architecture and technical-details links updated.
