@@ -43,19 +43,19 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 
 ## Overview
 
-| Feature | ConvRot INT8 (SDXL V3.1) | ConvRot NVFP4 |
-| :--- | :--- | :--- |
-| **Compatibility** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible |
-| **File format** | INT8 weights + scale (`int8_tensorwise`); SDXL V3.1 packs remainder with **FULL ConvRot** | Linear **NVFP4** + Conv2d **INT8** (`int8_tensorwise`); **FULL ConvRot** on eligible layers |
-| **Image quality (SSIM)** | **0.94–0.98** | **0.92-0.98** |
-| **Mechanism** | Absmax + DualMonitor / V4 FP16 protect (r0); then FULL ConvRot on Linear/Conv2d remainder | Absmax + DualMonitor / V4 FP16 protect (r0, **600 MiB**); FULL ConvRot (Linear→NVFP4, Conv2d→INT8) |
-| **Keep ratio** | **0 (fixed)** | **0 (fixed)** |
-| **Benchmark** | Measurable | Measurable |
-| **Use case** | SDXL ConvRot INT8 distribution / kitchen loaders | SDXL ConvRot NVFP4 distribution / native ComfyUI load |
+| Feature | ConvRot INT8 (SDXL V3.1) | ConvRot NVFP4 (SDXL) | Z Image Hybrid ConvRot NVFP4 |
+| :--- | :--- | :--- | :--- |
+| **Compatibility** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible |
+| **File format** | INT8 weights + scale (`int8_tensorwise`); SDXL V3.1 packs remainder with **FULL ConvRot** | Linear **NVFP4** + Conv2d **INT8** (`int8_tensorwise`); **FULL ConvRot** on eligible layers | Hybrid: lowest-impact layers → **NVFP4**, remaining layers stay **ConvRot INT8**; built from complete native ConvRot INT8 UNet |
+| **Image quality (SSIM)** | **0.94-0.98** | **0.92-0.98** | **0.97-0.99** |
+| **Mechanism** | Absmax + DualMonitor / V4 FP16 protect (r0); then FULL ConvRot on Linear/Conv2d remainder | Absmax + DualMonitor / V4 FP16 protect (r0, **600 MiB**); FULL ConvRot (Linear→NVFP4, Conv2d→INT8) | **Reverse method**: start from ConvRot INT8 (error ≈ 0), convert layers to NVFP4 in ascending per-layer impact order |
+| **Keep ratio** | **0 (fixed)** | **0 (fixed)** | N/A (layer count varies per model, e.g. nv60-nv110) |
+| **Benchmark** | Measurable | Measurable | Measurable |
+| **Use case** | SDXL ConvRot INT8 distribution / kitchen loaders | SDXL ConvRot NVFP4 distribution / native ComfyUI load | Z Image Turbo Hybrid NVFP4 distribution / native ComfyUI load |
 
 **Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL path.
 
-File size is reduced by about **30–40%** vs FP16 while keeping best quality per use case.
+File size is reduced by about **30-40%** vs FP16 while keeping best quality per use case.
 
 ---
 
