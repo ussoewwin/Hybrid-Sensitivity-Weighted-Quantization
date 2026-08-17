@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-krea2 (moodyKrea2Mix_v40BF16) NVFP4 変換スクリプト — A2 ポリシー版
+krea2 (moodyKrea2Mix_v40BF16) NVFP4 Converter — A2 Policy Edition
 =======================================================================
-方針: seedvr2_7b_nvfp4_A2.safetensors と同じ考え方を krea2 アーキに適用。
+Policy: Apply the same principles as seedvr2_7b_nvfp4_A2.safetensors to krea2 architecture.
 
-■ _KEEP_FP16_PREFIXES (SeedVR2 の _KEEP_FP16_KEYSET 相当: IO/stem 系)
+■ _KEEP_FP16_PREFIXES (Equivalent to SeedVR2 _KEEP_FP16_KEYSET: IO/stem layers)
   model.diffusion_model.first.*
   model.diffusion_model.last.*
   model.diffusion_model.tmlp.*
   model.diffusion_model.tproj.*
   model.diffusion_model.txtmlp.*
-  model.diffusion_model.txtfusion.*  ← 全 txtfusion (layerwise/refiner 含む)
-  → FP16 保持（IO projection 相当）
+  model.diffusion_model.txtfusion.*  <- All txtfusion (including layerwise/refiner)
+  -> Kept in FP16 (equivalent to IO projections)
 
-■ _HIGH_RISK_FP16_KEYSET (SeedVR2 の _HIGH_RISK_FP16_KEYSET 相当)
-  abs_max 解析 (test/krea2_absmax.py) による abs_max >= 1.5 の全高リスク層:
-    ※ txtfusion は _KEEP_FP16_PREFIXES で全保護 (abs_max=5.71 等含む)
+■ _HIGH_RISK_FP16_KEYSET (Equivalent to SeedVR2 _HIGH_RISK_FP16_KEYSET)
+  All high-risk layers with abs_max >= 1.5 based on abs_max analysis (test/krea2_absmax.py):
+    * Note: txtfusion is fully protected via _KEEP_FP16_PREFIXES (including abs_max=5.71 etc.)
     blocks.0.attn.wk          abs_max=3.39   blocks.0.attn.wo      abs_max=1.68
     blocks.0.attn.wq          abs_max=1.86   blocks.1.attn.wq      abs_max=1.95
-    blocks.0.mlp.down         abs_max=1.30 (numel<64 相当小型なので保護)
+    blocks.0.mlp.down         abs_max=1.30 (small layer with numel<64, protected)
     blocks.1.mlp.down         abs_max=2.20   blocks.9.attn.wo      abs_max=2.02
     blocks.10.attn.gate       abs_max=3.28   blocks.10.attn.wq     abs_max=1.73
     blocks.10.attn.wo         abs_max=1.76   blocks.10.mlp.down    abs_max=2.16
@@ -34,12 +34,12 @@ krea2 (moodyKrea2Mix_v40BF16) NVFP4 変換スクリプト — A2 ポリシー版
     blocks.27.attn.wv         abs_max=1.88   blocks.27.attn.wo     abs_max=2.19
     blocks.27.mlp.gate        abs_max=2.52   blocks.27.mlp.up      abs_max=1.66
     blocks.14.attn.wq         abs_max=1.84
-  → FP16 保持
+  -> Kept in FP16
 
-■ その他の DiT blocks Linear (2D, numel >= 64)
-  → NVFP4 (pack_nvfp4: weight + weight_scale + weight_scale_2 + comfy_quant)
+■ Other DiT block Linear layers (2D, numel >= 64)
+  -> NVFP4 (pack_nvfp4: weight + weight_scale + weight_scale_2 + comfy_quant)
 
-■ 非 Linear テンソル (norm scale, bias 等) は dtype 変換せずコピー。
+■ Non-Linear tensors (norm scale, bias, etc.) are copied without dtype conversion.
 
 Do NOT run the conversion unless the same message explicitly orders a run.
 """
@@ -84,8 +84,8 @@ def _load_nvfp4_12():
 
 
 # ---------------------------------------------------------------------------
-# FP16 保護: IO / stem 系 (SeedVR2 の _KEEP_FP16_KEYSET 相当)
-# txtfusion は配下の layerwise_blocks / refiner_blocks 含む全レイヤーを保護
+# FP16 Protection: IO / stem layers (Equivalent to SeedVR2 _KEEP_FP16_KEYSET)
+# txtfusion protects all layers including child layerwise_blocks / refiner_blocks
 # ---------------------------------------------------------------------------
 _KEEP_FP16_PREFIXES: tuple = (
     "model.diffusion_model.first.",
@@ -97,8 +97,8 @@ _KEEP_FP16_PREFIXES: tuple = (
 )
 
 # ---------------------------------------------------------------------------
-# FP16 保護: 高リスクブロック層 (SeedVR2 の _HIGH_RISK_FP16_KEYSET 相当)
-# key 形式: "model.diffusion_model.blocks.N.X.Y" の "blocks.N.X.Y" 部分
+# FP16 Protection: High-risk block layers (Equivalent to SeedVR2 _HIGH_RISK_FP16_KEYSET)
+# key format: "blocks.N.X.Y" portion of "model.diffusion_model.blocks.N.X.Y"
 # ---------------------------------------------------------------------------
 _HIGH_RISK_FP16_KEYSET: Set[str] = {
     # --- abs_max >= 3.0 ---
@@ -117,7 +117,7 @@ _HIGH_RISK_FP16_KEYSET: Set[str] = {
     "blocks.20.attn.wo",                              # abs_max=2.16
     "blocks.15.mlp.up",                               # abs_max=1.99
     "blocks.9.attn.wo",                               # abs_max=2.02
-    # --- abs_max >= 1.5 (追加保護) ---
+    # --- abs_max >= 1.5 (additional protection) ---
     "blocks.0.attn.wq",                               # abs_max=1.86
     "blocks.0.attn.wo",                               # abs_max=1.68
     "blocks.1.attn.wq",                               # abs_max=1.95
@@ -139,19 +139,19 @@ _HIGH_RISK_FP16_KEYSET: Set[str] = {
     "blocks.27.mlp.up",                               # abs_max=1.66
 }
 
-# txtfusion は _KEEP_FP16_PREFIXES で全保護するため HIGH_RISK には含めない
-# (txtfusion.layerwise_blocks.0.attn.wo abs_max=5.72 / 5.63 等)
+# txtfusion is fully protected via _KEEP_FP16_PREFIXES, not listed in HIGH_RISK
+# (txtfusion.layerwise_blocks.0.attn.wo abs_max=5.72 / 5.63 etc.)
 
 
 def _is_fp16_protected(key: str) -> tuple[bool, str]:
-    """(保護するか, 理由) を返す"""
-    # IO / stem 系プレフィックス
+    """Return (is_protected, reason)."""
+    # IO / stem prefix check
     for pfx in _KEEP_FP16_PREFIXES:
         if key.startswith(pfx):
             return True, "io_stem"
-    # key から "model.diffusion_model." を取り除いた部分でマッチ
+    # Match on key stripped of "model.diffusion_model."
     stripped = key.removeprefix("model.diffusion_model.")
-    # .weight を除いた module key
+    # Module key stripped of .weight
     module_key = stripped.removesuffix(".weight")
     if module_key in _HIGH_RISK_FP16_KEYSET:
         return True, "high_risk"
@@ -162,7 +162,7 @@ def _strip_stale_quant_sidecar(
     new_state: Dict[str, torch.Tensor],
     module_key: str,
 ) -> None:
-    """古い量子化サイドカーキーを削除"""
+    """Remove stale quantization sidecar keys."""
     for suffix in (
         ".weight_scale",
         ".weight_scale_2",
@@ -196,14 +196,14 @@ def convert(src_path: str, dst_path: str, device: str = "cpu") -> None:
     weight_keys = [k for k in sd.keys() if k.endswith(".weight")]
     print(f"Total keys: {len(sd)}  weight keys: {len(weight_keys)}")
 
-    # 古いサイドカーキーは最初に除外
+    # Exclude old sidecar keys first
     SIDECAR_SUFFIXES = (
         ".weight_scale", ".weight_scale_2", ".input_scale",
         ".comfy_quant", ".hadamard",
     )
 
     for key, tensor in sd.items():
-        # 古いサイドカーはスキップ（後で必要なら pack_nvfp4 が再生成）
+        # Skip old sidecars (regenerated by pack_nvfp4 if needed)
         if key.endswith(SIDECAR_SUFFIXES):
             continue
 
@@ -214,19 +214,19 @@ def convert(src_path: str, dst_path: str, device: str = "cpu") -> None:
 
         module_key = key[: -len(".weight")]
 
-        # 1D テンソル (bias, norm scale 等) はそのままコピー
+        # Copy 1D tensors (bias, norm scale, etc.) directly
         if tensor.ndim != 2:
             new_state[key] = tensor
             stats["skipped_1d"] += 1
             continue
 
-        # 極小テンソル (numel < 64) はコピー
+        # Copy tiny tensors (numel < 64) directly
         if tensor.numel() < 64:
             new_state[key] = tensor
             stats["skipped_small"] += 1
             continue
 
-        # FP16 保護判定
+        # Check FP16 protection
         protected, reason = _is_fp16_protected(key)
         if protected:
             _strip_stale_quant_sidecar(new_state, module_key)
@@ -237,13 +237,13 @@ def convert(src_path: str, dst_path: str, device: str = "cpu") -> None:
                 stats["high_risk_fp16_kept"] += 1
             continue
 
-        # NVFP4 量子化可能チェック
+        # Check NVFP4 quantizability
         if not can_pack_nvfp4(tensor):
             new_state[key] = tensor
             stats["skipped_unpackable"] += 1
             continue
 
-        # NVFP4 変換
+        # Convert to NVFP4
         w_fp = tensor.float()
         q, params = pack_nvfp4(w_fp)
         _strip_stale_quant_sidecar(new_state, module_key)
@@ -265,7 +265,7 @@ def convert(src_path: str, dst_path: str, device: str = "cpu") -> None:
     print(f"  total_nvfp4: {stats['nvfp4_packed']}")
 
     os.makedirs(os.path.dirname(os.path.abspath(dst_path)) or ".", exist_ok=True)
-    print(f"Saving → {dst_path} ...")
+    print(f"Saving -> {dst_path} ...")
     save_file(new_state, dst_path)
     print("Done.")
 

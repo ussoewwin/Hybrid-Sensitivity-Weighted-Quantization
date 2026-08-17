@@ -900,7 +900,7 @@ def _mad_continuous_gates_from_live(
     else:
         soft_tip = float(p50)
         mad_soft = float(p50)
-    # Mirror analyze §3-1 / 8357425: Soft narrow band (not tip_headroom Soft死).
+    # Mirror analyze §3-1 / 8357425: Soft narrow band (not tip_headroom Soft dead zone).
     soft_span = float(max(mad_floor - p50, 0.0))
     band_w = float(
         max(
