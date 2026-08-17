@@ -6,12 +6,17 @@ dominates wall time vs FP16. This module reuses CUDA buffers keyed by shape.
 """
 from __future__ import annotations
 
-import logging
-import math
 from collections import OrderedDict
+import logging
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _console(msg: str) -> None:
+    print(msg, flush=True)
+    logger.info(msg)
+
 
 # (padded_rows, padded_cols, device_str) -> (qx uint8, sx_uint8)
 # Safe to reuse: only live during one Linear forward (quantize → mm reads sync).
@@ -24,12 +29,23 @@ _GRAPH_CACHE: OrderedDict = OrderedDict()
 _GRAPH_CACHE_MAX = 32
 # Only graph small-M calls (microbench: NVFP4 mm loses to FP16 when M is small).
 _GRAPH_MAX_M = 512
+# Per-weight CUDA Graph cache (Blackwell auto-detect): weight data_ptr -> graph.
+# Eliminates weight .copy_() overhead of shape-shared graphs. Weight tensor
+# is used directly in the captured graph — address is stable while the model
+# stays on GPU during sampling.
+_PER_WEIGHT_GRAPH_CACHE: OrderedDict = OrderedDict()
+_PER_WEIGHT_GRAPH_CACHE_MAX = 500  # ~140 unique Linears in SDXL UNet x multiple tiles
+_PER_WEIGHT_GRAPH_MAX_M = 16384  # Covers all SDXL UNet layer M dimensions (1024x1024 / USDU)
 # NOTE: MM *output* must NOT be pooled — UNet residuals keep layer outputs alive
 # across later layers; a reused buffer would corrupt activations.
 
 
 def clear_nvfp4_cudagraphs() -> None:
     _GRAPH_CACHE.clear()
+    _PER_WEIGHT_GRAPH_CACHE.clear()
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def clear_nvfp4_runtime_pools() -> None:
@@ -43,12 +59,7 @@ def _dev_key(t) -> str:
 
 
 def rotate_last_dim_pooled(x, h_matrix, group_size: int):
-    """Same as ``rotate_last_dim`` but reuses the matmul output buffer.
-
-    fp16/bf16 inputs rotate in fp32: with gs=256 a sign-aligned group of large
-    activations overflows fp16 gemm partial sums (±inf -> inf-inf = NaN).
-    Observed as NaN act-amax in deep SeedVR2 DiT blocks (A2_rot bench).
-    """
+    """Same as ``rotate_last_dim`` but reuses the matmul output buffer."""
     import torch
 
     orig_shape = x.shape
@@ -57,22 +68,15 @@ def rotate_last_dim_pooled(x, h_matrix, group_size: int):
         raise ValueError(f"features {features} not divisible by group_size {group_size}")
     group_count = features // group_size
     x_grouped = x.reshape(-1, group_count, group_size)
-    compute_dtype = (
-        torch.float32 if x.dtype in (torch.float16, torch.bfloat16) else x.dtype
-    )
-    if h_matrix.device != x.device or h_matrix.dtype != compute_dtype:
-        h_matrix = h_matrix.to(dtype=compute_dtype, device=x.device)
+    if h_matrix.device != x.device or h_matrix.dtype != x.dtype:
+        h_matrix = h_matrix.to(dtype=x.dtype, device=x.device)
     m = x_grouped.shape[0]
     key = (m, group_count, group_size, x.dtype, _dev_key(x))
-    buf = _ROT_OUT_POOL.get(key)
-    if buf is None or buf[0].shape != x_grouped.shape:
-        out32 = torch.empty(x_grouped.shape, dtype=compute_dtype, device=x.device)
-        out = torch.empty(x_grouped.shape, dtype=x.dtype, device=x.device)
-        _ROT_OUT_POOL[key] = (out32, out)
-    else:
-        out32, out = buf
-    torch.matmul(x_grouped.to(compute_dtype), h_matrix, out=out32)
-    out.copy_(out32)
+    out = _ROT_OUT_POOL.get(key)
+    if out is None or out.shape != x_grouped.shape:
+        out = torch.empty_like(x_grouped)
+        _ROT_OUT_POOL[key] = out
+    torch.matmul(x_grouped, h_matrix, out=out)
     return out.reshape(orig_shape)
 
 
@@ -536,37 +540,168 @@ def ensure_act_scale_cached(module, x, scale):
         if cached is not None and cached.device == x.device:
             return cached
         s = ensure_act_scale_amax(x)
-        v = float(s)
-        if not math.isfinite(v) or v <= 0.0:
-            # Degenerate first input (all-zero / inf / NaN). Freezing this
-            # scale would make alpha=0 or NaN for EVERY later call — the whole
-            # DiT outputs zeros (SeedVR2 A2_rot black-output incident). Use
-            # ones(1) for THIS call only; retry freezing on the next forward.
-            # Zero input still maps to zero output, so this call stays correct.
-            nan_frac = float(torch.isnan(x).float().mean())
-            inf_frac = float(torch.isinf(x).float().mean())
-            xf = x.detach().float()
-            fin = xf[torch.isfinite(xf)]
-            finite_max = float(fin.abs().max()) if fin.numel() else float("nan")
-            logger.warning(
-                "[HSWQ NVFP4] degenerate act amax (%s) at %s "
-                "(input dtype=%s nan_frac=%.4f inf_frac=%.4f "
-                "finite_max=%.3e); scale freeze skipped "
-                "(using ones for this call)",
-                v,
-                getattr(module, "_hswq_nvfp4_name", "?"),
-                x.dtype,
-                nan_frac,
-                inf_frac,
-                finite_max,
-            )
-            return _device_ones_scale(x.device)
         module._hswq_nvfp4_act_scale = s
-        # Drop any alpha cached against placeholder ones(1).
-        if hasattr(module, "_hswq_nvfp4_alpha"):
-            delattr(module, "_hswq_nvfp4_alpha")
-        if hasattr(module, "_hswq_nvfp4_alpha_bound_scale"):
-            delattr(module, "_hswq_nvfp4_alpha_bound_scale")
         return s
 
     return ensure_act_scale(x, scale)
+
+
+def _copy_f32_1(dst, src):
+    """Copy a scalar scale tensor into a static float32 buffer."""
+    import torch
+
+    if isinstance(src, torch.nn.Parameter):
+        src = src.data
+    if src.dtype != torch.float32 or src.device != dst.device:
+        src = src.to(device=dst.device, dtype=torch.float32)
+    dst.copy_(src.reshape(1))
+
+
+def nvfp4_quant_mm_cudagraph_perweight(
+    x,
+    *,
+    w_qdata,
+    weight_scale,
+    block_scale_w,
+    scale_a,
+    bias,
+    out_dtype,
+    alpha,
+    pad_16x: bool,
+    orig_n: int,
+):
+    """Per-weight CUDA Graph for Blackwell: quantize + GEMM without weight copy.
+
+    Unlike shape-shared ``nvfp4_quant_mm_cudagraph`` which copies the full weight
+    tensor on every replay (~13 s vs ~11.8 s eager), this variant uses the weight
+    tensor *directly* as a graph input.  The weight address is stable while the
+    model stays on GPU during sampling (~20-50 steps × ~140 Linears).
+
+    On replay only ``x`` (activation), ``scale_a``, ``alpha``, and ``bias`` are
+    copied into static buffers — all much smaller than the weight.
+
+    Guarded by ``is_blackwell_gpu()`` in ``nvfp4_forward._tc_forward_pooled``;
+    non-Blackwell GPUs never reach this function.  Z Image NVFP4 (comfy-parity
+    path) never reaches ``_tc_forward_pooled`` at all.
+    """
+    import torch
+    from comfy_kitchen.backends.cuda import roundup
+
+    if x.dim() != 2:
+        raise ValueError("nvfp4_quant_mm_cudagraph_perweight expects 2D x")
+    m, k = int(x.shape[0]), int(x.shape[1])
+    if m > _PER_WEIGHT_GRAPH_MAX_M:
+        raise ValueError(
+            f"M={m} exceeds _PER_WEIGHT_GRAPH_MAX_M={_PER_WEIGHT_GRAPH_MAX_M}"
+        )
+    n = int(w_qdata.shape[0])
+    has_bias = bias is not None and not (
+        isinstance(bias, torch.Tensor) and bias.numel() == 0
+    )
+    w_ptr = w_qdata.data_ptr()
+
+    key = (
+        w_ptr,
+        m,
+        k,
+        n,
+        str(out_dtype),
+        bool(pad_16x),
+        has_bias,
+        int(orig_n),
+    )
+
+    entry = _PER_WEIGHT_GRAPH_CACHE.get(key)
+    if entry is not None:
+        _PER_WEIGHT_GRAPH_CACHE.move_to_end(key)
+        # Verify weight has not moved (e.g. model reloaded to GPU).
+        if entry["w_ptr"] != w_ptr:
+            del _PER_WEIGHT_GRAPH_CACHE[key]
+            entry = None
+
+    if entry is None:
+        # -- Evict oldest if cache is full --------------------------------
+        while len(_PER_WEIGHT_GRAPH_CACHE) >= _PER_WEIGHT_GRAPH_CACHE_MAX:
+            _PER_WEIGHT_GRAPH_CACHE.popitem(last=False)
+
+        # -- Allocate static buffers (activation side only) ---------------
+        out_m = roundup(m, 16) if pad_16x else m
+        static_x = torch.empty(m, k, dtype=x.dtype, device=x.device)
+        static_out = torch.empty(out_m, n, dtype=out_dtype, device=x.device)
+        static_scale_a = torch.empty(1, dtype=torch.float32, device=x.device)
+        static_alpha = torch.empty(1, dtype=torch.float32, device=x.device)
+        static_bias = torch.empty_like(bias) if has_bias else None
+
+        # -- Initial copies -----------------------------------------------
+        static_x.copy_(x)
+        _copy_f32_1(static_scale_a, scale_a)
+        _copy_f32_1(static_alpha, alpha)
+        bias_arg = static_bias if has_bias else bias
+        if has_bias:
+            static_bias.copy_(bias)
+
+        # -- Warmup on a side stream (2 iterations, same as shape-shared) -
+        s = torch.cuda.Stream(device=x.device)
+        s.wait_stream(torch.cuda.current_stream(x.device))
+        with torch.cuda.stream(s):
+            for _ in range(2):
+                _run_quant_mm(
+                    static_x,
+                    scale_a=static_scale_a,
+                    w_qdata=w_qdata,
+                    weight_scale=weight_scale,
+                    block_scale_w=block_scale_w,
+                    bias=bias_arg,
+                    out_dtype=out_dtype,
+                    alpha=static_alpha,
+                    pad_16x=pad_16x,
+                    orig_m=m,
+                    orig_n=orig_n,
+                    out=static_out,
+                )
+        torch.cuda.current_stream(x.device).wait_stream(s)
+
+        # -- Capture graph ------------------------------------------------
+        g = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(g):
+            _run_quant_mm(
+                static_x,
+                scale_a=static_scale_a,
+                w_qdata=w_qdata,          # DIRECT weight ref — no copy!
+                weight_scale=weight_scale,
+                block_scale_w=block_scale_w,
+                bias=bias_arg,
+                out_dtype=out_dtype,
+                alpha=static_alpha,
+                pad_16x=pad_16x,
+                orig_m=m,
+                orig_n=orig_n,
+                out=static_out,
+            )
+
+        entry = {
+            "graph": g,
+            "static_x": static_x,
+            "static_out": static_out,
+            "static_scale_a": static_scale_a,
+            "static_alpha": static_alpha,
+            "static_bias": static_bias,
+            "has_bias": has_bias,
+            "w_ptr": w_ptr,
+        }
+        _PER_WEIGHT_GRAPH_CACHE[key] = entry
+        _console(
+            "[HSWQ NVFP4 Tensor Boost] Captured Blackwell per-weight CUDA Graph #"
+            f"{len(_PER_WEIGHT_GRAPH_CACHE)} (shape M={m} K={k} N={n}, w_ptr=0x{w_ptr:x}, device={x.device})"
+        )
+
+    # -- Replay: copy only activation + scales (NOT weight) ---------------
+    static_x = entry["static_x"]
+    static_out = entry["static_out"]
+    static_x.copy_(x)
+    _copy_f32_1(entry["static_scale_a"], scale_a)
+    _copy_f32_1(entry["static_alpha"], alpha)
+    if entry["has_bias"]:
+        entry["static_bias"].copy_(bias)
+    entry["graph"].replay()
+    return static_out[:m, :orig_n].clone()
