@@ -91,6 +91,7 @@ benchmark/bench_int8.png
 benchmark/*_diag_*_log.txt
 assets/guidebook/
 _comfyui_full/
+コマンド.txt
 guidebook/
 
 # Analysis JSON dumps (bench meta / ranking / analysis outputs) - never track
