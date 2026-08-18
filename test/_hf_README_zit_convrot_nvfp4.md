@@ -51,6 +51,7 @@ High-fidelity Hybrid ConvRot NVFP4 quantization for Z-Image Turbo diffusion mode
 | `moodyRealMix_zitV7_hswq_hybrid_nv100_convrot_nvfp4.safetensors` | Moody Real Mix | zit v7.0 (nv100) | CreativeML Open RAIL++-M |
 | `moodyRealMix_xhsEdition_hswq_hybrid_nv110_convrot_nvfp4.safetensors` | Moody Real Mix | XHS Edition (nv110) | CreativeML Open RAIL++-M |
 | `darkBeast30BF16INT8_dbzit9DIMRclaw_hswq_hybrid_nv100_convrot_nvfp4.safetensors` | Dark Beast | dbzit9 DIMRclaw (nv100) | CreativeML Open RAIL++-M |
+| `unstableRevolution_V3Fp16_hswq_hybrid_nv90_convrot_nvfp4.safetensors` | Unstable Revolution | v3.0 FP16 (nv90) | CreativeML Open RAIL++-M |
 | `zimageTurboByStable_2602BF16_hswq_hybrid_nv100_convrot_nvfp4.safetensors` | Z-Image Turbo | 2602 BF16 (nv100) | CreativeML Open RAIL++-M |
 
 ---
@@ -64,6 +65,7 @@ We extend our deepest respect and gratitude to the **Nunchaku Team** for their g
 ### Base Models
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
 - **Moody Pro Mix / Moody Real Mix / Dark Beast**: Created by [catlover1937](https://civitai.com/user/catlover1937).
+- **Unstable Revolution**: Created by [Yamer](https://civitai.com/user/Yamer).
 - **Z-Image Turbo**: Created by [Tongyi-MAAS / Civitai Community](https://civitai.com/).
 
 ---
