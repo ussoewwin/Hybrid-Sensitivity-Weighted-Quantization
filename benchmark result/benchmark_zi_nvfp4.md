@@ -19,6 +19,7 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 | zimageTurboByStable_2602BF16 | 100 | 0.0711 | 0.9783 |
 | unstableRevolution_V3Fp16 | 90 | 0.2498 | 0.9728 |
 | gonzalomoZpop_insta2 | 80 | 0.2111 | 0.9681 |
+| divingZImageTurbo_v70Fp16 | 90 | 0.0643 | 0.9729 |
 
 ---
 
@@ -38,6 +39,7 @@ Lower MSE is better; higher SSIM is better. Δ = baseline − HSWQ (positive Δ 
 | zimageTurboByStable_2602BF16 | 100 | 0.0711 | 0.8018 | +0.7307 | 0.9783 | 0.9010 | −0.0773 | Native NVFP4 | HSWQ |
 | unstableRevolution_V3Fp16 | 90 | 0.2498 | 0.3242 | +0.0744 | 0.9728 | 0.9392 | −0.0336 | Native NVFP4 | HSWQ |
 | gonzalomoZpop_insta2 | 80 | 0.2111 | 0.3303 | +0.1192 | 0.9681 | 0.9402 | −0.0279 | Native NVFP4 | HSWQ |
+| divingZImageTurbo_v70Fp16 | 90 | 0.0643 | 0.1118 | +0.0475 | 0.9729 | 0.9704 | −0.0025 | Native NVFP4 | HSWQ |
 
 **Winner** = better on both MSE and SSIM.
 
