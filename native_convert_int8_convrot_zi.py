@@ -423,7 +423,7 @@ def convert_to_int8(
 
     for key, tensor in tqdm(state_dict.items()):
         is_unet_matmul_weight = (
-            key.startswith("model.diffusion_model")
+            (key.startswith("model.diffusion_model") or key.startswith("layers.") or key.startswith("context_refiner") or key.startswith("noise_refiner") or key.startswith("cap_embedder") or key.startswith("x_embedder") or key.startswith("t_embedder") or key.startswith("final_layer"))
             and key.endswith(".weight")
             and tensor.ndim >= 2
         )
