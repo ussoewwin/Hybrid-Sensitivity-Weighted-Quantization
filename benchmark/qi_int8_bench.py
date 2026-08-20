@@ -437,7 +437,7 @@ def main() -> int:
         help="Classifier-free guidance scale.",
     )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--steps", type=int, default=25)
+    parser.add_argument("--steps", type=int, default=12)
     parser.add_argument("--width", type=int, default=1024)
     parser.add_argument("--height", type=int, default=1024)
     parser.add_argument("--sampler", default="euler")
