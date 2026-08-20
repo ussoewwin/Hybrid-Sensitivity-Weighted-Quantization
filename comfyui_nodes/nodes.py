@@ -325,9 +325,9 @@ class ZImageConvRotInt8Quantize:
                 t_int8 = time.perf_counter() - t0
                 lat_int8 = out_int8.detach().float().cpu()
 
-                # Calc MSE / Cosine (Highest Precision: float64)
-                a = lat_fp16.to(torch.float64).reshape(-1)
-                b = lat_int8.to(torch.float64).reshape(-1)
+                # Calc MSE / Cosine
+                a = lat_fp16.reshape(-1)
+                b = lat_int8.reshape(-1)
                 mse = float(torch.mean((a - b) ** 2).item())
                 lat_cos = float(torch.nn.functional.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0), dim=1).item())
 
