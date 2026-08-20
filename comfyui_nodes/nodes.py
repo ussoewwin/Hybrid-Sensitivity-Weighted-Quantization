@@ -231,12 +231,19 @@ class ZImageConvRotInt8Quantize:
 
         sd = _extract_model_state_dict(model)
 
+        original_name = "convrot_int8"
+        if hasattr(model, "cached_patcher_init") and model.cached_patcher_init:
+            func, args = model.cached_patcher_init[:2]
+            if args and isinstance(args, tuple) and isinstance(args[0], str):
+                unet_path = args[0]
+                original_name = os.path.splitext(os.path.basename(unet_path))[0]
+
         output_path = (output_path or "").strip()
         if not output_path:
-            output_path = os.path.join(_output_dir(), "convrot_int8.safetensors")
+            output_path = os.path.join(_output_dir(), f"{original_name}_native_convrot_int8.safetensors")
         output_path = os.path.abspath(output_path)
         if os.path.isdir(output_path):
-            output_path = os.path.join(output_path, "convrot_int8.safetensors")
+            output_path = os.path.join(output_path, f"{original_name}_native_convrot_int8.safetensors")
         out_dir = os.path.dirname(output_path)
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
