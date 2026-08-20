@@ -288,7 +288,8 @@ class ZImageConvRotInt8Quantize:
 
             try:
                 # Prepare FP16 baseline latent
-                tokens = clip.tokenize("masterpiece, best quality, 1girl, solo, standing, simple background")
+                prompt_text = "Solid black background only. Empty frame. No objects, no lights, no city, no people, no text, no texture. Completely black."
+                tokens = clip.tokenize(prompt_text)
                 positive = clip.encode_from_tokens_scheduled(tokens)
                 negative = clip.encode_from_tokens_scheduled(clip.tokenize(""))
                 
