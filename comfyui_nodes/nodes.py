@@ -285,9 +285,11 @@ class ZImageConvRotInt8Quantize:
             import time
             import torch
             import math
+            import random
+            import datetime
 
             try:
-                # Prepare FP16 baseline latent
+                # Prepare baseline tokens
                 prompt_text = "Solid black background only. Empty frame. No objects, no lights, no city, no people, no text, no texture. Completely black."
                 tokens = clip.tokenize(prompt_text)
                 positive = clip.encode_from_tokens_scheduled(tokens)
@@ -295,65 +297,65 @@ class ZImageConvRotInt8Quantize:
                 
                 device = mm.intermediate_device()
                 width, height = 1024, 1024
-                latent = torch.zeros([1, 16, height // 8, width // 8], device=device)
-                latent = comfy_sample.fix_empty_latent_channels(model, latent)
-                latent_dict = {"samples": latent}
+                latent_base = torch.zeros([1, 16, height // 8, width // 8], device=device)
+                latent_base = comfy_sample.fix_empty_latent_channels(model, latent_base)
 
-                seed, steps, cfg = 42, 12, 2.5
+                steps, cfg = 12, 2.5
+                seeds = [random.randint(1, 10000000) for _ in range(5)]
 
-                def _sample(m):
-                    noise = comfy_sample.prepare_noise(latent_dict["samples"], seed, None)
-                    return comfy_sample.sample(m, noise, steps, cfg, "euler", "simple", positive, negative, latent_dict["samples"], denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, callback=None, disable_pbar=True, seed=seed)
+                def _sample(m, s):
+                    lat = latent_base.clone()
+                    noise = comfy_sample.prepare_noise(lat, s, None)
+                    return comfy_sample.sample(m, noise, steps, cfg, "euler", "simple", positive, negative, lat, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, callback=None, disable_pbar=True, seed=s)
 
-                t0 = time.perf_counter()
-                out_fp16 = _sample(model)
-                if torch.cuda.is_available(): torch.cuda.synchronize()
-                t_fp16 = time.perf_counter() - t0
-                lat_fp16 = out_fp16.detach().float().cpu()
+                # 1. FP16 baseline inference for all 5 seeds
+                lat_fp16_list = []
+                t_fp16_list = []
+                for s in seeds:
+                    t0 = time.perf_counter()
+                    out_fp16 = _sample(model, s)
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    t_fp16_list.append(time.perf_counter() - t0)
+                    lat_fp16_list.append(out_fp16.detach().float().cpu())
 
-                # Free FP16 model temporarily to load INT8 (simulated by unloading)
+                # Free FP16 model temporarily to load INT8
                 mm.unload_all_models()
                 mm.soft_empty_cache()
 
-                # Load INT8 model
+                # 2. Load INT8 model
                 t0 = time.perf_counter()
                 model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                 load_int8 = time.perf_counter() - t0
 
-                t0 = time.perf_counter()
-                out_int8 = _sample(model_int8)
-                if torch.cuda.is_available(): torch.cuda.synchronize()
-                t_int8 = time.perf_counter() - t0
-                lat_int8 = out_int8.detach().float().cpu()
+                # 3. INT8 inference for all 5 seeds
+                lat_int8_list = []
+                t_int8_list = []
+                for s in seeds:
+                    t0 = time.perf_counter()
+                    out_int8 = _sample(model_int8, s)
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    t_int8_list.append(time.perf_counter() - t0)
+                    lat_int8_list.append(out_int8.detach().float().cpu())
 
-                # Calc MSE / Cosine
-                a = lat_fp16.reshape(-1)
-                b = lat_int8.reshape(-1)
-                mse = float(torch.mean((a - b) ** 2).item())
-                lat_cos = float(torch.nn.functional.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0), dim=1).item())
-
-                import datetime
-                current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-                report.append("\n=== BENCHMARK ===")
-                report.append(f"Run Time: {current_time}")
-                report.append(f"FP16 Time: {t_fp16:.2f}s")
-                report.append(f"INT8 Load: {load_int8:.2f}s, Time: {t_int8:.2f}s")
-                report.append(f"MSE: {mse:.4f} | Cosine: {lat_cos:.4f}")
-
+                # VAE decode setup
+                _decode = None
                 if vae is not None:
                     try:
                         from skimage.metrics import structural_similarity as ssim
                         import numpy as np
                         from PIL import Image
 
-                        def _decode(lat):
-                            if getattr(lat, "is_nested", False): lat = lat.unbind()[0]
+                        def _decode_fn(lat_cpu):
+                            lat_dev = lat_cpu.to(device=vae.load_device if hasattr(vae, "load_device") else "cuda")
+                            if getattr(lat_dev, "is_nested", False):
+                                lat_dev = lat_dev.unbind()[0]
                             _po = vae.process_output
                             vae.process_output = lambda img: img.float().add(1.0).mul(0.5).clamp(0.0, 1.0)
                             try:
                                 with torch.inference_mode(False):
-                                    images = vae.decode(lat)
+                                    images = vae.decode(lat_dev)
                             finally:
                                 vae.process_output = _po
                             if len(images.shape) == 5:
@@ -361,12 +363,58 @@ class ZImageConvRotInt8Quantize:
                             img_array = 255.0 * images[0].detach().cpu().numpy()
                             return Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
 
-                        img_fp16 = _decode(out_fp16.detach())
-                        img_int8 = _decode(out_int8.detach())
-                        score = float(ssim(np.array(img_fp16), np.array(img_int8), win_size=3, channel_axis=2, data_range=255))
-                        report.append(f"SSIM (decoded): {score:.4f}")
+                        _decode = _decode_fn
                     except Exception as ve:
-                        report.append(f"[VAE Decode Error] {str(ve)}")
+                        _decode = None
+                        report.append(f"[VAE Init Error] {str(ve)}")
+
+                # 4. Metrics evaluation
+                current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                report.append("\n=== BENCHMARK (5 Seeds) ===")
+                report.append(f"Run Time: {current_time}")
+                report.append(f"INT8 Model Load Time: {load_int8:.2f}s")
+                report.append(f"Seeds: {seeds}\n")
+
+                mse_list = []
+                cos_list = []
+                ssim_list = []
+
+                for i, s in enumerate(seeds):
+                    a = lat_fp16_list[i].reshape(-1)
+                    b = lat_int8_list[i].reshape(-1)
+                    mse_val = float(torch.mean((a - b) ** 2).item())
+                    cos_val = float(torch.nn.functional.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0), dim=1).item())
+                    mse_list.append(mse_val)
+                    cos_list.append(cos_val)
+
+                    line = f"[Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f}"
+
+                    if _decode is not None:
+                        try:
+                            img_fp16 = _decode(lat_fp16_list[i])
+                            img_int8 = _decode(lat_int8_list[i])
+                            ssim_score = float(ssim(np.array(img_fp16), np.array(img_int8), win_size=3, channel_axis=2, data_range=255))
+                            ssim_list.append(ssim_score)
+                            line += f" | SSIM: {ssim_score:.4f}"
+                        except Exception as de:
+                            line += f" | SSIM Error: {de}"
+
+                    report.append(line)
+
+                # Summary Averages
+                avg_fp16 = sum(t_fp16_list) / len(t_fp16_list)
+                avg_int8 = sum(t_int8_list) / len(t_int8_list)
+                avg_mse = sum(mse_list) / len(mse_list)
+                avg_cos = sum(cos_list) / len(cos_list)
+
+                report.append("\n--- Summary (5-Seed Average) ---")
+                report.append(f"Avg FP16 Time: {avg_fp16:.2f}s")
+                report.append(f"Avg INT8 Time: {avg_int8:.2f}s")
+                report.append(f"Avg MSE: {avg_mse:.4f}")
+                report.append(f"Avg Cosine: {avg_cos:.4f}")
+                if ssim_list:
+                    avg_ssim = sum(ssim_list) / len(ssim_list)
+                    report.append(f"Avg SSIM: {avg_ssim:.4f}")
 
                 mm.unload_all_models()
                 mm.soft_empty_cache()
