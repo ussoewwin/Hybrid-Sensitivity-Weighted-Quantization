@@ -319,8 +319,8 @@ def parse_args():
                          "e.g. <repo>/ComfyUI-master")
     ap.add_argument("--steps", type=int, default=4,
                     help="trajectory denoising steps (default 4)")
-    ap.add_argument("--lat", type=int, default=32,
-                    help="latent H/W (default 32)")
+    ap.add_argument("--lat", type=int, default=128,
+                    help="latent H/W (default 128, matches bench 1024x1024 token count)")
     ap.add_argument("--seq", type=int, default=256,
                     help="random context token seq length (default 256)")
     ap.add_argument("--seed", type=int, default=42,
