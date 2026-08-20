@@ -134,29 +134,52 @@ def _install_comfy_stubs():
 
 
 def _ensure_comfyui(comfy_path=None):
+    """Locate the ComfyUI root. Repository-internal ComfyUI-master ONLY:
+    explicit --comfy-path, then <repo>/ComfyUI-master, then $COMFYUI_PATH.
+    Never reads any ComfyUI installation outside this repository."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.normpath(os.path.join(here, ".."))
     candidates = []
     if comfy_path:
         candidates.append(os.path.abspath(comfy_path))
+    candidates.append(os.path.join(repo, "ComfyUI-master"))
     env = os.environ.get("COMFYUI_PATH")
     if env:
         candidates.append(env)
-    here = os.path.dirname(os.path.abspath(__file__))
-    candidates.extend([
-        r"D:\USERFILES\ComfyUI\ComfyUI",
-        r"D:\USERFILES\GitHub\ComfyUI",
-        os.path.join(here, "..", "ComfyUI-master"),
-    ])
     for root in candidates:
-        if not root:
-            continue
-        if os.path.isfile(os.path.join(root, "comfy", "ldm", "krea2", "model.py")):
-            if root not in sys.path:
-                sys.path.insert(0, root)
+        if os.path.isfile(os.path.join(root, "comfy", "ldm", "krea2", "model.py")) \
+                and os.path.isfile(os.path.join(root, "comfy", "ops.py")):
             return root
     raise FileNotFoundError(
-        "ComfyUI root with comfy/ldm/krea2/model.py not found. "
-        "Pass --comfy-path or set COMFYUI_PATH."
+        "ComfyUI root (needs comfy/ops.py + comfy/ldm/krea2/model.py) not found. "
+        "Expected <repo>/ComfyUI-master. Pass --comfy-path or set COMFYUI_PATH."
     )
+
+
+def _load_comfy_pkg(comfy_root):
+    """Import `comfy` EXCLUSIVELY from comfy_root (repo ComfyUI-master).
+
+    ComfyUI-master/comfy ships an __init__.py marker in this repo, making it a
+    REGULAR package: with comfy_root first on sys.path, Python ignores every
+    other `comfy` on the host (site-packages etc.), so "No module named
+    'comfy.ops'" hijacking is impossible. We still purge any `comfy*` already
+    imported (e.g. a partial import elsewhere) before re-importing pinned.
+    """
+    import importlib
+    for key in list(sys.modules):
+        if key == "comfy" or key.startswith("comfy."):
+            del sys.modules[key]
+    if comfy_root in sys.path:
+        sys.path.remove(comfy_root)
+    sys.path.insert(0, comfy_root)
+    mod = importlib.import_module("comfy")
+    if os.path.abspath(getattr(mod, "__path__", [None])[0] or "") != \
+            os.path.abspath(os.path.join(comfy_root, "comfy")):
+        raise ImportError(
+            f"comfy resolved outside repo tree: {getattr(mod, '__path__', None)} "
+            f"(expected {os.path.join(comfy_root, 'comfy')})"
+        )
+    return mod
 
 
 # ---------------------------------------------------------------------------
@@ -208,16 +231,18 @@ def load_krea2(path, device="cuda", comfy_path=None):
     """
     if str(device).startswith("cpu"):
         raise RuntimeError("diag_impact Krea2 trajectory requires CUDA.")
-    _ensure_comfyui(comfy_path)
+    comfy_root = _ensure_comfyui(comfy_path)
+    print(f"[Krea2] ComfyUI root: {comfy_root}")
     saved = _clear_argv_for_comfy()
     try:
+        _install_comfy_stubs()
+        _load_comfy_pkg(comfy_root)
         try:
             import comfy.options
             comfy.options.enable_args_parsing(False)
         except ImportError:
             # older ComfyUI without comfy.options; argv already cleared
             pass
-        _install_comfy_stubs()
         import comfy.ops
         from comfy.ldm.krea2.model import SingleStreamDiT
 

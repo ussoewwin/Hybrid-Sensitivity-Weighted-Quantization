@@ -1,0 +1,1 @@
+# Marker: this vendored `comfy` tree is a REGULAR package so that a sys.path-inserted root always wins import resolution over any unrelated namespace/regular `comfy` on the host (e.g. site-packages). Keep empty.
