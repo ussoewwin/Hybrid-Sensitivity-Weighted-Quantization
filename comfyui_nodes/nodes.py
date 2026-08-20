@@ -82,16 +82,27 @@ def _output_dir() -> str:
 
 
 def _extract_model_state_dict(model):
-    """Return the diffusion model weights with 'model.diffusion_model.' prefix."""
-    try:
-        return model.model_state_dict_for_saving(
-            model.model.diffusion_model, "model.diffusion_model."
-        )
-    except AttributeError as e:
+    """Return diffusion weights (CPU float) with 'model.diffusion_model.' prefix.
+
+    Handles both the standard BaseModel wrapper (model.model.diffusion_model)
+    and loaders that put the raw diffusion model directly in model.model.
+    """
+    inner = getattr(model, "model", None)
+    if inner is None:
         raise ValueError(
-            "model input is not a ComfyUI ModelPatcher; connect a UNet / "
-            "checkpoint loader MODEL output. (%s)" % e
+            "model input has no inner model; connect a UNet / checkpoint "
+            "loader MODEL output."
         )
+    diffusion = getattr(inner, "diffusion_model", None)
+    if diffusion is None:
+        diffusion = inner
+    if not hasattr(diffusion, "state_dict"):
+        raise ValueError("cannot locate the diffusion model in the MODEL input")
+
+    out = {}
+    for k, v in diffusion.state_dict().items():
+        out["model.diffusion_model." + k] = v.detach().cpu()
+    return out
 
 
 def _quantize_state_dict(sd, group_size, enable_convrot, per_channel_int8, n8):
