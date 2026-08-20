@@ -186,6 +186,7 @@ class ZImageConvRotInt8Quantize:
         return {
             "required": {
                 "model": ("MODEL",),
+                "clip": ("CLIP",),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
                 "group_size": ("INT", {"default": 256, "min": 4, "max": 4096, "step": 4}),
                 "convrot": ("BOOLEAN", {"default": True}),
@@ -196,14 +197,15 @@ class ZImageConvRotInt8Quantize:
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING")
-    RETURN_NAMES = ("output_path", "report")
+    RETURN_TYPES = ("STRING", "STRING", "CLIP")
+    RETURN_NAMES = ("output_path", "report", "clip")
     FUNCTION = "quantize"
     CATEGORY = "HSWQ/Quantize"
 
     def quantize(
         self,
         model,
+        clip,
         output_path,
         group_size,
         convrot,
@@ -247,4 +249,4 @@ class ZImageConvRotInt8Quantize:
             f"linear={stats['linear']} conv2d={stats['conv2d']} "
             f"plain={stats['plain']} kept={stats['kept']}",
         ]
-        return (output_path, "\n".join(report))
+        return (output_path, "\n".join(report), clip)
