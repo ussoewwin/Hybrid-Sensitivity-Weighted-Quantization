@@ -206,6 +206,11 @@ class ZImageConvRotInt8Quantize:
             },
         }
 
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        import time
+        return float(time.time())
+
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("output_path", "report")
     FUNCTION = "quantize"
