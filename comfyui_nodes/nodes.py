@@ -13,8 +13,7 @@ Output layout:
 
 Repo layout: this package lives at <repo>/comfyui_nodes/ and reuses the pure
 quantization helpers in <repo>/native_convert_int8.py. The repo root is
-auto-detected by walking up until that script is found; pass ``repo_root`` to
-override.
+auto-detected by walking up from this package until that script is found.
 """
 from __future__ import annotations
 
@@ -41,14 +40,13 @@ def _default_repo_root() -> str:
     return os.path.abspath(os.path.join(here, os.pardir))
 
 
-def _load_native_int8(repo_root: str):
+def _load_native_int8():
     """Import native_convert_int8.py once (no side effects on import)."""
     global _N8
     if _N8 is not None:
         return _N8
 
-    root = (repo_root or "").strip() or _default_repo_root()
-    root = os.path.abspath(root)
+    root = _default_repo_root()
     path = os.path.join(root, "native_convert_int8.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(
@@ -192,9 +190,6 @@ class ZImageConvRotInt8Quantize:
                 "convrot": ("BOOLEAN", {"default": True}),
                 "per_channel_int8": ("BOOLEAN", {"default": True}),
             },
-            "optional": {
-                "repo_root": ("STRING", {"default": "", "multiline": False}),
-            },
         }
 
     RETURN_TYPES = ("STRING", "STRING")
@@ -211,9 +206,8 @@ class ZImageConvRotInt8Quantize:
         group_size,
         convrot,
         per_channel_int8,
-        repo_root="",
     ):
-        n8 = _load_native_int8(repo_root)
+        n8 = _load_native_int8()
 
         group_size = int(group_size)
         if not _is_power_of_4(group_size):
