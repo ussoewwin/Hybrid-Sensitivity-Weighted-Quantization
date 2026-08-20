@@ -199,6 +199,7 @@ class ZImageConvRotInt8Quantize:
                 "group_size": ("INT", {"default": 256}),
                 "convrot": ("BOOLEAN", {"default": True}),
                 "per_channel_int8": ("BOOLEAN", {"default": True}),
+                "run_benchmark": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -216,6 +217,7 @@ class ZImageConvRotInt8Quantize:
         group_size,
         convrot,
         per_channel_int8,
+        run_benchmark,
     ):
         n8 = _load_native_int8()
 
@@ -229,6 +231,8 @@ class ZImageConvRotInt8Quantize:
         if not output_path:
             output_path = os.path.join(_output_dir(), "convrot_int8.safetensors")
         output_path = os.path.abspath(output_path)
+        if os.path.isdir(output_path):
+            output_path = os.path.join(output_path, "convrot_int8.safetensors")
         out_dir = os.path.dirname(output_path)
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
@@ -254,4 +258,69 @@ class ZImageConvRotInt8Quantize:
             f"linear={stats['linear']} conv2d={stats['conv2d']} "
             f"plain={stats['plain']} kept={stats['kept']}",
         ]
+
+        if run_benchmark:
+            import comfy.model_management as mm
+            import comfy.sample as comfy_sample
+            import comfy.sd
+            import time
+            import torch
+            import math
+
+            try:
+                # Prepare FP16 baseline latent
+                tokens = clip.tokenize("masterpiece, best quality, 1girl, solo, standing, simple background")
+                positive = clip.encode_from_tokens_scheduled(tokens)
+                negative = clip.encode_from_tokens_scheduled(clip.tokenize(""))
+                
+                device = mm.intermediate_device()
+                width, height = 1024, 1024
+                latent = torch.zeros([1, 16, height // 8, width // 8], device=device)
+                latent = comfy_sample.fix_empty_latent_channels(model, latent)
+                latent_dict = {"samples": latent}
+
+                seed, steps, cfg = 42, 12, 2.5
+
+                def _sample(m):
+                    noise = comfy_sample.prepare_noise(latent_dict["samples"], seed, None)
+                    return comfy_sample.sample(m, noise, steps, cfg, "euler", "simple", positive, negative, latent_dict["samples"], denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, callback=None, disable_pbar=True, seed=seed)
+
+                t0 = time.perf_counter()
+                out_fp16 = _sample(model)
+                if torch.cuda.is_available(): torch.cuda.synchronize()
+                t_fp16 = time.perf_counter() - t0
+                lat_fp16 = out_fp16.detach().float().cpu()
+
+                # Free FP16 model temporarily to load INT8 (simulated by unloading)
+                mm.unload_all_models()
+                mm.soft_empty_cache()
+
+                # Load INT8 model
+                t0 = time.perf_counter()
+                model_int8 = comfy.sd.load_diffusion_model(output_path, {})
+                load_int8 = time.perf_counter() - t0
+
+                t0 = time.perf_counter()
+                out_int8 = _sample(model_int8)
+                if torch.cuda.is_available(): torch.cuda.synchronize()
+                t_int8 = time.perf_counter() - t0
+                lat_int8 = out_int8.detach().float().cpu()
+
+                # Calc MSE / Cosine
+                a = lat_fp16.reshape(-1)
+                b = lat_int8.reshape(-1)
+                mse = float(torch.mean((a - b) ** 2).item())
+                lat_cos = float(torch.nn.functional.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0), dim=1).item())
+
+                report.append("\n=== BENCHMARK ===")
+                report.append(f"FP16 Time: {t_fp16:.2f}s")
+                report.append(f"INT8 Load: {load_int8:.2f}s, Time: {t_int8:.2f}s")
+                report.append(f"MSE: {mse:.4f} | Cosine: {lat_cos:.4f}")
+
+                mm.unload_all_models()
+                mm.soft_empty_cache()
+
+            except Exception as e:
+                report.append(f"\n[Benchmark Error] {str(e)}")
+
         return (output_path, "\n".join(report))
