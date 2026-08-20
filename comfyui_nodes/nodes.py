@@ -239,11 +239,14 @@ class ZImageConvRotInt8Quantize:
                 original_name = os.path.splitext(os.path.basename(unet_path))[0]
 
         output_path = (output_path or "").strip()
+        import time
+        ts = int(time.time())
+        default_name = f"{original_name}_native_convrot_int8_{ts}.safetensors"
         if not output_path:
-            output_path = os.path.join(_output_dir(), f"{original_name}_native_convrot_int8.safetensors")
+            output_path = os.path.join(_output_dir(), default_name)
         output_path = os.path.abspath(output_path)
         if os.path.isdir(output_path):
-            output_path = os.path.join(output_path, f"{original_name}_native_convrot_int8.safetensors")
+            output_path = os.path.join(output_path, default_name)
         out_dir = os.path.dirname(output_path)
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
