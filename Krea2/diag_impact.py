@@ -211,8 +211,12 @@ def load_krea2(path, device="cuda", comfy_path=None):
     _ensure_comfyui(comfy_path)
     saved = _clear_argv_for_comfy()
     try:
-        import comfy.options
-        comfy.options.enable_args_parsing(False)
+        try:
+            import comfy.options
+            comfy.options.enable_args_parsing(False)
+        except ImportError:
+            # older ComfyUI without comfy.options; argv already cleared
+            pass
         _install_comfy_stubs()
         import comfy.ops
         from comfy.ldm.krea2.model import SingleStreamDiT
