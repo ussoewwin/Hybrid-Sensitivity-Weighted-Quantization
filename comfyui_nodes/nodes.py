@@ -290,7 +290,7 @@ class ZImageConvRotInt8Quantize:
 
             try:
                 # Prepare baseline tokens
-                prompt_text = "Solid black background only. Empty frame. No objects, no lights, no city, no people, no text, no texture. Completely black."
+                prompt_text = "masterpiece, best quality, 1girl, solo, standing, simple background"
                 tokens = clip.tokenize(prompt_text)
                 positive = clip.encode_from_tokens_scheduled(tokens)
                 negative = clip.encode_from_tokens_scheduled(clip.tokenize(""))
