@@ -50,9 +50,8 @@ def _load_native_int8():
     path = os.path.join(root, "native_convert_int8.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(
-            f"Quantization helpers not found: {path}. "
-            "Set repo_root to the Hybrid-Sensitivity-Weighted-Quantization "
-            "clone directory."
+            f"Quantization helpers not found: {path}. The node package must "
+            "live inside the Hybrid-Sensitivity-Weighted-Quantization clone."
         )
 
     try:
