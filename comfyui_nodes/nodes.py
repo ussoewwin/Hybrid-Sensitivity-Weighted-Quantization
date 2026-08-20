@@ -188,7 +188,7 @@ class ZImageConvRotInt8Quantize:
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
-                "group_size": ("INT", {"default": 256, "min": 4, "max": 4096, "step": 4}),
+                "group_size": ("INT", {"default": 256}),
                 "convrot": ("BOOLEAN", {"default": True}),
                 "per_channel_int8": ("BOOLEAN", {"default": True}),
             },
