@@ -197,8 +197,8 @@ class ZImageConvRotInt8Quantize:
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "CLIP")
-    RETURN_NAMES = ("output_path", "report", "clip")
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("output_path", "report")
     FUNCTION = "quantize"
     CATEGORY = "HSWQ/Quantize"
 
@@ -249,4 +249,4 @@ class ZImageConvRotInt8Quantize:
             f"linear={stats['linear']} conv2d={stats['conv2d']} "
             f"plain={stats['plain']} kept={stats['kept']}",
         ]
-        return (output_path, "\n".join(report), clip)
+        return (output_path, "\n".join(report))
