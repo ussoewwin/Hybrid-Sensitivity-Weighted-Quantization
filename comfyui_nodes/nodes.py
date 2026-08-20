@@ -201,6 +201,7 @@ class ZImageConvRotInt8Quantize:
     RETURN_NAMES = ("output_path", "report")
     FUNCTION = "quantize"
     CATEGORY = "HSWQ/Quantize"
+    OUTPUT_NODE = True
 
     def quantize(
         self,
