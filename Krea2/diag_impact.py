@@ -17,7 +17,7 @@ This is the REVERSE (trajectory) method, NOT the 4-axis static ranking
 Usage:
     python Krea2/diag_impact.py <base_model.safetensors> \
         <convrot_int8.safetensors> <impact_out.json> \
-        [--comfy-path <comfyui-root>] [--steps N] [--lat H] [--seq S] [--seed S]
+        --comfy-path <comfyui-root> [--steps N] [--lat H] [--seq S] [--seed S]
 
 The impact JSON uses STRIPPED layer keys (same as the INT8 artifact's
 _quantization_metadata.layers), e.g. "blocks.0.attn.gate".
@@ -314,8 +314,9 @@ def parse_args():
     ap.add_argument("base", help="baseline fp16/bf16 Krea2 SingleStreamDiT safetensors")
     ap.add_argument("artifact", help="complete ConvRot INT8 safetensors (layer list source)")
     ap.add_argument("out", help="output impact json path")
-    ap.add_argument("--comfy-path", default=None,
-                    help="ComfyUI root (must contain comfy/ldm/krea2/model.py)")
+    ap.add_argument("--comfy-path", required=True,
+                    help="ComfyUI root (must contain comfy/ops.py and comfy/ldm/krea2/model.py), "
+                         "e.g. <repo>/ComfyUI-master")
     ap.add_argument("--steps", type=int, default=4,
                     help="trajectory denoising steps (default 4)")
     ap.add_argument("--lat", type=int, default=32,
