@@ -421,7 +421,7 @@ def main() -> int:
     parser.add_argument(
         "--prompt",
         default=(
-            "masterpiece, best quality, 1girl, solo, standing, simple background"
+            "Solid black background only. Empty frame. No objects, no lights, no city, no people, no text, no texture. Completely black."
         ),
         help="Benchmark prompt",
     )
