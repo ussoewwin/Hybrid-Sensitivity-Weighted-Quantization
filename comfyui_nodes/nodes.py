@@ -331,7 +331,11 @@ class ZImageConvRotInt8Quantize:
                 mse = float(torch.mean((a - b) ** 2).item())
                 lat_cos = float(torch.nn.functional.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0), dim=1).item())
 
+                import datetime
+                current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
                 report.append("\n=== BENCHMARK ===")
+                report.append(f"Run Time: {current_time}")
                 report.append(f"FP16 Time: {t_fp16:.2f}s")
                 report.append(f"INT8 Load: {load_int8:.2f}s, Time: {t_int8:.2f}s")
                 report.append(f"MSE: {mse:.4f} | Cosine: {lat_cos:.4f}")
