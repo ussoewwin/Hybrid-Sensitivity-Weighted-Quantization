@@ -201,6 +201,9 @@ class ZImageConvRotInt8Quantize:
                 "per_channel_int8": ("BOOLEAN", {"default": True}),
                 "run_benchmark": ("BOOLEAN", {"default": True}),
             },
+            "optional": {
+                "vae": ("VAE",),
+            },
         }
 
     RETURN_TYPES = ("STRING", "STRING")
@@ -218,6 +221,7 @@ class ZImageConvRotInt8Quantize:
         convrot,
         per_channel_int8,
         run_benchmark,
+        vae=None,
     ):
         n8 = _load_native_int8()
 
@@ -316,6 +320,33 @@ class ZImageConvRotInt8Quantize:
                 report.append(f"FP16 Time: {t_fp16:.2f}s")
                 report.append(f"INT8 Load: {load_int8:.2f}s, Time: {t_int8:.2f}s")
                 report.append(f"MSE: {mse:.4f} | Cosine: {lat_cos:.4f}")
+
+                if vae is not None:
+                    try:
+                        from skimage.metrics import structural_similarity as ssim
+                        import numpy as np
+                        from PIL import Image
+
+                        def _decode(lat):
+                            if getattr(lat, "is_nested", False): lat = lat.unbind()[0]
+                            _po = vae.process_output
+                            vae.process_output = lambda img: img.float().add(1.0).mul(0.5).clamp(0.0, 1.0)
+                            try:
+                                with torch.inference_mode(False):
+                                    images = vae.decode(lat)
+                            finally:
+                                vae.process_output = _po
+                            if len(images.shape) == 5:
+                                images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+                            img_array = 255.0 * images[0].detach().cpu().numpy()
+                            return Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
+
+                        img_fp16 = _decode(out_fp16.detach())
+                        img_int8 = _decode(out_int8.detach())
+                        score = float(ssim(np.array(img_fp16), np.array(img_int8), win_size=3, channel_axis=2, data_range=255))
+                        report.append(f"SSIM (decoded): {score:.4f}")
+                    except Exception as ve:
+                        report.append(f"[VAE Decode Error] {str(ve)}")
 
                 mm.unload_all_models()
                 mm.soft_empty_cache()
