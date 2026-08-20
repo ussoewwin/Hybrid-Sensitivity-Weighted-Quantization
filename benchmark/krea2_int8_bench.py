@@ -526,6 +526,24 @@ def main() -> int:
         # 3. Comparison — same printout as int8bench_sdxl
         print("\n=== 3. Calculating Metrics ===")
 
+        # Latent-space: direct comparison (quantization divergence before decode)
+        if _lat_fp16.shape != _lat_int8.shape:
+            print(
+                f"\n  *** LATENT SHAPE MISMATCH: "
+                f"FP16={tuple(_lat_fp16.shape)} INT8={tuple(_lat_int8.shape)} ***\n"
+                f"  Different latent shapes = model configs differ = metrics invalid."
+            )
+        lat_fp16 = _lat_fp16.reshape(-1)
+        lat_int8 = _lat_int8.reshape(-1)
+        lat_mse = float((lat_fp16 - lat_int8).pow(2).mean().item())
+        lat_cos = float(torch.nn.functional.cosine_similarity(
+            lat_fp16.unsqueeze(0), lat_int8.unsqueeze(0), dim=1).item())
+        print(f"\n--- Latent-Space (direct, no RGB projection) ---")
+        print(f"FP16 latent stats:  min={lat_fp16.min():.4f} max={lat_fp16.max():.4f} mean={lat_fp16.mean():.4f} std={lat_fp16.std():.4f}")
+        print(f"INT8 latent stats:  min={lat_int8.min():.4f} max={lat_int8.max():.4f} mean={lat_int8.mean():.4f} std={lat_int8.std():.4f}")
+        print(f"Latent MSE:      {lat_mse:.6f}  (0 = perfect)")
+        print(f"Latent Cosine:   {lat_cos:.6f}  (1.0 = perfect)")
+
         if img_fp16.size != img_int8.size:
             print(f"Error: Image sizes do not match! FP16:{img_fp16.size}, INT8:{img_int8.size}")
             print("Different models or settings used.")
