@@ -170,33 +170,50 @@ def main() -> int:
     print("\n" + "=" * 72)
     print("Deterministic per-step latent trajectory divergence (FP16 vs NVFP4)")
     print("=" * 72)
+    BIFURC_DROP = 0.05   # single-step cosine drop threshold = sudden jump (different image)
+    SAME_IMG_COS = 0.98  # final cosine above this = same picture (not merely different)
     final_rows = []
     for s in seeds:
         fxs, fx0s, ffinal = fp16_runs[s]
         nxs, nx0s, nfinal = nv_runs[s]
         n_steps = min(len(fxs), len(nxs))
+        step_cos = [_cos(fxs[i], nxs[i]) for i in range(n_steps)]
+        # sudden single-step cosine drop = trajectory jumped to another image
+        max_drop = 0.0
+        drop_at = 0
+        for i in range(1, n_steps):
+            d = step_cos[i - 1] - step_cos[i]
+            if d > max_drop:
+                max_drop, drop_at = d, i
         if args.show_steps:
             print(f"\n--- Seed {s}: per-step (x = noisy latent, x0 = model prediction) ---")
             print(f"{'step':>4} {'x-cos':>8} {'x-MSE':>10} {'x0-cos':>8} {'x0-MSE':>10}")
             for i in range(n_steps):
-                print(f"{i+1:>4} {_cos(fxs[i], nxs[i]):>8.5f} {_mse(fxs[i], nxs[i]):>10.3e} "
+                print(f"{i+1:>4} {step_cos[i]:>8.5f} {_mse(fxs[i], nxs[i]):>10.3e} "
                       f"{_cos(fx0s[i], nx0s[i]):>8.5f} {_mse(fx0s[i], nx0s[i]):>10.3e}")
         fin_cos = _cos(ffinal, nfinal)
         fin_mse = _mse(ffinal, nfinal)
-        # also final x0 comparison (last model prediction)
         x0_cos = _cos(fx0s[-1], nx0s[-1]) if fx0s and nx0s else float("nan")
-        final_rows.append((s, fin_cos, fin_mse, x0_cos))
-        print(f"[seed {s}] final latent cosine={fin_cos:.5f}  mse={fin_mse:.4e}  "
-              f"last-x0 cosine={x0_cos:.5f}")
+        if max_drop > BIFURC_DROP:
+            verdict = f"bifurcated @step {drop_at}"
+        elif fin_cos >= SAME_IMG_COS:
+            verdict = "same-image"
+        else:
+            verdict = "drifted (different image)"
+        final_rows.append((s, fin_cos, fin_mse, x0_cos, verdict, max_drop, drop_at))
+        print(f"[seed {s}] final-cos={fin_cos:.5f}  max_step_drop={max_drop:.4f}"
+              f"{' @step ' + str(drop_at) if max_drop > BIFURC_DROP else ''}  -> {verdict}")
 
     print("\n--- Multi-seed summary ---")
-    print(f"{'seed':>8} {'final-latent-cos':>18} {'final-latent-mse':>18} {'last-x0-cos':>14}")
-    for s, fc, fm, xc in final_rows:
-        print(f"{s:>8} {fc:>18.5f} {fm:>18.4e} {xc:>14.5f}")
+    print(f"{'seed':>8} {'final-cos':>10} {'final-mse':>12} {'max-drop':>9} {'verdict':>22}")
+    for s, fc, fm, xc, v, md, da in final_rows:
+        print(f"{s:>8} {fc:>10.5f} {fm:>12.3e} {md:>9.4f} {v:>22}")
     cos_vals = [r[1] for r in final_rows]
-    mse_vals = [r[2] for r in final_rows]
-    print(f"\nfinal-latent cosine: min={min(cos_vals):.5f}  mean={sum(cos_vals)/len(cos_vals):.5f}  max={max(cos_vals):.5f}")
-    print(f"final-latent mse   : min={min(mse_vals):.4e}  mean={sum(mse_vals)/len(mse_vals):.4e}  max={max(mse_vals):.4e}")
+    n_bif = sum(1 for r in final_rows if "bifurcated" in r[4])
+    n_diff = sum(1 for r in final_rows if r[4] != "same-image")
+    print(f"\nfinal-cosine: min={min(cos_vals):.5f}  mean={sum(cos_vals)/len(cos_vals):.5f}  max={max(cos_vals):.5f}")
+    print(f"same-image seeds : {len(seeds) - n_diff}/{len(seeds)}")
+    print(f"bifurcated seeds : {n_bif}/{len(seeds)}   (sudden trajectory jump = different picture, not degradation)")
     return 0
 
 
