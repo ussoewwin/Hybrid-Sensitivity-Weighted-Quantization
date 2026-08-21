@@ -47,6 +47,12 @@ def _strip_prefix(key, prefix):
     return key
 
 
+# Krea2 NVFP4-safe in_features set: only these dimensions produce packed
+# weights compatible with the NVFP4 loader.  All other Linear (txtfusion etc.)
+# must NEVER be converted.  diag_impact.py enforces the same rule.
+_SAFE_IN_FEATURES = {1536, 6144, 16384}
+
+
 def parse_args():
     ap = argparse.ArgumentParser(
         description="Krea2 reverse hybrid NVFP4 converter (INT8 -> NVFP4)"
@@ -91,12 +97,9 @@ def main():
         if wk not in sd:
             print(f"  SKIP (not in sd): {L}")
             continue
-        # Krea2 DiT: only main-trunk Linear layers (in_features >= 256)
-        # are NVFP4-safe.  Smaller layers (txtfusion etc.) produce packed
-        # shapes that fail the loader's validate_nvfp4_weight_storage.
+        # Enforce NVFP4-safe in_features rule (must match diag_impact.py).
         in_f = int(sd[wk].shape[1])
-        if in_f < 256:
-            print(f"  SKIP (in_features={in_f} < 256): {L}")
+        if in_f not in _SAFE_IN_FEATURES:
             continue
         q = sd[wk]            # I8 rotated
         s = sd[sk]            # F32 scale ([out,1] row-wise, or scalar)
