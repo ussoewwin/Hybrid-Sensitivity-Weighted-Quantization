@@ -110,7 +110,7 @@ def main():
         amax = act_amax.get(L)
         if amax is not None:
             denom = float(F8_E4M3_MAX) * float(F4_E2M1_MAX)
-            sd[wk + ".input_scale"] = torch.tensor(
+            sd[prefix + L + ".input_scale"] = torch.tensor(
                 max(float(amax), 1e-12) / denom, dtype=torch.float32
             )
         else:
