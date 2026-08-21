@@ -299,6 +299,36 @@ def rel_mse(a, b):
     return float(((a - b) ** 2).sum() / (b ** 2).sum())
 
 
+def _build_hadamard(size, device="cuda", dtype=torch.float32):
+    """Normalized Hadamard (Kronecker power of h4, / sqrt(size)). Same math as
+    benchmark/krea2_convrot_nvfp4/nvfp4_hadamard.build_hadamard."""
+    h4 = torch.tensor(
+        [[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]],
+        dtype=torch.float32, device=device,
+    )
+    h = h4
+    cur = 4
+    while cur < size:
+        h = torch.kron(h, h4)
+        cur *= 4
+    h = h / (size ** 0.5)
+    return h.to(dtype=dtype)
+
+
+def _rotated_amax(x, H):
+    """Max abs of Hadamard-rotated activation (last dim, groups of H.shape[0]).
+    Returns None if the feature dim is not divisible by the group size."""
+    gs = int(H.shape[0])
+    xf = x.detach().float()
+    flat = xf.reshape(-1, xf.shape[-1])
+    f = flat.shape[-1]
+    if f % gs != 0:
+        return None
+    g = flat.reshape(-1, f // gs, gs)
+    rot = torch.matmul(g, H.to(device=flat.device, dtype=torch.float32))
+    return float(rot.abs().max().item())
+
+
 def parse_args():
     ap = argparse.ArgumentParser(
         description="Krea2 per-layer NVFP4 trajectory impact (reverse method, Step 1)"
@@ -375,9 +405,32 @@ def main():
                 x = (x + (t_steps[step + 1] - t_steps[step]) * out).to(torch.bfloat16)
         return x
 
+    # Capture per-layer rotated-activation amax during the pristine trajectory.
+    # gen_reverse_nvfp4.py writes this as convrot NVFP4 .input_scale
+    # (amax / (F8_E4M3_MAX * F4_E2M1_MAX)); without it the runtime falls back to
+    # per-call amax, which the reference converter documents as a quality loss.
+    _hadamard = _build_hadamard(256, device=device)
+    act_amax = {}
+
+    def _mk_amax_hook(name):
+        def hook(module, inp):
+            x = inp[0] if isinstance(inp, (tuple, list)) else inp
+            if not torch.is_tensor(x) or not torch.is_floating_point(x):
+                return
+            a = _rotated_amax(x, _hadamard)
+            if a is not None:
+                act_amax[name] = max(act_amax.get(name, 0.0), a)
+        return hook
+
+    _amax_hooks = [m.register_forward_pre_hook(_mk_amax_hook(n)) for n, m in mods.items()]
+
     print("[*] pristine run", flush=True)
     x_ref = run()
     print("[*] pristine done", flush=True)
+
+    for h in _amax_hooks:
+        h.remove()
+    print(f"act_amax captured for {len(act_amax)} modules", flush=True)
 
     impacts = {}
     done = 0
@@ -403,7 +456,8 @@ def main():
     xr = x_ref.float().reshape(x_ref.shape[0], -1)
     with open(a.out, "w", encoding="utf-8") as fo:
         json.dump(
-            {"x_ref_norm": float((xr * xr).sum().item()), "impacts": impacts},
+            {"x_ref_norm": float((xr * xr).sum().item()), "impacts": impacts,
+             "act_amax": act_amax},
             fo, indent=1,
         )
     print(f"saved {a.out}", flush=True)
