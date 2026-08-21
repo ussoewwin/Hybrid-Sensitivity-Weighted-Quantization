@@ -392,8 +392,9 @@ def main():
     )
     t_steps = torch.linspace(1.0, 0.0, steps + 1, device=device)
 
-    def run():
-        g = torch.Generator(device=device).manual_seed(seed)
+    def run(run_seed=None):
+        s = seed if run_seed is None else run_seed
+        g = torch.Generator(device=device).manual_seed(s)
         x = torch.randn(1, channels, lat, lat, device=device,
                         dtype=torch.bfloat16, generator=g)
         with torch.no_grad():
@@ -427,6 +428,16 @@ def main():
     print("[*] pristine run", flush=True)
     x_ref = run()
     print("[*] pristine done", flush=True)
+
+    # input_scale calibration robustness: the reference converter calibrates
+    # on 32 samples x 25 steps; a single 4-step seed can under-cover real
+    # activation ranges (frozen input_scale then clips acts). Span extra seeds
+    # (running max) before detaching the amax hooks. Cost: a few extra forwards.
+    for extra in (1337, 7):
+        if extra == seed:
+            continue
+        run(extra)
+    print("[*] amax extra-seed runs done", flush=True)
 
     for h in _amax_hooks:
         h.remove()
