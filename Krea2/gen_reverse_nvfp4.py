@@ -28,6 +28,7 @@ from safetensors.torch import save_file
 
 try:
     from comfy_kitchen.tensor import TensorCoreNVFP4Layout
+    from comfy_kitchen.float_utils import F4_E2M1_MAX, F8_E4M3_MAX
 except ImportError:
     print("Error: comfy_kitchen not found (install in the active venv).")
     sys.exit(1)
@@ -64,7 +65,9 @@ def main():
     a = parse_args()
     OUT = os.path.join(a.out_dir, a.out_name)
 
-    imp = json.load(open(a.impact, encoding="utf-8"))["impacts"]
+    data = json.load(open(a.impact, encoding="utf-8"))
+    imp = data["impacts"]
+    act_amax = data.get("act_amax", {})
     # impact keys carry no suffix in diag_impact.py output; normalize defensively.
     ranked = [k[:-len(".weight")] if k.endswith(".weight") else k
               for k, _ in sorted(imp.items(), key=lambda kv: kv[1])]
@@ -102,6 +105,16 @@ def main():
         sd[prefix + L + ".comfy_quant"] = torch.frombuffer(
             json.dumps(conf).encode("utf-8"), dtype=torch.uint8
         ).clone()
+        # convrot NVFP4 activation scale (reference converter writes this;
+        # missing .input_scale falls back to runtime per-call amax and loses quality).
+        amax = act_amax.get(L)
+        if amax is not None:
+            denom = float(F8_E4M3_MAX) * float(F4_E2M1_MAX)
+            sd[wk + ".input_scale"] = torch.tensor(
+                max(float(amax), 1e-12) / denom, dtype=torch.float32
+            )
+        else:
+            print(f"  WARN no act_amax for {L}: .input_scale omitted (runtime amax fallback)")
         meta["layers"][L] = conf
         n_conv += 1
         print(f"  nvfp4: {L}  ({tuple(dq.shape)})")
