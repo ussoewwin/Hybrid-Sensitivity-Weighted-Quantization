@@ -91,6 +91,11 @@ def main():
         if wk not in sd:
             print(f"  SKIP (not in sd): {L}")
             continue
+        # NVFP4 requires in_features divisible by 16 (column packing).
+        in_f = int(sd[wk].shape[1])
+        if in_f % 16 != 0:
+            print(f"  SKIP (in_features={in_f} not %%16): {L}")
+            continue
         q = sd[wk]            # I8 rotated
         s = sd[sk]            # F32 scale ([out,1] row-wise, or scalar)
         dq = (q.float() * s)  # W_rot approx in fp32
