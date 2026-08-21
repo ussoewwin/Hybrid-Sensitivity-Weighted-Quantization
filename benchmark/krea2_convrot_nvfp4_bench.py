@@ -646,6 +646,8 @@ def main() -> int:
     parser.add_argument("--negative", default="", help="Negative prompt (often unused at cfg=1)")
     parser.add_argument("--steps", type=int, default=25)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--multi-seed", type=int, default=1,
+                        help="Run N seeds (1 = original single-seed behavior)")
     parser.add_argument("--width", type=int, default=1024)
     parser.add_argument("--height", type=int, default=1024)
     parser.add_argument("--cfg", type=float, default=1.0, help="Krea2 default 1.0 (no CFG)")
@@ -660,6 +662,7 @@ def main() -> int:
         help="NVFP4 execution mode: 'tc' for native hardware Tensor Core speed, 'parity' for stock dequantization",
     )
     args = parser.parse_args()
+    _multi_seed = max(int(args.multi_seed), 1)
 
     for p, name in ((args.fp16, "--fp16"), (args.nvfp4, "--nvfp4"), (args.clip_path, "--clip_path")):
         if not Path(p).is_file():
@@ -723,120 +726,178 @@ def main() -> int:
         print("  [Offload] CLIP unloaded (never GPU-resident for this bench).")
         _report_gpu_memory("after_clip_offload")
 
-        print("--- Benchmark Config ---")
-        print(f"Seed: {args.seed}  Steps: {args.steps}  CFG: {args.cfg}")
-        print(f"Size: {args.width}x{args.height}  sampler={args.sampler}/{args.scheduler}")
-        print(f"Prompt: {args.prompt[:80]}...")
-        print("------------------------")
+        if _multi_seed > 1:
+            import random as _rng
+            _seed_rng = _rng.Random(args.seed)
+            seed_list = [_seed_rng.randint(0, 2**31 - 1) for _ in range(_multi_seed)]
+            print(f"Multi-seed mode: {_multi_seed} seeds")
+            print(f"Seeds: {seed_list}")
+        else:
+            seed_list = [args.seed]
 
-        img_fp16, _lat_fp16, t16, v16, diag_fp16 = run_branch(
-            label="1. Baseline (FP16/BF16)",
-            unet_path=args.fp16,
-            vae_path=vae_path,
-            positive=positive,
-            negative=negative,
-            args=args,
-        )
-        p16 = os.path.join(args.output_dir, "bench_result_fp16.png")
-        img_fp16.save(p16)
-        print(f"FP16 Time: {t16:.2f}s  peak={v16:.2f}GiB")
+        all_ssim = []
+        all_cos = []
+        all_mse = []
+        _patches_applied = False
 
-        print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches (after BF16)...")
-        apply_quant_patches(mode=args.mode)
+        for _si, _s in enumerate(seed_list):
+            if _multi_seed > 1:
+                print(f"\n{'='*60}")
+                print(f"  Seed {_si+1}/{_multi_seed}: {_s}")
+                print(f"{'='*60}")
 
-        img_q, _lat_q, tq, vq, diag_q = run_branch(
-            label="2. Quantized (ConvRot NVFP4 + INT8 protect)",
-            unet_path=args.nvfp4,
-            vae_path=vae_path,
-            positive=positive,
-            negative=negative,
-            args=args,
-        )
-        pq = os.path.join(args.output_dir, "bench_result_nvfp4.png")
-        img_q.save(pq)
-        print(f"NVFP4+INT8protect Time: {tq:.2f}s  peak={vq:.2f}GiB")
+            print("--- Benchmark Config ---")
+            print(f"Seed: {_s}  Steps: {args.steps}  CFG: {args.cfg}")
+            print(f"Size: {args.width}x{args.height}  sampler={args.sampler}/{args.scheduler}")
+            print(f"Prompt: {args.prompt[:80]}...")
+            print("------------------------")
 
-        # --- Sigma schedule & model type comparison ---
-        print("\n--- Sigma Schedule Diagnostics ---")
-        _sigma_mismatch = False
-        for _dk in ("model_type", "ms_type", "sigma_min", "sigma_max"):
-            _v16 = diag_fp16.get(_dk)
-            _vq = diag_q.get(_dk)
-            if isinstance(_v16, float) and isinstance(_vq, float):
-                _dm = "OK" if abs(_v16 - _vq) < 1e-6 else "MISMATCH"
+            _orig_seed = args.seed
+            args.seed = _s
+
+            img_fp16, _lat_fp16, t16, v16, diag_fp16 = run_branch(
+                label="1. Baseline (FP16/BF16)",
+                unet_path=args.fp16,
+                vae_path=vae_path,
+                positive=positive,
+                negative=negative,
+                args=args,
+            )
+            _p16_suffix = "" if _multi_seed <= 1 else f"_s{_s}"
+            p16 = os.path.join(args.output_dir, f"bench_result_fp16{_p16_suffix}.png")
+            img_fp16.save(p16)
+            print(f"FP16 Time: {t16:.2f}s  peak={v16:.2f}GiB")
+
+            if not _patches_applied:
+                print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches (after BF16)...")
+                apply_quant_patches(mode=args.mode)
+                _patches_applied = True
+
+            img_q, _lat_q, tq, vq, diag_q = run_branch(
+                label="2. Quantized (ConvRot NVFP4 + INT8 protect)",
+                unet_path=args.nvfp4,
+                vae_path=vae_path,
+                positive=positive,
+                negative=negative,
+                args=args,
+            )
+            pq = os.path.join(args.output_dir, f"bench_result_nvfp4{_p16_suffix}.png")
+            img_q.save(pq)
+            print(f"NVFP4+INT8protect Time: {tq:.2f}s  peak={vq:.2f}GiB")
+
+            args.seed = _orig_seed
+
+            # --- Sigma schedule & model type comparison ---
+            print("\n--- Sigma Schedule Diagnostics ---")
+            _sigma_mismatch = False
+            for _dk in ("model_type", "ms_type", "sigma_min", "sigma_max"):
+                _v16 = diag_fp16.get(_dk)
+                _vq = diag_q.get(_dk)
+                if isinstance(_v16, float) and isinstance(_vq, float):
+                    _dm = "OK" if abs(_v16 - _vq) < 1e-6 else "MISMATCH"
+                else:
+                    _dm = "OK" if _v16 == _vq else "MISMATCH"
+                if _dm != "OK":
+                    _sigma_mismatch = True
+                print(f"  {_dk}: FP16={_v16}  NVFP4={_vq}  [{_dm}]")
+            if _sigma_mismatch:
+                print(
+                    "  *** SIGMA SCHEDULE MISMATCH DETECTED ***\n"
+                    "  BF16 and NVFP4 use different model configs / noise schedules.\n"
+                    "  Images WILL be completely different regardless of quant quality.\n"
+                    "  Fix: ensure both branches detect the same model type "
+                    "(check fix_unet_config_packed_dims)."
+                )
             else:
-                _dm = "OK" if _v16 == _vq else "MISMATCH"
-            if _dm != "OK":
-                _sigma_mismatch = True
-            print(f"  {_dk}: FP16={_v16}  NVFP4={_vq}  [{_dm}]")
-        if _sigma_mismatch:
-            print(
-                "  *** SIGMA SCHEDULE MISMATCH DETECTED ***\n"
-                "  BF16 and NVFP4 use different model configs / noise schedules.\n"
-                "  Images WILL be completely different regardless of quant quality.\n"
-                "  Fix: ensure both branches detect the same model type "
-                "(check fix_unet_config_packed_dims)."
-            )
+                print("  All sigma schedule parameters match.")
+
+            # 3. Comparison — same printout as int8bench_sdxl
+            print("\n=== 3. Calculating Metrics ===")
+
+            # Latent-space: direct comparison (NVFP4 divergence makes pixel SSIM unreliable)
+            if _lat_fp16.shape != _lat_q.shape:
+                print(
+                    f"\n  *** LATENT SHAPE MISMATCH: "
+                    f"FP16={tuple(_lat_fp16.shape)} NVFP4={tuple(_lat_q.shape)} ***\n"
+                    f"  Different latent shapes = model configs differ = "
+                    f"metrics invalid."
+                )
+            lat_fp16 = _lat_fp16.reshape(-1)
+            lat_q = _lat_q.reshape(-1)
+            lat_mse = float((lat_fp16 - lat_q).pow(2).mean().item())
+            lat_cos = float(torch.nn.functional.cosine_similarity(
+                lat_fp16.unsqueeze(0), lat_q.unsqueeze(0), dim=1).item())
+            print(f"\n--- Latent-Space (direct, no RGB projection) ---")
+            print(f"FP16 latent stats:  min={lat_fp16.min():.4f} max={lat_fp16.max():.4f} mean={lat_fp16.mean():.4f} std={lat_fp16.std():.4f}")
+            print(f"NVFP4 latent stats: min={lat_q.min():.4f} max={lat_q.max():.4f} mean={lat_q.mean():.4f} std={lat_q.std():.4f}")
+            print(f"Latent MSE:      {lat_mse:.6f}  (0 = perfect)")
+            print(f"Latent Cosine:   {lat_cos:.6f}  (1.0 = perfect)")
+            # Pixel-space comparison follows (reliable only for INT8; NVFP4 mix diverges)
+
+            if img_fp16.size != img_q.size:
+                print(
+                    f"Error: Image sizes do not match! "
+                    f"FP16:{img_fp16.size}, NVFP4:{img_q.size}"
+                )
+                print("Different models or settings used.")
+                return 1
+
+            mse, score = calculate_metrics(img_fp16, img_q)
+
+            print(f"--------------------------------------------------")
+            print(f"MSE (Error): {mse:.4f} \t(0 is perfect match)")
+            print(f"SSIM (Sim) : {score:.4f} \t(1.0 is perfect match)")
+            print(f"--------------------------------------------------")
+
+            if score > 0.98:
+                grade = "PERFECT (S)"
+            elif score > 0.95:
+                grade = "EXCELLENT (A)"
+            elif score > 0.90:
+                grade = "GOOD (B)"
+            else:
+                grade = "WARNING (C)"
+
+            print(f"Quality Grade: {grade}")
+            target_grade = "PASS" if score >= SSIM_TARGET else "FAIL"
+            print(f"  SSIM target >={SSIM_TARGET}: {target_grade}")
+
+            diff_img = ImageChops.difference(img_fp16, img_q)
+            diff_img = ImageChops.multiply(diff_img, Image.new("RGB", diff_img.size, (10, 10, 10)))
+            diff_path = os.path.join(args.output_dir, f"bench_result_diff{_p16_suffix}.png")
+            diff_img.save(diff_path)
+            print(f"Diff image saved: {diff_path}")
+
+            all_ssim.append(score)
+            all_cos.append(lat_cos)
+            all_mse.append(lat_mse)
+
+            del img_fp16, img_q, _lat_fp16, _lat_q
+            _hard_free_vram()
+
+        # --- Multi-seed summary ---
+        if _multi_seed > 1:
+            import numpy as _np
+            _ssim_a = _np.array(all_ssim)
+            _cos_a = _np.array(all_cos)
+            _mse_a = _np.array(all_mse)
+            print(f"\n{'='*60}")
+            print(f"  Multi-Seed Summary ({len(seed_list)} seeds)")
+            print(f"{'='*60}")
+            for _i, _sd in enumerate(seed_list):
+                print(f"    seed {_sd:>12d}  SSIM={all_ssim[_i]:.4f}  cos={all_cos[_i]:.5f}  mse={all_mse[_i]:.4e}")
+            print(f"  SSIM : min={_ssim_a.min():.4f}  max={_ssim_a.max():.4f}  mean={_ssim_a.mean():.4f}  median={_np.median(_ssim_a):.4f}")
+            print(f"  cos  : min={_cos_a.min():.5f}  max={_cos_a.max():.5f}  mean={_cos_a.mean():.5f}  median={_np.median(_cos_a):.5f}")
+            print(f"  mse  : min={_mse_a.min():.4e}  max={_mse_a.max():.4e}  mean={_mse_a.mean():.4e}")
+            _n_pass = int((_ssim_a >= SSIM_TARGET).sum())
+            print(f"  SSIM >={SSIM_TARGET}: {_n_pass}/{len(seed_list)}")
+
+        _final_ret = 0
+        if _multi_seed > 1:
+            _final_ret = 0 if _n_pass == len(seed_list) else 1
         else:
-            print("  All sigma schedule parameters match.")
-
-        # 3. Comparison — same printout as int8bench_sdxl
-        print("\n=== 3. Calculating Metrics ===")
-
-        # Latent-space: direct comparison (NVFP4 divergence makes pixel SSIM unreliable)
-        if _lat_fp16.shape != _lat_q.shape:
-            print(
-                f"\n  *** LATENT SHAPE MISMATCH: "
-                f"FP16={tuple(_lat_fp16.shape)} NVFP4={tuple(_lat_q.shape)} ***\n"
-                f"  Different latent shapes = model configs differ = "
-                f"metrics invalid."
-            )
-        lat_fp16 = _lat_fp16.reshape(-1)
-        lat_q = _lat_q.reshape(-1)
-        lat_mse = float((lat_fp16 - lat_q).pow(2).mean().item())
-        lat_cos = float(torch.nn.functional.cosine_similarity(
-            lat_fp16.unsqueeze(0), lat_q.unsqueeze(0), dim=1).item())
-        print(f"\n--- Latent-Space (direct, no RGB projection) ---")
-        print(f"FP16 latent stats:  min={lat_fp16.min():.4f} max={lat_fp16.max():.4f} mean={lat_fp16.mean():.4f} std={lat_fp16.std():.4f}")
-        print(f"NVFP4 latent stats: min={lat_q.min():.4f} max={lat_q.max():.4f} mean={lat_q.mean():.4f} std={lat_q.std():.4f}")
-        print(f"Latent MSE:      {lat_mse:.6f}  (0 = perfect)")
-        print(f"Latent Cosine:   {lat_cos:.6f}  (1.0 = perfect)")
-        # Pixel-space comparison follows (reliable only for INT8; NVFP4 mix diverges)
-
-        if img_fp16.size != img_q.size:
-            print(
-                f"Error: Image sizes do not match! "
-                f"FP16:{img_fp16.size}, NVFP4:{img_q.size}"
-            )
-            print("Different models or settings used.")
-            return 1
-
-        mse, score = calculate_metrics(img_fp16, img_q)
-
-        print(f"--------------------------------------------------")
-        print(f"MSE (Error): {mse:.4f} \t(0 is perfect match)")
-        print(f"SSIM (Sim) : {score:.4f} \t(1.0 is perfect match)")
-        print(f"--------------------------------------------------")
-
-        if score > 0.98:
-            grade = "PERFECT (S)"
-        elif score > 0.95:
-            grade = "EXCELLENT (A)"
-        elif score > 0.90:
-            grade = "GOOD (B)"
-        else:
-            grade = "WARNING (C)"
-
-        print(f"Quality Grade: {grade}")
-        target_grade = "PASS" if score >= SSIM_TARGET else "FAIL"
-        print(f"  SSIM target >={SSIM_TARGET}: {target_grade}")
-
-        diff_img = ImageChops.difference(img_fp16, img_q)
-        diff_img = ImageChops.multiply(diff_img, Image.new("RGB", diff_img.size, (10, 10, 10)))
-        diff_path = os.path.join(args.output_dir, "bench_result_diff.png")
-        diff_img.save(diff_path)
-        print(f"Diff image saved: {diff_path}")
-        return 0 if score >= SSIM_TARGET else 1
+            _final_ret = 0 if score >= SSIM_TARGET else 1
+        return _final_ret
     finally:
         _restore_argv(saved_argv)
 
