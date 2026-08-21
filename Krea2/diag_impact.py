@@ -450,11 +450,11 @@ def main():
             print(f"  SKIP (not a module): {n}", flush=True)
             continue
         m = mods[n]
-        # NVFP4 packs columns in groups of 16; in_features not divisible
-        # by 16 means the kitchen quantizer pads internally and the roundtrip
-        # shape no longer matches the original weight.
-        if m.in_features % 16 != 0:
-            print(f"  SKIP (in_features={m.in_features} not %%16): {n}", flush=True)
+        # Krea2 DiT: only main-trunk Linear layers have in_features in
+        # {1536, 6144, 16384}.  Smaller Linear (txtfusion etc.) produce
+        # NVFP4 packed shapes incompatible with the loader; exclude them.
+        if m.in_features < 256:
+            print(f"  SKIP (in_features={m.in_features} < 256): {n}", flush=True)
             impacts[n] = float("nan")
             continue
         w0 = m.weight.data.clone()
