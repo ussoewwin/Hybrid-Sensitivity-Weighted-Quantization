@@ -375,7 +375,12 @@ def main():
     with safe_open(a.artifact, framework="pt", device="cpu") as f:
         meta = json.loads(f.metadata()["_quantization_metadata"])
         layers = list(meta["layers"].keys())
-    print(f"layers to measure: {len(layers)}", flush=True)
+    print(f"layers in INT8 metadata: {len(layers)}", flush=True)
+    # Krea2 NVFP4-safe in_features set: only these dimensions produce packed
+    # weights compatible with the NVFP4 loader (TensorCoreNVFP4Layout +
+    # validate_nvfp4_weight_storage).  All other Linear (txtfusion etc.) must
+    # NEVER be converted.  Both diag_impact and gen_reverse enforce this.
+    _SAFE_IN_FEATURES = {1536, 6144, 16384}
 
     txtlayers = int(cfg["txtlayers"])
     txtdim = int(cfg["txtdim"])
@@ -450,11 +455,8 @@ def main():
             print(f"  SKIP (not a module): {n}", flush=True)
             continue
         m = mods[n]
-        # Krea2 DiT: only main-trunk Linear layers have in_features in
-        # {1536, 6144, 16384}.  Smaller Linear (txtfusion etc.) produce
-        # NVFP4 packed shapes incompatible with the loader; exclude them.
-        if m.in_features < 256:
-            print(f"  SKIP (in_features={m.in_features} < 256): {n}", flush=True)
+        # Enforce NVFP4-safe in_features rule (see _SAFE_IN_FEATURES above).
+        if m.in_features not in _SAFE_IN_FEATURES:
             impacts[n] = float("nan")
             continue
         w0 = m.weight.data.clone()
