@@ -1,8 +1,8 @@
 # How to quantize Z Image (ZI)
 
-Use **native ConvRot INT8** with `Z_Image/native_convert_int8_convrot_zi.py` (quantize + **integrated post-convert bench**).
+Use **native ConvRot INT8** via CLI (`Z_Image/native_convert_int8_convrot_zi.py`) or directly in ComfyUI with the dedicated custom node **`Z Image ConvRot INT8 Quantize`** (`comfyui_nodes/`).
 
-**HSWQ Z Image INT8 development and public release ended.** For Z Image 8-bit, use this native path (typically **SSIM > 0.99**). HSWQ INT8 continues for **SDXL** only.
+**HSWQ Z Image INT8 development and public release ended.** For Z Image 8-bit, use this native path (typically **SSIM > 0.99**). HSWQ INT8 continues for **SDXL** only. Progressive in-graph quantization support for ComfyUI nodes is being expanded sequentially.
 
 **Prefer a Z Image Turbo (ZIT) checkpoint.** Plain Z Image base models are not recommended.
 
