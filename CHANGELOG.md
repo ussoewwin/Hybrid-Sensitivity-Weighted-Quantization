@@ -2,7 +2,7 @@
 
 ## v2.3.1
 
-**Z Image native ConvRot INT8 ComfyUI custom node support** — Added dedicated ComfyUI custom node support (`Z Image ConvRot INT8 Quantize` in `comfyui_nodes/`) to perform native ConvRot INT8 quantization directly within ComfyUI workflows, complete with integrated 5-seed automated fidelity benchmarking (latent MSE, cosine similarity, inference time, and decoded SSIM). Includes ready-to-use sample workflow (`sample workflow/Zi native convrot int8.json`) and updated guide (`md/How to quantize Z Image.md`).
+**Z Image native ConvRot INT8 ComfyUI custom node support** — Added dedicated ComfyUI custom node support (`Native ConvRot INT8 Quantize` in `comfyui_nodes/`) to perform native ConvRot INT8 quantization directly within ComfyUI workflows, complete with integrated multi-seed automated fidelity benchmarking (latent MSE, cosine similarity, inference time, and decoded SSIM). Includes ready-to-use sample workflow (`sample workflow/native convrot int8.json`) and updated guide (`md/How to quantize Z Image.md`).
 Release notes: [v2.3.1](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.1)
 
 ## v2.3

@@ -69,7 +69,7 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 ### Sample Workflow
 
 A ready-to-use ComfyUI workflow JSON is provided in the repository:
-- **[`sample workflow/Zi native convrot int8.json`](../sample%20workflow/Zi%20native%20convrot%20int8.json)**
+- **[`sample workflow/native convrot int8.json`](../sample%20workflow/native%20convrot%20int8.json)**
 
 You can load this file directly into ComfyUI (or drag-and-drop the workflow image) to load the complete quantization and benchmark graph.
 
