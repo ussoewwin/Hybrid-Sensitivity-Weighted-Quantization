@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.1
+
+**Z Image native ConvRot INT8 ComfyUI custom node support & Qwen NVFP4 quantizer added** — Added dedicated ComfyUI custom node support (`Z Image ConvRot INT8 Quantize` in `comfyui_nodes/`) to perform native ConvRot INT8 quantization directly within ComfyUI workflows, complete with integrated 5-seed automated fidelity benchmarking (latent MSE, cosine similarity, inference time, and decoded SSIM). Includes ready-to-use sample workflow (`sample workflow/Zi native convrot int8.json`) and updated guide (`md/How to quantize Z Image.md`). In addition, added native ConvRot NVFP4 quantizer for Qwen-Image / Qwen-Image-Edit models (`native_convert_nvfp4_qwen.py`).
+Release notes: [v2.3.1](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.1)
+
 ## v2.3
 
 **Z Image Hybrid ConvRot NVFP4 quantization method published** — Released the **reverse method** hybrid NVFP4 quantization for Z Image Turbo models. Starting from a complete native ConvRot INT8 UNet, layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first), staying in the low-error regime where single-layer ranking is valid. The NVFP4 layer count varies per model (e.g. nv60-nv110), determined automatically by `Z_Image/diag_impact.py`. Validated at all-seed decoded **SSIM >= 0.97**. Includes How-to guide, benchmark, and Hugging Face model card updates.
