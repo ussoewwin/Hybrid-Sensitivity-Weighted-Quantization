@@ -86,7 +86,3 @@ You can load this file directly into ComfyUI (or drag-and-drop the workflow imag
    - **`run_benchmark`**: Automatically run a 5-seed fidelity benchmark (latent MSE, cosine similarity, inference time, and decoded SSIM) upon save (default `True`).
 5. **Execute Queue:** Run the prompt queue. The node extracts diffusion weights directly from memory, performs Hadamard rotation and INT8 symmetric quantization, saves the model checkpoint with `_quantization_metadata`, and outputs the benchmark report to the console and return output.
 
-## Z-Anime page
-
-- **[SeeSee21/Z-Anime](https://huggingface.co/SeeSee21/Z-Anime)** (Hugging Face)
-
