@@ -80,11 +80,11 @@ You can load this file directly into ComfyUI (or drag-and-drop the workflow imag
 3. **Optional VAE:** Connect `VAE` from `VAELoader` to the optional `vae` input for automatic decoded SSIM measurement.
 4. **Configure Parameters:**
    - **`model_type`**: Target model architecture selector (`"Z Image"`, `"Qwen Image Edit"`).
-   - **`benchmark_prompt`**: Prompt text used during the automated 5-seed baseline vs quantized benchmark (multiline text, defaults to `"masterpiece, best quality, 1girl, solo, standing, simple background"`).
+   - **`benchmark_prompt`**: Prompt text used during the automated 10-seed baseline vs quantized benchmark (multiline text, defaults to `"masterpiece, best quality, 1girl, solo, standing, simple background"`).
    - **`output_path`**: Destination `.safetensors` path. If left empty, saves to the ComfyUI output directory automatically with a timestamped filename.
    - **`group_size`**: Preferred ConvRot Hadamard group size (default `256`, must be a power of 4).
    - **`convrot`**: Enable FULL ConvRot online Hadamard rotation (default `True`).
    - **`per_channel_int8`**: Channelwise amax/scale fallback for non-ConvRot layers (default `True`).
-   - **`run_benchmark`**: Automatically run a 5-seed fidelity benchmark (latent MSE, cosine similarity, inference time, and decoded SSIM) upon save (default `True`).
+   - **`run_benchmark`**: Automatically run a 10-seed fidelity benchmark (latent MSE, cosine similarity, inference time, and decoded SSIM) upon save (default `True`).
 5. **Execute Queue:** Run the prompt queue. The node extracts diffusion weights directly from memory, performs Hadamard rotation and INT8 symmetric quantization, saves the model checkpoint with `_quantization_metadata`, and outputs the benchmark report to the console and return output.
 

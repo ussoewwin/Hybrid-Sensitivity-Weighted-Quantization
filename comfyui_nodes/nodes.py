@@ -319,14 +319,14 @@ class NativeConvRotInt8Quantize:
                 latent_base = comfy_sample.fix_empty_latent_channels(model, latent_base)
 
                 steps, cfg = 12, 2.5
-                seeds = [random.randint(1, 10000000) for _ in range(5)]
+                seeds = [random.randint(1, 10000000) for _ in range(10)]
 
                 def _sample(m, s):
                     lat = latent_base.clone()
                     noise = comfy_sample.prepare_noise(lat, s, None)
                     return comfy_sample.sample(m, noise, steps, cfg, "euler", "simple", positive, negative, lat, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, callback=None, disable_pbar=True, seed=s)
 
-                # 1. FP16 baseline inference for all 5 seeds
+                # 1. FP16 baseline inference for all 10 seeds
                 lat_fp16_list = []
                 t_fp16_list = []
                 for s in seeds:
@@ -346,7 +346,7 @@ class NativeConvRotInt8Quantize:
                 model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                 load_int8 = time.perf_counter() - t0
 
-                # 3. INT8 inference for all 5 seeds
+                # 3. INT8 inference for all 10 seeds
                 lat_int8_list = []
                 t_int8_list = []
                 for s in seeds:
@@ -388,7 +388,7 @@ class NativeConvRotInt8Quantize:
 
                 # 4. Metrics evaluation
                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                report.append("\n=== BENCHMARK (5 Seeds) ===")
+                report.append("\n=== BENCHMARK (10 Random Seeds) ===")
                 report.append(f"Run Time: {current_time}")
                 report.append(f"Model Architecture: {model_type}")
                 report.append(f"Prompt: {prompt_text}")
@@ -407,7 +407,7 @@ class NativeConvRotInt8Quantize:
                     mse_list.append(mse_val)
                     cos_list.append(cos_val)
 
-                    line = f"[Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f}"
+                    line = f"[{i+1}/10 | Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f}"
 
                     if _decode is not None:
                         try:
@@ -427,7 +427,7 @@ class NativeConvRotInt8Quantize:
                 avg_mse = sum(mse_list) / len(mse_list)
                 avg_cos = sum(cos_list) / len(cos_list)
 
-                report.append("\n--- Summary (5-Seed Average) ---")
+                report.append("\n--- Summary (10-Seed Average) ---")
                 report.append(f"Avg FP16 Time: {avg_fp16:.2f}s")
                 report.append(f"Avg INT8 Time: {avg_int8:.2f}s")
                 report.append(f"Avg MSE: {avg_mse:.4f}")
