@@ -1,6 +1,6 @@
 # Krea2 Hybrid NVFP4 Benchmark Test Results
 
-Deterministic per-step latent trajectory divergence benchmark comparing **FP16 reference** vs **HSWQ Hybrid NVFP4 (nv100)** vs **Native NVFP4** on the Krea2 architecture (`moodyKrea2Mix_v70BF16.safetensors`).
+Deterministic per-step latent trajectory divergence benchmark comparing **FP16 reference** vs **HSWQ Hybrid NVFP4** vs **Native NVFP4** on the Krea2 architecture family.
 
 **Source:** `benchmark result/score_krea2_nvfp4.txt`  
 **Evaluation Script:** `benchmark/krea2_traj_compare.py` (10-seed deterministic trajectory analysis)
@@ -9,58 +9,31 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ## 1. Summary Comparison (HSWQ Hybrid NVFP4 vs Native NVFP4)
 
+### Cross-Model Overview
+
+| Model | Setup | HSWQ Mean Cosine (↑) | Native Mean Cosine (↑) | Δ Cosine | HSWQ Mean MSE (↓) | Native Mean MSE (↓) | HSWQ Bifurcated (↓) | Native Bifurcated (↓) | Winner |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **moodyKrea2Mix_v70BF16** | nv100 | **0.92539** | 0.85158 | **+0.07381** | **0.2016** | 0.4493 | **1/10 (10%)** | 6/10 (60%) | **HSWQ** |
+| **moodyCutieMixKrea2_v40** | nv100 | **0.91640** | 0.85489 | **+0.06151** | **0.2310** | 0.4127 | **2/10 (20%)** | 7/10 (70%) | **HSWQ** |
+| **Family Average** | — | **0.92090** | 0.85324 | **+0.06766** | **0.2163** | 0.4310 | **15.0%** | **65.0%** | **HSWQ (4.3x less bifurcation)** |
+
+---
+
+## 2. Detailed Results per Model
+
+### 2.1. moodyKrea2Mix_v70BF16 (nv100)
+
+#### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 (nv100) | Native NVFP4 (Full Model) | Advantage |
 | :--- | :--- | :--- | :--- |
-| **Target Model** | `moodyKrea2Mix_v70BF16` (nv100) | `moodyKrea2Mix_v70BF16` | — |
-| **Mean Final Cosine Similarity** (↑ better) | **0.92539** | 0.85158 | **+0.07381** (Significantly higher fidelity) |
-| **Min Final Cosine Similarity** (↑ better) | **0.85636** | 0.65046 | **+0.20590** (Robust worst-case stability) |
-| **Max Final Cosine Similarity** (↑ better) | **0.96673** | 0.94404 | **+0.02269** |
-| **Mean Final Latent MSE** (↓ better) | **0.2016** | 0.4493 | **-0.2477** (55% lower error) |
-| **Bifurcated Seeds Rate** (↓ better) | **1/10 (10%)** | **6/10 (60%)** | **6x less catastrophic trajectory divergence** |
+| **Mean Final Cosine** (↑ better) | **0.92539** | 0.85158 | **+0.07381** |
+| **Min Final Cosine** (↑ better) | **0.85636** | 0.65046 | **+0.20590** |
+| **Max Final Cosine** (↑ better) | **0.96673** | 0.94404 | **+0.02269** |
+| **Mean Final Latent MSE** (↓ better) | **0.2016** | 0.4493 | **-0.2477 (55% error reduction)** |
+| **Bifurcated Seeds Rate** (↓ better) | **1/10 (10%)** | **6/10 (60%)** | **6x less trajectory divergence** |
 | **Trajectory Verdict** | 9/10 drifted, 1/10 bifurcated | 4/10 drifted, 6/10 bifurcated | **HSWQ preserves trajectory structure** |
 
----
-
-## 2. Multi-Seed Detailed Results (10 Seeds)
-
-### HSWQ Hybrid NVFP4 (`moodyKrea2Mix_v70BF16 nv100`)
-
-| Seed | Final Cosine (↑ better) | Final MSE (↓ better) | Max Step Drop | Trajectory Verdict |
-| :--- | :--- | :--- | :--- | :--- |
-| **42** | 0.93916 | 0.1649 | 0.0256 | drifted (different image) |
-| **1337** | 0.94059 | 0.1608 | 0.0252 | drifted (different image) |
-| **7** | 0.93514 | 0.1798 | 0.0274 | drifted (different image) |
-| **2024** | 0.90219 | 0.2697 | 0.0424 | drifted (different image) |
-| **555** | 0.91541 | 0.2173 | 0.0347 | drifted (different image) |
-| **123456789** | 0.85636 | 0.3735 | 0.0612 | bifurcated @step 11 |
-| **505430789** | 0.94238 | 0.1469 | 0.0241 | drifted (different image) |
-| **789654321** | 0.94777 | 0.1441 | 0.0222 | drifted (different image) |
-| **430** | **0.96673** | **0.0866** | **0.0140** | drifted (different image) |
-| **44285** | 0.90817 | 0.2355 | 0.0357 | drifted (different image) |
-| **Mean** | **0.92539** | **0.2016** | **0.0313** | **90% stable drift / 10% bifurcated** |
-
----
-
-### Native NVFP4 Baseline (`moodyKrea2Mix_v70BF16 Native NVFP4`)
-
-| Seed | Final Cosine (↑ better) | Final MSE (↓ better) | Max Step Drop | Trajectory Verdict |
-| :--- | :--- | :--- | :--- | :--- |
-| **42** | 0.72759 | 0.7588 | 0.1094 | bifurcated @step 11 |
-| **1337** | 0.90078 | 0.2752 | 0.0421 | drifted (different image) |
-| **7** | 0.94404 | 0.1567 | 0.0235 | drifted (different image) |
-| **2024** | 0.87697 | 0.3408 | 0.0538 | bifurcated @step 11 |
-| **555** | 0.87665 | 0.3213 | 0.0519 | bifurcated @step 11 |
-| **123456789** | 0.82164 | 0.4815 | 0.0738 | bifurcated @step 11 |
-| **505430789** | 0.91140 | 0.2316 | 0.0372 | drifted (different image) |
-| **789654321** | 0.92871 | 0.1978 | 0.0300 | drifted (different image) |
-| **430** | 0.87755 | 0.3258 | 0.0514 | bifurcated @step 11 |
-| **44285** | 0.65046 | 0.9042 | 0.1263 | bifurcated @step 11 |
-| **Mean** | **0.85158** | **0.4493** | **0.0650** | **40% drift / 60% bifurcated** |
-
----
-
-## 3. Side-by-Side Comparison per Seed
-
+#### Side-by-Side per Seed (moodyKrea2Mix_v70)
 | Seed | HSWQ Cosine | Native Cosine | Δ Cosine (↑ better) | HSWQ MSE | Native MSE | Δ MSE (↓ better) | HSWQ Verdict | Native Verdict | Winner |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **42** | **0.93916** | 0.72759 | **+0.21157** | **0.1649** | 0.7588 | **-0.5939** | drifted | bifurcated | **HSWQ** |
@@ -73,23 +46,51 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **789654321** | **0.94777** | 0.92871 | **+0.01906** | **0.1441** | 0.1978 | **-0.0537** | drifted | drifted | **HSWQ** |
 | **430** | **0.96673** | 0.87755 | **+0.08918** | **0.0866** | 0.3258 | **-0.2392** | drifted | bifurcated | **HSWQ** |
 | **44285** | **0.90817** | 0.65046 | **+0.25771** | **0.2355** | 0.9042 | **-0.6687** | drifted | bifurcated | **HSWQ** |
-| **Summary** | **0.92539** | **0.85158** | **+0.07381** | **0.2016** | **0.4493** | **-0.2477** | **1/10 Bifurcated** | **6/10 Bifurcated** | **HSWQ (9/10)** |
+| **Mean** | **0.92539** | **0.85158** | **+0.07381** | **0.2016** | **0.4493** | **-0.2477** | **1/10 Bifurcated** | **6/10 Bifurcated** | **HSWQ (9/10)** |
 
 ---
 
-## 4. Key Findings and Trajectory Analysis
+### 2.2. moodyCutieMixKrea2_v40 (nv100)
 
-1. **Catastrophic Bifurcation Suppression:**
-   - **Native NVFP4** suffers from severe trajectory bifurcation at Step 11 on **60% of test seeds (6/10)**, where accumulation of quant noise causes the denoising trajectory to jump into an entirely different attractor basin (cosine dropping as low as 0.650).
-   - **HSWQ Hybrid NVFP4 (nv100)** shelters sensitive layers in INT8 using the reverse method, dropping the bifurcation rate down to **10% (1/10)**.
-2. **Superior Mean Fidelity:**
-   - HSWQ improves mean cosine similarity from **0.85158 to 0.92539 (+0.07381)** and reduces mean latent MSE by **55% (0.4493 → 0.2016)** across 10 deterministic seeds.
-3. **Worst-Case Resilience:**
-   - The worst-case seed under Native NVFP4 dropped to **0.65046** (seed 44285), whereas HSWQ's worst-case seed maintained **0.85636**, completely avoiding collapsed outputs.
+#### Metric Overview
+| Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
+| :--- | :--- | :--- | :--- |
+| **Mean Final Cosine** (↑ better) | **0.91640** | 0.85489 | **+0.06151** |
+| **Min Final Cosine** (↑ better) | **0.85790** | 0.72642 | **+0.13148** |
+| **Max Final Cosine** (↑ better) | **0.95765** | 0.93485 | **+0.02280** |
+| **Mean Final Latent MSE** (↓ better) | **0.2310** | 0.4127 | **-0.1817 (44% error reduction)** |
+| **Bifurcated Seeds Rate** (↓ better) | **2/10 (20%)** | **7/10 (70%)** | **3.5x less trajectory divergence** |
+| **Trajectory Verdict** | 8/10 drifted, 2/10 bifurcated | 3/10 drifted, 7/10 bifurcated | **HSWQ preserves trajectory structure** |
+
+#### Side-by-Side per Seed (moodyCutieMixKrea2_v40)
+| Seed | HSWQ Cosine | Native Cosine | Δ Cosine (↑ better) | HSWQ MSE | Native MSE | Δ MSE (↓ better) | HSWQ Verdict | Native Verdict | Winner |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **42** | **0.95765** | 0.81156 | **+0.14609** | **0.1159** | 0.5217 | **-0.4058** | drifted | bifurcated | **HSWQ** |
+| **1337** | **0.92784** | 0.90252 | **+0.02532** | **0.2033** | 0.2736 | **-0.0703** | drifted | drifted | **HSWQ** |
+| **7** | **0.94068** | 0.92614 | **+0.01454** | **0.1667** | 0.2093 | **-0.0426** | drifted | drifted | **HSWQ** |
+| **2024** | **0.91390** | 0.87019 | **+0.04371** | **0.2457** | 0.3646 | **-0.1189** | drifted | bifurcated | **HSWQ** |
+| **555** | **0.85790** | 0.84002 | **+0.01788** | **0.3931** | 0.4314 | **-0.0383** | bifurcated | bifurcated | **HSWQ** |
+| **123456789** | **0.88832** | 0.72642 | **+0.16190** | **0.3078** | 0.7326 | **-0.4248** | drifted | bifurcated | **HSWQ** |
+| **505430789** | 0.86966 | **0.93485** | -0.06519 | 0.3640 | **0.1811** | +0.1829 | bifurcated | drifted | Native |
+| **789654321** | **0.92974** | 0.86515 | **+0.06459** | **0.1694** | 0.3287 | **-0.1593** | drifted | bifurcated | **HSWQ** |
+| **430** | **0.93182** | 0.82793 | **+0.10389** | **0.1951** | 0.4917 | **-0.2966** | drifted | bifurcated | **HSWQ** |
+| **44285** | **0.94644** | 0.84406 | **+0.10238** | **0.1292** | 0.3925 | **-0.2633** | drifted | bifurcated | **HSWQ** |
+| **Mean** | **0.91640** | **0.85489** | **+0.06151** | **0.2310** | **0.4127** | **-0.1817** | **2/10 Bifurcated** | **7/10 Bifurcated** | **HSWQ (9/10)** |
 
 ---
 
-## 5. Metric Definitions
+## 3. Key Findings and Trajectory Analysis
+
+1. **Massive Reduction in Catastrophic Trajectory Bifurcations:**
+   Across both tested Krea2 models, Native NVFP4 suffers catastrophic Step 11 bifurcations on **65% (13/20)** of all runs, where trajectory drift forces the model into completely distinct attractor basins. HSWQ Hybrid NVFP4 drops the overall bifurcation rate to **15% (3/20)**, achieving a **4.3x stability improvement**.
+2. **Consistent Superiority Across Realistic and Stylized Checkpoints:**
+   Both realistic/semi-realistic (`moodyKrea2Mix_v70`) and anime/stylized (`moodyCutieMixKrea2_v40`) checkpoints exhibit consistent cosine improvements (+0.06 to +0.07) and substantial MSE reductions (44%–55%).
+3. **Worst-Case Robustness:**
+   In native quantization, catastrophic seeds drop as low as 0.650 (`v70`) and 0.726 (`v40`). Under HSWQ, worst-case seeds never drop below **0.856**, preserving coherent output quality across random seeds.
+
+---
+
+## 4. Metric Definitions
 
 - **Final Cosine (`final-cos`):** Cosine similarity between the final denoised latent of FP16 and NVFP4 models. Closer to 1.0 indicates identical composition and semantics.
 - **Final MSE (`final-mse`):** Mean Squared Error of the final latent tensor.
