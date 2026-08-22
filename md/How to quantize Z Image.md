@@ -54,7 +54,7 @@ python Z_Image/native_convert_int8_convrot_zi.py --model "<path-to-unet>/<zit_un
 Quantization can also be executed directly within ComfyUI using the custom node **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/`).
 
 <p align="left">
-  <img src="../png/zimage_vative_convrot_int8.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow" width="600">
+  <img src="../png/native_convrot_int8.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow" width="600">
 </p>
 
 ### Installation
