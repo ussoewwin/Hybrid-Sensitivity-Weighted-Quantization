@@ -420,9 +420,7 @@ def main() -> int:
     parser.add_argument("--token", default=None, help="Optional Hugging Face token")
     parser.add_argument(
         "--prompt",
-        default=(
-            "Solid black background only. Empty frame. No objects, no lights, no city, no people, no text, no texture. Completely black."
-        ),
+        default="masterpiece, best quality, 1girl, solo, standing, simple background",
         help="Benchmark prompt",
     )
     parser.add_argument(
