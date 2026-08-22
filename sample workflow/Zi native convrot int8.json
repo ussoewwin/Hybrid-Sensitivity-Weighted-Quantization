@@ -187,7 +187,7 @@
     },
     {
       "id": 9,
-      "type": "ZImageConvRotInt8Quantize",
+      "type": "NativeConvRotInt8Quantize",
       "pos": [
         402.67438170115423,
         432.9335609752744
@@ -236,7 +236,7 @@
       "properties": {
         "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
         "ver": "b1943185da96802a9ad368a76d9665cca4460653",
-        "Node name for S&R": "ZImageConvRotInt8Quantize",
+        "Node name for S&R": "NativeConvRotInt8Quantize",
         "ue_properties": {
           "widget_ue_connectable": {},
           "input_ue_unconnectable": {},
@@ -244,6 +244,7 @@
         }
       },
       "widgets_values": [
+        "Z Image",
         "masterpiece, best quality, 1girl, solo, standing, simple background",
         "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
         256,
@@ -252,6 +253,7 @@
         true
       ],
       "widgets_values_named": {
+        "model_type": "Z Image",
         "benchmark_prompt": "masterpiece, best quality, 1girl, solo, standing, simple background",
         "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
         "group_size": 256,
