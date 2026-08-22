@@ -1,6 +1,6 @@
 # How to quantize Z Image (ZI)
 
-Use **native ConvRot INT8** with `native_convert_int8_convrot_zi.py` (quantize + **integrated post-convert bench**).
+Use **native ConvRot INT8** with `Z_Image/native_convert_int8_convrot_zi.py` (quantize + **integrated post-convert bench**).
 
 **HSWQ Z Image INT8 development and public release ended.** For Z Image 8-bit, use this native path (typically **SSIM > 0.99**). HSWQ INT8 continues for **SDXL** only.
 
@@ -39,7 +39,7 @@ Replace every `<...>` placeholder with a real path on your machine (no invented 
 Required: **`--model`**, **`--output`**, **`--per_channel_int8`**, **`--clip_path`**, **`--comfy_path`** only. Tokenizer uses ComfyUI-bundled `comfy/text_encoders/qwen25_tokenizer` under `--comfy_path`.
 
 ```bash
-python native_convert_int8_convrot_zi.py --model "<path-to-unet>/<zit_unet>.safetensors" --output "<path-to-unet>/<zit_unet>_convrot_int8.safetensors" --per_channel_int8 --clip_path "<path-to-qwen3-4b>" --comfy_path "<path-to-ComfyUI>"
+python Z_Image/native_convert_int8_convrot_zi.py --model "<path-to-unet>/<zit_unet>.safetensors" --output "<path-to-unet>/<zit_unet>_convrot_int8.safetensors" --per_channel_int8 --clip_path "<path-to-qwen3-4b>" --comfy_path "<path-to-ComfyUI>"
 ```
 
 **Notes:**
