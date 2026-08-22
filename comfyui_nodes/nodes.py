@@ -201,6 +201,13 @@ class ZImageConvRotInt8Quantize:
             "required": {
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
+                "benchmark_prompt": (
+                    "STRING",
+                    {
+                        "default": "masterpiece, best quality, 1girl, solo, standing, simple background",
+                        "multiline": True,
+                    },
+                ),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
                 "group_size": ("INT", {"default": 256}),
                 "convrot": ("BOOLEAN", {"default": True}),
@@ -227,6 +234,7 @@ class ZImageConvRotInt8Quantize:
         self,
         model,
         clip,
+        benchmark_prompt,
         output_path,
         group_size,
         convrot,
@@ -296,7 +304,9 @@ class ZImageConvRotInt8Quantize:
 
             try:
                 # Prepare baseline tokens
-                prompt_text = "masterpiece, best quality, 1girl, solo, standing, simple background"
+                prompt_text = (benchmark_prompt or "").strip()
+                if not prompt_text:
+                    prompt_text = "masterpiece, best quality, 1girl, solo, standing, simple background"
                 tokens = clip.tokenize(prompt_text)
                 positive = clip.encode_from_tokens_scheduled(tokens)
                 negative = clip.encode_from_tokens_scheduled(clip.tokenize(""))
@@ -378,6 +388,7 @@ class ZImageConvRotInt8Quantize:
                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 report.append("\n=== BENCHMARK (5 Seeds) ===")
                 report.append(f"Run Time: {current_time}")
+                report.append(f"Prompt: {prompt_text}")
                 report.append(f"INT8 Model Load Time: {load_int8:.2f}s")
                 report.append(f"Seeds: {seeds}\n")
 

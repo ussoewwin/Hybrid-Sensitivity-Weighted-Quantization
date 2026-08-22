@@ -79,6 +79,7 @@ You can load this file directly into ComfyUI (or drag-and-drop the workflow imag
 2. **Connect CLIP:** Connect `CLIP` from `CLIPLoader` (e.g. `qwen3_4b_abliterated_fp16_converted.safetensors`) to the `clip` input.
 3. **Optional VAE:** Connect `VAE` from `VAELoader` to the optional `vae` input for automatic decoded SSIM measurement.
 4. **Configure Parameters:**
+   - **`benchmark_prompt`**: Prompt text used during the automated 5-seed baseline vs quantized benchmark (multiline text, defaults to `"masterpiece, best quality, 1girl, solo, standing, simple background"`).
    - **`output_path`**: Destination `.safetensors` path. If left empty, saves to the ComfyUI output directory automatically with a timestamped filename.
    - **`group_size`**: Preferred ConvRot Hadamard group size (default `256`, must be a power of 4).
    - **`convrot`**: Enable FULL ConvRot online Hadamard rotation (default `True`).
