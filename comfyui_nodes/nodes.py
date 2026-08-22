@@ -2,7 +2,7 @@
 
 Connects to the standard UNet loader's MODEL output (no file-path input).
 Extracts the diffusion-model weights in-memory, quantizes them with the same
-algorithm as ``native_convert_int8_convrot_zi.py``, and saves a checkpoint the
+algorithm as ``Z_Image/native_convert_int8_convrot_zi.py``, and saves a checkpoint the
 standard ComfyUI loader reads back.
 
 Output layout:
@@ -101,7 +101,13 @@ def _extract_model_state_dict(model):
 
     out = {}
     for k, v in diffusion.state_dict().items():
-        out["model.diffusion_model." + k] = v.detach().cpu()
+        if k.startswith("model.diffusion_model."):
+            clean_k = k
+        elif k.startswith("diffusion_model."):
+            clean_k = "model." + k
+        else:
+            clean_k = "model.diffusion_model." + k
+        out[clean_k] = v.detach().cpu()
     return out
 
 
