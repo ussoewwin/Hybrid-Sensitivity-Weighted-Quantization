@@ -51,10 +51,10 @@ python Z_Image/native_convert_int8_convrot_zi.py --model "<path-to-unet>/<zit_un
 
 ## Quantize a ZI model via ComfyUI (Node)
 
-Quantization can also be executed directly within ComfyUI using the custom node **`Z Image ConvRot INT8 Quantize`** (`comfyui_nodes/`).
+Quantization can also be executed directly within ComfyUI using the custom node **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/`).
 
 <p align="left">
-  <img src="../png/zimage_vative_convrot_int8.png" alt="ComfyUI Z Image Native ConvRot INT8 Quantize Workflow" width="600">
+  <img src="../png/zimage_vative_convrot_int8.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow" width="600">
 </p>
 
 ### Installation
@@ -75,10 +75,11 @@ You can load this file directly into ComfyUI (or drag-and-drop the workflow imag
 
 ### Node Workflow & Usage
 
-1. **Load Model:** Connect the `MODEL` output from `UNetLoader` (or `Load Diffusion Model`) to the `model` input of the **`Z Image ConvRot INT8 Quantize`** node.
+1. **Load Model:** Connect the `MODEL` output from `UNetLoader` (or `Load Diffusion Model`) to the `model` input of the **`Native ConvRot INT8 Quantize`** node.
 2. **Connect CLIP:** Connect `CLIP` from `CLIPLoader` (e.g. `qwen3_4b_abliterated_fp16_converted.safetensors`) to the `clip` input.
 3. **Optional VAE:** Connect `VAE` from `VAELoader` to the optional `vae` input for automatic decoded SSIM measurement.
 4. **Configure Parameters:**
+   - **`model_type`**: Target model architecture selector (`"Z Image"`, `"Qwen Image Edit"`).
    - **`benchmark_prompt`**: Prompt text used during the automated 5-seed baseline vs quantized benchmark (multiline text, defaults to `"masterpiece, best quality, 1girl, solo, standing, simple background"`).
    - **`output_path`**: Destination `.safetensors` path. If left empty, saves to the ComfyUI output directory automatically with a timestamped filename.
    - **`group_size`**: Preferred ConvRot Hadamard group size (default `256`, must be a power of 4).
