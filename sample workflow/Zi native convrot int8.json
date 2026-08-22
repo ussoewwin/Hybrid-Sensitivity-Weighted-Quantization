@@ -244,6 +244,7 @@
         }
       },
       "widgets_values": [
+        "masterpiece, best quality, 1girl, solo, standing, simple background",
         "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
         256,
         true,
@@ -251,6 +252,7 @@
         true
       ],
       "widgets_values_named": {
+        "benchmark_prompt": "masterpiece, best quality, 1girl, solo, standing, simple background",
         "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
         "group_size": 256,
         "convrot": true,
