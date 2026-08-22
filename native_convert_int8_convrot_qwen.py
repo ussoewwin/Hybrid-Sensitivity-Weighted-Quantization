@@ -230,7 +230,7 @@ def _release_vram(label: str = "post-convert") -> None:
 
 
 # Exact --prompt / --steps from benchmark/zi_int8_bench.py defaults (fixed; not CLI).
-_FIXED_ZI_INT8_BENCH_PROMPT = "Solid black background only. Empty frame. No objects, no lights, no city, no people, no text, no texture. Completely black."
+_FIXED_ZI_INT8_BENCH_PROMPT = "masterpiece, best quality, 1girl, solo, standing, simple background"
 _FIXED_ZI_INT8_BENCH_STEPS = 12
 _FIXED_ZI_INT8_BENCH_SEED = 42
 
