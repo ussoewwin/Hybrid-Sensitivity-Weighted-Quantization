@@ -111,13 +111,38 @@ def _extract_model_state_dict(model):
     return out
 
 
-def _quantize_state_dict(sd, group_size, enable_convrot, per_channel_int8, n8):
-    """In-memory ConvRot INT8 packing (same math as native_convert_int8.py)."""
+_QWEN_EDIT_BLACKLIST = (
+    "img_in",
+    "txt_in",
+    "time_text_embed",
+    "norm_out",
+    "proj_out",
+)
+
+
+def _is_qwen_blacklisted(key: str) -> bool:
+    return any(marker in key for marker in _QWEN_EDIT_BLACKLIST)
+
+
+def _quantize_state_dict(
+    sd,
+    group_size,
+    enable_convrot,
+    per_channel_int8,
+    n8,
+    model_type: str = "Z Image",
+):
+    """In-memory ConvRot INT8 packing (supports Z Image and Qwen Image Edit)."""
     new_sd = {}
     meta_layers = {}
     n_linear = n_conv2d = n_plain = n_kept = 0
 
     for key, tensor in sd.items():
+        if model_type == "Qwen Image Edit" and _is_qwen_blacklisted(key):
+            new_sd[key] = tensor
+            n_kept += 1
+            continue
+
         if not n8._is_float_matmul_weight(key, tensor):
             new_sd[key] = tensor
             n_kept += 1
@@ -273,7 +298,12 @@ class NativeConvRotInt8Quantize:
             os.makedirs(out_dir, exist_ok=True)
 
         new_sd, meta_layers, stats = _quantize_state_dict(
-            sd, group_size, bool(convrot), bool(per_channel_int8), n8
+            sd,
+            group_size,
+            bool(convrot),
+            bool(per_channel_int8),
+            n8,
+            model_type=model_type,
         )
 
         from safetensors.torch import save_file
