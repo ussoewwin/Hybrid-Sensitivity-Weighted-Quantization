@@ -40,7 +40,21 @@ except ImportError:
     print("Error: comfy_kitchen not found (install in the active venv).")
     sys.exit(1)
 
-_REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+def _default_repo_root() -> str:
+    """Locate repo root by searching upward for native_convert_int8.py."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    d = here
+    for _ in range(8):
+        if os.path.isfile(os.path.join(d, "native_convert_int8.py")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return os.path.abspath(os.path.join(here, os.pardir))
+
+
+_REPO_ROOT = _default_repo_root()
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 

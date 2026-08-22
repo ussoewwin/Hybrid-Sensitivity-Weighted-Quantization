@@ -43,11 +43,28 @@ from tqdm import tqdm
 _DEFAULT_GROUPSIZE = 256
 
 
+def _default_repo_root() -> str:
+    """Locate repo root by searching upward for native_convert_int8.py."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    d = here
+    for _ in range(8):
+        if os.path.isfile(os.path.join(d, "native_convert_int8.py")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return os.path.abspath(os.path.join(here, os.pardir))
+
+
+_REPO_ROOT = _default_repo_root()
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+
 def _load_hswq_v30():
     """Load quantize_sdxl_hswq_v3.0.py as a module (filename has a digit)."""
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "quantize_sdxl_hswq_v3.0.py"
-    )
+    path = os.path.join(_REPO_ROOT, "quantize_sdxl_hswq_v3.0.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"HSWQ V3.0 script not found: {path}")
     spec = importlib.util.spec_from_file_location("quantize_sdxl_hswq_v3_0", path)
@@ -61,9 +78,7 @@ def _load_hswq_v30():
 
 def _load_native_convert_int8():
     """Load sibling native_convert_int8.py for Hadamard / rotate_weight."""
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "native_convert_int8.py"
-    )
+    path = os.path.join(_REPO_ROOT, "native_convert_int8.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"native_convert_int8.py not found: {path}")
     name = "native_convert_int8_for_simple"
@@ -726,7 +741,7 @@ if __name__ == "__main__":
 
     if args.bench:
         bench_rc = run_post_convert_zi_int8_bench(
-            script_dir=os.path.dirname(os.path.abspath(__file__)),
+            script_dir=_REPO_ROOT,
             fp16_path=args.model,
             int8_path=args.output,
             clip_path=args.clip_path,
