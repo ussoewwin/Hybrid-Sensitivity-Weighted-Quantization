@@ -1,0 +1,325 @@
+{
+  "id": "06293941-8863-4438-832e-69381d9a07a8",
+  "revision": 0,
+  "last_node_id": 9,
+  "last_link_id": 11,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "UNETLoader",
+      "pos": [
+        4.860081541663391,
+        434.30910215472557
+      ],
+      "size": [
+        270,
+        86
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.1",
+        "Node name for S&R": "UNETLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "moodyProMix_collectorsEdition.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "moodyProMix_collectorsEdition.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 6,
+      "type": "CLIPLoaderMultiGPU",
+      "pos": [
+        2.767736806454188,
+        634.420876953264
+      ],
+      "size": [
+        270,
+        142
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-multigpu",
+        "ver": "2.6.4",
+        "Node name for S&R": "CLIPLoaderMultiGPU",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "qwen3_4b_abliterated_fp16_converted.safetensors",
+        "lumina2",
+        "cpu"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3_4b_abliterated_fp16_converted.safetensors",
+        "type": "lumina2",
+        "device": "cpu"
+      }
+    },
+    {
+      "id": 7,
+      "type": "ShowText|pysssss",
+      "pos": [
+        902.6200320435285,
+        433.55017780806077
+      ],
+      "size": [
+        374.453125,
+        268.90625
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "26a13291c8081135b9a80794daf818793c37ef24",
+        "Node name for S&R": "ShowText|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "Saved: D:\\USERFILES\\A1111\\outputs\\ComfyUI\\moodyProMix_collectorsEdition_native_convrot_int8.safetensors\nlayers=208 convrot=208 plain_int8=0\nconvrot=True group_size=256 linear=208 conv2d=0 plain=0 kept=245\n\n=== BENCHMARK ===\nFP16 Time: 29.71s\nINT8 Load: 0.06s, Time: 13.34s\nMSE: 0.0921 | Cosine: 0.9962\nSSIM (decoded): 0.9820"
+      ],
+      "widgets_values_named": {
+        "text_0": "Saved: D:\\USERFILES\\A1111\\outputs\\ComfyUI\\moodyProMix_collectorsEdition_native_convrot_int8.safetensors\nlayers=208 convrot=208 plain_int8=0\nconvrot=True group_size=256 linear=208 conv2d=0 plain=0 kept=245\n\n=== BENCHMARK ===\nFP16 Time: 29.71s\nINT8 Load: 0.06s, Time: 13.34s\nMSE: 0.0921 | Cosine: 0.9962\nSSIM (decoded): 0.9820"
+      }
+    },
+    {
+      "id": 8,
+      "type": "VAELoader",
+      "pos": [
+        -0.6355163752152855,
+        871.497751233614
+      ],
+      "size": [
+        270,
+        62
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.3",
+        "Node name for S&R": "VAELoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "Ultra-flux1.vae.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "Ultra-flux1.vae.safetensors"
+      }
+    },
+    {
+      "id": 9,
+      "type": "ZImageConvRotInt8Quantize",
+      "pos": [
+        402.67438170115423,
+        432.9335609752744
+      ],
+      "size": [
+        313.890625,
+        246
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 8
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 9
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "b1943185da96802a9ad368a76d9665cca4460653",
+        "Node name for S&R": "ZImageConvRotInt8Quantize",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        256,
+        true,
+        true,
+        true
+      ],
+      "widgets_values_named": {
+        "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        "group_size": 256,
+        "convrot": true,
+        "per_channel_int8": true,
+        "run_benchmark": true
+      }
+    }
+  ],
+  "links": [
+    [
+      8,
+      2,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      9,
+      6,
+      0,
+      9,
+      1,
+      "CLIP"
+    ],
+    [
+      10,
+      8,
+      0,
+      9,
+      2,
+      "VAE"
+    ],
+    [
+      11,
+      9,
+      1,
+      7,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.7207967605978791,
+      "offset": [
+        409.4267362904426,
+        -188.98096935103996
+      ]
+    },
+    "anomalous_hashes": {
+      "2_moodyProMix_collectorsEdition.safetensors": {
+        "hash": "",
+        "size": 12309876368
+      },
+      "8_Ultra-flux1.vae.safetensors": {
+        "hash": "",
+        "size": 335306212
+      }
+    },
+    "links_added_by_ue": [],
+    "frontendVersion": "1.49.6",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
