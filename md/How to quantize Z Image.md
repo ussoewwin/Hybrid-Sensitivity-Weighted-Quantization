@@ -66,6 +66,13 @@ cd custom_nodes
 git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
 ```
 
+### Sample Workflow
+
+A ready-to-use ComfyUI workflow JSON is provided in the repository:
+- **[`sample workflow/Zi native convrot int8.json`](../sample%20workflow/Zi%20native%20convrot%20int8.json)**
+
+You can load this file directly into ComfyUI (or drag-and-drop the workflow image) to load the complete quantization and benchmark graph.
+
 ### Node Workflow & Usage
 
 1. **Load Model:** Connect the `MODEL` output from `UNetLoader` (or `Load Diffusion Model`) to the `model` input of the **`Z Image ConvRot INT8 Quantize`** node.
