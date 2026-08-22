@@ -30,7 +30,7 @@ pip install safetensors tqdm scikit-image
 
 `scikit-image` is required for SSIM in `benchmark/zi_int8_bench.py` (post-convert bench).
 
-## Quantize a ZI model
+## Quantize a ZI model (CLI)
 
 Replace every `<...>` placeholder with a real path on your machine (no invented filenames; no machine-local drive hardcoding in published examples). `--model` and `--input` are aliases for the same argument.
 
@@ -49,6 +49,37 @@ python native_convert_int8_convrot_zi.py --model "<path-to-unet>/<zit_unet>.safe
 - **Post-convert bench:** **ON by default**. After save, the script runs `benchmark/zi_int8_bench.py` with the same `--clip_path` / `--comfy_path` (prompt / steps=`25` / seed=`42` fixed inside). A non-zero bench exit code fails the convert process.
 - **ComfyUI:** Load the ConvRot INT8 output with the **standard ComfyUI loader**. A dedicated HSWQ loader is not required.
 
+## Quantize a ZI model via ComfyUI (Node)
+
+Quantization can also be executed directly within ComfyUI using the custom node **`Z Image ConvRot INT8 Quantize`** (`comfyui_nodes/`).
+
+<p align="center">
+  <img src="../png/zimage_vative_convrot_int8.png" alt="ComfyUI Z Image Native ConvRot INT8 Quantize Workflow" width="100%">
+</p>
+
+### Installation
+
+Copy or link the repository into `ComfyUI/custom_nodes/`:
+
+```bash
+cd custom_nodes
+git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
+```
+
+### Node Workflow & Usage
+
+1. **Load Model:** Connect the `MODEL` output from `UNetLoader` (or `Load Diffusion Model`) to the `model` input of the **`Z Image ConvRot INT8 Quantize`** node.
+2. **Connect CLIP:** Connect `CLIP` from `CLIPLoader` (e.g. `qwen3_4b_abliterated_fp16_converted.safetensors`) to the `clip` input.
+3. **Optional VAE:** Connect `VAE` from `VAELoader` to the optional `vae` input for automatic decoded SSIM measurement.
+4. **Configure Parameters:**
+   - **`output_path`**: Destination `.safetensors` path. If left empty, saves to the ComfyUI output directory automatically with a timestamped filename.
+   - **`group_size`**: Preferred ConvRot Hadamard group size (default `256`, must be a power of 4).
+   - **`convrot`**: Enable FULL ConvRot online Hadamard rotation (default `True`).
+   - **`per_channel_int8`**: Channelwise amax/scale fallback for non-ConvRot layers (default `True`).
+   - **`run_benchmark`**: Automatically run a 5-seed fidelity benchmark (latent MSE, cosine similarity, inference time, and decoded SSIM) upon save (default `True`).
+5. **Execute Queue:** Run the prompt queue. The node extracts diffusion weights directly from memory, performs Hadamard rotation and INT8 symmetric quantization, saves the model checkpoint with `_quantization_metadata`, and outputs the benchmark report to the console and return output.
+
 ## Z-Anime page
 
 - **[SeeSee21/Z-Anime](https://huggingface.co/SeeSee21/Z-Anime)** (Hugging Face)
+
