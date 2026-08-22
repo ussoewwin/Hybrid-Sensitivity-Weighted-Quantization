@@ -192,13 +192,14 @@ def _summarize(output_path: str) -> str:
         return "(summary unavailable)"
 
 
-class ZImageConvRotInt8Quantize:
-    """Quantize a loaded Z Image UNet (MODEL input) to native ConvRot INT8."""
+class NativeConvRotInt8Quantize:
+    """Quantize a loaded diffusion model (MODEL input) to native ConvRot INT8."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
+                "model_type": (["Z Image", "Qwen Image Edit"], {"default": "Z Image"}),
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
                 "benchmark_prompt": (
@@ -232,6 +233,7 @@ class ZImageConvRotInt8Quantize:
 
     def quantize(
         self,
+        model_type,
         model,
         clip,
         benchmark_prompt,
@@ -388,6 +390,7 @@ class ZImageConvRotInt8Quantize:
                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 report.append("\n=== BENCHMARK (5 Seeds) ===")
                 report.append(f"Run Time: {current_time}")
+                report.append(f"Model Architecture: {model_type}")
                 report.append(f"Prompt: {prompt_text}")
                 report.append(f"INT8 Model Load Time: {load_int8:.2f}s")
                 report.append(f"Seeds: {seeds}\n")
@@ -440,3 +443,8 @@ class ZImageConvRotInt8Quantize:
                 report.append(f"\n[Benchmark Error] {str(e)}")
 
         return (output_path, "\n".join(report))
+
+
+# Backward compatibility alias
+ZImageConvRotInt8Quantize = NativeConvRotInt8Quantize
+
