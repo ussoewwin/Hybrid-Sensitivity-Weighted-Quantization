@@ -410,34 +410,7 @@ class NativeConvRotInt8Quantize:
                     xs_int8_list.append(xs_int8)
                     x0s_int8_list.append(x0s_int8)
 
-                # VAE decode setup
-                _decode = None
-                if vae is not None:
-                    try:
-                        from skimage.metrics import structural_similarity as ssim
-                        import numpy as np
-                        from PIL import Image
-
-                        def _decode_fn(lat_cpu):
-                            lat_dev = lat_cpu.to(device=vae.load_device if hasattr(vae, "load_device") else "cuda")
-                            if getattr(lat_dev, "is_nested", False):
-                                lat_dev = lat_dev.unbind()[0]
-                            _po = vae.process_output
-                            vae.process_output = lambda img: img.float().add(1.0).mul(0.5).clamp(0.0, 1.0)
-                            try:
-                                with torch.inference_mode(False):
-                                    images = vae.decode(lat_dev)
-                            finally:
-                                vae.process_output = _po
-                            if len(images.shape) == 5:
-                                images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
-                            img_array = 255.0 * images[0].detach().cpu().numpy()
-                            return Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
-
-                        _decode = _decode_fn
-                    except Exception as ve:
-                        _decode = None
-                        report.append(f"[VAE Init Error] {str(ve)}")
+                # VAE decode removed — trajectory comparison is latent-space only
 
                 # 4. Metrics evaluation
                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -450,7 +423,6 @@ class NativeConvRotInt8Quantize:
 
                 mse_list = []
                 cos_list = []
-                ssim_list = []
                 BIFURC_DROP = 0.05
                 SAME_IMG_COS = 0.98
                 n_bif = 0
@@ -487,16 +459,6 @@ class NativeConvRotInt8Quantize:
 
                     line = f"[{i+1}/10 | Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f} | max-drop: {max_drop:.4f} | {verdict}"
 
-                    if _decode is not None:
-                        try:
-                            img_fp16 = _decode(lat_fp16_list[i])
-                            img_int8 = _decode(lat_int8_list[i])
-                            ssim_score = float(ssim(np.array(img_fp16), np.array(img_int8), win_size=3, channel_axis=2, data_range=255))
-                            ssim_list.append(ssim_score)
-                            line += f" | SSIM: {ssim_score:.4f}"
-                        except Exception as de:
-                            line += f" | SSIM Error: {de}"
-
                     report.append(line)
 
                 # Summary Averages
@@ -515,9 +477,6 @@ class NativeConvRotInt8Quantize:
                 report.append(f"Cosine: min={min_cos:.4f} max={max_cos:.4f}")
                 report.append(f"same-image seeds : {n_same}/10")
                 report.append(f"bifurcated seeds : {n_bif}/10   (sudden trajectory jump = different picture, not degradation)")
-                if ssim_list:
-                    avg_ssim = sum(ssim_list) / len(ssim_list)
-                    report.append(f"Avg SSIM: {avg_ssim:.4f}")
 
                 mm.unload_all_models()
                 mm.soft_empty_cache()
