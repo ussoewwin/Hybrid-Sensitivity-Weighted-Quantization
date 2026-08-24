@@ -29,24 +29,15 @@ def parse_args():
     return ap.parse_args()
 
 
-def nvfp4_quant_error(w, group=256):
-    """per-group e4m3 quant-dequant reconstruction (i.e. NVFP4-quantized weights)."""
-    wf = w.float()
-    orig = wf.reshape(wf.shape[0], -1)
-    k = orig.shape[1]
-    n_groups = (k + group - 1) // group
-    pad = n_groups * group - k
-    if pad:
-        orig = torch.nn.functional.pad(orig, (0, pad))
-    g = orig.reshape(orig.shape[0], n_groups, group)
-    amax = g.abs().amax(dim=2, keepdim=True).clamp_min(1e-12)
-    scale = amax / 448.0
-    q = (g / scale).to(torch.float8_e4m3fn).float()
-    dq = q * scale
-    if pad:
-        dq = dq.reshape(orig.shape[0], n_groups, group)[:, :, :k]
-    return dq.reshape(w.shape).to(w.dtype)
-
+def nvfp4_quant_error(w):
+    """TRUE NVFP4 quantization error via comfy_kitchen roundtrip
+    (E2M1 x 16-element blocks + global scale): exactly the kernel that
+    produces the shipped artifact. The old e4m3-per-256 proxy understates
+    the error ~13x and flattens the ranking; do not fall back to it."""
+    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout as _NVFP4
+    w2 = w if w.is_contiguous() else w.contiguous()
+    qdata, params = _NVFP4.quantize(w2)
+    return _NVFP4.dequantize(qdata, params)
 
 def rel_mse(a, b):
     a = a.float().reshape(a.shape[0], -1)
