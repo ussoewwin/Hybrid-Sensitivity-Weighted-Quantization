@@ -435,12 +435,15 @@ def main() -> int:
         help="Classifier-free guidance scale.",
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--multi-seed", type=int, default=1,
+                        help="Run N seeds (1 = original single-seed behavior)")
     parser.add_argument("--steps", type=int, default=12)
     parser.add_argument("--width", type=int, default=1024)
     parser.add_argument("--height", type=int, default=1024)
     parser.add_argument("--sampler", default="euler")
     parser.add_argument("--scheduler", default="simple")
     args = parser.parse_args()
+    _multi_seed = max(int(args.multi_seed), 1)
 
     for p, name in ((args.fp16, "--fp16"), (args.int8, "--int8"), (args.clip_path, "--clip_path")):
         if not Path(p).is_file():
@@ -490,66 +493,120 @@ def main() -> int:
         _hard_free_vram()
         print("  [Offload] CLIP on CPU / unloaded (VRAM freed for INT8 benchmark).")
 
-        print("--- Benchmark Config ---")
-        print(f"Seed: {args.seed}  Steps: {args.steps}  CFG: {args.cfg}")
-        print(f"Size: {args.width}x{args.height}  sampler={args.sampler}/{args.scheduler}")
-        print(f"Prompt: {args.prompt[:80]}...")
-        print("------------------------")
+        if _multi_seed > 1:
+            import random as _rng
+            _seed_rng = _rng.Random(args.seed)
+            seed_list = [_seed_rng.randint(0, 2**31 - 1) for _ in range(_multi_seed)]
+            print(f"Multi-seed mode: {_multi_seed} seeds")
+            print(f"Seeds: {seed_list}")
+        else:
+            seed_list = [args.seed]
 
-        img_fp16, lat_fp16, t16, v16 = run_branch(
-            label="1. Benchmarking Baseline (BF16/FP16)",
-            unet_path=args.fp16,
-            vae=vae,
-            positive=positive,
-            negative=negative,
-            args=args,
-        )
-        img_fp16.save("bench_fp16.png")
-        print(f"FP16 Time: {t16:.2f}s | Peak VRAM: {v16:.2f} MB")
+        all_cos = []
+        all_mse = []
+        all_ssim = []
 
-        img_int8, lat_int8, t8, v8 = run_branch(
-            label="2. Benchmarking Quantized (INT8 ConvRot)",
-            unet_path=args.int8,
-            vae=vae,
-            positive=positive,
-            negative=negative,
-            args=args,
-        )
-        img_int8.save("bench_int8.png")
-        print(f"INT8 Time: {t8:.2f}s | Peak VRAM: {v8:.2f} MB")
+        for _si, _s in enumerate(seed_list):
+            if _multi_seed > 1:
+                print(f"\n{'='*60}")
+                print(f"  Seed {_si+1}/{_multi_seed}: {_s}")
+                print(f"{'='*60}")
 
-        if img_fp16.size != img_int8.size:
-            print(f"Error: Image sizes do not match! FP16:{img_fp16.size}, INT8:{img_int8.size}")
-            return 1
+            print("--- Benchmark Config ---")
+            print(f"Seed: {_s}  Steps: {args.steps}  CFG: {args.cfg}")
+            print(f"Size: {args.width}x{args.height}  sampler={args.sampler}/{args.scheduler}")
+            print(f"Prompt: {args.prompt[:80]}...")
+            print("------------------------")
 
-        mse = calculate_latent_mse(lat_fp16, lat_int8)
-        lat_cos = calculate_latent_cosine(lat_fp16, lat_int8)
+            _orig_seed = args.seed
+            args.seed = _s
 
-        print("\n" + "=" * 50)
-        print("QI INT8 CONVROT BENCHMARK RESULTS")
-        print("=" * 50)
-        vram_saved = v16 - v8
-        vram_saved_pct = (vram_saved / v16) * 100 if v16 else 0.0
+            img_fp16, lat_fp16, t16, v16 = run_branch(
+                label="1. Benchmarking Baseline (BF16/FP16)",
+                unet_path=args.fp16,
+                vae=vae,
+                positive=positive,
+                negative=negative,
+                args=args,
+            )
+            _p_suffix = "" if _multi_seed <= 1 else f"_s{_s}"
+            img_fp16.save(f"bench_fp16{_p_suffix}.png")
+            print(f"FP16 Time: {t16:.2f}s | Peak VRAM: {v16:.2f} MB")
 
-        print(f"Peak VRAM Expansion:  FP16: {v16:>8.1f} MB")
-        print(f"                      INT8: {v8:>8.1f} MB")
-        print(f"VRAM Saved:           {vram_saved:8.1f} MB ({vram_saved_pct:.1f}%)")
-        print("-" * 50)
-        print(f"Inference Time:       FP16: {t16:>8.2f}s")
-        print(f"                      INT8: {t8:>8.2f}s")
-        print("-" * 50)
-        print("Fidelity:")
-        print(f"  {'MSE (latent)':<18}: {mse:.4f}")
-        print(f"  {'Cosine (latent)':<18}: {lat_cos:.4f}")
-        if vae is not None:
-            score = calculate_ssim_normalized(img_fp16, img_int8)
-            print(f"  {'SSIM (decoded)':<18}: {score:.4f}")
-        print("=" * 50)
+            img_int8, lat_int8, t8, v8 = run_branch(
+                label="2. Benchmarking Quantized (INT8 ConvRot)",
+                unet_path=args.int8,
+                vae=vae,
+                positive=positive,
+                negative=negative,
+                args=args,
+            )
+            img_int8.save(f"bench_int8{_p_suffix}.png")
+            print(f"INT8 Time: {t8:.2f}s | Peak VRAM: {v8:.2f} MB")
 
-        diff_img = ImageChops.difference(img_fp16, img_int8)
-        diff_img = ImageChops.multiply(diff_img, Image.new("RGB", diff_img.size, (10, 10, 10)))
-        diff_img.save("bench_diff.png")
-        print("Diff image saved: bench_diff.png")
+            args.seed = _orig_seed
+
+            if img_fp16.size != img_int8.size:
+                print(f"Error: Image sizes do not match! FP16:{img_fp16.size}, INT8:{img_int8.size}")
+                return 1
+
+            mse = calculate_latent_mse(lat_fp16, lat_int8)
+            lat_cos = calculate_latent_cosine(lat_fp16, lat_int8)
+
+            print("\n" + "=" * 50)
+            print("QI INT8 CONVROT BENCHMARK RESULTS")
+            print("=" * 50)
+            vram_saved = v16 - v8
+            vram_saved_pct = (vram_saved / v16) * 100 if v16 else 0.0
+
+            print(f"Peak VRAM Expansion:  FP16: {v16:>8.1f} MB")
+            print(f"                      INT8: {v8:>8.1f} MB")
+            print(f"VRAM Saved:           {vram_saved:8.1f} MB ({vram_saved_pct:.1f}%)")
+            print("-" * 50)
+            print(f"Inference Time:       FP16: {t16:>8.2f}s")
+            print(f"                      INT8: {t8:>8.2f}s")
+            print("-" * 50)
+            print("Fidelity:")
+            print(f"  {'MSE (latent)':<18}: {mse:.4f}")
+            print(f"  {'Cosine (latent)':<18}: {lat_cos:.4f}")
+            score = None
+            if vae is not None:
+                score = calculate_ssim_normalized(img_fp16, img_int8)
+                print(f"  {'SSIM (decoded)':<18}: {score:.4f}")
+            print("=" * 50)
+
+            diff_img = ImageChops.difference(img_fp16, img_int8)
+            diff_img = ImageChops.multiply(diff_img, Image.new("RGB", diff_img.size, (10, 10, 10)))
+            diff_img.save(f"bench_diff{_p_suffix}.png")
+            print(f"Diff image saved: bench_diff{_p_suffix}.png")
+
+            all_cos.append(lat_cos)
+            all_mse.append(mse)
+            if score is not None:
+                all_ssim.append(score)
+
+            del img_fp16, img_int8, lat_fp16, lat_int8
+            _hard_free_vram()
+
+        # --- Multi-seed summary ---
+        if _multi_seed > 1:
+            import numpy as _np
+            _cos_a = _np.array(all_cos)
+            _mse_a = _np.array(all_mse)
+            print(f"\n{'='*60}")
+            print(f"  Multi-Seed Summary ({len(seed_list)} seeds)")
+            print(f"{'='*60}")
+            for _i, _sd in enumerate(seed_list):
+                if all_ssim:
+                    print(f"    seed {_sd:>12d}  cos={all_cos[_i]:.5f}  mse={all_mse[_i]:.4e}  SSIM={all_ssim[_i]:.4f}")
+                else:
+                    print(f"    seed {_sd:>12d}  cos={all_cos[_i]:.5f}  mse={all_mse[_i]:.4e}")
+            print(f"  cos : min={_cos_a.min():.5f}  max={_cos_a.max():.5f}  mean={_cos_a.mean():.5f}  median={_np.median(_cos_a):.5f}")
+            print(f"  mse : min={_mse_a.min():.4e}  max={_mse_a.max():.4e}  mean={_mse_a.mean():.4e}")
+            if all_ssim:
+                _ssim_a = _np.array(all_ssim)
+                print(f"  SSIM: min={_ssim_a.min():.4f}  max={_ssim_a.max():.4f}  mean={_ssim_a.mean():.4f}  median={_np.median(_ssim_a):.4f}")
+
         return 0
     finally:
         _restore_argv(saved_argv)
