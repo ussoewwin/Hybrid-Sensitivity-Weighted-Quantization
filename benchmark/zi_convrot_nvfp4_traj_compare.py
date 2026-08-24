@@ -397,7 +397,15 @@ def parse_args():
     ap.add_argument("--cfg", type=float, default=2.5, help="Classifier-free guidance scale")
     ap.add_argument("--sampler", default="euler")
     ap.add_argument("--scheduler", default="simple")
-    ap.add_argument("--tc", action="store_true", help="Force hardware Tensor Core W4A4 path (scaled_mm_nvfp4)")
+    ap.add_argument(
+        "--tc",
+        action="store_true",
+        help=(
+            "Force hardware Tensor Core W4A4 path (scaled_mm_nvfp4). "
+            "Requires a calibrated *_calib checkpoint with .input_scale keys, "
+            "otherwise the trajectory collapses."
+        ),
+    )
     ap.add_argument("--parity", action="store_true", help="Force Comfy parity path (stock GEMM + act rotate)")
     ap.add_argument(
         "--show-steps", action="store_true",
@@ -408,6 +416,10 @@ def parse_args():
 
 def main() -> int:
     args = parse_args()
+    # Deterministic comparison: same seed = same noise. Pin cuDNN to avoid
+    # autotuning / algorithm-selection noise between the FP16 and quant runs.
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     seeds = [int(s.strip()) for s in args.seeds.split(",") if s.strip()]
     set_hf_token(args.token)
 
