@@ -244,8 +244,8 @@ def setup_comfy(comfy_path: str) -> None:
     _install_torchaudio_stub()
 
 
-def apply_nvfp4_patches() -> None:
-    """Use the reference hybrid NVFP4 stack (stock GEMM + act rotate).
+def apply_nvfp4_patches(nvfp4_path=None) -> None:
+    """Use the reference hybrid NVFP4 stack (TC if calibrated, else parity).
 
     Reference: nodes/zimage_nvfp4/load_unet.py applies, in order:
       zi_comfy_quant_nvfp4 (detect/load/LoRA bake)
@@ -253,13 +253,17 @@ def apply_nvfp4_patches() -> None:
       require_convrot_parity_forward guard
       comfy_quant_int8 (INT8 tensorwise load)
       zimage_nvfp4_lora_bake (Dynamic ConvRot NVFP4 LoRA bake)
+
+    Passing ``nvfp4_path`` lets the stack auto-select the HSWQ TC (W4A4)
+    forward when the artifact carries calibrated ``*.input_scale`` keys,
+    and fall back to comfy_parity otherwise.
     """
     from hswq_stack.zimage_nvfp4.load_unet import apply_nvfp4_patches as _ref_apply
 
-    _ref_apply()
+    _ref_apply(nvfp4_path)
     print(
-        "  [CONVROT] Reference parity stack armed: "
-        "stock Comfy GEMM + online act rotate (x @ H)"
+        "  [CONVROT] Reference stack armed "
+        "(TC W4A4 if calibrated input_scale, else stock GEMM + act rotate)"
     )
 
 
@@ -613,10 +617,10 @@ def main():
         from kitchen_rms_rope_fallback import ensure_kitchen_rms_rope
 
         ensure_kitchen_rms_rope()
-        apply_nvfp4_patches()
+        apply_nvfp4_patches(args.nvfp4)
         print(
             f"  [BENCH] SSIM target >={SSIM_TARGET} "
-            "(ComfyUI standard pipeline + ConvRot NVFP4 parity)"
+            "(ComfyUI standard pipeline + ConvRot NVFP4)"
         )
     except ImportError as e:
         _restore_argv(saved_argv)
