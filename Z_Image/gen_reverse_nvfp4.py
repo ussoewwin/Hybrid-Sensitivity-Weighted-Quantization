@@ -47,7 +47,8 @@ def main():
 
     with safe_open(a.src, framework="pt", device="cpu") as f:
         keys = list(f.keys())
-        meta = json.loads(f.metadata()["_quantization_metadata"])
+        raw_meta = f.metadata()
+        meta = json.loads(raw_meta["_quantization_metadata"])
         sd = {k: f.get_tensor(k) for k in keys}
 
     n_conv = 0
@@ -75,7 +76,13 @@ def main():
         print(f"  nvfp4: {L}  ({dq.shape})")
 
     print(f"converted {n_conv} layers to NVFP4")
-    save_file(sd, OUT, metadata={"_quantization_metadata": json.dumps(meta)})
+    out_meta = {}
+    for k, v in raw_meta.items():
+        if k == "_quantization_metadata":
+            out_meta[k] = json.dumps(meta)
+        else:
+            out_meta[k] = v.decode("utf-8") if isinstance(v, bytes) else v
+    save_file(sd, OUT, metadata=out_meta)
     print("saved:", OUT, os.path.getsize(OUT) / 1e9, "GB (decimal)")
 
 
