@@ -414,6 +414,62 @@ def parse_args():
     return ap.parse_args()
 
 
+def print_gemm_mode_summary() -> None:
+    """Print which NVFP4 GEMM path actually ran (TC W4A4 vs parity W4A16)."""
+    fwd = addmm = parity = None
+    try:
+        from hswq_stack.zimage_nvfp4 import zi_nvfp4_forward as fwd
+        from hswq_stack.zimage_nvfp4 import nvfp4_addmm_patch as addmm
+        from hswq_stack.zimage_nvfp4 import nvfp4_comfy_parity as parity
+    except ImportError:
+        try:
+            from zimage_nvfp4 import zi_nvfp4_forward as fwd
+            from zimage_nvfp4 import nvfp4_addmm_patch as addmm
+            from zimage_nvfp4 import nvfp4_comfy_parity as parity
+        except ImportError:
+            pass
+
+    tc_hits = deq_fb = tc_flops = 0
+    add_tc = add_deq = 0
+    par_nv = par_i8 = 0
+    if fwd is not None:
+        try:
+            s = fwd.nvfp4_forward_stats()
+            tc_hits = int(s.get("scaled_mm_hits", 0))
+            deq_fb = int(s.get("dequant_fallbacks", 0))
+            tc_flops = int(s.get("tc_flops", 0))
+        except Exception:
+            pass
+    if addmm is not None:
+        try:
+            s = addmm.nvfp4_addmm_stats()
+            add_tc = int(s.get("addmm_scaled_mm", 0))
+            add_deq = int(s.get("addmm_dequant", 0))
+        except Exception:
+            pass
+    if parity is not None:
+        try:
+            s = parity.nvfp4_parity_stats()
+            par_nv = int(s.get("parity_nvfp4_fwd", 0))
+            par_i8 = int(s.get("parity_int8_fwd", 0))
+        except Exception:
+            pass
+
+    if par_nv > 0 and tc_hits == 0:
+        mode = "PARITY (W4A16 dequant GEMM)"
+    elif tc_hits > 0 and par_nv == 0:
+        mode = "TC (W4A4 scaled_mm)"
+    else:
+        mode = f"mixed/unexpected (tc_hits={tc_hits}, parity_fwd={par_nv})"
+
+    print("\n" + "-" * 72)
+    print(f"[HSWQ NVFP4] GEMM MODE: {mode}")
+    print(f"  TC forward     : scaled_mm hits={tc_hits}  dequant_fallbacks={deq_fb}  tc_flops={tc_flops}")
+    print(f"  parity forward : nvfp4 fwd={par_nv}  int8 fwd={par_i8}")
+    print(f"  addmm residual : scaled_mm={add_tc}  dequant={add_deq}")
+    print("-" * 72)
+
+
 def main() -> int:
     args = parse_args()
     # Deterministic comparison: same seed = same noise. Pin cuDNN to avoid
@@ -531,6 +587,8 @@ def main() -> int:
     print(f"\nfinal-cosine: min={min(cos_vals):.5f}  mean={sum(cos_vals)/len(cos_vals):.5f}  max={max(cos_vals):.5f}")
     print(f"same-image seeds : {len(seeds) - n_diff}/{len(seeds)}")
     print(f"bifurcated seeds : {n_bif}/{len(seeds)}   (sudden trajectory jump = different picture, not degradation)")
+
+    print_gemm_mode_summary()
     return 0
 
 
