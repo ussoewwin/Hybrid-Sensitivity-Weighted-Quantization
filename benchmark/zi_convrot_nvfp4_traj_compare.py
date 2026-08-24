@@ -2,20 +2,23 @@
 """Z Image deterministic trajectory-divergence comparator (FP16 vs ConvRot INT8+NVFP4 Hybrid).
 
 Per-step latent trajectory comparison between BF16/FP16 and ConvRot INT8 + ConvRot NVFP4 Hybrid models.
-Uses the same callback-based per-step capture as krea2_traj_compare.py and zi_traj_compare.py.
+Uses the optimized Z Image NVFP4 reference stack (Blackwell Tensor Core / comfy_parity) from
+benchmark/zi_convrot_nvfp4_bench_v3.py.
 
 Usage:
     python benchmark/zi_convrot_nvfp4_traj_compare.py \
         --fp16 <bf16.safetensors> --quant <convrot_hybrid.safetensors> \
         --clip_path <clip.safetensors> --comfy_path <ComfyUI-master> \
-        [--seeds "42,1337,7,2024,555"] [--steps 25] [--cfg 2.5] [--mode parity|tc]
+        [--seeds "42,1337,7,2024,555"] [--steps 25] [--cfg 2.5] [--tc]
 """
 from __future__ import annotations
 
 import argparse
 import gc
+import json
 import os
 import sys
+import types
 from pathlib import Path
 
 import torch
@@ -41,7 +44,6 @@ def _restore_argv(saved: list[str]) -> None:
 
 def _install_torchaudio_stub() -> None:
     import importlib.machinery
-    import types
 
     for key in list(sys.modules):
         if key == "torchaudio" or key.startswith("torchaudio."):
@@ -63,12 +65,7 @@ def _install_torchaudio_stub() -> None:
 
     ta = _stub_mod("torchaudio", is_package=True)
     functional = _stub_mod("torchaudio.functional")
-
-    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
-        return waveform
-
-    functional.resample = _resample
-
+    functional.resample = lambda waveform, orig_freq, new_freq, *a, **k: waveform
     transforms = _stub_mod("torchaudio.transforms")
 
     class _MelSpectrogram:
@@ -122,8 +119,6 @@ def setup_comfy(comfy_path: str) -> None:
     try:
         import comfy_aimdo  # noqa: F401
     except Exception:
-        import types
-
         m = types.ModuleType("comfy_aimdo")
         m.__file__ = "<stub>"
         m.__path__ = []
@@ -134,8 +129,6 @@ def setup_comfy(comfy_path: str) -> None:
     try:
         import psutil  # noqa: F401
     except Exception:
-        import types
-
         class _VM:
             total = 64 * 1024**3
             available = 32 * 1024**3
@@ -173,81 +166,141 @@ def set_hf_token(token: str | None) -> None:
     os.environ["HUGGING_FACE_HUB_TOKEN"] = token
 
 
-def require_convrot_parity_forward() -> None:
-    """Fail if Linear.forward is not the ConvRot act-rotate parity wrapper."""
-    import comfy.ops
-
-    lin_fwd = comfy.ops.mixed_precision_ops().Linear.forward
-    if getattr(lin_fwd, "_hswq_nvfp4_full_forward", False):
-        raise RuntimeError(
-            "ConvRot bench: Linear.forward still has HSWQ TC wrap "
-            "(_hswq_nvfp4_full_forward); SSIM would be destroyed"
-        )
-    if not getattr(lin_fwd, "_hswq_nvfp4_convrot_parity", False):
-        raise RuntimeError(
-            "ConvRot bench: Linear.forward missing _hswq_nvfp4_convrot_parity "
-            "(online act rotation required for offline W@H^T weights)"
-        )
-
-
-def apply_quant_patches(mode: str = "parity") -> None:
-    """Apply runtime monkey-patches for ConvRot NVFP4 + ConvRot INT8 hybrid."""
-    import comfy.ops
-
-    # 1. NVFP4 patches
+def _decode_comfy_quant_blob(blob) -> dict | None:
+    """Decode uint8 comfy_quant tensor / bytes to a dict, or None."""
+    if blob is None:
+        return None
     try:
-        from nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
-        import nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
-    except ImportError:
-        from hswq_stack.nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
-        import hswq_stack.nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
+        if hasattr(blob, "detach"):
+            raw = bytes(blob.detach().cpu().tolist())
+        elif isinstance(blob, (bytes, bytearray)):
+            raw = bytes(blob)
+        else:
+            raw = bytes(blob)
+        return json.loads(raw.decode("utf-8"))
+    except Exception:
+        return None
+
+
+def count_convrot_in_quant_metadata(metadata: dict | None) -> tuple[int, int, str]:
+    """Return (n_convrot, n_nvfp4, hswq_nvfp4_convrot flag string)."""
+    meta = metadata or {}
+    flag = str(meta.get("hswq_nvfp4_convrot", "") or "")
+    raw = meta.get("_quantization_metadata")
+    if not raw:
+        return 0, 0, flag
+    try:
+        qmap = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return 0, 0, flag
+    layers = (qmap or {}).get("layers") or {}
+    n_nv = 0
+    n_cr = 0
+    for conf in layers.values():
+        if not isinstance(conf, dict):
+            continue
+        fmt = str(conf.get("format", "")).lower()
+        if fmt != "nvfp4":
+            continue
+        n_nv += 1
+        if conf.get("convrot") is True or str(conf.get("convrot", "")).lower() in (
+            "1",
+            "true",
+        ):
+            n_cr += 1
+    return n_cr, n_nv, flag
+
+
+def count_convrot_comfy_quant_markers(state_dict: dict) -> tuple[int, int]:
+    """Count .comfy_quant markers that are nvfp4 / nvfp4+convrot."""
+    n_nv = 0
+    n_cr = 0
+    for k, v in state_dict.items():
+        if not k.endswith(".comfy_quant"):
+            continue
+        conf = _decode_comfy_quant_blob(v)
+        if not conf or str(conf.get("format", "")).lower() != "nvfp4":
+            continue
+        n_nv += 1
+        if conf.get("convrot") is True or str(conf.get("convrot", "")).lower() in (
+            "1",
+            "true",
+        ):
+            n_cr += 1
+    return n_cr, n_nv
+
+
+def count_armed_convrot_linears(model) -> tuple[int, int]:
+    """Return (n_armed_convrot, n_linear_modules) on a loaded NextDiT."""
+    n_lin = 0
+    n_armed = 0
+    for _name, mod in model.named_modules():
+        if not hasattr(mod, "weight"):
+            continue
+        if not hasattr(mod, "in_features"):
+            continue
+        n_lin += 1
+        if getattr(mod, "_hswq_nvfp4_convrot", False):
+            n_armed += 1
+    return n_armed, n_lin
+
+
+def apply_nvfp4_patches(nvfp4_path=None, force_tc=False, force_parity=False) -> None:
+    """Arm Z Image ConvRot NVFP4 reference stack (TC if calibrated, else parity)."""
+    if force_tc:
+        os.environ["HSWQ_ZI_FORCE_TC"] = "1"
+        os.environ.pop("HSWQ_ZI_FORCE_PARITY", None)
+    elif force_parity:
+        os.environ["HSWQ_ZI_FORCE_PARITY"] = "1"
+        os.environ.pop("HSWQ_ZI_FORCE_TC", None)
 
     try:
-        from nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+        from hswq_stack.zimage_nvfp4.load_unet import apply_nvfp4_patches as _ref_apply
+        _ref_apply(nvfp4_path)
     except ImportError:
-        from hswq_stack.zimage_nvfp4.nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+        from zimage_nvfp4.load_unet import apply_nvfp4_patches as _ref_apply
+        _ref_apply(nvfp4_path)
 
-    apply_comfy_quant_nvfp4_patches()
-    if mode == "parity":
-        if not apply_nvfp4_comfy_parity():
-            raise RuntimeError(
-                "nvfp4 ComfyUI-only parity failed to apply "
-                "(need [BENCH] nvfp4 ComfyUI-only log; TC forward must be off)"
-            )
-        require_convrot_parity_forward()
+
+def load_zit_model(path, is_nvfp4=False, require_convrot=False):
+    """ComfyUI standard loading: load_diffusion_model_state_dict -> ModelPatcher."""
+    import comfy.sd
+    import comfy.utils
+    from safetensors.torch import load_file
+
+    print(f"Loading state_dict: {os.path.basename(path)}")
+
+    metadata = None
+    if is_nvfp4:
+        state_dict, metadata = comfy.utils.load_torch_file(path, return_metadata=True)
+        n_cr_meta, n_nv_meta, flag = count_convrot_in_quant_metadata(metadata)
         print(
-            "  [CONVROT] Parity forward armed: "
-            "stock Comfy GEMM + online act rotate (x @ H)"
+            f"  [CONVROT meta] hswq_nvfp4_convrot={flag!r} "
+            f"nvfp4_layers={n_nv_meta} convrot_stamps={n_cr_meta}"
         )
+        state_dict, metadata = comfy.utils.convert_old_quants(
+            state_dict, "", metadata=metadata or {}
+        )
+        n_cq = sum(1 for k in state_dict if k.endswith(".comfy_quant"))
+        n_cr_cq, n_nv_cq = count_convrot_comfy_quant_markers(state_dict)
+        print(f"  [NVFP4] convert_old_quants -> {n_cq} .comfy_quant markers (nvfp4={n_nv_cq}, convrot={n_cr_cq})")
     else:
-        print(
-            "  [CONVROT] Native Hardware Tensor Core forward armed: "
-            "scaled_mm_nvfp4 on Blackwell Tensor Cores"
-        )
-    print(f"  [BENCH] nvfp4 patch file: {os.path.abspath(_cq_nvfp4.__file__)}")
-    print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
+        state_dict = load_file(path)
 
-    # 2. INT8 patches
-    try:
-        from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
-        import int8.comfy_quant_int8 as _cq_int8
-    except ImportError:
-        from patches.comfy_quant_int8 import apply_comfy_quant_int8_patches
-        import patches.comfy_quant_int8 as _cq_int8
-
-    apply_comfy_quant_int8_patches()
-    print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
-    print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
-    print(
-        f"  [BENCH] mixed_precision_ops Conv2d inject: "
-        f"{getattr(comfy.ops.mixed_precision_ops, '_hswq_int8_conv_patched', False)}"
+    model_options = {"dtype": torch.float16}
+    patcher = comfy.sd.load_diffusion_model_state_dict(
+        state_dict, model_options=model_options, metadata=metadata
     )
-    print(f"  [BENCH] int8 patch file: {os.path.abspath(_cq_int8.__file__)}")
-    if not _cq_int8._PATCHES_APPLIED:
-        raise RuntimeError(
-            "comfy_quant_int8 patches failed to apply "
-            "(need [BENCH] comfy_quant_int8 patched: True)"
-        )
+    if patcher is None:
+        raise RuntimeError("ComfyUI could not detect model (load_diffusion_model_state_dict returned None)")
+
+    if is_nvfp4:
+        try:
+            n_armed, n_lin = count_armed_convrot_linears(patcher.model)
+            print(f"  [CONVROT armed] Linears with _hswq_nvfp4_convrot: {n_armed} / {n_lin}")
+        except Exception as ex:
+            print(f"  [CONVROT armed] check skipped: {ex}")
+    return patcher
 
 
 def encode_prompt(clip, prompt: str):
@@ -277,47 +330,16 @@ def _hard_free_vram() -> None:
         torch.cuda.synchronize()
 
 
-def _load_diffusion_model(unet_path: str):
-    import comfy.sd
-    try:
-        from int8.comfy_quant_int8 import (
-            _int8_quant_conv_scope,
-            checkpoint_looks_like_comfy_quant_int8,
-        )
-    except ImportError:
-        from patches.comfy_quant_int8 import (
-            _int8_quant_conv_scope,
-            checkpoint_looks_like_comfy_quant_int8,
-        )
-
-    try:
-        from nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
-    except ImportError:
-        try:
-            from hswq_stack.nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
-        except ImportError:
-            checkpoint_looks_like_comfy_quant_nvfp4 = lambda p: False
-
-    looks_nvfp4 = checkpoint_looks_like_comfy_quant_nvfp4(unet_path)
-    use_int8_scope = checkpoint_looks_like_comfy_quant_int8(unet_path)
-    print(f"  [BENCH] NVFP4 comfy_quant detect: {looks_nvfp4}")
-    print(f"  [BENCH] INT8 Conv2d load scope: {use_int8_scope}")
-    if use_int8_scope:
-        with _int8_quant_conv_scope():
-            return comfy.sd.load_diffusion_model(unet_path, {})
-    return comfy.sd.load_diffusion_model(unet_path, {})
-
-
 def run_trajectory(model, positive, negative, latent, *, seed, steps, cfg,
                    sampler_name, scheduler):
-    """Run full denoising; return (per_step_x, per_step_x0, final_sample).
-
-    per_step_x   : noisy latent after each step (list of CPU float tensors)
-    per_step_x0  : model x0 prediction at each step (list of CPU float tensors)
-    final_sample : out["samples"] (the final denoised latent)
-    """
+    """Run full denoising with model GPU pre-loaded; return (per_step_x, per_step_x0, final_sample)."""
+    import comfy.model_management as mm
     import comfy.sample as comfy_sample
     import comfy.utils
+
+    # Preload to GPU for maximum Tensor Core execution throughput
+    if hasattr(model, "model"):
+        mm.load_models_gpu([model], force_full_load=True)
 
     noise = comfy_sample.prepare_noise(latent["samples"], seed, None)
     xs, x0s = [], []
@@ -375,8 +397,8 @@ def parse_args():
     ap.add_argument("--cfg", type=float, default=2.5, help="Classifier-free guidance scale")
     ap.add_argument("--sampler", default="euler")
     ap.add_argument("--scheduler", default="simple")
-    ap.add_argument("--mode", choices=["tc", "parity"], default="parity",
-                    help="NVFP4 execution mode: parity (act-rotate) or tc (Blackwell Tensor Core)")
+    ap.add_argument("--tc", action="store_true", help="Force hardware Tensor Core W4A4 path (scaled_mm_nvfp4)")
+    ap.add_argument("--parity", action="store_true", help="Force Comfy parity path (stock GEMM + act rotate)")
     ap.add_argument(
         "--show-steps", action="store_true",
         help="print the per-step divergence curve (default: only final per seed)"
@@ -418,7 +440,7 @@ def main() -> int:
 
         # --- FP16 (stock ops, before any patch) ---
         print(f"\n--- Loading FP16 baseline: {args.fp16} ---")
-        fp16 = _load_diffusion_model(args.fp16)
+        fp16 = load_zit_model(args.fp16, is_nvfp4=False)
         latent = make_empty_latent(fp16, args.width, args.height, batch=1)
         fp16_runs = {}
         for s in seeds:
@@ -431,11 +453,11 @@ def main() -> int:
         del fp16
         _hard_free_vram()
 
-        # --- ConvRot INT8 + ConvRot NVFP4 Hybrid (patched) ---
-        print(f"\nApplying ConvRot NVFP4 (mode='{args.mode}') + ConvRot INT8 patches...")
-        apply_quant_patches(mode=args.mode)
+        # --- ConvRot INT8 + ConvRot NVFP4 Hybrid (reference stack) ---
+        print(f"\nApplying Z Image ConvRot NVFP4 + INT8 reference stack...")
+        apply_nvfp4_patches(args.quant_path, force_tc=args.tc, force_parity=args.parity)
         print(f"--- Loading Quantized Hybrid: {args.quant_path} ---")
-        quant_model = _load_diffusion_model(args.quant_path)
+        quant_model = load_zit_model(args.quant_path, is_nvfp4=True, require_convrot=True)
         quant_runs = {}
         for s in seeds:
             print(f"[Quantized Hybrid] seed {s}")
