@@ -21,8 +21,12 @@ from pathlib import Path
 import torch
 
 _BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
-if _BENCH_DIR not in sys.path:
-    sys.path.insert(0, _BENCH_DIR)
+_HSWQ_STACK = os.path.join(_BENCH_DIR, "hswq_stack")
+_REPO_DIR = os.path.dirname(_BENCH_DIR)
+
+for _p in (_BENCH_DIR, _HSWQ_STACK, _REPO_DIR):
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
 
 
 def _clear_argv_for_comfy() -> list[str]:
@@ -95,7 +99,19 @@ def setup_comfy(comfy_path: str) -> None:
     comfy_root = Path(comfy_path).resolve()
     if not comfy_root.is_dir():
         raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
-    sys.path = [str(comfy_root)] + [p for p in sys.path if Path(p).resolve() != comfy_root]
+    bench_dir = Path(__file__).resolve().parent
+    hswq_stack_dir = bench_dir / "hswq_stack"
+    repo_dir = bench_dir.parent
+
+    required_paths = [str(comfy_root), str(bench_dir), str(hswq_stack_dir), str(repo_dir)]
+    new_sys_path = []
+    for p in required_paths:
+        if p not in new_sys_path and os.path.isdir(p):
+            new_sys_path.append(p)
+    for p in sys.path:
+        if p not in new_sys_path:
+            new_sys_path.append(p)
+    sys.path = new_sys_path
 
     _install_torchaudio_stub()
 
@@ -177,13 +193,20 @@ def require_convrot_parity_forward() -> None:
 def apply_quant_patches(mode: str = "parity") -> None:
     """Apply runtime monkey-patches for ConvRot NVFP4 + ConvRot INT8 hybrid."""
     import comfy.ops
-    from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
-    import int8.comfy_quant_int8 as _cq_int8
-    from nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
-    from nvfp4_comfy_parity import apply_nvfp4_comfy_parity
-    import nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
 
     # 1. NVFP4 patches
+    try:
+        from nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
+        import nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
+    except ImportError:
+        from hswq_stack.nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
+        import hswq_stack.nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
+
+    try:
+        from nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+    except ImportError:
+        from hswq_stack.zimage_nvfp4.nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+
     apply_comfy_quant_nvfp4_patches()
     if mode == "parity":
         if not apply_nvfp4_comfy_parity():
@@ -205,6 +228,13 @@ def apply_quant_patches(mode: str = "parity") -> None:
     print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
 
     # 2. INT8 patches
+    try:
+        from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
+        import int8.comfy_quant_int8 as _cq_int8
+    except ImportError:
+        from patches.comfy_quant_int8 import apply_comfy_quant_int8_patches
+        import patches.comfy_quant_int8 as _cq_int8
+
     apply_comfy_quant_int8_patches()
     print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
     print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
@@ -249,11 +279,24 @@ def _hard_free_vram() -> None:
 
 def _load_diffusion_model(unet_path: str):
     import comfy.sd
-    from int8.comfy_quant_int8 import (
-        _int8_quant_conv_scope,
-        checkpoint_looks_like_comfy_quant_int8,
-    )
-    from nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
+    try:
+        from int8.comfy_quant_int8 import (
+            _int8_quant_conv_scope,
+            checkpoint_looks_like_comfy_quant_int8,
+        )
+    except ImportError:
+        from patches.comfy_quant_int8 import (
+            _int8_quant_conv_scope,
+            checkpoint_looks_like_comfy_quant_int8,
+        )
+
+    try:
+        from nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
+    except ImportError:
+        try:
+            from hswq_stack.nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
+        except ImportError:
+            checkpoint_looks_like_comfy_quant_nvfp4 = lambda p: False
 
     looks_nvfp4 = checkpoint_looks_like_comfy_quant_nvfp4(unet_path)
     use_int8_scope = checkpoint_looks_like_comfy_quant_int8(unet_path)
