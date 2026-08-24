@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ZIT per-layer trajectory impact: inject ONE layer's NVFP4 error, run 4 steps, measure x divergence.
+"""ZIT per-layer trajectory impact: inject ONE layer's NVFP4 error, run N steps, measure x divergence.
 
 Reverse hybrid NVFP4 method (see md/How to quantize Z Image - Hybrid NVFP4.md):
 1. diag_impact.py  -> impact_<model>.json (relative MSE per layer, ascending = safest first)
@@ -26,6 +26,10 @@ def parse_args():
     ap.add_argument("out", help="output impact json path")
     ap.add_argument("--comfy-path", default="ComfyUI-master", help="ComfyUI root path")
     ap.add_argument("--repo-root", default=None, help="repo root containing benchmark/ (for the bench module); default = parent of this script dir")
+    ap.add_argument("--steps", type=int, default=4,
+                    help="trajectory denoising steps (default 4)")
+    ap.add_argument("--seed", type=int, default=42,
+                    help="trajectory seed (default 42)")
     return ap.parse_args()
 
 
@@ -100,12 +104,15 @@ def main():
         layers = list(meta["layers"].keys())
     print(f"layers to measure: {len(layers)}", flush=True)
 
-    def run4():
+    steps = int(a.steps)
+    seed = int(a.seed)
+
+    def run():
         x = torch.randn(1, 16, 128, 128, device=device, dtype=torch.float16,
-                        generator=torch.Generator(device).manual_seed(42))
-        sigmas = torch.linspace(1.0, 0.0, 5, device=device)
+                        generator=torch.Generator(device).manual_seed(seed))
+        sigmas = torch.linspace(1.0, 0.0, steps + 1, device=device)
         with torch.no_grad():
-            for step in range(4):
+            for step in range(steps):
                 out = model(x, sigmas[step:step + 1], embeds, None, attention_mask=None)
                 if isinstance(out, tuple):
                     out = out[0]
@@ -113,7 +120,7 @@ def main():
         return x
 
     print("[*] pristine run", flush=True)
-    x_ref = run4()
+    x_ref = run()
     print("[*] pristine done", flush=True)
 
     impacts = {}
@@ -127,7 +134,7 @@ def main():
         w0 = m.weight.data.clone()
         m.weight.data.copy_(nvfp4_quant_error(w0))
         try:
-            x_t = run4()
+            x_t = run()
             imp = rel_mse(x_t, x_ref)
         except Exception as e:
             print(f"  ERR {n}: {e}", flush=True)
