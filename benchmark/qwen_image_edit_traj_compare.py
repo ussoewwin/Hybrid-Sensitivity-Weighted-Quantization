@@ -103,10 +103,12 @@ def main() -> int:
 
         mm.get_torch_device()
 
-        print("Loading CLIP...")
+        _cpu = torch.device("cpu")
+        print("Loading CLIP on CPU...")
         clip = comfy.sd.load_clip(
             ckpt_paths=[args.clip_path],
             embedding_directory=None,
+            model_options={"load_device": _cpu, "offload_device": _cpu, "initial_device": _cpu},
         )
         positive = bench.encode_prompt(clip, args.prompt)
         negative = bench.encode_prompt(clip, args.negative)
