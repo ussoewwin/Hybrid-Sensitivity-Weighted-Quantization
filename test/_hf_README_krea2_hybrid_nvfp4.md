@@ -56,7 +56,7 @@ We extend our deepest respect and gratitude to the **Nunchaku Team** for their g
 
 ### Base Models
 These models are derivatives of their respective creators. All credit for aesthetic tuning and model training belongs to the original creators.
-- **Moody Krea2 Mix / Moody Cutie Mix Krea2**: Created by [catlover1937](https://civitai.com/user/catlover1937).
+- **Moody Krea2 Mix / Moody Cutie Mix Krea2**: Created by [catlover1937](https://civitai.red/user/catlover1937).
 
 ---
 
