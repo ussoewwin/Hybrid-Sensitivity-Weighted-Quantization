@@ -21,7 +21,7 @@ This script is the FULL ConvRot converter (default ON):
   Never scalar+stamp on ConvRot layers. Use --no-convrot only to pack plain INT8.
 
 Post-convert bench (default ON): after save, subprocess
-  benchmark/zi_int8_bench.py (--fp16 <input> --fp8 <output> --clip_path
+  benchmark/qi_int8_bench.py (--fp16 <input> --int8 <output> --clip_path
   --comfy_path required; tokenizer from ComfyUI-bundled qwen25_tokenizer;
   optional --vae; prompt/steps=12/seed=42 fixed inside). Pass --no-bench to skip.
 """
@@ -244,13 +244,13 @@ def _release_vram(label: str = "post-convert") -> None:
         print(f"[*] VRAM clear ({label}): done")
 
 
-# Exact --prompt / --steps from benchmark/zi_int8_bench.py defaults (fixed; not CLI).
-_FIXED_ZI_INT8_BENCH_PROMPT = "masterpiece, best quality, 1girl, solo, standing, simple background"
-_FIXED_ZI_INT8_BENCH_STEPS = 12
-_FIXED_ZI_INT8_BENCH_SEED = 42
+# Exact --prompt / --steps from benchmark/qi_int8_bench.py defaults (fixed; not CLI).
+_FIXED_QI_INT8_BENCH_PROMPT = "masterpiece, best quality, 1girl, solo, standing, simple background"
+_FIXED_QI_INT8_BENCH_STEPS = 12
+_FIXED_QI_INT8_BENCH_SEED = 42
 
 
-def run_post_convert_zi_int8_bench(
+def run_post_convert_qi_int8_bench(
     *,
     script_dir: str,
     fp16_path: str,
@@ -259,15 +259,15 @@ def run_post_convert_zi_int8_bench(
     comfy_path: str,
     vae_path: str | None = None,
 ) -> int:
-    """After save: subprocess benchmark/zi_int8_bench.py.
+    """After save: subprocess benchmark/qi_int8_bench.py.
 
     Bench argv:
-      --fp16 <input> --fp8 <INT8> --clip_path --comfy_path
+      --fp16 <input> --int8 <INT8> --clip_path --comfy_path
       [--vae] --prompt --steps 12 --seed 42
     Tokenizer comes from ComfyUI-bundled qwen25_tokenizer under --comfy_path.
     """
     bench_script = os.path.join(
-        script_dir, "benchmark", "zi_int8_bench.py"
+        script_dir, "benchmark", "qi_int8_bench.py"
     )
     if not os.path.isfile(bench_script):
         print(f"[FATAL] Post-convert bench script not found: {bench_script}")
@@ -292,14 +292,14 @@ def run_post_convert_zi_int8_bench(
         print(f"[FATAL] Post-convert bench: --vae missing: {vae_path}")
         return 1
 
-    _release_vram("pre-zi_int8_bench subprocess")
+    _release_vram("pre-qi_int8_bench subprocess")
 
     cmd = [
         sys.executable,
         bench_script,
         "--fp16",
         fp16_path,
-        "--fp8",
+        "--int8",
         int8_path,
         "--clip_path",
         clip_path,
@@ -311,26 +311,26 @@ def run_post_convert_zi_int8_bench(
     cmd.extend(
         [
             "--prompt",
-            _FIXED_ZI_INT8_BENCH_PROMPT,
+            _FIXED_QI_INT8_BENCH_PROMPT,
             "--steps",
-            str(_FIXED_ZI_INT8_BENCH_STEPS),
+            str(_FIXED_QI_INT8_BENCH_STEPS),
             "--seed",
-            str(_FIXED_ZI_INT8_BENCH_SEED),
+            str(_FIXED_QI_INT8_BENCH_SEED),
         ]
     )
 
     print("=" * 60)
-    print("[*] Post-convert ZI INT8 bench (owner body shape)")
+    print("[*] Post-convert QI INT8 bench")
     print(f"    script: {bench_script}")
     print(f"    --fp16: {fp16_path}")
-    print(f"    --fp8:  {int8_path}")
+    print(f"    --int8:  {int8_path}")
     print(f"    --clip_path: {clip_path}")
     print(f"    --comfy_path: {comfy_path}")
     if vae_path:
         print(f"    --vae: {vae_path}")
-    print(f"    --prompt: {_FIXED_ZI_INT8_BENCH_PROMPT}")
-    print(f"    --steps: {_FIXED_ZI_INT8_BENCH_STEPS}")
-    print(f"    --seed: {_FIXED_ZI_INT8_BENCH_SEED} (fixed inside)")
+    print(f"    --prompt: {_FIXED_QI_INT8_BENCH_PROMPT}")
+    print(f"    --steps: {_FIXED_QI_INT8_BENCH_STEPS}")
+    print(f"    --seed: {_FIXED_QI_INT8_BENCH_SEED} (fixed inside)")
     print("=" * 60)
     completed = subprocess.run(cmd, check=False)
     return int(completed.returncode)
@@ -683,7 +683,7 @@ if __name__ == "__main__":
         action=argparse.BooleanOptionalAction,
         default=True,
         help=(
-            "After save, run benchmark/zi_int8_bench.py "
+            "After save, run benchmark/qi_int8_bench.py "
             "(requires --clip_path/--comfy_path; "
             "optional --vae; prompt/steps=12/seed=42 fixed inside). "
             "Pass --no-bench to skip."
@@ -740,7 +740,7 @@ if __name__ == "__main__":
     )
 
     if args.bench:
-        bench_rc = run_post_convert_zi_int8_bench(
+        bench_rc = run_post_convert_qi_int8_bench(
             script_dir=_REPO_ROOT,
             fp16_path=args.model,
             int8_path=args.output,
