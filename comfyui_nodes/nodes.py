@@ -351,21 +351,40 @@ class NativeConvRotInt8Quantize:
                 steps, cfg = 12, 2.5
                 seeds = [random.randint(1, 10000000) for _ in range(10)]
 
+                def _cos(a, b):
+                    a = a.reshape(1, -1).float()
+                    b = b.reshape(1, -1).float()
+                    return float(torch.nn.functional.cosine_similarity(a, b, dim=1).item())
+
+                def _mse(a, b):
+                    return float((a.float() - b.float()).pow(2).mean().item())
+
                 def _sample(m, s):
                     lat = latent_base.clone()
                     noise = comfy_sample.prepare_noise(lat, s, None)
-                    return comfy_sample.sample(m, noise, steps, cfg, "euler", "simple", positive, negative, lat, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, callback=None, disable_pbar=True, seed=s)
+                    xs, x0s = [], []
+
+                    def cb(step, x0, x, total_steps):
+                        xs.append(x.detach().float().cpu())
+                        x0s.append(x0.detach().float().cpu())
+
+                    out = comfy_sample.sample(m, noise, steps, cfg, "euler", "simple", positive, negative, lat, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, callback=cb, disable_pbar=True, seed=s)
+                    return out, xs, x0s
 
                 # 1. FP16 baseline inference for all 10 seeds
                 lat_fp16_list = []
+                xs_fp16_list = []
+                x0s_fp16_list = []
                 t_fp16_list = []
                 for s in seeds:
                     t0 = time.perf_counter()
-                    out_fp16 = _sample(model, s)
+                    out_fp16, xs_fp16, x0s_fp16 = _sample(model, s)
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                     t_fp16_list.append(time.perf_counter() - t0)
                     lat_fp16_list.append(out_fp16.detach().float().cpu())
+                    xs_fp16_list.append(xs_fp16)
+                    x0s_fp16_list.append(x0s_fp16)
 
                 # Free FP16 model temporarily to load INT8
                 mm.unload_all_models()
@@ -378,14 +397,18 @@ class NativeConvRotInt8Quantize:
 
                 # 3. INT8 inference for all 10 seeds
                 lat_int8_list = []
+                xs_int8_list = []
+                x0s_int8_list = []
                 t_int8_list = []
                 for s in seeds:
                     t0 = time.perf_counter()
-                    out_int8 = _sample(model_int8, s)
+                    out_int8, xs_int8, x0s_int8 = _sample(model_int8, s)
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                     t_int8_list.append(time.perf_counter() - t0)
                     lat_int8_list.append(out_int8.detach().float().cpu())
+                    xs_int8_list.append(xs_int8)
+                    x0s_int8_list.append(x0s_int8)
 
                 # VAE decode setup
                 _decode = None
@@ -418,7 +441,7 @@ class NativeConvRotInt8Quantize:
 
                 # 4. Metrics evaluation
                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                report.append("\n=== BENCHMARK (10 Random Seeds) ===")
+                report.append("\n=== BENCHMARK (10 Random Seeds, per-step trajectory) ===")
                 report.append(f"Run Time: {current_time}")
                 report.append(f"Model Architecture: {model_type}")
                 report.append(f"Prompt: {prompt_text}")
@@ -428,16 +451,41 @@ class NativeConvRotInt8Quantize:
                 mse_list = []
                 cos_list = []
                 ssim_list = []
+                BIFURC_DROP = 0.05
+                SAME_IMG_COS = 0.98
+                n_bif = 0
+                n_same = 0
 
                 for i, s in enumerate(seeds):
                     a = lat_fp16_list[i].reshape(-1)
                     b = lat_int8_list[i].reshape(-1)
-                    mse_val = float(torch.mean((a - b) ** 2).item())
-                    cos_val = float(torch.nn.functional.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0), dim=1).item())
+                    mse_val = _mse(a, b)
+                    cos_val = _cos(a, b)
                     mse_list.append(mse_val)
                     cos_list.append(cos_val)
 
-                    line = f"[{i+1}/10 | Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f}"
+                    # per-step trajectory divergence + bifurcation detection
+                    fxs = xs_fp16_list[i]
+                    nxs = xs_int8_list[i]
+                    n_steps = min(len(fxs), len(nxs))
+                    step_cos = [_cos(fxs[j], nxs[j]) for j in range(n_steps)]
+                    max_drop = 0.0
+                    drop_at = 0
+                    for j in range(1, n_steps):
+                        d = step_cos[j - 1] - step_cos[j]
+                        if d > max_drop:
+                            max_drop, drop_at = d, j
+
+                    if max_drop > BIFURC_DROP:
+                        verdict = f"bifurcated @step {drop_at}"
+                        n_bif += 1
+                    elif cos_val >= SAME_IMG_COS:
+                        verdict = "same-image"
+                        n_same += 1
+                    else:
+                        verdict = "drifted (different image)"
+
+                    line = f"[{i+1}/10 | Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f} | max-drop: {max_drop:.4f} | {verdict}"
 
                     if _decode is not None:
                         try:
@@ -456,12 +504,17 @@ class NativeConvRotInt8Quantize:
                 avg_int8 = sum(t_int8_list) / len(t_int8_list)
                 avg_mse = sum(mse_list) / len(mse_list)
                 avg_cos = sum(cos_list) / len(cos_list)
+                min_cos = min(cos_list)
+                max_cos = max(cos_list)
 
                 report.append("\n--- Summary (10-Seed Average) ---")
                 report.append(f"Avg FP16 Time: {avg_fp16:.2f}s")
                 report.append(f"Avg INT8 Time: {avg_int8:.2f}s")
                 report.append(f"Avg MSE: {avg_mse:.4f}")
                 report.append(f"Avg Cosine: {avg_cos:.4f}")
+                report.append(f"Cosine: min={min_cos:.4f} max={max_cos:.4f}")
+                report.append(f"same-image seeds : {n_same}/10")
+                report.append(f"bifurcated seeds : {n_bif}/10   (sudden trajectory jump = different picture, not degradation)")
                 if ssim_list:
                     avg_ssim = sum(ssim_list) / len(ssim_list)
                     report.append(f"Avg SSIM: {avg_ssim:.4f}")
