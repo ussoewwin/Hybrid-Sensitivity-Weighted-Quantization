@@ -541,8 +541,8 @@ def _disable_transformers_auto_docstring():
 def tensorcore_hw_info():
     """Blackwell tensor-core hardware info + est. peak FP4 TFLOPS.
 
-    Peak uses base clock (props.clock_rate); real boost is ~19% higher, so the
-    reported peak is conservative and "% of peak" is an upper-bound estimate.
+    Peak uses props.clock_rate (max/boost clock in kHz). On Blackwell the
+    dense FP4 rate is 1024 MACs/SM/clk, so peak = SM x clock x 2048 / 1000.
     """
     import torch
 
@@ -552,7 +552,7 @@ def tensorcore_hw_info():
     sm = int(props.multi_processor_count)
     # Blackwell (5th-gen tensor core): 4 TCs / SM; dense FP4 = 1024 MACs/SM/clk.
     tc = sm * 4
-    clock_ghz = props.clock_rate / 1e6  # kHz -> GHz (base clock)
+    clock_ghz = props.clock_rate / 1e6  # kHz -> GHz (max/boost clock)
     peak_fp4 = sm * clock_ghz * 2048.0 / 1000.0
     return {
         "name": torch.cuda.get_device_name(0),
@@ -795,7 +795,7 @@ def main():
         print(f"  SMs / TensorCores   : {hw['sm']} / {hw['tensor_cores']}")
         print(f"  TC GEMM hits        : {tc_hits}  (dequant fallbacks: {dequant})")
         print(f"  Achieved            : {achieved_tflops:8.1f} TFLOPS")
-        print(f"  Peak (base clock)   : {peak:8.1f} TFLOPS")
+        print(f"  Peak (boost clock)  : {peak:8.1f} TFLOPS")
         print(f"  % of peak           : {pct:8.1f}%")
     else:
         print(
