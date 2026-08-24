@@ -538,6 +538,31 @@ def _disable_transformers_auto_docstring():
         _tu.auto_docstring = _noop
 
 
+def tensorcore_hw_info():
+    """Blackwell tensor-core hardware info + est. peak FP4 TFLOPS.
+
+    Peak uses base clock (props.clock_rate); real boost is ~19% higher, so the
+    reported peak is conservative and "% of peak" is an upper-bound estimate.
+    """
+    import torch
+
+    if not torch.cuda.is_available():
+        return None
+    props = torch.cuda.get_device_properties(0)
+    sm = int(props.multi_processor_count)
+    # Blackwell (5th-gen tensor core): 4 TCs / SM; dense FP4 = 1024 MACs/SM/clk.
+    tc = sm * 4
+    clock_ghz = props.clock_rate / 1e6  # kHz -> GHz (base clock)
+    peak_fp4 = sm * clock_ghz * 2048.0 / 1000.0
+    return {
+        "name": torch.cuda.get_device_name(0),
+        "sm": sm,
+        "tensor_cores": tc,
+        "clock_ghz": clock_ghz,
+        "peak_fp4_tflops": peak_fp4,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -713,9 +738,16 @@ def main():
         require_convrot=True,
     )
     print_model_stats(patcher_nv.model, "NVFP4 ConvRot")
+    from hswq_stack.zimage_nvfp4.zi_nvfp4_forward import (
+        nvfp4_forward_stats,
+        reset_nvfp4_forward_stats,
+    )
+
+    reset_nvfp4_forward_stats()
     latents_nv, time_nv, vram_nv = run_inference(
         patcher_nv, positive, negative, args.steps, args.seed, device, cfg=args.cfg
     )
+    tc_stats = nvfp4_forward_stats()
     print(f"NVFP4+ConvRot Time: {time_nv:.2f}s | Peak VRAM: {vram_nv:.2f} MB")
 
     if vae_obj is not None:
@@ -750,6 +782,26 @@ def main():
     print("-" * 50)
     print(f"Inference Time:       FP16:           {time_fp16:>8.2f}s")
     print(f"                      NVFP4+ConvRot:  {time_nv:>8.2f}s")
+    print("-" * 50)
+    hw = tensorcore_hw_info()
+    tc_flops = tc_stats.get("tc_flops", 0)
+    tc_hits = tc_stats.get("scaled_mm_hits", 0)
+    dequant = tc_stats.get("dequant_fallbacks", 0)
+    if hw is not None and tc_flops > 0 and time_nv > 0:
+        achieved_tflops = tc_flops / time_nv / 1e12
+        peak = hw["peak_fp4_tflops"]
+        pct = (achieved_tflops / peak * 100.0) if peak > 0 else 0.0
+        print(f"TensorCore ({hw['name']}):")
+        print(f"  SMs / TensorCores   : {hw['sm']} / {hw['tensor_cores']}")
+        print(f"  TC GEMM hits        : {tc_hits}  (dequant fallbacks: {dequant})")
+        print(f"  Achieved            : {achieved_tflops:8.1f} TFLOPS")
+        print(f"  Peak (base clock)   : {peak:8.1f} TFLOPS")
+        print(f"  % of peak           : {pct:8.1f}%")
+    else:
+        print(
+            f"TensorCore: hits={tc_hits} dequant_fallbacks={dequant} "
+            f"flops={tc_flops:.0f}"
+        )
     print("-" * 50)
     mse_label = "MSE (latent)"
     ssim_label = "SSIM (decoded)" if vae_obj is not None else "SSIM (0-255 view)"
