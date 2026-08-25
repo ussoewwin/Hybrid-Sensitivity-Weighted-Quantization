@@ -12,10 +12,12 @@ ConvRot INT8 model (error ≈ 0) and convert layers to NVFP4 **in ascending orde
 for this hybrid. The reverse method stays in the low-error regime where additivity holds, so
 **single-layer ranking is valid**.
 
-**Validated end-to-end on moodyProMix_collectorsEdition (Z-Image Turbo, 453 keys):**
-hybrid `nv100` → **final-cosine mean = 0.96033** (min 0.87123 / max 0.98680, **0/20 bifurcated**,
-4/20 same-image) in **TC (W4A4 Tensor Core)** mode. The comparable **native** full-NVFP4 model scores
-**0.91079** (1/20 bifurcated) — the hybrid is both smaller-by-selection and higher-fidelity.
+**Validation is done with the deterministic 20-seed latent-trajectory comparison**
+(per-step cosine + bifurcation detection); the production gate is **cosine mean ≥ 0.95 and
+0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration. Scores are
+**checkpoint-specific**: impact ranking, `K`, and the trajectory numbers must be re-measured for
+every model and are not transferable. Reference numbers for one example model (moodyProMix
+collectorsEdition) are listed in [Step 8](#step-8-finding-k) as a sanity-check ground truth only.
 
 > **Ready-to-run reference**: the complete cloud flow below (install → download → quantize → calib →
 > validate → upload) is also available as a VAST.ai notebook template: `vastai-hswq-zi-nvfp4.ipynb`.
