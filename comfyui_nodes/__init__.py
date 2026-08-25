@@ -3,7 +3,7 @@
 Provides native ConvRot INT8 quantization nodes supporting multiple architectures
 (Z Image, Qwen Image Edit, etc.).
 """
-from .nodes import NativeConvRotInt8Quantize, ZImageConvRotInt8Quantize
+from .native_convrot_int8_convert import NativeConvRotInt8Quantize, ZImageConvRotInt8Quantize
 
 NODE_CLASS_MAPPINGS = {
     "NativeConvRotInt8Quantize": NativeConvRotInt8Quantize,
