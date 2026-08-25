@@ -1,13 +1,14 @@
 # Trajectory-Sensitivity Impact Ranking and Error Interaction Analysis (Technical Guide)
 
-**Source:** `Z_Image/diag_impact.py`  
+**Source:** `Z_Image/diag_impact.py`, `Krea2/diag_impact.py`  
 This document is a complete, mathematical explanation of the per-layer impact-ranking method
-used by the reverse hybrid quantization of diffusion models (implemented in `Z_Image/diag_impact.py`),
-and — more fundamentally — of **why single-layer importance alone cannot
-predict joint quantization error**, i.e. the mathematical structure of **error interaction,
-nonlinear amplification, and error cancellation** that the reverse method is built around.
-The theory is universal: it applies to any iterative sampling dynamical system whose weights
-are perturbed by quantization.
+used by the reverse hybrid quantization of diffusion models (implemented in
+`Z_Image/diag_impact.py` for Z-Image / Lumina-family DiT and `Krea2/diag_impact.py` for
+Krea2 / SDXL-family SingleStreamDiT), and — more fundamentally — of **why single-layer
+importance alone cannot predict joint quantization error**, i.e. the mathematical structure of
+**error interaction, nonlinear amplification, and error cancellation** that the reverse method
+is built around. The theory is universal: it applies to any iterative sampling dynamical
+system whose weights are perturbed by quantization.
 
 ---
 
@@ -75,58 +76,186 @@ Single-layer impact is \(D(\{l\})\).
 
 ## 3. Function-by-Function Analysis
 
-### 3.1 `nvfp4_quant_error` — the reconstruction-error proxy
+### 3.1 `nvfp4_quant_error` — true NVFP4 round-trip
 
 ```python
-def nvfp4_quant_error(w, group=256):
-    wf = w.float()
-    orig = wf.reshape(wf.shape[0], -1)
-    k = orig.shape[1]
-    n_groups = (k + group - 1) // group
-    pad = n_groups * group - k
-    if pad:
-        orig = torch.nn.functional.pad(orig, (0, pad))
-    g = orig.reshape(orig.shape[0], n_groups, group)
-    amax = g.abs().amax(dim=2, keepdim=True).clamp_min(1e-12)
-    scale = amax / 448.0
-    q = (g / scale).to(torch.float8_e4m3fn).float()
-    dq = q * scale
-    if pad:
-        dq = dq.reshape(orig.shape[0], n_groups, group)[:, :, :k]
-    return dq.reshape(w.shape).to(w.dtype)
+def nvfp4_quant_error(w):
+    """TRUE NVFP4 quantization error via comfy_kitchen roundtrip
+    (E2M1 x 16-element blocks + global scale): exactly the kernel that
+    produces the shipped artifact."""
+    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout as _NVFP4
+    w2 = w if w.is_contiguous() else w.contiguous()
+    qdata, params = _NVFP4.quantize(w2)
+    return _NVFP4.dequantize(qdata, params)
 ```
 
-For a block of size 256, per-group scale \(s_{r,j} = a_{r,j}/448\) and reconstruction
-\(\widehat{G} = \mathrm{round}_{\mathrm{E4M3}}(G/s)\cdot s\).
+This is the **exact NVFP4 kernel** used in production artifacts — E2M1 (4-bit, max magnitude
+6.0) with 16-element block scales and a per-tensor global scale, implemented in
+`comfy_kitchen.tensor.nvfp4.TensorCoreNVFP4Layout`. The quantize→dequantize round-trip
+produces the reconstruction \(\widehat{W}_l\), and the perturbation
+\(\varepsilon_l = \widehat{W}_l - W_l\) is the **true on-hardware quantization error** — not a
+proxy or approximation.
 
-**Why E4M3 / group 256 instead of exact NVFP4.** The true on-disk NVFP4 format is E2M1 (4-bit,
-max magnitude 6.0) with a 16-element block scale and a per-tensor scale. `diag_impact.py`
-deliberately uses a **structured error proxy**: E4M3 (8-bit) rounding with 256-element group
-scales. The two formats differ along **both** axes — the E4M3 mantissa grid is **finer** than
-E2M1 (smaller rounding error per element), while the 256-element group scale is **coarser**
-than the 16-element block scale (more dynamic-range clipping on heterogeneous groups) — so the
-proxy's absolute error magnitude differs from true NVFP4 in either direction. The purpose of
-this function is **not** to reproduce the exact bit-level NVFP4 error, but to produce an error
-field with the **same spatial structure** — error concentrated where weights are large or
-groups are heterogeneous, small elsewhere. Because the module needs only the **relative
-ordering** of layers (not absolute error magnitudes), and that ordering is a property of the
-spatial structure of the error rather than its magnitude, a structured proxy is sufficient —
-and it runs far more cheaply than a full NVFP4 round-trip per layer.
+**Historical note.** Earlier versions of `diag_impact.py` used a structured error proxy
+(E4M3 rounding with 256-element group scales) to approximate the NVFP4 error structure. That
+proxy understated the actual error by approximately 13× and flattened the layer ranking. The
+current implementation uses the exact production kernel, eliminating the proxy-to-reality gap
+entirely.
 
 ### 3.2 `rel_mse` — scale-invariant divergence
 
 $$\mathrm{relMSE}(a,b) \;=\; \frac{\sum_i (a_i-b_i)^2}{\sum_i b_i^2} \;=\; \frac{\|a-b\|_F^2}{\|b\|_F^2}.$$
 
-### 3.3 `run4` — the fixed 4-step trajectory
+### 3.3 `run` / `run(run_seed)` — the configurable-step trajectory
 
-\(x_0 \sim \mathcal{N}(0,I)\) seed 42; \(\sigma = [1.0, 0.75, 0.5, 0.25, 0.0]\); four Euler steps
-\(x_{k+1} = x_k + (\sigma_{k+1}-\sigma_k) v_\theta(x_k,\sigma_k)\). Returns \(x_4\).
+Both variants define `run` as a **local closure** inside `main()`, capturing the model, device,
+seed, step count, and context tensors from the enclosing scope.
+
+**Z_Image:**
+
+```python
+def run():
+    x = torch.randn(1, 16, 128, 128, device=device, dtype=torch.float16,
+                    generator=torch.Generator(device).manual_seed(seed))
+    sigmas = torch.linspace(1.0, 0.0, steps + 1, device=device)
+    with torch.no_grad():
+        for step in range(steps):
+            out = model(x, sigmas[step:step + 1], embeds, None, attention_mask=None)
+            if isinstance(out, tuple):
+                out = out[0]
+            x = (x + (sigmas[step + 1] - sigmas[step]) * out).to(torch.float16)
+    return x
+```
+
+**Krea2:**
+
+```python
+def run(run_seed=None):
+    s = seed if run_seed is None else run_seed
+    g = torch.Generator(device=device).manual_seed(s)
+    x = torch.randn(1, channels, lat, lat, device=device,
+                    dtype=torch.bfloat16, generator=g)
+    with torch.no_grad():
+        for step in range(steps):
+            t = t_steps[step:step + 1]
+            out = model(x, t, context)
+            if isinstance(out, tuple):
+                out = out[0]
+            x = (x + (t_steps[step + 1] - t_steps[step]) * out).to(torch.bfloat16)
+    return x
+```
+
+Key differences from the original `run4`:
+
+| Property | Old (`run4`) | Z_Image `run` | Krea2 `run` |
+|----------|-------------|---------------|-------------|
+| σ schedule | Fixed `[1.0, 0.75, 0.5, 0.25, 0.0]` | `linspace(1.0, 0.0, steps+1)` | same |
+| Steps | Hard-coded 4 | CLI `--steps` (default 4) | CLI `--steps` (default 4) |
+| Latent shape | unspecified | `(1, 16, 128, 128)` fp16 | `(1, channels, lat, lat)` bf16 |
+| Context | unspecified | `(1, 256, 2560)` fp16 (fixed) | `(1, seq, txtlayers*txtdim)` bf16 |
+| Seed override | none | none | `run_seed` parameter (for multi-seed amax) |
+
+The Euler integration is identical to §2.2:
+\(x_{k+1} = x_k + (\sigma_{k+1}-\sigma_k)\, v_\theta(x_k, \sigma_k; W)\).
 
 ### 3.4 `main` — the measurement loop
 
-Reference \(x_{\mathrm{ref}} = \Phi(W)\); then for each layer, inject
-\(\widehat{W}_l = \mathrm{nvfp4\_quant\_error}(W_l)\), run \(\Phi\), record
-\(D(\{l\})\), restore. Output `{"x_ref_norm", "impacts"}`.
+The measurement loop follows the same pattern in both variants:
+
+1. **Load model** — Z_Image loads a NextDiT via the benchmark module's `load_zit_model`;
+   Krea2 loads a `SingleStreamDiT` via `load_krea2` (see §3.5).
+2. **Enumerate target layers** — read `_quantization_metadata.layers` from the INT8
+   artifact's safetensors metadata. These are the layer keys whose NVFP4 impact will be
+   measured.
+3. **Filter modules** — only `nn.Linear` modules (those with `weight` and `in_features`
+   attributes) are eligible. Krea2 additionally enforces `_SAFE_IN_FEATURES` (see §3.7).
+4. **Pristine run** — compute \(x_{\mathrm{ref}} = \Phi(W)\). Krea2 also captures
+   Hadamard-rotated activation amax during this run (see §3.6).
+5. **Krea2 only: extra-seed amax runs** — run with seeds 1337 and 7 (in addition to the
+   default 42) to capture the running-max amax across diverse inputs, improving
+   `input_scale` calibration robustness.
+6. **Per-layer injection** — for each target layer: clone \(W_l\), replace with
+   \(\widehat{W}_l = \mathrm{nvfp4\_quant\_error}(W_l)\), run \(\Phi\), record
+   \(D(\{l\})\), restore \(W_l\).
+7. **Save output** — write JSON.
+
+**Output JSON format:**
+
+| Field | Z_Image | Krea2 | Description |
+|-------|---------|-------|-------------|
+| `x_ref_norm` | ✅ | ✅ | \(\|x_{\mathrm{ref}}\|_F^2\), the denominator of relMSE |
+| `impacts` | ✅ | ✅ | `{layer_name: relMSE_value}` dict |
+| `act_amax` | — | ✅ | `{module_name: max_abs_rotated_activation}` for `input_scale` |
+
+### 3.5 Krea2-specific: ComfyUI bootstrap and model loading
+
+Krea2's `diag_impact.py` includes a full ComfyUI bootstrap stack because the Krea2
+`SingleStreamDiT` model class lives inside `comfy.ldm.krea2.model`:
+
+| Function | Role |
+|----------|------|
+| `_ensure_comfyui(comfy_path)` | Locate ComfyUI root (repo-internal `ComfyUI-master` only) |
+| `_load_comfy_pkg(comfy_root)` | Import `comfy` exclusively from the specified root, purging any other `comfy` on `sys.path` |
+| `_install_comfy_stubs()` | Install `torchaudio`, `comfy_aimdo`, `psutil` stubs for headless operation |
+| `_find_krea2_key_prefix(keys)` | Detect state-dict key prefix (`model.diffusion_model.`, `diffusion_model.`, or empty) |
+| `detect_krea2_dit_config(sd, prefix)` | Auto-detect Krea2 DiT hyperparameters (features, channels, layers, heads, kvheads, txtlayers, txtdim) from state-dict shapes |
+| `load_krea2(path, device, comfy_path)` | Full load pipeline: bootstrap → detect config → instantiate `SingleStreamDiT` → load stripped state-dict → validate CUDA placement |
+
+The Z_Image variant delegates model loading to the benchmark module (`bench.load_zit_model`),
+which handles the equivalent bootstrap internally.
+
+### 3.6 Krea2-specific: Hadamard-rotated activation amax calibration
+
+ConvRot NVFP4 artifacts require a per-layer `input_scale` parameter (the activation scaling
+factor for the NVFP4 kernel). `gen_reverse_nvfp4.py` computes this as
+\(\mathrm{amax} / (\mathrm{F8\_E4M3\_MAX} \times \mathrm{F4\_E2M1\_MAX})\). The amax value
+must be captured during a representative forward pass.
+
+```python
+def _build_hadamard(size, device="cuda", dtype=torch.float32):
+    """Normalized Hadamard (Kronecker power of h4, / sqrt(size))."""
+    h4 = torch.tensor(
+        [[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]],
+        dtype=torch.float32, device=device,
+    )
+    h = h4
+    cur = 4
+    while cur < size:
+        h = torch.kron(h, h4)
+        cur *= 4
+    return (h / (size ** 0.5)).to(dtype=dtype)
+
+def _rotated_amax(x, H):
+    """Max abs of Hadamard-rotated activation (last dim, groups of H.shape[0])."""
+    gs = int(H.shape[0])
+    xf = x.detach().float()
+    flat = xf.reshape(-1, xf.shape[-1])
+    f = flat.shape[-1]
+    if f % gs != 0:
+        return None
+    g = flat.reshape(-1, f // gs, gs)
+    rot = torch.matmul(g, H.to(device=flat.device, dtype=torch.float32))
+    return float(rot.abs().max().item())
+```
+
+During the pristine run, a `forward_pre_hook` captures the running-max rotated amax for each
+eligible module. To improve calibration robustness (a single 4-step seed can under-cover real
+activation ranges), extra seeds (1337, 7) are run after the pristine seed to expand the amax
+coverage. All amax values are saved as `act_amax` in the output JSON.
+
+### 3.7 Krea2-specific: `_SAFE_IN_FEATURES` whitelist
+
+Not all Linear layers in a Krea2 model can be converted to NVFP4. The NVFP4 kernel
+(`TensorCoreNVFP4Layout` + `validate_nvfp4_weight_storage`) requires specific `in_features`
+dimensions that produce valid packed weight storage:
+
+```python
+_SAFE_IN_FEATURES = {1536, 6144, 16384}
+```
+
+Layers whose `in_features` is not in this set (e.g. `txtfusion` layers) are assigned
+`impact = NaN` and skipped. Both `diag_impact.py` and `gen_reverse_nvfp4.py` enforce this
+constraint identically.
 
 ---
 
