@@ -99,6 +99,7 @@ bench_meta_*.json
 *_analysis.json
 *_analysis_*.json
 *_ranking.json
+impact_*.json
 _backup_merge_20260806/
 upload.py
 bench_*.png
