@@ -9,7 +9,7 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 - **ConvRot INT8 (SDXL V3.1):** ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Linear/Conv2d after DualMonitor + V4 weighted-histogram FP16 protection under a fixed **300 MiB** budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage. Pack path matches `native_convert_int8_convrot.py`.
 - **ConvRot NVFP4 (SDXL):** ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed **600 MiB** budget. Keep ratio is **0** (r0); calib writes NVFP4 `.input_scale`. Script: `hswq_convert_nvfp4_convrot_1.0.py`.
 - **Z Image INT8 (HSWQ):** **Development and public release ended.** For Z Image, **native ConvRot INT8** already reaches roughly **SSIM > 0.99** in general, so a separate HSWQ Z Image 8-bit line is no longer developed or published. Use native ConvRot INT8 for Z Image 8-bit; HSWQ INT8 work continues for **SDXL**.
-- **Z Image Hybrid ConvRot NVFP4:** Built from a complete **native ConvRot INT8** UNet via the **reverse method** — layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid. The number of NVFP4 layers varies per model (e.g. nv60–nv110). Validated at all-seed **decoded SSIM >= 0.97** with the unmodified native bench. Script: `Z_Image/diag_impact.py`.
+- **Z Image Hybrid ConvRot NVFP4:** Built from a complete **native ConvRot INT8** UNet via the **reverse method** — layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid. The number of NVFP4 layers varies per model (search `K`). Calibrated with `input_scale = amax / 2688` and validated by the **deterministic 20-seed latent-trajectory comparison** (per-step cosine + bifurcation): production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** in **TC (W4A4)** mode (moodyProMix nv100 = 0.96033 / 0/20; native 180-layer = 0.91079 / 1/20). Scripts: `Z_Image/diag_impact.py`, `Z_Image/gen_reverse_nvfp4.py`, `Z_Image/calib_input_scale_nvfp4.py`, `benchmark/zi_convrot_nvfp4_traj_compare.py`.
 
 **Technical details (FP8):** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) — **FP8 development has ended**; this document is retained as a technical asset.  
 **Technical details (INT8 FP16-protect / pack overview — ConvRot pack guide not published yet):** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md)  
@@ -31,7 +31,7 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 - **SDXL (ConvRot INT8):** [How to quantize SDXL ConvRot INT8](md/How%20to%20quantize%20SDXL.md)
 - **SDXL (ConvRot NVFP4):** [How to quantize SDXL ConvRot NVFP4](md/How%20to%20quantize%20SDXL%20NVFP4.md)
 - **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) — CLI and ComfyUI custom node (`Native ConvRot INT8 Quantize`) quantization guide. HSWQ-specific Z Image development has **ended**; this How-to introduces the **general** ConvRot INT8 quantization method.
-- **Z Image (Hybrid NVFP4, reverse method):** [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md) — build a hybrid NVFP4 model from the native ConvRot INT8 by converting the lowest-impact layers first (reverse method); validated at all-5-seed SSIM >= 0.97 with the unmodified native bench.
+- **Z Image (Hybrid NVFP4, reverse method):** [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md) — build a hybrid NVFP4 model from native ConvRot INT8 by converting the lowest-impact layers first (reverse method), calibrate `input_scale` for Tensor-Core W4A4, and validate with the deterministic 20-seed trajectory comparison (cosine mean ≥ 0.95, 0/20 bifurcated). Cloud VAST.ai reference: `vastai-hswq-zi-nvfp4.ipynb`.
 - **Qwen Image Edit (native ConvRot INT8):** [How to quantize Qwen Image Edit](md/How%20to%20quantize%20Qwen%20Image%20Edit.md) — CLI (`Qwen Image/native_convert_int8_convrot_qwen.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Qwen Image Edit"`) quantization guide; post-convert benchmark is latent-space trajectory divergence (per-step cosine + bifurcation detection).
 
 **Benchmark results:**
@@ -57,6 +57,8 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 | **Use case** | SDXL ConvRot INT8 distribution / kitchen loaders | SDXL ConvRot NVFP4 distribution / native ComfyUI load | Z Image Turbo Hybrid NVFP4 distribution / native ComfyUI load |
 
 **Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL path.
+
+**Validation (Z Image Hybrid NVFP4):** production gate is the **deterministic 20-seed latent-trajectory comparison** — per-step cosine with a bifurcation detector; pass = **mean ≥ 0.95 and 0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration. See [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md).
 
 File size is reduced by about **30-40%** vs FP16 while keeping best quality per use case.
 
@@ -113,12 +115,13 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 
 ### Z Image Hybrid ConvRot NVFP4
 
-- **Script:** `Z_Image/diag_impact.py` (per-layer impact diagnosis + automatic NVFP4 conversion).
-- **Prerequisite:** A complete **native ConvRot INT8** UNet created by `native_convert_int8_convrot_zi.py`.
+- **Scripts:** `Z_Image/diag_impact.py` (per-layer trajectory impact), `Z_Image/gen_reverse_nvfp4.py` (reverse hybrid conversion), `Z_Image/calib_input_scale_nvfp4.py` (TC `input_scale` calibration), `benchmark/zi_convrot_nvfp4_traj_compare.py` (validation).
+- **Prerequisite:** A complete **native ConvRot INT8** UNet created by `Z_Image/native_convert_int8_convrot_zi.py`.
 - **Method:** **Reverse method** — start from the complete ConvRot INT8 model (error ≈ 0) and convert layers to NVFP4 in **ascending order of per-layer impact** (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid.
+- **TC / W4A4:** enabled only after calibration writes `*.input_scale` (`amax / 2688`); forcing TC on an uncalibrated checkpoint collapses quality (cosine ~0.18). Auto-detect uses parity (W4A16) without `input_scale`; `--tc` / `--parity` / `HSWQ_ZI_FORCE_TC` / `HSWQ_ZI_FORCE_PARITY` override.
 - **Loader / format:** ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4`; same pack format as SDXL ConvRot NVFP4.
-- **NVFP4 layer count:** Varies per model (e.g. nv60-nv110); determined automatically by impact diagnosis.
-- **Image quality (SSIM):** **0.97-0.99**.
+- **Validation:** deterministic 20-seed x 12-step latent-trajectory comparison; production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** (moodyProMix nv100 = 0.96033 / 0/20 in TC; native 180-layer = 0.91079 / 1/20 in parity).
+- **NVFP4 layer count:** Varies per model; search K (start nv90).
 
 ---
 
