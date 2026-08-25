@@ -19,9 +19,6 @@ for this hybrid. The reverse method stays in the low-error regime where additivi
 every model and are not transferable. Reference numbers for one example model (moodyProMix
 collectorsEdition) are listed in [Step 8](#step-8-finding-k) as a sanity-check ground truth only.
 
-> **Ready-to-run reference**: the complete cloud flow below (install → download → quantize → calib →
-> validate → upload) is also available as a VAST.ai notebook template: `vastai-hswq-zi-nvfp4.ipynb`.
-
 ---
 
 ## Judgement criteria (read first)
@@ -63,49 +60,23 @@ quantized model from identical noise (same seed) and compares the latent traject
 
 ---
 
-## 0. Environment
+## 0. Prerequisites
 
-### Cloud (VAST.ai / Jupyter) — quick setup
+Anything that runs this flow needs, regardless of environment:
 
-```bash
-# 0-1. PyTorch (CUDA 13.0 on the tensor template)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
-
-# 0-2. Other libraries + downloader
-pip install diffusers safetensors transformers accelerate tqdm sentencepiece protobuf scikit-image sageattention
-apt-get -y install aria2
-
-# 0-3. Clone this repository
-git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
-cd Hybrid-Sensitivity-Weighted-Quantization
-
-# 0-4. Download the base UNet (example: moodyProMix collectorsEdition from Civitai), the
-#      Qwen3-4B text encoder, and a VAE into the clone directory:
-aria2c --console-log-level=error --allow-overwrite=true -x 16 -s 16 -k 1M "<civitai-or-hf-url>" -d . -o test.safetensors
-aria2c --console-log-level=error --allow-overwrite=true -x 16 -s 16 -k 1M "https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16/resolve/main/qwen3_4b_abliterated_fp16_converted.safetensors" -d . -o clip.safetensors
-aria2c --console-log-level=error --allow-overwrite=true -x 16 -s 16 -k 1M "<vae-url>" -d . -o vae.safetensors
-
-# 0-5. Repo dependencies (run from the clone directory)
-pip install -r requirements.txt
-pip install -U comfy_kitchen
-```
-
-File conventions used below (adjust names freely): `test.safetensors` = base, `test2.safetensors` =
-INT8, `test3.safetensors` = hybrid, `test4.safetensors` = native, `test5.safetensors` = calibrated hybrid.
-
-### Local (Windows) — equivalent
-
-| Item | Value |
+| Requirement | Notes |
 |---|---|
-| Python | `D:\USERFILES\ComfyUI\python_embeded\python.exe` (or any CUDA venv) |
-| Working dir | `D:\USERFILES\GitHub\hswq` (this clone) |
-| ComfyUI tree | `D:\USERFILES\GitHub\hswq\ComfyUI-master` (read-only) |
-| CLIP | `D:\USERFILES\ComfyUI\ComfyUI\models\clip\qwen3_4b_abliterated_fp16_converted.safetensors` |
-| Output dir | `D:\USERFILES\ComfyUI\ComfyUI\models\unet\` |
+| CUDA GPU, **≥ 12 GB VRAM** | run **one process at a time**; concurrent runs exhaust VRAM |
+| Python with **PyTorch (CUDA)** | the exact install command depends on your CUDA version |
+| This repository | clone it; it bundles the ComfyUI checkout in `ComfyUI-master/` (read-only — never modify it) |
+| Runtime packages | `pip install -r requirements.txt` (ComfyUI runtime) and `pip install -U comfy-kitchen` (NVFP4 layout). If your Python lacks them, also install `safetensors`, `scikit-image`, `tqdm`, `transformers`, `psutil` (used by individual steps) |
+| Base UNet | the original fp16/bf16 Z Image `.safetensors` (`<base>`) |
+| Text encoder | a Qwen3-4B text encoder `.safetensors` (`<clip>`), needed from Step 2 onward |
+| Disk | keep **≥ 40 GB free** (base 12.3 + INT8 5.7 + hybrid 4.8 + calib 4.8 + native 4.5 GB during a run) |
 
-Prepend `$env:PYTHONIOENCODING='utf-8'` to every PowerShell command (Japanese-locale cp932 fix).
-Never set `TORCH_LOGS` (torch import dies with an AttributeError). Run **one process at a time**
-(VRAM discipline; 16 GB card is enough for one trajectory run at a time).
+A **VAE is not needed**: the validation works in latent space (no decoded-SSIM step).
+On Windows, set `PYTHONIOENCODING=utf-8` in the shell to avoid cp932 decode errors; never set
+`TORCH_LOGS` (torch import fails with an AttributeError).
 
 ## Paths (replace every `<...>` with a real path on your machine)
 
@@ -158,8 +129,7 @@ python Z_Image/native_convert_int8_convrot_zi.py \
 ```
 
 - 208 layers converted / 245 kept, ConvRot Linear 208 / Conv2d 0, per-channel INT8. Output ≈ 5.74 GB.
-- `--clip_path` / `--comfy_path` / `--vae` only matter when you want the built-in post-convert bench
-  (`--bench`); the validation here is done separately in Step 6, so pass `--no-bench`.
+- Validation is done separately in Step 6, so skip the built-in post-convert bench with `--no-bench`.
 
 ---
 
@@ -182,8 +152,7 @@ python Z_Image/diag_impact.py "<base>" "<int8>" "<impact>.json" \
   largest (protect) → `t_embedder.mlp.*`, `final_layer.linear`, `final_layer.adaLN_modulation.*`.
 
 Run from the clone directory (script auto-resolves the repo root for `benchmark/`; do **not** pass
-`--repo-root`). Relative weight paths are searched under cwd / the clone, so
-`Hybrid-Sensitivity-Weighted-Quantization/test.safetensors` works from inside the clone.
+`--repo-root`).
 
 ---
 
@@ -312,7 +281,7 @@ python benchmark/zi_convrot_nvfp4_traj_compare.py \
 
 - **No `--tc`**: native has no `input_scale`, so auto-detect → `GEMM MODE: PARITY (W4A16 dequant GEMM)`.
 - Expect the native to score **below the hybrid** — that is the point of the comparison
-  (moodyProMix: native mean 0.91079 / 1/20 bifurcated vs hybrid nv100 mean 0.96033 / 0/20).
+  (reference: native mean 0.91079 / 1/20 bifurcated vs hybrid nv100 mean 0.96033 / 0/20).
 
 ---
 
@@ -343,19 +312,9 @@ with K, quality can recover then fail again). Search **sequentially, 10 at a tim
 Upload the final calibrated hybrid (`<model>_hswq_hybrid_nv<K>_convrot_nvfp4_calib.safetensors`)
 to Hugging Face — the file needs no extra packing; ComfyUI loads it directly
 (`ComfyUI-HSWQ-Loader-and-Tools`, or any `nvfp4`-capable loader, with TC auto-detected from
-`input_scale`).
-
-```bash
-pip install -U "huggingface_hub[cli]"
-pip install hf_transfer
-```
-
-Edit the values at the top of `upload.py` (username, repo name, your **Write**-capable HF token,
-the file to upload, and the in-repo filename), then:
-
-```bash
-python upload.py
-```
+`input_scale`). The `upload.py` template in the repo root uploads a file with `huggingface_hub`;
+edit the values at the top (username, repo, your **Write**-capable token, file path, in-repo filename),
+then run `python upload.py`.
 
 **Keep:** `<base>`, `<int8>`, and the final `<calib>` (production artifact).
 **Delete:** intermediate hybrids from rejected K values, the uncalibrated `<hybrid>`, and `<native>`.
@@ -366,7 +325,7 @@ python upload.py
 
 | Symptom | Cause / fix |
 |---|---|
-| `UnicodeDecodeError 'cp932'` | Japanese Windows; prepend `$env:PYTHONIOENCODING='utf-8'` (PowerShell) |
+| `UnicodeDecodeError 'cp932'` | Windows locale issue; set `PYTHONIOENCODING=utf-8` in the shell |
 | torch import `AttributeError ... get_log_level_pairs` | `TORCH_LOGS` is set; unset it and never set it |
 | `impact_*.json` missing | Created by Step 2; the third positional arg of `diag_impact.py` is the **output** path |
 | 0 NVFP4 layers / bench CRITICAL ERROR (0 armed) | `gen_reverse_nvfp4.py` failed to match impact keys. Check the key normalization; regenerate with K ≥ 1 |
@@ -374,9 +333,9 @@ python upload.py
 | `GEMM MODE: PARITY` while `--tc` was passed | `input_scale` keys missing or force not applied — run Step 5 and re-check the key count |
 | final cosine collapses to ~0.18 | **TC forced without `input_scale`** — run calibration (Step 5) |
 | mean ≥ 0.95 but bifurcated > 0 | Reject this K; lower K by 10 (high-impact layers are breaking) |
-| `SafetensorError: I/O error: disk` | Disk full — keep ≥ 40 GB free (base 12.3 + INT8 5.7 + hybrid 4.8 + calib 4.8 + native 4.5) |
+| `SafetensorError: I/O error: disk` | Disk full — keep ≥ 40 GB free (see Prerequisites) |
 | Numbers differ from a previous run | Confirm `--steps 12`, the exact 20-seed set, the calibrated file, and check the `GEMM MODE:` line |
-| Process won't die | Kill the whole tree: `taskkill /PID <parent> /T /F` (Windows) |
+| Process won't die | Kill the whole process tree (`taskkill /PID <parent> /T /F` on Windows) |
 
 ## Files in this repo
 
@@ -391,6 +350,7 @@ python upload.py
 | `sample/calibration_prompts_128.txt` | default prompt set used by Step 5 |
 | `upload.py` | Step 9 — Hugging Face upload template |
 
-**Dependencies:** `comfy-kitchen` (NVFP4 layout), `safetensors`, `scikit-image` (SSIM), plus the
-ComfyUI tree in `ComfyUI-master/`. Run Step 2 from the clone root; run Steps 6–7 with
+**Dependencies:** `comfy-kitchen` (NVFP4 layout), `safetensors`, `scikit-image`, `tqdm`,
+`transformers` (Step 4), `psutil` (traj_compare), plus the ComfyUI runtime (`requirements.txt`,
+used via the bundled `ComfyUI-master/` tree). Run Step 2 from the clone root; run Steps 6–7 with
 `--comfy_path "ComfyUI-master"` (or an absolute path).
