@@ -1,15 +1,22 @@
-"""ConvRot INT8 converter for generic LLM/CLIP safetensors.
+"""ConvRot INT8 converter for generic safetensors (CLIP / LLM / ControlNet).
 
-Converts all 2D .weight tensors to ConvRot INT8 (Hadamard rotation +
-per-out-channel INT8 quantization). Non-2D tensors (embeddings, layernorms)
-are kept as-is.
+Converts all 2D .weight tensors into ComfyUI-native ConvRot INT8
+(Hadamard rotation + per-out-channel INT8 quantization + comfy_quant stamp).
+Non-2D tensors (embeddings, layernorms, biases) are kept as-is.
+
+ComfyUI natively supports ConvRot INT8 (int8_tensorwise + comfy_quant),
+so the output loads with the standard ComfyUI loaders (UNet / CLIP /
+ControlNet) without any custom node.
+
+Output layout:
+    <layer>.weight           int8
+    <layer>.weight_scale     float32  [out, 1]
+    <layer>.comfy_quant      uint8 JSON  {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":N}
+    _quantization_metadata   {"format_version":"1.0","layers":{...}}
 
 Usage:
-  python convert_clip_convrot_int8.py \
-    --model input.safetensors \
-    --output output_int8.safetensors \
-    [--no-convrot]  # plain INT8 without rotation
-    [--groupsize 256]  # Hadamard group size (power of 4)
+  python convert_clip_convrot_int8.py --model model.safetensors --output model_int8.safetensors
+  (--no-convrot for plain INT8 without rotation; --groupsize 256 default, power of 4)
 """
 from __future__ import annotations
 
@@ -17,14 +24,11 @@ import argparse
 import json
 import math
 import os
-import sys
 
 import torch
 from safetensors.torch import load_file, save_file
 from tqdm import tqdm
 
-
-# --- Hadamard / ConvRot core (self-contained) ---
 
 def build_hadamard(size: int, dtype: torch.dtype = torch.float32) -> torch.Tensor:
     """Normalized regular Hadamard matrix (power of 4)."""
@@ -86,8 +90,8 @@ def convert(model_path: str, output_path: str, enable_convrot: bool = True, grou
     convrot_count = 0
     plain_count = 0
     skip_count = 0
+    fallback_list: list[str] = []
 
-    # Cache hadamard matrices
     h_cache: dict[int, torch.Tensor] = {}
 
     for key, tensor in tqdm(sorted(sd.items()), desc="Converting"):
@@ -121,7 +125,7 @@ def convert(model_path: str, output_path: str, enable_convrot: bool = True, grou
                 convrot_count += 1
                 continue
             else:
-                print(f"  [WARN] {key}: in_features={in_f} not divisible by power-of-4, falling back to plain INT8")
+                fallback_list.append(key)
 
         # Plain INT8 (no rotation)
         q, scale = quantize_int8_rowwise(w)
@@ -138,21 +142,24 @@ def convert(model_path: str, output_path: str, enable_convrot: bool = True, grou
         )
     }
 
+    for k in fallback_list:
+        print(f"  [WARN] {k}: in_features not power-of-4 divisible, plain INT8")
+
     print(f"\nSaving: {output_path}")
     print(f"  ConvRot INT8: {convrot_count}")
     print(f"  Plain INT8:   {plain_count}")
     print(f"  Kept as-is:  {skip_count}")
     save_file(new_sd, output_path, metadata=metadata)
 
-    out_size = os.path.getsize(output_path) / (1024 ** 3)
     in_size = os.path.getsize(model_path) / (1024 ** 3)
+    out_size = os.path.getsize(output_path) / (1024 ** 3)
     print(f"  Input:  {in_size:.2f} GB")
     print(f"  Output: {out_size:.2f} GB")
-    print(f"Done!")
+    print("Done!")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="ConvRot INT8 converter for LLM/CLIP safetensors")
+    parser = argparse.ArgumentParser(description="ConvRot INT8 converter for CLIP/LLM/ControlNet safetensors")
     parser.add_argument("--model", required=True, help="Input .safetensors path")
     parser.add_argument("--output", required=True, help="Output .safetensors path")
     parser.add_argument("--no-convrot", action="store_true", help="Plain INT8 without ConvRot rotation")
