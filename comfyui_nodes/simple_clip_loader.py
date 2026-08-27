@@ -33,7 +33,7 @@ class SimpleCLIPWrapper:
         return {}
 
 
-class SimpleCLIPLoader:
+class HSWQSimpleCLIPLoader:
     """Load any CLIP / Text Encoder file directly without specifying type/architecture."""
 
     @classmethod
@@ -53,7 +53,7 @@ class SimpleCLIPLoader:
     RETURN_TYPES = ("CLIP",)
     RETURN_NAMES = ("clip",)
     FUNCTION = "load_clip"
-    CATEGORY = "loaders"
+    CATEGORY = "HSWQ/Loaders"
 
     def load_clip(self, clip_name: str):
         import folder_paths
@@ -62,3 +62,7 @@ class SimpleCLIPLoader:
         clip_path = folder_paths.get_full_path_or_raise("text_encoders", clip_name)
         sd = comfy.utils.load_torch_file(clip_path, safe_load=True)
         return (SimpleCLIPWrapper(sd, clip_path),)
+
+
+# Compatibility alias
+SimpleCLIPLoader = HSWQSimpleCLIPLoader
