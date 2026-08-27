@@ -223,17 +223,21 @@ def _extract_state_dict(obj) -> dict[str, torch.Tensor]:
 
 
 def _get_original_name(obj, default: str = "model") -> str:
-    if hasattr(obj, "clip_path") and obj.clip_path and isinstance(obj.clip_path, str):
-        return os.path.splitext(os.path.basename(obj.clip_path))[0]
-    patcher = getattr(obj, "patcher", obj)
-    if hasattr(patcher, "cached_patcher_init") and patcher.cached_patcher_init:
-        func, args = patcher.cached_patcher_init[:2]
-        if args and isinstance(args, tuple) and len(args) > 0:
-            p = args[0]
-            if isinstance(p, list) and len(p) > 0 and isinstance(p[0], str):
-                return os.path.splitext(os.path.basename(p[0]))[0]
-            elif isinstance(p, str):
-                return os.path.splitext(os.path.basename(p))[0]
+    for attr in ("clip_path", "controlnet_path", "model_path", "ckpt_path"):
+        if hasattr(obj, attr):
+            val = getattr(obj, attr)
+            if val and isinstance(val, str):
+                return os.path.splitext(os.path.basename(val))[0]
+
+    for target in (obj, getattr(obj, "patcher", None), getattr(obj, "control_model_wrapped", None)):
+        if target is not None and hasattr(target, "cached_patcher_init") and target.cached_patcher_init:
+            func, args = target.cached_patcher_init[:2]
+            if args and isinstance(args, tuple) and len(args) > 0:
+                p = args[0]
+                if isinstance(p, list) and len(p) > 0 and isinstance(p[0], str):
+                    return os.path.splitext(os.path.basename(p[0]))[0]
+                elif isinstance(p, str):
+                    return os.path.splitext(os.path.basename(p))[0]
     return default
 
 
@@ -312,16 +316,15 @@ class TEControlNetConvRotInt8Quantize:
         ts = int(time.time())
 
         for idx, (mtype, sd, orig_name) in enumerate(tasks):
+            default_name = f"{orig_name}_convrot_int8.safetensors"
             if user_output_path:
                 target_path = os.path.abspath(user_output_path)
                 if os.path.isdir(target_path):
-                    default_name = f"{orig_name}_native_convrot_int8_{ts}.safetensors"
                     target_path = os.path.join(target_path, default_name)
                 elif len(tasks) > 1 and idx > 0:
                     base, ext = os.path.splitext(target_path)
                     target_path = f"{base}_{mtype.lower()}{ext}"
             else:
-                default_name = f"{orig_name}_native_convrot_int8_{ts}.safetensors"
                 target_path = os.path.join(_output_dir(), default_name)
 
             out_dir = os.path.dirname(target_path)
