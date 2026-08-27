@@ -222,6 +222,53 @@ def _extract_state_dict(obj) -> dict[str, torch.Tensor]:
     return out
 
 
+def _find_upstream_filename(prompt: dict | None, unique_id: str | None, input_slot: str) -> str | None:
+    """Trace upstream in ComfyUI prompt graph to extract the original model filename from the loader node."""
+    if not prompt or not unique_id or str(unique_id) not in prompt:
+        return None
+    curr_node = prompt.get(str(unique_id), {})
+    inputs = curr_node.get("inputs", {})
+    slot_val = inputs.get(input_slot)
+
+    visited = set()
+    while isinstance(slot_val, list) and len(slot_val) >= 2:
+        upstream_id = str(slot_val[0])
+        if upstream_id in visited or upstream_id not in prompt:
+            break
+        visited.add(upstream_id)
+        upstream_node = prompt[upstream_id]
+        up_inputs = upstream_node.get("inputs", {})
+
+        for key in (
+            "control_net_name",
+            "controlnet_name",
+            "clip_name",
+            "clip_name1",
+            "clip_name2",
+            "clip_name3",
+            "unet_name",
+            "model_name",
+            "ckpt_name",
+            "filename",
+            "file_name",
+        ):
+            if key in up_inputs and isinstance(up_inputs[key], str) and up_inputs[key].strip():
+                val = up_inputs[key].strip()
+                return os.path.splitext(os.path.basename(val))[0]
+
+        next_slot = None
+        for candidate_slot in (input_slot, "clip", "control_net", "model"):
+            if candidate_slot in up_inputs and isinstance(up_inputs[candidate_slot], list):
+                next_slot = up_inputs[candidate_slot]
+                break
+        if next_slot is not None:
+            slot_val = next_slot
+        else:
+            break
+
+    return None
+
+
 def _get_original_name(obj, default: str = "model") -> str:
     for attr in ("clip_path", "controlnet_path", "model_path", "ckpt_path"):
         if hasattr(obj, attr):
@@ -275,6 +322,11 @@ class TEControlNetConvRotInt8Quantize:
                 "control_net": ("CONTROL_NET",),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
             },
+            "hidden": {
+                "prompt": "PROMPT",
+                "unique_id": "UNIQUE_ID",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+            },
         }
 
     @classmethod
@@ -294,6 +346,9 @@ class TEControlNetConvRotInt8Quantize:
         clip=None,
         control_net=None,
         output_path: str = "",
+        prompt=None,
+        unique_id=None,
+        extra_pnginfo=None,
     ):
         group_size = int(group_size)
         if not _is_power_of_4(group_size):
@@ -306,10 +361,12 @@ class TEControlNetConvRotInt8Quantize:
         user_output_path = (output_path or "").strip().strip('"').strip("'")
 
         if clip is not None:
-            tasks.append(("CLIP", _extract_state_dict(clip), _get_original_name(clip, "clip")))
+            clip_name = _find_upstream_filename(prompt, unique_id, "clip") or _get_original_name(clip, "clip")
+            tasks.append(("CLIP", _extract_state_dict(clip), clip_name))
 
         if control_net is not None:
-            tasks.append(("ControlNet", _extract_state_dict(control_net), _get_original_name(control_net, "controlnet")))
+            cn_name = _find_upstream_filename(prompt, unique_id, "control_net") or _get_original_name(control_net, "controlnet")
+            tasks.append(("ControlNet", _extract_state_dict(control_net), cn_name))
 
         saved_paths: list[str] = []
         report_lines: list[str] = []
