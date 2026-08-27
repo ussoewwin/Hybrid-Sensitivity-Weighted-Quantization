@@ -14,6 +14,13 @@ Quantization is performed directly in-graph from memory without requiring extern
   <img src="../png/te_controlnet_convrot_int8.png" alt="ComfyUI TE and ControlNet ConvRot INT8 Quantize Workflow" width="600">
 </p>
 
+### Sample Workflow
+
+A ready-to-use ComfyUI workflow JSON is provided in the repository:
+- **[`sample workflow/native convrot int8.json`](../sample%20workflow/native%20convrot%20int8.json)**
+
+You can load this file directly into ComfyUI (or drag-and-drop the workflow image) to load the complete quantization graph.
+
 ### Pipeline Structure
 
 The workflow consists of two independent, parallel quantization branches:
