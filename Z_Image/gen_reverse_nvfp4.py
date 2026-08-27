@@ -85,6 +85,12 @@ def main():
     n_conv = 0
     for L in ranked[:a.k]:
         L_stripped = _strip_prefix(L, prefix)
+
+        # Protect boundary embedding and final projection layers (must stay INT8/FP16)
+        if any(b in L_stripped for b in ("cap_embedder", "x_embedder", "final_layer", "norm_out", "t_embedder", "context_embedder")):
+            print(f"  SKIP (boundary layer): {L_stripped}")
+            continue
+
         wk = prefix + L_stripped + ".weight"
         sk = prefix + L_stripped + ".weight_scale"
         if wk not in sd:
@@ -104,7 +110,14 @@ def main():
         for suffix, t in tensors.items():
             key = base_k + ".weight" + suffix if suffix else base_k + ".weight"
             sd[key] = t.cpu()
-        conf = {"format": "nvfp4", "convrot": True, "convrot_groupsize": 256}
+        conf = {
+            "format": "nvfp4",
+            "convrot": True,
+            "convrot_groupsize": 256,
+            "orig_shape": [int(dq.shape[0]), int(dq.shape[1])],
+            "in_features": int(dq.shape[1]),
+            "out_features": int(dq.shape[0]),
+        }
         sd[base_k + ".comfy_quant"] = torch.frombuffer(
             json.dumps(conf).encode("utf-8"), dtype=torch.uint8
         ).clone()
