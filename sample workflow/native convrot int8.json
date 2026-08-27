@@ -136,12 +136,6 @@
           "input_ue_unconnectable": {},
           "version": "7.8"
         }
-      },
-      "widgets_values": [
-        "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\qwnImageEdit_v16Bf16_native_convrot_int8_1787547575.safetensors\nlayers=840 convrot=840 plain_int8=0\nconvrot=True group_size=256 linear=840 conv2d=0 plain=0 kept=1094\n\n=== BENCHMARK (10 Random Seeds, per-step trajectory) ===\nRun Time: 2026-08-24 14:20:23\nModel Architecture: Qwen Image Edit\nPrompt: masterpiece, best quality, 1girl, solo, standing, simple background\nINT8 Model Load Time: 0.44s\nSeeds: [6541498, 3422647, 393352, 7627484, 2177005, 2143521, 9641943, 3010696, 8086871, 288884]\n\n[1/10 | Seed 6541498] FP16: 131.35s | INT8: 27.49s | MSE: 0.0248 | Cosine: 0.9940 | max-drop: 0.0029 | same-image\n[2/10 | Seed 3422647] FP16: 114.76s | INT8: 20.80s | MSE: 0.0815 | Cosine: 0.9810 | max-drop: 0.0111 | same-image\n[3/10 | Seed 393352] FP16: 97.83s | INT8: 20.95s | MSE: 0.0895 | Cosine: 0.9789 | max-drop: 0.0117 | drifted (different image)\n[4/10 | Seed 7627484] FP16: 79.99s | INT8: 20.70s | MSE: 0.0778 | Cosine: 0.9814 | max-drop: 0.0091 | same-image\n[5/10 | Seed 2177005] FP16: 81.16s | INT8: 20.68s | MSE: 0.0221 | Cosine: 0.9935 | max-drop: 0.0035 | same-image\n[6/10 | Seed 2143521] FP16: 64.91s | INT8: 20.70s | MSE: 0.0258 | Cosine: 0.9929 | max-drop: 0.0037 | same-image\n[7/10 | Seed 9641943] FP16: 61.06s | INT8: 20.58s | MSE: 0.1050 | Cosine: 0.9696 | max-drop: 0.0127 | drifted (different image)\n[8/10 | Seed 3010696] FP16: 55.23s | INT8: 20.62s | MSE: 0.0278 | Cosine: 0.9906 | max-drop: 0.0053 | same-image\n[9/10 | Seed 8086871] FP16: 49.24s | INT8: 20.49s | MSE: 0.0147 | Cosine: 0.9955 | max-drop: 0.0025 | same-image\n[10/10 | Seed 288884] FP16: 52.27s | INT8: 20.49s | MSE: 0.0205 | Cosine: 0.9947 | max-drop: 0.0025 | same-image\n\n--- Summary (10-Seed Average) ---\nAvg FP16 Time: 78.78s\nAvg INT8 Time: 21.35s\nAvg MSE: 0.0490\nAvg Cosine: 0.9872\nCosine: min=0.9696 max=0.9955\nsame-image seeds : 8/10\nbifurcated seeds : 0/10   (sudden trajectory jump = different picture, not degradation)"
-      ],
-      "widgets_values_named": {
-        "text_0": "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\qwnImageEdit_v16Bf16_native_convrot_int8_1787547575.safetensors\nlayers=840 convrot=840 plain_int8=0\nconvrot=True group_size=256 linear=840 conv2d=0 plain=0 kept=1094\n\n=== BENCHMARK (10 Random Seeds, per-step trajectory) ===\nRun Time: 2026-08-24 14:20:23\nModel Architecture: Qwen Image Edit\nPrompt: masterpiece, best quality, 1girl, solo, standing, simple background\nINT8 Model Load Time: 0.44s\nSeeds: [6541498, 3422647, 393352, 7627484, 2177005, 2143521, 9641943, 3010696, 8086871, 288884]\n\n[1/10 | Seed 6541498] FP16: 131.35s | INT8: 27.49s | MSE: 0.0248 | Cosine: 0.9940 | max-drop: 0.0029 | same-image\n[2/10 | Seed 3422647] FP16: 114.76s | INT8: 20.80s | MSE: 0.0815 | Cosine: 0.9810 | max-drop: 0.0111 | same-image\n[3/10 | Seed 393352] FP16: 97.83s | INT8: 20.95s | MSE: 0.0895 | Cosine: 0.9789 | max-drop: 0.0117 | drifted (different image)\n[4/10 | Seed 7627484] FP16: 79.99s | INT8: 20.70s | MSE: 0.0778 | Cosine: 0.9814 | max-drop: 0.0091 | same-image\n[5/10 | Seed 2177005] FP16: 81.16s | INT8: 20.68s | MSE: 0.0221 | Cosine: 0.9935 | max-drop: 0.0035 | same-image\n[6/10 | Seed 2143521] FP16: 64.91s | INT8: 20.70s | MSE: 0.0258 | Cosine: 0.9929 | max-drop: 0.0037 | same-image\n[7/10 | Seed 9641943] FP16: 61.06s | INT8: 20.58s | MSE: 0.1050 | Cosine: 0.9696 | max-drop: 0.0127 | drifted (different image)\n[8/10 | Seed 3010696] FP16: 55.23s | INT8: 20.62s | MSE: 0.0278 | Cosine: 0.9906 | max-drop: 0.0053 | same-image\n[9/10 | Seed 8086871] FP16: 49.24s | INT8: 20.49s | MSE: 0.0147 | Cosine: 0.9955 | max-drop: 0.0025 | same-image\n[10/10 | Seed 288884] FP16: 52.27s | INT8: 20.49s | MSE: 0.0205 | Cosine: 0.9947 | max-drop: 0.0025 | same-image\n\n--- Summary (10-Seed Average) ---\nAvg FP16 Time: 78.78s\nAvg INT8 Time: 21.35s\nAvg MSE: 0.0490\nAvg Cosine: 0.9872\nCosine: min=0.9696 max=0.9955\nsame-image seeds : 8/10\nbifurcated seeds : 0/10   (sudden trajectory jump = different picture, not degradation)"
       }
     },
     {
@@ -451,12 +445,6 @@
           "input_ue_unconnectable": {},
           "version": "7.8"
         }
-      },
-      "widgets_values": [
-        "[CLIP Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\CLIP-SAE-ViT-L-14-FP32_native_convrot_int8_1787799509.safetensors\n  Summary: layers=221 (convrot=221, plain_int8=0) | file_size=412.32 MB\n  Stats: convrot=True group_size=256 convrot_linear=221 plain_int8=0 kept_as_is=369 fallback=0"
-      ],
-      "widgets_values_named": {
-        "text_0": "[CLIP Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\CLIP-SAE-ViT-L-14-FP32_native_convrot_int8_1787799509.safetensors\n  Summary: layers=221 (convrot=221, plain_int8=0) | file_size=412.32 MB\n  Stats: convrot=True group_size=256 convrot_linear=221 plain_int8=0 kept_as_is=369 fallback=0"
       }
     },
     {
@@ -488,17 +476,18 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.33.3",
+        "Node name for S&R": "ControlNetLoader",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "ControlNetLoader"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": [
-        "FLUX.1-dev-ControlNet-Union-Pro-2.0.safetensors"
+        "CN-anytest4_illustrious2_B.safetensors"
       ],
       "widgets_values_named": {
-        "control_net_name": "FLUX.1-dev-ControlNet-Union-Pro-2.0.safetensors"
+        "control_net_name": "CN-anytest4_illustrious2_B.safetensors"
       }
     },
     {
@@ -548,12 +537,12 @@
       "properties": {
         "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
         "ver": "999572dd7fc345efa0eec4806e8e41e8d44f843a",
+        "Node name for S&R": "TEControlNetConvRotInt8Quantize",
         "ue_properties": {
           "widget_ue_connectable": {},
           "input_ue_unconnectable": {},
           "version": "7.8"
-        },
-        "Node name for S&R": "TEControlNetConvRotInt8Quantize"
+        }
       },
       "widgets_values": [
         256,
@@ -600,18 +589,18 @@
       "properties": {
         "cnr_id": "comfyui-custom-scripts",
         "ver": "609f3afaa74b2f88ef9ce8d939626065e3247469",
+        "Node name for S&R": "ShowText|pysssss",
         "ue_properties": {
           "widget_ue_connectable": {},
           "input_ue_unconnectable": {},
           "version": "7.8"
-        },
-        "Node name for S&R": "ShowText|pysssss"
+        }
       },
       "widgets_values": [
-        "[ControlNet Quantization]\n  Saved: D:\\USERFILES\\StableDiffusion\\models\\ControlNet\\controlnet_native_convrot_int8_1787799962.safetensors\n  Summary: layers=75 (convrot=75, plain_int8=0) | file_size=2044.60 MB\n  Stats: convrot=True group_size=256 convrot_linear=75 plain_int8=0 kept_as_is=99 fallback=0"
+        "[ControlNet Quantization]\n  Saved: D:\\USERFILES\\StableDiffusion\\models\\ControlNet\\CN-anytest4_illustrious2_B_convrot_int8.safetensors\n  Summary: layers=362 (convrot=362, plain_int8=0) | file_size=1330.76 MB\n  Stats: convrot=True group_size=256 convrot_linear=362 plain_int8=0 kept_as_is=482 fallback=0"
       ],
       "widgets_values_named": {
-        "text_0": "[ControlNet Quantization]\n  Saved: D:\\USERFILES\\StableDiffusion\\models\\ControlNet\\controlnet_native_convrot_int8_1787799962.safetensors\n  Summary: layers=75 (convrot=75, plain_int8=0) | file_size=2044.60 MB\n  Stats: convrot=True group_size=256 convrot_linear=75 plain_int8=0 kept_as_is=99 fallback=0"
+        "text_0": "[ControlNet Quantization]\n  Saved: D:\\USERFILES\\StableDiffusion\\models\\ControlNet\\CN-anytest4_illustrious2_B_convrot_int8.safetensors\n  Summary: layers=362 (convrot=362, plain_int8=0) | file_size=1330.76 MB\n  Stats: convrot=True group_size=256 convrot_linear=362 plain_int8=0 kept_as_is=482 fallback=0"
       }
     }
   ],
@@ -729,10 +718,10 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.44755807824719435,
+      "scale": 0.5956998021470171,
       "offset": [
-        997.1367980371832,
-        -563.2551397486867
+        566.2936370151639,
+        -973.0780076573587
       ]
     },
     "anomalous_hashes": {
@@ -744,9 +733,9 @@
         "hash": "",
         "size": 507591244
       },
-      "20_FLUX.1-dev-ControlNet-Union-Pro-2.0.safetensors": {
+      "20_CN-anytest4_illustrious2_B.safetensors": {
         "hash": "",
-        "size": 4281779224
+        "size": 2502139968
       }
     },
     "links_added_by_ue": [],
