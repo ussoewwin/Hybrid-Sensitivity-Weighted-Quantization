@@ -279,11 +279,23 @@ def main() -> int:
     print(f"input_scale formula: amax / {denom:.0f}")
 
     sd = load_file(a.hybrid)
+    prefix = ""
+    for p in ("model.diffusion_model.", "diffusion_model.", ""):
+        for k in sd.keys():
+            if k.startswith(p) and k.endswith(".weight"):
+                prefix = p
+                break
+        if prefix:
+            break
+
     written = 0
     for n, v in tracked.items():
-        full = f"model.diffusion_model.{n}" if not n.startswith("model.") else n
+        n_clean = n[len("model.diffusion_model."):] if n.startswith("model.diffusion_model.") else n
+        n_clean = n_clean[len("diffusion_model."):] if n_clean.startswith("diffusion_model.") else n_clean
+        full = f"{prefix}{n_clean}"
         sd[f"{full}.input_scale"] = torch.tensor(
-            max(v["amax"], 1e-12) / denom, dtype=torch.float32)
+            max(v["amax"], 1e-12) / denom, dtype=torch.float32
+        )
         written += 1
     save_file(sd, a.out, metadata={"_quantization_metadata": json.dumps(meta)})
     print(f"input_scale written: {written} layers")
