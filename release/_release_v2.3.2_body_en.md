@@ -4,7 +4,7 @@
 1. **Qwen Image Edit** diffusion transformer models (`Qwen Image/native_convert_int8_convrot_qwen.py` and ComfyUI node `Native ConvRot INT8 Quantize`).
 2. **Text Encoders** (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, etc.) and **ControlNet / ControlNet Union** models (SDXL, Qwen-Image, FLUX.1) directly in ComfyUI workflows via the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`** (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`).
 
-By applying orthogonal Walsh-Hadamard rotations prior to symmetric per-channel INT8 scaling, the pipeline eliminates severe activation outlier spikes in deep linear projections. This achieves a **~50% to 70% reduction in VRAM footprint** with zero structural guidance degradation and 100% conditioning accuracy.
+By applying orthogonal Walsh-Hadamard rotations prior to symmetric per-channel INT8 scaling, the pipeline eliminates severe activation outlier spikes in deep linear projections. This achieves a **~50% reduction in VRAM footprint** with zero structural guidance degradation and 100% conditioning accuracy.
 
 ---
 
@@ -14,8 +14,8 @@ By applying orthogonal Walsh-Hadamard rotations prior to symmetric per-channel I
 - **Direct In-Graph Quantization**: Quantize active Text Encoder (`CLIP`) and ControlNet (`CONTROL_NET`) instances directly from memory without requiring external Python scripts.
 - **Dual-Branch Execution**: Single-node architecture capable of quantizing CLIP and ControlNet independently or concurrently in a single prompt execution.
 - **Massive VRAM Savings**:
-  - Text Encoders (e.g. `Qwen2.5-VL-7B`, `t5xxl_fp16`, `CLIP-SAE-ViT-L-14`): ~50% to 70% VRAM reduction.
-  - ControlNet / ControlNet Union (e.g. `CN-anytest4_illustrious2_B`, `controlnet-union-pro-max-sdxl-1.0`, `Qwen-Image-ControlNet-Inpainting`, `FLUX.1-dev-ControlNet-Union-Pro-2.0`): ~50% to 65% size reduction while preserving fine spatial conditioning fidelity.
+  - Text Encoders (e.g. `Qwen2.5-VL-7B`, `t5xxl_fp16`, `CLIP-SAE-ViT-L-14`): ~50% VRAM reduction.
+  - ControlNet / ControlNet Union (e.g. `CN-anytest4_illustrious2_B`, `controlnet-union-pro-max-sdxl-1.0`, `Qwen-Image-ControlNet-Inpainting`, `FLUX.1-dev-ControlNet-Union-Pro-2.0`): ~50% size reduction while preserving fine spatial conditioning fidelity.
 - **Selective Boundary Precision**: 2D floating-point Linear weights are rotated and quantized to signed 8-bit integers; 1D normalization weights, biases, and token embeddings remain in original unquantized precision (FP16/BF16/FP32).
 
 ### 2. Qwen Image Edit Native ConvRot INT8 Quantization
