@@ -285,9 +285,7 @@ class NativeConvRotInt8Quantize:
                 original_name = os.path.splitext(os.path.basename(unet_path))[0]
 
         output_path = (output_path or "").strip().strip('"').strip("'")
-        import time
-        ts = int(time.time())
-        default_name = f"{original_name}_native_convrot_int8_{ts}.safetensors"
+        default_name = f"{original_name}_convrot_int8.safetensors"
         if not output_path:
             output_path = os.path.join(_output_dir(), default_name)
         output_path = os.path.abspath(output_path)
