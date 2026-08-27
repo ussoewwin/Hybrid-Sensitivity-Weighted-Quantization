@@ -1,0 +1,392 @@
+"""ComfyUI node: quantize loaded Text Encoder (CLIP/TE) and ControlNet models to native ConvRot INT8.
+
+Connects to standard CLIP and/or ControlNet loader outputs.
+Extracts model weights in-memory, quantizes 2D float Linear weights using Hadamard rotation +
+row-wise INT8 quantization with comfy_quant stamps, and saves checkpoints compatible with
+native ComfyUI loaders. Non-2D weights (embeddings, norms, biases) are preserved as-is.
+
+Output layout:
+    <layer>.weight           int8
+    <layer>.weight_scale     float32  [out, 1]
+    <layer>.comfy_quant      uint8 JSON  {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":N}
+    _quantization_metadata   {"format_version":"1.0","layers":{...}}
+"""
+from __future__ import annotations
+
+import json
+import math
+import os
+import time
+import torch
+from safetensors.torch import save_file
+
+
+def _is_power_of_4(n: int) -> bool:
+    return n >= 4 and (n & (n - 1)) == 0 and (n.bit_length() - 1) % 2 == 0
+
+
+def _output_dir() -> str:
+    try:
+        import folder_paths
+
+        return folder_paths.get_output_directory()
+    except Exception:
+        return os.getcwd()
+
+
+def build_hadamard(size: int, dtype: torch.dtype = torch.float32) -> torch.Tensor:
+    """Normalized regular Hadamard matrix (power of 4)."""
+    if not _is_power_of_4(size):
+        raise ValueError(f"Hadamard size must be a power of 4, got {size}")
+    h4 = torch.tensor(
+        [
+            [1, 1, 1, -1],
+            [1, 1, -1, 1],
+            [1, -1, 1, 1],
+            [-1, 1, 1, 1],
+        ],
+        dtype=dtype,
+    )
+    h = h4
+    cur = 4
+    while cur < size:
+        h = torch.kron(h, h4)
+        cur *= 4
+    return h / (size**0.5)
+
+
+def convrot_group_size(n: int, preferred: int = 256) -> int | None:
+    """Largest power-of-4 group size <= preferred that divides n."""
+    gs = preferred
+    while gs >= 4:
+        if n % gs == 0 and _is_power_of_4(gs):
+            return gs
+        gs //= 4
+    return None
+
+
+def rotate_weight(weight: torch.Tensor, h: torch.Tensor, gs: int) -> torch.Tensor:
+    """W_rot = W @ H^T (group-wise along in_features)."""
+    out_f, in_f = weight.shape
+    if in_f % gs != 0:
+        raise ValueError(f"in_features {in_f} not divisible by group size {gs}")
+    g = in_f // gs
+    return torch.matmul(weight.view(out_f, g, gs), h.T.to(weight.dtype)).reshape(weight.shape)
+
+
+def quantize_int8_rowwise(w: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Per-out-channel INT8 with scale [out, 1]."""
+    amax = w.abs().amax(dim=-1, keepdim=True).float().clamp(min=1e-30)
+    scale = amax / 127.0
+    q = (w / scale.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
+    return q, scale.to(torch.float32)
+
+
+def _encode_meta(config: dict) -> torch.Tensor:
+    return torch.tensor(
+        list(json.dumps(config, separators=(",", ":")).encode("utf-8")),
+        dtype=torch.uint8,
+    )
+
+
+def _quantize_state_dict(
+    sd: dict[str, torch.Tensor],
+    enable_convrot: bool = True,
+    group_size: int = 256,
+) -> tuple[dict[str, torch.Tensor], dict[str, dict], dict[str, int]]:
+    new_sd = {}
+    meta_layers = {}
+    convrot_count = 0
+    plain_count = 0
+    skip_count = 0
+    fallback_list: list[str] = []
+
+    h_cache: dict[int, torch.Tensor] = {}
+
+    for key, tensor in sorted(sd.items()):
+        is_2d_weight = (
+            key.endswith(".weight")
+            and tensor.ndim == 2
+            and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+        )
+
+        if not is_2d_weight:
+            new_sd[key] = tensor
+            skip_count += 1
+            continue
+
+        w = tensor.float()
+        out_f, in_f = w.shape
+        module_key = key[: -len(".weight")]
+
+        if enable_convrot:
+            gs = convrot_group_size(in_f, group_size)
+            if gs is not None:
+                if gs not in h_cache:
+                    h_cache[gs] = build_hadamard(gs)
+                w_rot = rotate_weight(w, h_cache[gs], gs)
+                q, scale = quantize_int8_rowwise(w_rot)
+                config = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": gs}
+                new_sd[key] = q
+                new_sd[f"{module_key}.weight_scale"] = scale
+                new_sd[f"{module_key}.comfy_quant"] = _encode_meta(config)
+                meta_layers[module_key] = config
+                convrot_count += 1
+                continue
+            else:
+                fallback_list.append(key)
+
+        # Plain INT8 (no rotation)
+        q, scale = quantize_int8_rowwise(w)
+        config = {"format": "int8_tensorwise"}
+        new_sd[key] = q
+        new_sd[f"{module_key}.weight_scale"] = scale
+        new_sd[f"{module_key}.comfy_quant"] = _encode_meta(config)
+        meta_layers[module_key] = config
+        plain_count += 1
+
+    return new_sd, meta_layers, {
+        "convrot": convrot_count,
+        "plain": plain_count,
+        "kept": skip_count,
+        "fallback": len(fallback_list),
+    }
+
+
+def _extract_clip_state_dict(clip) -> dict[str, torch.Tensor]:
+    if clip is None:
+        return {}
+    sd = None
+    if hasattr(clip, "load_model"):
+        try:
+            clip.load_model()
+        except Exception:
+            pass
+    if hasattr(clip, "state_dict_for_saving"):
+        try:
+            sd = clip.state_dict_for_saving()
+        except Exception:
+            pass
+    if sd is None and hasattr(clip, "get_sd"):
+        try:
+            sd = clip.get_sd()
+        except Exception:
+            pass
+    if sd is None and hasattr(clip, "patcher") and hasattr(clip.patcher, "model_state_dict_for_saving"):
+        try:
+            sd = clip.patcher.model_state_dict_for_saving()
+        except Exception:
+            pass
+    if sd is None and hasattr(clip, "patcher") and hasattr(clip.patcher, "model") and hasattr(clip.patcher.model, "state_dict"):
+        try:
+            sd = clip.patcher.model.state_dict()
+        except Exception:
+            pass
+    if sd is None and hasattr(clip, "cond_stage_model") and hasattr(clip.cond_stage_model, "state_dict"):
+        try:
+            sd = clip.cond_stage_model.state_dict()
+        except Exception:
+            pass
+    if sd is None and isinstance(clip, dict):
+        sd = clip
+    if sd is None and hasattr(clip, "state_dict"):
+        try:
+            sd = clip.state_dict()
+        except Exception:
+            pass
+
+    if sd is None:
+        raise ValueError("Could not extract state_dict from the provided CLIP / Text Encoder input.")
+
+    out = {}
+    for k, v in sd.items():
+        if isinstance(v, torch.Tensor):
+            out[k] = v.detach().cpu()
+    return out
+
+
+def _extract_controlnet_state_dict(control_net) -> dict[str, torch.Tensor]:
+    if control_net is None:
+        return {}
+    sd = None
+    if hasattr(control_net, "control_model") and control_net.control_model is not None:
+        if hasattr(control_net.control_model, "state_dict"):
+            sd = control_net.control_model.state_dict()
+    if sd is None and hasattr(control_net, "control_model_wrapped") and control_net.control_model_wrapped is not None:
+        if hasattr(control_net.control_model_wrapped, "model_state_dict_for_saving"):
+            try:
+                sd = control_net.control_model_wrapped.model_state_dict_for_saving()
+            except Exception:
+                pass
+        if sd is None and hasattr(control_net.control_model_wrapped, "model") and hasattr(control_net.control_model_wrapped.model, "state_dict"):
+            sd = control_net.control_model_wrapped.model.state_dict()
+    if sd is None and hasattr(control_net, "control_weights") and control_net.control_weights is not None:
+        sd = control_net.control_weights
+    if sd is None and hasattr(control_net, "t2i_model") and control_net.t2i_model is not None:
+        if hasattr(control_net.t2i_model, "state_dict"):
+            sd = control_net.t2i_model.state_dict()
+    if sd is None and isinstance(control_net, dict):
+        sd = control_net
+    if sd is None and hasattr(control_net, "state_dict"):
+        try:
+            sd = control_net.state_dict()
+        except Exception:
+            pass
+
+    if sd is None:
+        raise ValueError("Could not extract state_dict from the provided CONTROL_NET input.")
+
+    out = {}
+    for k, v in sd.items():
+        if isinstance(v, torch.Tensor):
+            out[k] = v.detach().cpu()
+    return out
+
+
+def _get_clip_original_name(clip) -> str:
+    if hasattr(clip, "patcher") and hasattr(clip.patcher, "cached_patcher_init") and clip.patcher.cached_patcher_init:
+        func, args = clip.patcher.cached_patcher_init[:2]
+        if args and isinstance(args, tuple) and len(args) > 0:
+            p = args[0]
+            if isinstance(p, list) and len(p) > 0 and isinstance(p[0], str):
+                return os.path.splitext(os.path.basename(p[0]))[0]
+            elif isinstance(p, str):
+                return os.path.splitext(os.path.basename(p))[0]
+    return "clip"
+
+
+def _get_controlnet_original_name(control_net) -> str:
+    if hasattr(control_net, "cached_patcher_init") and control_net.cached_patcher_init:
+        func, args = control_net.cached_patcher_init[:2]
+        if args and isinstance(args, tuple) and len(args) > 0 and isinstance(args[0], str):
+            return os.path.splitext(os.path.basename(args[0]))[0]
+    return "controlnet"
+
+
+def _summarize(output_path: str) -> str:
+    """Read the written checkpoint's metadata only (no tensor load)."""
+    try:
+        from safetensors import safe_open
+
+        with safe_open(output_path, framework="pt", device="cpu") as f:
+            meta = f.metadata() or {}
+        qm = json.loads(meta.get("_quantization_metadata", "{}"))
+        layers = qm.get("layers", {}) if isinstance(qm, dict) else {}
+        convrot = sum(
+            1 for c in layers.values() if isinstance(c, dict) and c.get("convrot")
+        )
+        plain = len(layers) - convrot
+        size_mb = os.path.getsize(output_path) / (1024 * 1024)
+        return f"layers={len(layers)} (convrot={convrot}, plain_int8={plain}) | file_size={size_mb:.2f} MB"
+    except Exception:
+        return "(summary unavailable)"
+
+
+class TEControlNetConvRotInt8Quantize:
+    """Quantize loaded Text Encoder (CLIP/TE) or ControlNet models to native ConvRot INT8."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "group_size": ("INT", {"default": 256, "min": 4, "max": 1024, "step": 4}),
+                "convrot": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
+                "clip": ("CLIP",),
+                "control_net": ("CONTROL_NET",),
+                "output_path": ("STRING", {"default": "", "multiline": False}),
+            },
+        }
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float(time.time())
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("output_path", "report")
+    FUNCTION = "quantize"
+    CATEGORY = "HSWQ/Quantize"
+    OUTPUT_NODE = True
+
+    def quantize(
+        self,
+        group_size: int,
+        convrot: bool,
+        clip=None,
+        control_net=None,
+        output_path: str = "",
+    ):
+        group_size = int(group_size)
+        if not _is_power_of_4(group_size):
+            raise ValueError(f"group_size must be a power of 4 (>=4), got {group_size}")
+
+        if clip is None and control_net is None:
+            raise ValueError("Please connect at least one input: clip (Text Encoder) or control_net.")
+
+        tasks: list[tuple[str, dict[str, torch.Tensor], str]] = []
+        user_output_path = (output_path or "").strip()
+
+        if clip is not None:
+            clip_sd = _extract_clip_state_dict(clip)
+            orig_name = _get_clip_original_name(clip)
+            tasks.append(("CLIP", clip_sd, orig_name))
+
+        if control_net is not None:
+            cn_sd = _extract_controlnet_state_dict(control_net)
+            orig_name = _get_controlnet_original_name(control_net)
+            tasks.append(("ControlNet", cn_sd, orig_name))
+
+        saved_paths: list[str] = []
+        report_lines: list[str] = []
+        ts = int(time.time())
+
+        for idx, (mtype, sd, orig_name) in enumerate(tasks):
+            if user_output_path:
+                target_path = os.path.abspath(user_output_path)
+                if os.path.isdir(target_path):
+                    default_name = f"{orig_name}_native_convrot_int8_{ts}.safetensors"
+                    target_path = os.path.join(target_path, default_name)
+                elif len(tasks) > 1 and idx > 0:
+                    base, ext = os.path.splitext(target_path)
+                    target_path = f"{base}_{mtype.lower()}{ext}"
+            else:
+                default_name = f"{orig_name}_native_convrot_int8_{ts}.safetensors"
+                target_path = os.path.join(_output_dir(), default_name)
+
+            out_dir = os.path.dirname(target_path)
+            if out_dir:
+                os.makedirs(out_dir, exist_ok=True)
+
+            new_sd, meta_layers, stats = _quantize_state_dict(
+                sd,
+                enable_convrot=bool(convrot),
+                group_size=group_size,
+            )
+
+            metadata = {
+                "_quantization_metadata": json.dumps(
+                    {"format_version": "1.0", "layers": meta_layers},
+                    separators=(",", ":"),
+                )
+            }
+            save_file(new_sd, target_path, metadata=metadata)
+            saved_paths.append(target_path)
+
+            report_lines.append(f"[{mtype} Quantization]")
+            report_lines.append(f"  Saved: {target_path}")
+            report_lines.append(f"  Summary: {_summarize(target_path)}")
+            report_lines.append(
+                f"  Stats: convrot={bool(convrot)} group_size={group_size} "
+                f"convrot_linear={stats['convrot']} plain_int8={stats['plain']} "
+                f"kept_as_is={stats['kept']} fallback={stats['fallback']}"
+            )
+            report_lines.append("")
+
+        final_output_path = saved_paths[0] if len(saved_paths) == 1 else ";".join(saved_paths)
+        return (final_output_path, "\n".join(report_lines).strip())
+
+
+# Backward / search convenience aliases
+CLIPConvRotInt8Quantize = TEControlNetConvRotInt8Quantize
+ControlNetConvRotInt8Quantize = TEControlNetConvRotInt8Quantize

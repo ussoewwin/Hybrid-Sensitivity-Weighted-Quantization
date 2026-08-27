@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>zimageTurboByStable_2602BF16 — NVFP4 nv100 検証報告書</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --sub:#8a8a8a; --line:#e6e4df; --accent:#b08968;
+    --bg:#faf9f7; --ok:#3d6b4f;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Yu Gothic UI","Segoe UI",sans-serif;line-height:1.75;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:880px;margin:0 auto;padding:96px 24px 120px;}
+  .kicker{font-size:12px;letter-spacing:.22em;color:var(--sub);text-transform:uppercase;margin-bottom:16px;}
+  h1{font-size:30px;font-weight:600;letter-spacing:.01em;margin-bottom:8px;}
+  .sub{color:var(--sub);font-size:14px;margin-bottom:64px;}
+  h2{font-size:16px;font-weight:600;letter-spacing:.08em;margin:72px 0 20px;padding-bottom:10px;border-bottom:1px solid var(--line);}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-weight:500;color:var(--sub);font-size:11.5px;letter-spacing:.08em;padding:8px 10px;border-bottom:1px solid var(--ink);}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;}
+  tr:hover td{background:#f3f0ea;}
+  .big{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0;}
+  .card{flex:1;min-width:180px;border:1px solid var(--line);background:#fff;padding:22px 24px;}
+  .card .n{font-size:26px;font-weight:600;letter-spacing:.01em;}
+  .card .l{font-size:11px;letter-spacing:.14em;color:var(--sub);margin-top:6px;}
+  .pass{color:var(--ok);}
+  .tag{display:inline-block;font-size:11px;letter-spacing:.1em;padding:2px 10px;border:1px solid var(--ink);border-radius:999px;margin:4px 4px 0 0;}
+  .note{color:var(--sub);font-size:13px;margin-top:8px;}
+  .verdict{font-size:15px;color:var(--accent);font-weight:600;margin-top:8px;}
+  @media(max-width:560px){ .wrap{padding:56px 16px 80px;} h1{font-size:24px;} .card{min-width:140px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Quantization Validation Report</div>
+  <h1>zimageTurboByStable_2602BF16<br>NVFP4 nv100 検証報告書</h1>
+  <div class="sub">2026-08-26 · Asia/Tokyo · 旧版 impact (e4m3) · TC (W4A4 scaled_mm) · 20 seeds × 12 steps</div>
+
+  <h2>判定サマリ</h2>
+  <div class="big">
+    <div class="card"><div class="n pass">0.96433</div><div class="l">final-cosine mean (基準 ≥0.95)</div></div>
+    <div class="card"><div class="n">0.89415</div><div class="l">min</div></div>
+    <div class="card"><div class="n">0.98868</div><div class="l">max</div></div>
+    <div class="card"><div class="n">7 / 20</div><div class="l">same-image</div></div>
+    <div class="card"><div class="n pass">0 / 20</div><div class="l">bifurcated</div></div>
+  </div>
+  <div class="verdict">判定: 合格 — mean ≥ 0.95 かつ bifurcated 0/20</div>
+  <div class="note">GEMM MODE: TC — scaled_mm hits=48000, dequant_fallbacks=0</div>
+
+  <h2>20シード詳細</h2>
+  <table id="tbl"></table>
+
+  <h2>K 比較 (同一モデル・旧版 impact)</h2>
+  <table>
+    <tr><th>構成</th><th>mean</th><th>min</th><th>max</th><th>same</th><th>bifurcated</th></tr>
+    <tr><td>nv90</td><td>0.96578</td><td>0.87438</td><td>0.98749</td><td>5/20</td><td>0/20</td></tr>
+    <tr><td><strong>nv100</strong></td><td><strong>0.96433</strong></td><td><strong>0.89415</strong></td><td><strong>0.98868</strong></td><td><strong>7/20</strong></td><td><strong>0/20</strong></td></tr>
+  </table>
+
+  <h2>結論・推奨</h2>
+  <p>nv100 は基準を満たし<b>採用候補</b>。層数を 100 まで増やしても軌道崩壊なし。nv90 と比較して mean は僅かに低下するが、min の上昇と same-image の増加により分布は改善している。</p>
+  <p class="note" style="margin-top:16px">生成物: zimageTurboByStable_2602BF16_hswq_hybrid_nv100_oldimp_convrot_nvfp4.safetensors (4.54GB) + _calib.safetensors (4.54GB)<br>
+  ログ: log\genrev_zimageTurbo_nv100_oldimp.log / log\calib_zimageTurbo_nv100_oldimp.log / log\traj_zimageTurbo_nv100_oldimp_tc_20seed.log</p>
+</div>
+<script>
+const rows = [
+["42",0.96370,"7.745e-01",0.0071,"drifted"],
+["137",0.98270,"3.487e-01",0.0033,"same-image"],
+["5517",0.94933,"1.037e+00",0.0102,"drifted"],
+["92048",0.96256,"7.856e-01",0.0075,"drifted"],
+["371506",0.98030,"6.936e-01",0.0031,"same-image"],
+["5293047",0.93574,"1.282e+00",0.0130,"drifted"],
+["64820153",0.98437,"3.648e-01",0.0030,"same-image"],
+["731509284",0.98253,"3.383e-01",0.0033,"same-image"],
+["8426170395",0.97336,"5.188e-01",0.0053,"drifted"],
+["9517038246",0.98868,"3.106e-01",0.0020,"same-image"],
+["210987",0.98419,"3.575e-01",0.0029,"same-image"],
+["6543210",0.98085,"4.837e-01",0.0036,"same-image"],
+["98765432",0.93685,"1.156e+00",0.0129,"drifted"],
+["1357924680",0.96931,"7.286e-01",0.0058,"drifted"],
+["2468135791",0.95986,"7.483e-01",0.0079,"drifted"],
+["3579246812",0.96793,"6.867e-01",0.0063,"drifted"],
+["4680357923",0.96709,"9.220e-01",0.0059,"drifted"],
+["5791468034",0.97653,"5.257e-01",0.0046,"drifted"],
+["6802579145",0.94655,"1.354e+00",0.0098,"drifted"],
+["7913680256",0.89415,"2.382e+00",0.0210,"drifted"]
+];
+const h = "<tr><th>seed</th><th>final-cos</th><th>final-mse</th><th>max-drop</th><th>verdict</th></tr>" + rows.map(r=>"<tr><td>"+r[0]+"</td><td>"+r[1]+"</td><td>"+r[2]+"</td><td>"+r[3]+"</td><td>"+r[4]+"</td></tr>").join("");
+document.getElementById("tbl").innerHTML = h;
+</script>
+</body>
+</html>
