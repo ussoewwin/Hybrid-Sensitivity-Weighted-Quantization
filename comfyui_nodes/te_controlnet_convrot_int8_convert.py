@@ -153,88 +153,65 @@ def _quantize_state_dict(
     }
 
 
-def _extract_clip_state_dict(clip) -> dict[str, torch.Tensor]:
-    if clip is None:
+def _extract_state_dict(obj) -> dict[str, torch.Tensor]:
+    """Unified state dict extractor for CLIP (Text Encoder) and ControlNet."""
+    if obj is None:
         return {}
     sd = None
-    if hasattr(clip, "load_model"):
+    if hasattr(obj, "load_model"):
         try:
-            clip.load_model()
+            obj.load_model()
         except Exception:
             pass
-    if hasattr(clip, "state_dict_for_saving"):
+    if hasattr(obj, "state_dict_for_saving"):
         try:
-            sd = clip.state_dict_for_saving()
+            sd = obj.state_dict_for_saving()
         except Exception:
             pass
-    if sd is None and hasattr(clip, "get_sd"):
+    if sd is None and hasattr(obj, "get_sd"):
         try:
-            sd = clip.get_sd()
+            sd = obj.get_sd()
         except Exception:
             pass
-    if sd is None and hasattr(clip, "patcher") and hasattr(clip.patcher, "model_state_dict_for_saving"):
-        try:
-            sd = clip.patcher.model_state_dict_for_saving()
-        except Exception:
-            pass
-    if sd is None and hasattr(clip, "patcher") and hasattr(clip.patcher, "model") and hasattr(clip.patcher.model, "state_dict"):
-        try:
-            sd = clip.patcher.model.state_dict()
-        except Exception:
-            pass
-    if sd is None and hasattr(clip, "cond_stage_model") and hasattr(clip.cond_stage_model, "state_dict"):
-        try:
-            sd = clip.cond_stage_model.state_dict()
-        except Exception:
-            pass
-    if sd is None and isinstance(clip, dict):
-        sd = clip
-    if sd is None and hasattr(clip, "state_dict"):
-        try:
-            sd = clip.state_dict()
-        except Exception:
-            pass
-
-    if sd is None:
-        raise ValueError("Could not extract state_dict from the provided CLIP / Text Encoder input.")
-
-    out = {}
-    for k, v in sd.items():
-        if isinstance(v, torch.Tensor):
-            out[k] = v.detach().cpu()
-    return out
-
-
-def _extract_controlnet_state_dict(control_net) -> dict[str, torch.Tensor]:
-    if control_net is None:
-        return {}
-    sd = None
-    if hasattr(control_net, "control_model") and control_net.control_model is not None:
-        if hasattr(control_net.control_model, "state_dict"):
-            sd = control_net.control_model.state_dict()
-    if sd is None and hasattr(control_net, "control_model_wrapped") and control_net.control_model_wrapped is not None:
-        if hasattr(control_net.control_model_wrapped, "model_state_dict_for_saving"):
+    if sd is None and hasattr(obj, "control_model") and obj.control_model is not None:
+        if hasattr(obj.control_model, "state_dict"):
+            sd = obj.control_model.state_dict()
+    if sd is None and hasattr(obj, "control_model_wrapped") and obj.control_model_wrapped is not None:
+        if hasattr(obj.control_model_wrapped, "model_state_dict_for_saving"):
             try:
-                sd = control_net.control_model_wrapped.model_state_dict_for_saving()
+                sd = obj.control_model_wrapped.model_state_dict_for_saving()
             except Exception:
                 pass
-        if sd is None and hasattr(control_net.control_model_wrapped, "model") and hasattr(control_net.control_model_wrapped.model, "state_dict"):
-            sd = control_net.control_model_wrapped.model.state_dict()
-    if sd is None and hasattr(control_net, "control_weights") and control_net.control_weights is not None:
-        sd = control_net.control_weights
-    if sd is None and hasattr(control_net, "t2i_model") and control_net.t2i_model is not None:
-        if hasattr(control_net.t2i_model, "state_dict"):
-            sd = control_net.t2i_model.state_dict()
-    if sd is None and isinstance(control_net, dict):
-        sd = control_net
-    if sd is None and hasattr(control_net, "state_dict"):
+        if sd is None and hasattr(obj.control_model_wrapped, "model") and hasattr(obj.control_model_wrapped.model, "state_dict"):
+            sd = obj.control_model_wrapped.model.state_dict()
+    if sd is None and hasattr(obj, "patcher"):
+        if hasattr(obj.patcher, "model_state_dict_for_saving"):
+            try:
+                sd = obj.patcher.model_state_dict_for_saving()
+            except Exception:
+                pass
+        if sd is None and hasattr(obj.patcher, "model") and hasattr(obj.patcher.model, "state_dict"):
+            sd = obj.patcher.model.state_dict()
+    if sd is None and hasattr(obj, "control_weights") and obj.control_weights is not None:
+        sd = obj.control_weights
+    if sd is None and hasattr(obj, "t2i_model") and obj.t2i_model is not None:
+        if hasattr(obj.t2i_model, "state_dict"):
+            sd = obj.t2i_model.state_dict()
+    if sd is None and hasattr(obj, "cond_stage_model") and hasattr(obj.cond_stage_model, "state_dict"):
         try:
-            sd = control_net.state_dict()
+            sd = obj.cond_stage_model.state_dict()
+        except Exception:
+            pass
+    if sd is None and isinstance(obj, dict):
+        sd = obj
+    if sd is None and hasattr(obj, "state_dict"):
+        try:
+            sd = obj.state_dict()
         except Exception:
             pass
 
     if sd is None:
-        raise ValueError("Could not extract state_dict from the provided CONTROL_NET input.")
+        raise ValueError(f"Could not extract state_dict from input {type(obj)}.")
 
     out = {}
     for k, v in sd.items():
@@ -243,24 +220,17 @@ def _extract_controlnet_state_dict(control_net) -> dict[str, torch.Tensor]:
     return out
 
 
-def _get_clip_original_name(clip) -> str:
-    if hasattr(clip, "patcher") and hasattr(clip.patcher, "cached_patcher_init") and clip.patcher.cached_patcher_init:
-        func, args = clip.patcher.cached_patcher_init[:2]
+def _get_original_name(obj, default: str = "model") -> str:
+    patcher = getattr(obj, "patcher", obj)
+    if hasattr(patcher, "cached_patcher_init") and patcher.cached_patcher_init:
+        func, args = patcher.cached_patcher_init[:2]
         if args and isinstance(args, tuple) and len(args) > 0:
             p = args[0]
             if isinstance(p, list) and len(p) > 0 and isinstance(p[0], str):
                 return os.path.splitext(os.path.basename(p[0]))[0]
             elif isinstance(p, str):
                 return os.path.splitext(os.path.basename(p))[0]
-    return "clip"
-
-
-def _get_controlnet_original_name(control_net) -> str:
-    if hasattr(control_net, "cached_patcher_init") and control_net.cached_patcher_init:
-        func, args = control_net.cached_patcher_init[:2]
-        if args and isinstance(args, tuple) and len(args) > 0 and isinstance(args[0], str):
-            return os.path.splitext(os.path.basename(args[0]))[0]
-    return "controlnet"
+    return default
 
 
 def _summarize(output_path: str) -> str:
@@ -328,14 +298,10 @@ class TEControlNetConvRotInt8Quantize:
         user_output_path = (output_path or "").strip()
 
         if clip is not None:
-            clip_sd = _extract_clip_state_dict(clip)
-            orig_name = _get_clip_original_name(clip)
-            tasks.append(("CLIP", clip_sd, orig_name))
+            tasks.append(("CLIP", _extract_state_dict(clip), _get_original_name(clip, "clip")))
 
         if control_net is not None:
-            cn_sd = _extract_controlnet_state_dict(control_net)
-            orig_name = _get_controlnet_original_name(control_net)
-            tasks.append(("ControlNet", cn_sd, orig_name))
+            tasks.append(("ControlNet", _extract_state_dict(control_net), _get_original_name(control_net, "controlnet")))
 
         saved_paths: list[str] = []
         report_lines: list[str] = []
@@ -385,8 +351,3 @@ class TEControlNetConvRotInt8Quantize:
 
         final_output_path = saved_paths[0] if len(saved_paths) == 1 else ";".join(saved_paths)
         return (final_output_path, "\n".join(report_lines).strip())
-
-
-# Backward / search convenience aliases
-CLIPConvRotInt8Quantize = TEControlNetConvRotInt8Quantize
-ControlNetConvRotInt8Quantize = TEControlNetConvRotInt8Quantize
