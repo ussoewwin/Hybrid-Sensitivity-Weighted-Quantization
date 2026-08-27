@@ -21,11 +21,12 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 ## Install other libraries
 
 ```bash
-pip install diffusers safetensors transformers accelerate tqdm sentencepiece protobuf einops scikit-image
 pip install -r requirements.txt
+pip install -U comfy_kitchen
+pip install diffusers accelerate scikit-image
 ```
 
-`scikit-image` is required for SSIM in `benchmark/int8bench_sdxl.py` (post-quantize bench and standalone re-runs).
+`scikit-image` is required for SSIM in `benchmark/int8bench_sdxl.py` (post-quantize bench and standalone re-runs). `comfy_kitchen` provides the quantization kernels and NVFP4/INT8 layout operations.
 
 ## Quantize an SDXL model (HSWQ)
 
