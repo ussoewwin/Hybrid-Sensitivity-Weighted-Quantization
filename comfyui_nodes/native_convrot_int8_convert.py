@@ -284,8 +284,10 @@ class NativeConvRotInt8Quantize:
                 unet_path = args[0]
                 original_name = os.path.splitext(os.path.basename(unet_path))[0]
 
-        output_path = (output_path or "").strip().strip('"').strip("'")
-        default_name = f"{original_name}_convrot_int8.safetensors"
+        output_path = (output_path or "").strip()
+        import time
+        ts = int(time.time())
+        default_name = f"{original_name}_native_convrot_int8_{ts}.safetensors"
         if not output_path:
             output_path = os.path.join(_output_dir(), default_name)
         output_path = os.path.abspath(output_path)
@@ -487,4 +489,3 @@ class NativeConvRotInt8Quantize:
 
 # Backward compatibility alias
 ZImageConvRotInt8Quantize = NativeConvRotInt8Quantize
-
