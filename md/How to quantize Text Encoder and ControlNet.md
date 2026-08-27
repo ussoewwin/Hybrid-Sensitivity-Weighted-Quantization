@@ -30,24 +30,41 @@ The workflow consists of two independent, parallel quantization branches:
 
 ---
 
-## Installation & Setup
-
-### 1. Clone the Custom Node Repository
-
-Clone this repository into your ComfyUI `custom_nodes/` directory:
+## Clone the repository
 
 ```bash
-cd ComfyUI/custom_nodes
 git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
+cd Hybrid-Sensitivity-Weighted-Quantization
 ```
 
-### 2. Install Dependencies
+## Install PyTorch (CUDA)
 
-Ensure PyTorch and required quantization dependencies are installed in your ComfyUI environment:
+First, install PyTorch (CUDA).  
+In a Windows environment on a local PC, it is advisable to set up a venv virtual environment.
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+```
+
+## Install other libraries
 
 ```bash
 pip install -r requirements.txt
 pip install -U comfy_kitchen
+pip install diffusers accelerate scikit-image
+```
+
+`scikit-image` is required for SSIM and benchmark comparisons. `comfy_kitchen` provides the quantization kernels and layout operations.
+
+---
+
+## ComfyUI Custom Node Setup
+
+Copy or link the repository into `ComfyUI/custom_nodes/`:
+
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
 ```
 
 ---
