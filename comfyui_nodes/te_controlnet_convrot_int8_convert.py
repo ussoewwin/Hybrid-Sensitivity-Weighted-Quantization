@@ -158,12 +158,14 @@ def _extract_state_dict(obj) -> dict[str, torch.Tensor]:
     if obj is None:
         return {}
     sd = None
-    if hasattr(obj, "load_model"):
+    if hasattr(obj, "sd") and isinstance(obj.sd, dict):
+        sd = obj.sd
+    if sd is None and hasattr(obj, "load_model"):
         try:
             obj.load_model()
         except Exception:
             pass
-    if hasattr(obj, "state_dict_for_saving"):
+    if sd is None and hasattr(obj, "state_dict_for_saving"):
         try:
             sd = obj.state_dict_for_saving()
         except Exception:
@@ -221,6 +223,8 @@ def _extract_state_dict(obj) -> dict[str, torch.Tensor]:
 
 
 def _get_original_name(obj, default: str = "model") -> str:
+    if hasattr(obj, "clip_path") and obj.clip_path and isinstance(obj.clip_path, str):
+        return os.path.splitext(os.path.basename(obj.clip_path))[0]
     patcher = getattr(obj, "patcher", obj)
     if hasattr(patcher, "cached_patcher_init") and patcher.cached_patcher_init:
         func, args = patcher.cached_patcher_init[:2]
@@ -295,7 +299,7 @@ class TEControlNetConvRotInt8Quantize:
             raise ValueError("Please connect at least one input: clip (Text Encoder) or control_net.")
 
         tasks: list[tuple[str, dict[str, torch.Tensor], str]] = []
-        user_output_path = (output_path or "").strip()
+        user_output_path = (output_path or "").strip().strip('"').strip("'")
 
         if clip is not None:
             tasks.append(("CLIP", _extract_state_dict(clip), _get_original_name(clip, "clip")))
