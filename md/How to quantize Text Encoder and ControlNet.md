@@ -2,7 +2,7 @@
 
 Quantize loaded **Text Encoders (CLIP, T5, Qwen2.5-VL, etc.)** and **ControlNet / ControlNet Union models** directly in ComfyUI using the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`** (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`).
 
-By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline eliminates activation outlier spikes in deep Linear layers, reducing VRAM footprint by ~50% to 70% while preserving 100% conditioning accuracy and structural guidance fidelity.
+By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline eliminates activation outlier spikes in deep Linear layers, reducing VRAM footprint by ~50% while preserving 100% conditioning accuracy and structural guidance fidelity.
 
 ---
 
