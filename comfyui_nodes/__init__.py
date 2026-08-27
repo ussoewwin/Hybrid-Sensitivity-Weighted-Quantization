@@ -5,7 +5,12 @@ Provides native ConvRot INT8 quantization nodes supporting multiple architecture
 """
 from .native_convrot_int8_convert import NativeConvRotInt8Quantize, ZImageConvRotInt8Quantize
 from .te_controlnet_convrot_int8_convert import TEControlNetConvRotInt8Quantize
-from .simple_clip_loader import HSWQSimpleCLIPLoader, SimpleCLIPLoader
+from .simple_clip_loader import (
+    HSWQSimpleCLIPLoader,
+    SimpleCLIPLoader,
+    HSWQSimpleControlNetLoader,
+    SimpleControlNetLoader,
+)
 
 NODE_CLASS_MAPPINGS = {
     "NativeConvRotInt8Quantize": NativeConvRotInt8Quantize,
@@ -13,6 +18,8 @@ NODE_CLASS_MAPPINGS = {
     "TEControlNetConvRotInt8Quantize": TEControlNetConvRotInt8Quantize,
     "HSWQSimpleCLIPLoader": HSWQSimpleCLIPLoader,
     "SimpleCLIPLoader": SimpleCLIPLoader,
+    "HSWQSimpleControlNetLoader": HSWQSimpleControlNetLoader,
+    "SimpleControlNetLoader": SimpleControlNetLoader,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -21,6 +28,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "TEControlNetConvRotInt8Quantize": "TE / ControlNet ConvRot INT8 Quantize",
     "HSWQSimpleCLIPLoader": "HSWQ Load CLIP (Simple)",
     "SimpleCLIPLoader": "HSWQ Load CLIP (Simple)",
+    "HSWQSimpleControlNetLoader": "HSWQ Load ControlNet (Simple)",
+    "SimpleControlNetLoader": "HSWQ Load ControlNet (Simple)",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
