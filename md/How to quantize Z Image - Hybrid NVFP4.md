@@ -69,10 +69,19 @@ Anything that runs this flow needs, regardless of environment:
 | CUDA GPU, **≥ 12 GB VRAM** | run **one process at a time**; concurrent runs exhaust VRAM |
 | Python with **PyTorch (CUDA)** | the exact install command depends on your CUDA version |
 | This repository | clone it; it bundles the ComfyUI checkout in `ComfyUI-master/` (read-only — never modify it) |
-| Runtime packages | `pip install -r requirements.txt` (ComfyUI runtime) and `pip install -U comfy-kitchen` (NVFP4 layout). If your Python lacks them, also install `safetensors`, `scikit-image`, `tqdm`, `transformers`, `psutil` (used by individual steps) |
+| Runtime packages | `pip install -r requirements.txt` (ComfyUI runtime) and `pip install -U comfy_kitchen` (NVFP4 layout). If your Python lacks them, also install `scikit-image` (SSIM benchmark) |
 | Base UNet | the original fp16/bf16 Z Image `.safetensors` (`<base>`) |
 | Text encoder | a Qwen3-4B text encoder `.safetensors` (`<clip>`), needed from Step 2 onward |
 | Disk | keep **≥ 40 GB free** (base 12.3 + INT8 5.7 + hybrid 4.8 + calib 4.8 + native 4.5 GB during a run) |
+
+### Environment Setup
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+pip install -r requirements.txt
+pip install -U comfy_kitchen
+pip install scikit-image
+```
 
 A **VAE is not needed**: the validation works in latent space (no decoded-SSIM step).
 On Windows, set `PYTHONIOENCODING=utf-8` in the shell to avoid cp932 decode errors; never set
