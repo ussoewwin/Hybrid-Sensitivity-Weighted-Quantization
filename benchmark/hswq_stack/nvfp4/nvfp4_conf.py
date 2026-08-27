@@ -165,6 +165,10 @@ def fix_unet_config_packed_dims(unet_config: dict, state_dict: dict, key_prefix:
         if attn_k is not None:
             unet_config["context_dim"] = logical_linear_in_features(state_dict, attn_k)
 
+    cap_emb = f"{key_prefix}cap_embedder.1.weight"
+    if cap_emb in state_dict and unet_config.get("cap_feat_dim") is not None:
+        unet_config["cap_feat_dim"] = logical_linear_in_features(state_dict, cap_emb)
+
     return unet_config
 
 
