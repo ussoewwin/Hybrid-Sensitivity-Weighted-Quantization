@@ -24,6 +24,20 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 
 ---
 
+## Installation & Setup
+
+```bash
+# 1. Install PyTorch (CUDA)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+
+# 2. Install dependencies & quantization backend
+pip install -r requirements.txt
+pip install -U comfy_kitchen
+pip install diffusers accelerate scikit-image
+```
+
+---
+
 ## How to quantize
 
 > **ComfyUI Node Integration:** Progressive support for direct in-graph quantization inside ComfyUI via custom nodes (`comfyui_nodes/`) is currently underway. Support is already available for **native ConvRot INT8** (`Native ConvRot INT8 Quantize`), and additional model architectures / quantization formats will be rolled out sequentially.

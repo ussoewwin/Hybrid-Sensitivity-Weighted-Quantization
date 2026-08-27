@@ -23,8 +23,12 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 ## Install other libraries
 
 ```bash
-pip install safetensors tqdm scikit-image
+pip install -r requirements.txt
+pip install -U comfy_kitchen
+pip install scikit-image
 ```
+
+`scikit-image` is required for SSIM and benchmark comparisons. `comfy_kitchen` provides the quantization kernels and layout operations.
 
 ## Quantize a Qwen Image Edit model (CLI)
 
