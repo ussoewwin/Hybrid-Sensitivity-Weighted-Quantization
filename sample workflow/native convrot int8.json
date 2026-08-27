@@ -1,23 +1,25 @@
 {
   "id": "06293941-8863-4438-832e-69381d9a07a8",
   "revision": 0,
-  "last_node_id": 9,
-  "last_link_id": 11,
+  "last_node_id": 20,
+  "last_link_id": 19,
   "nodes": [
     {
       "id": 2,
       "type": "UNETLoader",
       "pos": [
-        4.860081541663391,
-        434.30910215472557
+        0.1383019244605208,
+        432.66447873489585
       ],
       "size": [
         270,
         86
       ],
-      "flags": {},
+      "flags": {
+        "pinned": true
+      },
       "order": 0,
-      "mode": 0,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -39,11 +41,11 @@
         }
       },
       "widgets_values": [
-        "moodyProMix_collectorsEdition.safetensors",
+        "qwnImageEdit_v16Bf16.safetensors",
         "default"
       ],
       "widgets_values_named": {
-        "unet_name": "moodyProMix_collectorsEdition.safetensors",
+        "unet_name": "qwnImageEdit_v16Bf16.safetensors",
         "weight_dtype": "default"
       }
     },
@@ -62,7 +64,7 @@
         "pinned": true
       },
       "order": 1,
-      "mode": 0,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -84,13 +86,13 @@
         }
       },
       "widgets_values": [
-        "qwen3_4b_abliterated_fp16_converted.safetensors",
-        "lumina2",
+        "Qwen2.5-VL-7B-Instruct-abliterated_converted_convrot_int8.safetensors",
+        "qwen_image",
         "cpu"
       ],
       "widgets_values_named": {
-        "clip_name": "qwen3_4b_abliterated_fp16_converted.safetensors",
-        "type": "lumina2",
+        "clip_name": "Qwen2.5-VL-7B-Instruct-abliterated_converted_convrot_int8.safetensors",
+        "type": "qwen_image",
         "device": "cpu"
       }
     },
@@ -98,8 +100,8 @@
       "id": 7,
       "type": "ShowText|pysssss",
       "pos": [
-        902.6200320435285,
-        433.55017780806077
+        801.223664184146,
+        432.3734310701295
       ],
       "size": [
         374.453125,
@@ -108,8 +110,8 @@
       "flags": {
         "pinned": true
       },
-      "order": 4,
-      "mode": 0,
+      "order": 9,
+      "mode": 4,
       "inputs": [
         {
           "name": "text",
@@ -136,10 +138,10 @@
         }
       },
       "widgets_values": [
-        "Saved: D:\\USERFILES\\A1111\\outputs\\ComfyUI\\moodyProMix_collectorsEdition_native_convrot_int8.safetensors\nlayers=208 convrot=208 plain_int8=0\nconvrot=True group_size=256 linear=208 conv2d=0 plain=0 kept=245\n\n=== BENCHMARK ===\nFP16 Time: 29.71s\nINT8 Load: 0.06s, Time: 13.34s\nMSE: 0.0921 | Cosine: 0.9962\nSSIM (decoded): 0.9820"
+        "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\qwnImageEdit_v16Bf16_native_convrot_int8_1787547575.safetensors\nlayers=840 convrot=840 plain_int8=0\nconvrot=True group_size=256 linear=840 conv2d=0 plain=0 kept=1094\n\n=== BENCHMARK (10 Random Seeds, per-step trajectory) ===\nRun Time: 2026-08-24 14:20:23\nModel Architecture: Qwen Image Edit\nPrompt: masterpiece, best quality, 1girl, solo, standing, simple background\nINT8 Model Load Time: 0.44s\nSeeds: [6541498, 3422647, 393352, 7627484, 2177005, 2143521, 9641943, 3010696, 8086871, 288884]\n\n[1/10 | Seed 6541498] FP16: 131.35s | INT8: 27.49s | MSE: 0.0248 | Cosine: 0.9940 | max-drop: 0.0029 | same-image\n[2/10 | Seed 3422647] FP16: 114.76s | INT8: 20.80s | MSE: 0.0815 | Cosine: 0.9810 | max-drop: 0.0111 | same-image\n[3/10 | Seed 393352] FP16: 97.83s | INT8: 20.95s | MSE: 0.0895 | Cosine: 0.9789 | max-drop: 0.0117 | drifted (different image)\n[4/10 | Seed 7627484] FP16: 79.99s | INT8: 20.70s | MSE: 0.0778 | Cosine: 0.9814 | max-drop: 0.0091 | same-image\n[5/10 | Seed 2177005] FP16: 81.16s | INT8: 20.68s | MSE: 0.0221 | Cosine: 0.9935 | max-drop: 0.0035 | same-image\n[6/10 | Seed 2143521] FP16: 64.91s | INT8: 20.70s | MSE: 0.0258 | Cosine: 0.9929 | max-drop: 0.0037 | same-image\n[7/10 | Seed 9641943] FP16: 61.06s | INT8: 20.58s | MSE: 0.1050 | Cosine: 0.9696 | max-drop: 0.0127 | drifted (different image)\n[8/10 | Seed 3010696] FP16: 55.23s | INT8: 20.62s | MSE: 0.0278 | Cosine: 0.9906 | max-drop: 0.0053 | same-image\n[9/10 | Seed 8086871] FP16: 49.24s | INT8: 20.49s | MSE: 0.0147 | Cosine: 0.9955 | max-drop: 0.0025 | same-image\n[10/10 | Seed 288884] FP16: 52.27s | INT8: 20.49s | MSE: 0.0205 | Cosine: 0.9947 | max-drop: 0.0025 | same-image\n\n--- Summary (10-Seed Average) ---\nAvg FP16 Time: 78.78s\nAvg INT8 Time: 21.35s\nAvg MSE: 0.0490\nAvg Cosine: 0.9872\nCosine: min=0.9696 max=0.9955\nsame-image seeds : 8/10\nbifurcated seeds : 0/10   (sudden trajectory jump = different picture, not degradation)"
       ],
       "widgets_values_named": {
-        "text_0": "Saved: D:\\USERFILES\\A1111\\outputs\\ComfyUI\\moodyProMix_collectorsEdition_native_convrot_int8.safetensors\nlayers=208 convrot=208 plain_int8=0\nconvrot=True group_size=256 linear=208 conv2d=0 plain=0 kept=245\n\n=== BENCHMARK ===\nFP16 Time: 29.71s\nINT8 Load: 0.06s, Time: 13.34s\nMSE: 0.0921 | Cosine: 0.9962\nSSIM (decoded): 0.9820"
+        "text_0": "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\qwnImageEdit_v16Bf16_native_convrot_int8_1787547575.safetensors\nlayers=840 convrot=840 plain_int8=0\nconvrot=True group_size=256 linear=840 conv2d=0 plain=0 kept=1094\n\n=== BENCHMARK (10 Random Seeds, per-step trajectory) ===\nRun Time: 2026-08-24 14:20:23\nModel Architecture: Qwen Image Edit\nPrompt: masterpiece, best quality, 1girl, solo, standing, simple background\nINT8 Model Load Time: 0.44s\nSeeds: [6541498, 3422647, 393352, 7627484, 2177005, 2143521, 9641943, 3010696, 8086871, 288884]\n\n[1/10 | Seed 6541498] FP16: 131.35s | INT8: 27.49s | MSE: 0.0248 | Cosine: 0.9940 | max-drop: 0.0029 | same-image\n[2/10 | Seed 3422647] FP16: 114.76s | INT8: 20.80s | MSE: 0.0815 | Cosine: 0.9810 | max-drop: 0.0111 | same-image\n[3/10 | Seed 393352] FP16: 97.83s | INT8: 20.95s | MSE: 0.0895 | Cosine: 0.9789 | max-drop: 0.0117 | drifted (different image)\n[4/10 | Seed 7627484] FP16: 79.99s | INT8: 20.70s | MSE: 0.0778 | Cosine: 0.9814 | max-drop: 0.0091 | same-image\n[5/10 | Seed 2177005] FP16: 81.16s | INT8: 20.68s | MSE: 0.0221 | Cosine: 0.9935 | max-drop: 0.0035 | same-image\n[6/10 | Seed 2143521] FP16: 64.91s | INT8: 20.70s | MSE: 0.0258 | Cosine: 0.9929 | max-drop: 0.0037 | same-image\n[7/10 | Seed 9641943] FP16: 61.06s | INT8: 20.58s | MSE: 0.1050 | Cosine: 0.9696 | max-drop: 0.0127 | drifted (different image)\n[8/10 | Seed 3010696] FP16: 55.23s | INT8: 20.62s | MSE: 0.0278 | Cosine: 0.9906 | max-drop: 0.0053 | same-image\n[9/10 | Seed 8086871] FP16: 49.24s | INT8: 20.49s | MSE: 0.0147 | Cosine: 0.9955 | max-drop: 0.0025 | same-image\n[10/10 | Seed 288884] FP16: 52.27s | INT8: 20.49s | MSE: 0.0205 | Cosine: 0.9947 | max-drop: 0.0025 | same-image\n\n--- Summary (10-Seed Average) ---\nAvg FP16 Time: 78.78s\nAvg INT8 Time: 21.35s\nAvg MSE: 0.0490\nAvg Cosine: 0.9872\nCosine: min=0.9696 max=0.9955\nsame-image seeds : 8/10\nbifurcated seeds : 0/10   (sudden trajectory jump = different picture, not degradation)"
       }
     },
     {
@@ -157,7 +159,7 @@
         "pinned": true
       },
       "order": 2,
-      "mode": 0,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -179,28 +181,28 @@
         }
       },
       "widgets_values": [
-        "Ultra-flux1.vae.safetensors"
+        "Wan2_1_VAE_fp32.safetensors"
       ],
       "widgets_values_named": {
-        "vae_name": "Ultra-flux1.vae.safetensors"
+        "vae_name": "Wan2_1_VAE_fp32.safetensors"
       }
     },
     {
       "id": 9,
-      "type": "NativeConvRotInt8Quantize",
+      "type": "ZImageConvRotInt8Quantize",
       "pos": [
         402.67438170115423,
         432.9335609752744
       ],
       "size": [
         313.890625,
-        246
+        342
       ],
       "flags": {
         "pinned": true
       },
-      "order": 3,
-      "mode": 0,
+      "order": 6,
+      "mode": 4,
       "inputs": [
         {
           "name": "model",
@@ -236,7 +238,7 @@
       "properties": {
         "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
         "ver": "b1943185da96802a9ad368a76d9665cca4460653",
-        "Node name for S&R": "NativeConvRotInt8Quantize",
+        "Node name for S&R": "ZImageConvRotInt8Quantize",
         "ue_properties": {
           "widget_ue_connectable": {},
           "input_ue_unconnectable": {},
@@ -244,8 +246,8 @@
         }
       },
       "widgets_values": [
-        "Z Image",
-        "masterpiece, best quality, 1girl, solo, standing, simple background",
+        "Qwen Image Edit",
+        "",
         "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
         256,
         true,
@@ -253,13 +255,363 @@
         true
       ],
       "widgets_values_named": {
-        "model_type": "Z Image",
-        "benchmark_prompt": "masterpiece, best quality, 1girl, solo, standing, simple background",
+        "model_type": "Qwen Image Edit",
+        "benchmark_prompt": "",
         "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
         "group_size": 256,
         "convrot": true,
         "per_channel_int8": true,
         "run_benchmark": true
+      }
+    },
+    {
+      "id": 10,
+      "type": "FastGroupsBypasserV2",
+      "pos": [
+        -399.295402092433,
+        334.640799029122
+      ],
+      "size": [
+        287.9,
+        154
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "matchColors": "red",
+        "matchTitle": "",
+        "showNav": true,
+        "showAllGraphs": true,
+        "sort": "position",
+        "customSortAlphabet": "",
+        "toggleRestriction": "default",
+        "effectMode": "Bypass",
+        "cnr_id": "ComfyUI-NunchakuFluxLoraStacker",
+        "ver": "89faa66c13a28f215a654f5449a844956063bed6",
+        "Node name for S&R": "FastGroupsBypasserV2",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 17,
+      "type": "SimpleCLIPLoader",
+      "pos": [
+        0.5302605032194969,
+        1202.0067765547751
+      ],
+      "size": [
+        270,
+        86
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 4,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": [
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "a45d7baef5a4a4b71802066a88dcab64926b5474",
+        "Node name for S&R": "SimpleCLIPLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "CLIP-SAE-ViT-L-14-FP32.safetensors"
+      ],
+      "widgets_values_named": {
+        "clip_name": "CLIP-SAE-ViT-L-14-FP32.safetensors"
+      }
+    },
+    {
+      "id": 11,
+      "type": "TEControlNetConvRotInt8Quantize",
+      "pos": [
+        349.6940140255944,
+        1199.390035169013
+      ],
+      "size": [
+        360.890625,
+        194
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 7,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "clip",
+          "shape": 7,
+          "type": "CLIP",
+          "link": 17
+        },
+        {
+          "name": "control_net",
+          "shape": 7,
+          "type": "CONTROL_NET",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "999572dd7fc345efa0eec4806e8e41e8d44f843a",
+        "Node name for S&R": "TEControlNetConvRotInt8Quantize",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        256,
+        true,
+        "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip"
+      ],
+      "widgets_values_named": {
+        "group_size": 256,
+        "convrot": true,
+        "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip"
+      }
+    },
+    {
+      "id": 14,
+      "type": "ShowText|pysssss",
+      "pos": [
+        770.2118706412493,
+        1199.9900334404017
+      ],
+      "size": [
+        225,
+        126
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 10,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "609f3afaa74b2f88ef9ce8d939626065e3247469",
+        "Node name for S&R": "ShowText|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "[CLIP Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\CLIP-SAE-ViT-L-14-FP32_native_convrot_int8_1787799509.safetensors\n  Summary: layers=221 (convrot=221, plain_int8=0) | file_size=412.32 MB\n  Stats: convrot=True group_size=256 convrot_linear=221 plain_int8=0 kept_as_is=369 fallback=0"
+      ],
+      "widgets_values_named": {
+        "text_0": "[CLIP Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\CLIP-SAE-ViT-L-14-FP32_native_convrot_int8_1787799509.safetensors\n  Summary: layers=221 (convrot=221, plain_int8=0) | file_size=412.32 MB\n  Stats: convrot=True group_size=256 convrot_linear=221 plain_int8=0 kept_as_is=369 fallback=0"
+      }
+    },
+    {
+      "id": 20,
+      "type": "ControlNetLoader",
+      "pos": [
+        -21.1066241668891,
+        1610.6780576039612
+      ],
+      "size": [
+        270,
+        62
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CONTROL_NET",
+          "type": "CONTROL_NET",
+          "links": [
+            19
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.3",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "ControlNetLoader"
+      },
+      "widgets_values": [
+        "FLUX.1-dev-ControlNet-Union-Pro-2.0.safetensors"
+      ],
+      "widgets_values_named": {
+        "control_net_name": "FLUX.1-dev-ControlNet-Union-Pro-2.0.safetensors"
+      }
+    },
+    {
+      "id": 18,
+      "type": "TEControlNetConvRotInt8Quantize",
+      "pos": [
+        349.5944563225709,
+        1601.1579126771396
+      ],
+      "size": [
+        360.890625,
+        194
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "shape": 7,
+          "type": "CLIP",
+          "link": null
+        },
+        {
+          "name": "control_net",
+          "shape": 7,
+          "type": "CONTROL_NET",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "999572dd7fc345efa0eec4806e8e41e8d44f843a",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        },
+        "Node name for S&R": "TEControlNetConvRotInt8Quantize"
+      },
+      "widgets_values": [
+        256,
+        true,
+        "D:\\USERFILES\\StableDiffusion\\models\\ControlNet"
+      ],
+      "widgets_values_named": {
+        "group_size": 256,
+        "convrot": true,
+        "output_path": "D:\\USERFILES\\StableDiffusion\\models\\ControlNet"
+      }
+    },
+    {
+      "id": 19,
+      "type": "ShowText|pysssss",
+      "pos": [
+        799.7143187684674,
+        1602.167075548906
+      ],
+      "size": [
+        225,
+        126
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "609f3afaa74b2f88ef9ce8d939626065e3247469",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        },
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "[ControlNet Quantization]\n  Saved: D:\\USERFILES\\StableDiffusion\\models\\ControlNet\\controlnet_native_convrot_int8_1787799962.safetensors\n  Summary: layers=75 (convrot=75, plain_int8=0) | file_size=2044.60 MB\n  Stats: convrot=True group_size=256 convrot_linear=75 plain_int8=0 kept_as_is=99 fallback=0"
+      ],
+      "widgets_values_named": {
+        "text_0": "[ControlNet Quantization]\n  Saved: D:\\USERFILES\\StableDiffusion\\models\\ControlNet\\controlnet_native_convrot_int8_1787799962.safetensors\n  Summary: layers=75 (convrot=75, plain_int8=0) | file_size=2044.60 MB\n  Stats: convrot=True group_size=256 convrot_linear=75 plain_int8=0 kept_as_is=99 fallback=0"
       }
     }
   ],
@@ -295,27 +647,106 @@
       7,
       0,
       "STRING"
+    ],
+    [
+      14,
+      11,
+      1,
+      14,
+      0,
+      "STRING"
+    ],
+    [
+      17,
+      17,
+      0,
+      11,
+      0,
+      "CLIP"
+    ],
+    [
+      18,
+      18,
+      1,
+      19,
+      0,
+      "STRING"
+    ],
+    [
+      19,
+      20,
+      0,
+      18,
+      1,
+      "CONTROL_NET"
     ]
   ],
-  "groups": [],
+  "groups": [
+    {
+      "id": 2,
+      "title": "UNET",
+      "bounding": [
+        -59.73509755723081,
+        320.62151916730346,
+        1288.0632094699965,
+        679.3101419936775
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
+    },
+    {
+      "id": 3,
+      "title": "Clip",
+      "bounding": [
+        -59.02267514586052,
+        1099.5285704342573,
+        1118.5597190255166,
+        359.1819554559652
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
+    },
+    {
+      "id": 4,
+      "title": "ControlNet",
+      "bounding": [
+        -59.45826669353376,
+        1509.3686094981344,
+        1119.107371964088,
+        350.49319445563674
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
+    }
+  ],
   "config": {},
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.7207967605978791,
+      "scale": 0.44755807824719435,
       "offset": [
-        409.4267362904426,
-        -188.98096935103996
+        997.1367980371832,
+        -563.2551397486867
       ]
     },
     "anomalous_hashes": {
-      "2_moodyProMix_collectorsEdition.safetensors": {
+      "2_qwnImageEdit_v16Bf16.safetensors": {
         "hash": "",
-        "size": 12309876368
+        "size": 40861031560
       },
-      "8_Ultra-flux1.vae.safetensors": {
+      "8_Wan2_1_VAE_fp32.safetensors": {
         "hash": "",
-        "size": 335306212
+        "size": 507591244
+      },
+      "20_FLUX.1-dev-ControlNet-Union-Pro-2.0.safetensors": {
+        "hash": "",
+        "size": 4281779224
       }
     },
     "links_added_by_ue": [],
