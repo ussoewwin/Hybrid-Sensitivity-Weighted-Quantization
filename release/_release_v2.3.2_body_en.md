@@ -34,9 +34,9 @@ By applying orthogonal Walsh-Hadamard rotations prior to symmetric per-channel I
 
 ### Mathematical Formulation
 $$\mathbf{W}_{\text{rot}} = \mathbf{W} \mathbf{H}^T$$
-$$\text{scale} = \frac{\max(|\mathbf{W}_{\text{rot}}|)}{127}, \quad \mathbf{W}_q = \text{round}\left(\frac{\mathbf{W}_{\text{rot}}}{\text{scale}}\right)$$
+$$\text{scale}_i = \frac{\max_j(|W_{\text{rot},ij}|)}{127}, \quad W_{q,ij} = \text{round}\left(\frac{W_{\text{rot},ij}}{\text{scale}_i}\right)$$
 
-Where $\mathbf{H}$ represents the block-diagonal orthogonal Hadamard matrix with group size $N \in \{4, 16, 64, 256, 1024\}$ (default `256`).
+Where $\mathbf{H}$ represents the block-diagonal orthogonal Hadamard matrix with group size $N \in \{4, 16, 64, 256, 1024\}$ (default `256`). Scale is computed **per-out-channel** (row $i$), yielding a scale vector of shape `[out_features, 1]`.
 
 ### Checkpoint Layout
 ```

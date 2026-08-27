@@ -101,8 +101,8 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 2. **Selective Linear Quantization:**
    - All 2D floating-point Linear weights (`.weight` with `ndim == 2`) are processed with Hadamard rotation:
      $$\mathbf{W}_{\text{rot}} = \mathbf{W} \mathbf{H}^T$$
-   - Quantized to signed 8-bit integers with per-channel scaling:
-     $$\text{scale} = \frac{\max(|\mathbf{W}_{\text{rot}}|)}{127}, \quad \mathbf{W}_q = \text{round}\left(\frac{\mathbf{W}_{\text{rot}}}{\text{scale}}\right)$$
+   - Quantized to signed 8-bit integers with per-out-channel scaling:
+     $$\text{scale}_i = \frac{\max_j(|W_{\text{rot},ij}|)}{127}, \quad W_{q,ij} = \text{round}\left(\frac{W_{\text{rot},ij}}{\text{scale}_i}\right)$$
    - Non-2D weights (embeddings, 1D layer norms, biases) are preserved unquantized in original precision (FP16/BF16/FP32) to prevent precision collapse at model boundaries.
 
 3. **Output Checkpoint Layout:**
