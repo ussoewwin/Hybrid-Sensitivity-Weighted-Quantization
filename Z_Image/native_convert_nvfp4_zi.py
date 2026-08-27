@@ -54,9 +54,26 @@ except ImportError:
     print("Error: comfy_kitchen not found (install in the active venv).")
     sys.exit(1)
 
-_REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+def _default_repo_root() -> str:
+    """Locate the repo root by walking up until native_convert_int8.py is found."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    d = here
+    for _ in range(8):
+        if os.path.isfile(os.path.join(d, "native_convert_int8.py")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return os.path.abspath(os.path.join(here, os.pardir))
+
+
+_REPO_ROOT = _default_repo_root()
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
+_BENCH_DIR = os.path.join(_REPO_ROOT, "benchmark")
+if _BENCH_DIR not in sys.path:
+    sys.path.insert(0, _BENCH_DIR)
 
 from native_convert_int8 import (  # noqa: E402
     build_hadamard,
@@ -161,12 +178,12 @@ def run_card1_calib(
     """FP16 NextDiT calib with DualMonitor on Linear; returns act_mean by module name.
 
     Module name keys match ``_meta_base_key`` (e.g. ``layers.0.attention.to_q``).
-    TE path mirrors ``benchmark/zi_nvfp4_bench.py`` (Qwen3_4B + Qwen2Tokenizer).
+    TE path mirrors ``benchmark/zi_convrot_nvfp4_bench.py`` (Qwen3_4B + Qwen2Tokenizer).
     """
     global _dual_monitors
     _dual_monitors = {}
 
-    from benchmark.zi_nvfp4_bench import (
+    from benchmark.zi_convrot_nvfp4_bench import (
         encode_prompt,
         load_zit_model,
         resolve_path,
@@ -180,7 +197,7 @@ def run_card1_calib(
     setup_comfy(comfy_path)
 
     # qk_norm Lumina calls ck.rms_rope; older kitchen wheels lack it
-    # (same as benchmark/zi_nvfp4_bench.py after setup_comfy).
+    # (same as benchmark/zi_convrot_nvfp4_bench.py after setup_comfy).
     from kitchen_rms_rope_fallback import ensure_kitchen_rms_rope
 
     ensure_kitchen_rms_rope()
@@ -243,7 +260,7 @@ def run_card1_calib(
     with torch.no_grad():
         for i, prompt in enumerate(tqdm(prompts, desc="Card1 calib")):
             cond, mask = encode_prompt(prompt, text_encoder, tokenizer, device)
-            # ZI Turbo: same signature as benchmark/zi_nvfp4_bench.run_inference
+            # ZI Turbo: same signature as benchmark/zi_convrot_nvfp4_bench.run_inference
             # (cond-only; no CFG guidance / uncond kwargs).
             run_inference(
                 model,
