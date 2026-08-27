@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.3.2
+
+- **Qwen Image Edit native ConvRot INT8 quantization published** — Added native ConvRot INT8 quantization support for Qwen Image Edit models via CLI (`Qwen Image/native_convert_int8_convrot_qwen.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize` in `comfyui_nodes/`). Features orthogonal Hadamard rotations before per-channel INT8 scaling and automated post-convert fidelity benchmarking (latent trajectory divergence and SSIM). Includes technical guide (`md/How to quantize Qwen Image Edit.md`).
+- **Text Encoder and ControlNet native ConvRot INT8 quantization published** — Added dedicated ComfyUI custom node (`TE / ControlNet ConvRot INT8 Quantize` in `comfyui_nodes/te_controlnet_convrot_int8_convert.py`) to quantize Text Encoders (CLIP, T5, Qwen2.5-VL) and ControlNet / ControlNet Union models (SDXL, Qwen-Image, FLUX.1) directly from memory in ComfyUI graph. Reduces VRAM usage by 50%–70% while maintaining structural guidance fidelity. Includes guide (`md/How to quantize Text Encoder and ControlNet.md`) and sample workflow (`sample workflow/native convrot int8.json`).
+Release notes: [v2.3.2](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.2)
+
 ## v2.3.1
 
 **Z Image native ConvRot INT8 ComfyUI custom node support** — Added dedicated ComfyUI custom node support (`Native ConvRot INT8 Quantize` in `comfyui_nodes/`) to perform native ConvRot INT8 quantization directly within ComfyUI workflows, complete with integrated multi-seed automated fidelity benchmarking (latent MSE, cosine similarity, inference time, and decoded SSIM). Includes ready-to-use sample workflow (`sample workflow/native convrot int8.json`) and updated guide (`md/How to quantize Z Image.md`).
