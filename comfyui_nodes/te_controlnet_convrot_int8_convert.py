@@ -1,6 +1,6 @@
-"""ComfyUI node: quantize loaded Text Encoder (CLIP/TE) and ControlNet models to native ConvRot INT8.
+"""ComfyUI node: quantize loaded Text Encoder (CLIP/TE), ControlNet and Model Patch models to native ConvRot INT8.
 
-Connects to standard CLIP and/or ControlNet loader outputs.
+Connects to standard CLIP, ControlNet and/or Model Patch (MODEL_PATCH) loader outputs.
 Extracts model weights in-memory, quantizes 2D float Linear weights using Hadamard rotation +
 row-wise INT8 quantization with comfy_quant stamps, and saves checkpoints compatible with
 native ComfyUI loaders. Non-2D weights (embeddings, norms, biases) are preserved as-is.
@@ -204,6 +204,20 @@ def _extract_state_dict(obj) -> dict[str, torch.Tensor]:
             sd = obj.cond_stage_model.state_dict()
         except Exception:
             pass
+    if sd is None and hasattr(obj, "model_state_dict_for_saving"):
+        try:
+            sd = obj.model_state_dict_for_saving()
+        except Exception:
+            pass
+    # Model Patch loaders (comfy.model_patcher.ModelPatcher / CoreModelPatcher)
+    # expose the wrapped nn.Module via ``.model``.
+    if sd is None and hasattr(obj, "model"):
+        _m = getattr(obj, "model", None)
+        if _m is not None and hasattr(_m, "state_dict"):
+            try:
+                sd = _m.state_dict()
+            except Exception:
+                pass
     if sd is None and isinstance(obj, dict):
         sd = obj
     if sd is None and hasattr(obj, "state_dict"):
@@ -251,13 +265,15 @@ def _find_upstream_filename(prompt: dict | None, unique_id: str | None, input_sl
             "ckpt_name",
             "filename",
             "file_name",
+            "model_patch_name",
+            "name",
         ):
             if key in up_inputs and isinstance(up_inputs[key], str) and up_inputs[key].strip():
                 val = up_inputs[key].strip()
                 return os.path.splitext(os.path.basename(val))[0]
 
         next_slot = None
-        for candidate_slot in (input_slot, "clip", "control_net", "model"):
+        for candidate_slot in (input_slot, "clip", "control_net", "model", "model_patch"):
             if candidate_slot in up_inputs and isinstance(up_inputs[candidate_slot], list):
                 next_slot = up_inputs[candidate_slot]
                 break
@@ -270,7 +286,7 @@ def _find_upstream_filename(prompt: dict | None, unique_id: str | None, input_sl
 
 
 def _get_original_name(obj, default: str = "model") -> str:
-    for attr in ("clip_path", "controlnet_path", "model_path", "ckpt_path"):
+    for attr in ("clip_path", "controlnet_path", "model_path", "ckpt_path", "model_patch_path"):
         if hasattr(obj, attr):
             val = getattr(obj, attr)
             if val and isinstance(val, str):
@@ -308,7 +324,7 @@ def _summarize(output_path: str) -> str:
 
 
 class TEControlNetConvRotInt8Quantize:
-    """Quantize loaded Text Encoder (CLIP/TE) or ControlNet models to native ConvRot INT8."""
+    """Quantize loaded Text Encoder (CLIP/TE), ControlNet or Model Patch models to native ConvRot INT8."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -320,6 +336,7 @@ class TEControlNetConvRotInt8Quantize:
             "optional": {
                 "clip": ("CLIP",),
                 "control_net": ("CONTROL_NET",),
+                "model_patch": ("MODEL_PATCH",),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
             },
             "hidden": {
@@ -345,6 +362,7 @@ class TEControlNetConvRotInt8Quantize:
         convrot: bool,
         clip=None,
         control_net=None,
+        model_patch=None,
         output_path: str = "",
         prompt=None,
         unique_id=None,
@@ -354,8 +372,8 @@ class TEControlNetConvRotInt8Quantize:
         if not _is_power_of_4(group_size):
             raise ValueError(f"group_size must be a power of 4 (>=4), got {group_size}")
 
-        if clip is None and control_net is None:
-            raise ValueError("Please connect at least one input: clip (Text Encoder) or control_net.")
+        if clip is None and control_net is None and model_patch is None:
+            raise ValueError("Please connect at least one input: clip (Text Encoder), control_net, or model_patch.")
 
         tasks: list[tuple[str, dict[str, torch.Tensor], str]] = []
         user_output_path = (output_path or "").strip().strip('"').strip("'")
@@ -367,6 +385,10 @@ class TEControlNetConvRotInt8Quantize:
         if control_net is not None:
             cn_name = _find_upstream_filename(prompt, unique_id, "control_net") or _get_original_name(control_net, "controlnet")
             tasks.append(("ControlNet", _extract_state_dict(control_net), cn_name))
+
+        if model_patch is not None:
+            mp_name = _find_upstream_filename(prompt, unique_id, "model_patch") or _get_original_name(model_patch, "model_patch")
+            tasks.append(("ModelPatch", _extract_state_dict(model_patch), mp_name))
 
         saved_paths: list[str] = []
         report_lines: list[str] = []
