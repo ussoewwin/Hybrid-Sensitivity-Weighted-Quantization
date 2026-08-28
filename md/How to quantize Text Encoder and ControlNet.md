@@ -1,6 +1,6 @@
-# How to quantize Text Encoder and ControlNet (native ConvRot INT8)
+# How to quantize Text Encoder, ControlNet and Model Patch (native ConvRot INT8)
 
-Quantize loaded **Text Encoders (CLIP, T5, Qwen2.5-VL, etc.)** and **ControlNet / ControlNet Union models** directly in ComfyUI using the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`** (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`).
+Quantize loaded **Text Encoders (CLIP, T5, Qwen2.5-VL, etc.)**, **ControlNet / ControlNet Union models** and **Model Patch (model patcher) ControlNets** directly in ComfyUI using the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`** (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`).
 
 By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline eliminates activation outlier spikes in deep Linear layers, reducing VRAM footprint by ~50% while preserving 100% conditioning accuracy and structural guidance fidelity.
 
@@ -84,12 +84,13 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 | :--- | :--- | :--- | :--- |
 | **`clip`** | `CLIP` | Optional | Connected Text Encoder / CLIP model instance. |
 | **`control_net`** | `CONTROL_NET` | Optional | Connected ControlNet or ControlNet Union model instance. |
+| **`model_patch`** | `MODEL_PATCH` | Optional | Connected Model Patch (model patcher) instance, e.g. Z-Image Fun ControlNet loaded by `Load Model Patch` (`ModelPatchLoader`) from `models/model_patches/`. |
 | **`group_size`** | `INT` | `256` | Preferred ConvRot Hadamard rotation group size (must be a power of 4: `4`, `16`, `64`, `256`, `1024`). |
 | **`convrot`** | `BOOLEAN` | `True` | Enables orthogonal Hadamard rotation prior to INT8 scaling. When disabled, falls back to plain per-channel INT8. |
 | **`output_path`** | `STRING` | `""` | Destination `.safetensors` path or directory. If left empty, saves automatically to `ComfyUI/output/` using `<model_name>_convrot_int8.safetensors`. |
 
 > [!NOTE]
-> At least one model input (`clip` or `control_net`) must be connected. You can also connect **both** simultaneously to quantize a matching Text Encoder and ControlNet in a single queue execution.
+> At least one model input (`clip`, `control_net` or `model_patch`) must be connected. You can also connect **multiple** simultaneously to quantize a matching Text Encoder, ControlNet and/or Model Patch in a single queue execution.
 
 ---
 
@@ -126,6 +127,9 @@ git clone https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools.git
 ```
 
 Use the **`HSWQ Load ControlNet (Simple)`** node to load the generated `.safetensors` checkpoint directly into your generation graph.
+
+### Model Patch (model patcher) Models
+Quantized Model Patches (e.g. Z-Image Fun ControlNet from `models/model_patches/`) are loaded with the **`HSWQ Load Model Patch (ConvRot INT8)`** node (`comfyui_nodes/hswq_model_patch_loader.py`). It mirrors the stock `ModelPatchLoader` dispatch but selects quant-aware `MixedPrecisionOps` when `int8_tensorwise` `comfy_quant` layers are detected, so weights stay INT8 in VRAM. For non-quantized checkpoints it delegates to the stock `Load Model Patch` node. The returned `MODEL_PATCH` plugs into the standard apply nodes (`Apply Z-Image Fun ControlNet`, etc.).
 
 ### Text Encoders (CLIP / TE)
 Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` or `HSWQ Load CLIP (Simple)`.
