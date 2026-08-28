@@ -176,4 +176,3 @@ This project is built upon the following repositories:
 | Repository | In-repo path | Upstream |
 | :--- | :--- | :--- |
 | **[ComfyUI](https://github.com/Comfy-Org/ComfyUI)** | `ComfyUI-master/` | [@Comfy-Org](https://github.com/Comfy-Org) — The most powerful and modular diffusion model GUI, API and backend with a graph/nodes interface. |
-
