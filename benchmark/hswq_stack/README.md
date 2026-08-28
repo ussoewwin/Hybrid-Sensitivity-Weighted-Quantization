@@ -5,7 +5,7 @@ This package vendors the required implementation from **ComfyUI-HSWQ-Loader-and-
 ## Upstream Source
 
 - Repository: https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools
-- Vendoring Date: 2026-08-17
+- Vendoring Date: 2026-08-17 (re-synced from upstream 2026-08-28: TC W4A4 opt-in + purge guards)
 - Directory Mapping:
 
 | Upstream | Vendored Path |

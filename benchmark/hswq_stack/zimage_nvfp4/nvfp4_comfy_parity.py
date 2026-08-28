@@ -27,24 +27,6 @@ _LOAD_CONVROT_ARMED = 0
 _LOAD_NVFP4_NO_CONVROT = 0
 _LOAD_INT8_CONVROT_ARMED = 0
 
-# Forward-pass counters: how many NVFP4 / INT8-protect ConvRot Linears
-# ran through the parity (stock GEMM + act rotate) forward this process.
-_PARITY_NVFP4_FWD = 0
-_PARITY_INT8_FWD = 0
-
-
-def nvfp4_parity_stats() -> dict:
-    return {
-        "parity_nvfp4_fwd": _PARITY_NVFP4_FWD,
-        "parity_int8_fwd": _PARITY_INT8_FWD,
-    }
-
-
-def reset_nvfp4_parity_fwd_counters() -> None:
-    global _PARITY_NVFP4_FWD, _PARITY_INT8_FWD
-    _PARITY_NVFP4_FWD = 0
-    _PARITY_INT8_FWD = 0
-
 
 def _console(msg: str) -> None:
     print(msg, flush=True)
@@ -568,13 +550,8 @@ def _make_convrot_parity_forward(stock_forward):
     from .zi_nvfp4_hadamard import build_hadamard, rotate_last_dim
 
     def forward_parity(self, input, *args, **kwargs):
-        global _PARITY_NVFP4_FWD, _PARITY_INT8_FWD
         nv = bool(getattr(self, "_hswq_nvfp4_convrot", False))
         i8 = bool(getattr(self, "_hswq_int8_convrot", False))
-        if nv:
-            _PARITY_NVFP4_FWD += 1
-        if i8:
-            _PARITY_INT8_FWD += 1
         if nv or i8:
             if nv:
                 gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
