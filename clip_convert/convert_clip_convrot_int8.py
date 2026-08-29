@@ -1,8 +1,10 @@
-"""ConvRot INT8 converter for generic safetensors (CLIP / LLM / ControlNet).
+"""ConvRot INT8 converter for generic safetensors (CLIP / LLM / ControlNet / SAM / UNet).
 
 Converts all 2D .weight tensors into ComfyUI-native ConvRot INT8
 (Hadamard rotation + per-out-channel INT8 quantization + comfy_quant stamp).
-Non-2D tensors (embeddings, layernorms, biases) are kept as-is.
+Non-2D tensors (embeddings, layernorms, biases, Conv2d) are kept as-is.
+Fused QKV projections (.in_proj_weight / .in_proj_bias) are cleanly split
+and quantized into q_proj, k_proj, v_proj for seamless native ComfyUI loading.
 
 ComfyUI natively supports ConvRot INT8 (int8_tensorwise + comfy_quant),
 so the output loads with the standard ComfyUI loaders (UNet / CLIP /
@@ -80,10 +82,50 @@ def _encode_meta(config: dict) -> torch.Tensor:
     return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
 
+def _preprocess_sam_and_fused_keys(sd: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    """Normalize SAM3/SAM3.1 and fused in_proj keys to align with ComfyUI native module hierarchy."""
+    out_sd: dict[str, torch.Tensor] = {}
+
+    for k, v in sd.items():
+        # SAM3.1: remove per-block freqs_cis buffers (computed dynamically)
+        if ".attn.freqs_cis" in k:
+            continue
+
+        # SAM3.1: remap tracker.model.* -> tracker.*
+        if k.startswith("tracker.model."):
+            k = "tracker." + k[len("tracker.model."):]
+
+        # Remap tracker SAM decoder transformer key names
+        if "sam_mask_decoder.transformer." in k:
+            k = (
+                k.replace(".mlp.lin1.", ".mlp.0.")
+                .replace(".mlp.lin2.", ".mlp.2.")
+                .replace(".norm_final_attn.", ".norm_final.")
+            )
+
+        # Split fused QKV in_proj_weight / in_proj_bias
+        if k.endswith((".in_proj_weight", ".in_proj_bias")):
+            base, suffix = k.rsplit(".in_proj_", 1)
+            s = ".weight" if suffix == "weight" else ".bias"
+            d = v.shape[0] // 3
+            out_sd[f"{base}.q_proj{s}"] = v[:d].clone()
+            out_sd[f"{base}.k_proj{s}"] = v[d:2*d].clone()
+            out_sd[f"{base}.v_proj{s}"] = v[2*d:].clone()
+            continue
+
+        out_sd[k] = v
+
+    return out_sd
+
+
 def convert(model_path: str, output_path: str, enable_convrot: bool = True, groupsize: int = 256):
     print(f"Loading: {model_path}")
     sd = load_file(model_path)
-    print(f"  keys: {len(sd)}")
+    print(f"  raw keys: {len(sd)}")
+
+    # Preprocess SAM / fused in_proj keys
+    sd = _preprocess_sam_and_fused_keys(sd)
+    print(f"  preprocessed keys: {len(sd)}")
 
     new_sd = {}
     meta_layers = {}
@@ -159,7 +201,7 @@ def convert(model_path: str, output_path: str, enable_convrot: bool = True, grou
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="ConvRot INT8 converter for CLIP/LLM/ControlNet safetensors")
+    parser = argparse.ArgumentParser(description="ConvRot INT8 converter for CLIP/LLM/ControlNet/SAM/UNet safetensors")
     parser.add_argument("--model", required=True, help="Input .safetensors path")
     parser.add_argument("--output", required=True, help="Output .safetensors path")
     parser.add_argument("--no-convrot", action="store_true", help="Plain INT8 without ConvRot rotation")
