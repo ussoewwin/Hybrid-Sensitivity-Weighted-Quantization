@@ -1,8 +1,12 @@
-"""Flux1 DiT → ComfyUI native Hybrid NVFP4 converter（INT8 protect + NVFP4、hswq 非使用）。
+"""Flux1 DiT → ComfyUI native Hybrid/Native NVFP4 converter（INT8 protect + NVFP4、hswq 非使用）。
 
-MEMORY ワークフロー: convrot int8 → **hybrid nvfp4** → native nvfp4 → ベンチ の 2 段目。
+MEMORY ワークフロー: convrot int8 → **hybrid nvfp4** → native nvfp4 → ベンチ の 2〜3 段目。
 
 「native」= hswq を使わない単なる圧縮。「hybrid」= 重要層を INT8 保護し、残りを NVFP4 にした混在。
+
+--mode:
+  hybrid（default）: 構造ベース INT8 保護層 + 残り NVFP4
+  native            : 全 Linear NVFP4（保護なし、只の圧縮）
 
 Pack (ComfyUI comfy_quant 対応):
   INT8 保護層（構造ベース）:
@@ -267,6 +271,7 @@ def convert_to_hybrid_nvfp4(
     enable_convrot: bool = True,
     group_size: int = _DEFAULT_GROUPSIZE,
     quantize_device: str = "cuda",
+    mode: str = "hybrid",
 ):
     device = quantize_device if torch.cuda.is_available() else "cpu"
     print(f"Loading model: {input_path}")
@@ -280,8 +285,10 @@ def convert_to_hybrid_nvfp4(
     n_plain_int8 = 0
     kept_count = 0
 
+    use_int8_protect = mode == "hybrid"
     print(
-        f"Converting Flux1 DiT matmul weights: INT8 protect (structural) + NVFP4 "
+        f"Converting Flux1 DiT matmul weights: "
+        f"mode={mode} (INT8 protect={'ON' if use_int8_protect else 'OFF'}) + NVFP4 "
         f"(ConvRot={'ON' if enable_convrot else 'OFF'}, groupsize={group_size})..."
     )
 
@@ -302,7 +309,7 @@ def convert_to_hybrid_nvfp4(
         )
         h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32) if used_gs else None
 
-        if _is_int8_protect_key(key):
+        if use_int8_protect and _is_int8_protect_key(key):
             # --- INT8 保護層（ConvRot 可能なら row-wise、不可なら tensorwise） ---
             w_for_q = w_fp
             if used_gs is not None and h_matrix is not None:
@@ -391,6 +398,8 @@ if __name__ == "__main__":
                         help=f"ConvRot Hadamard group size (power of 4, default {_DEFAULT_GROUPSIZE})")
     parser.add_argument("--quantize_device", type=str, default="cuda",
                         help="Device for NVFP4 quantize (default cuda; cpu も可)")
+    parser.add_argument("--mode", type=str, choices=("hybrid", "native"), default="hybrid",
+                        help="hybrid=構造ベース INT8 保護 + NVFP4（default）; native=全 Linear NVFP4（保護なし）")
     parser.add_argument("--clip_path", type=str, default=None, help="T5XXL path (required when --bench)")
     parser.add_argument("--clip_l_path", type=str, default=None, help="clip_l path (required when --bench)")
     parser.add_argument("--comfy_path", type=str, default=None, help="ComfyUI root (required when --bench)")
@@ -431,6 +440,7 @@ if __name__ == "__main__":
         enable_convrot=bool(args.convrot),
         group_size=int(args.groupsize),
         quantize_device=args.quantize_device,
+        mode=args.mode,
     )
 
     if args.bench:
