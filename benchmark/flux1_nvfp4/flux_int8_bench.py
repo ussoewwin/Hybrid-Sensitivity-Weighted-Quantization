@@ -448,9 +448,13 @@ def main() -> int:
     set_hf_token(args.token)
     os.makedirs(args.output_dir, exist_ok=True)
 
-    bench_dir = Path(__file__).resolve().parent
+    bench_dir = Path(__file__).resolve().parent  # benchmark/flux1_nvfp4
     if str(bench_dir) not in sys.path:
         sys.path.insert(0, str(bench_dir))
+    # int8 パッケージ（benchmark/int8）用に親ディレクトリ（benchmark 直下）も追加
+    bench_parent = bench_dir.parent
+    if str(bench_parent) not in sys.path:
+        sys.path.insert(0, str(bench_parent))
 
     saved_argv = _clear_argv_for_comfy()
     try:
