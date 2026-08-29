@@ -11,8 +11,26 @@ MEMORY ワークフロー: **convrot int8 → hybrid nvfp4 → native nvfp4 → 
 |---------|------|
 | `native_convert_int8_convrot_flux.py` | ConvRot INT8 変換（全 Linear → row-wise INT8 + comfy_quant スタンプ） |
 | `native_convert_nvfp4_flux.py` | NVFP4 変換。`--mode hybrid`（構造ベース INT8 保護 + NVFP4）/ `--mode native`（全 NVFP4） |
+| `diag_impact.py` | 層別トラジェクトリ影響診断（NVFP4 誤差注入 → rel MSE）→ impact json |
+| `gen_reverse_nvfp4.py` | Reverse hybrid 変換（低影響層を INT8 → NVFP4 に reverse 変換） |
 
-ベンチは `benchmark\flux1_nvfp4\flux_int8_bench.py`（FP16/BF16 基準 vs 変換後モデル）。
+ベンチは `benchmark\flux1_nvfp4\`（`flux_int8_bench.py` = INT8 用、`flux1_convrot_nvfp4_bench.py` = Hybrid ConvRot NVFP4 用）。
+
+## Reverse hybrid NVFP4 method（ZI 方式）
+
+1. 全層 INT8 を作る: `native_convert_int8_convrot_flux.py`（上記手順 1）
+2. 層別影響を診断: `diag_impact.py` → `impact_<model>.json`（昇順 = NVFP4 化しても安全な順）
+3. 低影響 K 層を NVFP4 化: `gen_reverse_nvfp4.py <K>` → hybrid nv{K} アーティファクト
+4. ベンチ: `benchmark\flux1_nvfp4\flux1_convrot_nvfp4_bench.py` で SSIM 確認
+
+```
+python Flux1\diag_impact.py ^
+  "<base>.safetensors" "<all_int8>.safetensors" "impact_<model>.json" ^
+  --comfy-path "D:\USERFILES\ComfyUI\ComfyUI"
+
+python Flux1\gen_reverse_nvfp4.py ^
+  <K> "<model>_hybrid_nv<K>_convrot_nvfp4.safetensors" "<all_int8>.safetensors" "impact_<model>.json"
+```
 
 ## 実行手順
 
