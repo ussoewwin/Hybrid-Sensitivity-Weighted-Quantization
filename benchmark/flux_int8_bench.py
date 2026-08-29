@@ -208,11 +208,10 @@ def make_empty_latent(model, width: int, height: int, batch: int = 1) -> dict:
     return {"samples": latent}
 
 
-def latent_to_rgb_preview(latent_t: torch.Tensor, model) -> Image.Image:
+def latent_to_rgb_preview_from_format(latent_t: torch.Tensor, latent_format) -> Image.Image:
     """Flux latent_format RGB preview when no VAE is provided."""
-    fmt = getattr(getattr(model, "model", model), "latent_format", None)
-    factors = getattr(fmt, "latent_rgb_factors", None) if fmt is not None else None
-    bias = getattr(fmt, "latent_rgb_factors_bias", None) if fmt is not None else None
+    factors = getattr(latent_format, "latent_rgb_factors", None) if latent_format is not None else None
+    bias = getattr(latent_format, "latent_rgb_factors_bias", None) if latent_format is not None else None
 
     x = latent_t.detach().float().cpu()
     if x.ndim == 5:
@@ -324,13 +323,19 @@ def run_branch(
     negative,
     args,
 ) -> list[dict]:
-    """Load DiT once; sample per seed. Returns list of {seed, img, lat, time, peak}."""
+    """Load DiT once; sample per seed. Returns list of {seed, img, lat, time, peak}.
+
+    全シードのサンプリング完了後に DiT を解放し、VAE decode をまとめて行う
+    （モデルを毎シード再ロードせず、VAE decode 用に VRAM を空ける）。
+    """
     print(f"\n=== {label}: loading UNet ===")
     print(f"  path: {unet_path}")
     t0 = time.perf_counter()
     model = _load_diffusion_model(unet_path)
     load_s = time.perf_counter() - t0
     print(f"  load: {load_s:.2f}s")
+
+    latent_format = getattr(getattr(model, "model", model), "latent_format", None)
 
     results = []
     for seed in args.seeds:
@@ -364,15 +369,22 @@ def run_branch(
 
         samples_t = out["samples"]
         lat_cpu = samples_t.detach().float().cpu()
+        results.append(
+            {"seed": seed, "lat": lat_cpu, "time": sample_s, "peak": peak_gb}
+        )
+        del out, samples_t
 
-        if vae is not None:
-            latent_d = samples_t.detach()
-            if getattr(latent_d, "is_nested", False):
-                latent_d = latent_d.unbind()[0]
-            del model, out, samples_t
-            _hard_free_vram()
+    # DiT を解放してから VAE decode（まとめて実行）
+    del model
+    _hard_free_vram()
 
+    if vae is not None:
+        import comfy.model_management as mm
+
+        dev = mm.get_torch_device()
+        for r in results:
             print("  decoding with VAE...")
+            latent_d = r["lat"].to(device=dev)
             _po = vae.process_output
             vae.process_output = lambda image: image.float().add(1.0).mul(0.5).clamp(0.0, 1.0)
             try:
@@ -383,16 +395,11 @@ def run_branch(
             if len(images.shape) == 5:
                 images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
             img_array = 255.0 * images[0].detach().cpu().numpy()
-            img = Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
+            r["img"] = Image.fromarray(np.clip(img_array, 0, 255).astype("uint8"))
             del latent_d, images
-        else:
-            img = latent_to_rgb_preview(samples_t, model)
-            del model, out, samples_t
-            _hard_free_vram()
-
-        results.append(
-            {"seed": seed, "img": img, "lat": lat_cpu, "time": sample_s, "peak": peak_gb}
-        )
+    else:
+        for r in results:
+            r["img"] = latent_to_rgb_preview_from_format(r["lat"], latent_format)
     return results
 
 
@@ -475,13 +482,32 @@ def main() -> int:
         print("Encoding prompt...")
         positive = encode_prompt(clip, args.prompt)
         negative = encode_prompt(clip, args.negative) if args.negative else encode_prompt(clip, "")
-        if getattr(clip, "cond_stage_model", None) is not None:
-            clip.cond_stage_model.cpu()
-        if getattr(clip, "patcher", None) is not None:
-            mm.unload_model_and_clones(clip.patcher)
+
+        # エンコード済み cond を CPU へ（VRAM を DiT に全解放）
+        def _conds_to_cpu(conds):
+            for t in range(len(conds)):
+                for i in range(len(conds[t])):
+                    if isinstance(conds[t][i], torch.Tensor):
+                        conds[t][i] = conds[t][i].cpu()
+            return conds
+
+        positive = _conds_to_cpu(positive)
+        negative = _conds_to_cpu(negative)
+
+        # CLIP を完全に CPU オフロード（cond_stage_model + patcher + 明示解放）
+        try:
+            if getattr(clip, "cond_stage_model", None) is not None:
+                clip.cond_stage_model.cpu()
+        except Exception as e:
+            print(f"  [WARN] cond_stage_model.cpu() failed: {e}")
+        try:
+            if getattr(clip, "patcher", None) is not None:
+                mm.unload_model_and_clones(clip.patcher)
+        except Exception as e:
+            print(f"  [WARN] unload_model_and_clones failed: {e}")
         del clip
         _hard_free_vram()
-        print("  [Offload] CLIP on CPU / unloaded (VRAM freed for Flux DiT benchmark).")
+        print("  [Offload] CLIP fully offloaded to CPU (VRAM freed for Flux DiT benchmark).")
 
         print("--- Benchmark Config ---")
         print(f"Seeds: {args.seeds}")
