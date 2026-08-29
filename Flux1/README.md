@@ -13,6 +13,7 @@ MEMORY ワークフロー: **convrot int8 → hybrid nvfp4 → native nvfp4 → 
 | `native_convert_nvfp4_flux.py` | NVFP4 変換。`--mode hybrid`（構造ベース INT8 保護 + NVFP4）/ `--mode native`（全 NVFP4） |
 | `diag_impact.py` | 層別トラジェクトリ影響診断（NVFP4 誤差注入 → rel MSE）→ impact json |
 | `gen_reverse_nvfp4.py` | Reverse hybrid 変換（低影響層を INT8 → NVFP4 に reverse 変換） |
+| `calib_input_scale_nvfp4.py` | hybrid NVFP4 アーティファクトに per-layer input_scale を追加（W4A4 TC パス用） |
 
 ベンチは `benchmark\flux1_nvfp4\`（`flux_int8_bench.py` = INT8 用、`flux1_convrot_nvfp4_bench.py` = Hybrid ConvRot NVFP4 用）。
 
@@ -21,7 +22,8 @@ MEMORY ワークフロー: **convrot int8 → hybrid nvfp4 → native nvfp4 → 
 1. 全層 INT8 を作る: `native_convert_int8_convrot_flux.py`（上記手順 1）
 2. 層別影響を診断: `diag_impact.py` → `impact_<model>.json`（昇順 = NVFP4 化しても安全な順）
 3. 低影響 K 層を NVFP4 化: `gen_reverse_nvfp4.py <K>` → hybrid nv{K} アーティファクト
-4. ベンチ: `benchmark\flux1_nvfp4\flux1_convrot_nvfp4_bench.py` で SSIM 確認
+4. （W4A4 TensorCore パスを使う場合）input_scale キャリブレーション: `calib_input_scale_nvfp4.py`
+5. ベンチ: `benchmark\flux1_nvfp4\flux1_convrot_nvfp4_bench.py` で SSIM 確認
 
 ```
 python Flux1\diag_impact.py ^

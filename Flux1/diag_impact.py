@@ -85,6 +85,11 @@ def main():
     dm = model.model.diffusion_model
     dm.eval()
 
+    # 低 VRAM モードでロード（bf16 24GB は VRAM 16GB に載らないため）
+    import comfy.model_management as mm
+
+    mm.load_models_gpu([model], lowvram=True)
+
     # flux の Linear (weight + in_features) モジュール一覧
     mods = {n: m for n, m in dm.named_modules()
             if hasattr(m, "weight") and hasattr(m, "in_features")}
