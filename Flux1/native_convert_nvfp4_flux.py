@@ -222,7 +222,7 @@ def run_post_convert_flux_bench(
     comfy_path: str,
     vae_path: str | None = None,
 ) -> int:
-    bench_script = os.path.join(script_dir, "benchmark", "flux_int8_bench.py")
+    bench_script = os.path.join(script_dir, "benchmark", "flux1_nvfp4", "flux1_convrot_nvfp4_bench.py")
     if not os.path.isfile(bench_script):
         print(f"[FATAL] Post-convert bench script not found: {bench_script}")
         return 1
