@@ -228,7 +228,7 @@ def run_post_convert_flux_int8_bench(
       --comfy_path <ComfyUI root> [--vae <flux VAE>] --output_dir <benchmark result>
     シードはベンチ側デフォルト（42 + 10桁 の 5 個）を使用（MEMORY.md ルール準拠）。
     """
-    bench_script = os.path.join(script_dir, "benchmark", "flux1_nvfp4", "flux_int8_bench.py")
+    bench_script = os.path.join(script_dir, "benchmark", "flux_int8_bench.py")
     if not os.path.isfile(bench_script):
         print(f"[FATAL] Post-convert bench script not found: {bench_script}")
         return 1
