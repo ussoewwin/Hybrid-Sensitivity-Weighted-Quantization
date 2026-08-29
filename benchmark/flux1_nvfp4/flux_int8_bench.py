@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Flux1 INT8 ComfyUI Native Benchmark
+"""Flux1 INT8 ComfyUI Native Benchmark (new-gen: NVFP4 runtime + INT8 parity)
 =====================================
-Compare BF16/FP16 Flux1 DiT vs native INT8 (comfy_quant int8_tensorwise + ConvRot).
+Compare BF16/FP16 Flux1 DiT vs native ConvRot INT8 (comfy_quant int8_tensorwise + ConvRot).
 
 Example:
   python flux_int8_bench.py ^
     --fp16  "D:\\...\\redcraftHybridH3A2A_realreveal5.safetensors" ^
-    --int8  "D:\\...\\redcraftHybridH3A2A_realreveal5_native_int8.safetensors" ^
+    --int8 "D:\\...\\redcraftHybridH3A2A_realreveal5_native_convrot_int8.safetensors" ^
     --clip_path "D:\\...\\flan_t5_xxl_convrot_int8.safetensors" ^
     --clip_l_path "D:\\...\\clip_l.safetensors" ^
     --comfy_path "D:\\USERFILES\\ComfyUI\\ComfyUI" ^
@@ -19,8 +19,7 @@ Metrics:
   - Pixel-space MSE / SSIM（--vae 指定時のみ。Flux は VAE が無いと decode 不可）
   - VAE 未指定時は latent RGB preview で pixel SSIM を代替（参考値扱い）
 
-Seeds:
-  デフォルト 5 個 = 42, 137, 5517, 92048, 371506（「42 + 桁上がり」セット）。
+Seeds: flux_int8_bench.py と同一（42 + 10桁以上 の 5 個デフォルト、20 シード対応）。
   「10桁以上」セットは --seeds 8426170395,9517038246,1357924680,2468135791,3579246812
   （MEMORY.md ルール: シードは「42 + 10桁以上」の 5 個を使用し、勝手に変えない）。
 """
@@ -118,6 +117,14 @@ def setup_comfy(comfy_path: str) -> None:
 
     _install_torchaudio_stub()
 
+    # NVFP4 ConvRot runtime: prebind kitchen tensor exports before comfy.quant_ops import
+    from flux1_nvfp4.kitchen_quant_ops_repair import (
+        ensure_kitchen_quant_ops,
+        prebind_missing_kitchen_tensor_exports,
+    )
+
+    prebind_missing_kitchen_tensor_exports()
+
     import comfy.options
 
     comfy.options.enable_args_parsing(False)
@@ -161,23 +168,34 @@ def setup_comfy(comfy_path: str) -> None:
         ps.Process = lambda: _Proc()
         sys.modules["psutil"] = ps
 
+    # Resolve quant_ops now (after prebind) and apply Branch A/B before model load.
+    import comfy.quant_ops  # noqa: F401
 
-def apply_int8_patches() -> None:
-    """HSWQ INT8 comfy_quant monkey-patch (same as krea2/zi benches)."""
+    ensure_kitchen_quant_ops()
+
+
+def apply_quant_patches() -> None:
+    """NVFP4 + INT8 comfy_quant monkey-patch（krea2_convrot_nvfp4_bench 相当）."""
     import comfy.ops
+
+    from flux1_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
+    from flux1_nvfp4.nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+    import flux1_nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
 
     from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
     import int8.comfy_quant_int8 as _cq_int8
 
+    apply_comfy_quant_nvfp4_patches()
+    if not apply_nvfp4_comfy_parity():
+        raise RuntimeError("flux1_nvfp4 ComfyUI-only parity failed to apply")
+    print(f"  [BENCH] nvfp4 patch file: {os.path.abspath(_cq_nvfp4.__file__)}")
+    print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
+
     apply_comfy_quant_int8_patches()
     print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
     print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
-    print(f"  [BENCH] patch file: {os.path.abspath(_cq_int8.__file__)}")
     if not _cq_int8._PATCHES_APPLIED:
-        raise RuntimeError(
-            "comfy_quant_int8 patches failed to apply "
-            "(need [BENCH] comfy_quant_int8 patched: True)"
-        )
+        raise RuntimeError("comfy_quant_int8 patches failed to apply")
 
 
 def set_hf_token(token: str | None) -> None:
@@ -305,8 +323,11 @@ def _load_diffusion_model(unet_path: str):
         _int8_quant_conv_scope,
         checkpoint_looks_like_comfy_quant_int8,
     )
+    from flux1_nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
 
+    looks_nvfp4 = checkpoint_looks_like_comfy_quant_nvfp4(unet_path)
     use_int8_scope = checkpoint_looks_like_comfy_quant_int8(unet_path)
+    print(f"  [BENCH] NVFP4 comfy_quant detect: {looks_nvfp4}")
     print(f"  [BENCH] INT8 Conv2d load scope: {use_int8_scope}")
     if use_int8_scope:
         with _int8_quant_conv_scope():
@@ -459,7 +480,7 @@ def main() -> int:
     saved_argv = _clear_argv_for_comfy()
     try:
         setup_comfy(args.comfy_path)
-        apply_int8_patches()
+        apply_quant_patches()
 
         import comfy.model_management as mm
         import comfy.sd
@@ -529,7 +550,7 @@ def main() -> int:
             args=args,
         )
         res_int8 = run_branch(
-            label="2. Quantized (INT8)",
+            label="2. Quantized (native ConvRot INT8)",
             unet_path=args.int8,
             vae=vae,
             positive=positive,
