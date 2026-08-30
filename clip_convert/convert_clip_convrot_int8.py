@@ -103,8 +103,8 @@ def _preprocess_sam_and_fused_keys(sd: dict[str, torch.Tensor]) -> dict[str, tor
                 .replace(".norm_final_attn.", ".norm_final.")
             )
 
-        # Split fused QKV in_proj_weight / in_proj_bias only for UNet/Detector layers (not CLIP language_backbone)
-        if k.endswith((".in_proj_weight", ".in_proj_bias")) and "language_backbone" not in k:
+        # Split fused QKV in_proj_weight / in_proj_bias
+        if k.endswith((".in_proj_weight", ".in_proj_bias")):
             base, suffix = k.rsplit(".in_proj_", 1)
             s = ".weight" if suffix == "weight" else ".bias"
             d = v.shape[0] // 3
@@ -118,24 +118,9 @@ def _preprocess_sam_and_fused_keys(sd: dict[str, torch.Tensor]) -> dict[str, tor
     return out_sd
 
 
-def load_state_dict_any(model_path: str) -> dict[str, torch.Tensor]:
-    """Load state dict from .safetensors or PyTorch (.pt, .pth, .bin, .ckpt) checkpoint."""
-    if model_path.endswith(".safetensors"):
-        return load_file(model_path)
-    # PyTorch checkpoint
-    data = torch.load(model_path, map_location="cpu", weights_only=False)
-    if isinstance(data, dict):
-        if "model" in data and isinstance(data["model"], dict):
-            return data["model"]
-        if "state_dict" in data and isinstance(data["state_dict"], dict):
-            return data["state_dict"]
-        return {k: v for k, v in data.items() if isinstance(v, torch.Tensor)}
-    raise ValueError(f"Unsupported checkpoint format in {model_path}: {type(data)}")
-
-
 def convert(model_path: str, output_path: str, enable_convrot: bool = True, groupsize: int = 256):
     print(f"Loading: {model_path}")
-    sd = load_state_dict_any(model_path)
+    sd = load_file(model_path)
     print(f"  raw keys: {len(sd)}")
 
     # Preprocess SAM / fused in_proj keys
@@ -166,26 +151,6 @@ def convert(model_path: str, output_path: str, enable_convrot: bool = True, grou
         w = tensor.float()
         out_f, in_f = w.shape
         module_key = key[:-len(".weight")]
-
-        # Keep language_backbone (CLIP Text Encoder) in native float for transformers_convert
-        if "language_backbone" in key:
-            new_sd[key] = tensor
-            skip_count += 1
-            continue
-
-        # Only quantize standard Linear layers with GEMM-compatible dimensions (>= 64 and divisible by 4)
-        is_gemm_compatible = (
-            in_f >= 64
-            and out_f >= 64
-            and (in_f % 4 == 0)
-            and (out_f % 4 == 0)
-            and not any(tag in key for tag in ["boxRPB", "pos_enc_project", "direct_project", "pool_project", "points_direct"])
-        )
-
-        if not is_gemm_compatible:
-            new_sd[key] = tensor
-            skip_count += 1
-            continue
 
         if enable_convrot:
             gs = convrot_group_size(in_f, groupsize)
@@ -226,21 +191,7 @@ def convert(model_path: str, output_path: str, enable_convrot: bool = True, grou
     print(f"  ConvRot INT8: {convrot_count}")
     print(f"  Plain INT8:   {plain_count}")
     print(f"  Kept as-is:  {skip_count}")
-
-    tmp_output = output_path + ".tmp"
-    if os.path.exists(tmp_output):
-        try:
-            os.remove(tmp_output)
-        except Exception:
-            pass
-
-    save_file(new_sd, tmp_output, metadata=metadata)
-    if os.path.exists(output_path):
-        try:
-            os.remove(output_path)
-        except Exception:
-            pass
-    os.replace(tmp_output, output_path)
+    save_file(new_sd, output_path, metadata=metadata)
 
     in_size = os.path.getsize(model_path) / (1024 ** 3)
     out_size = os.path.getsize(output_path) / (1024 ** 3)
