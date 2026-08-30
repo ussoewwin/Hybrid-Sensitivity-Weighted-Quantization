@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import sys
 import time
 import torch
 from safetensors.torch import save_file
@@ -266,6 +267,7 @@ def _find_upstream_filename(prompt: dict | None, unique_id: str | None, input_sl
             "filename",
             "file_name",
             "model_patch_name",
+            "sam3_name",
             "name",
         ):
             if key in up_inputs and isinstance(up_inputs[key], str) and up_inputs[key].strip():
@@ -320,9 +322,12 @@ def _load_full_sam_checkpoint(prompt, unique_id, input_slot):
     try:
         import folder_paths
         for folder in ("checkpoints", "unet", "diffusion_models"):
-            cand = folder_paths.get_full_path(folder, name + ".safetensors")
-            if cand and os.path.exists(cand):
-                p = cand
+            for ext in (".safetensors", ".pt", ".ckpt"):
+                cand = folder_paths.get_full_path(folder, name + ext)
+                if cand and os.path.exists(cand):
+                    p = cand
+                    break
+            if p is not None:
                 break
     except Exception:
         return None
