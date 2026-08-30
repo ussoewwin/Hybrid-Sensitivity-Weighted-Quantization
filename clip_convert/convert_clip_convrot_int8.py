@@ -118,9 +118,24 @@ def _preprocess_sam_and_fused_keys(sd: dict[str, torch.Tensor]) -> dict[str, tor
     return out_sd
 
 
+def load_state_dict_any(model_path: str) -> dict[str, torch.Tensor]:
+    """Load state dict from .safetensors or PyTorch (.pt, .pth, .bin, .ckpt) checkpoint."""
+    if model_path.endswith(".safetensors"):
+        return load_file(model_path)
+    # PyTorch checkpoint
+    data = torch.load(model_path, map_location="cpu", weights_only=False)
+    if isinstance(data, dict):
+        if "model" in data and isinstance(data["model"], dict):
+            return data["model"]
+        if "state_dict" in data and isinstance(data["state_dict"], dict):
+            return data["state_dict"]
+        return {k: v for k, v in data.items() if isinstance(v, torch.Tensor)}
+    raise ValueError(f"Unsupported checkpoint format in {model_path}: {type(data)}")
+
+
 def convert(model_path: str, output_path: str, enable_convrot: bool = True, groupsize: int = 256):
     print(f"Loading: {model_path}")
-    sd = load_file(model_path)
+    sd = load_state_dict_any(model_path)
     print(f"  raw keys: {len(sd)}")
 
     # Preprocess SAM / fused in_proj keys
