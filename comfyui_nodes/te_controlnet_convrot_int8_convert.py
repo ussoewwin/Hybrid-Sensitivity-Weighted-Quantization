@@ -337,6 +337,7 @@ class TEControlNetConvRotInt8Quantize:
                 "clip": ("CLIP",),
                 "control_net": ("CONTROL_NET",),
                 "model_patch": ("MODEL_PATCH",),
+                "model": ("MODEL",),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
             },
             "hidden": {
@@ -363,6 +364,7 @@ class TEControlNetConvRotInt8Quantize:
         clip=None,
         control_net=None,
         model_patch=None,
+        model=None,
         output_path: str = "",
         prompt=None,
         unique_id=None,
@@ -372,8 +374,10 @@ class TEControlNetConvRotInt8Quantize:
         if not _is_power_of_4(group_size):
             raise ValueError(f"group_size must be a power of 4 (>=4), got {group_size}")
 
-        if clip is None and control_net is None and model_patch is None:
-            raise ValueError("Please connect at least one input: clip (Text Encoder), control_net, or model_patch.")
+        if clip is None and control_net is None and model_patch is None and model is None:
+            raise ValueError(
+                "Please connect at least one input: clip (Text Encoder), control_net, model_patch, or model."
+            )
 
         tasks: list[tuple[str, dict[str, torch.Tensor], str]] = []
         user_output_path = (output_path or "").strip().strip('"').strip("'")
@@ -389,6 +393,20 @@ class TEControlNetConvRotInt8Quantize:
         if model_patch is not None:
             mp_name = _find_upstream_filename(prompt, unique_id, "model_patch") or _get_original_name(model_patch, "model_patch")
             tasks.append(("ModelPatch", _extract_state_dict(model_patch), mp_name))
+
+        if model is not None:
+            model_name = _find_upstream_filename(prompt, unique_id, "model") or _get_original_name(model, "model")
+            sd_model = _extract_state_dict(model)
+            # ModelPatcher wraps the base model: strip the "diffusion_model." prefix so
+            # keys match ComfyUI's native SAM3 / SAM3.1 checkpoint layout. The loaded
+            # weights are already in ComfyUI structure (in_proj split, tracker remap,
+            # language_backbone separated into CLIP), so no further preprocessing needed.
+            sd_model = {
+                (k[len("diffusion_model."):] if k.startswith("diffusion_model.") else k): v
+                for k, v in sd_model.items()
+                if k != "model_sampling"
+            }
+            tasks.append(("Model", sd_model, model_name))
 
         saved_paths: list[str] = []
         report_lines: list[str] = []
