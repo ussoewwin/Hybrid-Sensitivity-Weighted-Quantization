@@ -1,29 +1,31 @@
-# Flux1 量子化スクリプト集
+# Flux1 Quantization Scripts
 
-Flux1 DiT（`model.diffusion_model.*` 構成、例: redcraftHybridH3A2A_realreveal5）専用の
-native（hswq 非使用）量子化スクリプト。
+Flux1 DiT (`model.diffusion_model.*`, e.g. redcraftHybridH3A2A_realreveal5) native
+(hswq-free) quantization scripts.
 
-MEMORY ワークフロー: **convrot int8 → hybrid nvfp4 → native nvfp4 → ベンチマーク**
+MEMORY workflow: **convrot int8 → hybrid nvfp4 → native nvfp4 → benchmark**
 
-## ファイル
+## Files
 
-| ファイル | 用途 |
-|---------|------|
-| `native_convert_int8_convrot_flux.py` | ConvRot INT8 変換（全 Linear → row-wise INT8 + comfy_quant スタンプ） |
-| `native_convert_nvfp4_flux.py` | NVFP4 変換。`--mode hybrid`（構造ベース INT8 保護 + NVFP4）/ `--mode native`（全 NVFP4） |
-| `diag_impact.py` | 層別トラジェクトリ影響診断（NVFP4 誤差注入 → rel MSE）→ impact json |
-| `gen_reverse_nvfp4.py` | Reverse hybrid 変換（低影響層を INT8 → NVFP4 に reverse 変換） |
-| `calib_input_scale_nvfp4.py` | hybrid NVFP4 アーティファクトに per-layer input_scale を追加（W4A4 TC パス用） |
+| File | Purpose |
+|------|---------|
+| `native_convert_int8_convrot_flux.py` | ConvRot INT8 convert (all Linear → row-wise INT8 + comfy_quant stamp) |
+| `native_convert_nvfp4_flux.py` | NVFP4 convert. `--mode hybrid` (structural INT8 protect + NVFP4) / `--mode native` (all NVFP4) |
+| `diag_impact.py` | Per-layer trajectory impact diagnosis (NVFP4 error injection → rel MSE) → impact json |
+| `gen_reverse_nvfp4.py` | Reverse hybrid convert (low-impact layers INT8 → NVFP4) |
+| `calib_input_scale_nvfp4.py` | Add per-layer input_scale to hybrid NVFP4 artifact (for W4A4 TC path) |
 
-ベンチは `benchmark\flux1_nvfp4\`（`flux_int8_bench.py` = INT8 用、`flux1_convrot_nvfp4_bench.py` = Hybrid ConvRot NVFP4 用）。
+Benchmarks live in `benchmark\flux1_nvfp4\`:
+`flux_int8_bench.py` (INT8 MSE/SSIM), `flux1_convrot_nvfp4_bench.py` (Hybrid NVFP4 MSE/SSIM),
+`flux_traj_compare.py` (per-step trajectory divergence, zi_traj_compare port).
 
-## Reverse hybrid NVFP4 method（ZI 方式）
+## Reverse hybrid NVFP4 method (ZI-style)
 
-1. 全層 INT8 を作る: `native_convert_int8_convrot_flux.py`（上記手順 1）
-2. 層別影響を診断: `diag_impact.py` → `impact_<model>.json`（昇順 = NVFP4 化しても安全な順）
-3. 低影響 K 層を NVFP4 化: `gen_reverse_nvfp4.py <K>` → hybrid nv{K} アーティファクト
-4. （W4A4 TensorCore パスを使う場合）input_scale キャリブレーション: `calib_input_scale_nvfp4.py`
-5. ベンチ: `benchmark\flux1_nvfp4\flux1_convrot_nvfp4_bench.py` で SSIM 確認
+1. All-INT8: `native_convert_int8_convrot_flux.py` (step 1 below)
+2. Diagnose per-layer impact: `diag_impact.py` → `impact_<model>.json` (ascending = safest first)
+3. Convert K lowest-impact layers to NVFP4: `gen_reverse_nvfp4.py <K>` → hybrid nv{K} artifact
+4. (W4A4 TensorCore path) input_scale calibration: `calib_input_scale_nvfp4.py`
+5. Benchmark: `benchmark\flux1_nvfp4\flux1_convrot_nvfp4_bench.py` (SSIM) / `flux_traj_compare.py`
 
 ```
 python Flux1\diag_impact.py ^
@@ -34,9 +36,9 @@ python Flux1\gen_reverse_nvfp4.py ^
   <K> "<model>_hybrid_nv<K>_convrot_nvfp4.safetensors" "<all_int8>.safetensors" "impact_<model>.json"
 ```
 
-## 実行手順
+## Usage
 
-### 1. ConvRot INT8 変換
+### 1. ConvRot INT8 convert
 
 ```
 python native_convert_int8_convrot_flux.py ^
@@ -45,7 +47,7 @@ python native_convert_int8_convrot_flux.py ^
   --no-bench
 ```
 
-### 2. Hybrid ConvRot NVFP4 変換（構造ベース INT8 保護 + NVFP4）
+### 2. Hybrid ConvRot NVFP4 convert (structural INT8 protect + NVFP4)
 
 ```
 python native_convert_nvfp4_flux.py ^
@@ -55,11 +57,11 @@ python native_convert_nvfp4_flux.py ^
   --no-bench
 ```
 
-INT8 保護層（構造ベースの感度仮説）:
-- adaLN modulation 系: `img_mod.lin` / `txt_mod.lin` / `modulation.lin` / `adaLN_modulation`
-- 入出力系: `img_in` / `txt_in` / `time_in` / `vector_in` / `guidance_in` / `final_layer`
+INT8 protect layers (structural sensitivity hypothesis):
+- adaLN modulation: `img_mod.lin` / `txt_mod.lin` / `modulation.lin` / `adaLN_modulation`
+- I/O layers: `img_in` / `txt_in` / `time_in` / `vector_in` / `guidance_in` / `final_layer`
 
-### 3. Native ConvRot NVFP4 変換（全 Linear NVFP4、保護なし）
+### 3. Native ConvRot NVFP4 convert (all Linear NVFP4, no protect)
 
 ```
 python native_convert_nvfp4_flux.py ^
@@ -69,12 +71,12 @@ python native_convert_nvfp4_flux.py ^
   --no-bench
 ```
 
-### 4. ベンチマーク（変換後モデル vs FP16/BF16 基準）
+### 4. Benchmark (quantized vs FP16/BF16 baseline)
 
 ```
 python ..\benchmark\flux1_nvfp4\flux_int8_bench.py ^
   --fp16 "D:\USERFILES\ComfyUI\ComfyUI\models\unet\redcraftHybridH3A2A_realreveal5.safetensors" ^
-  --int8 "<変換後モデル>" ^
+  --int8 "<quantized model>" ^
   --clip_path "D:\USERFILES\ComfyUI\ComfyUI\models\clip\flan_t5_xxl_convrot_int8.safetensors" ^
   --clip_l_path "D:\USERFILES\ComfyUI\ComfyUI\models\clip\clip_l.safetensors" ^
   --comfy_path "D:\USERFILES\ComfyUI\ComfyUI" ^
@@ -83,12 +85,24 @@ python ..\benchmark\flux1_nvfp4\flux_int8_bench.py ^
   --output_dir "D:\USERFILES\GitHub\hswq\benchmark result"
 ```
 
-変換スクリプトに `--clip_path --clip_l_path --comfy_path [--vae]` を渡すと、
-変換後にベンチを自動実行します（`--no-bench` でスキップ）。
+Passing `--clip_path --clip_l_path --comfy_path [--vae]` to a converter runs the benchmark
+automatically after conversion (`--no-bench` to skip).
 
-## 注意
+Trajectory comparison (per-step divergence, same noise per seed):
 
-- Bias Correction（Card 1）は対象外（flux の ComfyUI 実行ベース calib は別スコープ）
-- CLIP に `flan_t5_xxl_convrot_int8.safetensors`（非純正 t5xxl）を使う場合は、
-  fp16/int8 比較の公平性には影響しないが、絶対的な画質は純正 t5xxl と異なる可能性あり
-- スコア結果は `D:\USERFILES\GitHub\hswq\benchmark result\` に保存（MEMORY ルール）
+```
+python ..\benchmark\flux1_nvfp4\flux_traj_compare.py ^
+  --fp16 "<baseline>.safetensors" --fp8 "<quantized>.safetensors" ^
+  --clip_path "D:\USERFILES\ComfyUI\ComfyUI\models\clip\flan_t5_xxl_convrot_int8.safetensors" ^
+  --clip_l_path "D:\USERFILES\ComfyUI\ComfyUI\models\clip\clip_l.safetensors" ^
+  --comfy_path "D:\USERFILES\ComfyUI\ComfyUI" ^
+  --seeds "42,137,5517,92048,371506,..." ^
+  --steps 12
+```
+
+## Notes
+
+- Bias Correction (Card 1) is out of scope (flux ComfyUI-run calibration is a separate effort).
+- `flan_t5_xxl_convrot_int8.safetensors` is a non-stock t5xxl. It does not affect
+  fp16/quantized comparison fairness, but absolute image quality may differ from the stock t5xxl.
+- Score results go to `D:\USERFILES\GitHub\hswq\benchmark result\` (MEMORY rule).
