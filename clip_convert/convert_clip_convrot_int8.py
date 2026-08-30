@@ -82,9 +82,27 @@ def _encode_meta(config: dict) -> torch.Tensor:
     return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
 
+def _detect_sam_version(sd: dict) -> str | None:
+    """Auto-detect SAM3 (3) vs SAM3.1 from checkpoint keys.
+
+    Returns "SAM3", "SAM31", or None (not a SAM3-family checkpoint).
+    SAM3 (non-multiplex) ships sam2_convs / a 4-level FPN; SAM3.1 (multiplex)
+    ships propagation_convs / interactive_convs with a 3-level FPN.
+    """
+    keys = list(sd.keys())
+    if not any(k.startswith("detector.") for k in keys):
+        return None
+    if any("propagation_convs" in k for k in keys):
+        return "SAM31"
+    if any("sam2_convs" in k for k in keys) or any("vision_backbone.convs.3" in k for k in keys):
+        return "SAM3"
+    return None
+
+
 def _preprocess_sam_and_fused_keys(sd: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
     """Normalize SAM3/SAM3.1 and fused in_proj keys to align with ComfyUI native module hierarchy."""
     out_sd: dict[str, torch.Tensor] = {}
+    sam_version = _detect_sam_version(sd)
 
     for k, v in sd.items():
         # SAM3.1: remove per-block freqs_cis buffers (computed dynamically)
@@ -103,12 +121,12 @@ def _preprocess_sam_and_fused_keys(sd: dict[str, torch.Tensor]) -> dict[str, tor
                 .replace(".norm_final_attn.", ".norm_final.")
             )
 
-        # SAM3 (non-multiplex): unused CLIP pooled-output projection. Meta original
-        # shape is (1024, 512) but ComfyUI's SAM3ClipModelWrapper expects
-        # (1024, 1024). Drop it only when the shape mismatches; SAM3.1 ships
-        # (1024, 1024) and must be kept intact (branch by model version).
+        # text_projection: SAM3 (non-multiplex) ships the unused CLIP pooled-output
+        # projection as (1024, 512), which does not match ComfyUI's expected
+        # (1024, 1024); it is dropped. SAM3.1 ships (1024, 1024) and is kept.
+        # Branch explicitly by auto-detected model version.
         if "encoder.text_projection" in k:
-            if isinstance(v, torch.Tensor) and tuple(v.shape) != (1024, 1024):
+            if sam_version == "SAM3" or (isinstance(v, torch.Tensor) and tuple(v.shape) != (1024, 1024)):
                 continue
 
         # Split fused QKV in_proj_weight / in_proj_bias
