@@ -304,6 +304,46 @@ def _get_original_name(obj, default: str = "model") -> str:
     return default
 
 
+def _load_full_sam_checkpoint(prompt, unique_id, input_slot):
+    """Load the upstream checkpoint file and return a fully-processed state dict.
+
+    Resolves the original ckpt path from the loader node and applies the SAM3 / SAM3.1
+    preprocessing from convert_clip_convrot_int8 (in_proj split + text_projection shape
+    branching), so the saved file keeps MODEL + CLIP and works with
+    CheckpointLoaderSimple (CLIP is not None). Returns None when the upstream path
+    cannot be resolved.
+    """
+    name = _find_upstream_filename(prompt, unique_id, input_slot)
+    if not name:
+        return None
+    p = None
+    try:
+        import folder_paths
+        for folder in ("checkpoints", "unet", "diffusion_models"):
+            cand = folder_paths.get_full_path(folder, name + ".safetensors")
+            if cand and os.path.exists(cand):
+                p = cand
+                break
+    except Exception:
+        return None
+    if p is None:
+        return None
+    try:
+        import comfy.utils as _cu
+        sd = _cu.load_torch_file(p, safe_load=True)
+    except Exception:
+        return None
+    try:
+        _conv_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "clip_convert")
+        if _conv_dir not in sys.path:
+            sys.path.insert(0, _conv_dir)
+        from convert_clip_convrot_int8 import _preprocess_sam_and_fused_keys as _pp
+        sd = _pp(sd)
+    except Exception:
+        pass  # keep the raw sd when the shared preprocessor is unavailable
+    return sd
+
+
 def _summarize(output_path: str) -> str:
     """Read the written checkpoint's metadata only (no tensor load)."""
     try:
@@ -382,7 +422,10 @@ class TEControlNetConvRotInt8Quantize:
         tasks: list[tuple[str, dict[str, torch.Tensor], str]] = []
         user_output_path = (output_path or "").strip().strip('"').strip("'")
 
-        if clip is not None:
+        # CLIP is emitted as its own file only when no MODEL is connected; when a
+        # MODEL (SAM3 / SAM3.1) is present the CLIP weights are merged into the model
+        # file so the saved checkpoint keeps a valid text encoder.
+        if clip is not None and model is None:
             clip_name = _find_upstream_filename(prompt, unique_id, "clip") or _get_original_name(clip, "clip")
             tasks.append(("CLIP", _extract_state_dict(clip), clip_name))
 
@@ -396,17 +439,24 @@ class TEControlNetConvRotInt8Quantize:
 
         if model is not None:
             model_name = _find_upstream_filename(prompt, unique_id, "model") or _get_original_name(model, "model")
-            sd_model = _extract_state_dict(model)
-            # ModelPatcher wraps the base model: strip the "diffusion_model." prefix so
-            # keys match ComfyUI's native SAM3 / SAM3.1 checkpoint layout. The loaded
-            # weights are already in ComfyUI structure (in_proj split, tracker remap,
-            # language_backbone separated into CLIP), so no further preprocessing needed.
-            sd_model = {
-                (k[len("diffusion_model."):] if k.startswith("diffusion_model.") else k): v
-                for k, v in sd_model.items()
-                if k != "model_sampling"
-            }
-            tasks.append(("Model", sd_model, model_name))
+            # SAM3 / SAM3.1: prefer converting the original checkpoint file so the
+            # saved file includes MODEL + CLIP and CheckpointLoaderSimple returns a
+            # valid CLIP (otherwise "clip input is invalid: None"). Falls back to the
+            # in-memory ModelPatcher weights (detector + tracker only) when the
+            # upstream path cannot be resolved.
+            sd_full = _load_full_sam_checkpoint(prompt, unique_id, "model")
+            if sd_full is not None:
+                tasks.append(("Model", sd_full, model_name))
+                if clip is not None:
+                    clip = None  # CLIP is already included in the model file
+            else:
+                sd_model = _extract_state_dict(model)
+                sd_model = {
+                    (k[len("diffusion_model."):] if k.startswith("diffusion_model.") else k): v
+                    for k, v in sd_model.items()
+                    if k != "model_sampling"
+                }
+                tasks.append(("Model", sd_model, model_name))
 
         saved_paths: list[str] = []
         report_lines: list[str] = []

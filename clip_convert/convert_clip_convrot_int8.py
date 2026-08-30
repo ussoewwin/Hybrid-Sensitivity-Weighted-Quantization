@@ -103,11 +103,13 @@ def _preprocess_sam_and_fused_keys(sd: dict[str, torch.Tensor]) -> dict[str, tor
                 .replace(".norm_final_attn.", ".norm_final.")
             )
 
-        # SAM3: unused CLIP pooled-output projection. Meta original shape is
-        # (1024, 512) but ComfyUI's SAM3ClipModelWrapper expects (1024, 1024);
-        # the layer is never used by the SAM3 pipeline, so drop it entirely.
+        # SAM3 (non-multiplex): unused CLIP pooled-output projection. Meta original
+        # shape is (1024, 512) but ComfyUI's SAM3ClipModelWrapper expects
+        # (1024, 1024). Drop it only when the shape mismatches; SAM3.1 ships
+        # (1024, 1024) and must be kept intact (branch by model version).
         if "encoder.text_projection" in k:
-            continue
+            if isinstance(v, torch.Tensor) and tuple(v.shape) != (1024, 1024):
+                continue
 
         # Split fused QKV in_proj_weight / in_proj_bias
         if k.endswith((".in_proj_weight", ".in_proj_bias")):
