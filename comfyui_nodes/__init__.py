@@ -6,6 +6,7 @@ Provides native ConvRot INT8 quantization nodes supporting multiple architecture
 from .native_convrot_int8_convert import NativeConvRotInt8Quantize, ZImageConvRotInt8Quantize
 from .te_controlnet_convrot_int8_convert import TEControlNetConvRotInt8Quantize
 from .hswq_model_patch_loader import HSWQModelPatchLoader
+from .sam3_pt_loader import HSWQSAM3Loader
 from .simple_clip_loader import (
     HSWQSimpleCLIPLoader,
     SimpleCLIPLoader,
@@ -14,6 +15,7 @@ from .simple_clip_loader import (
 )
 
 NODE_CLASS_MAPPINGS = {
+    "HSWQSAM3Loader": HSWQSAM3Loader,
     "NativeConvRotInt8Quantize": NativeConvRotInt8Quantize,
     "ZImageConvRotInt8Quantize": ZImageConvRotInt8Quantize,
     "TEControlNetConvRotInt8Quantize": TEControlNetConvRotInt8Quantize,
@@ -25,6 +27,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "HSWQSAM3Loader": "HSWQ SAM3 Loader (sam3.pt)",
     "NativeConvRotInt8Quantize": "Native ConvRot INT8 Quantize",
     "ZImageConvRotInt8Quantize": "Native ConvRot INT8 Quantize",
     "TEControlNetConvRotInt8Quantize": "TE / ControlNet ConvRot INT8 Quantize",
