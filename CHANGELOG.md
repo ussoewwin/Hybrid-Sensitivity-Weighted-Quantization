@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.3.3
+
+- **SAM 3 and SAM 3.1 native ConvRot INT8 quantization support** — Extended `TE / ControlNet ConvRot INT8 Quantize` node (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`), added dedicated `HSWQ SAM3 Loader (sam3.pt)` (`comfyui_nodes/sam3_pt_loader.py`), and updated standalone CLI converter (`clip_convert/convert_clip_convrot_int8.py`) to support native ConvRot INT8 quantization for Segment Anything foundation models (**SAM 3** & **SAM 3.1 Multiplex**).
+- **Automated architectural branching & key preprocessing** — Implemented automatic version detection and structural remapping for SAM architectures:
+  - **SAM 3.1 (Multiplex):** 3-level FPN (`propagation_convs` / `interactive_convs`), preserves active $(1024 \times 1024)$ `text_projection`, loaded directly via standard `UNetLoader`.
+  - **SAM 3 (Classic non-multiplex / `sam3.pt`):** 4-level FPN (`sam2_convs`), automatic pruning of unused $(1024 \times 512)$ `text_projection`, fused `.in_proj_weight` / `.in_proj_bias` splitting into `q_proj`, `k_proj`, `v_proj`, and tracker/decoder transformer key remapping via `HSWQ SAM3 Loader (sam3.pt)`.
+- **Documentation & workflow updates** — Updated comprehensive guide ([`md/How to quantize Text Encoder and ControlNet.md`](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md)), sample workflow ([`sample workflow/native convrot int8.json`](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/sample%20workflow/native%20convrot%20int8.json)), and visual workflow diagrams (`png/sam.png`, `png/model_patcher.png`, `png/te_controlnet_convrot_int8.png`).
+Release notes: [v2.3.3](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.3)
+
 ## v2.3.2
 
 - **Qwen Image Edit native ConvRot INT8 quantization published** — Added native ConvRot INT8 quantization support for Qwen Image Edit models via CLI (`Qwen Image/native_convert_int8_convrot_qwen.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize` in `comfyui_nodes/`). Features orthogonal Hadamard rotations before per-channel INT8 scaling and automated post-convert fidelity benchmarking (latent trajectory divergence and SSIM). Includes technical guide (`md/How to quantize Qwen Image Edit.md`).
