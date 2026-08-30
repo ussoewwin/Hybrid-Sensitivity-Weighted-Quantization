@@ -333,14 +333,17 @@ def _load_full_sam_checkpoint(prompt, unique_id, input_slot):
         sd = _cu.load_torch_file(p, safe_load=True)
     except Exception:
         return None
+    # Auto-detect SAM3 vs SAM3.1 and branch explicitly (never mix the two).
     try:
         _conv_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "clip_convert")
         if _conv_dir not in sys.path:
             sys.path.insert(0, _conv_dir)
         from convert_clip_convrot_int8 import _preprocess_sam_and_fused_keys as _pp
+        from convert_clip_convrot_int8 import _detect_sam_version as _ver
+        print(f"[ConvRot SAM] auto-detected version: {_ver(sd)}")
         sd = _pp(sd)
-    except Exception:
-        pass  # keep the raw sd when the shared preprocessor is unavailable
+    except Exception as e:
+        print(f"[ConvRot SAM] auto-detection/preprocess unavailable: {e}")
     return sd
 
 
