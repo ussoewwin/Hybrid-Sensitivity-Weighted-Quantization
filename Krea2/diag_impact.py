@@ -355,12 +355,14 @@ def parse_args():
     ap.add_argument("base", help="baseline fp16/bf16 Krea2 SingleStreamDiT safetensors")
     ap.add_argument("artifact", help="complete ConvRot INT8 safetensors (layer list source)")
     ap.add_argument("out", help="output impact json path")
-    ap.add_argument("--comfy-path", required=True,
+    ap.add_argument("--comfy-path", default=None,
                     help="ComfyUI root (must contain comfy/ops.py and comfy/ldm/krea2/model.py), "
-                         "e.g. <repo>/ComfyUI-master")
+                         "default: auto-detected <repo>/ComfyUI-master")
+    ap.add_argument("--repo-root", default=None,
+                    help="repo root (default: parent of this script dir)")
     ap.add_argument("--steps", type=int, default=4,
                     help="trajectory denoising steps (default 4)")
-    ap.add_argument("--lat", type=int, default=128,
+    ap.add_argument("--lat", "--latent-size", dest="lat", type=int, default=128,
                     help="latent H/W (default 128, matches bench 1024x1024 token count)")
     ap.add_argument("--seq", type=int, default=256,
                     help="random context token seq length (default 256)")
@@ -377,6 +379,9 @@ def main():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+    repo = os.path.abspath(a.repo_root) if a.repo_root else os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
     a.base = a.base.strip()
     a.artifact = a.artifact.strip()
     a.out = a.out.strip()
@@ -391,7 +396,20 @@ def main():
             mods[n] = m
     print(f"modules with weight/in_features: {len(mods)}", flush=True)
 
-    with safe_open(a.artifact, framework="pt", device="cpu") as f:
+    artifact_path = a.artifact
+    if not os.path.isfile(artifact_path):
+        cand = os.path.join(repo, a.artifact)
+        if os.path.isfile(cand):
+            artifact_path = os.path.abspath(cand)
+        else:
+            cand_base = os.path.join(repo, os.path.basename(a.artifact))
+            if os.path.isfile(cand_base):
+                artifact_path = os.path.abspath(cand_base)
+
+    if not os.path.isfile(artifact_path):
+        raise FileNotFoundError(f"Artifact not found: {a.artifact}")
+
+    with safe_open(artifact_path, framework="pt", device="cpu") as f:
         meta = json.loads(f.metadata()["_quantization_metadata"])
         layers = list(meta["layers"].keys())
     print(f"layers in INT8 metadata: {len(layers)}", flush=True)
