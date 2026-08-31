@@ -101,12 +101,13 @@ def detect_krea2_dit_config(sd, prefix):
 
 
 def load_krea2(path, device="cuda", comfy_path=None):
-    """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors onto CUDA.
-
-    Assumes bench.setup_comfy() has ALREADY been called (same as Z_Image pattern).
-    """
+    """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors onto CUDA."""
     if str(device).startswith("cpu"):
         raise RuntimeError("calib_input_scale_nvfp4 Krea2 trajectory requires CUDA.")
+    if comfy_path:
+        cp = os.path.abspath(comfy_path)
+        if cp not in sys.path:
+            sys.path.insert(0, cp)
     import comfy.ops
     from comfy.ldm.krea2.model import SingleStreamDiT
 
