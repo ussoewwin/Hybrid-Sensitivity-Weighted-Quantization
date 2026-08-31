@@ -211,6 +211,12 @@ def load_krea2(path, device="cuda", comfy_path=None):
             comfy.__path__.insert(0, comfy_dir)
         _install_comfy_stubs()
         try:
+            import comfy.cli_args
+            if not torch.cuda.is_available():
+                comfy.cli_args.args.cpu = True
+        except Exception:
+            pass
+        try:
             import comfy.options
             comfy.options.enable_args_parsing(False)
         except ImportError:
