@@ -204,13 +204,8 @@ def load_krea2(path, device="cuda", comfy_path=None):
     print(f"[Krea2] ComfyUI root: {comfy_root}")
     saved = _clear_argv_for_comfy()
     try:
-        # Prepend repo ComfyUI root and register comfy package path directly
-        comfy_dir = os.path.join(comfy_root, "comfy")
         if str(comfy_root) not in sys.path:
             sys.path.insert(0, str(comfy_root))
-        import comfy
-        if hasattr(comfy, "__path__") and comfy_dir not in comfy.__path__:
-            comfy.__path__.insert(0, comfy_dir)
 
         _install_comfy_stubs()
         try:
