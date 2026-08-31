@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import gc
 import hashlib
+import importlib.util
 import json
 import math
 import os
