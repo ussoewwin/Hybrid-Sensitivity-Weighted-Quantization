@@ -256,7 +256,9 @@ def load_krea2(path, device="cuda", comfy_path=None):
             pass
         try:
             import comfy.cli_args
-            if not torch.cuda.is_available() or str(device).startswith("cpu"):
+            if torch.cuda.is_available():
+                torch.cuda.init()
+            else:
                 comfy.cli_args.args.cpu = True
         except Exception:
             pass
@@ -269,9 +271,8 @@ def load_krea2(path, device="cuda", comfy_path=None):
         cfg = detect_krea2_dit_config(state_dict, prefix)
         print(f"Detected Krea2 DiT config: {cfg}")
         kw = {k: v for k, v in cfg.items() if k != "image_model"}
-        target_dtype = torch.bfloat16 if str(device).startswith("cuda") else torch.float32
         dit = SingleStreamDiT(
-            **kw, device=device, dtype=target_dtype,
+            **kw, device=device, dtype=torch.bfloat16,
             operations=comfy.ops.manual_cast,
         )
         stripped = {}
