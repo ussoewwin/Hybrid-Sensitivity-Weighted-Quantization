@@ -139,7 +139,23 @@ def setup_comfy(comfy_path: str) -> None:
 
     prebind_missing_kitchen_tensor_exports()
 
-    import comfy.options
+    # comfy/options.py is a repo-local shim (ComfyUI-master/comfy/options.py);
+    # the official ComfyUI tree has no such module, so an uploaded/cloud tree
+    # that lacks it must not abort setup. Inject the identical shim when missing.
+    try:
+        import comfy.options  # noqa: F401
+    except ImportError:
+        import types as _types
+
+        _opts = _types.ModuleType("comfy.options")
+        _opts.args_parsing = False
+
+        def _enable_args_parsing(enable=True):
+            _opts.args_parsing = enable
+
+        _opts.enable_args_parsing = _enable_args_parsing
+        sys.modules["comfy.options"] = _opts
+        import comfy.options  # now resolves to the injected module
 
     comfy.options.enable_args_parsing(False)
 
