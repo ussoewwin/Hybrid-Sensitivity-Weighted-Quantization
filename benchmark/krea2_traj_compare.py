@@ -96,7 +96,18 @@ def parse_args():
     ap.add_argument("--cfg", type=float, default=1.0)
     ap.add_argument("--sampler", default="euler")
     ap.add_argument("--scheduler", default="simple")
-    ap.add_argument("--mode", choices=["tc", "parity"], default="tc")
+    ap.add_argument(
+        "--mode",
+        choices=["tc", "parity"],
+        default="tc",
+        help=(
+            "NVFP4 execution mode. 'tc' runs the hardware Tensor Core W4A4 "
+            "path (scaled_mm_nvfp4) and requires a calibrated checkpoint "
+            "with .input_scale keys (gen_reverse_nvfp4.py writes them); "
+            "without input_scale the trajectory collapses. 'parity' forces "
+            "the stock GEMM + online act-rotate path."
+        ),
+    )
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -104,6 +115,10 @@ def parse_args():
 
 def main() -> int:
     args = parse_args()
+    # Deterministic comparison: same seed = same noise. Pin cuDNN to avoid
+    # autotuning / algorithm-selection noise between the FP16 and quant runs.
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     seeds = [int(s.strip()) for s in args.seeds.split(",") if s.strip()]
     bench.set_hf_token(args.token)
 

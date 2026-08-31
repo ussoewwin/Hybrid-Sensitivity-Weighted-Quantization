@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-from .nvfp4_gemm import bake_nvfp4_weight_inplace, hswq_scaled_mm_nvfp4
+from .nvfp4_gemm import bake_nvfp4_weight_inplace
 from .nvfp4_hadamard import build_hadamard
 from .nvfp4_runtime import rotate_last_dim_pooled
 from .nvfp4_tc_gate import note_scaled_mm_failure, nvfp4_tc_enabled
@@ -29,13 +29,15 @@ logger = logging.getLogger(__name__)
 _TC_HITS = 0
 _DEQUANT_FALLBACKS = 0
 _CONVROT_ACT_ROTATES = 0
+_TC_FLOPS = 0
 
 
 def reset_nvfp4_forward_stats() -> None:
-    global _TC_HITS, _DEQUANT_FALLBACKS, _CONVROT_ACT_ROTATES
+    global _TC_HITS, _DEQUANT_FALLBACKS, _CONVROT_ACT_ROTATES, _TC_FLOPS
     _TC_HITS = 0
     _DEQUANT_FALLBACKS = 0
     _CONVROT_ACT_ROTATES = 0
+    _TC_FLOPS = 0
 
 
 def nvfp4_forward_stats() -> dict:
@@ -43,6 +45,7 @@ def nvfp4_forward_stats() -> dict:
         "scaled_mm_hits": _TC_HITS,
         "dequant_fallbacks": _DEQUANT_FALLBACKS,
         "convrot_act_rotates": _CONVROT_ACT_ROTATES,
+        "tc_flops": _TC_FLOPS,
     }
 
 
@@ -53,10 +56,11 @@ def _slice_nvfp4_mm_out(result, orig_m: int, orig_n: int):
 
 
 def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
-    """QT×QT path via HSWQ-owned dequant GEMM (never kitchen scaled_mm)."""
+    """Kitchen / tritant NVFP4 linear (QT path; used as fallback)."""
     global _TC_HITS, _DEQUANT_FALLBACKS
     import torch
     import torch.nn.functional as F
+    import comfy_kitchen as ck
     from comfy_kitchen.tensor.base import QuantizedTensor
     from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout
 
@@ -83,29 +87,25 @@ def scaled_mm_nvfp4_linear(input_qt, weight_qt, bias):
     a_qdata, scale_a, block_scale_a = TensorCoreNVFP4Layout.get_plain_tensors(input_qt)
     w_qdata, scale_b, block_scale_b = TensorCoreNVFP4Layout.get_plain_tensors(weight_qt)
     out_dtype = input_qt._params.orig_dtype
-    if not nvfp4_tc_enabled():
+    try:
+        result = ck.scaled_mm_nvfp4(
+            a_qdata,
+            w_qdata,
+            tensor_scale_a=scale_a,
+            tensor_scale_b=scale_b,
+            block_scale_a=block_scale_a,
+            block_scale_b=block_scale_b,
+            bias=bias,
+            out_dtype=out_dtype,
+        )
+        orig_m = input_qt._params.orig_shape[0]
+        orig_n = weight_qt._params.orig_shape[0]  # (out, in)
+        _TC_HITS += 1
+        return _slice_nvfp4_mm_out(result, orig_m, orig_n)
+    except (RuntimeError, TypeError) as e:
+        logger.warning("[HSWQ NVFP4] scaled_mm_nvfp4 failed: %s → F.linear dequant", e)
         _DEQUANT_FALLBACKS += 1
         return F.linear(input_qt, weight_qt, bias)
-
-    if scale_a.dtype != torch.float32 or scale_a.dim() != 1:
-        scale_a = scale_a.reshape(-1).float()
-    if scale_b.dtype != torch.float32 or scale_b.dim() != 1:
-        scale_b = scale_b.reshape(-1).float()
-
-    result = hswq_scaled_mm_nvfp4(
-        a_qdata,
-        w_qdata,
-        tensor_scale_a=scale_a,
-        tensor_scale_b=scale_b,
-        block_scale_a=block_scale_a,
-        block_scale_b=block_scale_b,
-        bias=bias,
-        out_dtype=out_dtype,
-    )
-    orig_m = input_qt._params.orig_shape[0]
-    orig_n = weight_qt._params.orig_shape[0]  # (out, in)
-    _TC_HITS += 1
-    return _slice_nvfp4_mm_out(result, orig_m, orig_n)
 
 
 def _plain_weight_cached(module, weight_qt):
@@ -146,7 +146,7 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
     primitive (SM120-verified path B — never torch native ``F.scaled_mm``).
     Any failure → ``None`` → caller bakes weight + ``F.linear`` (dense fallback).
     """
-    global _TC_HITS, _DEQUANT_FALLBACKS
+    global _TC_HITS, _DEQUANT_FALLBACKS, _TC_FLOPS
     import torch
     import torch.nn.functional as F
     from comfy_kitchen.tensor.base import QuantizedTensor
@@ -211,6 +211,7 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(
             module, weight_qt
         )
+        flops = orig_m * orig_k * orig_n * 2
 
         # Cache alpha; rebind only when the act scale object changes
         # (placeholder → frozen amax swap).
@@ -244,6 +245,7 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
             orig_n=orig_n,
         )
         _TC_HITS += 1
+        _TC_FLOPS += flops
         return result
     except (RuntimeError, TypeError, ValueError) as e:
         note_scaled_mm_failure(e)
