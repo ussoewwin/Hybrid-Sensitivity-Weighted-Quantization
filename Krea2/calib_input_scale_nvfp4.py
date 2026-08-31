@@ -48,7 +48,43 @@ from safetensors.torch import load_file, save_file
 
 
 # ---------------------------------------------------------------------------
+# Krea2 detect + load
+# ---------------------------------------------------------------------------
+def _find_krea2_key_prefix(keys):
+    for prefix in ("model.diffusion_model.", "diffusion_model.", ""):
+        if f"{prefix}txtfusion.projector.weight" in keys:
+            return prefix
+    raise ValueError("Not a Krea2 checkpoint: missing txtfusion.projector.weight")
 
+
+def detect_krea2_dit_config(sd, prefix):
+    head_dim = 128
+    fw = sd[f"{prefix}first.weight"]
+    features = int(fw.shape[0])
+    channels = int(fw.shape[1] // 4)
+    br = re.compile(r"^" + re.escape(prefix) + r"blocks\.(\d+)\.")
+    layers = 0
+    for k in sd:
+        m = br.match(k)
+        if m:
+            layers = max(layers, int(m.group(1)) + 1)
+    if layers <= 0:
+        raise ValueError("Krea2 detect failed: no blocks.* keys")
+    wq = sd[f"{prefix}blocks.0.attn.wq.weight"]
+    wk = sd[f"{prefix}blocks.0.attn.wk.weight"]
+    txtlayers = int(sd[f"{prefix}txtfusion.projector.weight"].shape[1])
+    txtdim = int(sd[f"{prefix}txtfusion.layerwise_blocks.0.prenorm.scale"].shape[0])
+    return {
+        "image_model": "krea2",
+        "features": features,
+        "channels": channels,
+        "patch": 2,
+        "layers": layers,
+        "heads": int(wq.shape[0] // head_dim),
+        "kvheads": int(wk.shape[0] // head_dim),
+        "txtlayers": txtlayers,
+        "txtdim": txtdim,
+    }
 
 
 def load_krea2(path, device="cuda"):
