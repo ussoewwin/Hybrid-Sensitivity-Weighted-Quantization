@@ -21,12 +21,12 @@ weights are stored already rotated (W @ H^T), so runtime quantizes rotated
 activations.
 
 Usage:
-    python Krea2/calib_input_scale_nvfp4.py \\
-        "<base_dit.safetensors>" \\
-        "<model>_hswq_hybrid_convrot_nvfp4.safetensors" \\
-        "<model>_hswq_hybrid_convrot_nvfp4_calib.safetensors" \\
-        [--comfy-path <comfyui-root>] [--repo-root <repo-root>] \\
-        [--prompts <prompts.txt>] [--samples 32] [--steps 4] \\
+    python Krea2/calib_input_scale_nvfp4.py \
+        "<base_dit.safetensors>" \
+        "<model>_hswq_hybrid_convrot_nvfp4.safetensors" \
+        "<model>_hswq_hybrid_convrot_nvfp4_calib.safetensors" \
+        [--comfy-path <comfyui-root>] [--repo-root <repo-root>] \
+        [--prompts <prompts.txt>] [--samples 32] [--steps 4] \
         [--lat 128] [--seq 256] [--seed 42] [--device cuda]
 """
 from __future__ import annotations
@@ -34,12 +34,12 @@ from __future__ import annotations
 import argparse
 import gc
 import hashlib
-import importlib.util
 import json
 import math
 import os
 import re
 import sys
+import types
 
 import torch
 from safetensors import safe_open
@@ -47,17 +47,115 @@ from safetensors.torch import load_file, save_file
 
 
 # ---------------------------------------------------------------------------
-# Bench loader (same pattern as Z_Image/calib_input_scale_nvfp4.py _load_bench)
+# ComfyUI bootstrap (same pattern as diag_impact.py & converters)
 # ---------------------------------------------------------------------------
-def _load_bench(repo: str):
-    sys.path.insert(0, os.path.join(repo, "benchmark"))
-    sys.path.insert(0, repo)
-    spec = importlib.util.spec_from_file_location(
-        "bench", os.path.join(repo, "benchmark", "krea2_convrot_nvfp4_bench.py")
+def _clear_argv_for_comfy():
+    saved = list(sys.argv)
+    sys.argv = [saved[0]]
+    return saved
+
+
+def _restore_argv(saved):
+    sys.argv = saved
+
+
+def _install_torchaudio_stub():
+    import importlib.machinery
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub(name, pkg=False):
+        m = types.ModuleType(name)
+        m.__file__ = "<hswq_torchaudio_stub>"
+        if pkg:
+            m.__path__ = []
+            spec = importlib.machinery.ModuleSpec(name, loader=None, is_package=True)
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        m.__spec__ = spec
+        return m
+
+    ta = _stub("torchaudio", True)
+    func = _stub("torchaudio.functional")
+    func.resample = lambda w, o, n, *a, **k: w
+    tr = _stub("torchaudio.transforms")
+
+    class _MS:
+        def __init__(self, *a, **k):
+            pass
+        def __call__(self, x):
+            return x
+        def to(self, *a, **k):
+            return self
+
+    class _ML:
+        def __init__(self, *a, **k):
+            pass
+
+    tr.MelSpectrogram = _MS
+    tr.MelScale = _ML
+    ta.functional = func
+    ta.transforms = tr
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = func
+    sys.modules["torchaudio.transforms"] = tr
+
+
+def _install_comfy_stubs():
+    _install_torchaudio_stub()
+    try:
+        import comfy_aimdo  # noqa: F401
+    except Exception:
+        m = types.ModuleType("comfy_aimdo")
+        m.__file__ = "<stub>"
+        m.__path__ = []
+        sys.modules["comfy_aimdo"] = m
+        sys.modules["comfy_aimdo.filter"] = types.ModuleType("comfy_aimdo.filter")
+        sys.modules["comfy_aimdo.filter"].filter_modules = lambda *a, **k: None
+
+    try:
+        import psutil  # noqa: F401
+    except Exception:
+        class _VM:
+            total = 64 * 1024 ** 3
+            available = 32 * 1024 ** 3
+
+        class _P:
+            def memory_info(self):
+                return types.SimpleNamespace(rss=0)
+            def memory_full_info(self):
+                return types.SimpleNamespace(uss=0)
+            def cpu_percent(self, interval=None):
+                return 0.0
+            def num_threads(self):
+                return 1
+
+        ps = types.ModuleType("psutil")
+        ps.virtual_memory = lambda: _VM()
+        ps.Process = lambda: _P()
+        sys.modules["psutil"] = ps
+
+
+def _ensure_comfyui(comfy_path=None):
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.normpath(os.path.join(here, ".."))
+    candidates = []
+    if comfy_path:
+        candidates.append(os.path.abspath(comfy_path))
+    candidates.append(os.path.join(repo, "ComfyUI-master"))
+    env = os.environ.get("COMFYUI_PATH")
+    if env:
+        candidates.append(env)
+    for root in candidates:
+        if os.path.isfile(os.path.join(root, "comfy", "ldm", "krea2", "model.py")) \
+                and os.path.isfile(os.path.join(root, "comfy", "ops.py")):
+            return root
+    raise FileNotFoundError(
+        "ComfyUI root (needs comfy/ops.py + comfy/ldm/krea2/model.py) not found. "
+        "Expected <repo>/ComfyUI-master. Pass --comfy-path or set COMFYUI_PATH."
     )
-    bench = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(bench)
-    return bench
 
 
 # ---------------------------------------------------------------------------
@@ -101,53 +199,66 @@ def detect_krea2_dit_config(sd, prefix):
 
 
 def load_krea2(path, device="cuda", comfy_path=None):
-    """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors onto CUDA."""
     if str(device).startswith("cpu"):
         raise RuntimeError("calib_input_scale_nvfp4 Krea2 trajectory requires CUDA.")
-    if comfy_path:
-        cp = os.path.abspath(comfy_path)
-        if cp not in sys.path:
-            sys.path.insert(0, cp)
-    import comfy.ops
-    from comfy.ldm.krea2.model import SingleStreamDiT
+    comfy_root = _ensure_comfyui(comfy_path)
+    print(f"[Krea2] ComfyUI root: {comfy_root}")
+    saved = _clear_argv_for_comfy()
+    try:
+        comfy_dir = os.path.join(comfy_root, "comfy")
+        if str(comfy_root) not in sys.path:
+            sys.path.insert(0, str(comfy_root))
+        import comfy
+        if hasattr(comfy, "__path__") and comfy_dir not in comfy.__path__:
+            comfy.__path__.insert(0, comfy_dir)
 
-    print(f"Loading Krea2 DiT: {path}")
-    state_dict = load_file(path)
-    prefix = _find_krea2_key_prefix(state_dict)
-    cfg = detect_krea2_dit_config(state_dict, prefix)
-    print(f"Detected Krea2 DiT config: {cfg}")
-    kw = {k: v for k, v in cfg.items() if k != "image_model"}
-    dit = SingleStreamDiT(
-        **kw, device=device, dtype=torch.bfloat16,
-        operations=comfy.ops.manual_cast,
-    )
-    stripped = {}
-    for k, v in state_dict.items():
-        if prefix and k.startswith(prefix):
-            stripped[k[len(prefix):]] = v
-        elif not prefix:
-            stripped[k] = v
-    missing, unexpected = dit.load_state_dict(stripped, strict=False)
-    print(
-        f"  [Krea2] load_state_dict missing={len(missing)} "
-        f"unexpected={len(unexpected)}"
-    )
-    dev = str(next(dit.parameters()).device)
-    print(f"  [Krea2] DiT device={dev}")
-    dit.eval()
-    del state_dict, stripped
-    gc.collect()
-    return dit, cfg, prefix
+        _install_comfy_stubs()
+        try:
+            import comfy.options
+            comfy.options.enable_args_parsing(False)
+        except (ImportError, AttributeError):
+            pass
+        import comfy.ops
+        from comfy.ldm.krea2.model import SingleStreamDiT
+
+        print(f"Loading Krea2 DiT: {path}")
+        state_dict = load_file(path)
+        prefix = _find_krea2_key_prefix(state_dict)
+        cfg = detect_krea2_dit_config(state_dict, prefix)
+        print(f"Detected Krea2 DiT config: {cfg}")
+        kw = {k: v for k, v in cfg.items() if k != "image_model"}
+        dit = SingleStreamDiT(
+            **kw, device=device, dtype=torch.bfloat16,
+            operations=comfy.ops.manual_cast,
+        )
+        stripped = {}
+        for k, v in state_dict.items():
+            if prefix and k.startswith(prefix):
+                stripped[k[len(prefix):]] = v
+            elif not prefix:
+                stripped[k] = v
+        missing, unexpected = dit.load_state_dict(stripped, strict=False)
+        print(
+            f"  [Krea2] load_state_dict missing={len(missing)} "
+            f"unexpected={len(unexpected)}"
+        )
+        dev = str(next(dit.parameters()).device)
+        print(f"  [Krea2] DiT device={dev}")
+        dit.eval()
+        del state_dict, stripped
+        gc.collect()
+        return dit, cfg, prefix
+    finally:
+        _restore_argv(saved)
 
 
 # ---------------------------------------------------------------------------
-# Hadamard rotation math (mirrors converter & inference rotate_last_dim)
+# Hadamard rotation math
 # ---------------------------------------------------------------------------
 _HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
 
 
 def _build_hadamard(size: int, device="cuda", dtype=torch.float32) -> torch.Tensor:
-    """Normalized regular Hadamard (power-of-4), same as comfy_kitchen ConvRot."""
     cache_key = (size, str(device), dtype)
     if cache_key in _HADAMARD_CACHE:
         return _HADAMARD_CACHE[cache_key]
@@ -177,7 +288,6 @@ def _build_hadamard(size: int, device="cuda", dtype=torch.float32) -> torch.Tens
 
 
 def _group_size_for(in_features: int, preferred: int = 256) -> int | None:
-    """Largest power-of-4 group size <= preferred that divides in_features."""
     if in_features < 4:
         return None
     gs = preferred
@@ -189,7 +299,6 @@ def _group_size_for(in_features: int, preferred: int = 256) -> int | None:
 
 
 def _rotate_last_dim(x: torch.Tensor, gs: int) -> torch.Tensor:
-    """Hadamard-rotate the last dim in groups of gs. x: (..., in_features) fp32."""
     *lead, last = x.shape
     if last % gs != 0:
         raise ValueError(f"last dim {last} not divisible by group_size={gs}")
@@ -202,7 +311,6 @@ def _rotate_last_dim(x: torch.Tensor, gs: int) -> torch.Tensor:
 # CLI Argument Parser & Default Prompts
 # ---------------------------------------------------------------------------
 def _default_prompts() -> list[str]:
-    """Diverse synthetic prompts covering varied style & semantics."""
     return [
         "a beautiful cyberpunk city at night, neon lights, high detail",
         "a portrait of a woman with freckles, studio lighting, 85mm",
@@ -265,16 +373,8 @@ def main() -> int:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # --- Bench loader + setup_comfy (same as Z_Image) ---
     repo = os.path.abspath(a.repo_root) if a.repo_root else os.path.abspath(
         os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-    bench = _load_bench(repo)
-
-    comfy_path = a.comfy_path
-    if not os.path.isabs(comfy_path):
-        joined = os.path.join(repo, comfy_path)
-        comfy_path = os.path.abspath(joined) if os.path.isdir(joined) else os.path.abspath(comfy_path)
-    bench.setup_comfy(comfy_path)
 
     a.base = a.base.strip()
     a.hybrid = a.hybrid.strip()
@@ -300,7 +400,7 @@ def main() -> int:
         return 1
 
     # 2) Load base DiT model
-    model, cfg, dit_prefix = load_krea2(a.base, device=device, comfy_path=comfy_path)
+    model, cfg, dit_prefix = load_krea2(a.base, device=device, comfy_path=a.comfy_path)
     model.eval()
 
     mods = {
