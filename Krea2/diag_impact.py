@@ -248,8 +248,9 @@ def load_krea2(path, device="cuda", comfy_path=None):
     print(f"[Krea2] ComfyUI root: {comfy_root}")
     saved = _clear_argv_for_comfy()
     try:
+        if str(comfy_root) not in sys.path:
+            sys.path.insert(0, str(comfy_root))
         _install_comfy_stubs()
-        _load_comfy_pkg(comfy_root)
         try:
             import comfy.options
             comfy.options.enable_args_parsing(False)
