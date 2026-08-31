@@ -354,8 +354,30 @@ def _rotate_last_dim(x: torch.Tensor, gs: int) -> torch.Tensor:
 
 
 # ---------------------------------------------------------------------------
-# CLI Argument Parser
+# CLI Argument Parser & Default Prompts
 # ---------------------------------------------------------------------------
+def _default_prompts() -> list[str]:
+    """Diverse synthetic prompts covering varied style & semantics."""
+    return [
+        "a beautiful cyberpunk city at night, neon lights, high detail",
+        "a portrait of a woman with freckles, studio lighting, 85mm",
+        "a snowy mountain range at sunrise, crisp air, wide shot",
+        "a bowl of ramen on a wooden table, steam, shallow depth of field",
+        "an old library with tall shelves and warm lamps",
+        "a red sports car on a coastal road at golden hour",
+        "a cat sleeping on a windowsill, soft afternoon light",
+        "an abstract painting with bold blue and orange strokes",
+        "a busy street market with colorful produce stalls",
+        "a lone tree in a wheat field under dramatic clouds",
+        "a glass of iced coffee with condensation, close-up",
+        "a modern minimal living room with plants and wood furniture",
+        "a rocket launch at dawn photographed from a distance",
+        "a close-up of a mechanical watch movement, macro photography",
+        "a foggy forest path with moss covered stones",
+        "a chef plating a fine dining dish in a dark kitchen",
+    ]
+
+
 def parse_args():
     ap = argparse.ArgumentParser(
         description="Krea2 hybrid NVFP4 per-layer input_scale calibration (amax method)"
@@ -365,11 +387,17 @@ def parse_args():
     ap.add_argument("out", help="output safetensors path (copy of hybrid + input_scale keys)")
     ap.add_argument("--comfy-path", default=None,
                     help="ComfyUI root path (default: auto-detected <repo>/ComfyUI-master)")
-    ap.add_argument("--samples", type=int, default=32,
-                    help="number of calibration trajectories (default: 32)")
+    ap.add_argument("--repo-root", default=None,
+                    help="repo root containing sample/ or benchmark/ (default: parent of this dir)")
+    ap.add_argument("--prompts", default=None,
+                    help="UTF-8 text file, one prompt per line (e.g. sample/calibration_prompts_128.txt)")
+    ap.add_argument("--clip-path", "--clip_path", default=None,
+                    help="Optional path to CLIP model (Qwen3-VL-4B) to encode prompts directly")
+    ap.add_argument("--samples", type=int, default=None,
+                    help="number of calibration trajectories (default: len(prompts) if --prompts given, else 32)")
     ap.add_argument("--steps", type=int, default=4,
                     help="number of Euler sampling steps per trajectory (default: 4)")
-    ap.add_argument("--lat", type=int, default=128,
+    ap.add_argument("--latent-size", "--lat", dest="lat", type=int, default=128,
                     help="latent H/W (default: 128, matches 1024x1024 token count)")
     ap.add_argument("--seq", type=int, default=256,
                     help="context token seq length (default: 256)")
@@ -384,6 +412,8 @@ def parse_args():
 # Main Routine
 # ---------------------------------------------------------------------------
 def main() -> int:
+    import hashlib
+
     a = parse_args()
     device = a.device
     if device != "cuda" and not device.startswith("cuda:"):
@@ -460,8 +490,32 @@ def main() -> int:
         hooks.append(mods[n].register_forward_pre_hook(_make_hook(n)))
     print(f"Tracking hooks attached to {len(hooks)} layers.")
 
-    # 3) Run calibration trajectories
-    samples = max(1, int(a.samples))
+    # 3) Setup Prompts and Calibration trajectories
+    prompts = _default_prompts()
+    if a.prompts:
+        prompts_path = a.prompts
+        if not os.path.isabs(prompts_path) and a.repo_root:
+            prompts_path = os.path.join(a.repo_root, prompts_path)
+        if not os.path.isfile(prompts_path):
+            # Also try relative to repo root if relative path passed
+            here = os.path.dirname(os.path.abspath(__file__))
+            repo = os.path.normpath(os.path.join(here, ".."))
+            cand = os.path.join(repo, a.prompts)
+            if os.path.isfile(cand):
+                prompts_path = cand
+            else:
+                raise FileNotFoundError(f"--prompts file not found: {a.prompts}")
+        with open(prompts_path, "r", encoding="utf-8") as f:
+            prompts = [line.strip() for line in f if line.strip()]
+
+    if a.samples is not None:
+        target_samples = max(1, int(a.samples))
+        if len(prompts) < target_samples:
+            prompts = (prompts * (target_samples // len(prompts) + 1))[:target_samples]
+        else:
+            prompts = prompts[:target_samples]
+    samples = len(prompts)
+
     steps = max(1, int(a.steps))
     lat = int(a.lat)
     seq = int(a.seq)
@@ -470,18 +524,48 @@ def main() -> int:
     channels = int(cfg["channels"])
     base_seed = int(a.seed)
 
+    # Optional CLIP real prompt encoding
+    encoded_contexts = None
+    if a.clip_path and os.path.isfile(a.clip_path):
+        print(f"Encoding {samples} prompts with CLIP: {a.clip_path}")
+        comfy_root = _ensure_comfyui(a.comfy_path)
+        _load_comfy_pkg(comfy_root)
+        import comfy.sd
+        clip = comfy.sd.load_clip(
+            ckpt_paths=[a.clip_path],
+            embedding_directory=None,
+            clip_type=comfy.sd.CLIPType.KREA2,
+        )
+        encoded_contexts = []
+        for prompt in prompts:
+            tokens = clip.tokenize(prompt)
+            conds = clip.encode_from_tokens_scheduled(tokens)
+            cond_t = conds[0][0]
+            if cond_t.ndim == 2:
+                cond_t = cond_t.unsqueeze(0)
+            encoded_contexts.append(cond_t.to(dtype=torch.bfloat16, device="cpu"))
+        del clip
+        gc.collect()
+        torch.cuda.empty_cache()
+
     t_steps = torch.linspace(1.0, 0.0, steps + 1, device=device)
     print(f"Running {samples} calibration trajectories ({steps} Euler steps each, lat={lat}, seq={seq})...")
 
     with torch.no_grad():
-        for i in tqdm(range(samples), desc="Calibrating"):
-            s = base_seed + i
-            g_ctx = torch.Generator(device=device).manual_seed(s)
-            context = torch.randn(
-                1, seq, txtlayers * txtdim, device=device, dtype=torch.bfloat16,
-                generator=g_ctx,
-            )
-            g_x = torch.Generator(device=device).manual_seed(s * 10007 + 42)
+        for i, prompt in enumerate(tqdm(prompts, desc="Calibrating")):
+            p_hash = int(hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:8], 16)
+            s = (base_seed + i + p_hash) % (2**31 - 1)
+
+            if encoded_contexts is not None:
+                context = encoded_contexts[i].to(device=device)
+            else:
+                g_ctx = torch.Generator(device=device).manual_seed(s)
+                context = torch.randn(
+                    1, seq, txtlayers * txtdim, device=device, dtype=torch.bfloat16,
+                    generator=g_ctx,
+                )
+
+            g_x = torch.Generator(device=device).manual_seed((s * 10007 + 42) % (2**31 - 1))
             x = torch.randn(
                 1, channels, lat, lat, device=device, dtype=torch.bfloat16,
                 generator=g_x,
