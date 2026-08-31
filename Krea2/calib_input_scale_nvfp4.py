@@ -496,6 +496,12 @@ def main() -> int:
         if hasattr(comfy, "__path__") and comfy_dir not in comfy.__path__:
             comfy.__path__.insert(0, comfy_dir)
         _install_comfy_stubs()
+        try:
+            import comfy.cli_args
+            if not torch.cuda.is_available():
+                comfy.cli_args.args.cpu = True
+        except Exception:
+            pass
         import comfy.sd
         clip = comfy.sd.load_clip(
             ckpt_paths=[a.clip_path],
