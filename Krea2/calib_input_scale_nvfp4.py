@@ -252,14 +252,6 @@ def load_krea2(path, device="cuda", comfy_path=None):
             comfy.options.enable_args_parsing(False)
         except ImportError:
             pass
-        try:
-            import comfy.cli_args
-            if torch.cuda.is_available():
-                torch.cuda.init()
-            else:
-                comfy.cli_args.args.cpu = True
-        except Exception:
-            pass
         import comfy.ops
         from comfy.ldm.krea2.model import SingleStreamDiT
 
