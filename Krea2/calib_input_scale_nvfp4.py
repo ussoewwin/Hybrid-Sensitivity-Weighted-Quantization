@@ -205,6 +205,10 @@ def load_krea2(path, device="cuda", comfy_path=None):
     try:
         if str(comfy_root) not in sys.path:
             sys.path.insert(0, str(comfy_root))
+        comfy_dir = os.path.join(comfy_root, "comfy")
+        import comfy
+        if hasattr(comfy, "__path__") and comfy_dir not in comfy.__path__:
+            comfy.__path__.insert(0, comfy_dir)
         _install_comfy_stubs()
         try:
             import comfy.options
@@ -481,6 +485,10 @@ def main() -> int:
         comfy_root = _ensure_comfyui(a.comfy_path)
         if str(comfy_root) not in sys.path:
             sys.path.insert(0, str(comfy_root))
+        comfy_dir = os.path.join(comfy_root, "comfy")
+        import comfy
+        if hasattr(comfy, "__path__") and comfy_dir not in comfy.__path__:
+            comfy.__path__.insert(0, comfy_dir)
         _install_comfy_stubs()
         import comfy.sd
         clip = comfy.sd.load_clip(
