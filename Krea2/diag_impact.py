@@ -255,6 +255,9 @@ def main():
             print(f"  SKIP (not a module): {n}", flush=True)
             continue
         m = mods[nmod]
+        if m.in_features not in _SAFE_IN_FEATURES:
+            impacts[n] = float("nan")
+            continue
         w0 = m.weight.data.clone()
         m.weight.data.copy_(nvfp4_quant_error(w0))
         try:
