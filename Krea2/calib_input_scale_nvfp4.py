@@ -230,9 +230,10 @@ def load_krea2(path, device="cuda", comfy_path=None):
         cfg = detect_krea2_dit_config(state_dict, prefix)
         print(f"Detected Krea2 DiT config: {cfg}")
         kw = {k: v for k, v in cfg.items() if k != "image_model"}
+        ops = comfy.ops.disable_weight_init if hasattr(comfy.ops, "disable_weight_init") else comfy.ops.manual_cast
         dit = SingleStreamDiT(
-            **kw, device=device, dtype=torch.bfloat16,
-            operations=comfy.ops.manual_cast,
+            **kw, device="cpu", dtype=torch.bfloat16,
+            operations=ops,
         )
         stripped = {}
         for k, v in state_dict.items():
@@ -245,6 +246,7 @@ def load_krea2(path, device="cuda", comfy_path=None):
             f"  [Krea2] load_state_dict missing={len(missing)} "
             f"unexpected={len(unexpected)}"
         )
+        dit = dit.to(device)
         dev = str(next(dit.parameters()).device)
         print(f"  [Krea2] DiT device={dev}")
         dit.eval()
