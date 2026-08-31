@@ -416,13 +416,8 @@ def main() -> int:
                 if isinstance(out, tuple):
                     out = out[0]
                 x = (x + (t_steps[step + 1] - t_steps[step]) * out).to(torch.bfloat16)
-
-            if (i + 1) % 8 == 0 or i + 1 == samples:
-                cov = sum(1 for v in tracked.values() if v["amax"] > 0)
-                print(f"  [{i + 1}/{samples}] amax coverage: {cov}/{len(tracked)}", flush=True)
-            if (i + 1) % 10 == 0:
-                gc.collect()
-                torch.cuda.empty_cache()
+            cov = sum(1 for v in tracked.values() if v["amax"] > 0)
+            print(f"  [{i + 1}/{samples}] amax coverage: {cov}/{len(tracked)}", flush=True)
 
     for h in hooks:
         h.remove()
