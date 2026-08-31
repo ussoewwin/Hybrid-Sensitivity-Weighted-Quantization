@@ -246,8 +246,6 @@ def detect_krea2_dit_config(sd, prefix):
 
 def load_krea2(path, device="cuda", comfy_path=None):
     """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors."""
-    if str(device).startswith("cpu"):
-        raise RuntimeError("calib_input_scale_nvfp4 Krea2 trajectory requires CUDA.")
     comfy_root = _ensure_comfyui(comfy_path)
     print(f"[Krea2] ComfyUI root: {comfy_root}")
     saved = _clear_argv_for_comfy()
@@ -259,6 +257,12 @@ def load_krea2(path, device="cuda", comfy_path=None):
             comfy.options.enable_args_parsing(False)
         except ImportError:
             pass
+        try:
+            import comfy.cli_args
+            if not torch.cuda.is_available() or str(device).startswith("cpu"):
+                comfy.cli_args.args.cpu = True
+        except Exception:
+            pass
         import comfy.ops
         from comfy.ldm.krea2.model import SingleStreamDiT
 
@@ -268,8 +272,9 @@ def load_krea2(path, device="cuda", comfy_path=None):
         cfg = detect_krea2_dit_config(state_dict, prefix)
         print(f"Detected Krea2 DiT config: {cfg}")
         kw = {k: v for k, v in cfg.items() if k != "image_model"}
+        target_dtype = torch.bfloat16 if str(device).startswith("cuda") else torch.float32
         dit = SingleStreamDiT(
-            **kw, device=device, dtype=torch.bfloat16,
+            **kw, device=device, dtype=target_dtype,
             operations=comfy.ops.manual_cast,
         )
         stripped = {}
@@ -284,8 +289,6 @@ def load_krea2(path, device="cuda", comfy_path=None):
             f"unexpected={len(unexpected)}"
         )
         dev = str(next(dit.parameters()).device)
-        if not dev.startswith("cuda"):
-            raise RuntimeError(f"Krea2 DiT landed on {dev!r}, not CUDA")
         print(f"  [Krea2] DiT device={dev}")
         dit.eval()
         del state_dict, stripped
@@ -416,8 +419,9 @@ def main() -> int:
 
     a = parse_args()
     device = a.device
-    if device != "cuda" and not device.startswith("cuda:"):
-        raise RuntimeError("Krea2 calib_input_scale_nvfp4 requires CUDA.")
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        print("WARN: CUDA requested but torch.cuda.is_available() is False. Operating in CPU mode.", flush=True)
+        device = "cpu"
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -530,6 +534,12 @@ def main() -> int:
         print(f"Encoding {samples} prompts with CLIP: {a.clip_path}")
         comfy_root = _ensure_comfyui(a.comfy_path)
         _load_comfy_pkg(comfy_root)
+        try:
+            import comfy.cli_args
+            if not torch.cuda.is_available() or str(device).startswith("cpu"):
+                comfy.cli_args.args.cpu = True
+        except Exception:
+            pass
         import comfy.sd
         clip = comfy.sd.load_clip(
             ckpt_paths=[a.clip_path],
