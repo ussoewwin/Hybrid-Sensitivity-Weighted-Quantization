@@ -43,13 +43,6 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 
-try:
-    from tqdm import tqdm
-except ImportError:
-    def tqdm(iterable, **kwargs):
-        return iterable
-
-
 # ---------------------------------------------------------------------------
 # ComfyUI bootstrap (stubs + cloud-safe module isolation)
 # ---------------------------------------------------------------------------
@@ -245,7 +238,9 @@ def detect_krea2_dit_config(sd, prefix):
 
 
 def load_krea2(path, device="cuda", comfy_path=None):
-    """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors."""
+    """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors onto CUDA."""
+    if str(device).startswith("cpu"):
+        raise RuntimeError("calib_input_scale_nvfp4 Krea2 trajectory requires CUDA.")
     comfy_root = _ensure_comfyui(comfy_path)
     print(f"[Krea2] ComfyUI root: {comfy_root}")
     saved = _clear_argv_for_comfy()
@@ -257,12 +252,6 @@ def load_krea2(path, device="cuda", comfy_path=None):
             comfy.options.enable_args_parsing(False)
         except ImportError:
             pass
-        try:
-            import comfy.cli_args
-            if not torch.cuda.is_available() or str(device).startswith("cpu"):
-                comfy.cli_args.args.cpu = True
-        except Exception:
-            pass
         import comfy.ops
         from comfy.ldm.krea2.model import SingleStreamDiT
 
@@ -272,9 +261,8 @@ def load_krea2(path, device="cuda", comfy_path=None):
         cfg = detect_krea2_dit_config(state_dict, prefix)
         print(f"Detected Krea2 DiT config: {cfg}")
         kw = {k: v for k, v in cfg.items() if k != "image_model"}
-        target_dtype = torch.bfloat16 if str(device).startswith("cuda") else torch.float32
         dit = SingleStreamDiT(
-            **kw, device=device, dtype=target_dtype,
+            **kw, device=device, dtype=torch.bfloat16,
             operations=comfy.ops.manual_cast,
         )
         stripped = {}
@@ -419,9 +407,8 @@ def main() -> int:
 
     a = parse_args()
     device = a.device
-    if device.startswith("cuda") and not torch.cuda.is_available():
-        print("WARN: CUDA requested but torch.cuda.is_available() is False. Operating in CPU mode.", flush=True)
-        device = "cpu"
+    if str(device).startswith("cpu"):
+        raise RuntimeError("Krea2 calib_input_scale_nvfp4 requires CUDA.")
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -534,12 +521,6 @@ def main() -> int:
         print(f"Encoding {samples} prompts with CLIP: {a.clip_path}")
         comfy_root = _ensure_comfyui(a.comfy_path)
         _load_comfy_pkg(comfy_root)
-        try:
-            import comfy.cli_args
-            if not torch.cuda.is_available() or str(device).startswith("cpu"):
-                comfy.cli_args.args.cpu = True
-        except Exception:
-            pass
         import comfy.sd
         clip = comfy.sd.load_clip(
             ckpt_paths=[a.clip_path],
@@ -600,13 +581,13 @@ def main() -> int:
     missing = [n for n, v in tracked.items() if v["amax"] <= 0]
     if missing:
         print(f"WARN: {len(missing)} layers saw no activation: {missing[:5]}...")
+        for n in missing:
+            del tracked[n]
 
     # 4) Write input_scale keys into output safetensors
-    # NVFP4 TensorCore input_scale denominator: F8_E4M3_MAX (448.0) * F4_E2M1_MAX (6.0) = 2688.0
-    F8_E4M3_MAX = 448.0
-    F4_E2M1_MAX = 6.0
-    denom = F8_E4M3_MAX * F4_E2M1_MAX
-    print(f"input_scale formula: amax / {denom:.1f}")
+    from comfy_kitchen.float_utils import F4_E2M1_MAX, F8_E4M3_MAX
+    denom = float(F8_E4M3_MAX) * float(F4_E2M1_MAX)
+    print(f"input_scale formula: amax / {denom:.0f}")
 
     print(f"Loading hybrid artifact: {a.hybrid}")
     sd = load_file(a.hybrid)
@@ -637,10 +618,9 @@ def main() -> int:
     if "_quantization_metadata" not in out_meta:
         out_meta["_quantization_metadata"] = json.dumps(meta)
 
-    print(f"Writing calibrated artifact: {a.out}")
     save_file(sd, a.out, metadata=out_meta)
     print(f"input_scale written: {written} layers")
-    print(f"Saved: {a.out} ({os.path.getsize(a.out) / 1e9:.2f} GB decimal)")
+    print(f"saved: {a.out} ({os.path.getsize(a.out) / 1e9:.2f} GB decimal)")
     print("DONE")
     return 0
 
