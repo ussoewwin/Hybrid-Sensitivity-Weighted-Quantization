@@ -210,6 +210,7 @@ def load_krea2(path, device="cuda", comfy_path=None):
 
         _install_comfy_stubs()
         try:
+            import comfy
             import comfy.options
             comfy.options.enable_args_parsing(False)
         except (ImportError, AttributeError):
