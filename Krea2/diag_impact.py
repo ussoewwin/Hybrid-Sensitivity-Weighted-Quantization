@@ -150,49 +150,7 @@ def _ensure_comfyui(comfy_path=None):
     )
 
 
-def _load_comfy_pkg(comfy_root):
-    """Import `comfy` EXCLUSIVELY from comfy_root (repo ComfyUI-master).
 
-    Pins `sys.modules["comfy"]` directly to `comfy_root/comfy` regardless of whether
-    a conflicting `comfy` package exists in host site-packages (cloud/venv), ensuring
-    all submodules (`comfy.ops`, `comfy.ldm.krea2.model`, etc.) resolve exclusively
-    from the target ComfyUI root without relying on filesystem `__init__.py`.
-    """
-    import importlib
-    import importlib.machinery
-    import importlib.util
-
-    comfy_dir = os.path.abspath(os.path.join(comfy_root, "comfy"))
-    if not os.path.isdir(comfy_dir):
-        raise FileNotFoundError(f"Comfy package directory not found: {comfy_dir}")
-
-    for key in list(sys.modules):
-        if key == "comfy" or key.startswith("comfy."):
-            del sys.modules[key]
-
-    if comfy_root in sys.path:
-        sys.path.remove(comfy_root)
-    sys.path.insert(0, comfy_root)
-
-    init_py = os.path.join(comfy_dir, "__init__.py")
-    if os.path.isfile(init_py):
-        spec = importlib.util.spec_from_file_location(
-            "comfy", init_py, submodule_search_locations=[comfy_dir]
-        )
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules["comfy"] = mod
-        spec.loader.exec_module(mod)
-    else:
-        mod = types.ModuleType("comfy")
-        mod.__file__ = os.path.join(comfy_dir, "__init__.py")
-        mod.__path__ = [comfy_dir]
-        mod.__package__ = "comfy"
-        spec = importlib.machinery.ModuleSpec("comfy", loader=None, is_package=True)
-        spec.submodule_search_locations = [comfy_dir]
-        mod.__spec__ = spec
-        sys.modules["comfy"] = mod
-
-    return mod
 
 
 # ---------------------------------------------------------------------------
