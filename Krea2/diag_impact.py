@@ -11,13 +11,11 @@ Reverse hybrid NVFP4 method (see md/How to quantize Z Image - Hybrid NVFP4.md):
   2. Krea2/gen_reverse_nvfp4.py  -> hybrid nv{K} artifact (INT8 -> K layers NVFP4)
   3. benchmark/krea2_convrot_nvfp4_bench.py -> SSIM check
 
-This is the REVERSE (trajectory) method, NOT the 4-axis static ranking
-(auto_int8_nvfp4_hybrid.py). The two must not be mixed.
-
 Usage:
-    python Krea2/diag_impact.py <base_model.safetensors> \
-        <convrot_int8.safetensors> <impact_out.json> \
-        --comfy-path <comfyui-root> [--steps N] [--lat H] [--seq S] [--seed S]
+    python Krea2/diag_impact.py <base_model.safetensors> \\
+        <convrot_int8.safetensors> <impact_out.json> \\
+        [--comfy-path <comfyui-root>] [--repo-root <repo-root>] \\
+        [--steps N] [--lat H] [--seq S] [--seed S]
 
 The impact JSON uses STRIPPED layer keys (same as the INT8 artifact's
 _quantization_metadata.layers), e.g. "blocks.0.attn.gate".
@@ -26,11 +24,12 @@ from __future__ import annotations
 
 import argparse
 import gc
+import importlib.util
 import json
+import math
 import os
 import re
 import sys
-import types
 
 import torch
 from safetensors import safe_open
@@ -38,123 +37,21 @@ from safetensors.torch import load_file
 
 
 # ---------------------------------------------------------------------------
-# ComfyUI bootstrap (torchaudio / comfy_aimdo / psutil stubs; same pattern as
-# the existing Krea2 INT8 / NVFP4 converters).
+# Bench loader (same pattern as Z_Image/diag_impact.py _load_bench)
 # ---------------------------------------------------------------------------
-def _clear_argv_for_comfy():
-    saved = list(sys.argv)
-    sys.argv = [saved[0]]
-    return saved
-
-
-def _restore_argv(saved):
-    sys.argv = saved
-
-
-def _install_torchaudio_stub():
-    import importlib.machinery
-    for key in list(sys.modules):
-        if key == "torchaudio" or key.startswith("torchaudio."):
-            del sys.modules[key]
-
-    def _stub(name, pkg=False):
-        m = types.ModuleType(name)
-        m.__file__ = "<hswq_torchaudio_stub>"
-        if pkg:
-            m.__path__ = []
-            spec = importlib.machinery.ModuleSpec(name, loader=None, is_package=True)
-            spec.submodule_search_locations = []
-        else:
-            spec = importlib.machinery.ModuleSpec(name, loader=None)
-        m.__spec__ = spec
-        return m
-
-    ta = _stub("torchaudio", True)
-    func = _stub("torchaudio.functional")
-    func.resample = lambda w, o, n, *a, **k: w
-    tr = _stub("torchaudio.transforms")
-
-    class _MS:
-        def __init__(self, *a, **k):
-            pass
-        def __call__(self, x):
-            return x
-        def to(self, *a, **k):
-            return self
-
-    class _ML:
-        def __init__(self, *a, **k):
-            pass
-
-    tr.MelSpectrogram = _MS
-    tr.MelScale = _ML
-    ta.functional = func
-    ta.transforms = tr
-    sys.modules["torchaudio"] = ta
-    sys.modules["torchaudio.functional"] = func
-    sys.modules["torchaudio.transforms"] = tr
-
-
-def _install_comfy_stubs():
-    _install_torchaudio_stub()
-    try:
-        import comfy_aimdo  # noqa: F401
-    except Exception:
-        m = types.ModuleType("comfy_aimdo")
-        m.__file__ = "<stub>"
-        m.__path__ = []
-        sys.modules["comfy_aimdo"] = m
-        sys.modules["comfy_aimdo.filter"] = types.ModuleType("comfy_aimdo.filter")
-        sys.modules["comfy_aimdo.filter"].filter_modules = lambda *a, **k: None
-    try:
-        import psutil  # noqa: F401
-    except Exception:
-        class _VM:
-            total = 64 * 1024 ** 3
-            available = 32 * 1024 ** 3
-        class _P:
-            def memory_info(self):
-                return types.SimpleNamespace(rss=0)
-            def memory_full_info(self):
-                return types.SimpleNamespace(uss=0)
-            def cpu_percent(self, interval=None):
-                return 0.0
-            def num_threads(self):
-                return 1
-        ps = types.ModuleType("psutil")
-        ps.virtual_memory = lambda: _VM()
-        ps.Process = lambda: _P()
-        sys.modules["psutil"] = ps
-
-
-def _ensure_comfyui(comfy_path=None):
-    """Locate the ComfyUI root. Repository-internal ComfyUI-master ONLY:
-    explicit --comfy-path, then <repo>/ComfyUI-master, then $COMFYUI_PATH.
-    Never reads any ComfyUI installation outside this repository."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    repo = os.path.normpath(os.path.join(here, ".."))
-    candidates = []
-    if comfy_path:
-        candidates.append(os.path.abspath(comfy_path))
-    candidates.append(os.path.join(repo, "ComfyUI-master"))
-    env = os.environ.get("COMFYUI_PATH")
-    if env:
-        candidates.append(env)
-    for root in candidates:
-        if os.path.isfile(os.path.join(root, "comfy", "ldm", "krea2", "model.py")) \
-                and os.path.isfile(os.path.join(root, "comfy", "ops.py")):
-            return root
-    raise FileNotFoundError(
-        "ComfyUI root (needs comfy/ops.py + comfy/ldm/krea2/model.py) not found. "
-        "Expected <repo>/ComfyUI-master. Pass --comfy-path or set COMFYUI_PATH."
+def _load_bench(repo: str):
+    sys.path.insert(0, os.path.join(repo, "benchmark"))
+    sys.path.insert(0, repo)
+    spec = importlib.util.spec_from_file_location(
+        "bench", os.path.join(repo, "benchmark", "krea2_convrot_nvfp4_bench.py")
     )
-
-
-
+    bench = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bench)
+    return bench
 
 
 # ---------------------------------------------------------------------------
-# Krea2 detect + load (same math as hswq_convrot_int8_krea2_v1.5.py)
+# Krea2 detect + load
 # ---------------------------------------------------------------------------
 def _find_krea2_key_prefix(keys):
     for prefix in ("model.diffusion_model.", "diffusion_model.", ""):
@@ -194,129 +91,112 @@ def detect_krea2_dit_config(sd, prefix):
 
 
 def load_krea2(path, device="cuda", comfy_path=None):
-    """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors.
+    """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors onto CUDA.
 
-    Returns (model, config_dict, key_prefix). Module names are STRIPPED
-    (no model.diffusion_model. prefix), so they match the INT8 artifact's
-    _quantization_metadata.layers keys directly.
+    Assumes bench.setup_comfy() has ALREADY been called (same as Z_Image pattern).
     """
     if str(device).startswith("cpu"):
         raise RuntimeError("diag_impact Krea2 trajectory requires CUDA.")
-    comfy_root = _ensure_comfyui(comfy_path)
-    print(f"[Krea2] ComfyUI root: {comfy_root}")
-    saved = _clear_argv_for_comfy()
-    try:
-        if str(comfy_root) not in sys.path:
-            sys.path.insert(0, str(comfy_root))
-        _install_comfy_stubs()
-        try:
-            import comfy.options
-            comfy.options.enable_args_parsing(False)
-        except ImportError:
-            # older ComfyUI without comfy.options; argv already cleared
-            pass
-        import comfy.ops
-        from comfy.ldm.krea2.model import SingleStreamDiT
+    import comfy.ops
+    from comfy.ldm.krea2.model import SingleStreamDiT
 
-        print(f"Loading Krea2 DiT: {path}")
-        state_dict = load_file(path)
-        prefix = _find_krea2_key_prefix(state_dict)
-        cfg = detect_krea2_dit_config(state_dict, prefix)
-        print(f"Detected Krea2 DiT config: {cfg}")
-        kw = {k: v for k, v in cfg.items() if k != "image_model"}
-        dit = SingleStreamDiT(
-            **kw, device=device, dtype=torch.bfloat16,
-            operations=comfy.ops.manual_cast,
-        )
-        stripped = {}
-        for k, v in state_dict.items():
-            if prefix and k.startswith(prefix):
-                stripped[k[len(prefix):]] = v
-            elif not prefix:
-                stripped[k] = v
-        missing, unexpected = dit.load_state_dict(stripped, strict=False)
-        print(
-            f"  [Krea2] load_state_dict missing={len(missing)} "
-            f"unexpected={len(unexpected)}"
-        )
-        dev = str(next(dit.parameters()).device)
-        if not dev.startswith("cuda"):
-            raise RuntimeError(f"Krea2 DiT landed on {dev!r}, not CUDA")
-        print(f"  [Krea2] DiT device={dev}")
-        dit.eval()
-        del state_dict, stripped
-        gc.collect()
-        return dit, cfg, prefix
-    finally:
-        _restore_argv(saved)
+    print(f"Loading Krea2 DiT: {path}")
+    state_dict = load_file(path)
+    prefix = _find_krea2_key_prefix(state_dict)
+    cfg = detect_krea2_dit_config(state_dict, prefix)
+    print(f"Detected Krea2 DiT config: {cfg}")
+    kw = {k: v for k, v in cfg.items() if k != "image_model"}
+    dit = SingleStreamDiT(
+        **kw, device=device, dtype=torch.bfloat16,
+        operations=comfy.ops.manual_cast,
+    )
+    stripped = {}
+    for k, v in state_dict.items():
+        if prefix and k.startswith(prefix):
+            stripped[k[len(prefix):]] = v
+        elif not prefix:
+            stripped[k] = v
+    missing, unexpected = dit.load_state_dict(stripped, strict=False)
+    print(
+        f"  [Krea2] load_state_dict missing={len(missing)} "
+        f"unexpected={len(unexpected)}"
+    )
+    dev = str(next(dit.parameters()).device)
+    if not dev.startswith("cuda"):
+        raise RuntimeError(f"Krea2 DiT landed on {dev!r}, not CUDA")
+    print(f"  [Krea2] DiT device={dev}")
+    dit.eval()
+    del state_dict, stripped
+    gc.collect()
+    return dit, cfg, prefix
 
 
 # ---------------------------------------------------------------------------
-# NVFP4 error injection + relative MSE (identical to Z Image diag_impact.py)
+# Hadamard + NVFP4 math
 # ---------------------------------------------------------------------------
-def nvfp4_quant_error(w):
-    """TRUE NVFP4 quantization error via comfy_kitchen roundtrip
-    (E2M1 x 16-element blocks + global scale): exactly the kernel that
-    produces the shipped artifact. The old e4m3-per-256 proxy understates
-    the error ~13x and flattens the ranking; do not fall back to it."""
-    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout as _NVFP4
-    w2 = w if w.is_contiguous() else w.contiguous()
-    qdata, params = _NVFP4.quantize(w2)
-    return _NVFP4.dequantize(qdata, params)
-
-
-def rel_mse(a, b):
-    a = a.float().reshape(a.shape[0], -1)
-    b = b.float().reshape(b.shape[0], -1)
-    return float(((a - b) ** 2).sum() / (b ** 2).sum())
-
-
-def _build_hadamard(size, device="cuda", dtype=torch.float32):
-    """Normalized Hadamard (Kronecker power of h4, / sqrt(size)). Same math as
-    benchmark/krea2_convrot_nvfp4/nvfp4_hadamard.build_hadamard."""
+def _build_hadamard(size: int, device="cuda", dtype=torch.float32) -> torch.Tensor:
     h4 = torch.tensor(
-        [[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]],
-        dtype=torch.float32, device=device,
+        [
+            [1, 1, 1, -1],
+            [1, 1, -1, 1],
+            [1, -1, 1, 1],
+            [-1, 1, 1, 1],
+        ],
+        dtype=torch.float32,
+        device=device,
     )
-    h = h4
-    cur = 4
-    while cur < size:
-        h = torch.kron(h, h4)
-        cur *= 4
-    h = h / (size ** 0.5)
-    return h.to(dtype=dtype)
+    h_matrix = h4
+    current_size = 4
+    while current_size < size:
+        h_matrix = torch.kron(h_matrix, h4)
+        current_size *= 4
+    h_matrix = h_matrix / (size ** 0.5)
+    return h_matrix.to(dtype=dtype)
 
 
-def _rotated_amax(x, H):
-    """Max abs of Hadamard-rotated activation (last dim, groups of H.shape[0]).
-    Returns None if the feature dim is not divisible by the group size."""
-    gs = int(H.shape[0])
-    xf = x.detach().float()
-    flat = xf.reshape(-1, xf.shape[-1])
-    f = flat.shape[-1]
-    if f % gs != 0:
+def _rotated_amax(x: torch.Tensor, hadamard: torch.Tensor, group_size: int = 256):
+    in_f = x.shape[-1]
+    if in_f % group_size != 0:
         return None
-    g = flat.reshape(-1, f // gs, gs)
-    rot = torch.matmul(g, H.to(device=flat.device, dtype=torch.float32))
-    return float(rot.abs().max().item())
+    *lead, _ = x.shape
+    y = x.reshape(-1, group_size).float()
+    rot = torch.matmul(y, hadamard.float())
+    return float(rot.abs().amax().item())
 
 
+def nvfp4_quant_error(w: torch.Tensor) -> torch.Tensor:
+    from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout as _NVFP4
+    w_bf16 = w.to(torch.bfloat16) if w.dtype != torch.bfloat16 else w
+    w2 = w_bf16 if w_bf16.is_contiguous() else w_bf16.contiguous()
+    qdata, params = _NVFP4.quantize(w2)
+    return _NVFP4.dequantize(qdata, params).to(w.dtype)
+
+
+def rel_mse(a: torch.Tensor, b: torch.Tensor) -> float:
+    a_f = a.float().reshape(a.shape[0], -1)
+    b_f = b.float().reshape(b.shape[0], -1)
+    denom = (b_f ** 2).sum()
+    if denom == 0:
+        return float("nan")
+    return float(((a_f - b_f) ** 2).sum() / denom)
+
+
+# ---------------------------------------------------------------------------
+# CLI Argument Parser
+# ---------------------------------------------------------------------------
 def parse_args():
-    ap = argparse.ArgumentParser(
-        description="Krea2 per-layer NVFP4 trajectory impact (reverse method, Step 1)"
-    )
+    ap = argparse.ArgumentParser(description="Krea2 per-layer NVFP4 trajectory impact")
     ap.add_argument("base", help="baseline fp16/bf16 Krea2 SingleStreamDiT safetensors")
-    ap.add_argument("artifact", help="complete ConvRot INT8 safetensors (layer list source)")
+    ap.add_argument("artifact", help="sci_1off complete ConvRot INT8 safetensors")
     ap.add_argument("out", help="output impact json path")
-    ap.add_argument("--comfy-path", default=None,
-                    help="ComfyUI root (must contain comfy/ops.py and comfy/ldm/krea2/model.py), "
-                         "default: auto-detected <repo>/ComfyUI-master")
+    ap.add_argument("--comfy-path", default="ComfyUI-master",
+                    help="ComfyUI root path (default: ComfyUI-master)")
     ap.add_argument("--repo-root", default=None,
-                    help="repo root (default: parent of this script dir)")
+                    help="repo root containing benchmark/ (default: parent of this dir)")
     ap.add_argument("--steps", type=int, default=4,
                     help="trajectory denoising steps (default 4)")
-    ap.add_argument("--lat", "--latent-size", dest="lat", type=int, default=128,
-                    help="latent H/W (default 128, matches bench 1024x1024 token count)")
+    ap.add_argument("--lat", type=int, default=128,
+                    help="latent H/W (default 128, matches 1024x1024 token count)")
     ap.add_argument("--seq", type=int, default=256,
                     help="random context token seq length (default 256)")
     ap.add_argument("--seed", type=int, default=42,
@@ -324,20 +204,31 @@ def parse_args():
     return ap.parse_args()
 
 
+# ---------------------------------------------------------------------------
+# Main Routine
+# ---------------------------------------------------------------------------
 def main():
     a = parse_args()
     device = "cuda"
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+    # --- Bench loader + setup_comfy (same pattern as Z_Image) ---
     repo = os.path.abspath(a.repo_root) if a.repo_root else os.path.abspath(
         os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    bench = _load_bench(repo)
+
+    comfy_path = a.comfy_path
+    if not os.path.isabs(comfy_path):
+        joined = os.path.join(repo, comfy_path)
+        comfy_path = os.path.abspath(joined) if os.path.isdir(joined) else os.path.abspath(comfy_path)
+    bench.setup_comfy(comfy_path)
 
     a.base = a.base.strip()
     a.artifact = a.artifact.strip()
     a.out = a.out.strip()
 
-    model, cfg, _prefix = load_krea2(a.base, device=device, comfy_path=a.comfy_path)
+    model, cfg, _prefix = load_krea2(a.base, device=device, comfy_path=comfy_path)
     model.eval()
 
     # Linear layers only (NVFP4 is 2D-only; Conv2d / norm / bias are blacklisted).
@@ -364,10 +255,7 @@ def main():
         meta = json.loads(f.metadata()["_quantization_metadata"])
         layers = list(meta["layers"].keys())
     print(f"layers in INT8 metadata: {len(layers)}", flush=True)
-    # Krea2 NVFP4-safe in_features set: only these dimensions produce packed
-    # weights compatible with the NVFP4 loader (TensorCoreNVFP4Layout +
-    # validate_nvfp4_weight_storage).  All other Linear (txtfusion etc.) must
-    # NEVER be converted.  Both diag_impact and gen_reverse enforce this.
+
     _SAFE_IN_FEATURES = {1536, 6144, 16384}
 
     txtlayers = int(cfg["txtlayers"])
@@ -399,10 +287,6 @@ def main():
                 x = (x + (t_steps[step + 1] - t_steps[step]) * out).to(torch.bfloat16)
         return x
 
-    # Capture per-layer rotated-activation amax during the pristine trajectory.
-    # gen_reverse_nvfp4.py writes this as convrot NVFP4 .input_scale
-    # (amax / (F8_E4M3_MAX * F4_E2M1_MAX)); without it the runtime falls back to
-    # per-call amax, which the reference converter documents as a quality loss.
     _hadamard = _build_hadamard(256, device=device)
     act_amax = {}
 
@@ -422,10 +306,6 @@ def main():
     x_ref = run()
     print("[*] pristine done", flush=True)
 
-    # input_scale calibration robustness: the reference converter calibrates
-    # on 32 samples x 25 steps; a single 4-step seed can under-cover real
-    # activation ranges (frozen input_scale then clips acts). Span extra seeds
-    # (running max) before detaching the amax hooks. Cost: a few extra forwards.
     for extra in (1337, 7):
         if extra == seed:
             continue
@@ -443,7 +323,6 @@ def main():
             print(f"  SKIP (not a module): {n}", flush=True)
             continue
         m = mods[n]
-        # Enforce NVFP4-safe in_features rule (see _SAFE_IN_FEATURES above).
         if m.in_features not in _SAFE_IN_FEATURES:
             impacts[n] = float("nan")
             continue
