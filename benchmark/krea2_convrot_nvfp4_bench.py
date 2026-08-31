@@ -125,6 +125,9 @@ def setup_comfy(comfy_path: str) -> None:
         raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
     # Prefer this tree for comfy.* imports
     sys.path = [str(comfy_root)] + [p for p in sys.path if Path(p).resolve() != comfy_root]
+    bench_dir = Path(__file__).resolve().parent
+    if str(bench_dir) not in sys.path:
+        sys.path.insert(0, str(bench_dir))
 
     # Always stub before any comfy.* import (real torchaudio may CUDA-mismatch).
     _install_torchaudio_stub()
@@ -138,10 +141,6 @@ def setup_comfy(comfy_path: str) -> None:
     )
 
     prebind_missing_kitchen_tensor_exports()
-
-    import comfy.options
-
-    comfy.options.enable_args_parsing(False)
 
     # Lightweight stubs (same pattern as nvfp4bench_sdxl / int8 benches)
     try:
@@ -185,9 +184,12 @@ def setup_comfy(comfy_path: str) -> None:
 
     # Resolve quant_ops now (after prebind) and apply Branch A/B before model load.
     # Branch A: healthy → zero rebind. Branch B: stubs → submodule rebind only.
-    import comfy.quant_ops  # noqa: F401
+    try:
+        import comfy.quant_ops  # noqa: F401
 
-    ensure_kitchen_quant_ops()
+        ensure_kitchen_quant_ops()
+    except (ImportError, AttributeError):
+        pass
 
 
 SSIM_TARGET = 0.9
