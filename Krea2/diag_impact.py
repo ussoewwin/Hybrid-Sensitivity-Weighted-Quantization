@@ -242,6 +242,8 @@ def load_krea2(path, device="cuda", comfy_path=None):
     (no model.diffusion_model. prefix), so they match the INT8 artifact's
     _quantization_metadata.layers keys directly.
     """
+    if str(device).startswith("cpu"):
+        raise RuntimeError("diag_impact Krea2 trajectory requires CUDA.")
     comfy_root = _ensure_comfyui(comfy_path)
     print(f"[Krea2] ComfyUI root: {comfy_root}")
     saved = _clear_argv_for_comfy()
@@ -253,14 +255,6 @@ def load_krea2(path, device="cuda", comfy_path=None):
             comfy.options.enable_args_parsing(False)
         except ImportError:
             # older ComfyUI without comfy.options; argv already cleared
-            pass
-        try:
-            import comfy.cli_args
-            if torch.cuda.is_available():
-                torch.cuda.init()
-            else:
-                comfy.cli_args.args.cpu = True
-        except Exception:
             pass
         import comfy.ops
         from comfy.ldm.krea2.model import SingleStreamDiT
