@@ -36,12 +36,6 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import load_file
 
-try:
-    from tqdm import tqdm
-except ImportError:
-    def tqdm(iterable, **kwargs):
-        return iterable
-
 
 # ---------------------------------------------------------------------------
 # ComfyUI bootstrap (torchaudio / comfy_aimdo / psutil stubs; same pattern as

@@ -549,10 +549,10 @@ def main() -> int:
         torch.cuda.empty_cache()
 
     t_steps = torch.linspace(1.0, 0.0, steps + 1, device=device)
-    print(f"Running {samples} calibration trajectories ({steps} Euler steps each, lat={lat}, seq={seq})...")
+    print(f"calibrating: {len(prompts)} trajectories x {steps} steps, seed {base_seed}")
 
     with torch.no_grad():
-        for i, prompt in enumerate(tqdm(prompts, desc="Calibrating")):
+        for i, prompt in enumerate(prompts):
             p_hash = int(hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:8], 16)
             s = (base_seed + i + p_hash) % (2**31 - 1)
 
@@ -579,7 +579,7 @@ def main() -> int:
 
             if (i + 1) % 8 == 0 or i + 1 == samples:
                 cov = sum(1 for v in tracked.values() if v["amax"] > 0)
-                print(f"  [{i + 1}/{samples}] amax coverage: {cov}/{len(tracked)}")
+                print(f"  [{i + 1}/{samples}] amax coverage: {cov}/{len(tracked)}", flush=True)
             if (i + 1) % 10 == 0:
                 gc.collect()
                 torch.cuda.empty_cache()
