@@ -119,6 +119,38 @@ def _install_torchaudio_stub() -> None:
     sys.modules["torchaudio.transforms"] = transforms
 
 
+def _purge_comfy_modules() -> None:
+    """Drop any previously imported comfy* modules from sys.modules.
+
+    A comfy package that was imported earlier from a different location (a
+    pip-installed comfy, another ComfyUI copy, a stale cloud tree) poisons
+    every later ``import comfy.*``: submodule resolution uses that package's
+    __path__, so repo-local shims like comfy/options.py are never found, and
+    parent attributes stay unset. Removing them forces a clean re-import from
+    the tree we actually point at.
+    """
+    for name in [n for n in list(sys.modules)
+                 if n == "comfy" or n.startswith("comfy.")]:
+        del sys.modules[name]
+
+
+def _bind_comfy_submodules(comfy) -> None:
+    """Explicitly attach loaded comfy.* submodules to the comfy package.
+
+    ``import comfy.sub`` only sets the parent attribute while it actually
+    loads the submodule. If comfy.sub is already in sys.modules, the import
+    statement returns early WITHOUT re-binding the attribute, so later
+    ``comfy.sub.xxx`` access raises AttributeError. Bind every already-loaded
+    submodule explicitly to make both access styles work.
+    """
+    if comfy is None:
+        return
+    prefix = "comfy."
+    for name, mod in list(sys.modules.items()):
+        if name.startswith(prefix) and mod is not None:
+            setattr(comfy, name[len(prefix):], mod)
+
+
 def setup_comfy(comfy_path: str) -> None:
     comfy_root = Path(comfy_path).resolve()
     if not comfy_root.is_dir():
@@ -128,6 +160,17 @@ def setup_comfy(comfy_path: str) -> None:
 
     # Always stub before any comfy.* import (real torchaudio may CUDA-mismatch).
     _install_torchaudio_stub()
+
+    # Cloud sessions often already have a comfy package in sys.modules from
+    # another tree; that would shadow comfy_root. Force a clean import from
+    # comfy_root and verify it actually resolved there.
+    _purge_comfy_modules()
+    import comfy
+    _cf = Path(comfy.__file__).resolve()
+    if not str(_cf).startswith(str(comfy_root)):
+        raise RuntimeError(
+            f"comfy resolved to {_cf}, expected under {comfy_root}"
+        )
 
     # Before first comfy.quant_ops import: attach missing kitchen tensor exports
     # (Asym / kitchen ConvRotW4A4 import-gate) so bulk-import succeeds → Branch A.
@@ -140,24 +183,28 @@ def setup_comfy(comfy_path: str) -> None:
     prebind_missing_kitchen_tensor_exports()
 
     # comfy/options.py is a repo-local shim (ComfyUI-master/comfy/options.py);
-    # the official ComfyUI tree has no such module, so an uploaded/cloud tree
-    # that lacks it must not abort setup. Inject the identical shim when missing.
+    # the official ComfyUI tree has no such module. Load it via importlib and
+    # inject the identical shim when missing. Never rely on `import comfy.options`
+    # having bound the parent attribute: on an already-imported comfy package it
+    # returns early without setattr, which produced
+    # "AttributeError: module 'comfy' has no attribute 'options'".
+    import importlib as _importlib
+
     try:
-        import comfy.options  # noqa: F401
+        _opts = _importlib.import_module("comfy.options")
     except ImportError:
         import types as _types
 
         _opts = _types.ModuleType("comfy.options")
         _opts.args_parsing = False
-
-        def _enable_args_parsing(enable=True):
-            _opts.args_parsing = enable
-
-        _opts.enable_args_parsing = _enable_args_parsing
+        _opts.enable_args_parsing = (
+            lambda enable=True: setattr(_opts, "args_parsing", enable)
+        )
         sys.modules["comfy.options"] = _opts
-        import comfy.options  # now resolves to the injected module
 
-    comfy.options.enable_args_parsing(False)
+    _bind_comfy_submodules(sys.modules.get("comfy"))
+
+    _opts.enable_args_parsing(False)
 
     # Lightweight stubs (same pattern as nvfp4bench_sdxl / int8 benches)
     try:
