@@ -52,6 +52,13 @@ def _strip_prefix(key, prefix):
 # must NEVER be converted.  diag_impact.py enforces the same rule.
 _SAFE_IN_FEATURES = {1536, 6144, 16384}
 
+# Boundary / structure-sensitive layers must stay INT8/FP16 even if the impact
+# ranking puts them in the convert set (mirrors the converter blacklist: first,
+# last, mod., norm, projector, tmlp, tproj).
+_BOUNDARY_PROTECT = (
+    "first.", "last.", "mod.", "norm", "projector", "tmlp", "tproj",
+)
+
 
 def parse_args():
     ap = argparse.ArgumentParser(
@@ -81,8 +88,11 @@ def main():
 
     with safe_open(a.src, framework="pt", device="cpu") as f:
         keys = list(f.keys())
-        raw_meta = f.metadata()
-        meta = json.loads(raw_meta["_quantization_metadata"])
+        raw_meta = f.metadata() or {}
+        meta_raw_str = raw_meta.get("_quantization_metadata", '{"layers":{}}')
+        meta = json.loads(meta_raw_str)
+        if "layers" not in meta or not isinstance(meta["layers"], dict):
+            meta["layers"] = {}
         sd = {k: f.get_tensor(k) for k in keys}
 
     prefix = _find_prefix(keys)
@@ -93,6 +103,10 @@ def main():
         # L is a STRIPPED layer key (e.g. "blocks.0.attn.gate"); defensively
         # strip any prefix that may have leaked in from another impact source.
         L = _strip_prefix(L, prefix)
+        # Protect boundary / structure-sensitive layers (must stay INT8/FP16).
+        if any(b in L for b in _BOUNDARY_PROTECT):
+            print(f"  SKIP (boundary layer): {L}")
+            continue
         wk, sk = prefix + L + ".weight", prefix + L + ".weight_scale"
         if wk not in sd:
             print(f"  SKIP (not in sd): {L}")
@@ -111,7 +125,14 @@ def main():
         for suffix, t in tensors.items():
             key = wk + suffix
             sd[key] = t.cpu()
-        conf = {"format": "nvfp4", "convrot": True, "convrot_groupsize": 256}
+        conf = {
+            "format": "nvfp4",
+            "convrot": True,
+            "convrot_groupsize": 256,
+            "orig_shape": [int(dq.shape[0]), int(dq.shape[1])],
+            "in_features": int(dq.shape[1]),
+            "out_features": int(dq.shape[0]),
+        }
         sd[prefix + L + ".comfy_quant"] = torch.frombuffer(
             json.dumps(conf).encode("utf-8"), dtype=torch.uint8
         ).clone()
@@ -137,6 +158,8 @@ def main():
             out_meta[k] = json.dumps(meta)
         else:
             out_meta[k] = v.decode("utf-8") if isinstance(v, bytes) else v
+    if "_quantization_metadata" not in out_meta:
+        out_meta["_quantization_metadata"] = json.dumps(meta)
     save_file(sd, OUT, metadata=out_meta)
     print("saved:", OUT, os.path.getsize(OUT) / 1e9, "GB (decimal)")
 
