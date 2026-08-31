@@ -326,9 +326,7 @@ def parse_args():
 
 def main():
     a = parse_args()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    if device != "cuda":
-        raise RuntimeError("Krea2 diag_impact requires CUDA.")
+    device = "cuda"
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
