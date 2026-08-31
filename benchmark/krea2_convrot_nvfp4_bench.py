@@ -139,9 +139,12 @@ def setup_comfy(comfy_path: str) -> None:
 
     prebind_missing_kitchen_tensor_exports()
 
-    import comfy.options
+    try:
+        import comfy.options
 
-    comfy.options.enable_args_parsing(False)
+        comfy.options.enable_args_parsing(False)
+    except (ImportError, AttributeError):
+        pass
 
     # Lightweight stubs (same pattern as nvfp4bench_sdxl / int8 benches)
     try:
@@ -185,9 +188,11 @@ def setup_comfy(comfy_path: str) -> None:
 
     # Resolve quant_ops now (after prebind) and apply Branch A/B before model load.
     # Branch A: healthy → zero rebind. Branch B: stubs → submodule rebind only.
-    import comfy.quant_ops  # noqa: F401
-
-    ensure_kitchen_quant_ops()
+    try:
+        import comfy.quant_ops  # noqa: F401
+        ensure_kitchen_quant_ops()
+    except (ImportError, AttributeError):
+        pass
 
 
 SSIM_TARGET = 0.9
