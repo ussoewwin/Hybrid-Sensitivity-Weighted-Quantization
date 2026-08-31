@@ -205,10 +205,6 @@ def load_krea2(path, device="cuda", comfy_path=None):
     try:
         if str(comfy_root) not in sys.path:
             sys.path.insert(0, str(comfy_root))
-        comfy_dir = os.path.join(comfy_root, "comfy")
-        import comfy
-        if hasattr(comfy, "__path__") and comfy_dir not in comfy.__path__:
-            comfy.__path__.insert(0, comfy_dir)
         _install_comfy_stubs()
         try:
             import comfy.options
@@ -224,10 +220,9 @@ def load_krea2(path, device="cuda", comfy_path=None):
         cfg = detect_krea2_dit_config(state_dict, prefix)
         print(f"Detected Krea2 DiT config: {cfg}")
         kw = {k: v for k, v in cfg.items() if k != "image_model"}
-        ops = comfy.ops.disable_weight_init if hasattr(comfy.ops, "disable_weight_init") else comfy.ops.manual_cast
         dit = SingleStreamDiT(
-            **kw, device="cpu", dtype=torch.bfloat16,
-            operations=ops,
+            **kw, device=device, dtype=torch.bfloat16,
+            operations=comfy.ops.manual_cast,
         )
         stripped = {}
         for k, v in state_dict.items():
@@ -240,7 +235,6 @@ def load_krea2(path, device="cuda", comfy_path=None):
             f"  [Krea2] load_state_dict missing={len(missing)} "
             f"unexpected={len(unexpected)}"
         )
-        dit = dit.to(device)
         dev = str(next(dit.parameters()).device)
         print(f"  [Krea2] DiT device={dev}")
         dit.eval()
@@ -487,10 +481,6 @@ def main() -> int:
         comfy_root = _ensure_comfyui(a.comfy_path)
         if str(comfy_root) not in sys.path:
             sys.path.insert(0, str(comfy_root))
-        comfy_dir = os.path.join(comfy_root, "comfy")
-        import comfy
-        if hasattr(comfy, "__path__") and comfy_dir not in comfy.__path__:
-            comfy.__path__.insert(0, comfy_dir)
         _install_comfy_stubs()
         import comfy.sd
         clip = comfy.sd.load_clip(
