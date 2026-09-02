@@ -1,19 +1,11 @@
 # -*- coding: utf-8 -*-
 """Krea2 hybrid ConvRot NVFP4: per-layer input_scale calibration (amax method).
 
-OPT-IN ONLY on Krea2. The Krea2 TC runtime defaults to **per-call amax**
-(``HSWQ_NVFP4_ACT_SCALE=amax``, benchmark/runtime/krea2_convrot_nvfp4/
-nvfp4_runtime.py) because a fixed scale is set by step-0 (sigma=1.0) noise
-amax and mis-resolves later steps: ~0.88 SSIM fixed vs ~0.93 per-call amax.
-The scales written by this script are therefore IGNORED unless the bench runs
-with ``HSWQ_NVFP4_ACT_SCALE=calib`` (fixed-scale speed path, opt-in).
+Calibrates and writes activation scales (input_scale) into a hybrid NVFP4 artifact
+so the W4A4 TensorCore path (scaled_mm_nvfp4 / cuBLAS FP4) uses calibrated per-tensor
+act scales instead of placeholder ones or runtime fallback.
 
-When opted in, this script calibrates and writes activation scales
-(input_scale) into a hybrid NVFP4 artifact so the W4A4 TensorCore path
-(scaled_mm_nvfp4 / cuBLAS FP4) uses a calibrated per-tensor act scale
-instead of placeholder ones (which collapse the act grid).
-
-Method:
+Method (mirrors Z_Image/calib_input_scale_nvfp4.py & Flux1/calib_input_scale_nvfp4.py):
   - load the BASE fp16/bf16 Krea2 SingleStreamDiT model (unquantized)
   - attach forward hooks on the NVFP4 target Linears
   - run N calibration trajectories through a fixed-step Euler trajectory
@@ -27,10 +19,6 @@ Method:
 The rotation MUST happen before amax ("rotate first, then amax"): the hybrid
 weights are stored already rotated (W @ H^T), so runtime quantizes rotated
 activations.
-
-Run the TC bench with the calib artifact and the env var set, e.g.:
-    HSWQ_NVFP4_ACT_SCALE=calib python benchmark/krea2_convrot_nvfp4_bench.py \
-        --fp16 <base> --nvfp4 <..._calib.safetensors> --comfy_path <ComfyUI-master> ...
 
 Usage:
     python Krea2/calib_input_scale_nvfp4.py \
