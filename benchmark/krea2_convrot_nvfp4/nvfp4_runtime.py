@@ -32,15 +32,6 @@ _ACT_AMAX_FREEZE = os.environ.get("HSWQ_NVFP4_ACT_AMAX_FREEZE", "").lower() in (
     "yes",
 )
 
-# Act-scale policy for checkpoint layers that DO carry .input_scale (calib):
-#   HSWQ_NVFP4_ACT_SCALE=amax  (default) -> ignore the baked scale, per-call
-#       amax every Linear. Best measured quality on Krea2 (~0.93 SSIM); a
-#       fixed scale is set by step-0 (sigma=1.0) noise amax and mis-resolves
-#       later steps (~0.88 SSIM).
-#   HSWQ_NVFP4_ACT_SCALE=calib -> honor the checkpoint input_scale (fixed,
-#       faster; opt-in for speed when the Krea2 SSIM loss is acceptable).
-_ACT_SCALE_MODE = os.environ.get("HSWQ_NVFP4_ACT_SCALE", "amax").lower()
-
 # (padded_rows, padded_cols, device_str) -> (qx uint8, sx_uint8)
 # Safe to reuse: only live during one Linear forward (quantize → mm reads sync).
 _ACT_Q_POOL: dict = {}
@@ -573,17 +564,12 @@ def ensure_act_scale_amax(x):
 
 
 def ensure_act_scale_cached(module, x, scale):
-    """Resolve the per-layer act scale for the TC path.
+    """Act scale when checkpoint omits input_scale (placeholder ones).
 
-    Missing checkpoint scale (placeholder ones / no .input_scale) -> per-call
-    amax by default (best Krea2 quality). ``HSWQ_NVFP4_ACT_AMAX_FREEZE=1``
-    restores the legacy first-forward freeze for speed debugging — it costs
-    ~0.05 SSIM on Krea2 (sigma drift vs frozen step-0 noise amax).
-
-    Present checkpoint scale (calib artifact) -> still per-call amax unless
-    ``HSWQ_NVFP4_ACT_SCALE=calib`` opts into the fixed baked scale, because on
-    Krea2 a fixed scale is set by step-0 (sigma=1.0) noise and mis-resolves
-    later steps (~0.88 SSIM fixed vs ~0.93 per-call amax).
+    Default: **per-call amax** (matches stock kitchen NVFP4; converter expects
+    "runtime amax" for no-calib layers). ``HSWQ_NVFP4_ACT_AMAX_FREEZE=1``
+    restores the legacy first-forward freeze — cheaper on 18k-Linear/sample
+    models but mis-scales Krea2 steps (sigma drift vs frozen step-0 noise amax).
     """
     import torch
 
@@ -627,13 +613,4 @@ def ensure_act_scale_cached(module, x, scale):
             delattr(module, "_hswq_nvfp4_alpha_bound_scale")
         return s
 
-    if _ACT_SCALE_MODE == "calib":
-        # Opt-in fixed scale baked by Krea2/calib_input_scale_nvfp4.py.
-        # Faster (no per-call amax) but on Krea2 it costs SSIM: the running
-        # max is set by step-0 (sigma=1.0) noise and mis-resolves every later
-        # step (~0.88 fixed vs ~0.93 per-call amax).
-        return ensure_act_scale(x, scale)
-
-    # Krea2 default: per-call amax even when the checkpoint carries an
-    # input_scale. Best measured quality on Krea2 (see module comment).
-    return ensure_act_scale_amax(x)
+    return ensure_act_scale(x, scale)
