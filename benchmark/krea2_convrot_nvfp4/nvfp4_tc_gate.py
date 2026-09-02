@@ -17,6 +17,7 @@ Never edits ComfyUI-master.
 from __future__ import annotations
 
 import logging
+import os
 
 _PROBED = False
 _TC_OK: bool | None = None
@@ -73,6 +74,12 @@ def probe_nvfp4_tc_support(device_index: int = 0) -> bool:
 
 def nvfp4_tc_enabled() -> bool:
     if _DISABLED:
+        return False
+    # HSWQ_NVFP4_TC=0 / false / off forces the bake→float GEMM fallback
+    # (no act FP4 quantization). Diagnostic switch: the TC path quantizes
+    # activations to FP4, which must match float-GEMM quality when the act
+    # scale is calibrated; set this to isolate TC vs dequant quality.
+    if os.environ.get("HSWQ_NVFP4_TC", "").lower() in ("0", "false", "off", "no"):
         return False
     return probe_nvfp4_tc_support()
 
