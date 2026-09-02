@@ -1,13 +1,16 @@
-"""NVFP4 TensorCore availability gate (shared by addmm patch + TC forward).
+"""NVFP4 path gate (shared by addmm patch + ConvRot Linear forward).
 
-cuBLAS NVFP4 GEMM needs compute capability >= 10.0 (Blackwell). Cloud hosts are
-often Ada / Hopper / Ampere — every ``scaled_mm_nvfp4`` then raises
-``CUBLAS_STATUS_NOT_SUPPORTED`` and kitchen / addmm log WARNING per Linear.
+HSWQ Linear hot path: ConvRot act rotate → pooled act NVFP4 quant → cuBLAS
+FP4 Tensor-Core GEMM (raw kitchen ``_C`` primitive; weight stays packed).
+Bake→float + ``F.linear`` is the per-call fallback only. Residual QT×QT
+edges: ``hswq_scaled_mm_nvfp4`` (dequant both → float mm).
+Never torch native ``F.scaled_mm`` FP4 (SM120: CUBLAS NOT_SUPPORTED → sticky
+CUDA → illegal memory access); the direct ``_C`` call is the verified path.
 
-This module:
-  1) probes CC once
-  2) after first NOT_SUPPORTED (or CC < 10.0), disables further TC attempts
-  3) emits a single clear line; mutes kitchen nvfp4 WARNING spam
+Gate contract:
+  1) probe CC once (Blackwell family: CC >= 10.0)
+  2) permanent disable ONLY when hardware cannot do NVFP4 TC (CC < 10.0)
+  3) rare RuntimeError → sticky clear + per-call float path (no process-wide kill)
 
 Never edits ComfyUI-master.
 """
@@ -20,6 +23,7 @@ _TC_OK: bool | None = None
 _DISABLED = False
 _WARNED = False
 _DISABLE_REASON = ""
+_CALL_FAIL_WARNED = False
 
 _KITCHEN_NVFP4_LOG = "comfy_kitchen.tensor.nvfp4"
 _ADDMM_LOG = "nvfp4.nvfp4_addmm_patch"
@@ -29,6 +33,21 @@ _FORWARD_LOG = "nvfp4.nvfp4_forward"
 def _mute_nvfp4_warning_spam() -> None:
     for name in (_KITCHEN_NVFP4_LOG, _ADDMM_LOG, _FORWARD_LOG):
         logging.getLogger(name).setLevel(logging.ERROR)
+
+
+def clear_cuda_sticky_error() -> None:
+    """Clear sticky CUDA / cuBLAS error so follow-up kernels can run."""
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            return
+        try:
+            torch.cuda.synchronize()
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
 
 
 def probe_nvfp4_tc_support(device_index: int = 0) -> bool:
@@ -59,7 +78,11 @@ def nvfp4_tc_enabled() -> bool:
 
 
 def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
-    """Permanent disable for this process; warn once then mute spam loggers."""
+    """Permanent disable for this process (CC < 10.0 only).
+
+    Do NOT call this for CUBLAS_STATUS_NOT_SUPPORTED — stock kitchen dequants
+    that call only and keeps TC enabled for later Linears.
+    """
     global _DISABLED, _WARNED, _DISABLE_REASON
     _DISABLED = True
     _DISABLE_REASON = str(reason) if reason else "unknown"
@@ -78,28 +101,32 @@ def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
         except Exception:
             pass
         print(
-            f"[HSWQ NVFP4] TensorCore scaled_mm disabled for this run "
+            f"[HSWQ NVFP4] TensorCore path disabled for this run "
             f"(GPU={name}, CC={cc}): {_DISABLE_REASON}. "
-            f"Using dequant mm; further CUBLAS/kitchen WARNINGs suppressed.",
+            f"Using float dequant mm; further kitchen WARNINGs suppressed.",
             flush=True,
         )
 
 
 def note_scaled_mm_failure(exc: BaseException) -> bool:
-    """If failure is permanent (NOT_SUPPORTED / unsupported), disable TC.
+    """Per-call failure: sticky-clear + do NOT kill TC for the process.
 
-    Returns True if TC is now disabled (caller should dequant without retry storm).
+    HSWQ GEMM / weight-dequant edges (OOM/import). Always clear sticky CUDA first.
+    Permanent disable remains only via ``disable_nvfp4_tc`` (CC < 10.0 probe).
     """
-    msg = str(exc)
-    permanent = (
-        "CUBLAS_STATUS_NOT_SUPPORTED" in msg
-        or "NOT_SUPPORTED" in msg
-        or "not supported" in msg.lower()
-    )
-    if permanent:
-        disable_nvfp4_tc(msg.split("\n", 1)[0][:240])
+    global _CALL_FAIL_WARNED
+    clear_cuda_sticky_error()
+    if _DISABLED:
         return True
-    return _DISABLED
+    if not _CALL_FAIL_WARNED:
+        _CALL_FAIL_WARNED = True
+        msg = str(exc).split("\n", 1)[0][:240]
+        print(
+            f"[HSWQ NVFP4] GEMM path exception (sticky cleared; per-call "
+            f"float dequant; TC stays enabled): {msg}",
+            flush=True,
+        )
+    return False
 
 
 def announce_tc_status_at_register() -> None:
@@ -118,8 +145,9 @@ def announce_tc_status_at_register() -> None:
         name, cc = "?", "?"
     if ok:
         print(
-            f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} — "
-            f"scaled_mm_nvfp4 enabled (min CC 10.0)",
+            f"[HSWQ NVFP4] TC probe: GPU={name} CC={cc} - "
+            f"HSWQ path enabled: ConvRot act + pooled NVFP4 quant + cuBLAS FP4 "
+            f"TC GEMM (weight packed resident; bake fallback; never F.scaled_mm)",
             flush=True,
         )
     else:
