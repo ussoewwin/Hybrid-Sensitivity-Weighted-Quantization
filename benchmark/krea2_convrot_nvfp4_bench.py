@@ -119,38 +119,6 @@ def _install_torchaudio_stub() -> None:
     sys.modules["torchaudio.transforms"] = transforms
 
 
-def _purge_comfy_modules() -> None:
-    """Drop any previously imported comfy* modules from sys.modules.
-
-    A comfy package that was imported earlier from a different location (a
-    pip-installed comfy, another ComfyUI copy, a stale cloud tree) poisons
-    every later ``import comfy.*``: submodule resolution uses that package's
-    __path__, so repo-local shims like comfy/options.py are never found, and
-    parent attributes stay unset. Removing them forces a clean re-import from
-    the tree we actually point at.
-    """
-    for name in [n for n in list(sys.modules)
-                 if n == "comfy" or n.startswith("comfy.")]:
-        del sys.modules[name]
-
-
-def _bind_comfy_submodules(comfy) -> None:
-    """Explicitly attach loaded comfy.* submodules to the comfy package.
-
-    ``import comfy.sub`` only sets the parent attribute while it actually
-    loads the submodule. If comfy.sub is already in sys.modules, the import
-    statement returns early WITHOUT re-binding the attribute, so later
-    ``comfy.sub.xxx`` access raises AttributeError. Bind every already-loaded
-    submodule explicitly to make both access styles work.
-    """
-    if comfy is None:
-        return
-    prefix = "comfy."
-    for name, mod in list(sys.modules.items()):
-        if name.startswith(prefix) and mod is not None:
-            setattr(comfy, name[len(prefix):], mod)
-
-
 def setup_comfy(comfy_path: str) -> None:
     comfy_root = Path(comfy_path).resolve()
     if not comfy_root.is_dir():
@@ -160,17 +128,6 @@ def setup_comfy(comfy_path: str) -> None:
 
     # Always stub before any comfy.* import (real torchaudio may CUDA-mismatch).
     _install_torchaudio_stub()
-
-    # Cloud sessions often already have a comfy package in sys.modules from
-    # another tree; that would shadow comfy_root. Force a clean import from
-    # comfy_root and verify it actually resolved there.
-    _purge_comfy_modules()
-    import comfy
-    _cf = Path(comfy.__file__).resolve()
-    if not str(_cf).startswith(str(comfy_root)):
-        raise RuntimeError(
-            f"comfy resolved to {_cf}, expected under {comfy_root}"
-        )
 
     # Before first comfy.quant_ops import: attach missing kitchen tensor exports
     # (Asym / kitchen ConvRotW4A4 import-gate) so bulk-import succeeds → Branch A.
@@ -182,29 +139,9 @@ def setup_comfy(comfy_path: str) -> None:
 
     prebind_missing_kitchen_tensor_exports()
 
-    # comfy/options.py is a repo-local shim (ComfyUI-master/comfy/options.py);
-    # the official ComfyUI tree has no such module. Load it via importlib and
-    # inject the identical shim when missing. Never rely on `import comfy.options`
-    # having bound the parent attribute: on an already-imported comfy package it
-    # returns early without setattr, which produced
-    # "AttributeError: module 'comfy' has no attribute 'options'".
-    import importlib as _importlib
+    import comfy.options
 
-    try:
-        _opts = _importlib.import_module("comfy.options")
-    except ImportError:
-        import types as _types
-
-        _opts = _types.ModuleType("comfy.options")
-        _opts.args_parsing = False
-        _opts.enable_args_parsing = (
-            lambda enable=True: setattr(_opts, "args_parsing", enable)
-        )
-        sys.modules["comfy.options"] = _opts
-
-    _bind_comfy_submodules(sys.modules.get("comfy"))
-
-    _opts.enable_args_parsing(False)
+    comfy.options.enable_args_parsing(False)
 
     # Lightweight stubs (same pattern as nvfp4bench_sdxl / int8 benches)
     try:
@@ -254,31 +191,6 @@ def setup_comfy(comfy_path: str) -> None:
 
 
 SSIM_TARGET = 0.9
-
-
-def tensorcore_hw_info():
-    """Blackwell tensor-core hardware info + est. peak FP4 TFLOPS.
-
-    Peak uses props.clock_rate (max/boost clock in kHz). On Blackwell the
-    dense FP4 rate is 1024 MACs/SM/clk, so peak = SM x clock x 2048 / 1000.
-    """
-    import torch
-
-    if not torch.cuda.is_available():
-        return None
-    props = torch.cuda.get_device_properties(0)
-    sm = int(props.multi_processor_count)
-    # Blackwell (5th-gen tensor core): 4 TCs / SM; dense FP4 = 1024 MACs/SM/clk.
-    tc = sm * 4
-    clock_ghz = props.clock_rate / 1e6  # kHz -> GHz (max/boost clock)
-    peak_fp4 = sm * clock_ghz * 2048.0 / 1000.0
-    return {
-        "name": torch.cuda.get_device_name(0),
-        "sm": sm,
-        "tensor_cores": tc,
-        "clock_ghz": clock_ghz,
-        "peak_fp4_tflops": peak_fp4,
-    }
 
 
 def require_convrot_parity_forward() -> None:
@@ -859,14 +771,7 @@ def main() -> int:
             if not _patches_applied:
                 print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches (after BF16)...")
                 apply_quant_patches(mode=args.mode)
-                from krea2_convrot_nvfp4.nvfp4_forward import (
-                    nvfp4_forward_stats,
-                    reset_nvfp4_forward_stats,
-                )
                 _patches_applied = True
-
-            # Per-seed TC GEMM stats (reset so hits/flops reflect THIS seed only).
-            reset_nvfp4_forward_stats()
 
             img_q, _lat_q, tq, vq, diag_q = run_branch(
                 label="2. Quantized (ConvRot NVFP4 + INT8 protect)",
@@ -879,30 +784,6 @@ def main() -> int:
             pq = os.path.join(args.output_dir, f"bench_result_nvfp4{_p16_suffix}.png")
             img_q.save(pq)
             print(f"NVFP4+INT8protect Time: {tq:.2f}s  peak={vq:.2f}GiB")
-
-            # --- TensorCore report (ZI port: TFLOPS + hit count + GEMM mode) ---
-            tc_stats = nvfp4_forward_stats()
-            print("-" * 50)
-            hw = tensorcore_hw_info()
-            tc_flops = tc_stats.get("tc_flops", 0)
-            tc_hits = tc_stats.get("scaled_mm_hits", 0)
-            dequant = tc_stats.get("dequant_fallbacks", 0)
-            _gemm_mode = "TC W4A4" if args.mode == "tc" else "parity dequant"
-            if hw is not None and tc_flops > 0 and tq > 0:
-                achieved_tflops = tc_flops / tq / 1e12
-                peak = hw["peak_fp4_tflops"]
-                pct = (achieved_tflops / peak * 100.0) if peak > 0 else 0.0
-                print(f"TensorCore ({hw['name']}) [{_gemm_mode}]:")
-                print(f"  SMs / TensorCores   : {hw['sm']} / {hw['tensor_cores']}")
-                print(f"  TC GEMM hits        : {tc_hits}  (dequant fallbacks: {dequant})")
-                print(f"  Achieved            : {achieved_tflops:8.1f} TFLOPS")
-                print(f"  Peak (boost clock)  : {peak:8.1f} TFLOPS")
-                print(f"  % of peak           : {pct:8.1f}%")
-            else:
-                print(
-                    f"TensorCore [{_gemm_mode}]: hits={tc_hits} "
-                    f"dequant_fallbacks={dequant} flops={tc_flops:.0f}"
-                )
 
             args.seed = _orig_seed
 
