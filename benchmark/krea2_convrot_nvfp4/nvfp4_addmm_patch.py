@@ -8,14 +8,7 @@ That is why stock MixedPrecision Linear (Comfy ops.py) can look "NVFP4 loaded"
 (uint8 packed weights in state_dict) while peak VRAM exceeds FP16: packed
 storage stays resident AND dequant materializes FP16 weights every forward.
 
-addmm handler: ``hswq_scaled_mm_nvfp4`` (dequant both sides → float mm).
-
-Krea2 baseline (2026-08-24, mean-cos 0.926) used the dequant GEMM for
-residual QT×QT addmm edges. Switching this to kitchen ``ck.scaled_mm_nvfp4``
-(FP4 Tensor-Core GEMM) degraded parity AND TC trajectory quality (~0.89):
-the residual act tensor scale is not guaranteed calibrated on Krea2, so the
-FP4 TC path mis-scales. Z Image tolerates scaled_mm here only because every
-ConvRot layer carries a calibrated input_scale; Krea2 does not.
+addmm handler: ``ck.scaled_mm_nvfp4`` (same contract as MXFP8 addmm).
 
 Runtime-only registration — does not edit ComfyUI-master or site-packages files.
 """
@@ -28,13 +21,14 @@ _REGISTERED = False
 
 
 def register_nvfp4_addmm_handler() -> bool:
-    """Register aten.addmm.default → hswq_scaled_mm_nvfp4 (dequant GEMM)."""
+    """Register aten.addmm.default → scaled_mm_nvfp4 (same contract as MXFP8 addmm)."""
     global _REGISTERED
     if _REGISTERED:
         return True
 
     try:
         import torch
+        import comfy_kitchen as ck
         from comfy_kitchen.tensor.base import (
             QuantizedTensor,
             dequantize_args,
@@ -45,7 +39,6 @@ def register_nvfp4_addmm_handler() -> bool:
             TensorCoreNVFP4Layout,
             _slice_to_original_shape,
         )
-        from .nvfp4_gemm import hswq_scaled_mm_nvfp4
         from .nvfp4_tc_gate import (
             announce_tc_status_at_register,
             note_scaled_mm_failure,
@@ -92,7 +85,7 @@ def register_nvfp4_addmm_handler() -> bool:
         out_dtype = kwargs.get("out_dtype", mat1._params.orig_dtype)
 
         try:
-            result = hswq_scaled_mm_nvfp4(
+            result = ck.scaled_mm_nvfp4(
                 input_qdata,
                 weight_qdata,
                 tensor_scale_a=scale_a,
@@ -112,7 +105,7 @@ def register_nvfp4_addmm_handler() -> bool:
     _REGISTERED = True
     print(
         "[HSWQ NVFP4] registered aten.addmm.default for TensorCoreNVFP4Layout "
-        "(stock F.linear+bias -> HSWQ dequant+mm; Krea2 8/24 baseline)",
+        "(stock F.linear+bias -> scaled_mm_nvfp4; was dequant-only)",
         flush=True,
     )
     return True
