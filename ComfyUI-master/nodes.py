@@ -768,7 +768,7 @@ class LoraLoaderModelOnly(LoraLoader):
         return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
 
 class VAELoader:
-    video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2", "taeh3"]
+    video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2"]
     image_taes = ["taesd", "taesdxl", "taesd3", "taef1", "taef2"]
 
     @staticmethod
@@ -2505,8 +2505,6 @@ async def init_builtin_extra_nodes():
         "nodes_toolkit.py",
         "nodes_replacements.py",
         "nodes_nag.py",
-        "nodes_trellis2.py",
-        "nodes_mesh_postprocess.py",
         "nodes_sdpose.py",
         "nodes_math.py",
         "nodes_number_convert.py",
@@ -2529,7 +2527,6 @@ async def init_builtin_extra_nodes():
         "nodes_depth_anything_3.py",
         "nodes_seed.py",
         "nodes_text.py",
-        "nodes_sam3d_body.py",
     ]
 
     import_failed = []

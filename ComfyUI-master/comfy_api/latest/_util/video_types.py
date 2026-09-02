@@ -7,7 +7,6 @@ from .._input import ImageInput, AudioInput, MaskInput
 class VideoCodec(str, Enum):
     AUTO = "auto"
     H264 = "h264"
-    AV1 = "av1"
 
     @classmethod
     def as_input(cls) -> list[str]:
@@ -19,8 +18,6 @@ class VideoCodec(str, Enum):
 class VideoContainer(str, Enum):
     AUTO = "auto"
     MP4 = "mp4"
-    MKV = "mkv"
-    WEBM = "webm"
 
     @classmethod
     def as_input(cls) -> list[str]:
@@ -38,10 +35,6 @@ class VideoContainer(str, Enum):
             value = cls(value)
         if value == VideoContainer.MP4 or value == VideoContainer.AUTO:
             return "mp4"
-        if value == VideoContainer.MKV:
-            return "mkv"
-        if value == VideoContainer.WEBM:
-            return "webm"
         return ""
 
 @dataclass

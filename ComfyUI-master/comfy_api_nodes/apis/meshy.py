@@ -14,7 +14,6 @@ class InputShouldRemesh(TypedDict):
 class InputShouldTexture(TypedDict):
     should_texture: str
     enable_pbr: bool
-    texture_resolution: str
     texture_prompt: str
     texture_image: Input.Image | None
 
@@ -26,7 +25,7 @@ class MeshyTaskResponse(BaseModel):
 class MeshyTextToModelRequest(BaseModel):
     mode: str = Field("preview")
     prompt: str = Field(..., max_length=600)
-    art_style: str = Field(...)
+    art_style: str = Field(..., description="'realistic' or 'sculpture'")
     ai_model: str = Field(...)
     topology: str | None = Field(..., description="'quad' or 'triangle'")
     target_polycount: int | None = Field(..., ge=100, le=300000)
@@ -36,7 +35,6 @@ class MeshyTextToModelRequest(BaseModel):
     )
     symmetry_mode: str = Field(..., description="'auto', 'off' or 'on'")
     pose_mode: str = Field(...)
-    ultra_mode: bool = Field(False)
     seed: int = Field(...)
     moderation: bool = Field(False)
 
@@ -45,7 +43,6 @@ class MeshyRefineTask(BaseModel):
     mode: str = Field("refine")
     preview_task_id: str = Field(...)
     enable_pbr: bool | None = Field(...)
-    texture_resolution: str = Field(...)
     texture_prompt: str | None = Field(...)
     texture_image_url: str | None = Field(...)
     ai_model: str = Field(...)
@@ -64,9 +61,7 @@ class MeshyImageToModelRequest(BaseModel):
     )
     should_texture: bool = Field(...)
     enable_pbr: bool | None = Field(...)
-    texture_resolution: str | None = Field(None)
     pose_mode: str = Field(...)
-    ultra_mode: bool = Field(False)
     texture_prompt: str | None = Field(None, max_length=600)
     texture_image_url: str | None = Field(None)
     seed: int = Field(...)
@@ -85,7 +80,6 @@ class MeshyMultiImageToModelRequest(BaseModel):
     )
     should_texture: bool = Field(...)
     enable_pbr: bool | None = Field(...)
-    texture_resolution: str | None = Field(None)
     pose_mode: str = Field(...)
     texture_prompt: str | None = Field(None, max_length=600)
     texture_image_url: str | None = Field(None)
@@ -109,10 +103,8 @@ class MeshyTextureRequest(BaseModel):
     ai_model: str = Field(...)
     enable_original_uv: bool = Field(...)
     enable_pbr: bool = Field(...)
-    texture_resolution: str = Field(...)
-    text_style_prompt: str | None = Field(None)
-    image_style_url: str | None = Field(None)
-    multiview_image_urls: list[str] | None = Field(None)
+    text_style_prompt: str | None = Field(...)
+    image_style_url: str | None = Field(...)
 
 
 class MeshyModelsUrls(BaseModel):
