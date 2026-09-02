@@ -126,6 +126,19 @@ def _normalize_grok_reference_prompt(prompt: str, total_images: int, voices: lis
     return prompt
 
 
+def _extract_grok_price(response) -> float | None:
+    if response.usage and response.usage.cost_in_usd_ticks is not None:
+        return response.usage.cost_in_usd_ticks / 10_000_000_000
+    return None
+
+
+def _extract_grok_video_price(response) -> float | None:
+    price = _extract_grok_price(response)
+    if price is not None:
+        return price * 1.43
+    return None
+
+
 class GrokImageNode(IO.ComfyNode):
 
     @classmethod
@@ -734,6 +747,7 @@ class GrokVideoNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
+            price_extractor=_extract_grok_video_price if model == "grok-imagine-video-1.5" else _extract_grok_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
@@ -811,6 +825,7 @@ class GrokVideoEditNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
+            price_extractor=_extract_grok_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
@@ -1007,6 +1022,7 @@ class GrokVideoReferenceNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
+            price_extractor=_extract_grok_video_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
@@ -1111,6 +1127,7 @@ class GrokVideoExtendNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
+            price_extractor=_extract_grok_video_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
