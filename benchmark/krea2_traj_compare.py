@@ -19,7 +19,7 @@ Usage:
     python krea2_traj_compare.py \
         --fp16 <base.safetensors> --nvfp4 <hybrid.safetensors> \
         --clip_path <clip.safetensors> --comfy_path <ComfyUI-master> \
-        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] [--mode tc|parity]
+        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] [--tc|--parity]
 """
 import argparse
 import importlib.util
@@ -101,16 +101,72 @@ def parse_args():
         choices=["tc", "parity"],
         default="tc",
         help=(
-            "NVFP4 execution mode. 'tc' runs the hardware Tensor Core W4A4 "
-            "path (scaled_mm_nvfp4) and requires a calibrated checkpoint "
-            "with .input_scale keys (gen_reverse_nvfp4.py writes them); "
-            "without input_scale the trajectory collapses. 'parity' forces "
-            "the stock GEMM + online act-rotate path."
+            "Legacy NVFP4 execution mode selector (kept for backward "
+            "compatibility; prefer --tc / --parity)."
         ),
+    )
+    ap.add_argument(
+        "--tc",
+        action="store_true",
+        help=(
+            "Force hardware Tensor Core W4A4 path (scaled_mm_nvfp4). "
+            "Requires a calibrated checkpoint with .input_scale keys, "
+            "otherwise the trajectory collapses."
+        ),
+    )
+    ap.add_argument(
+        "--parity",
+        action="store_true",
+        help="Force Comfy parity path (stock GEMM + act rotate).",
     )
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
+
+
+def resolve_mode(args) -> str:
+    """--tc / --parity win over the legacy --mode selector."""
+    if args.tc and args.parity:
+        raise SystemExit("error: --tc and --parity are mutually exclusive")
+    if args.tc:
+        return "tc"
+    if args.parity:
+        return "parity"
+    return args.mode
+
+
+def print_gemm_mode_summary() -> None:
+    """Print which NVFP4 GEMM path actually ran (TC W4A4 vs dequant fallback).
+
+    Mirrors zi_convrot_nvfp4_traj_compare.py: after the quantized run, read the
+    Krea2 NVFP4 forward stats so the reported mode is verified by what the
+    kernel counters recorded, not just by what was requested.
+    """
+    tc_hits = deq_fb = tc_flops = act_rot = 0
+    try:
+        from krea2_convrot_nvfp4.nvfp4_forward import nvfp4_forward_stats
+        s = nvfp4_forward_stats()
+        tc_hits = int(s.get("scaled_mm_hits", 0))
+        deq_fb = int(s.get("dequant_fallbacks", 0))
+        act_rot = int(s.get("convrot_act_rotates", 0))
+        tc_flops = int(s.get("tc_flops", 0))
+    except Exception:
+        pass
+
+    if tc_hits > 0 and deq_fb == 0:
+        mode = "TC (W4A4 scaled_mm on Tensor Cores)"
+    elif tc_hits > 0:
+        mode = f"TC with {deq_fb} dequant fallbacks (partial)"
+    elif deq_fb > 0:
+        mode = "DEQUANT FALLBACK (no TC hits)"
+    else:
+        mode = "no NVFP4 GEMM observed (parity path or nothing ran)"
+
+    print("\n" + "-" * 72)
+    print(f"[HSWQ NVFP4] GEMM MODE: {mode}")
+    print(f"  TC forward: scaled_mm hits={tc_hits}  dequant_fallbacks={deq_fb}  "
+          f"convrot_act_rotates={act_rot}  tc_flops={tc_flops}")
+    print("-" * 72)
 
 
 def main() -> int:
@@ -120,6 +176,7 @@ def main() -> int:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     seeds = [int(s.strip()) for s in args.seeds.split(",") if s.strip()]
+    mode = resolve_mode(args)
     bench.set_hf_token(args.token)
 
     saved_argv = bench._clear_argv_for_comfy()
@@ -165,8 +222,13 @@ def main() -> int:
         bench._hard_free_vram()
 
         # --- NVFP4 (patched) ---
-        print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches...")
-        bench.apply_quant_patches(mode=args.mode)
+        print(f"Applying NVFP4 ConvRot mode='{mode}' + INT8 + addmm patches...")
+        try:
+            from krea2_convrot_nvfp4.nvfp4_forward import reset_nvfp4_forward_stats
+            reset_nvfp4_forward_stats()
+        except Exception:
+            pass
+        bench.apply_quant_patches(mode=mode)
         nv = bench._load_diffusion_model(args.nvfp4)
         nv_runs = {}
         for s in seeds:
@@ -229,6 +291,8 @@ def main() -> int:
     print(f"\nfinal-cosine: min={min(cos_vals):.5f}  mean={sum(cos_vals)/len(cos_vals):.5f}  max={max(cos_vals):.5f}")
     print(f"same-image seeds : {len(seeds) - n_diff}/{len(seeds)}")
     print(f"bifurcated seeds : {n_bif}/{len(seeds)}   (sudden trajectory jump = different picture, not degradation)")
+
+    print_gemm_mode_summary()
     return 0
 
 
