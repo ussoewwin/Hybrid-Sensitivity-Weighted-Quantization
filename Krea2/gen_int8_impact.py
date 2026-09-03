@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Krea2 INT8 converter ranked by diag_impact trajectory impact.
+"""Krea2 INT8 artifact selector: FULL (bf16/fp16) vs native convrot INT8.
 
-Applies the diag_impact methodology (per-layer trajectory divergence) to INT8
-conversion of the bf16/fp16 BASE checkpoint (comparison target = the FULL fp16
-model, same pristine-run contract as diag_impact):
+Inputs (two):
+  1. FULL base bf16/fp16 SingleStreamDiT  (e.g. test.safetensors)
+  2. NATIVE convrot INT8 artifact         (e.g. test2.safetensors)
 
-  1. load the base bf16/fp16 Krea2 SingleStreamDiT (unquantized)
-  2. run a pristine FP16 trajectory (randn context, linspace sigmas)
-  3. for EVERY eligible Linear: quantize its weight with the exact v1.5 INT8
-     convention (pack_channelwise) and inject the quantize->dequant error,
-     then re-run the trajectory and record rel-MSE vs pristine
-  4. rank all Linears by impact; the --keep N highest-impact Linears stay in
-     original dtype, all remaining eligible Linears become INT8
-  5. INT8 conversion follows hswq_convrot_int8_krea2_v1.5 conventions:
-     FULL ConvRot (rotate_weight -> pack_channelwise, gs=256 preferred),
-     ComfyUI-compatible output (weight / weight_scale / comfy_quant,
-     _quantization_metadata format_version "1.0")
+Method (diag_impact trajectory ranking, applied to native INT8):
+  1. run the pristine trajectory with the FULL model
+  2. for every eligible Linear: dequantize the native INT8 weight from the
+     native artifact, inverse-rotate it back into the base domain, inject it
+     into the FULL model, re-run the trajectory, and record rel-MSE vs
+     pristine  ->  that layer's native-INT8 conversion impact
+  3. the --keep N highest-impact Linears are REPLACED by their original bf16
+     weights in the output; every other layer keeps its native INT8 weights
 
-Usage:
-    python Krea2/gen_int8_impact.py <base.safetensors> <out.safetensors> \
-        [--keep 0] [--steps 4] [--lat 128] [--seq 256] [--seed 42] \
-        [--comfy-path ComfyUI-master] [--no-convrot]
+Output: a copy of the native INT8 artifact with the --keep N Linears upgraded
+to bf16 (their weight_scale / comfy_quant / metadata entries removed).
+
+Usage (one line):
+    python Krea2/gen_int8_impact.py test.safetensors test2.safetensors \
+        --out test3.safetensors --keep N --comfy-path ComfyUI-master
 """
 from __future__ import annotations
 
@@ -29,15 +28,14 @@ import argparse
 import contextlib
 import gc
 import importlib
-import io
 import json
 import math
 import os
-import re
 import sys
 import types
 
 import torch
+from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 
 try:
@@ -48,88 +46,10 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# v1.5 constants (INT8 packing / ConvRot / structure blacklist)
+# ConvRot / Hadamard (same math as hswq_convrot_int8_krea2_v1.5)
 # ---------------------------------------------------------------------------
-_DEFAULT_GROUPSIZE = 256
-_KREA2_BLACKLIST: list[str] = [
-    "first.",
-    "last.",
-    "mod.",
-    "norm",
-    "projector",
-    "tmlp",
-    "txtmlp",
-    "tproj",
-    "txtfusion",
-    "bias",
-]
-_NON_DIFFUSION_MARKERS: tuple[str, ...] = (
-    "conditioner.",
-    "cond_stage_model.",
-    "text_encoders.",
-    "text_encoder.",
-    "text_encoder_2.",
-    "text_encoder_3.",
-    "text_model.",
-    "text_projection",
-    "logit_scale",
-    "clip_l.",
-    "clip_g.",
-    "t5xxl.",
-    "first_stage_model.",
-    "vae.",
-)
 _HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
-
-
-def _is_blacklisted(key: str) -> bool:
-    return any(name in key for name in _KREA2_BLACKLIST)
-
-
-def _is_non_diffusion_key(key: str) -> bool:
-    return any(marker in key for marker in _NON_DIFFUSION_MARKERS)
-
-
-def _encode_comfy_quant(config: dict) -> torch.Tensor:
-    return torch.tensor(
-        list(json.dumps(config, separators=(",", ":")).encode("utf-8")),
-        dtype=torch.uint8,
-    )
-
-
-def _meta_base_key(base_k_file: str) -> str:
-    if "model.diffusion_model." in base_k_file:
-        return base_k_file.split("model.diffusion_model.")[-1]
-    if "diffusion_model." in base_k_file:
-        return base_k_file.split("diffusion_model.")[-1]
-    return base_k_file
-
-
-def pack_tensorwise(weight: torch.Tensor):
-    """Symmetric per-tensor INT8: scale = amax / 127 (v1.5 default for plain
-    non-ConvRot 2D packs)."""
-    w = weight.float()
-    amax = max(float(w.abs().max().item()), 1e-6)
-    scale = amax / 127.0
-    q = (w / scale).round().clamp(-127, 127).to(torch.int8)
-    return q, torch.tensor(scale, dtype=torch.float32)
-
-
-def pack_channelwise(weight: torch.Tensor):
-    """Per-out-channel INT8 (v1.5 / ConvRot kitchen dequant shape)."""
-    w = weight.float()
-    reduce_dims = tuple(range(1, w.dim()))
-    amax = torch.clamp(w.abs().amax(dim=reduce_dims).reshape(-1), min=1e-6)
-    scale = amax / 127.0
-    if w.dim() == 4:
-        scale_view = scale.view(-1, 1, 1, 1)
-    elif w.dim() == 2:
-        scale_view = scale.view(-1, 1)
-    else:
-        raise ValueError(f"unsupported weight ndim={w.dim()} for channelwise INT8")
-    clamped = torch.clamp(w, -scale_view * 127.0, scale_view * 127.0)
-    q = (clamped / scale_view).round().clamp(-127, 127).to(torch.int8)
-    return q, scale_view.to(dtype=torch.float32)
+_DEFAULT_GROUPSIZE = 256
 
 
 def build_hadamard(
@@ -137,7 +57,7 @@ def build_hadamard(
     device: str | torch.device = "cpu",
     dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
-    """Normalized regular Hadamard (power-of-4), same as comfy_kitchen ConvRot."""
+    """Normalized regular Hadamard (power-of-4), symmetric + orthogonal."""
     cache_key = (size, str(device), dtype)
     if cache_key in _HADAMARD_CACHE:
         return _HADAMARD_CACHE[cache_key]
@@ -165,24 +85,12 @@ def build_hadamard(
     return h_matrix
 
 
-def convrot_group_size_for_features(
-    n: int, preferred: int = _DEFAULT_GROUPSIZE
-) -> int | None:
-    """Largest power-of-4 group size <= preferred that divides n (or None)."""
-    if n < 4:
-        return None
-    gs = preferred
-    while gs >= 4:
-        if n % gs == 0 and math.log(gs, 4) % 1 == 0:
-            return gs
-        gs //= 4
-    return None
-
-
 def rotate_weight(
     weight: torch.Tensor, h_matrix: torch.Tensor, group_size: int
 ) -> torch.Tensor:
-    """Offline Linear: W_rot = W @ H^T (group-wise). Matches kitchen ConvRot."""
+    """Group-wise right-multiply: W @ H^T. Because the regular Hadamard is
+    symmetric and orthogonal (H^T H = I), this is ALSO the inverse rotation:
+    W_rot @ H = W @ H^T @ H = W. Used both ways here on purpose."""
     out_features, in_features = weight.shape
     if in_features % group_size != 0:
         raise ValueError(
@@ -193,36 +101,6 @@ def rotate_weight(
     return torch.matmul(
         weight_grouped, h_matrix.T.to(dtype=weight.dtype, device=weight.device)
     ).reshape(weight.shape)
-
-
-def rotate_weight_conv2d(
-    weight: torch.Tensor, h_matrix: torch.Tensor, group_size: int
-) -> torch.Tensor:
-    """Offline Conv2d: rotate along in_channels. weight (O, I, kH, kW)."""
-    if weight.ndim != 4:
-        raise ValueError(f"Conv2d weight must be 4D, got ndim={weight.ndim}")
-    out_c, in_c, k_h, k_w = weight.shape
-    flat = weight.permute(0, 2, 3, 1).contiguous().view(-1, in_c)
-    flat_rot = rotate_weight(flat, h_matrix, group_size)
-    return flat_rot.view(out_c, k_h, k_w, in_c).permute(0, 3, 1, 2).contiguous()
-
-
-def int8_quant_dequant(weight: torch.Tensor) -> torch.Tensor:
-    """INT8 quantize->dequant (per-out-channel, same convention as
-    pack_channelwise) used for trajectory impact injection. Returns float."""
-    w = weight.float()
-    reduce_dims = tuple(range(1, w.dim()))
-    amax = torch.clamp(w.abs().amax(dim=reduce_dims).reshape(-1), min=1e-6)
-    scale = amax / 127.0
-    if w.dim() == 2:
-        scale_view = scale.view(-1, 1)
-    elif w.dim() == 4:
-        scale_view = scale.view(-1, 1, 1, 1)
-    else:
-        raise ValueError(f"unsupported weight ndim={w.dim()} for INT8 injection")
-    clamped = torch.clamp(w, -scale_view * 127.0, scale_view * 127.0)
-    q = (clamped / scale_view).round().clamp(-127, 127)
-    return q * scale_view
 
 
 # ---------------------------------------------------------------------------
@@ -400,44 +278,6 @@ def detect_krea2_dit_config(sd, prefix):
     }
 
 
-def load_krea2(path, device="cuda"):
-    """Load Krea2 SingleStreamDiT from a base bf16/fp16 safetensors onto CUDA."""
-    if str(device).startswith("cpu"):
-        raise RuntimeError("gen_int8_impact trajectory requires CUDA.")
-    import comfy.ops
-    from comfy.ldm.krea2.model import SingleStreamDiT
-
-    print(f"Loading Krea2 DiT: {path}")
-    state_dict = load_file(path)
-    prefix = _find_krea2_key_prefix(state_dict)
-    cfg = detect_krea2_dit_config(state_dict, prefix)
-    print(f"Detected Krea2 DiT config: {cfg}")
-    kw = {k: v for k, v in cfg.items() if k != "image_model"}
-    dit = SingleStreamDiT(
-        **kw, device=device, dtype=torch.bfloat16,
-        operations=comfy.ops.manual_cast,
-    )
-    stripped = {}
-    for k, v in state_dict.items():
-        if prefix and k.startswith(prefix):
-            stripped[k[len(prefix):]] = v
-        elif not prefix:
-            stripped[k] = v
-    missing, unexpected = dit.load_state_dict(stripped, strict=False)
-    print(
-        f"  [Krea2] load_state_dict missing={len(missing)} "
-        f"unexpected={len(unexpected)}"
-    )
-    dev = str(next(dit.parameters()).device)
-    if not dev.startswith("cuda"):
-        raise RuntimeError(f"Krea2 DiT landed on {dev!r}, not CUDA")
-    print(f"  [Krea2] DiT device={dev}")
-    dit.eval()
-    del state_dict, stripped
-    gc.collect()
-    return dit, cfg, prefix
-
-
 def rel_mse(a, b):
     a = a.float().reshape(a.shape[0], -1)
     b = b.float().reshape(b.shape[0], -1)
@@ -447,16 +287,18 @@ def rel_mse(a, b):
 def parse_args():
     ap = argparse.ArgumentParser(
         description=(
-            "Krea2 INT8 convert ranked by diag_impact trajectory impact "
-            "(bf16/fp16 base -> INT8 + FULL ConvRot, v1.5-compatible output)"
+            "Krea2 INT8 artifact selector: compare FULL (bf16/fp16) vs native "
+            "convrot INT8 via per-Layer trajectory divergence; restore the "
+            "--keep N highest-impact Linears to original bf16."
         )
     )
-    ap.add_argument("base", help="baseline bf16/fp16 Krea2 SingleStreamDiT safetensors")
-    ap.add_argument("--out", "-o", dest="out", required=True,
-                    help="output INT8 safetensors path (v1.5-compatible)")
+    ap.add_argument("base", help="FULL baseline bf16/fp16 safetensors (test)")
+    ap.add_argument("native", help="NATIVE convrot INT8 safetensors (test2)")
+    ap.add_argument("--out", "-o", required=True,
+                    help="output INT8 safetensors path (test3)")
     ap.add_argument("--keep", type=int, default=0,
-                    help="keep the top-N highest-impact Linears in original "
-                         "dtype (0 = convert all eligible Linears to INT8)")
+                    help="restore the top-N highest-impact Linears to original "
+                         "bf16 in the output (0 = keep native INT8 everywhere)")
     ap.add_argument("--steps", type=int, default=4,
                     help="trajectory denoising steps for impact measurement (default 4)")
     ap.add_argument("--lat", type=int, default=128,
@@ -467,8 +309,6 @@ def parse_args():
                     help="trajectory seed (default 42)")
     ap.add_argument("--comfy-path", default="ComfyUI-master",
                     help="ComfyUI root path (default: ComfyUI-master)")
-    ap.add_argument("--no-convrot", action="store_true",
-                    help="disable FULL ConvRot (plain tensorwise INT8)")
     return ap.parse_args()
 
 
@@ -480,17 +320,39 @@ def main():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    enable_convrot = not a.no_convrot
     keep_n = max(0, int(a.keep))
+
+    # ------------------------------------------------------------------
+    # Load the NATIVE convrot INT8 artifact (test2) on CPU.
+    # ------------------------------------------------------------------
+    print(f"Loading native INT8 artifact: {a.native}")
+    native_sd = load_file(a.native)
+    with safe_open(a.native, framework="pt") as fh:
+        meta_raw = (fh.metadata() or {}).get("_quantization_metadata", "{}")
+    meta_layers = json.loads(meta_raw).get("layers", {})
+    native_prefix = _find_krea2_key_prefix(native_sd)
+    print(f"  native key prefix: {native_prefix!r}")
+    print(f"  native quantized layers in metadata: {len(meta_layers)}")
+
+    def native_weight_entry(stripped_name: str):
+        """Return (q, scale, convrot_groupsize) for a stripped module name."""
+        base_k = f"{native_prefix}{stripped_name}"
+        q = native_sd.get(f"{base_k}.weight")
+        if q is None:
+            return None
+        sc = native_sd.get(f"{base_k}.weight_scale")
+        entry = meta_layers.get(stripped_name, {})
+        gs = int(entry.get("convrot_groupsize", 0) or 0)
+        return q, sc, gs
 
     comfy_root = _ensure_comfyui(a.comfy_path)
     print(f"[Krea2] ComfyUI root: {comfy_root}")
 
-    # Load the bf16/fp16 BASE state_dict up-front (safetensors only, no comfy
-    # import needed). Kept alive past the bootstrap try-block for the final
-    # INT8 conversion pass.
-    state_dict = load_file(a.base)
-    prefix = _find_krea2_key_prefix(state_dict)
+    # ------------------------------------------------------------------
+    # Load the FULL bf16/fp16 BASE (test) on CUDA.
+    # ------------------------------------------------------------------
+    full_sd = load_file(a.base)
+    full_prefix = _find_krea2_key_prefix(full_sd)
 
     saved = _clear_argv_for_comfy()
     try:
@@ -504,8 +366,7 @@ def main():
         import comfy.ops
         from comfy.ldm.krea2.model import SingleStreamDiT
 
-        # 1) build the unquantized bf16 DiT from the BASE state_dict
-        cfg = detect_krea2_dit_config(state_dict, prefix)
+        cfg = detect_krea2_dit_config(full_sd, full_prefix)
         print(f"Detected Krea2 DiT config: {cfg}")
         kw = {k: v for k, v in cfg.items() if k != "image_model"}
         dit = SingleStreamDiT(
@@ -513,10 +374,10 @@ def main():
             operations=comfy.ops.manual_cast,
         )
         stripped = {}
-        for k, v in state_dict.items():
-            if prefix and k.startswith(prefix):
-                stripped[k[len(prefix):]] = v
-            elif not prefix:
+        for k, v in full_sd.items():
+            if full_prefix and k.startswith(full_prefix):
+                stripped[k[len(full_prefix):]] = v
+            elif not full_prefix:
                 stripped[k] = v
         missing, unexpected = dit.load_state_dict(stripped, strict=False)
         print(
@@ -555,12 +416,14 @@ def main():
                     x = (x + (sigmas[step + 1] - sigmas[step]) * out).to(torch.bfloat16)
             return x
 
-        # 2) pristine FP16 trajectory (FULL fp16 model = comparison target)
-        print("[*] pristine run", flush=True)
+        # 1) pristine trajectory with the FULL model
+        print("[*] pristine FULL run", flush=True)
         x_ref = run()
         print("[*] pristine done", flush=True)
 
-        # 3) per-Layer INT8 impact (quantize->dequant injection, rel-MSE)
+        # 2) per-Layer native-INT8 impact:
+        #    inject the native INT8 weight (dequantized, inverse-rotated back
+        #    into the base domain) and measure rel-MSE vs pristine.
         eligible: dict[str, torch.nn.Module] = {}
         for n, m in dit.named_modules():
             if not hasattr(m, "weight") or not hasattr(m, "in_features"):
@@ -569,18 +432,31 @@ def main():
                 continue
             if m.weight.data.dtype not in (torch.float16, torch.bfloat16):
                 continue
-            full_key = f"{prefix}{n}.weight" if prefix else f"{n}.weight"
-            if _is_blacklisted(full_key) or _is_non_diffusion_key(full_key):
+            full_key = f"{full_prefix}{n}.weight" if full_prefix else f"{n}.weight"
+            if native_sd.get(f"{native_prefix}{n}.weight") is None:
+                continue
+            if "bias" in n:
                 continue
             eligible[n] = m
-        print(f"eligible Linears for INT8 impact measurement: {len(eligible)}", flush=True)
+        print(
+            f"eligible Linears present in the native artifact: {len(eligible)}",
+            flush=True,
+        )
 
         impacts: dict[str, float] = {}
         done = 0
         for n, m in eligible.items():
+            entry = native_weight_entry(n)
             w0 = m.weight.data.clone()
             try:
-                m.weight.data.copy_(int8_quant_dequant(w0).to(w0.dtype))
+                q, sc, gs = entry
+                w_rot_dq = q.float() * sc.reshape(-1, 1)
+                if gs and gs >= 4:
+                    h = build_hadamard(int(gs), device=w_rot_dq.device)
+                    w_dq = rotate_weight(w_rot_dq, h, int(gs))
+                else:
+                    w_dq = w_rot_dq
+                m.weight.data.copy_(w_dq.to(w0.dtype))
                 x_t = run()
                 imp = rel_mse(x_t, x_ref)
             except Exception as e:
@@ -602,131 +478,44 @@ def main():
     finally:
         _restore_argv(saved)
 
-    # 4) ranking: highest impact stays original dtype
+    # 3) ranking: highest native-INT8 impact -> restore original bf16
     ranked = sorted(
         ((k, v) for k, v in impacts.items() if math.isfinite(v)),
         key=lambda kv: kv[1], reverse=True,
     )
     keep_set = {k for k, _ in ranked[:keep_n]}
     if keep_n > 0:
-        print(f"[keep] top {keep_n} highest-impact Linears stay original dtype:")
+        print(f"[keep] top {keep_n} highest-impact Linears restored to bf16:")
         for k, v in ranked[:keep_n]:
             print(f"  KEEP {k}  impact={v:.3e}")
 
-    # 5) convert the full state_dict (v1.5 conventions)
-    print("Converting to INT8 (FULL ConvRot Linear + Conv2d channelwise)...")
-    new_state_dict = {}
-    quant_meta_layers = {}
-    converted_count = 0
-    convrot_linear = 0
-    convrot_conv2d = 0
-    plain_int8_count = 0
-    bf16_keep = 0
-    keep_reverted = 0
-
-    for key, tensor in tqdm(list(state_dict.items())):
-        if _is_blacklisted(key) or _is_non_diffusion_key(key):
-            new_state_dict[key] = tensor
-            bf16_keep += 1
+    # 4) build the output artifact: native INT8 weights everywhere except the
+    #    --keep N Linears, which are replaced by the FULL bf16 weights.
+    print(f"Building output: {a.out}")
+    new_sd = dict(native_sd)
+    restored = 0
+    for k in sorted(keep_set):
+        native_base = f"{native_prefix}{k}"
+        full_base = f"{full_prefix}{k}"
+        full_w = full_sd.get(f"{full_base}.weight")
+        if full_w is None:
             continue
-
-        under_prefix = (not prefix) or key.startswith(prefix)
-
-        if (
-            under_prefix
-            and key.endswith(".weight")
-            and tensor.ndim in (2, 4)
-            and tensor.dtype == torch.float32
-        ):
-            new_state_dict[key] = tensor
-            bf16_keep += 1
-            continue
-
-        is_dit_weight = (
-            under_prefix
-            and key.endswith(".weight")
-            and tensor.ndim in (2, 4)
-            and tensor.dtype in (torch.float16, torch.bfloat16)
-        )
-        if not is_dit_weight:
-            new_state_dict[key] = tensor
-            continue
-
-        module_key = key[: -len(".weight")]
-        stripped_key = module_key[len(prefix):] if prefix else module_key
-
-        # 2D Linear that measured high impact -> original dtype
-        if tensor.ndim == 2 and stripped_key in keep_set:
-            new_state_dict[key] = tensor
-            keep_reverted += 1
-            continue
-
-        w_fp = tensor.float()
-        quant_config: dict
-
-        if tensor.ndim == 2:
-            used_gs = (
-                convrot_group_size_for_features(int(w_fp.shape[1]))
-                if enable_convrot else None
-            )
-            if used_gs is not None:
-                h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-                w_rot = rotate_weight(w_fp, h_matrix, used_gs)
-                q, scale = pack_channelwise(w_rot)
-                quant_config = {
-                    "format": "int8_tensorwise",
-                    "convrot": True,
-                    "convrot_groupsize": int(used_gs),
-                }
-                convrot_linear += 1
-            else:
-                q, scale = pack_tensorwise(w_fp)
-                quant_config = {"format": "int8_tensorwise"}
-                plain_int8_count += 1
-        else:  # Conv2d (4D)
-            used_gs = (
-                convrot_group_size_for_features(int(w_fp.shape[1]))
-                if enable_convrot else None
-            )
-            if used_gs is not None:
-                h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-                w_rot = rotate_weight_conv2d(w_fp, h_matrix, used_gs)
-                q, scale = pack_channelwise(w_rot)
-                quant_config = {
-                    "format": "int8_tensorwise",
-                    "convrot": True,
-                    "convrot_groupsize": int(used_gs),
-                }
-                convrot_conv2d += 1
-            else:
-                # v1.5 default: per_channel_int8=False -> plain packs are
-                # tensorwise for BOTH 2D and 4D when ConvRot is not eligible.
-                q, scale = pack_tensorwise(w_fp)
-                quant_config = {"format": "int8_tensorwise"}
-                plain_int8_count += 1
-
-        new_state_dict[key] = q
-        new_state_dict[f"{module_key}.weight_scale"] = scale
-        new_state_dict[f"{module_key}.comfy_quant"] = _encode_comfy_quant(quant_config)
-        quant_meta_layers[_meta_base_key(module_key)] = dict(quant_config)
-        converted_count += 1
+        new_sd[f"{native_base}.weight"] = full_w
+        new_sd.pop(f"{native_base}.weight_scale", None)
+        new_sd.pop(f"{native_base}.comfy_quant", None)
+        meta_layers.pop(k, None)
+        restored += 1
 
     metadata = {
         "_quantization_metadata": json.dumps(
-            {"format_version": "1.0", "layers": quant_meta_layers}
+            {"format_version": "1.0", "layers": meta_layers}
         )
     }
-
-    print(f"Saving to: {a.out}")
-    print(f"Converted INT8 layers: {converted_count}")
-    print(f"  ConvRot Linear: {convrot_linear}, ConvRot Conv2d: {convrot_conv2d}, "
-          f"plain INT8: {plain_int8_count}")
-    print(f"Kept original dtype (blacklist / non-diffusion / fp32): {bf16_keep}")
-    print(f"Kept original dtype (high-impact --keep): {keep_reverted}")
-    print(f"IMPACT ranking: pristine-vs-int8 rel-MSE over {len(impacts)} Linears "
-          f"(comparison target = FULL fp16 trajectory)")
-
-    save_file(new_state_dict, a.out, metadata=metadata)
+    print(
+        f"Restored to bf16: {restored}/{keep_n} layers  "
+        f"native INT8 layers remaining: {len(meta_layers)}"
+    )
+    save_file(new_sd, a.out, metadata=metadata)
     print("Done!")
 
 
