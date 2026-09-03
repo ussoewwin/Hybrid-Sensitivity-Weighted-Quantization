@@ -105,6 +105,16 @@ def _meta_base_key(base_k_file: str) -> str:
     return base_k_file
 
 
+def pack_tensorwise(weight: torch.Tensor):
+    """Symmetric per-tensor INT8: scale = amax / 127 (v1.5 default for plain
+    non-ConvRot 2D packs)."""
+    w = weight.float()
+    amax = max(float(w.abs().max().item()), 1e-6)
+    scale = amax / 127.0
+    q = (w / scale).round().clamp(-127, 127).to(torch.int8)
+    return q, torch.tensor(scale, dtype=torch.float32)
+
+
 def pack_channelwise(weight: torch.Tensor):
     """Per-out-channel INT8 (v1.5 / ConvRot kitchen dequant shape)."""
     w = weight.float()
@@ -664,9 +674,7 @@ def main():
                 }
                 convrot_linear += 1
             else:
-                q, scale = (
-                    pack_channelwise(w_fp)
-                )
+                q, scale = pack_tensorwise(w_fp)
                 quant_config = {"format": "int8_tensorwise"}
                 plain_int8_count += 1
         else:  # Conv2d (4D)
