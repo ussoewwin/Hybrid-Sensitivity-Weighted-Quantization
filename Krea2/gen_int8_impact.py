@@ -484,6 +484,13 @@ def main():
 
     comfy_root = _ensure_comfyui(a.comfy_path)
     print(f"[Krea2] ComfyUI root: {comfy_root}")
+
+    # Load the bf16/fp16 BASE state_dict up-front (safetensors only, no comfy
+    # import needed). Kept alive past the bootstrap try-block for the final
+    # INT8 conversion pass.
+    state_dict = load_file(a.base)
+    prefix = _find_krea2_key_prefix(state_dict)
+
     saved = _clear_argv_for_comfy()
     try:
         _install_comfy_stubs()
@@ -496,9 +503,7 @@ def main():
         import comfy.ops
         from comfy.ldm.krea2.model import SingleStreamDiT
 
-        # 1) load the bf16/fp16 BASE (unquantized)
-        state_dict = load_file(a.base)
-        prefix = _find_krea2_key_prefix(state_dict)
+        # 1) build the unquantized bf16 DiT from the BASE state_dict
         cfg = detect_krea2_dit_config(state_dict, prefix)
         print(f"Detected Krea2 DiT config: {cfg}")
         kw = {k: v for k, v in cfg.items() if k != "image_model"}
@@ -521,7 +526,7 @@ def main():
         if not dev.startswith("cuda"):
             raise RuntimeError(f"Krea2 DiT landed on {dev!r}, not CUDA")
         dit.eval()
-        del state_dict, stripped
+        del stripped
         gc.collect()
 
         txtlayers = int(cfg["txtlayers"])
@@ -693,7 +698,9 @@ def main():
                 }
                 convrot_conv2d += 1
             else:
-                q, scale = pack_channelwise(w_fp)
+                # v1.5 default: per_channel_int8=False -> plain packs are
+                # tensorwise for BOTH 2D and 4D when ConvRot is not eligible.
+                q, scale = pack_tensorwise(w_fp)
                 quant_config = {"format": "int8_tensorwise"}
                 plain_int8_count += 1
 
