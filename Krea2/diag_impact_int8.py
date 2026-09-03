@@ -214,40 +214,60 @@ def detect_krea2_dit_config(sd, prefix):
 
 
 def load_krea2(path, device="cuda", comfy_path=None):
-    if str(device).startswith("cpu"):
-        raise RuntimeError("diag_impact_int8 requires CUDA.")
-    import comfy.ops
-    from comfy.ldm.krea2.model import SingleStreamDiT
+    """Load Krea2 SingleStreamDiT from a base fp16/bf16 safetensors.
 
-    print(f"Loading Krea2 DiT: {path}")
-    state_dict = load_file(path)
-    prefix = _find_krea2_key_prefix(state_dict)
-    cfg = detect_krea2_dit_config(state_dict, prefix)
-    print(f"Detected Krea2 DiT config: {cfg}")
-    kw = {k: v for k, v in cfg.items() if k != "image_model"}
-    dit = SingleStreamDiT(
-        **kw, device=device, dtype=torch.bfloat16,
-        operations=comfy.ops.manual_cast,
-    )
-    stripped = {}
-    for k, v in state_dict.items():
-        if prefix and k.startswith(prefix):
-            stripped[k[len(prefix):]] = v
-        elif not prefix:
-            stripped[k] = v
-    missing, unexpected = dit.load_state_dict(stripped, strict=False)
-    print(
-        f"  [Krea2] load_state_dict missing={len(missing)} "
-        f"unexpected={len(unexpected)}"
-    )
-    dev = str(next(dit.parameters()).device)
-    if not dev.startswith("cuda"):
-        raise RuntimeError(f"Krea2 DiT landed on {dev!r}, not CUDA")
-    print(f"  [Krea2] DiT device={dev}")
-    dit.eval()
-    del state_dict, stripped
-    gc.collect()
-    return dit, cfg, prefix
+    Returns (model, config_dict, key_prefix). Module names are STRIPPED
+    (no model.diffusion_model. prefix), so they match the INT8 artifact's
+    _quantization_metadata.layers keys directly.
+    """
+    if str(device).startswith("cpu"):
+        raise RuntimeError("diag_impact_int8 Krea2 trajectory requires CUDA.")
+    comfy_root = _ensure_comfyui(comfy_path)
+    print(f"[Krea2] ComfyUI root: {comfy_root}")
+    saved = _clear_argv_for_comfy()
+    try:
+        _install_comfy_stubs()
+        _load_comfy_pkg(comfy_root)
+        try:
+            import comfy.options
+            comfy.options.enable_args_parsing(False)
+        except ImportError:
+            # older ComfyUI without comfy.options; argv already cleared
+            pass
+        import comfy.ops
+        from comfy.ldm.krea2.model import SingleStreamDiT
+
+        print(f"Loading Krea2 DiT: {path}")
+        state_dict = load_file(path)
+        prefix = _find_krea2_key_prefix(state_dict)
+        cfg = detect_krea2_dit_config(state_dict, prefix)
+        print(f"Detected Krea2 DiT config: {cfg}")
+        kw = {k: v for k, v in cfg.items() if k != "image_model"}
+        dit = SingleStreamDiT(
+            **kw, device=device, dtype=torch.bfloat16,
+            operations=comfy.ops.manual_cast,
+        )
+        stripped = {}
+        for k, v in state_dict.items():
+            if prefix and k.startswith(prefix):
+                stripped[k[len(prefix):]] = v
+            elif not prefix:
+                stripped[k] = v
+        missing, unexpected = dit.load_state_dict(stripped, strict=False)
+        print(
+            f"  [Krea2] load_state_dict missing={len(missing)} "
+            f"unexpected={len(unexpected)}"
+        )
+        dev = str(next(dit.parameters()).device)
+        if not dev.startswith("cuda"):
+            raise RuntimeError(f"Krea2 DiT landed on {dev!r}, not CUDA")
+        print(f"  [Krea2] DiT device={dev}")
+        dit.eval()
+        del state_dict, stripped
+        gc.collect()
+        return dit, cfg, prefix
+    finally:
+        _restore_argv(saved)
 
 
 def rel_mse(a, b):
