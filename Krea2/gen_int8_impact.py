@@ -452,7 +452,8 @@ def parse_args():
         )
     )
     ap.add_argument("base", help="baseline bf16/fp16 Krea2 SingleStreamDiT safetensors")
-    ap.add_argument("out", help="output INT8 safetensors path (v1.5-compatible)")
+    ap.add_argument("--out", "-o", dest="out", required=True,
+                    help="output INT8 safetensors path (v1.5-compatible)")
     ap.add_argument("--keep", type=int, default=0,
                     help="keep the top-N highest-impact Linears in original "
                          "dtype (0 = convert all eligible Linears to INT8)")
