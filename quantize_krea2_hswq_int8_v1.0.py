@@ -232,9 +232,15 @@ def _load_native_convert_int8_krea2():
     """Load authority Krea2 FULL ConvRot converter (do not diverge)."""
     import importlib.util
 
-    path = os.path.join(current_dir, "native_convert_int8_krea2.py")
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"native_convert_int8_krea2.py not found: {path}")
+    candidates = [
+        os.path.join(current_dir, "Krea2", "native_convert_int8_krea2.py"),
+        os.path.join(current_dir, "native_convert_int8_krea2.py"),
+    ]
+    path = next((c for c in candidates if os.path.isfile(c)), None)
+    if path is None:
+        raise FileNotFoundError(
+            f"native_convert_int8_krea2.py not found in candidates: {candidates}"
+        )
     name = "native_convert_int8_krea2_for_hswq_int8"
     if name in sys.modules:
         return sys.modules[name]

@@ -243,6 +243,16 @@ def _script_dir() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def _repo_root() -> str:
+    here = _script_dir()
+    repo = os.path.normpath(os.path.join(here, ".."))
+    if os.path.isfile(os.path.join(repo, "native_convert_int8.py")) or os.path.isdir(
+        os.path.join(repo, "ComfyUI-master")
+    ):
+        return repo
+    return here
+
+
 def _encode_comfy_quant(config: dict) -> torch.Tensor:
     return torch.tensor(
         list(json.dumps(config, separators=(",", ":")).encode("utf-8")),
@@ -315,11 +325,13 @@ def _ensure_comfyui_on_sys_path(comfy_path: str | None = None) -> str:
     env = os.environ.get("COMFYUI_PATH")
     if env:
         candidates.append(env)
+    repo = _repo_root()
     candidates.extend(
         [
+            os.path.join(repo, "ComfyUI-master"),
+            os.path.join(_script_dir(), "ComfyUI-master"),
             r"D:\USERFILES\ComfyUI\ComfyUI",
             r"D:\USERFILES\GitHub\ComfyUI",
-            os.path.join(_script_dir(), "ComfyUI-master"),
         ]
     )
     for root in candidates:
