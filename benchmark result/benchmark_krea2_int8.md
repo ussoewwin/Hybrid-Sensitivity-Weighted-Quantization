@@ -5,6 +5,8 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 
 **Source:** `benchmark result/score_krea2_int8.txt`
 
+> **Status:** **HSWQ Krea2 INT8 development and public release ended.** For Krea2, **native ConvRot INT8** already reaches roughly SSIM > 0.98 in pixel space and near-perfect latent fidelity (deterministic 25-seed latent trajectory divergence: mean cosine = **0.99992**, same-image **25/25**, 0 bifurcations), making a separate HSWQ Krea2 8-bit line unnecessary. Use native ConvRot INT8 for Krea2 8-bit; HSWQ INT8 work continues for SDXL.
+
 **Column labels from the score log:**
 
 | Label | Meaning |
