@@ -29,7 +29,14 @@ _BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BENCH_DIR not in sys.path:
     sys.path.insert(0, _BENCH_DIR)
 
-BENCH = os.path.join(_BENCH_DIR, "krea2_int8_bench_v2.py")
+BENCH_CANDIDATES = [
+    os.path.join(_BENCH_DIR, "krea2_int8_bench_v2.py"),
+    os.path.normpath(os.path.join(_BENCH_DIR, "..", "archives", "krea2_int8_bench_v2.py")),
+    os.path.join(_BENCH_DIR, "archives", "krea2_int8_bench_v2.py"),
+]
+BENCH = next((c for c in BENCH_CANDIDATES if os.path.isfile(c)), None)
+if BENCH is None:
+    raise FileNotFoundError(f"krea2_int8_bench_v2.py not found in: {BENCH_CANDIDATES}")
 _spec = importlib.util.spec_from_file_location("krea2_bench", BENCH)
 bench = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bench)
