@@ -68,6 +68,42 @@ def _load_native_int8():
     return mod
 
 
+_K2_N8 = None
+
+
+def _load_krea2_native_int8():
+    """Import Krea2/native_convert_int8_krea2.py once."""
+    global _K2_N8
+    if _K2_N8 is not None:
+        return _K2_N8
+
+    root = _default_repo_root()
+    candidates = [
+        os.path.join(root, "Krea2", "native_convert_int8_krea2.py"),
+        os.path.join(root, "native_convert_int8_krea2.py"),
+    ]
+    path = next((c for c in candidates if os.path.isfile(c)), None)
+    if path is None:
+        raise FileNotFoundError(
+            f"Krea2 native convert helpers not found in: {candidates}. The node package "
+            "must live inside the Hybrid-Sensitivity-Weighted-Quantization clone."
+        )
+
+    try:
+        spec = importlib.util.spec_from_file_location("krea2_native_int8", path)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["krea2_native_int8"] = mod
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+    except ImportError as e:
+        raise ImportError(
+            f"Failed to import {path}: {e}. "
+            "The helpers need torch, safetensors and tqdm in the ComfyUI env."
+        )
+    _K2_N8 = mod
+    return mod
+
+
 def _is_power_of_4(n: int) -> bool:
     return n >= 4 and (n & (n - 1)) == 0 and math.log(n, 4) % 1 == 0
 
@@ -124,6 +160,93 @@ def _is_qwen_blacklisted(key: str) -> bool:
     return any(marker in key for marker in _QWEN_EDIT_BLACKLIST)
 
 
+def _quantize_state_dict_krea2(
+    sd,
+    group_size,
+    enable_convrot,
+    per_channel_int8,
+    k2,
+):
+    """In-memory ConvRot INT8 packing for Krea2 DiT using Krea2/native_convert_int8_krea2.py."""
+    import torch
+
+    new_sd = {}
+    meta_layers = {}
+    n_linear = n_conv2d = n_plain = n_kept = 0
+
+    prefix = ""
+    for p in ("model.diffusion_model.", "diffusion_model.", ""):
+        if any(k.startswith(p) and "txtfusion.projector.weight" in k for k in sd):
+            prefix = p
+            break
+
+    for key, tensor in sd.items():
+        if k2._is_non_diffusion_key(key):
+            new_sd[key] = tensor
+            n_kept += 1
+            continue
+
+        under_prefix = (not prefix) or key.startswith(prefix)
+        is_dit_weight = (
+            under_prefix
+            and key.endswith(".weight")
+            and tensor.ndim in (2, 4)
+            and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+        )
+
+        if not is_dit_weight:
+            new_sd[key] = tensor
+            n_kept += 1
+            continue
+
+        w_fp = tensor.float()
+        module_key = key[: -len(".weight")]
+        used_gs = None
+        if enable_convrot:
+            used_gs = k2.convrot_group_size_for_features(int(w_fp.shape[1]), group_size)
+
+        if used_gs is not None and tensor.ndim == 2:
+            h_matrix = k2.build_hadamard(used_gs, device="cpu", dtype=torch.float32)
+            w_fp = k2.rotate_weight(w_fp, h_matrix, used_gs)
+            q, scale = k2.pack_channelwise(w_fp)
+            quant_config = {
+                "format": "int8_tensorwise",
+                "convrot": True,
+                "convrot_groupsize": int(used_gs),
+            }
+            n_linear += 1
+        elif used_gs is not None and tensor.ndim == 4:
+            h_matrix = k2.build_hadamard(used_gs, device="cpu", dtype=torch.float32)
+            w_fp = k2.rotate_weight_conv2d(w_fp, h_matrix, used_gs)
+            q, scale = k2.pack_channelwise(w_fp)
+            quant_config = {
+                "format": "int8_tensorwise",
+                "convrot": True,
+                "convrot_groupsize": int(used_gs),
+            }
+            n_conv2d += 1
+        elif per_channel_int8:
+            q, scale = k2.pack_channelwise(w_fp)
+            quant_config = {"format": "int8_tensorwise"}
+            n_plain += 1
+        else:
+            q, scale = k2.pack_tensorwise(w_fp)
+            quant_config = {"format": "int8_tensorwise"}
+            n_plain += 1
+
+        new_sd[key] = q
+        new_sd[f"{module_key}.weight_scale"] = scale
+        new_sd[f"{module_key}.comfy_quant"] = k2._encode_comfy_quant(quant_config)
+        meta_layers[k2._meta_base_key(module_key)] = dict(quant_config)
+
+    return new_sd, meta_layers, {
+        "linear": n_linear,
+        "conv2d": n_conv2d,
+        "plain": n_plain,
+        "kept": n_kept,
+    }
+
+
 def _quantize_state_dict(
     sd,
     group_size,
@@ -131,8 +254,16 @@ def _quantize_state_dict(
     per_channel_int8,
     n8,
     model_type: str = "Z Image",
+    k2=None,
 ):
-    """In-memory ConvRot INT8 packing (supports Z Image and Qwen Image Edit)."""
+    """In-memory ConvRot INT8 packing (supports Z Image, Qwen Image Edit, and Krea2)."""
+    if model_type == "Krea2":
+        if k2 is None:
+            k2 = _load_krea2_native_int8()
+        return _quantize_state_dict_krea2(
+            sd, group_size, enable_convrot, per_channel_int8, k2
+        )
+
     new_sd = {}
     meta_layers = {}
     n_linear = n_conv2d = n_plain = n_kept = 0
@@ -224,7 +355,7 @@ class NativeConvRotInt8Quantize:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model_type": (["Z Image", "Qwen Image Edit"], {"default": "Z Image"}),
+                "model_type": (["Z Image", "Qwen Image Edit", "Krea2"], {"default": "Z Image"}),
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
                 "benchmark_prompt": (
@@ -348,8 +479,12 @@ class NativeConvRotInt8Quantize:
                 latent_base = torch.zeros([1, 16, height // 8, width // 8], device=device)
                 latent_base = comfy_sample.fix_empty_latent_channels(model, latent_base)
 
-                steps, cfg = 12, 2.5
-                seeds = [random.randint(1, 10000000) for _ in range(10)]
+                is_krea2 = (model_type == "Krea2")
+                steps = 12
+                cfg = 1.0 if is_krea2 else 2.5
+                num_seeds = 20 if is_krea2 else 10
+                force_full_denoise = True if is_krea2 else False
+                seeds = [random.randint(1, 10000000) for _ in range(num_seeds)]
 
                 def _cos(a, b):
                     a = a.reshape(1, -1).float()
@@ -368,10 +503,16 @@ class NativeConvRotInt8Quantize:
                         xs.append(x.detach().float().cpu())
                         x0s.append(x0.detach().float().cpu())
 
-                    out = comfy_sample.sample(m, noise, steps, cfg, "euler", "simple", positive, negative, lat, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, callback=cb, disable_pbar=True, seed=s)
+                    out = comfy_sample.sample(
+                        m, noise, steps, cfg, "euler", "simple",
+                        positive, negative, lat, denoise=1.0,
+                        disable_noise=False, start_step=None, last_step=None,
+                        force_full_denoise=force_full_denoise, noise_mask=None,
+                        callback=cb, disable_pbar=True, seed=s,
+                    )
                     return out, xs, x0s
 
-                # 1. FP16 baseline inference for all 10 seeds
+                # 1. FP16 baseline inference for all seeds
                 lat_fp16_list = []
                 xs_fp16_list = []
                 x0s_fp16_list = []
@@ -395,7 +536,7 @@ class NativeConvRotInt8Quantize:
                 model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                 load_int8 = time.perf_counter() - t0
 
-                # 3. INT8 inference for all 10 seeds
+                # 3. INT8 inference for all seeds
                 lat_int8_list = []
                 xs_int8_list = []
                 x0s_int8_list = []
@@ -414,7 +555,7 @@ class NativeConvRotInt8Quantize:
 
                 # 4. Metrics evaluation
                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                report.append("\n=== BENCHMARK (10 Random Seeds, per-step trajectory) ===")
+                report.append(f"\n=== BENCHMARK ({num_seeds} Random Seeds, per-step trajectory) ===")
                 report.append(f"Run Time: {current_time}")
                 report.append(f"Model Architecture: {model_type}")
                 report.append(f"Prompt: {prompt_text}")
@@ -423,6 +564,7 @@ class NativeConvRotInt8Quantize:
 
                 mse_list = []
                 cos_list = []
+                final_rows = []
                 BIFURC_DROP = 0.05
                 SAME_IMG_COS = 0.98
                 n_bif = 0
@@ -457,9 +599,15 @@ class NativeConvRotInt8Quantize:
                     else:
                         verdict = "drifted (different image)"
 
-                    line = f"[{i+1}/10 | Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f} | max-drop: {max_drop:.4f} | {verdict}"
-
+                    final_rows.append({"seed": s, "cos": cos_val, "mse": mse_val, "max_drop": max_drop, "verdict": verdict})
+                    line = f"[{i+1}/{num_seeds} | Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f} | max-drop: {max_drop:.4f} | {verdict}"
                     report.append(line)
+
+                if is_krea2:
+                    report.append("\n--- Multi-seed summary ---")
+                    report.append(f"{'seed':>8} {'final-cos':>10} {'final-mse':>12} {'max-drop':>9} {'verdict':>22}")
+                    for r in final_rows:
+                        report.append(f"{r['seed']:>8} {r['cos']:>10.5f} {r['mse']:>12.3e} {r['max_drop']:>9.4f} {r['verdict']:>22}")
 
                 # Summary Averages
                 avg_fp16 = sum(t_fp16_list) / len(t_fp16_list)
@@ -469,14 +617,16 @@ class NativeConvRotInt8Quantize:
                 min_cos = min(cos_list)
                 max_cos = max(cos_list)
 
-                report.append("\n--- Summary (10-Seed Average) ---")
+                report.append(f"\n--- Summary ({num_seeds}-Seed Average) ---")
                 report.append(f"Avg FP16 Time: {avg_fp16:.2f}s")
                 report.append(f"Avg INT8 Time: {avg_int8:.2f}s")
+                speedup = (avg_fp16 / avg_int8) if avg_int8 > 0 else 0.0
+                report.append(f"Speedup: {speedup:.2f}x")
                 report.append(f"Avg MSE: {avg_mse:.4f}")
                 report.append(f"Avg Cosine: {avg_cos:.4f}")
                 report.append(f"Cosine: min={min_cos:.4f} max={max_cos:.4f}")
-                report.append(f"same-image seeds : {n_same}/10")
-                report.append(f"bifurcated seeds : {n_bif}/10   (sudden trajectory jump = different picture, not degradation)")
+                report.append(f"same-image seeds : {n_same}/{num_seeds}")
+                report.append(f"bifurcated seeds : {n_bif}/{num_seeds}   (sudden trajectory jump = different picture, not degradation)")
 
                 mm.unload_all_models()
                 mm.soft_empty_cache()
