@@ -106,3 +106,8 @@ bench_*.png
 *.diff
 *.orig
 *.comfy_bak
+*.bak*
+*.tmp
+scratch/
+temp/
+tmp/
