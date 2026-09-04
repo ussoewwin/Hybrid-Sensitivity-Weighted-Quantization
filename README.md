@@ -9,7 +9,6 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 - **ConvRot INT8 (SDXL V3.1):** ComfyUI-compatible `int8_tensorwise` pack with **FULL ConvRot** on remaining Linear/Conv2d after DualMonitor + V4 weighted-histogram FP16 protection under a fixed **300 MiB** budget. Keep ratio is **0** (r0); critical layers stay FP16 via automatic analysis, not a keep-ratio percentage. Pack path matches `native_convert_int8_convrot.py`.
 - **ConvRot NVFP4 (SDXL):** ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed **600 MiB** budget. Keep ratio is **0** (r0); calib writes NVFP4 `.input_scale`. Script: `hswq_convert_nvfp4_convrot_1.0.py`.
 - **Z Image INT8 (HSWQ):** **Development and public release ended.** For Z Image, **native ConvRot INT8** already reaches roughly **SSIM > 0.99** in general, so a separate HSWQ Z Image 8-bit line is no longer developed or published. Use native ConvRot INT8 for Z Image 8-bit; HSWQ INT8 work continues for **SDXL**.
-- **Krea2 INT8 (HSWQ):** **Development and public release ended.** For Krea2, **native ConvRot INT8** already reaches latent trajectory cosine **0.99992** (same-image 25/25) in general, so a separate HSWQ Krea2 8-bit line is no longer developed or published. Use native ConvRot INT8 for Krea2 8-bit; HSWQ INT8 work continues for **SDXL**.
 - **Z Image Hybrid ConvRot NVFP4:** Built from a complete **native ConvRot INT8** UNet via the **reverse method** — layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid. The number of NVFP4 layers varies per model (search `K`). Calibrated with `input_scale = amax / 2688` and validated by the **deterministic 20-seed latent-trajectory comparison** (per-step cosine + bifurcation): production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** in **TC (W4A4)** mode (reference numbers for one example model are listed in the hybrid NVFP4 how-to). Scripts: `Z_Image/diag_impact.py`, `Z_Image/gen_reverse_nvfp4.py`, `Z_Image/calib_input_scale_nvfp4.py`, `benchmark/zi_convrot_nvfp4_traj_compare.py`.
 
 **Technical details (FP8):** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) — **FP8 development has ended**; this document is retained as a technical asset.  
@@ -54,6 +53,7 @@ pip install diffusers accelerate scikit-image
 **Benchmark results:**
 - **SDXL (ConvRot INT8):** [MSE / SSIM](benchmark%20result/benchmark_sdxl_int8.md)
 - **SDXL (ConvRot NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_convrotnvfp4.md)
+- **Krea2 (ConvRot INT8):** [MSE / SSIM](benchmark%20result/benchmark_krea2_int8.md)
 - **Krea2 (Hybrid NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_krea2_nvfp4.md)
 - **Z Image (Hybrid NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_zi_nvfp4.md)
 
@@ -71,8 +71,7 @@ pip install diffusers accelerate scikit-image
 | **Benchmark** | Measurable | Measurable | Measurable |
 | **Use case** | SDXL ConvRot INT8 distribution / kitchen loaders | SDXL ConvRot NVFP4 distribution / native ComfyUI load | Z Image Turbo Hybrid NVFP4 distribution / native ComfyUI load |
 
-**Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL path.  
-**Note (Krea2 8-bit):** HSWQ Krea2 INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Krea2 (mean latent cosine **0.99992**, same-image 25/25). HSWQ INT8 remains the SDXL path.
+**Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL path.
 
 **Validation (Z Image Hybrid NVFP4):** production gate is the **deterministic 20-seed latent-trajectory comparison** — per-step cosine with a bifurcation detector; pass = **mean ≥ 0.95 and 0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration. See [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md).
 
@@ -120,7 +119,6 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 - **Card 3** (`--per_channel_int8`): per-output-channel amax / scale for non-ConvRot plain packs (SDXL).
 - **Keep ratio:** **0 (fixed)** — FP16 protection is automatic (analyze Hard VETO + DualMonitor + V4 ranking inside the FP16 budget), not a percentage keep-ratio.
 - **Z Image INT8 (HSWQ):** **Ended** — no further HSWQ Z Image 8-bit development or Hugging Face publication. Prefer **native ConvRot INT8** for Z Image (typically **SSIM > 0.99**).
-- **Krea2 INT8 (HSWQ):** **Ended** — no further HSWQ Krea2 8-bit development or Hugging Face publication. Prefer **native ConvRot INT8** for Krea2 (mean latent cosine **0.99992**, same-image 25/25).
 
 ### ConvRot NVFP4 (SDXL)
 
