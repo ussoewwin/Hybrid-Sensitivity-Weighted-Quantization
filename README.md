@@ -126,7 +126,7 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 - **Script:** `Krea2/hswq_convrot_int8_krea2_v1.5.py` (Krea2 DiT ConvRot INT8; structure blacklist protection + 4-axis composite ranking: DualMonitor $E[x^2]$ × HistCosine V5 × NVFP4 measured error × SVD Leverage).
 - **Structure protection:** `first.`, `last.`, `mod.`, `norm`, `projector`, `tmlp`, `txtmlp`, `tproj`, `txtfusion`, and `bias` stay in original dtype (BF16/FP32), preventing numerical collapse / black latent generation.
 - **Data-driven protection:** `--blacklist_keep N` and `--keep_sensitive M` revert the highest-error DiT weights to original dtype based on 4-axis composite ranking.
-- **Bias correction (Card 1):** Optional `--bias_correction` applies $\delta b \approx -(W_q - W)\,\mu_x$ on INT8 Linear + Conv2d using DualMonitor signed channel means from the same calibration pass.
+- **Bias correction (Card 1):** Omitted (**`1off`**). In Krea2 `SingleStreamDiT`, all quantized transformer blocks are `bias=False`, and layers containing bias are already protected by the structure blacklist; Card 1 bias delta has zero effect on Krea2.
 - **Format:** `int8_tensorwise` with FULL ConvRot Hadamard rotation on eligible Linear/Conv2d; ComfyUI native load compatible. Guide: [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md).
 
 ### ConvRot NVFP4 (SDXL)
