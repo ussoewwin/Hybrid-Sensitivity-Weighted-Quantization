@@ -6,7 +6,7 @@
 2. **4-Axis Composite Sensitivity Ranking**: Employs DualMonitor $E[x^2]$ activation energy $\times$ HistCosine V5 distribution alignment $\times$ NVFP4 measured pack MSE $\times$ SVD structural leverage to rank and retain high-impact DiT weights (`--blacklist_keep` and `--keep_sensitive`).
 3. **Card 1 Bias Correction Omission (`1off`)**: Standardized on `1off` because all quantized transformer blocks in Krea2 `SingleStreamDiT` (Attention, SwiGLU, TextFusion) are strictly `bias=False`. All biased layers reside in the structural blacklist, rendering bias delta calculation a complete no-op.
 4. **ComfyUI Custom Node Integration**: Added Krea2 DiT conversion to the unified **`Native ConvRot INT8 Quantize`** node (`comfyui_nodes/native_convrot_int8_convert.py`), providing 1-click in-graph native ConvRot INT8 model quantization directly in ComfyUI workflows.
-5. **Native ConvRot INT8 Recommendation**: For checkpoints where native ConvRot INT8 achieves mean latent trajectory cosine $\ge 0.98$ (with 0 trajectory bifurcations), **using native ConvRot INT8 directly without HSWQ is recommended**, maintaining virtually identical image composition with ~50% model storage size reduction.
+5. **Native ConvRot INT8 Recommendation**: For checkpoints where native ConvRot INT8 achieves mean latent trajectory cosine $\ge 0.98$ (with 0 trajectory bifurcations), **using native ConvRot INT8 directly without HSWQ is recommended**, maintaining virtually identical image composition with maximum compression (~50% file size vs ~55% under HSWQ due to BF16 sensitive layer retention).
 6. **Multi-Seed Automated Trajectory & Cosine Benchmark**: Added `benchmark/krea2_int8_traj_compare.py` to evaluate latent fidelity and trajectory stability against the original BF16 baseline across 12 sampling steps over 20 random seeds.
 7. **Comprehensive Technical Guide**: Published full documentation in [`md/How to quantize Krea2.md`](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20Krea2.md).
 
@@ -54,10 +54,10 @@ When a checkpoint satisfies this fidelity gate, using **native ConvRot INT8 dire
 
 ## Model Storage Footprint
 
-| Model Architecture | Base Format | Quantized Format | Original Size | ConvRot INT8 Size | File Size Reduction | ComfyUI Native Load |
+| Model Architecture | Base Format | Quantized Format | Original Size | ConvRot INT8 Size | Relative Size (% of Original) | ComfyUI Native Load |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Krea2 DiT (Native ConvRot INT8)** | BF16 (`safetensors`) | ConvRot INT8 (`int8_tensorwise`) | ~9.5 GB | **~4.8 GB** | **~50%** | Standard `Load Diffusion Model` / `UNetLoader` |
-| **Krea2 DiT (HSWQ ConvRot INT8, k10)** | BF16 (`safetensors`) | ConvRot INT8 + BF16 retain | ~9.5 GB | **~5.1 GB** | **~46%** | Standard `Load Diffusion Model` / `UNetLoader` |
+| **Krea2 DiT (HSWQ ConvRot INT8)** | BF16 (`safetensors`) | ConvRot INT8 + BF16 retain | ~9.5 GB | **~5.1 - 5.3 GB** | **~55%** | Standard `Load Diffusion Model` / `UNetLoader` |
 
 ---
 
