@@ -68,6 +68,23 @@ _NON_DIFFUSION_MARKERS: tuple[str, ...] = (
     "vae.",
 )
 
+_KREA2_BLACKLIST: tuple[str, ...] = (
+    "first.",
+    "last.",
+    "mod.",
+    "norm",
+    "projector",
+    "tmlp",
+    "txtmlp",
+    "tproj",
+    "txtfusion",
+    "bias",
+)
+
+
+def _is_blacklisted(key: str) -> bool:
+    return any(marker in key for marker in _KREA2_BLACKLIST)
+
 
 # ---------------------------------------------------------------------------
 # DualMonitor (Card 1) — self-contained; no import of hswq_convert_nvfp4_krea2
@@ -907,19 +924,30 @@ def convert_to_int8(
     )
 
     for key, tensor in tqdm(list(state_dict.items())):
-        # Non-diffusion (VAE / text encoders / etc.) → keep original dtype (incl. f32)
-        if _is_non_diffusion_key(key):
+        # Structure-sensitive / non-diffusion → keep original dtype
+        if _is_blacklisted(key) or _is_non_diffusion_key(key):
             new_state_dict[key] = tensor
             orig_dtype_keep += 1
             continue
 
         under_prefix = (not prefix) or key.startswith(prefix)
+
+        # fp32 layers are precision-critical — keep as float32, never quantize.
+        if (
+            under_prefix
+            and key.endswith(".weight")
+            and tensor.ndim in (2, 4)
+            and tensor.dtype == torch.float32
+        ):
+            new_state_dict[key] = tensor
+            orig_dtype_keep += 1
+            continue
+
         is_dit_weight = (
             under_prefix
             and key.endswith(".weight")
             and tensor.ndim in (2, 4)
-            and tensor.dtype
-            in (torch.float16, torch.float32, torch.bfloat16)
+            and tensor.dtype in (torch.float16, torch.bfloat16)
         )
 
         if not is_dit_weight:
