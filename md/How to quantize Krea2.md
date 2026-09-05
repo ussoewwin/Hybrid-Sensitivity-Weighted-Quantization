@@ -1,0 +1,180 @@
+# How to quantize Krea2 ConvRot INT8
+
+Quantize **Krea2 DiT** (SingleStreamDiT) diffusion models to **ConvRot INT8** using the full HSWQ pipeline (`Krea2/hswq_convrot_int8_krea2_v1.5.py`).
+
+Krea2 DiT models have structure-sensitive layers (patch input embeddings, output projection heads, cross-attention text projectors, modulation blocks, and normalization layers) that cannot be naively quantized to INT8 without catastrophic numerical scale collapse (which leads to pitch black output images upon VAE decoding). HSWQ prevents this by enforcing a dedicated **structure blacklist**, preserving high-precision float32 layers, and applying data-driven **4-axis composite ranking** (DualMonitor $E[x^2]$ × HistCosine V5 × NVFP4 measured error × SVD Leverage) to protect critical weights in original BF16/FP32 precision.
+
+The dedicated VRAM for calibration should be **16GB or more** (runs CLIP context extraction and CUDA DiT forward sweeps).
+
+---
+
+## Clone the repository
+
+```bash
+git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
+cd Hybrid-Sensitivity-Weighted-Quantization
+```
+
+## Install PyTorch (CUDA)
+
+First, install PyTorch (CUDA).  
+In a Windows environment on a local PC, it is advisable to set up a venv or embedded Python environment.
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+```
+
+## Install other libraries
+
+```bash
+pip install -r requirements.txt
+pip install -U comfy_kitchen
+pip install diffusers accelerate scikit-image
+```
+
+- `comfy_kitchen` provides the quantization kernels, layout operations, and online Hadamard activation rotation.
+- `scikit-image` is required for MSE / SSIM pixel-space evaluation.
+- `diffusers` and `accelerate` provide tensor management utilities.
+
+---
+
+## Prerequisites for Calibration
+
+HSWQ Krea2 INT8 calibration uses real text conditioning to drive the DiT during DualMonitor forward sweeps:
+
+1. **Calibration Prompts:** A text file containing prompts (one per line), e.g., `calibration_prompts_128.txt`.
+2. **Krea2 Text Encoder (CLIP):** The Qwen3-VL-4B checkpoint used by ComfyUI `CLIPType.KREA2` (e.g. `qwen3_4b_vl.safetensors` or `qwen3_4b_abliterated_fp16_converted.safetensors`).
+3. **ComfyUI Path:** The root directory of a ComfyUI installation that contains `comfy/ldm/krea2/model.py`.
+
+---
+
+## Quantize a Krea2 model (CLI)
+
+Replace every `<...>` placeholder with actual paths on your filesystem. `--model` and `--input` are aliases for the same argument.
+
+### 1. Standard HSWQ ConvRot INT8 (Fixed Structure Protection)
+
+Runs DualMonitor calibration (32 samples, 25 inference steps) and applies FULL ConvRot on all eligible Linear and Conv2d layers while preserving blacklisted structure layers in original BF16:
+
+```bash
+python Krea2/hswq_convrot_int8_krea2_v1.5.py \
+  --model "<path-to-models>/krea2_dit.safetensors" \
+  --output "<path-to-models>/krea2_dit_convrot_int8.safetensors" \
+  --calib_file "calibration_prompts_128.txt" \
+  --clip_path "<path-to-clip>/qwen3_4b_vl.safetensors" \
+  --comfy_path "<path-to-ComfyUI>" \
+  --num_calib_samples 32 \
+  --num_inference_steps 25 \
+  --per_channel_int8
+```
+
+### 2. HSWQ ConvRot INT8 with Card 1 Bias Correction
+
+Applies analytical bias correction $\delta b \approx -(W_q - W)\,\mu_x$ to all quantized Linear and Conv2d layers using DualMonitor signed channel activation means $\mu_x$:
+
+```bash
+python Krea2/hswq_convrot_int8_krea2_v1.5.py \
+  --model "<path-to-models>/krea2_dit.safetensors" \
+  --output "<path-to-models>/krea2_dit_convrot_int8_bc.safetensors" \
+  --calib_file "calibration_prompts_128.txt" \
+  --clip_path "<path-to-clip>/qwen3_4b_vl.safetensors" \
+  --comfy_path "<path-to-ComfyUI>" \
+  --num_calib_samples 32 \
+  --num_inference_steps 25 \
+  --bias_correction \
+  --per_channel_int8
+```
+
+### 3. HSWQ ConvRot INT8 with Data-Driven Sensitivity Protection
+
+In addition to the fixed structure blacklist, reverts the top $M$ most sensitive layers (ranked by the 4-axis composite metric) back to original BF16:
+
+```bash
+python Krea2/hswq_convrot_int8_krea2_v1.5.py \
+  --model "<path-to-models>/krea2_dit.safetensors" \
+  --output "<path-to-models>/krea2_dit_convrot_int8_k15.safetensors" \
+  --calib_file "calibration_prompts_128.txt" \
+  --clip_path "<path-to-clip>/qwen3_4b_vl.safetensors" \
+  --comfy_path "<path-to-ComfyUI>" \
+  --keep_sensitive 15 \
+  --per_channel_int8
+```
+
+---
+
+## Technical Details & Parameters
+
+### Structure Blacklist (Preventing Black Latent Output)
+
+DiT architectures are fragile at specific boundary and projection layers. `Krea2/hswq_convrot_int8_krea2_v1.5.py` implements an explicit safety net:
+
+- **Structure Blacklist:**
+  `first.`, `last.`, `mod.`, `norm`, `projector`, `tmlp`, `txtmlp`, `tproj`, `txtfusion`, and `bias`.
+  - `first.weight`: Input patchification embedding. Quantizing this layer severely distorts input scale.
+  - `last.weight`: Final latent projection head. Quantizing this layer causes output variance collapse, producing solid black images.
+  - `projector` / `txtfusion`: Cross-modal feature alignment projection between Qwen3-VL text embeddings and DiT hidden states.
+  - `norm` / `mod.`: Adaptive normalization and timestep/condition modulation scale factors.
+- **Float32 Preservation:** Precision-critical `torch.float32` layers are always retained in float32.
+- **Non-Diffusion Keys:** VAE and text encoder weights present in the checkpoint are bypassed untouched.
+
+### 4-Axis Composite Ranking
+
+When `--blacklist_keep N` or `--keep_sensitive M` is set, layers are ranked across four complementary axes:
+
+1. **Axis 1 (DualMonitor $E[x^2]$):** Activation energy collected across timesteps $t \in [0, 1]$ (weighted towards image generation timesteps $t \to 0$).
+2. **Axis 2 (HistCosine V5):** Directional cosine similarity loss computed on SVD×RMS hybrid leverage-weighted histograms.
+3. **Axis 3 (NVFP4 Measured Error):** Offline empirical quantization error measurement.
+4. **Axis 4 (SVD Leverage):** Structural sensitivity derived from weight singular value decomposition.
+
+Axis ranks are combined via a weighted geometric mean with weights derived from the IQR/median spread of each axis.
+
+### FULL ConvRot (Linear + Conv2d)
+
+- **Hadamard Rotation:** Enabled by default. 2D linear weights are rotated as $W_{\text{rot}} = W H^T$; 4D conv weights are rotated along input channels.
+- **Group Size:** Preferred size is `256`. If `in_features` is not divisible by 256, the script adaptively selects the largest power-of-4 divisor ($\ge 4$).
+- **Metadata:** Writes `comfy_quant` metadata with `{"format": "int8_tensorwise", "convrot": true, "convrot_groupsize": N}` and registers layers in `_quantization_metadata["layers"]` so that ComfyUI and `comfy_kitchen` automatically apply online activation rotation.
+
+### Card 1 Bias Correction
+
+- DualMonitor computes mean input activations $\mu_x = \mathbb{E}[x]$ during calibration.
+- The bias delta is calculated as:
+  $$\Delta b = -(W_q - W)\,\mu_x$$
+- For ConvRot layers, $\mu_x$ is rotated into the Hadamard basis before computing the contraction.
+- Corrected bias is added directly to `.bias` in the checkpoint: $b \leftarrow b + \Delta b$.
+
+---
+
+## Validation & Benchmarking
+
+### Latent Trajectory Divergence (Deterministic 20-Seed)
+
+To verify the quality and numerical stability of the quantized model against the unquantized BF16 baseline:
+
+```bash
+python benchmark/krea2_int8_traj_compare.py \
+  --bf16 "<path-to-models>/krea2_dit.safetensors" \
+  --int8 "<path-to-models>/krea2_dit_convrot_int8.safetensors" \
+  --clip_path "<path-to-clip>/qwen3_4b_vl.safetensors" \
+  --comfy_path "<path-to-ComfyUI>" \
+  --num_seeds 20 \
+  --steps 12
+```
+
+- Compares per-step latent trajectories across 20 fixed random seeds at CFG=1.0.
+- Calculates per-step cosine similarity and checks for trajectory bifurcations ($\Delta \text{cosine} > 0.05$).
+- Production targets: **Mean cosine $\ge 0.98$** and **0 bifurcations**.
+
+### Benchmark Reference Scores
+
+Published benchmark results across various Krea2 model checkpoints are documented in:
+- [Krea2 ConvRot INT8 Benchmark Results](../benchmark%20result/benchmark_krea2_int8.md)
+
+---
+
+## ComfyUI Deployment
+
+The resulting `.safetensors` file is fully compatible with standard ComfyUI:
+
+1. Place the quantized `.safetensors` file into `ComfyUI/models/diffusion_models/` or `ComfyUI/models/checkpoints/`.
+2. Load the model using standard **Load Diffusion Model** (or **UNetLoader**).
+3. Connect the model to standard KSampler workflows. `comfy_kitchen` executes native INT8 GEMM with online activation rotation.
