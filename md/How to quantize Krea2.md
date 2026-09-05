@@ -68,26 +68,9 @@ python Krea2/hswq_convrot_int8_krea2_v1.5.py \
   --per_channel_int8
 ```
 
-### 2. HSWQ ConvRot INT8 with Card 1 Bias Correction
+### 2. HSWQ ConvRot INT8 with Data-Driven Sensitivity Protection (Recommended: 1off)
 
-Applies analytical bias correction $\delta b \approx -(W_q - W)\,\mu_x$ to all quantized Linear and Conv2d layers using DualMonitor signed channel activation means $\mu_x$:
-
-```bash
-python Krea2/hswq_convrot_int8_krea2_v1.5.py \
-  --model "<path-to-models>/krea2_dit.safetensors" \
-  --output "<path-to-models>/krea2_dit_convrot_int8_bc.safetensors" \
-  --calib_file "calibration_prompts_128.txt" \
-  --clip_path "<path-to-clip>/qwen3_4b_vl.safetensors" \
-  --comfy_path "<path-to-ComfyUI>" \
-  --num_calib_samples 32 \
-  --num_inference_steps 25 \
-  --bias_correction \
-  --per_channel_int8
-```
-
-### 3. HSWQ ConvRot INT8 with Data-Driven Sensitivity Protection
-
-In addition to the fixed structure blacklist, reverts the top $M$ most sensitive layers (ranked by the 4-axis composite metric) back to original BF16:
+In addition to the fixed structure blacklist, reverts the top $M$ most sensitive layers (ranked by the 4-axis composite metric) back to original BF16. All Krea2 recipes standardize on **`1off`** (Card 1 Bias Correction OFF):
 
 ```bash
 python Krea2/hswq_convrot_int8_krea2_v1.5.py \
@@ -117,6 +100,22 @@ DiT architectures are fragile at specific boundary and projection layers. `Krea2
 - **Float32 Preservation:** Precision-critical `torch.float32` layers are always retained in float32.
 - **Non-Diffusion Keys:** VAE and text encoder weights present in the checkpoint are bypassed untouched.
 
+### Why Card 1 Bias Correction has No Effect on Krea2 (`1off`)
+
+Card 1 Bias Correction (`--bias_correction`) is designed to add a compensation delta $\Delta b \approx -(W_q - W)\,\mu_x$ into `.bias`. However, on Krea2 DiT:
+
+1. **Architecture Has No Bias on Quantized Blocks:**
+   In `SingleStreamDiT`, all 28 transformer blocks (`SingleStreamBlock`) are constructed with `bias=False`:
+   - Attention projections (`wq`, `wk`, `wv`, `gate`, `wo`) have `bias=False`.
+   - SwiGLU MLP projections (`gate`, `up`, `down`) have `bias=False`.
+   - TextFusion transformer blocks have `bias=False`.
+2. **Layers with Bias are Blacklisted:**
+   The only layers that contain bias tensors in Krea2 (`first.bias`, `last.linear.bias`, `tmlp`, `txtmlp`, `tproj`) are already protected by the structure blacklist and remain in full precision BF16/FP32.
+3. **Delta Cannot be Applied or Used:**
+   Because 100% of the layers converted to INT8 in Krea2 have no bias parameter (`module.bias is None`), `hswq_convrot_int8_krea2_v1.5.py` skips every layer (`no_bias`). Even if a `.bias` key were injected into the `.safetensors`, ComfyUI's Krea2 DiT loader executes standard bias-less linear operators, so injected bias tensors are ignored during forward passes.
+
+Consequently, **Card 1 Bias Correction has zero functional effect on Krea2**. All benchmark records and production recipes standardize strictly on **`1off`** (bias correction disabled). Leave `--bias_correction` omitted.
+
 ### 4-Axis Composite Ranking
 
 When `--blacklist_keep N` or `--keep_sensitive M` is set, layers are ranked across four complementary axes:
@@ -133,14 +132,6 @@ Axis ranks are combined via a weighted geometric mean with weights derived from 
 - **Hadamard Rotation:** Enabled by default. 2D linear weights are rotated as $W_{\text{rot}} = W H^T$; 4D conv weights are rotated along input channels.
 - **Group Size:** Preferred size is `256`. If `in_features` is not divisible by 256, the script adaptively selects the largest power-of-4 divisor ($\ge 4$).
 - **Metadata:** Writes `comfy_quant` metadata with `{"format": "int8_tensorwise", "convrot": true, "convrot_groupsize": N}` and registers layers in `_quantization_metadata["layers"]` so that ComfyUI and `comfy_kitchen` automatically apply online activation rotation.
-
-### Card 1 Bias Correction
-
-- DualMonitor computes mean input activations $\mu_x = \mathbb{E}[x]$ during calibration.
-- The bias delta is calculated as:
-  $$\Delta b = -(W_q - W)\,\mu_x$$
-- For ConvRot layers, $\mu_x$ is rotated into the Hadamard basis before computing the contraction.
-- Corrected bias is added directly to `.bias` in the checkpoint: $b \leftarrow b + \Delta b$.
 
 ---
 
