@@ -160,6 +160,24 @@ def _is_qwen_blacklisted(key: str) -> bool:
     return any(marker in key for marker in _QWEN_EDIT_BLACKLIST)
 
 
+_KREA2_BLACKLIST = (
+    "first.",
+    "last.",
+    "mod.",
+    "norm",
+    "projector",
+    "tmlp",
+    "txtmlp",
+    "tproj",
+    "txtfusion",
+    "bias",
+)
+
+
+def _is_krea2_blacklisted(key: str) -> bool:
+    return any(marker in key for marker in _KREA2_BLACKLIST)
+
+
 def _quantize_state_dict_krea2(
     sd,
     group_size,
@@ -181,17 +199,29 @@ def _quantize_state_dict_krea2(
             break
 
     for key, tensor in sd.items():
-        if k2._is_non_diffusion_key(key):
+        if _is_krea2_blacklisted(key) or k2._is_non_diffusion_key(key):
             new_sd[key] = tensor
             n_kept += 1
             continue
 
         under_prefix = (not prefix) or key.startswith(prefix)
+
+        # fp32 layers are precision-critical — keep as float32, never quantize.
+        if (
+            under_prefix
+            and key.endswith(".weight")
+            and tensor.ndim in (2, 4)
+            and tensor.dtype == torch.float32
+        ):
+            new_sd[key] = tensor
+            n_kept += 1
+            continue
+
         is_dit_weight = (
             under_prefix
             and key.endswith(".weight")
             and tensor.ndim in (2, 4)
-            and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+            and tensor.dtype in (torch.float16, torch.bfloat16)
         )
 
         if not is_dit_weight:
