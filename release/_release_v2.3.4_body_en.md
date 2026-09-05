@@ -54,10 +54,10 @@ When a checkpoint satisfies this fidelity gate, using **native ConvRot INT8 dire
 
 ## Model Storage Footprint
 
-| Model Architecture | Base Format | Quantized Format | Original Size | ConvRot INT8 Size | Relative Size (% of Original) | ComfyUI Native Load |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Krea2 DiT (Native ConvRot INT8)** | BF16 (`safetensors`) | ConvRot INT8 (`int8_tensorwise`) | ~9.5 GB | **~4.8 GB** | **~50%** | Standard `Load Diffusion Model` / `UNetLoader` |
-| **Krea2 DiT (HSWQ ConvRot INT8)** | BF16 (`safetensors`) | ConvRot INT8 + BF16 retain | ~9.5 GB | **~5.1 - 5.3 GB** | **~55%** | Standard `Load Diffusion Model` / `UNetLoader` |
+| Quantization Mode | Weights Format | Relative File Size (% of Original) | ComfyUI Native Load |
+| :--- | :--- | :--- | :--- |
+| **Native ConvRot INT8** | ConvRot INT8 (`int8_tensorwise`) with BF16 structure blacklist | **~50%** | Standard `Load Diffusion Model` / `UNetLoader` |
+| **HSWQ ConvRot INT8** | ConvRot INT8 (`int8_tensorwise`) with BF16 blacklist & sensitive layer retention | **~55%** | Standard `Load Diffusion Model` / `UNetLoader` |
 
 ---
 
