@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.3.4
+
+- **Krea2 ConvRot INT8 quantization method published** — Added native and HSWQ ConvRot INT8 quantization support for Krea2 DiT models:
+  - **CLI Quantizer (`Krea2/hswq_convrot_int8_krea2_v1.5.py`):** Structural blacklist protection (`first.`, `last.`, `mod.`, `norm`, `projector`, `tmlp`, `txtmlp`, `tproj`, `txtfusion`, and all `bias` tensors) staying in original precision (BF16/FP32) to prevent numerical collapse, combined with 4-axis composite ranking (DualMonitor $E[x^2]$ × HistCosine V5 × NVFP4 measured error × SVD Leverage) for selective `--blacklist_keep` and `--keep_sensitive` layer retention.
+  - **Card 1 Bias Correction Omission (`1off`):** Standardized on `1off` because in Krea2 `SingleStreamDiT`, all quantized transformer blocks are strictly `bias=False` and biased projections are already protected by the structural blacklist, rendering bias delta correction a no-op.
+  - **ComfyUI Custom Node Integration (`comfyui_nodes/native_convrot_int8_convert.py`):** Added Krea2 DiT support to `Native ConvRot INT8 Quantize`, enabling 1-click in-graph native ConvRot INT8 model conversion directly in ComfyUI.
+  - **Native Recommendation:** For checkpoints where native ConvRot INT8 achieves mean latent trajectory cosine $\ge 0.98$ (with 0 trajectory bifurcations), using native ConvRot INT8 directly without HSWQ is recommended.
+  - **Multi-Seed Trajectory & Cosine Benchmark (`benchmark/krea2_int8_traj_compare.py`):** Automated evaluation comparing quantized models against BF16 across 12 sampling steps over 20 random seeds.
+  - **Documentation:** Added comprehensive technical and practical guide ([`md/How to quantize Krea2.md`](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20Krea2.md)).
+Release notes: [v2.3.4](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.4)
+
 ## v2.3.3
 
 - **SAM 3 and SAM 3.1 native ConvRot INT8 quantization support** — Extended `TE / ControlNet ConvRot INT8 Quantize` node (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`), added dedicated `HSWQ SAM3 Loader (sam3.pt)` (`comfyui_nodes/sam3_pt_loader.py`), and updated standalone CLI converter (`clip_convert/convert_clip_convrot_int8.py`) to support native ConvRot INT8 quantization for Segment Anything foundation models (**SAM 3** & **SAM 3.1 Multiplex**).
