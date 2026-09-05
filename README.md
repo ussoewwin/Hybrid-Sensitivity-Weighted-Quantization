@@ -45,6 +45,7 @@ pip install diffusers accelerate scikit-image
 
 - **SDXL (ConvRot INT8):** [How to quantize SDXL ConvRot INT8](md/How%20to%20quantize%20SDXL.md)
 - **SDXL (ConvRot NVFP4):** [How to quantize SDXL ConvRot NVFP4](md/How%20to%20quantize%20SDXL%20NVFP4.md)
+- **Krea2 (ConvRot INT8):** [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md)
 - **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) — CLI and ComfyUI custom node (`Native ConvRot INT8 Quantize`) quantization guide. HSWQ-specific Z Image development has **ended**; this How-to introduces the **general** ConvRot INT8 quantization method.
 - **Z Image (Hybrid NVFP4, reverse method):** [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md) — build a hybrid NVFP4 model from native ConvRot INT8 by converting the lowest-impact layers first (reverse method), calibrate `input_scale` for Tensor-Core W4A4, and validate with the deterministic 20-seed trajectory comparison (cosine mean ≥ 0.95, 0/20 bifurcated)..
 - **Qwen Image Edit (native ConvRot INT8):** [How to quantize Qwen Image Edit](md/How%20to%20quantize%20Qwen%20Image%20Edit.md) — CLI (`Qwen Image/native_convert_int8_convrot_qwen.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Qwen Image Edit"`) quantization guide; post-convert benchmark is latent-space trajectory divergence (per-step cosine + bifurcation detection).
@@ -119,6 +120,14 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 - **Card 3** (`--per_channel_int8`): per-output-channel amax / scale for non-ConvRot plain packs (SDXL).
 - **Keep ratio:** **0 (fixed)** — FP16 protection is automatic (analyze Hard VETO + DualMonitor + V4 ranking inside the FP16 budget), not a percentage keep-ratio.
 - **Z Image INT8 (HSWQ):** **Ended** — no further HSWQ Z Image 8-bit development or Hugging Face publication. Prefer **native ConvRot INT8** for Z Image (typically **SSIM > 0.99**).
+
+### ConvRot INT8 (Krea2)
+
+- **Script:** `Krea2/hswq_convrot_int8_krea2_v1.5.py` (Krea2 DiT ConvRot INT8; structure blacklist protection + 4-axis composite ranking: DualMonitor $E[x^2]$ × HistCosine V5 × NVFP4 measured error × SVD Leverage).
+- **Structure protection:** `first.`, `last.`, `mod.`, `norm`, `projector`, `tmlp`, `txtmlp`, `tproj`, `txtfusion`, and `bias` stay in original dtype (BF16/FP32), preventing numerical collapse / black latent generation.
+- **Data-driven protection:** `--blacklist_keep N` and `--keep_sensitive M` revert the highest-error DiT weights to original dtype based on 4-axis composite ranking.
+- **Bias correction (Card 1):** Optional `--bias_correction` applies $\delta b \approx -(W_q - W)\,\mu_x$ on INT8 Linear + Conv2d using DualMonitor signed channel means from the same calibration pass.
+- **Format:** `int8_tensorwise` with FULL ConvRot Hadamard rotation on eligible Linear/Conv2d; ComfyUI native load compatible. Guide: [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md).
 
 ### ConvRot NVFP4 (SDXL)
 
