@@ -169,3 +169,50 @@ The resulting `.safetensors` file is fully compatible with standard ComfyUI:
 1. Place the quantized `.safetensors` file into `ComfyUI/models/diffusion_models/` or `ComfyUI/models/checkpoints/`.
 2. Load the model using standard **Load Diffusion Model** (or **UNetLoader**).
 3. Connect the model to standard KSampler workflows. `comfy_kitchen` executes native INT8 GEMM with online activation rotation.
+
+---
+
+## Quantize a Krea2 model via ComfyUI (Node)
+
+Quantization can also be executed directly within ComfyUI using the custom node **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/`).
+
+<p align="left">
+  <img src="../png/native_convrot_int8.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow" width="600">
+</p>
+
+### Native ConvRot INT8 Recommendation
+
+For Krea2, several checkpoints achieve **mean latent trajectory cosine $\ge 0.98$ (with 0 trajectory bifurcations)** under native ConvRot INT8 quantization with structural blacklist protection.
+
+When a checkpoint satisfies this fidelity gate (mean cosine $\ge 0.98$), **using native ConvRot INT8 directly without additional HSWQ sensitivity layer retention (`--keep_sensitive`) is recommended**. This delivers maximum VRAM savings and speed benefits while maintaining virtually identical image composition. If a specific checkpoint exhibits trajectory drift or bifurcation (mean cosine $< 0.98$), proceed with the full HSWQ CLI calibration pipeline (`Krea2/hswq_convrot_int8_krea2_v1.5.py` with `--keep_sensitive 10` or `15`).
+
+### Installation
+
+Copy or link the repository into `ComfyUI/custom_nodes/`:
+
+```bash
+cd custom_nodes
+git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
+```
+
+### Sample Workflow
+
+A ready-to-use ComfyUI workflow JSON is provided in the repository:
+- **[`sample workflow/native convrot int8.json`](../sample%20workflow/native%20convrot%20int8.json)**
+
+Load this file directly into ComfyUI (or drag-and-drop the workflow PNG image) to load the complete quantization and benchmark graph.
+
+### Node Workflow & Usage
+
+1. **Load Model:** Connect the `MODEL` output from `UNetLoader` (or `Load Diffusion Model`) to the `model` input of the **`Native ConvRot INT8 Quantize`** node.
+2. **Connect CLIP:** Connect `CLIP` from `CLIPLoader` (e.g. `qwen3_4b_vl.safetensors`, CLIPType `krea2`) to the `clip` input.
+3. **Optional VAE:** Connect `VAE` from `VAELoader` to the optional `vae` input for decoded SSIM measurement.
+4. **Configure Parameters:**
+   - **`model_type`**: Select **`"Krea2"`**.
+   - **`benchmark_prompt`**: Prompt text used during the automated benchmark (multiline text, defaults to `"masterpiece, best quality, 1girl, solo, standing, simple background"`).
+   - **`output_path`**: Destination `.safetensors` path. If left empty, saves to the ComfyUI output directory automatically with a timestamped filename.
+   - **`group_size`**: Preferred ConvRot Hadamard group size (default `256`, must be a power of 4).
+   - **`convrot`**: Enable FULL ConvRot online Hadamard rotation (default `True`).
+   - **`per_channel_int8`**: Channelwise amax/scale fallback for non-ConvRot layers (default `True`).
+   - **`run_benchmark`**: Automatically run the deterministic 20-seed latent trajectory comparison (12 steps, CFG=1.0) upon save (default `True`).
+5. **Execute Queue:** Queue the prompt. The node extracts diffusion weights directly from memory, preserves structure-sensitive layers (`first.`, `last.`, `mod.`, `norm`, `projector`, `txtfusion`, etc.) in original precision, quantizes eligible DiT Linear and Conv2d weights with Hadamard rotation, saves the checkpoint with `_quantization_metadata`, and outputs the 20-seed trajectory divergence report to the console and return output.
