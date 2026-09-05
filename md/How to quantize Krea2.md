@@ -184,7 +184,7 @@ Quantization can also be executed directly within ComfyUI using the custom node 
 
 For Krea2, several checkpoints achieve **mean latent trajectory cosine $\ge 0.98$ (with 0 trajectory bifurcations)** under native ConvRot INT8 quantization with structural blacklist protection.
 
-When a checkpoint satisfies this fidelity gate (mean cosine $\ge 0.98$), **using native ConvRot INT8 directly without HSWQ is recommended**. This delivers maximum VRAM savings and speed benefits while maintaining virtually identical image composition. If a specific checkpoint exhibits trajectory drift or bifurcation (mean cosine $< 0.98$), proceed with the full HSWQ CLI calibration pipeline (`Krea2/hswq_convrot_int8_krea2_v1.5.py` with `--keep_sensitive 10` or `15`).
+When a checkpoint satisfies this fidelity gate (mean cosine $\ge 0.98$), **using native ConvRot INT8 directly without HSWQ is recommended**, maintaining virtually identical image composition with ~50% model storage size reduction. If a specific checkpoint exhibits trajectory drift or bifurcation (mean cosine $< 0.98$), proceed with the full HSWQ CLI calibration pipeline (`Krea2/hswq_convrot_int8_krea2_v1.5.py` with `--keep_sensitive 10` or `15`).
 
 ### Installation
 
