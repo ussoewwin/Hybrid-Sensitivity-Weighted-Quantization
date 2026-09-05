@@ -172,9 +172,9 @@ The resulting `.safetensors` file is fully compatible with standard ComfyUI:
 
 ---
 
-## Quantize a Krea2 model via ComfyUI (Node)
+## Native ConvRot INT8 Quantization via ComfyUI (Node)
 
-Quantization can also be executed directly within ComfyUI using the custom node **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/`).
+Currently, only **Native ConvRot INT8** quantization is supported within ComfyUI using the custom node **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/`). Full HSWQ sensitivity ranking and selective layer retention are executed via the CLI script.
 
 <p align="left">
   <img src="../png/native_convrot_int8.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow" width="600">
