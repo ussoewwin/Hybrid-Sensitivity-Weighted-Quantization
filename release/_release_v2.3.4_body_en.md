@@ -5,7 +5,7 @@
 1. **Structural Blacklist Protection**: Preserves entry/exit embeddings (`first.`, `last.`), adaptive modulation (`mod.`), layer norms (`norm`), patch projectors (`projector`), time/text MLPs (`tmlp`, `txtmlp`, `tproj`), text cross-attention projection (`txtfusion`), and all `bias` tensors in original precision (BF16/FP32), completely eliminating numerical collapse and black latent output.
 2. **4-Axis Composite Sensitivity Ranking**: Employs DualMonitor $E[x^2]$ activation energy $\times$ HistCosine V5 distribution alignment $\times$ NVFP4 measured pack MSE $\times$ SVD structural leverage to rank and retain high-impact DiT weights (`--blacklist_keep` and `--keep_sensitive`).
 3. **Card 1 Bias Correction Omission (`1off`)**: Standardized on `1off` because all quantized transformer blocks in Krea2 `SingleStreamDiT` (Attention, SwiGLU, TextFusion) are strictly `bias=False`. All biased layers reside in the structural blacklist, rendering bias delta calculation a complete no-op.
-4. **ComfyUI Custom Node Integration**: Added Krea2 DiT conversion to the unified **`Native ConvRot INT8 Quantize`** node (`comfyui_nodes/native_convrot_int8_convert.py`), providing 1-click in-graph native ConvRot INT8 model quantization directly in ComfyUI workflows.
+4. **ComfyUI Custom Node Integration**: Added Krea2 DiT conversion to the unified **`Native ConvRot INT8 Quantize`** node (`comfyui_nodes/native_convrot_int8_convert.py`), providing 1-click in-graph native ConvRot INT8 model quantization directly in ComfyUI workflows (currently native only; full HSWQ calibration is via CLI).
 5. **Native ConvRot INT8 Recommendation**: For checkpoints where native ConvRot INT8 achieves mean latent trajectory cosine $\ge 0.98$ (with 0 trajectory bifurcations), **using native ConvRot INT8 directly without HSWQ is recommended**, maintaining virtually identical image composition with maximum compression (~50% file size vs ~55% under HSWQ due to BF16 sensitive layer retention).
 6. **Multi-Seed Automated Trajectory & Cosine Benchmark**: Added `benchmark/krea2_int8_traj_compare.py` to evaluate latent fidelity and trajectory stability against the original BF16 baseline across 12 sampling steps over 20 random seeds.
 7. **Comprehensive Technical Guide**: Published full documentation in [`md/How to quantize Krea2.md`](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20Krea2.md).
@@ -82,7 +82,8 @@ _quantization_metadata   JSON  {"format_version":"1.0","model_type":"krea2","lay
 
 ## Usage Guide
 
-### ComfyUI Custom Node
+### ComfyUI Custom Node (Native ConvRot INT8 Only)
+Currently, only **Native ConvRot INT8** quantization is supported within ComfyUI. Full HSWQ sensitivity ranking and selective layer retention are executed via the standalone CLI script.
 1. Load a Krea2 checkpoint via standard **`Load Diffusion Model`** (or **`UNetLoader`**).
 2. Connect the `MODEL` output to the `model` terminal of **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/native_convrot_int8_convert.py`).
 3. Set `model_type` to `krea2` and queue prompt. The quantized model is saved with embedded `comfy_quant` metadata.
