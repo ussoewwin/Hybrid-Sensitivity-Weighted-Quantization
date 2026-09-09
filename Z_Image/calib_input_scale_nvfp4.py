@@ -19,6 +19,9 @@ Method (mirrors hswq_sdxl_convert_nvfp4_1.0.py input_scale calib):
 The rotation MUST happen before amax ("rotate first, then amax"): the hybrid
 weights are stored already rotated (W @ H^T), so the runtime quantizes rotated
 activations. An unrotated amax is in the wrong domain and mis-scales the grid.
+When the runtime mean-shift path (HSWQ_NVFP4_MEANSHIFT=1) is used, the per-
+128-token group mean is removed AFTER the rotation and BEFORE amax, so the
+calibrated input_scale matches the actually-quantized distribution (x' = x - mu).
 
 Usage (from the clone directory, same as diag_impact.py):
     python Z_Image/calib_input_scale_nvfp4.py \
@@ -219,6 +222,19 @@ def main() -> int:
             st = tracked[name]
             if st["gs"]:
                 x_f = _rotate_last_dim(x_f, int(st["gs"]))
+            # MEAN SHIFT: remove the per-128-token group mean before amax,
+            # exactly like the runtime HSWQ_NVFP4_MEANSHIFT path. The
+            # calibrated input_scale then matches the distribution that is
+            # actually quantized (x' = x - mu), so the runtime can use it
+            # directly without bypassing.
+            _ms_n = x_f.shape[0] // 128
+            if _ms_n >= 1:
+                _ms_body = x_f[:_ms_n * 128].view(_ms_n, 128, x_f.shape[1])
+                _ms_mu = _ms_body.mean(dim=1, keepdim=True)
+                x_f = x_f.clone()
+                x_f[:_ms_n * 128] = (_ms_body - _ms_mu).reshape(
+                    _ms_n * 128, x_f.shape[1]
+                )
             amax = float(x_f.abs().amax().clamp_min(1e-12).item())
             if amax > st["amax"]:
                 st["amax"] = amax

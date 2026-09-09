@@ -579,13 +579,11 @@ def make_nvfp4_linear_forward(stock_forward):
                 scale = scale.data
             if scale.device != input.device:
                 scale = comfy.model_management.cast_to_device(scale, input.device, None)
-        # MEAN SHIFT bypasses the calibrated input_scale: the calib was taken
-        # on the UN-shifted distribution (x), but we quantize x' = x - mu.
-        # After DC removal per-tensor scaling is unnecessary - block scales
-        # only (scale_a = 1.0), matching SageAttention3. Calibrated artifacts
-        # stay usable as-is (no requant, no recalib).
-        if ms_mu is not None:
-            scale = None
+        # MEAN SHIFT + input_scale: calib_input_scale_nvfp4.py now measures
+        # amax on the shifted distribution (x' = x - mu, same group removal as
+        # the runtime), so the calibrated input_scale matches what we quantize.
+        # Keep using it (no bypass). Artifacts calibrated on the UN-shifted
+        # distribution must be re-calibrated with the shifted-calib script.
 
         layout = getattr(self, "layout_type", None)
         if layout is None:
