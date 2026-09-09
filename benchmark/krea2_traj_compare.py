@@ -1,30 +1,30 @@
-#!/usr/bin/env python3
 """Krea2 deterministic trajectory-divergence comparator (FP16 vs quantized artifact).
 
-More fundamental than the single-seed RGB SSIM of krea2_convrot_nvfp4_bench.py:
+More fundamental than the single-seed RGB SSIM bench:
 
   * same seed -> identical initial noise for both models (fully deterministic)
   * captures the latent ``x`` AND the model's x0-prediction at EVERY denoising step
   * reports per-step + final latent MSE / cosine, aggregated over multiple seeds
 
-This isolates the quantization error from ODE-solver and VAE-decode confounds and
-gives a per-step divergence curve, so you can see WHERE and HOW FAST FP16 and the
-quantized artifact drift apart. Cosine >= ~0.99 on the final latent with a flat
-per-step curve = artifact is effectively indistinguishable in latent space.
-
-Reuses the existing benchmark module for ComfyUI bootstrap / model loading /
-prompt encoding (no changes to krea2_convrot_nvfp4_bench.py).
+Self-contained tool: the ComfyUI bootstrap / model load / quant-patch helpers
+below are embedded in THIS file (exact copies from the reference bench code).
+Imports resolve ONLY against the live packages:
+  - krea2_convrot_nvfp4.*  (NVFP4 runtime / TC + parity quant patches)
+  - int8.*                 (INT8 protect layers in the hybrid artifact)
+Never imports from archives/.
 
 Usage:
     python krea2_traj_compare.py \
         --fp16 <base.safetensors> --nvfp4 <hybrid.safetensors> \
         --clip_path <clip.safetensors> --comfy_path <ComfyUI-master> \
-        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] [--mode tc|parity]
+        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."]
+        [--mode tc|parity] [--blockonly]
 """
 import argparse
-import importlib.util
+import gc
 import os
 import sys
+from pathlib import Path
 
 import torch
 
@@ -32,10 +32,303 @@ _BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BENCH_DIR not in sys.path:
     sys.path.insert(0, _BENCH_DIR)
 
-BENCH = os.path.join(_BENCH_DIR, "krea2_convrot_nvfp4_bench.py")
-_spec = importlib.util.spec_from_file_location("krea2_bench", BENCH)
-bench = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(bench)
+
+# ---------------------------------------------------------------------------
+# ComfyUI bootstrap / model load / quant patches (embedded from the reference
+# bench code; package-only imports: krea2_convrot_nvfp4.* and int8.*)
+# ---------------------------------------------------------------------------
+
+def _clear_argv_for_comfy() -> list[str]:
+    """ComfyUI cli_args swallows unknown flags; keep only argv[0] during import."""
+    saved = list(sys.argv)
+    sys.argv = [saved[0]]
+    return saved
+
+
+def _restore_argv(saved: list[str]) -> None:
+    sys.argv = saved
+
+
+def _install_torchaudio_stub() -> None:
+    """Prevent real torchaudio from loading if comfy.sd is pulled in.
+
+    comfy.sd imports comfy.ldm.lightricks.vae.audio_vae, which does a hard
+    ``import torchaudio``. On cloud hosts torch/torchaudio CUDA builds often
+    mismatch (e.g. torch 13.2 vs torchaudio 13.0) and abort before bench load.
+    Krea2 NVFP4 bench uses CLIPType.KREA2 / DiT only — never AudioVAE — so
+    replace torchaudio in sys.modules with a local stub.
+    Does not touch ComfyUI-master.
+    """
+    import importlib.machinery
+    import types
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        # transformers uses importlib.util.find_spec("torchaudio"); a ModuleType
+        # without __spec__ raises ValueError: torchaudio.__spec__ is None.
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(
+                name, loader=None, is_package=True
+            )
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    ta = _stub_mod("torchaudio", is_package=True)
+    functional = _stub_mod("torchaudio.functional")
+
+    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
+        return waveform
+
+    functional.resample = _resample
+
+    transforms = _stub_mod("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
+def setup_comfy(comfy_path: str) -> None:
+    comfy_root = Path(comfy_path).resolve()
+    if not comfy_root.is_dir():
+        raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
+    # Prefer this tree for comfy.* imports
+    sys.path = [str(comfy_root)] + [p for p in sys.path if Path(p).resolve() != comfy_root]
+
+    # Always stub before any comfy.* import (real torchaudio may CUDA-mismatch).
+    _install_torchaudio_stub()
+
+    # Before first comfy.quant_ops import: attach missing kitchen tensor exports
+    # (Asym / kitchen ConvRotW4A4 import-gate) so bulk-import succeeds → Branch A.
+    # Krea2 ConvRot load+forward stays in benchmark/krea2_convrot_nvfp4 only (not ComfyUI).
+    from krea2_convrot_nvfp4.kitchen_quant_ops_repair import (
+        ensure_kitchen_quant_ops,
+        prebind_missing_kitchen_tensor_exports,
+    )
+
+    prebind_missing_kitchen_tensor_exports()
+
+    import comfy.options
+
+    comfy.options.enable_args_parsing(False)
+
+    # Lightweight stubs (same pattern as nvfp4bench_sdxl / int8 benches)
+    try:
+        import comfy_aimdo  # noqa: F401
+    except Exception:
+        import types
+
+        m = types.ModuleType("comfy_aimdo")
+        m.__file__ = "<stub>"
+        m.__path__ = []
+        sys.modules["comfy_aimdo"] = m
+        sys.modules["comfy_aimdo.filter"] = types.ModuleType("comfy_aimdo.filter")
+        sys.modules["comfy_aimdo.filter"].filter_modules = lambda *a, **k: None
+
+    try:
+        import psutil  # noqa: F401
+    except Exception:
+        import types
+
+        class _VM:
+            total = 64 * 1024**3
+            available = 32 * 1024**3
+
+        class _Proc:
+            def memory_info(self):
+                return types.SimpleNamespace(rss=0)
+
+            def memory_full_info(self):
+                return types.SimpleNamespace(uss=0)
+
+            def cpu_percent(self, interval=None):
+                return 0.0
+
+            def num_threads(self):
+                return 1
+
+        ps = types.ModuleType("psutil")
+        ps.virtual_memory = lambda: _VM()
+        ps.Process = lambda: _Proc()
+        sys.modules["psutil"] = ps
+
+    # Resolve quant_ops now (after prebind) and apply Branch A/B before model load.
+    # Branch A: healthy → zero rebind. Branch B: stubs → submodule rebind only.
+    import comfy.quant_ops  # noqa: F401
+
+    ensure_kitchen_quant_ops()
+
+
+SSIM_TARGET = 0.9
+
+
+def require_convrot_parity_forward() -> None:
+    """Fail if Linear.forward is not the ConvRot act-rotate parity wrapper."""
+    import comfy.ops
+
+    lin_fwd = comfy.ops.mixed_precision_ops().Linear.forward
+    if getattr(lin_fwd, "_hswq_nvfp4_full_forward", False):
+        raise RuntimeError(
+            "ConvRot bench: Linear.forward still has HSWQ TC wrap "
+            "(_hswq_nvfp4_full_forward); SSIM would be destroyed"
+        )
+    if not getattr(lin_fwd, "_hswq_nvfp4_convrot_parity", False):
+        raise RuntimeError(
+            "ConvRot bench: Linear.forward missing _hswq_nvfp4_convrot_parity "
+            "(online act rotation required for W@H^T weights)"
+        )
+
+
+def _forbid_benchmark_nvfp4_import() -> None:
+    """Hard ban: this bench must never pull benchmark/nvfp4."""
+    bad = [
+        k
+        for k in sys.modules
+        if k == "nvfp4" or k.startswith("nvfp4.")
+    ]
+    if bad:
+        raise RuntimeError(
+            "FORBIDDEN: imported benchmark/nvfp4 modules "
+            f"{bad[:8]}; use krea2_convrot_nvfp4 only"
+        )
+
+
+def apply_quant_patches(mode: str = "tc"):
+    """Runtime monkey-patches for NVFP4 + INT8 protect.
+
+    mode='tc': Native HSWQ hardware Tensor Core forward (scaled_mm_nvfp4, no dequant).
+    mode='parity': ComfyUI stock ops.py Linear.forward + dequantization.
+    """
+    import comfy.ops
+    from krea2_convrot_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
+    from krea2_convrot_nvfp4.nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+    import krea2_convrot_nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
+
+    from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
+    import int8.comfy_quant_int8 as _cq_int8
+
+    apply_comfy_quant_nvfp4_patches()
+    if mode == "parity":
+        if not apply_nvfp4_comfy_parity():
+            raise RuntimeError("krea2_convrot_nvfp4 ComfyUI-only parity failed to apply")
+        require_convrot_parity_forward()
+        print(
+            "  [CONVROT] Parity forward armed: "
+            "stock Comfy GEMM + fast O(N log N) float32 butterfly act-rotate (zero accumulation error)"
+        )
+    else:
+        print(
+            "  [CONVROT] Native Hardware Tensor Core forward armed: "
+            "scaled_mm_nvfp4 on Blackwell Tensor Cores (fastest, zero weight dequant)"
+        )
+    print(f"  [BENCH] nvfp4 patch file: {os.path.abspath(_cq_nvfp4.__file__)}")
+    print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
+
+    apply_comfy_quant_int8_patches()
+    print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+    print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
+    print(
+        f"  [BENCH] mixed_precision_ops Conv2d inject: "
+        f"{getattr(comfy.ops.mixed_precision_ops, '_hswq_int8_conv_patched', False)}"
+    )
+    print(f"  [BENCH] int8 patch file: {os.path.abspath(_cq_int8.__file__)}")
+    if not _cq_int8._PATCHES_APPLIED:
+        raise RuntimeError(
+            "comfy_quant_int8 patches failed to apply "
+            "(need [BENCH] comfy_quant_int8 patched: True)"
+        )
+
+    _forbid_benchmark_nvfp4_import()
+    print(
+        f"  [BENCH] SSIM target >={SSIM_TARGET} "
+        "(ConvRot NVFP4 + INT8 protect + ComfyUI stock GEMM + online act rotate)"
+    )
+
+
+def set_hf_token(token: str | None) -> None:
+    if not token:
+        return
+    os.environ["HF_TOKEN"] = token
+    os.environ["HUGGING_FACE_HUB_TOKEN"] = token
+
+
+def encode_prompt(clip, prompt: str):
+    tokens = clip.tokenize(prompt)
+    return clip.encode_from_tokens_scheduled(tokens)
+
+
+def make_empty_latent(model, width: int, height: int, batch: int = 1) -> dict:
+    """16-ch empty latent; fix_empty_latent_channels upgrades Wan21 to 5D [B,C,T,H,W]."""
+    import comfy.model_management as mm
+    import comfy.sample as comfy_sample
+
+    device = mm.intermediate_device()
+    latent = torch.zeros([batch, 16, height // 8, width // 8], device=device)
+    # API: (model, latent_tensor) -> tensor  (see EmptyLatentImage / comfy.sample)
+    latent = comfy_sample.fix_empty_latent_channels(model, latent)
+    return {"samples": latent}
+
+
+def _hard_free_vram() -> None:
+    """Drop loaded models and return VRAM to the pool (CPU-offload path)."""
+    import comfy.model_management as mm
+
+    mm.unload_all_models()
+    # force=True path still runs empty_cache + ipc_collect on CUDA.
+    mm.soft_empty_cache(force=True)
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+        torch.cuda.synchronize()
+
+
+def _load_diffusion_model(unet_path: str):
+    """Load DiT; wrap INT8-protect layers in Conv2d inject scope when present."""
+    import comfy.sd
+    from int8.comfy_quant_int8 import (
+        _int8_quant_conv_scope,
+        checkpoint_looks_like_comfy_quant_int8,
+    )
+    from krea2_convrot_nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
+
+    looks_nvfp4 = checkpoint_looks_like_comfy_quant_nvfp4(unet_path)
+    use_int8_scope = checkpoint_looks_like_comfy_quant_int8(unet_path)
+    print(f"  [BENCH] NVFP4 comfy_quant detect: {looks_nvfp4}")
+    print(f"  [BENCH] INT8 Conv2d load scope: {use_int8_scope}")
+    if use_int8_scope:
+        with _int8_quant_conv_scope():
+            return comfy.sd.load_diffusion_model(unet_path, {})
+    return comfy.sd.load_diffusion_model(unet_path, {})
+
 
 
 def run_trajectory(model, positive, negative, latent, *, seed, steps, cfg,
@@ -97,6 +390,10 @@ def parse_args():
     ap.add_argument("--sampler", default="euler")
     ap.add_argument("--scheduler", default="simple")
     ap.add_argument("--mode", choices=["tc", "parity"], default="tc")
+    ap.add_argument("--blockonly", action="store_true",
+                    help="HSWQ_NVFP4_BLOCKONLY=1: block-scale-only act scale "
+                         "(scale_a=1.0; no amax / no calib; experimental "
+                         "SageAttention3-style; watch per-step divergence)")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -105,11 +402,15 @@ def parse_args():
 def main() -> int:
     args = parse_args()
     seeds = [int(s.strip()) for s in args.seeds.split(",") if s.strip()]
-    bench.set_hf_token(args.token)
+    if args.blockonly:
+        os.environ["HSWQ_NVFP4_BLOCKONLY"] = "1"
+        print("[BLOCKONLY] HSWQ_NVFP4_BLOCKONLY=1 — block-scale-only act scale "
+              "(scale_a=1.0, no amax, no calib)", flush=True)
+    set_hf_token(args.token)
 
-    saved_argv = bench._clear_argv_for_comfy()
+    saved_argv = _clear_argv_for_comfy()
     try:
-        bench.setup_comfy(args.comfy_path)
+        setup_comfy(args.comfy_path)
 
         import folder_paths  # noqa: F401
         import comfy.model_management as mm
@@ -125,19 +426,19 @@ def main() -> int:
             clip_type=comfy.sd.CLIPType.KREA2,
             model_options={"load_device": _cpu, "offload_device": _cpu, "initial_device": _cpu},
         )
-        positive = bench.encode_prompt(clip, args.prompt)
-        negative = bench.encode_prompt(clip, args.negative) if args.negative else bench.encode_prompt(clip, "")
+        positive = encode_prompt(clip, args.prompt)
+        negative = encode_prompt(clip, args.negative) if args.negative else encode_prompt(clip, "")
         if getattr(clip, "cond_stage_model", None) is not None:
             clip.cond_stage_model.cpu()
         if getattr(clip, "patcher", None) is not None:
             mm.unload_model_and_clones(clip.patcher)
         del clip
-        bench._hard_free_vram()
+        _hard_free_vram()
         print("  [Offload] CLIP unloaded.")
 
         # --- FP16 (stock ops, before any patch) ---
-        fp16 = bench._load_diffusion_model(args.fp16)
-        latent = bench.make_empty_latent(fp16, args.width, args.height, batch=1)
+        fp16 = _load_diffusion_model(args.fp16)
+        latent = make_empty_latent(fp16, args.width, args.height, batch=1)
         fp16_runs = {}
         for s in seeds:
             print(f"[FP16] seed {s}")
@@ -147,12 +448,12 @@ def main() -> int:
             )
             fp16_runs[s] = (xs, x0s, final.detach().float().cpu())
         del fp16
-        bench._hard_free_vram()
+        _hard_free_vram()
 
         # --- NVFP4 (patched) ---
         print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches...")
-        bench.apply_quant_patches(mode=args.mode)
-        nv = bench._load_diffusion_model(args.nvfp4)
+        apply_quant_patches(mode=args.mode)
+        nv = _load_diffusion_model(args.nvfp4)
         nv_runs = {}
         for s in seeds:
             print(f"[NVFP4] seed {s}")
@@ -162,9 +463,9 @@ def main() -> int:
             )
             nv_runs[s] = (xs, x0s, final.detach().float().cpu())
         del nv
-        bench._hard_free_vram()
+        _hard_free_vram()
     finally:
-        bench._restore_argv(saved_argv)
+        _restore_argv(saved_argv)
 
     # --- compare ---
     print("\n" + "=" * 72)
