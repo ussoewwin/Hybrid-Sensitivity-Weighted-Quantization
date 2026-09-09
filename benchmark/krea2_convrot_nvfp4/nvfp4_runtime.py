@@ -32,6 +32,17 @@ _ACT_AMAX_FREEZE = os.environ.get("HSWQ_NVFP4_ACT_AMAX_FREEZE", "").lower() in (
     "yes",
 )
 
+# HSWQ_NVFP4_BLOCKONLY=1: block-scale-only mode (calib-free TC experiment).
+# scale_a is forced to exactly 1.0 — NO per-call amax, NO checkpoint
+# input_scale, NO alpha cache freeze. The 16-element e4m3 block scales
+# (both sides) carry the whole adaptive range, mirroring SageAttention3.
+# Takes precedence over _ACT_AMAX_FREEZE; the two modes are never mixed.
+_ACT_BLOCK_ONLY = os.environ.get("HSWQ_NVFP4_BLOCKONLY", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
 # (padded_rows, padded_cols, device_str) -> (qx uint8, sx_uint8)
 # Safe to reuse: only live during one Linear forward (quantize → mm reads sync).
 _ACT_Q_POOL: dict = {}
@@ -561,6 +572,18 @@ def ensure_act_scale_amax(x):
     s = s.reshape(1)
     ok = torch.isfinite(s) & (s > 0)
     return torch.where(ok, s, torch.ones_like(s))
+
+
+def ensure_act_scale_blockonly(x):
+    """Block-scale-only act scale: exactly ones(1), zero computation.
+
+    Dedicated path for ``HSWQ_NVFP4_BLOCKONLY=1``. Returns a fresh ones
+    tensor (no module cache) so alpha rebinding in ``_tc_forward_pooled``
+    stays a no-op by identity: alpha = 1.0 * scale_b is weight-static.
+    """
+    import torch
+
+    return torch.ones(1, device=x.device, dtype=torch.float32)
 
 
 def ensure_act_scale_cached(module, x, scale):
