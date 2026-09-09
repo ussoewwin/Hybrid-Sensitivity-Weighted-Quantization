@@ -32,6 +32,16 @@ from ..nvfp4.nvfp4_runtime import (
 
 logger = logging.getLogger(__name__)
 
+# HSWQ_NVFP4_MEANSHIFT=1: per-128-token mean shift before NVFP4 quant
+# (SageAttention3 per-block mean + delta_s analog for Linear).
+# Dedicated quality path; off by default, never mixed with stock runs.
+_MEAN_SHIFT = os.environ.get("HSWQ_NVFP4_MEANSHIFT", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+_MS_GROUP = 128
+
 # Counters for bench / diagnostics (reset per run if needed)
 _TC_HITS = 0
 _DEQUANT_FALLBACKS = 0
@@ -460,6 +470,26 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         return None
 
 
+def _meanshift_weight_float(module, weight_qt):
+    """Dequantized float weight (N, K) for the mean-shift delta term.
+
+    Cached on the module keyed by the QT data pointer; weights are
+    static between LoRA bakes, so the dequant cost is paid once.
+    """
+    from comfy_kitchen.tensor.base import QuantizedTensor
+
+    qdata = getattr(weight_qt, "_qdata", None)
+    cached = getattr(module, "_hswq_nvfp4_ms_w", None)
+    if cached is not None and cached[0] is qdata and cached[1] is not None:
+        return cached[1]
+    if isinstance(weight_qt, QuantizedTensor):
+        w = weight_qt.dequantize().float()
+    else:
+        w = weight_qt.detach().float()
+    module._hswq_nvfp4_ms_w = (qdata, w)
+    return w
+
+
 def make_nvfp4_linear_forward(stock_forward):
     """
     Return a Linear.forward replacement.
@@ -499,6 +529,26 @@ def make_nvfp4_linear_forward(stock_forward):
                 h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
                 self._hswq_nvfp4_H = h
             input_2d = rotate_last_dim_pooled(input_2d, h, gs)
+
+        # 2.5) MEAN SHIFT (optional): subtract per-128-token group mean so
+        #      the NVFP4 quant sees a flatter distribution; add back W·mu
+        #      (delta) after the TC GEMM. fp32 for the mean and the delta.
+        ms_mu = None
+        if _MEAN_SHIFT and input_2d.shape[0] >= _MS_GROUP:
+            ms_n = input_2d.shape[0] // _MS_GROUP
+            if ms_n >= 1:
+                ms_body = input_2d[: ms_n * _MS_GROUP].view(
+                    ms_n, _MS_GROUP, input_2d.shape[1]
+                )
+                ms_mu = ms_body.float().mean(dim=1)  # (ms_n, K) fp32
+                ms_shift = (
+                    ms_body.float() - ms_mu.unsqueeze(1)
+                ).to(input_2d.dtype)  # (ms_n, 128, K) bf16
+                ms_shifted = input_2d.clone()
+                ms_shifted[: ms_n * _MS_GROUP] = ms_shift.reshape(
+                    ms_n * _MS_GROUP, input_2d.shape[1]
+                )
+                input_2d = ms_shifted
 
         # 3) Weight / bias: skip cast_bias_weight when already on-device QT
         #    (cast+sync every Linear was a major share of NVFP4 > FP16 wall time).
@@ -546,6 +596,19 @@ def make_nvfp4_linear_forward(stock_forward):
 
             q_input = QuantizedTensor.from_float(input_2d, layout, scale=scale)
             out_2d = scaled_mm_nvfp4_linear(q_input, weight, bias)
+
+        # 2.5b) Mean-shift delta add-back: out += W·mu for the shifted rows.
+        #       fp32 accumulate on the affected rows only.
+        if ms_mu is not None and out_2d is not None:
+            ms_n = ms_mu.shape[0]
+            ms_rows = ms_n * _MS_GROUP
+            ms_w = _meanshift_weight_float(self, weight)  # (N, K) fp32
+            ms_delta = torch.matmul(ms_mu, ms_w.t())  # (ms_n, N) fp32
+            ms_rows_slice = out_2d[:ms_rows]
+            ms_acc = ms_rows_slice.float() + ms_delta.repeat_interleave(
+                _MS_GROUP, dim=0
+            )
+            out_2d[:ms_rows] = ms_acc.to(out_2d.dtype)
 
         # 5) Restore rank with logical out_features (never QT storage shape[0])
         if reshaped_nd:
