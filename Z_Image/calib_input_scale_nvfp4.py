@@ -19,9 +19,6 @@ Method (mirrors hswq_sdxl_convert_nvfp4_1.0.py input_scale calib):
 The rotation MUST happen before amax ("rotate first, then amax"): the hybrid
 weights are stored already rotated (W @ H^T), so the runtime quantizes rotated
 activations. An unrotated amax is in the wrong domain and mis-scales the grid.
-When the runtime mean-shift path (HSWQ_NVFP4_MEANSHIFT=1) is used, the per-
-128-token group mean is removed AFTER the rotation and BEFORE amax, so the
-calibrated input_scale matches the actually-quantized distribution (x' = x - mu).
 
 Usage (from the clone directory, same as diag_impact.py):
     python Z_Image/calib_input_scale_nvfp4.py \
@@ -58,7 +55,6 @@ def parse_args():
     ap.add_argument("--repo-root", default=None, help="repo root containing benchmark/ (default: parent of this dir)")
     ap.add_argument("--prompts", default=None, help="UTF-8 text file, one prompt per line (default: synthetic set)")
     ap.add_argument("--samples", type=int, default=32, help="number of calibration trajectories")
-    ap.add_argument("--steps", type=int, default=4, help="number of Euler sampling steps per trajectory (default: 4)")
     ap.add_argument("--device", default="cuda")
     return ap.parse_args()
 
@@ -222,19 +218,6 @@ def main() -> int:
             st = tracked[name]
             if st["gs"]:
                 x_f = _rotate_last_dim(x_f, int(st["gs"]))
-            # MEAN SHIFT: remove the per-128-token group mean before amax,
-            # exactly like the runtime HSWQ_NVFP4_MEANSHIFT path. The
-            # calibrated input_scale then matches the distribution that is
-            # actually quantized (x' = x - mu), so the runtime can use it
-            # directly without bypassing.
-            _ms_n = x_f.shape[0] // 128
-            if _ms_n >= 1:
-                _ms_body = x_f[:_ms_n * 128].view(_ms_n, 128, x_f.shape[1])
-                _ms_mu = _ms_body.mean(dim=1, keepdim=True)
-                x_f = x_f.clone()
-                x_f[:_ms_n * 128] = (_ms_body - _ms_mu).reshape(
-                    _ms_n * 128, x_f.shape[1]
-                )
             amax = float(x_f.abs().amax().clamp_min(1e-12).item())
             if amax > st["amax"]:
                 st["amax"] = amax
@@ -253,20 +236,20 @@ def main() -> int:
         prompts = (prompts * (a.samples // len(prompts) + 1))[:a.samples]
     else:
         prompts = prompts[:a.samples]
-    steps = max(1, int(a.steps))
-    print(f"calibrating: {len(prompts)} trajectories x {steps} steps, seed 42")
+    print(f"calibrating: {len(prompts)} trajectories x 4 steps, seed 42")
 
     # Text embeddings: the bench trajectory (diag_impact.py) uses random embeds
     # with seed 42. Keep the same contract so amax matches the measured regime,
     # but vary the per-sample seed with sample index for coverage.
-    def run_trajectory(sample_idx: int):
+    embeds_cache = []
+    def run4(sample_idx: int):
         g = torch.Generator(device).manual_seed(42 + sample_idx)
         embeds = torch.randn(1, 256, 2560, device=device, dtype=torch.float16, generator=g)
         x = torch.randn(1, 16, 128, 128, device=device, dtype=torch.float16,
                         generator=torch.Generator(device).manual_seed(42))
-        sigmas = torch.linspace(1.0, 0.0, steps + 1, device=device)
+        sigmas = torch.linspace(1.0, 0.0, 5, device=device)
         with torch.no_grad():
-            for step in range(steps):
+            for step in range(4):
                 out = model(x, sigmas[step:step + 1], embeds, None, attention_mask=None)
                 if isinstance(out, tuple):
                     out = out[0]
@@ -274,7 +257,7 @@ def main() -> int:
         return x
 
     for i in range(len(prompts)):
-        run_trajectory(i)
+        run4(i)
         if (i + 1) % 8 == 0 or i + 1 == len(prompts):
             print(f"  [{i + 1}/{len(prompts)}] amax coverage: "
                   f"{sum(1 for v in tracked.values() if v['amax'] > 0)}/{len(tracked)}")
@@ -296,23 +279,11 @@ def main() -> int:
     print(f"input_scale formula: amax / {denom:.0f}")
 
     sd = load_file(a.hybrid)
-    prefix = ""
-    for p in ("model.diffusion_model.", "diffusion_model.", ""):
-        for k in sd.keys():
-            if k.startswith(p) and k.endswith(".weight"):
-                prefix = p
-                break
-        if prefix:
-            break
-
     written = 0
     for n, v in tracked.items():
-        n_clean = n[len("model.diffusion_model."):] if n.startswith("model.diffusion_model.") else n
-        n_clean = n_clean[len("diffusion_model."):] if n_clean.startswith("diffusion_model.") else n_clean
-        full = f"{prefix}{n_clean}"
+        full = f"model.diffusion_model.{n}" if not n.startswith("model.") else n
         sd[f"{full}.input_scale"] = torch.tensor(
-            max(v["amax"], 1e-12) / denom, dtype=torch.float32
-        )
+            max(v["amax"], 1e-12) / denom, dtype=torch.float32)
         written += 1
     save_file(sd, a.out, metadata={"_quantization_metadata": json.dumps(meta)})
     print(f"input_scale written: {written} layers")
