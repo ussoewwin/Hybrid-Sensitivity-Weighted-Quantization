@@ -17,8 +17,10 @@ Usage:
     python krea2_traj_compare.py \
         --fp16 <base.safetensors> --nvfp4 <hybrid.safetensors> \
         --clip_path <clip.safetensors> --comfy_path <ComfyUI-master> \
-        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."]
-        [--mode tc|parity] [--blockonly]
+        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] [--tc | --parity]
+
+    Tensor Core NVFP4 is the default and is forced explicitly with --tc.
+    Block-scale-only (calib-free) run: set HSWQ_NVFP4_BLOCKONLY=1 in the env.
 """
 import argparse
 import gc
@@ -389,11 +391,10 @@ def parse_args():
     ap.add_argument("--cfg", type=float, default=1.0)
     ap.add_argument("--sampler", default="euler")
     ap.add_argument("--scheduler", default="simple")
-    ap.add_argument("--mode", choices=["tc", "parity"], default="tc")
-    ap.add_argument("--blockonly", action="store_true",
-                    help="HSWQ_NVFP4_BLOCKONLY=1: block-scale-only act scale "
-                         "(scale_a=1.0; no amax / no calib; experimental "
-                         "SageAttention3-style; watch per-step divergence)")
+    ap.add_argument("--tc", action="store_true",
+                    help="native Tensor Core NVFP4 path (scaled_mm_nvfp4; default)")
+    ap.add_argument("--parity", action="store_true",
+                    help="stock dequant parity path instead of Tensor Core")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -402,10 +403,10 @@ def parse_args():
 def main() -> int:
     args = parse_args()
     seeds = [int(s.strip()) for s in args.seeds.split(",") if s.strip()]
-    if args.blockonly:
-        os.environ["HSWQ_NVFP4_BLOCKONLY"] = "1"
-        print("[BLOCKONLY] HSWQ_NVFP4_BLOCKONLY=1 — block-scale-only act scale "
-              "(scale_a=1.0, no amax, no calib)", flush=True)
+    if args.tc and args.parity:
+        print("--tc and --parity are mutually exclusive", flush=True)
+        return 2
+    mode = "parity" if args.parity else "tc"
     set_hf_token(args.token)
 
     saved_argv = _clear_argv_for_comfy()
@@ -451,8 +452,8 @@ def main() -> int:
         _hard_free_vram()
 
         # --- NVFP4 (patched) ---
-        print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches...")
-        apply_quant_patches(mode=args.mode)
+        print(f"Applying NVFP4 ConvRot mode='{mode}' + INT8 + addmm patches...")
+        apply_quant_patches(mode=mode)
         nv = _load_diffusion_model(args.nvfp4)
         nv_runs = {}
         for s in seeds:
