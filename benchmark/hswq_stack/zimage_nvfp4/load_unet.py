@@ -60,11 +60,15 @@ def zi_use_tensorcore(unet_path) -> bool:
     SSIM collapse, so we keep parity in that case.
 
     Overrides (priority order):
-      HSWQ_ZI_FORCE_PARITY=1  -> always parity (escape hatch).
-      HSWQ_ZI_FORCE_TC=1      -> always TC (bench A/B; assumes calibrated scale).
+      HSWQ_ZI_FORCE_PARITY=1      -> always parity (escape hatch).
+      HSWQ_NVFP4_BLOCKONLY=1      -> always TC (block-scale-only;
+                                     calibrated input_scale NOT required).
+      HSWQ_ZI_FORCE_TC=1          -> always TC (bench A/B; assumes calibrated scale).
     """
     if os.environ.get("HSWQ_ZI_FORCE_PARITY", "").strip() == "1":
         return False
+    if os.environ.get("HSWQ_NVFP4_BLOCKONLY", "").lower() in ("1", "true", "yes"):
+        return True
     if os.environ.get("HSWQ_ZI_FORCE_TC", "").strip() == "1":
         return True
     return checkpoint_has_input_scale(unet_path)

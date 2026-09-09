@@ -19,7 +19,9 @@ from .zi_nvfp4_hadamard import (
     unrotate_weight_linear,
 )
 from ..nvfp4.nvfp4_runtime import (
+    _ACT_BLOCK_ONLY,
     ensure_act_scale,
+    ensure_act_scale_blockonly,
     clear_nvfp4_cudagraphs,
     nvfp4_quant_mm_cudagraph,
     quantize_nvfp4_act_pooled,
@@ -363,7 +365,13 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         orig_k,
     )
 
-    scale_a = ensure_act_scale(input_2d, act_scale)
+    # HSWQ_NVFP4_BLOCKONLY=1: dedicated block-scale-only path
+    # (scale_a = 1.0, no amax, checkpoint input_scale ignored).
+    # Separated from the calib path; never mixed.
+    if _ACT_BLOCK_ONLY:
+        scale_a = ensure_act_scale_blockonly(input_2d)
+    else:
+        scale_a = ensure_act_scale(input_2d, act_scale)
     try:
         w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(module, weight_qt)
         flops = orig_m * orig_k * orig_n * 2

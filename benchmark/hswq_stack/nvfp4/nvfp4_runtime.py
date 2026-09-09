@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import logging
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -497,6 +498,30 @@ def _inv_amax_denom(device):
         )
         _INV_NVFP4_AMAX_DENOM[key] = t
     return t
+
+
+# HSWQ_NVFP4_BLOCKONLY=1: block-scale-only mode (calib-free TC experiment).
+# scale_a forced to exactly 1.0 — NO per-call amax, NO checkpoint
+# input_scale, NO alpha-cache freeze. The 16-element e4m3 block scales
+# (both sides) carry the whole adaptive range, mirroring SageAttention3.
+# Takes precedence over the calib / amax-freeze paths; never mixed.
+_ACT_BLOCK_ONLY = os.environ.get("HSWQ_NVFP4_BLOCKONLY", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+
+def ensure_act_scale_blockonly(x):
+    """Block-scale-only act scale: exactly ones(1), zero computation.
+
+    Dedicated path for ``HSWQ_NVFP4_BLOCKONLY=1`` (same contract as the
+    Krea2 port). Fresh ones per call; scale_a is constant so alpha stays
+    weight-static.
+    """
+    import torch
+
+    return torch.ones(1, device=x.device, dtype=torch.float32)
 
 
 def ensure_act_scale(x, scale):
