@@ -84,6 +84,39 @@ if COMFY_PATH not in sys.path:
     sys.path.insert(0, COMFY_PATH)
 
 
+def _pin_repo_comfy_package():
+    """Make `import comfy` resolve to THIS repo's ComfyUI-master/comfy tree.
+
+    The ComfyUI tree ships without ``comfy/__init__.py`` (upstream has no such
+    file), so ``comfy`` would be treated as a PEP 420 namespace package and a
+    pip-installed ``comfy`` later on sys.path could shadow it -- every
+    ``from comfy.X import Y`` then fails with a misleading ModuleNotFoundError.
+
+    The previous fix planted an empty ``comfy/__init__.py`` on disk. That file
+    is not part of the tree and polluted the checkout (it collided with git
+    checkout and had to be deleted again and again). This replaces the file
+    write with an in-memory package spec: identical import behaviour, zero
+    filesystem writes.
+
+    Returns a short status string for logging.
+    """
+    if "comfy" in sys.modules:
+        return "already imported (left as-is)"
+    comfy_dir = os.path.join(COMFY_PATH, "comfy")
+    if not os.path.isdir(comfy_dir):
+        return "comfy/ dir missing"
+    import importlib.machinery
+    import importlib.util
+
+    spec = importlib.machinery.ModuleSpec("comfy", None, is_package=True)
+    spec.submodule_search_locations = [comfy_dir]
+    sys.modules["comfy"] = importlib.util.module_from_spec(spec)
+    return f"pinned to {comfy_dir}"
+
+
+print(f"[BENCH] {_pin_repo_comfy_package()}")
+
+
 def _install_comfy_aimdo_stub():
     """ComfyUI-master hard-imports comfy_aimdo.*; cloud envs often lack it."""
     try:
