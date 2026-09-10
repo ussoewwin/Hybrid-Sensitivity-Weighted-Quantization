@@ -46,95 +46,36 @@ COMFY_PATH = _resolve_comfy_path()
 
 
 def _ensure_comfy_complete():
-    """Cloud checkouts of ComfyUI-master often ship a truncated tree.
-    Restore missing root .py files and the entire comfy/ tree from upstream,
-    Preserve existing ops.py if present. INT8 Conv2d support is NOT via
-    permanently patched ops.py — see int8/comfy_quant_int8.py monkey-patch."""
+    """Validate that the ComfyUI tree is importable. READ-ONLY.
+
+    This function NEVER writes into the ComfyUI tree. It does not create files,
+    does not clone, does not rmtree/copytree, and does not repair anything.
+    An incomplete tree is a hard FATAL error with instructions, because silent
+    self-repair used to plant a stray ``comfy/__init__.py`` and destroy the
+    owner's tree (see reflection: init罪).
+    """
     comfy_dir = os.path.join(COMFY_PATH, "comfy")
-    # Always ensure comfy/__init__.py exists first.
-    init_path = os.path.join(comfy_dir, "__init__.py")
-    if not os.path.isfile(init_path):
-        try:
-            with open(init_path, "w") as _f:
-                _f.write("")
-        except Exception as e:
-            print(f"[BENCH] create comfy/__init__.py failed: {e}")
-    # Root-level sentinels (node_helpers.py etc. are required by comfy.sd).
     root_sentinels = ("node_helpers.py", "nodes.py", "main.py", "folder_paths.py",
-                      "app.py", "server.py", "types.py")
-    root_missing = [f for f in root_sentinels
-                    if not os.path.isfile(os.path.join(COMFY_PATH, f))]
-    comfy_sentinels = ("model_management.py", "memory_management.py",
-                       "quant_ops.py", "model_patcher.py", "sd.py", "sample.py",
+                      "server.py")
+    comfy_sentinels = ("model_management.py", "sd.py", "sample.py",
                        "utils.py", "cli_args.py", "options.py", "samplers.py",
-                       "lora.py", "hooks.py", "latent_formats.py", "model_base.py",
-                       "model_detection.py", "model_sampling.py",
-                       "supported_models.py", "supported_models_base.py",
+                       "lora.py", "latent_formats.py", "model_base.py",
+                       "model_detection.py", "supported_models.py",
                        "clip_vision.py", "clip_model.py", "sd1_clip.py",
                        "sdxl_clip.py", "diffusers_convert.py", "diffusers_load.py",
-                       "float.py", "gligen.py", "pinned_memory.py",
-                       "patcher_extension.py", "rmsnorm.py", "nested_tensor.py",
-                       "pixel_space_convert.py", "multigpu.py",
-                       "model_prefetch.py", "sampler_helpers.py",
-                       "deploy_environment.py", "comfy_api_env.py",
-                       "lora_convert.py", "audio_encoders")
+                       "pinned_memory.py", "patcher_extension.py", "rmsnorm.py",
+                       "multigpu.py", "model_prefetch.py", "sampler_helpers.py")
+    root_missing = [f for f in root_sentinels
+                    if not os.path.isfile(os.path.join(COMFY_PATH, f))]
     comfy_missing = [f for f in comfy_sentinels
-                     if not os.path.exists(os.path.join(comfy_dir, f))]
-    if not root_missing and not comfy_missing:
-        return
-    print(f"[BENCH] ComfyUI incomplete (root missing {len(root_missing)}, comfy missing {len(comfy_missing)}); self-repairing...")
-    sibling = os.path.join(os.path.dirname(COMFY_PATH), "_comfyui_full")
-    if not os.path.isdir(os.path.join(sibling, "comfy")):
-        import subprocess as _sp
-        try:
-            _sp.check_call(["git", "clone", "--depth", "1",
-                            "https://github.com/comfyanonymous/ComfyUI.git", sibling],
-                           stdout=_sp.DEVNULL, stderr=_sp.STDOUT)
-            print(f"[BENCH] Cloned upstream ComfyUI -> {sibling}")
-        except Exception as e:
-            print(f"[BENCH] Clone failed: {e}; cannot self-repair.")
-            return
-    import shutil as _sh
-    # Restore missing root .py files from upstream root.
-    for f in root_missing:
-        src = os.path.join(sibling, f)
-        dst = os.path.join(COMFY_PATH, f)
-        if os.path.isfile(src):
-            try:
-                _sh.copy2(src, dst)
-                print(f"[BENCH] restored root/{f}")
-            except Exception as e:
-                print(f"[BENCH] restore root/{f} failed: {e}")
-    if comfy_missing:
-        src_comfy = os.path.join(sibling, "comfy")
-        if not os.path.isdir(src_comfy):
-            print(f"[BENCH] {src_comfy} missing; cannot repair comfy/.")
-            return
-        # Back up patched ops.py.
-        patched_ops = None
-        ops_path = os.path.join(comfy_dir, "ops.py")
-        if os.path.isfile(ops_path):
-            import tempfile as _tf
-            patched_ops = _tf.mkstemp(suffix="_ops.py")[1]
-            _sh.copy2(ops_path, patched_ops)
-        try:
-            if os.path.isdir(comfy_dir):
-                _sh.rmtree(comfy_dir)
-            _sh.copytree(src_comfy, comfy_dir)
-            print(f"[BENCH] restored full comfy/ from upstream")
-        except Exception as e:
-            print(f"[BENCH] copytree failed: {e}")
-            if patched_ops and os.path.isfile(patched_ops):
-                os.unlink(patched_ops)
-            return
-        if patched_ops and os.path.isfile(patched_ops):
-            _sh.copy2(patched_ops, ops_path)
-            os.unlink(patched_ops)
-            print(f"[BENCH] restored patched ops.py")
-        if not os.path.isfile(init_path):
-            with open(init_path, "w") as _f:
-                _f.write("")
-            print(f"[BENCH] created comfy/__init__.py")
+                     if not os.path.isfile(os.path.join(comfy_dir, f))]
+    if root_missing or comfy_missing:
+        print(f"[BENCH] FATAL: ComfyUI tree incomplete at {COMFY_PATH}")
+        print(f"[BENCH]   root missing : {root_missing}")
+        print(f"[BENCH]   comfy missing: {comfy_missing}")
+        print("[BENCH] This bench will NOT modify or repair the tree.")
+        print("[BENCH] Fix the checkout yourself (git), then re-run.")
+        sys.exit(2)
 
 
 _ensure_comfy_complete()
@@ -459,7 +400,7 @@ except Exception as e:
         try:
             listing = sorted(os.listdir(comfy_dir))
             print(f"comfy/ listing ({len(listing)} entries): {listing[:40]}")
-            for key in ("__init__.py", "model_management.py", "ops.py", "sd.py", "sample.py"):
+            for key in ("model_management.py", "ops.py", "sd.py", "sample.py"):
                 p = os.path.join(comfy_dir, key)
                 print(f"  {key}: exists={os.path.isfile(p)} size={os.path.getsize(p) if os.path.isfile(p) else 0}")
         except Exception as ex:
