@@ -445,6 +445,14 @@ def run_trajectory(model, positive, negative, latent, *, seed, steps, cfg,
     return xs, x0s, samples
 
 
+# 20 canonical 10-digit evaluation seeds (owner-specified; used for all SA2/NVFP4 runs)
+CANONICAL_SEEDS = [
+    42, 137, 5517, 92048, 371506, 5293047, 64820153, 731509284, 8426170395, 9517038246,
+    210987, 6543210, 98765432, 1357924680, 2468135791, 3579246812, 4680357923,
+    5791468034, 6802579145, 7913680256,
+]
+
+
 def _cos(a, b):
     a = a.reshape(1, -1).float()
     b = b.reshape(1, -1).float()
@@ -474,6 +482,10 @@ def parse_args():
     )
     ap.add_argument("--negative", default="", help="Negative prompt")
     ap.add_argument("--steps", type=int, default=25, help="Sampling steps")
+    ap.add_argument(
+        "--canonical-seeds", action="store_true",
+        help="Use the 20 canonical 10-digit seeds (overrides --seeds)",
+    )
     ap.add_argument(
         "--seeds", default="42,1337,7,2024,555",
         help="comma-separated seeds; same seed = identical noise for both models"
@@ -571,6 +583,11 @@ def main() -> int:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     seeds = [int(s.strip()) for s in args.seeds.split(",") if s.strip()]
+    if args.canonical_seeds:
+        seeds = list(CANONICAL_SEEDS)
+
+    print(f"[config] attention={args.attention} steps={args.steps} cfg={args.cfg} "
+          f"size={args.width}x{args.height} seeds={len(seeds)} tc={args.tc} parity={args.parity}")
     set_hf_token(args.token)
 
     saved_argv = _clear_argv_for_comfy()
@@ -682,7 +699,19 @@ def main() -> int:
     cos_vals = [r[1] for r in final_rows]
     n_bif = sum(1 for r in final_rows if "bifurcated" in r[4])
     n_diff = sum(1 for r in final_rows if r[4] != "same-image")
-    print(f"\nfinal-cosine: min={min(cos_vals):.5f}  mean={sum(cos_vals)/len(cos_vals):.5f}  max={max(cos_vals):.5f}")
+    n = len(cos_vals)
+    mean_c = sum(cos_vals) / n
+    var_s = sum((c - mean_c) ** 2 for c in cos_vals) / (n - 1) if n > 1 else 0.0
+    sd = var_s ** 0.5
+    ci95 = 1.959964 * sd / (n ** 0.5) if n > 1 else 0.0
+    sv = sorted(cos_vals)
+    median_c = sv[n // 2] if n % 2 else 0.5 * (sv[n // 2 - 1] + sv[n // 2])
+    print(f"\nfinal-cosine: min={min(cos_vals):.5f}  median={median_c:.5f}  mean={mean_c:.5f}  max={max(cos_vals):.5f}")
+    print(f"           sd={sd:.5f}  95%CI=+/-{ci95:.5f}  (n={n})")
+    print(f"           >=0.98: {sum(1 for c in cos_vals if c >= 0.98)}/{n}"
+          f"   >=0.95: {sum(1 for c in cos_vals if c >= 0.95)}/{n}"
+          f"   <0.90: {sum(1 for c in cos_vals if c < 0.90)}/{n}")
+    print(f"attention mode   : {args.attention}")
     print(f"same-image seeds : {len(seeds) - n_diff}/{len(seeds)}")
     print(f"bifurcated seeds : {n_bif}/{len(seeds)}   (sudden trajectory jump = different picture, not degradation)")
 
