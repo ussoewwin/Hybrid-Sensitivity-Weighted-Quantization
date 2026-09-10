@@ -436,12 +436,18 @@ def _apply_bench_sage2_attention() -> None:
     comfy_attention.optimized_attention_masked = attention_sage2
     if hasattr(comfy_attention, "optimized_attention"):
         comfy_attention.optimized_attention = attention_sage2
-    try:
-        from comfy.ldm.lumina import model as _lumina
-        if hasattr(_lumina, "optimized_attention_masked"):
-            _lumina.optimized_attention_masked = attention_sage2
-    except Exception:
-        pass
+    # Model modules bind optimized_attention_masked at import time via
+    # from-imports, so each architecture module must be patched individually.
+    # Z Image -> comfy.ldm.lumina.model, Qwen Image Edit -> comfy.ldm.qwen_image.model,
+    # Krea2 -> comfy.ldm.krea2.model. All three use skip_reshape=True ([B,H,N,D] in).
+    for mod_name in ("comfy.ldm.lumina.model", "comfy.ldm.qwen_image.model", "comfy.ldm.krea2.model"):
+        try:
+            import importlib as _il
+            _mod = _il.import_module(mod_name)
+            if hasattr(_mod, "optimized_attention_masked"):
+                _mod.optimized_attention_masked = attention_sage2
+        except Exception:
+            pass
     _BENCH_SAGE2_STATS["armed"] = True
     print("  [SAGE2] attention override armed (sageattn, INT8 QK + FP8 PV, sm120 auto)",
           flush=True)
@@ -454,11 +460,14 @@ def _unset_bench_sage2_attention() -> None:
     import comfy.ldm.modules.attention as comfy_attention
 
     importlib.reload(comfy_attention)
-    try:
-        from comfy.ldm.lumina import model as _lumina
-        importlib.reload(_lumina)
-    except Exception:
-        pass
+    # Reload the architecture modules so their from-import bindings point back
+    # at the stock optimized_attention_masked (covers Z Image / Qwen Image Edit / Krea2).
+    for mod_name in ("comfy.ldm.lumina.model", "comfy.ldm.qwen_image.model", "comfy.ldm.krea2.model"):
+        try:
+            importlib.import_module(mod_name)
+            importlib.reload(importlib.import_module(mod_name))
+        except Exception:
+            pass
     _BENCH_SAGE2_STATS["armed"] = False
     print("  [SAGE2] attention override restored to stock", flush=True)
 
