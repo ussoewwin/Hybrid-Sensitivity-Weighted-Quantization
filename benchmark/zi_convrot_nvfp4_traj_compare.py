@@ -330,6 +330,92 @@ def _hard_free_vram() -> None:
         torch.cuda.synchronize()
 
 
+_SAGE2_STATS = {"calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
+                "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0}
+
+
+def apply_sage2_attention() -> None:
+    """Patch the global attention entry point to SageAttention2 (INT8 QK + FP8 PV).
+
+    Dedicated SA2 path (kept fully separate from any SA3 code path).
+    NHD -> HND conversion; SDPA fallback for attn_mask / head_dim > 256 / errors.
+    """
+    import time
+
+    import torch
+    from comfy.ldm.modules import attention as comfy_attention
+    from sageattention import sageattn
+    from torch.nn.functional import scaled_dot_product_attention as _sdpa
+
+    orig = comfy_attention.optimized_attention_masked
+
+    def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
+                        skip_reshape=False, skip_output_reshape=False, **kw):
+        in_dtype = v.dtype
+        if q.dtype == torch.float32 or k.dtype == torch.float32 or v.dtype == torch.float32:
+            q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
+
+        # --- normalize to head-major [B, H, N, D] (attention_pytorch semantics) ---
+        if skip_reshape:
+            b, h_q, n_q, dim_head = q.shape
+            qh, kh, vh = q, k, v
+        else:
+            b, n_q, _ = q.shape
+            dim_head = q.shape[-1] // heads
+            qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
+            kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
+            vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
+
+        use_fallback = (mask is not None) or (dim_head > 256)
+        _SAGE2_STATS["calls"] += 1
+        torch.cuda.synchronize()
+        if use_fallback:
+            if mask is not None:
+                _SAGE2_STATS["fb_mask"] += 1
+            else:
+                _SAGE2_STATS["fb_dim"] += 1
+            t0 = time.perf_counter()
+            out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
+            torch.cuda.synchronize()
+            _SAGE2_STATS["t_sdpa_ms"] += (time.perf_counter() - t0) * 1000.0
+        else:
+            try:
+                t0 = time.perf_counter()
+                out = sageattn(qh, kh, vh, tensor_layout="HND", is_causal=False)
+                torch.cuda.synchronize()
+                _SAGE2_STATS["t_sa2_ms"] += (time.perf_counter() - t0) * 1000.0
+                _SAGE2_STATS["sa2"] += 1
+            except Exception as e:
+                _SAGE2_STATS["err"] += 1
+                print(f"  [SAGE2] fallback ({type(e).__name__}: {str(e)[:60]})", flush=True)
+                out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
+
+        # out: [B, H, N, D]
+        if skip_output_reshape:
+            out = out
+        else:
+            out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        return out.to(in_dtype)
+
+    comfy_attention.optimized_attention_masked = attention_sage2
+    if hasattr(comfy_attention, "optimized_attention"):
+        comfy_attention.optimized_attention = attention_sage2
+    try:
+        from comfy.ldm.lumina import model as _lumina
+        if hasattr(_lumina, "optimized_attention_masked"):
+            _lumina.optimized_attention_masked = attention_sage2
+    except Exception:
+        pass
+    print("  [SAGE2] attention override armed (sageattn, INT8 QK + FP8 PV, sm120 auto)")
+
+
+def print_sage2_attn_stats() -> None:
+    s = _SAGE2_STATS
+    print("  [SAGE2] attention call stats: total=%d sa2=%d fallback(mask)=%d "
+          "fallback(head_dim)=%d errors=%d" % (s["calls"], s["sa2"], s["fb_mask"], s["fb_dim"], s["err"]))
+    print("  [SAGE2] attention time: sage2=%.1f ms  fallback_sdpa=%.1f ms" % (s["t_sa2_ms"], s["t_sdpa_ms"]))
+
+
 def run_trajectory(model, positive, negative, latent, *, seed, steps, cfg,
                    sampler_name, scheduler):
     """Run full denoising with model GPU pre-loaded; return (per_step_x, per_step_x0, final_sample)."""
@@ -407,6 +493,14 @@ def parse_args():
         ),
     )
     ap.add_argument("--parity", action="store_true", help="Force Comfy parity path (stock GEMM + act rotate)")
+    ap.add_argument(
+        "--attention", choices=["sdpa", "sage2"], default="sdpa",
+        help=(
+            "sage2: patch the QUANTIZED model's attention to SageAttention2 "
+            "(INT8 QK + FP8 PV; sm120 auto path). FP16 baseline stays on stock "
+            "attention. sdpa (default): no attention patch."
+        ),
+    )
     ap.add_argument(
         "--show-steps", action="store_true",
         help="print the per-step divergence curve (default: only final per seed)"
@@ -526,6 +620,8 @@ def main() -> int:
         apply_nvfp4_patches(args.quant_path, force_tc=args.tc, force_parity=args.parity)
         print(f"--- Loading Quantized Hybrid: {args.quant_path} ---")
         quant_model = load_zit_model(args.quant_path, is_nvfp4=True, require_convrot=True)
+        if args.attention == "sage2":
+            apply_sage2_attention()
         quant_runs = {}
         for s in seeds:
             print(f"[Quantized Hybrid] seed {s}")
@@ -534,6 +630,8 @@ def main() -> int:
                 cfg=args.cfg, sampler_name=args.sampler, scheduler=args.scheduler,
             )
             quant_runs[s] = (xs, x0s, final.detach().float().cpu())
+        if args.attention != "sdpa":
+            print_sage2_attn_stats()
         del quant_model
         _hard_free_vram()
     finally:
