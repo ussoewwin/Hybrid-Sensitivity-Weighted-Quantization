@@ -18,6 +18,7 @@ import gc
 import json
 import os
 import sys
+import time
 import types
 from pathlib import Path
 
@@ -622,6 +623,7 @@ def main() -> int:
         fp16 = load_zit_model(args.fp16, is_nvfp4=False)
         latent = make_empty_latent(fp16, args.width, args.height, batch=1)
         fp16_runs = {}
+        _t_fp16 = time.perf_counter()
         for s in seeds:
             print(f"[FP16] seed {s}")
             xs, x0s, final = run_trajectory(
@@ -629,6 +631,8 @@ def main() -> int:
                 cfg=args.cfg, sampler_name=args.sampler, scheduler=args.scheduler,
             )
             fp16_runs[s] = (xs, x0s, final.detach().float().cpu())
+        print(f"[timing] FP16 branch: {time.perf_counter() - _t_fp16:.2f} s / "
+              f"{len(seeds)} seeds ({args.steps} steps)")
         del fp16
         _hard_free_vram()
 
@@ -640,6 +644,7 @@ def main() -> int:
         if args.attention == "sage2":
             apply_sage2_attention()
         quant_runs = {}
+        _t_quant = time.perf_counter()
         for s in seeds:
             print(f"[Quantized Hybrid] seed {s}")
             xs, x0s, final = run_trajectory(
@@ -647,6 +652,9 @@ def main() -> int:
                 cfg=args.cfg, sampler_name=args.sampler, scheduler=args.scheduler,
             )
             quant_runs[s] = (xs, x0s, final.detach().float().cpu())
+        print(f"[timing] quant branch ({args.attention}): "
+              f"{time.perf_counter() - _t_quant:.2f} s / {len(seeds)} seeds "
+              f"({args.steps} steps)")
         if args.attention != "sdpa":
             print_sage2_attn_stats()
         del quant_model
