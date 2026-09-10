@@ -5,6 +5,11 @@ Extracts the diffusion-model weights in-memory, quantizes them with the same
 algorithm as ``Z_Image/native_convert_int8_convrot_zi.py``, and saves a checkpoint the
 standard ComfyUI loader reads back.
 
+The built-in benchmark supports a ``benchmark_attention`` selector (sdpa/sage2).
+``sage2`` patches ONLY the quantized-model branch with SageAttention2
+(INT8 QK + FP8 PV, sm120 auto path); the FP16 baseline always stays on stock
+ComfyUI attention so the comparison remains apples-to-apples.
+
 Output layout:
     model.diffusion_model.<layer>.weight          int8
     model.diffusion_model.<layer>.weight_scale    float32
@@ -360,6 +365,120 @@ def _plain_pack(w, per_channel_int8, n8):
     return n8.quantize_int8_tensorwise(w)
 
 
+_BENCH_SAGE2_STATS = {
+    "calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
+    "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0, "armed": False,
+}
+
+
+def _apply_bench_sage2_attention() -> None:
+    """Arm SageAttention2 for the benchmark's quantized-model run only.
+
+    Layout handling is identical to benchmark/zi_traj_compare.py --attention sage2
+    (validated 2026-09-10): stock attention_pytorch semantics with
+    skip_reshape=True ([B,H,N,D] in) and transpose(1,2) BEFORE reshape to
+    [B,N,H*D] on the way out. SDPA fallback for mask / head_dim > 256 /
+    exceptions. Call AFTER the FP16 baseline and AFTER the quantized model is
+    loaded; call _unset_bench_sage2_attention() to restore stock attention.
+    """
+    import time
+
+    from comfy.ldm.modules import attention as comfy_attention
+    from sageattention import sageattn
+    from torch.nn.functional import scaled_dot_product_attention as _sdpa
+
+    def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
+                        skip_reshape=False, skip_output_reshape=False, **kw):
+        in_dtype = v.dtype
+        if q.dtype == torch.float32 or k.dtype == torch.float32 or v.dtype == torch.float32:
+            q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
+
+        if skip_reshape:
+            b, _, _, dim_head = q.shape
+            qh, kh, vh = q, k, v
+        else:
+            b, n_q, _ = q.shape
+            dim_head = q.shape[-1] // heads
+            qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
+            kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
+            vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
+
+        use_fallback = (mask is not None) or (dim_head > 256)
+        _BENCH_SAGE2_STATS["calls"] += 1
+        torch.cuda.synchronize()
+        if use_fallback:
+            if mask is not None:
+                _BENCH_SAGE2_STATS["fb_mask"] += 1
+            else:
+                _BENCH_SAGE2_STATS["fb_dim"] += 1
+            t0 = time.perf_counter()
+            out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
+            torch.cuda.synchronize()
+            _BENCH_SAGE2_STATS["t_sdpa_ms"] += (time.perf_counter() - t0) * 1000.0
+        else:
+            try:
+                t0 = time.perf_counter()
+                out = sageattn(qh, kh, vh, tensor_layout="HND", is_causal=False)
+                torch.cuda.synchronize()
+                _BENCH_SAGE2_STATS["t_sa2_ms"] += (time.perf_counter() - t0) * 1000.0
+                _BENCH_SAGE2_STATS["sa2"] += 1
+            except Exception as e:
+                _BENCH_SAGE2_STATS["err"] += 1
+                print(f"  [SAGE2] fallback ({type(e).__name__}: {str(e)[:60]})", flush=True)
+                out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
+
+        if skip_output_reshape:
+            pass
+        else:
+            out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        return out.to(in_dtype)
+
+    comfy_attention.optimized_attention_masked = attention_sage2
+    if hasattr(comfy_attention, "optimized_attention"):
+        comfy_attention.optimized_attention = attention_sage2
+    try:
+        from comfy.ldm.lumina import model as _lumina
+        if hasattr(_lumina, "optimized_attention_masked"):
+            _lumina.optimized_attention_masked = attention_sage2
+    except Exception:
+        pass
+    _BENCH_SAGE2_STATS["armed"] = True
+    print("  [SAGE2] attention override armed (sageattn, INT8 QK + FP8 PV, sm120 auto)",
+          flush=True)
+
+
+def _unset_bench_sage2_attention() -> None:
+    """Restore stock ComfyUI attention functions after a sage2 benchmark run."""
+    import importlib
+
+    import comfy.ldm.modules.attention as comfy_attention
+
+    importlib.reload(comfy_attention)
+    try:
+        from comfy.ldm.lumina import model as _lumina
+        importlib.reload(_lumina)
+    except Exception:
+        pass
+    _BENCH_SAGE2_STATS["armed"] = False
+    print("  [SAGE2] attention override restored to stock", flush=True)
+
+
+def _reset_bench_sage2_stats() -> None:
+    for k in ("calls", "sa2", "fb_mask", "fb_dim", "err"):
+        _BENCH_SAGE2_STATS[k] = 0
+    _BENCH_SAGE2_STATS["t_sdpa_ms"] = 0.0
+    _BENCH_SAGE2_STATS["t_sa2_ms"] = 0.0
+
+
+def _print_bench_sage2_stats() -> None:
+    s = _BENCH_SAGE2_STATS
+    print(f"  [SAGE2] attention calls: total={s['calls']} sa2={s['sa2']} "
+          f"fallback(mask)={s['fb_mask']} fallback(dim)={s['fb_dim']} errors={s['err']}",
+          flush=True)
+    print(f"  [SAGE2] attention time: sage2={s['t_sa2_ms']:.1f} ms "
+          f"sdpa_fallback={s['t_sdpa_ms']:.1f} ms", flush=True)
+
+
 def _summarize(output_path: str) -> str:
     """Read the written checkpoint's metadata only (no tensor load)."""
     try:
@@ -399,6 +518,7 @@ class NativeConvRotInt8Quantize:
                 "group_size": ("INT", {"default": 256}),
                 "convrot": ("BOOLEAN", {"default": True}),
                 "per_channel_int8": ("BOOLEAN", {"default": True}),
+                "benchmark_attention": ("BOOLEAN", {"default": True}),
                 "run_benchmark": ("BOOLEAN", {"default": True}),
             },
             "optional": {
@@ -427,6 +547,7 @@ class NativeConvRotInt8Quantize:
         group_size,
         convrot,
         per_channel_int8,
+        benchmark_attention,
         run_benchmark,
         vae=None,
     ):
@@ -566,7 +687,11 @@ class NativeConvRotInt8Quantize:
                 model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                 load_int8 = time.perf_counter() - t0
 
-                # 3. INT8 inference for all seeds
+                # 3. INT8 inference for all seeds (sage2 arms SA2 for this branch only;
+                #    the FP16 baseline above always ran on stock attention)
+                if benchmark_attention:
+                    _reset_bench_sage2_stats()
+                    _apply_bench_sage2_attention()
                 lat_int8_list = []
                 xs_int8_list = []
                 x0s_int8_list = []
@@ -580,6 +705,8 @@ class NativeConvRotInt8Quantize:
                     lat_int8_list.append(out_int8.detach().float().cpu())
                     xs_int8_list.append(xs_int8)
                     x0s_int8_list.append(x0s_int8)
+                if benchmark_attention:
+                    _unset_bench_sage2_attention()
 
                 # VAE decode removed — trajectory comparison is latent-space only
 
@@ -590,7 +717,8 @@ class NativeConvRotInt8Quantize:
                 report.append(f"Model Architecture: {model_type}")
                 report.append(f"Prompt: {prompt_text}")
                 report.append(f"INT8 Model Load Time: {load_int8:.2f}s")
-                report.append(f"Seeds: {seeds}\n")
+                report.append(f"Seeds: {seeds}")
+                report.append(f"Benchmark attention: {'sage2 (quantized branch only; FP16 baseline on stock attention)' if benchmark_attention else 'sdpa (stock)'}\n")
 
                 mse_list = []
                 cos_list = []
@@ -657,12 +785,24 @@ class NativeConvRotInt8Quantize:
                 report.append(f"Cosine: min={min_cos:.4f} max={max_cos:.4f}")
                 report.append(f"same-image seeds : {n_same}/{num_seeds}")
                 report.append(f"bifurcated seeds : {n_bif}/{num_seeds}   (sudden trajectory jump = different picture, not degradation)")
+                if benchmark_attention:
+                    st = _BENCH_SAGE2_STATS
+                    report.append(f"[SAGE2] attention calls: total={st['calls']} sa2={st['sa2']} "
+                                  f"fallback(mask)={st['fb_mask']} fallback(dim)={st['fb_dim']} errors={st['err']}")
+                    report.append(f"[SAGE2] attention time: sage2={st['t_sa2_ms']:.1f} ms sdpa_fallback={st['t_sdpa_ms']:.1f} ms")
+                    if st['sa2'] != st['calls'] or st['err'] != 0:
+                        report.append("[SAGE2] WARNING: coverage incomplete - this is NOT a clean sage2 gate run")
 
                 mm.unload_all_models()
                 mm.soft_empty_cache()
 
             except Exception as e:
                 report.append(f"\n[Benchmark Error] {str(e)}")
+                if _BENCH_SAGE2_STATS["armed"]:
+                    try:
+                        _unset_bench_sage2_attention()
+                    except Exception:
+                        pass
 
         return (output_path, "\n".join(report))
 
