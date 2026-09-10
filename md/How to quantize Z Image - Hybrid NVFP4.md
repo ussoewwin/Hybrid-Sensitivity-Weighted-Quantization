@@ -14,7 +14,10 @@ for this hybrid. The reverse method stays in the low-error regime where additivi
 
 **Validation is done with the deterministic 20-seed latent-trajectory comparison**
 (per-step cosine + bifurcation detection); the production gate is **cosine mean ≥ 0.95 and
-0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration. Scores are
+0/20 bifurcated**, measured with **SA2 (SageAttention2) attention acceleration**
+(`--attention sage2`) in **TC (W4A4)** mode after `input_scale` calibration. That
+**SA2 + TC** pair is the accelerated production configuration, and it is the only
+configuration a gate result is valid for. Scores are
 **checkpoint-specific**: impact ranking, `K`, and the trajectory numbers must be re-measured for
 every model and are not transferable. Reference numbers for one example model (moodyProMix
 collectorsEdition) are listed in [Step 8](#step-8-finding-k) as a sanity-check ground truth only.
@@ -27,6 +30,10 @@ The production quality gate is the **deterministic per-step latent trajectory co
 (`benchmark/zi_convrot_nvfp4_traj_compare.py`), not decoded SSIM. It samples FP16 baseline and the
 quantized model from identical noise (same seed) and compares the latent trajectories step by step.
 
+**Runs are always made in the production configuration: SA2 attention (`--attention sage2`)
+plus TC/W4A4 (`--tc`) on the calibrated hybrid.** A result measured without either of them is
+not a gate result.
+
 | Metric | Threshold | Meaning |
 |---|---|---|
 | **final-cos** | — | final-step latent cosine (same seed, FP16 vs quantized) |
@@ -38,6 +45,11 @@ quantized model from identical noise (same seed) and compares the latent traject
 - **Fixed steps:** `--steps 12` (the script default is 25 — always pass 12 explicitly)
 - **Fixed prompt / CFG / sampler:** script defaults (`masterpiece, best quality, 1girl, solo, standing,
   simple background` / cfg 2.5 / euler / simple / 1024×1024) — do not change.
+- **Fixed attention:** `--attention sage2` — SageAttention2 (INT8 QK + FP8 PV, sm120 path), the
+  accelerated production attention. If the report footer says `attention mode   : sdpa`, SA2 was
+  not armed and the run is not a gate result.
+- **Fixed GEMM:** `--tc` (TC/W4A4) on the calibrated hybrid (Step 6). Step 7 is the native
+  comparison model and is parity (W4A16) by construction.
 - `drifted (different image)` is **normal** (small acceptable divergence). Only **bifurcated** and
   mean < 0.95 fail a configuration.
 
@@ -120,7 +132,7 @@ On Windows, set `PYTHONIOENCODING=utf-8` in the shell to avoid cp932 decode erro
   │ Step 5: Z_Image/calib_input_scale_nvfp4.py <base> <hybrid> <calib> --prompts sample/calibration_prompts_128.txt --samples 128
   ▼
 <calib>  (hybrid + *.input_scale, REQUIRED for TC/W4A4)
-  │ Step 6: benchmark/zi_convrot_nvfp4_traj_compare.py --tc (20 seeds × 12 steps)
+  │ Step 6: benchmark/zi_convrot_nvfp4_traj_compare.py --tc --attention sage2 (20 seeds × 12 steps)
   ▼
 PASS iff final-cosine mean ≥ 0.95 and 0/20 bifurcated  →  else change <K> (Step 8)
   │ Step 7: same traj_compare on <native> WITHOUT --tc (auto parity) — comparison baseline
@@ -240,11 +252,15 @@ python benchmark/zi_convrot_nvfp4_traj_compare.py \
   --comfy_path "<comfy_path>" \
   --steps 12 \
   --seeds "42,1337,7,2024,555,43,1458,9,2026,777,44,1338,8,2028,888,46,1587,12,2047,222" \
-  --tc
+  --tc \
+  --attention sage2
 ```
 
-- ~75 s per seed (FP16 ≈ 30 s + hybrid ≈ 45 s) ⇒ **≈ 25 min** for 20 seeds. Deterministic
-  (cuDNN deterministic + benchmark=False pinned inside the script).
+- ~75 s per seed without SA2 (FP16 ≈ 30 s + hybrid ≈ 45 s) ⇒ **≈ 25 min** for 20 seeds.
+  With SA2 the per-seed time drops by ≈ 14 % ⇒ **≈ 65 s per seed / ≈ 22 min** for 20 seeds
+  (measured on an example checkpoint, 20 seeds × 12 steps: quantized pass 13.686 s → 11.712 s
+  = 1.169×, and 20/20 seeds faster; the attention module alone is 2.29× — 189.7 ms → 82.7 ms).
+  Deterministic (cuDNN deterministic + benchmark=False pinned inside the script).
 - The full report looks like this — **report the entire block** (every per-seed line + summary):
 
 ```
@@ -261,6 +277,7 @@ Deterministic per-step latent trajectory divergence (FP16 vs ConvRot Hybrid)
 ...
 
 final-cosine: min=0.87123  mean=0.96033  max=0.98680
+attention mode   : sage2
 same-image seeds : 4/20
 bifurcated seeds : 0/20   (sudden trajectory jump = different picture, not degradation)
 
@@ -275,6 +292,11 @@ GEMM MODE: TC (W4A4 TensorCore)
 - **PASS** iff `mean ≥ 0.95` and `bifurcated seeds : 0/20`.
 - **Always check the `GEMM MODE:` line.** If it says PARITY, the `--tc` force did not take effect or
   `input_scale` keys are missing — fix before judging.
+- **Always check the SA2 lines.** Before the report the run prints
+  `[SAGE2] attention call stats: total=<N> sa2=<N> fallback(mask)=<N> fallback(head_dim)=<N> errors=<N>`
+  and `[SAGE2] attention time: sage2=<ms> ms  fallback_sdpa=<ms> ms`; the footer line is
+  `attention mode   : sage2`. `errors=0` and `sa2=total` are expected; a non-zero fallback count
+  means part of the run was not accelerated.
 
 ---
 
@@ -285,10 +307,13 @@ python benchmark/zi_convrot_nvfp4_traj_compare.py \
   --fp16 "<base>" --quant "<native>" \
   --clip_path "<clip>" --comfy_path "<comfy_path>" \
   --steps 12 \
-  --seeds "42,1337,7,2024,555,43,1458,9,2026,777,44,1338,8,2028,888,46,1587,12,2047,222"
+  --seeds "42,1337,7,2024,555,43,1458,9,2026,777,44,1338,8,2028,888,46,1587,12,2047,222" \
+  --attention sage2
 ```
 
 - **No `--tc`**: native has no `input_scale`, so auto-detect → `GEMM MODE: PARITY (W4A16 dequant GEMM)`.
+  SA2 attention is used here as well (`--attention sage2`) — the comparison baseline differs only
+  in the GEMM mode, not in the attention path.
 - Expect the native to score **below the hybrid** — that is the point of the comparison
   (reference: native mean 0.91079 / 1/20 bifurcated vs hybrid nv100 mean 0.96033 / 0/20).
 
@@ -307,6 +332,11 @@ with K, quality can recover then fail again). Search **sequentially, 10 at a tim
 5. If the boundary is ambiguous, sweep K±1–2 around it (islands happen).
 
 ### Reference results (moodyProMix_collectorsEdition, 20 seeds × 12 steps)
+
+> Measured **before** SA2 existed in this benchmark (the `--attention` option was added
+> 2026-09-10), so these numbers are without SA2 acceleration. They are kept as-is for the
+> TC-vs-parity ordering only. Re-measure a candidate `<K>` in the **SA2 + TC** configuration before
+> shipping it.
 
 | Model | K | mean | min | max | same-image | bifurcated | GEMM |
 |---|---|---|---|---|---|---|---|
@@ -343,7 +373,9 @@ then run `python upload.py`.
 | final cosine collapses to ~0.18 | **TC forced without `input_scale`** — run calibration (Step 5) |
 | mean ≥ 0.95 but bifurcated > 0 | Reject this K; lower K by 10 (high-impact layers are breaking) |
 | `SafetensorError: I/O error: disk` | Disk full — keep ≥ 40 GB free (see Prerequisites) |
-| Numbers differ from a previous run | Confirm `--steps 12`, the exact 20-seed set, the calibrated file, and check the `GEMM MODE:` line |
+| Numbers differ from a previous run | Confirm `--steps 12`, the exact 20-seed set, the calibrated file, `--attention sage2`, and check the `GEMM MODE:` line |
+| `attention mode   : sdpa` in the report | SA2 was not armed — pass `--attention sage2`; every gate run uses it |
+| `[SAGE2]` counter shows `errors` > 0 or fallbacks > 0 | Part of the attention calls fell back to SDPA — check the SageAttention2 build / CUDA version for this GPU |
 | Process won't die | Kill the whole process tree (`taskkill /PID <parent> /T /F` on Windows) |
 
 ## Files in this repo
@@ -355,7 +387,7 @@ then run `python upload.py`.
 | `Z_Image/gen_reverse_nvfp4.py` | Step 3 — reverse hybrid converter (K lowest-impact layers → NVFP4) |
 | `native_convert_nvfp4_zi.py` | Step 4 — native full-NVFP4 comparison model |
 | `Z_Image/calib_input_scale_nvfp4.py` | Step 5 — `input_scale = amax / 2688` calibration (enables TC/W4A4) |
-| `benchmark/zi_convrot_nvfp4_traj_compare.py` | Steps 6–7 — deterministic 20-seed per-step trajectory divergence (cosine, bifurcation, GEMM-mode counters) |
+| `benchmark/zi_convrot_nvfp4_traj_compare.py` | Steps 6–7 — deterministic 20-seed per-step trajectory divergence (cosine, bifurcation, GEMM-mode counters, SA2 attention via `--attention sage2`) |
 | `sample/calibration_prompts_128.txt` | default prompt set used by Step 5 |
 | `upload.py` | Step 9 — Hugging Face upload template |
 
