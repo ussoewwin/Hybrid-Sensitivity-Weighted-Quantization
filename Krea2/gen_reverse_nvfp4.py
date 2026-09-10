@@ -64,10 +64,6 @@ def parse_args():
     ap.add_argument("src", help="complete ConvRot INT8 safetensors")
     ap.add_argument("impact", help="impact json from diag_impact.py")
     ap.add_argument("--out-dir", default=".", help="output directory")
-    ap.add_argument("--no-input-scale", action="store_true",
-                    help="omit .input_scale keys (block-scale-only mode; "
-                         "pair with HSWQ_NVFP4_BLOCKONLY=1 at runtime; "
-                         "run diag_impact.py --skip-act-amax to match)")
     return ap.parse_args()
 
 
@@ -78,8 +74,6 @@ def main():
     data = json.load(open(a.impact, encoding="utf-8"))
     imp = data["impacts"]
     act_amax = data.get("act_amax", {})
-    if a.no_input_scale and act_amax:
-        print("--no-input-scale: ignoring act_amax in impact json")
     # impact keys carry no suffix in diag_impact.py output; normalize defensively.
     ranked = [k[:-len(".weight")] if k.endswith(".weight") else k
               for k, _ in sorted(imp.items(), key=lambda kv: kv[1])]
@@ -123,25 +117,19 @@ def main():
         ).clone()
         # convrot NVFP4 activation scale (reference converter writes this;
         # missing .input_scale falls back to runtime per-call amax and loses quality).
-        # --no-input-scale (block-scale-only mode): intentional omission, no WARN.
-        if a.no_input_scale:
-            pass
+        amax = act_amax.get(L)
+        if amax is not None:
+            denom = float(F8_E4M3_MAX) * float(F4_E2M1_MAX)
+            sd[prefix + L + ".input_scale"] = torch.tensor(
+                max(float(amax), 1e-12) / denom, dtype=torch.float32
+            )
         else:
-            amax = act_amax.get(L)
-            if amax is not None:
-                denom = float(F8_E4M3_MAX) * float(F4_E2M1_MAX)
-                sd[prefix + L + ".input_scale"] = torch.tensor(
-                    max(float(amax), 1e-12) / denom, dtype=torch.float32
-                )
-            else:
-                print(f"  WARN no act_amax for {L}: .input_scale omitted (runtime amax fallback)")
+            print(f"  WARN no act_amax for {L}: .input_scale omitted (runtime amax fallback)")
         meta["layers"][L] = conf
         n_conv += 1
         print(f"  nvfp4: {L}  ({tuple(dq.shape)})")
 
     print(f"converted {n_conv} layers to NVFP4")
-    if a.no_input_scale:
-        print("block-scale-only artifact: .input_scale intentionally omitted")
 
     out_meta = {}
     for k, v in raw_meta.items():
