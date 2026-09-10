@@ -1,44 +1,36 @@
+#!/usr/bin/env python3
 """Krea2 deterministic trajectory-divergence comparator (FP16 vs quantized artifact).
 
-More fundamental than the single-seed RGB SSIM bench:
+More fundamental than the single-seed RGB SSIM of krea2_convrot_nvfp4_bench.py:
 
   * same seed -> identical initial noise for both models (fully deterministic)
   * captures the latent ``x`` AND the model's x0-prediction at EVERY denoising step
   * reports per-step + final latent MSE / cosine, aggregated over multiple seeds
 
-Self-contained tool: the ComfyUI bootstrap / model load / quant-patch helpers
-below are embedded in THIS file (exact copies from the reference bench code).
-Imports resolve ONLY against the live packages:
-  - krea2_convrot_nvfp4.*  (NVFP4 runtime / TC + parity quant patches)
-  - int8.*                 (INT8 protect layers in the hybrid artifact)
-Never imports from archives/.
+This isolates the quantization error from ODE-solver and VAE-decode confounds and
+gives a per-step divergence curve, so you can see WHERE and HOW FAST FP16 and the
+quantized artifact drift apart. Cosine >= ~0.99 on the final latent with a flat
+per-step curve = artifact is effectively indistinguishable in latent space.
+
+Self-contained: the ComfyUI bootstrap / model loading / quant-patch helpers are
+embedded below, importing only the live krea2_convrot_nvfp4 package (and int8).
+No dependency on archives/.
 
 Usage:
     python krea2_traj_compare.py \
         --fp16 <base.safetensors> --nvfp4 <hybrid.safetensors> \
         --clip_path <clip.safetensors> --comfy_path <ComfyUI-master> \
-        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] [--tc | --parity]
-
-    Tensor Core NVFP4 is the default and is forced explicitly with --tc.
-    Block-scale-only (calib-free) run: set HSWQ_NVFP4_BLOCKONLY=1 in the env.
+        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] [--mode tc|parity]
 """
 import argparse
-import gc
 import os
 import sys
-from pathlib import Path
 
 import torch
 
 _BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BENCH_DIR not in sys.path:
     sys.path.insert(0, _BENCH_DIR)
-
-
-# ---------------------------------------------------------------------------
-# ComfyUI bootstrap / model load / quant patches (embedded from the reference
-# bench code; package-only imports: krea2_convrot_nvfp4.* and int8.*)
-# ---------------------------------------------------------------------------
 
 def _clear_argv_for_comfy() -> list[str]:
     """ComfyUI cli_args swallows unknown flags; keep only argv[0] during import."""
@@ -49,73 +41,6 @@ def _clear_argv_for_comfy() -> list[str]:
 
 def _restore_argv(saved: list[str]) -> None:
     sys.argv = saved
-
-
-def _install_torchaudio_stub() -> None:
-    """Prevent real torchaudio from loading if comfy.sd is pulled in.
-
-    comfy.sd imports comfy.ldm.lightricks.vae.audio_vae, which does a hard
-    ``import torchaudio``. On cloud hosts torch/torchaudio CUDA builds often
-    mismatch (e.g. torch 13.2 vs torchaudio 13.0) and abort before bench load.
-    Krea2 NVFP4 bench uses CLIPType.KREA2 / DiT only — never AudioVAE — so
-    replace torchaudio in sys.modules with a local stub.
-    Does not touch ComfyUI-master.
-    """
-    import importlib.machinery
-    import types
-
-    for key in list(sys.modules):
-        if key == "torchaudio" or key.startswith("torchaudio."):
-            del sys.modules[key]
-
-    def _stub_mod(name: str, *, is_package: bool = False):
-        # transformers uses importlib.util.find_spec("torchaudio"); a ModuleType
-        # without __spec__ raises ValueError: torchaudio.__spec__ is None.
-        mod = types.ModuleType(name)
-        mod.__file__ = "<hswq_torchaudio_stub>"
-        if is_package:
-            mod.__path__ = []
-            spec = importlib.machinery.ModuleSpec(
-                name, loader=None, is_package=True
-            )
-            spec.submodule_search_locations = []
-        else:
-            spec = importlib.machinery.ModuleSpec(name, loader=None)
-        mod.__spec__ = spec
-        return mod
-
-    ta = _stub_mod("torchaudio", is_package=True)
-    functional = _stub_mod("torchaudio.functional")
-
-    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
-        return waveform
-
-    functional.resample = _resample
-
-    transforms = _stub_mod("torchaudio.transforms")
-
-    class _MelSpectrogram:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __call__(self, x):
-            return x
-
-        def to(self, *args, **kwargs):
-            return self
-
-    class _MelScale:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    transforms.MelSpectrogram = _MelSpectrogram
-    transforms.MelScale = _MelScale
-
-    ta.functional = functional
-    ta.transforms = transforms
-    sys.modules["torchaudio"] = ta
-    sys.modules["torchaudio.functional"] = functional
-    sys.modules["torchaudio.transforms"] = transforms
 
 
 def setup_comfy(comfy_path: str) -> None:
@@ -333,6 +258,7 @@ def _load_diffusion_model(unet_path: str):
 
 
 
+
 def run_trajectory(model, positive, negative, latent, *, seed, steps, cfg,
                    sampler_name, scheduler):
     """Run full denoising; return (per_step_x, per_step_x0, final_sample).
@@ -391,10 +317,7 @@ def parse_args():
     ap.add_argument("--cfg", type=float, default=1.0)
     ap.add_argument("--sampler", default="euler")
     ap.add_argument("--scheduler", default="simple")
-    ap.add_argument("--tc", action="store_true",
-                    help="native Tensor Core NVFP4 path (scaled_mm_nvfp4; default)")
-    ap.add_argument("--parity", action="store_true",
-                    help="stock dequant parity path instead of Tensor Core")
+    ap.add_argument("--mode", choices=["tc", "parity"], default="tc")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -403,10 +326,6 @@ def parse_args():
 def main() -> int:
     args = parse_args()
     seeds = [int(s.strip()) for s in args.seeds.split(",") if s.strip()]
-    if args.tc and args.parity:
-        print("--tc and --parity are mutually exclusive", flush=True)
-        return 2
-    mode = "parity" if args.parity else "tc"
     set_hf_token(args.token)
 
     saved_argv = _clear_argv_for_comfy()
@@ -452,8 +371,8 @@ def main() -> int:
         _hard_free_vram()
 
         # --- NVFP4 (patched) ---
-        print(f"Applying NVFP4 ConvRot mode='{mode}' + INT8 + addmm patches...")
-        apply_quant_patches(mode=mode)
+        print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches...")
+        apply_quant_patches(mode=args.mode)
         nv = _load_diffusion_model(args.nvfp4)
         nv_runs = {}
         for s in seeds:
