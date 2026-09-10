@@ -6,6 +6,33 @@ Use **native ConvRot INT8** via CLI (`Z_Image/native_convert_int8_convrot_zi.py`
 
 **Prefer a Z Image Turbo (ZIT) checkpoint.** Plain Z Image base models are not recommended.
 
+## Validation premise - SA2 attention (read first)
+
+The fidelity gate for a ConvRot INT8 conversion is measured with **SageAttention2 attention
+acceleration** (`--attention sage2`, INT8 QK + FP8 PV, sm120 path). **SA2 is the production
+attention configuration** for this path. If the report footer says `attention mode   : sdpa`,
+SA2 was **not** applied and the run is **not** a gate result.
+
+**Judgement criteria:** `final-cosine mean >= 0.95` and `0/20 bifurcated`.
+
+**Fixed conditions (always pass these explicitly):**
+
+- **Fixed bench:** `benchmark/zi_traj_compare.py` - per-step latent trajectory cosine (FP16 vs ConvRot INT8)
+- **Fixed 20-seed set:** `--canonical-seeds`
+  (`42, 137, 5517, 92048, 371506, 5293047, 64820153, 731509284, 8426170395, 9517038246, 210987, 6543210,
+  98765432, 1357924680, 2468135791, 3579246812, 4680357923, 5791468034, 6802579145, 7913680256`)
+- **Fixed steps:** `--steps 12` (the script default is 25 - always pass 12 explicitly)
+- **Fixed prompt / CFG / sampler:** script defaults (`masterpiece, best quality, 1girl, solo, standing,
+  simple background`, cfg `2.5`, `euler` / `simple`)
+- **Fixed attention:** `--attention sage2` - SageAttention2 (INT8 QK + FP8 PV, sm120 path), the
+  accelerated production attention
+- **Report:** print every per-seed row plus the multi-seed summary; on an SA2 run the
+  `[SAGE2] attention calls` line must show `sa2 = total` with `errors=0`
+
+Reference measurement (2026-09-10, 20 seeds x 12 steps, 1024x1024, RTX 5060 Ti): the INT8 branch ran
+**18.05 s -> 16.00 s per seed (-11.4 %, 1.128x, 20/20 seeds faster)** with SA2; `final-cosine` mean
+`0.99122 -> 0.99043` with `0/20 bifurcated` in both runs.
+
 ## Clone the repository
 
 ```bash
@@ -30,13 +57,15 @@ pip install -U comfy_kitchen
 pip install scikit-image
 ```
 
-`scikit-image` is required for SSIM in `benchmark/zi_int8_bench.py` (post-convert bench). `comfy_kitchen` provides the quantization kernels and layout operations.
+`comfy_kitchen` provides the quantization kernels and layout operations. The validation gate runs `benchmark/zi_traj_compare.py` (see **Validation premise** above).
 
 ## Quantize a ZI model (CLI)
 
 Replace every `<...>` placeholder with a real path on your machine (no invented filenames; no machine-local drive hardcoding in published examples). `--model` and `--input` are aliases for the same argument.
 
-**Default flow:** convert → save → run **`benchmark/zi_int8_bench.py`** automatically (`--fp16` = `--model`, `--fp8` = `--output`). You do **not** need a second manual bench command after a normal run.
+**Default flow:** convert → save. The converter attempts an automatic post-convert bench, but the
+**gate measurement is the explicit SA2 run** below. A bench that ran with `attention mode   : sdpa`
+is not a gate result.
 
 Required: **`--model`**, **`--output`**, **`--per_channel_int8`**, **`--clip_path`**, **`--comfy_path`** only. Tokenizer uses ComfyUI-bundled `comfy/text_encoders/qwen25_tokenizer` under `--comfy_path`.
 
@@ -48,7 +77,19 @@ python Z_Image/native_convert_int8_convrot_zi.py --model "<path-to-unet>/<zit_un
 
 - **FULL ConvRot** (Linear + Conv2d when `in_dim` is divisible by a power-of-4 group size) is **ON by default**. Pass `--no-convrot` only for plain INT8 without ConvRot.
 - **`--per_channel_int8`:** use per-out-channel amax/scale instead of a single per-tensor scale when packing layers that do **not** go through ConvRot. Under default FULL ConvRot, almost all eligible Linear/Conv2d already use rotate + per-channel scale, so this flag has **little effect** in practice; keep it as **insurance** for any remaining non-ConvRot packs. Format tag stays `int8_tensorwise`.
-- **Post-convert bench:** **ON by default**. After save, the script runs `benchmark/zi_int8_bench.py` with the same `--clip_path` / `--comfy_path` (prompt: `"masterpiece, best quality, 1girl, solo, standing, simple background"`, steps=`12`, seed=`42` fixed inside). A non-zero bench exit code fails the convert process.
+- **Gate measurement (SA2):** run the fixed command below. It reuses the same `--clip_path` / `--comfy_path`.
+
+  ```bash
+  python benchmark/zi_traj_compare.py \
+      --fp16 "<path-to-unet>/<zit_unet>.safetensors" \
+      --fp8 "<path-to-unet>/<zit_unet>_convrot_int8.safetensors" \
+      --clip_path "<path-to-qwen3-4b>" --comfy_path "<path-to-ComfyUI>" \
+      --steps 12 --canonical-seeds --attention sage2
+  ```
+
+  PASS = `final-cosine mean >= 0.95` with `0/20 bifurcated`; the footer must show `attention mode   : sage2`.
+- **Post-convert bench:** the converter also attempts an automatic bench after saving. Treat it as a
+  smoke test only - the SA2 command above is the gate.
 - **ComfyUI:** Load the ConvRot INT8 output with the **standard ComfyUI loader**. A dedicated HSWQ loader is not required.
 
 ## Quantize a ZI model via ComfyUI (Node)
