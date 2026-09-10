@@ -27,7 +27,13 @@ _BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BENCH_DIR not in sys.path:
     sys.path.insert(0, _BENCH_DIR)
 
-BENCH = os.path.join(_BENCH_DIR, "qi_int8_bench.py")
+BENCH_CANDIDATES = [
+    os.path.join(_BENCH_DIR, "qi_int8_bench.py"),
+    os.path.normpath(os.path.join(_BENCH_DIR, "..", "archives", "qi_int8_bench.py")),
+]
+BENCH = next((c for c in BENCH_CANDIDATES if os.path.isfile(c)), None)
+if BENCH is None:
+    raise FileNotFoundError(f"qi_int8_bench.py not found in: {BENCH_CANDIDATES}")
 _spec = importlib.util.spec_from_file_location("qi_bench", BENCH)
 bench = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bench)
