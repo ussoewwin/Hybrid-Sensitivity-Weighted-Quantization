@@ -370,6 +370,162 @@ def run_branch(
     return img, lat_cpu, sample_s, peak_mb
 
 
+CANONICAL_SEEDS = [
+    42, 137, 5517, 92048, 371506, 5293047, 64820153, 731509284, 8426170395, 9517038246,
+    210987, 6543210, 98765432, 1357924680, 2468135791, 3579246812, 4680357923,
+    5791468034, 6802579145, 7913680256,
+]
+
+_SAGE2_STATS = {"calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
+                "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0}
+
+
+def apply_sage2_attention() -> None:
+    """Patch the global attention entry point to SageAttention2 (INT8 QK + FP8 PV).
+
+    Same verified layout handling as benchmark/zi_convrot_nvfp4_traj_compare.py:
+    normalize to [B,H,N,D]; output [B,N,H*D] requires transpose(1,2) BEFORE reshape.
+    SDPA fallback for mask / head_dim > 256 / exceptions.
+    """
+    import comfy.ldm.modules.attention as comfy_attention
+    from sageattention import sageattn
+    from torch.nn.functional import scaled_dot_product_attention as _sdpa
+
+    def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
+                        skip_reshape=False, skip_output_reshape=False, **kw):
+        in_dtype = v.dtype
+        if q.dtype == torch.float32 or k.dtype == torch.float32 or v.dtype == torch.float32:
+            q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
+
+        if skip_reshape:
+            b, _, _, dim_head = q.shape
+            qh, kh, vh = q, k, v
+        else:
+            b, n_q, _ = q.shape
+            dim_head = q.shape[-1] // heads
+            qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
+            kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
+            vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
+
+        use_fallback = (mask is not None) or (dim_head > 256)
+        _SAGE2_STATS["calls"] += 1
+        torch.cuda.synchronize()
+        if use_fallback:
+            if mask is not None:
+                _SAGE2_STATS["fb_mask"] += 1
+            else:
+                _SAGE2_STATS["fb_dim"] += 1
+            t0 = time.perf_counter()
+            out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
+            torch.cuda.synchronize()
+            _SAGE2_STATS["t_sdpa_ms"] += (time.perf_counter() - t0) * 1000.0
+        else:
+            try:
+                t0 = time.perf_counter()
+                out = sageattn(qh, kh, vh, tensor_layout="HND", is_causal=False)
+                torch.cuda.synchronize()
+                _SAGE2_STATS["t_sa2_ms"] += (time.perf_counter() - t0) * 1000.0
+                _SAGE2_STATS["sa2"] += 1
+            except Exception as e:
+                _SAGE2_STATS["err"] += 1
+                print(f"  [SAGE2] fallback ({type(e).__name__}: {str(e)[:60]})", flush=True)
+                out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
+
+        if skip_output_reshape:
+            out = out
+        else:
+            out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        return out.to(in_dtype)
+
+    comfy_attention.optimized_attention_masked = attention_sage2
+    if hasattr(comfy_attention, "optimized_attention"):
+        comfy_attention.optimized_attention = attention_sage2
+    try:
+        from comfy.ldm.lumina import model as _lumina
+        if hasattr(_lumina, "optimized_attention_masked"):
+            _lumina.optimized_attention_masked = attention_sage2
+    except Exception:
+        pass
+    print("  [SAGE2] attention override armed (sageattn, INT8 QK + FP8 PV, sm120 auto)",
+          flush=True)
+
+
+def print_sage2_attn_stats() -> None:
+    s = _SAGE2_STATS
+    print(f"  [SAGE2] attention calls: total={s['calls']} sa2={s['sa2']} "
+          f"fallback(mask)={s['fb_mask']} fallback(head_dim)={s['fb_dim']} errors={s['err']}")
+    print(f"  [SAGE2] attention time: sage2={s['t_sa2_ms']:.1f} ms "
+          f"fallback_sdpa={s['t_sdpa_ms']:.1f} ms")
+
+
+def run_multi_seed_compare(args, positive, negative) -> int:
+    """Multi-seed FP16 vs INT8 latent-cosine comparison (SA2 optional on the INT8 side)."""
+    seeds = (list(CANONICAL_SEEDS) if args.canonical_seeds
+             else [int(s.strip()) for s in args.seeds.split(",") if s.strip()])
+    print(f"[config] attention={args.attention} steps={args.steps} cfg={args.cfg} "
+          f"size={args.width}x{args.height} seeds={len(seeds)}")
+
+    runs = {}
+    for label, path in (("FP16", args.fp16), ("INT8", args.fp8)):
+        if label == "INT8" and args.attention == "sage2":
+            apply_sage2_attention()
+        print(f"\n=== {label} branch ===")
+        print(f"  path: {path}")
+        model = _load_diffusion_model(path)
+        print_model_stats(model, label)
+        lat = {}
+        times = {}
+        for s in seeds:
+            latent = make_empty_latent(model, args.width, args.height, batch=1)
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats()
+                torch.cuda.synchronize()
+            t0 = time.perf_counter()
+            out = sample_once(
+                model, positive, negative, latent, seed=s, steps=args.steps,
+                cfg=args.cfg, sampler_name=args.sampler, scheduler=args.scheduler,
+                denoise=1.0,
+            )
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            times[s] = time.perf_counter() - t0
+            lat[s] = out["samples"].detach().float().cpu()
+            del out
+            print(f"  [seed {s}] {times[s]:.2f}s", flush=True)
+        runs[label] = (lat, times)
+        del model
+        _hard_free_vram()
+
+    if args.attention != "sdpa":
+        print_sage2_attn_stats()
+
+    print("\n--- Multi-seed summary (FP16 vs INT8) ---")
+    print(f"{'seed':>12} {'latent-cos':>11} {'fp16_s':>8} {'int8_s':>8}")
+    cos_vals = []
+    for s in seeds:
+        c = calculate_latent_cosine(runs["FP16"][0][s], runs["INT8"][0][s])
+        cos_vals.append(c)
+        print(f"{s:>12} {c:>11.5f} {runs['FP16'][1][s]:>8.2f} {runs['INT8'][1][s]:>8.2f}")
+
+    n = len(cos_vals)
+    mean_c = sum(cos_vals) / n
+    sd = (sum((c - mean_c) ** 2 for c in cos_vals) / (n - 1)) ** 0.5 if n > 1 else 0.0
+    ci95 = 1.959964 * sd / (n ** 0.5) if n > 1 else 0.0
+    sv = sorted(cos_vals)
+    print(f"\nlatent-cosine: min={min(cos_vals):.5f} median={sv[n // 2]:.5f} "
+          f"mean={mean_c:.5f} max={max(cos_vals):.5f}")
+    print(f"               sd={sd:.5f}  95%CI=+/-{ci95:.5f}  (n={n})")
+    print(f"               >=0.98: {sum(1 for c in cos_vals if c >= 0.98)}/{n}"
+          f"   >=0.95: {sum(1 for c in cos_vals if c >= 0.95)}/{n}"
+          f"   <0.90: {sum(1 for c in cos_vals if c < 0.90)}/{n}")
+    t16 = sum(runs["FP16"][1].values()) / n
+    t8 = sum(runs["INT8"][1].values()) / n
+    print(f"\nspeed (mean per seed, {args.steps} steps): FP16 {t16:.2f}s  INT8 {t8:.2f}s "
+          f"({t8 / t16 * 100:.1f}% of FP16)")
+    print(f"attention mode: {args.attention}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Z Image INT8 HSWQ Fidelity & VRAM Benchmark"
@@ -418,6 +574,22 @@ def main() -> int:
         help="Classifier-free guidance scale (Z-Image reference workflow: 2.5).",
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--attention", choices=["sdpa", "sage2"], default="sdpa",
+        help=(
+            "sage2: patch the INT8 branch attention to SageAttention2 "
+            "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays on stock "
+            "attention. sdpa (default): no attention patch."
+        ),
+    )
+    parser.add_argument(
+        "--canonical-seeds", action="store_true",
+        help="Run the 20 canonical 10-digit seeds and report per-seed latent cosine",
+    )
+    parser.add_argument(
+        "--seeds", default=None,
+        help="comma-separated seeds for the multi-seed comparison (overrides --seed)",
+    )
     parser.add_argument("--steps", type=int, default=25)
     parser.add_argument("--width", type=int, default=1024)
     parser.add_argument("--height", type=int, default=1024)
@@ -472,6 +644,9 @@ def main() -> int:
         del clip
         _hard_free_vram()
         print("  [Offload] CLIP on CPU / unloaded (VRAM freed for ZI INT8 benchmark).")
+
+        if args.canonical_seeds or args.seeds:
+            return run_multi_seed_compare(args, positive, negative)
 
         print("--- Benchmark Config ---")
         print(f"Seed: {args.seed}  Steps: {args.steps}  CFG: {args.cfg}")
