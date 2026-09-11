@@ -77,7 +77,7 @@ pip install diffusers accelerate scikit-image
 
 **Note (Krea2 4-bit / NVFP4):** Krea2 Hybrid ConvRot NVFP4 development has been **cancelled**. 4-bit precision (NVFP4) cannot maintain acceptable fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, the final latent trajectory cosine fails to reach 0.90. Krea2 is supported strictly in **ConvRot INT8** only.
 
-**Validation (Z Image Hybrid NVFP4):** production gate is the **deterministic 20-seed latent-trajectory comparison** — per-step cosine with a bifurcation detector; pass = **mean ≥ 0.95 and 0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration. See [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md).
+**Validation (Z Image Hybrid NVFP4):** production gate is the **deterministic 20-seed latent-trajectory comparison** — per-step cosine with a bifurcation detector; pass = **mean ≥ 0.95 and 0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration.
 
 File size is reduced by about **30-40%** vs FP16 while keeping best quality per use case.
 

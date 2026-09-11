@@ -218,15 +218,14 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
             module, weight_qt
         )
 
-        # Cache alpha; rebind only when the act scale object changes
-        # (placeholder → frozen amax swap).
-        # f99bb2d-era semantics: alpha rebinds ONLY when the numeric value of
-        # scale_a changes (e.g. placeholder→frozen swap), never per call.
-        # Identity check on the tensor object made this misfire when the
-        # scale tensor was re-created by ensure_act_scale per call.
+        # Cache alpha: when scale is static (from checkpoint or frozen amax),
+        # alpha = scale_a * scale_b is computed ONCE on the target device and cached.
+        # Uses Python identity comparison (O(1), zero CUDA-CPU sync).
         cached_alpha = getattr(module, "_hswq_nvfp4_alpha", None)
         bound = getattr(module, "_hswq_nvfp4_alpha_bound_scale", None)
-        if cached_alpha is None or bound is None or not torch.equal(bound, scale_a):
+        if cached_alpha is not None and bound is scale_a:
+            alpha = cached_alpha
+        else:
             alpha = scale_a * scale_b
             if alpha.dtype != torch.float32:
                 alpha = alpha.to(dtype=torch.float32)
@@ -234,8 +233,6 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
                 alpha = alpha.reshape(1)
             module._hswq_nvfp4_alpha = alpha
             module._hswq_nvfp4_alpha_bound_scale = scale_a
-        else:
-            alpha = cached_alpha
 
         a_qdata, block_scale_a, _pr, _pc = quantize_nvfp4_act_pooled(
             input_2d, scale_a, pad_16x=needs_padding

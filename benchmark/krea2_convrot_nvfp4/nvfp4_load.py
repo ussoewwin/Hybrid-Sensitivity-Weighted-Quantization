@@ -62,6 +62,7 @@ def arm_nvfp4_module(module, conf: Optional[dict]) -> None:
             ),
         )
         module._hswq_nvfp4_scale_placeholder = True
+        module._hswq_nvfp4_scale_from_ckpt = False
     else:
         module._hswq_nvfp4_scale_from_ckpt = True
         module._hswq_nvfp4_scale_placeholder = False
@@ -203,6 +204,19 @@ def load_nvfp4_linear_module(
                 param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False)
             )
             manually_loaded_keys.append(param_key)
+
+        # Check alternative key name for input_scale if not already loaded
+        if getattr(module, "input_scale", None) is None:
+            for alt_name in ("hswq_act_scale",):
+                alt_key = f"{prefix}{alt_name}"
+                _v = state_dict.pop(alt_key, None)
+                if _v is not None:
+                    module.register_parameter(
+                        "input_scale",
+                        torch.nn.Parameter(_v.to(device=device), requires_grad=False),
+                    )
+                    manually_loaded_keys.append(alt_key)
+                    break
 
     arm_nvfp4_module(module, layer_conf)
     module._hswq_nvfp4_name = layer_name
