@@ -854,25 +854,14 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
             # ConvRot branch only: online NCHW act rotate (kitchen has no int8_conv).
             # Cache H on module at act device/dtype — building on CPU then
             # ``.to(cuda)`` every Conv2d forward was a steady tax on FULL ConvRot.
-            act_out_dtype = None
-            if getattr(self, "_hswq_convrot", False):
-                gs = int(getattr(self, "_hswq_convrot_groupsize", 256) or 256)
-                h = getattr(self, "_hswq_convrot_H", None)
-                if (
-                    h is None
-                    or h.device != input.device
-                    or h.dtype != input.dtype
-                ):
-                    h = _build_hadamard(
-                        gs, device=input.device, dtype=input.dtype
-                    )
-                    self._hswq_convrot_H = h
-                # The rotate returns float32 by design (no bf16 mid-cast). The
-                # surrounding graph is fp16/bf16, so remember the dtype and
-                # restore it after the conv, otherwise float32 leaks into
-                # attention (query float32 vs key/value fp16 -> RuntimeError).
-                act_out_dtype = input.dtype
-                input = _rotate_activation_nchw(input, h, gs)
+            # ConvRot Conv2d: the rotation lives in the WEIGHT (offline, packed
+            # by the converter: rotate_weight_conv2d -> per-out-channel INT8).
+            # The archived reference has no online Conv2d activation rotate
+            # (archives/hswq_convrot_int8_krea2_v1.4.py, sdxl_convert_int8_convrot.py;
+            # no _rotate_activation_nchw anywhere in archives/), and the rotated
+            # weight already expects an unrotated activation. Rotating here made
+            # the activation float32 and forced the conv into fp32 (measured
+            # 2.8x slower), and leaked float32 into attention.
             want_requant = isinstance(getattr(self, "weight", None), QuantizedTensor)
             weight, bias, offload_stream = cast_bias_weight(
                 self,
