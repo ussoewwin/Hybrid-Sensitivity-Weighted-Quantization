@@ -174,24 +174,21 @@ def _install_torchaudio_stub() -> None:
 _install_torchaudio_stub()
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
-# Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
-# optimize INSIDE this frame. Not a thinking-stop formula constant.
-FP16_BUDGET_MB_HARD = 300.0
+# Owner ceiling for FP16 overhead vs all-INT8 (default 500 MiB).
+FP16_BUDGET_MB_HARD = 500.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
-    """Refuse any fp16_budget_mb other than the owner hard ceiling (300)."""
+    """Validate fp16_budget_mb (> 0)."""
     b = float(budget_mb)
-    if abs(b - FP16_BUDGET_MB_HARD) > 1e-6:
+    if b <= 0.0:
         raise ValueError(
-            f"fp16_budget_mb must be exactly {FP16_BUDGET_MB_HARD:g} MiB "
-            f"(owner hard ceiling; auto-optimal settings are inside this "
-            f"frame only  -  never outside). Got {b}."
+            f"fp16_budget_mb must be > 0. Got {b}."
         )
-    return FP16_BUDGET_MB_HARD
+    return b
 
 # Ensure histogram modules are importable regardless of clone path / CWD
 histogram_dir = os.path.join(current_dir, "histogram")
@@ -2532,9 +2529,8 @@ def main():
         "--fp16_budget_mb",
         type=float,
         default=FP16_BUDGET_MB_HARD,
-        help="Owner hard ceiling: must be exactly 300 MiB FP16 overhead vs "
-             "all-INT8. Per-model auto analysis / auto-optimal settings fill "
-             "this frame only  -  never redefine or exceed it. "
+        help="FP16 overhead budget ceiling vs all-INT8 (default 500 MiB). "
+             "Per-model auto analysis fills this frame. "
              "Extra cost = 1 byte per weight element.",
     )
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
@@ -2705,7 +2701,7 @@ def main():
     device = "cuda"
     print("=" * 60)
     print(
-        "HSWQ V3.1 SDXL INT8 — FP16 300 MiB protect first, "
+        f"HSWQ V3.1 SDXL INT8 — FP16 {args.fp16_budget_mb:g} MiB protect first, "
         "then FULL ConvRot on remainder "
         f"(Card1={'ON' if args.bias_correction else 'OFF'}, Card2 OFF)"
     )
