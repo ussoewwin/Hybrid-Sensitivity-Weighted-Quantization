@@ -75,6 +75,19 @@ import sys
 # Bypass diffusers' strict runtime peft version assertion.
 os.environ["_CHECK_PEFT"] = "0"
 
+# Guard against broken kornia geometry transform in host venv (guiders frequency_decoupled_guidance)
+def _install_kornia_compat_stub() -> None:
+    try:
+        import kornia.geometry.transform as _kgt  # noqa: F401
+        if not hasattr(_kgt, "build_laplacian_pyramid"):
+            def _dummy_laplacian(*args, **kwargs):
+                raise NotImplementedError("build_laplacian_pyramid stub")
+            _kgt.build_laplacian_pyramid = _dummy_laplacian
+    except Exception:
+        pass
+
+_install_kornia_compat_stub()
+
 import torch
 import torch.nn as nn
 from diffusers import StableDiffusionXLPipeline
@@ -474,8 +487,37 @@ def load_unet_from_safetensors(path, device="cuda"):
     except Exception as e:
         print(f"Warning: failed to load pretrained model: {e}")
         from diffusers import UNet2DConditionModel
-        unet = UNet2DConditionModel(sample_size=128, in_channels=4, out_channels=4, layers_per_block=2, block_out_channels=(320, 640, 1280), down_block_types=("DownBlock2D", "CrossAttnDownBlock2D", "CrossAttnDownBlock2D"), up_block_types=("CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "UpBlock2D"))
-        pipeline = StableDiffusionXLPipeline(vae=None, text_encoder=None, text_encoder_2=None, tokenizer=None, tokenizer_2=None, unet=unet, scheduler=None)
+        unet = UNet2DConditionModel(
+            sample_size=128,
+            in_channels=4,
+            out_channels=4,
+            layers_per_block=2,
+            block_out_channels=(320, 640, 1280),
+            down_block_types=(
+                "DownBlock2D",
+                "CrossAttnDownBlock2D",
+                "CrossAttnDownBlock2D",
+            ),
+            up_block_types=(
+                "CrossAttnUpBlock2D",
+                "CrossAttnUpBlock2D",
+                "UpBlock2D",
+            ),
+            cross_attention_dim=2048,
+            attention_head_dim=[5, 10, 20],
+            use_linear_projection=True,
+            transformer_layers_per_block=[1, 2, 10],
+            addition_time_embed_dim=256,
+        )
+        pipeline = StableDiffusionXLPipeline(
+            vae=None,
+            text_encoder=None,
+            text_encoder_2=None,
+            tokenizer=None,
+            tokenizer_2=None,
+            unet=unet,
+            scheduler=None,
+        )
         pipeline = pipeline.to(device)
     # Guard against silent CPU placement (diffusers warns then calib hangs at 0/25).
     try:
