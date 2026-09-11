@@ -14,7 +14,7 @@ Branch contract (do not break plain NVFP4; no branch shortcuts):
      onto ``comfy.quant_ops`` / ``comfy.ops`` only.
 
 ConvRot NVFP4 load+forward is **not** in ComfyUI. It lives only under
-``benchmark/krea2_nvfp4/``. Branch A/B is kitchen **layout-import health** only.
+``benchmark/krea2_convrot_nvfp4/``. Branch A/B is kitchen **layout-import health** only.
 ConvRot is unrelated to CUBLAS / scaled_mm TC gate.
 
 Prebind (before first ``comfy.quant_ops`` import):
@@ -23,7 +23,7 @@ Prebind (before first ``comfy.quant_ops`` import):
   ``TensorCoreConvRotW4A4Layout``). One missing name → entire kitchen try fails
   → stubs → forced Branch B (breaks plain NVFP4). Call
   ``prebind_missing_kitchen_tensor_exports()`` from
-  ``benchmark/krea2_nvfp4_bench.py`` ``setup_comfy`` **before** any import that
+  ``archives/krea2_nvfp4_bench.py`` ``setup_comfy`` **before** any import that
   pulls ``comfy.quant_ops``. Then call ``ensure_kitchen_quant_ops()`` once
   ``comfy.quant_ops`` is importable so Branch B still runs if prebind was not
   enough. Scope is **krea2 NVFP4 only** (this package + that bench).
@@ -32,7 +32,7 @@ Prebind (before first ``comfy.quant_ops`` import):
   Name-only stubs allowed **only** for import-gate spoilers unused by plain
   NVFP4 / Krea2 ConvRot load+forward: ``AsymW4A8Int8Layout`` and
   ``TensorCoreConvRotW4A4Layout`` (Krea2 ConvRot uses ``TensorCoreNVFP4Layout``
-  + ``benchmark/krea2_nvfp4`` act-rotate, not kitchen ConvRotW4A4). Never
+  + ``benchmark/krea2_convrot_nvfp4`` act-rotate, not kitchen ConvRotW4A4). Never
   empty-stub TensorCore NVFP4 / FP8 / INT8.
 
 Never call rebind when A is true. Never edit ComfyUI-master.
