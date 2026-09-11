@@ -596,12 +596,6 @@ def ensure_act_scale_cached(module, x, scale):
     """
     import torch
 
-    # 2026-09-11: checkpoint-provided input_scale (calib-written) MUST win;
-    # a calib artifact with input_scale keys sets placeholder=False AND the
-    # stored scale must be used directly (zero-computation, 3.4 it/s era path).
-    ckpt_scale = getattr(module, "input_scale", None)
-    if ckpt_scale is not None:
-        return ensure_act_scale(x, ckpt_scale)
     if getattr(module, "_hswq_nvfp4_scale_placeholder", False) or scale is None:
         if not _ACT_AMAX_FREEZE:
             return ensure_act_scale_amax(x)
