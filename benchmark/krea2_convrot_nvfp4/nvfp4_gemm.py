@@ -12,7 +12,7 @@ This module owns:
     TC-failure fallback only, never the hot path
   - float GEMM ``a @ b.T`` (+ optional bias) for residual QT×QT addmm edges
 
-Runtime patches under ``benchmark/krea2_nvfp4`` must use these entry points.
+Runtime patches under ``benchmark/krea2_convrot_nvfp4`` must use these entry points.
 """
 from __future__ import annotations
 
