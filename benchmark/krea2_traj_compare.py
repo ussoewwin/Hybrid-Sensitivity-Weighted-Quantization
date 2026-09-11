@@ -35,8 +35,10 @@ from pathlib import Path
 import torch
 
 _BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
-if _BENCH_DIR not in sys.path:
-    sys.path.insert(0, _BENCH_DIR)
+_REPO_DIR = os.path.dirname(_BENCH_DIR)
+for _p in (_BENCH_DIR, _REPO_DIR):
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
 
 def _clear_argv_for_comfy() -> list[str]:
     """ComfyUI cli_args swallows unknown flags; keep only argv[0] during import."""
@@ -119,8 +121,18 @@ def setup_comfy(comfy_path: str) -> None:
     comfy_root = Path(comfy_path).resolve()
     if not comfy_root.is_dir():
         raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
-    # Prefer this tree for comfy.* imports
-    sys.path = [str(comfy_root)] + [p for p in sys.path if Path(p).resolve() != comfy_root]
+    bench_dir = Path(__file__).resolve().parent
+    repo_dir = bench_dir.parent
+
+    required_paths = [str(comfy_root), str(bench_dir), str(repo_dir)]
+    new_sys_path = []
+    for p in required_paths:
+        if p not in new_sys_path and os.path.isdir(p):
+            new_sys_path.append(p)
+    for p in sys.path:
+        if p not in new_sys_path:
+            new_sys_path.append(p)
+    sys.path = new_sys_path
 
     # Always stub before any comfy.* import (real torchaudio may CUDA-mismatch).
     _install_torchaudio_stub()
@@ -128,12 +140,15 @@ def setup_comfy(comfy_path: str) -> None:
     # Before first comfy.quant_ops import: attach missing kitchen tensor exports
     # (Asym / kitchen ConvRotW4A4 import-gate) so bulk-import succeeds → Branch A.
     # Krea2 ConvRot load+forward stays in benchmark/krea2_convrot_nvfp4 only (not ComfyUI).
-    from krea2_convrot_nvfp4.kitchen_quant_ops_repair import (
-        ensure_kitchen_quant_ops,
-        prebind_missing_kitchen_tensor_exports,
-    )
+    try:
+        from krea2_convrot_nvfp4.kitchen_quant_ops_repair import (
+            ensure_kitchen_quant_ops,
+            prebind_missing_kitchen_tensor_exports,
+        )
 
-    prebind_missing_kitchen_tensor_exports()
+        prebind_missing_kitchen_tensor_exports()
+    except Exception as e:
+        print(f"  [Note] kitchen prebind skipped: {e}")
 
     import comfy.options
 
@@ -183,7 +198,12 @@ def setup_comfy(comfy_path: str) -> None:
     # Branch A: healthy → zero rebind. Branch B: stubs → submodule rebind only.
     import comfy.quant_ops  # noqa: F401
 
-    ensure_kitchen_quant_ops()
+    try:
+        from krea2_convrot_nvfp4.kitchen_quant_ops_repair import ensure_kitchen_quant_ops
+
+        ensure_kitchen_quant_ops()
+    except Exception as e:
+        print(f"  [Note] ensure_kitchen_quant_ops skipped: {e}")
 
 
 SSIM_TARGET = 0.9
