@@ -3,7 +3,7 @@ ComfyUI runtime monkey-patches for HSWQ comfy_quant NVFP4 (FULL ConvRot).
 
 Runtime only — never permanently edit ComfyUI-master.
 
-Owns (via sibling modules under benchmark/krea2_nvfp4/):
+Owns (via sibling modules under benchmark/krea2_convrot_nvfp4/):
   - packed-K UNet detection (logical in_features)
   - full NVFP4 Linear load (scales, QT, ConvRot flags, storage validation)
   - full ConvRot forward (act ConvRot → pooled act NVFP4 quant → cuBLAS FP4

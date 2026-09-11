@@ -1,7 +1,7 @@
 """
 Krea2 NVFP4 bench — force ComfyUI MixedPrecision path (ops.py) verbatim.
 
-Package-local under benchmark/krea2_nvfp4/ only. Never import benchmark/nvfp4/.
+Package-local under benchmark/krea2_convrot_nvfp4/ only. Never import benchmark/nvfp4/.
 
 After apply_comfy_quant_nvfp4_patches():
   1) NVFP4 Linear load → Comfy ops._load_quantized_module (no HSWQ arm / ones(1))
