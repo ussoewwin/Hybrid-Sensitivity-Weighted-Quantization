@@ -10,6 +10,7 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 - **ConvRot NVFP4 (SDXL):** ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed **600 MiB** budget. Keep ratio is **0** (r0); calib writes NVFP4 `.input_scale`. Script: `hswq_convert_nvfp4_convrot_1.0.py`.
 - **Z Image INT8 (HSWQ):** **Development and public release ended.** For Z Image, **native ConvRot INT8** already reaches roughly **SSIM > 0.99** in general, so a separate HSWQ Z Image 8-bit line is no longer developed or published. Use native ConvRot INT8 for Z Image 8-bit; HSWQ INT8 work continues for **SDXL**.
 - **ConvRot INT8 (Krea2):** Full HSWQ pipeline with structure blacklist protection (`first.`, `last.`, `mod.`, `norm`, `projector`, `txtfusion`, etc.) and data-driven 4-axis composite ranking (`Krea2/hswq_convrot_int8_krea2_v1.5.py`). For checkpoints where native ConvRot INT8 already reaches mean latent trajectory cosine $\ge 0.98$, native ConvRot INT8 is directly recommended.
+- **Krea2 Hybrid ConvRot NVFP4:** **Development cancelled.** 4-bit precision (NVFP4) cannot maintain structural fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity protection, final latent trajectory cosine fails to reach 0.90 (severe trajectory drift and collapse). Development has been officially cancelled. Krea2 is supported strictly in **ConvRot INT8** only.
 - **Z Image Hybrid ConvRot NVFP4:** Built from a complete **native ConvRot INT8** UNet via the **reverse method** — layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid. The number of NVFP4 layers varies per model (search `K`). Calibrated with `input_scale = amax / 2688` and validated by the **deterministic 20-seed latent-trajectory comparison** (per-step cosine + bifurcation): production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** in **TC (W4A4)** mode (reference numbers for one example model are listed in the hybrid NVFP4 how-to). Scripts: `Z_Image/diag_impact.py`, `Z_Image/gen_reverse_nvfp4.py`, `Z_Image/calib_input_scale_nvfp4.py`, `benchmark/zi_convrot_nvfp4_traj_compare.py`.
 
 **Technical details (FP8):** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) — **FP8 development has ended**; this document is retained as a technical asset.  
@@ -46,7 +47,7 @@ pip install diffusers accelerate scikit-image
 
 - **SDXL (ConvRot INT8):** [How to quantize SDXL ConvRot INT8](md/How%20to%20quantize%20SDXL.md)
 - **SDXL (ConvRot NVFP4):** [How to quantize SDXL ConvRot NVFP4](md/How%20to%20quantize%20SDXL%20NVFP4.md)
-- **Krea2 (ConvRot INT8):** [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md) — CLI (`Krea2/hswq_convrot_int8_krea2_v1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Krea2"`) quantization guide; for checkpoints with mean cosine ≥ 0.98, native ConvRot INT8 is directly recommended.
+- **Krea2 (ConvRot INT8):** [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md) — CLI (`Krea2/hswq_convrot_int8_krea2_v1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Krea2"`) quantization guide; for checkpoints with mean cosine ≥ 0.98, native ConvRot INT8 is directly recommended. (Note: Krea2 4-bit / Hybrid NVFP4 development has been cancelled; Krea2 supports ConvRot INT8 only.)
 - **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) — CLI and ComfyUI custom node (`Native ConvRot INT8 Quantize`) quantization guide. HSWQ-specific Z Image development has **ended**; this How-to introduces the **general** ConvRot INT8 quantization method.
 - **Z Image (Hybrid NVFP4, reverse method):** [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md) — build a hybrid NVFP4 model from native ConvRot INT8 by converting the lowest-impact layers first (reverse method), calibrate `input_scale` for Tensor-Core W4A4, and validate with the deterministic 20-seed trajectory comparison (cosine mean ≥ 0.95, 0/20 bifurcated)..
 - **Qwen Image Edit (native ConvRot INT8):** [How to quantize Qwen Image Edit](md/How%20to%20quantize%20Qwen%20Image%20Edit.md) — CLI (`Qwen Image/native_convert_int8_convrot_qwen.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Qwen Image Edit"`) quantization guide; post-convert benchmark is latent-space trajectory divergence (per-step cosine + bifurcation detection).
@@ -56,7 +57,7 @@ pip install diffusers accelerate scikit-image
 - **SDXL (ConvRot INT8):** [MSE / SSIM](benchmark%20result/benchmark_sdxl_int8.md)
 - **SDXL (ConvRot NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_convrotnvfp4.md)
 - **Krea2 (ConvRot INT8):** [MSE / SSIM](benchmark%20result/benchmark_krea2_int8.md)
-- **Krea2 (Hybrid NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_krea2_nvfp4.md)
+- **Krea2 (Hybrid NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_krea2_nvfp4.md) — **Development cancelled** (4-bit precision cannot maintain fidelity; final cosine < 0.90; ConvRot INT8 only).
 - **Z Image (Hybrid NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_zi_nvfp4.md)
 
 ---
@@ -74,6 +75,8 @@ pip install diffusers accelerate scikit-image
 | **Use case** | SDXL ConvRot INT8 distribution / kitchen loaders | SDXL ConvRot NVFP4 distribution / native ComfyUI load | Z Image Turbo Hybrid NVFP4 distribution / native ComfyUI load |
 
 **Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL path.
+
+**Note (Krea2 4-bit / NVFP4):** Krea2 Hybrid ConvRot NVFP4 development has been **cancelled**. 4-bit precision (NVFP4) cannot maintain acceptable fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, the final latent trajectory cosine fails to reach 0.90. Krea2 is supported strictly in **ConvRot INT8** only.
 
 **Validation (Z Image Hybrid NVFP4):** production gate is the **deterministic 20-seed latent-trajectory comparison** — per-step cosine with a bifurcation detector; pass = **mean ≥ 0.95 and 0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration. See [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md).
 
@@ -130,6 +133,7 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 - **Bias correction (Card 1):** Omitted (**`1off`**). In Krea2 `SingleStreamDiT`, all quantized transformer blocks are `bias=False`, and layers containing bias are already protected by the structure blacklist; Card 1 bias delta has zero effect on Krea2.
 - **Native recommendation:** For checkpoints where native ConvRot INT8 achieves mean latent trajectory cosine $\ge 0.98$ (and 0 bifurcations), using native ConvRot INT8 directly without HSWQ is recommended.
 - **Format:** `int8_tensorwise` with FULL ConvRot Hadamard rotation on eligible Linear/Conv2d; ComfyUI native load compatible. Guide: [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md).
+- **NVFP4 / 4-bit status:** **Development cancelled.** Extensive empirical testing demonstrated that 4-bit precision (NVFP4) cannot maintain structural fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, the final latent trajectory cosine fails to reach 0.90 (frequent trajectory collapse and bifurcations). Development has been officially cancelled, and Krea2 is supported strictly in **ConvRot INT8 only**.
 
 ### ConvRot NVFP4 (SDXL)
 
