@@ -1,88 +1,59 @@
 ## Overview
 
-**v2.3.5** formalizes the architectural decision on Krea2 quantization, introduces the deterministic SDXL INT8 trajectory comparison benchmark, decouples benchmark scripts to be completely self-contained, and stabilizes trajectory evaluation tools:
+**v2.3.5** formalizes the architectural decision on Krea2 quantization and announces the official discontinuation of 4-bit (NVFP4) development for Krea2:
 
-1. **Official Discontinuation of Krea2 Hybrid ConvRot NVFP4 (ConvRot INT8 Exclusively Supported)**:
-   - Exhaustive empirical evaluation confirmed that 4-bit precision (NVFP4) cannot maintain generative fidelity on Krea2 SingleStreamDiT.
-   - Even with HSWQ 4-axis composite sensitivity ranking and extensive layer retention, final latent trajectory cosine fails to reach 0.90 (resulting in severe trajectory drift, spatial distortion, and irreversible bifurcations).
-   - Krea2 is officially restricted to **ConvRot INT8** (`Krea2/hswq_convrot_int8_krea2_v1.5.py` and ComfyUI `Native ConvRot INT8 Quantize`), which reliably achieves mean trajectory cosine $\ge 0.98$ with 0 bifurcations.
-2. **SDXL Multi-Seed Trajectory Comparator (`benchmark/sdxl_int8_traj_compare.py`)**:
-   - Added automated deterministic trajectory evaluation tool for SDXL UNet models comparing baseline FP16/BF16 against ConvRot INT8 checkpoints.
-   - Evaluates step-by-step latent progression, final cosine similarity, SSIM, and trajectory divergence across multiple seeds and sampling steps.
-3. **Benchmark Script Self-Containment & Zero External Dependencies**:
-   - Refactored benchmark scripts (`benchmark/*.py`) to eliminate brittle external imports (such as `common_bench`), making each benchmark script completely self-contained and runnable out-of-the-box.
-4. **Trajectory Benchmark Stability & Fixes**:
-   - Restored missing `pathlib.Path`, `gc`, and torchaudio stub imports in `benchmark/krea2_traj_compare.py` to resolve startup crash.
-   - Preserved `--tc` / `--parity` flags and added `--attention sage2` option for high-throughput attention benchmarking.
-   - Removed obsolete legacy directory `benchmark/krea2_nvfp4` (superseded by `krea2_convrot_nvfp4`).
-5. **Documentation Updates**:
-   - Updated `README.md` and `CHANGELOG.md` with explicit architectural guidelines and deprecation notices. Benchmark raw experimental data (`benchmark result/benchmark_krea2_nvfp4.md`) is retained for technical reference.
+- **Krea2 Hybrid ConvRot NVFP4 Development Discontinued**: Extensive empirical evaluations confirmed that 4-bit precision (NVFP4) cannot maintain structural generation fidelity on Krea2 SingleStreamDiT. Even with HSWQ sensitivity weighting and layer retention, final latent trajectory cosine fails to reach 0.90 (resulting in severe trajectory drift and frequent bifurcations).
+- **Krea2 Supported Strictly via ConvRot INT8**: Krea2 is supported exclusively via **ConvRot INT8** (`Krea2/hswq_convrot_int8_krea2_v1.5.py` and ComfyUI `Native ConvRot INT8 Quantize`), which reliably achieves mean trajectory cosine $\ge 0.98$ with 0 bifurcations, preserving generation fidelity with ~50% VRAM / disk reduction.
 
 ---
 
-## Technical Details & Architecture Analysis
+## Technical Details: Why Krea2 SingleStreamDiT Cannot Support 4-Bit (NVFP4)
 
-### 1. Why Krea2 SingleStreamDiT Fails Under 4-Bit (NVFP4) Quantization
+Krea2 employs a unified `SingleStreamDiT` architecture where text tokens and image tokens are concatenated into a single sequence and processed simultaneously across unified transformer blocks. Empirical testing across diverse prompts and random seeds revealed fundamental limitations under 4-bit quantization:
 
-Krea2 utilizes a `SingleStreamDiT` architecture where text tokens and image tokens are concatenated and processed through unified transformer blocks. Empirical evaluations of NVFP4 quantization on this architecture revealed fundamental structural limitations:
+### 1. Inherent Vulnerability of Single-Stream Unified Attention to 4-Bit Noise
+In dual-stream or cross-attention architectures, text conditioning and image features maintain separate projection pathways, which confines quantization error within individual streams. In Krea2 SingleStreamDiT, any quantization noise introduced in the 4-bit weight projections immediately contaminates both text and image representations at every attention step. This causes quantization errors to compound rapidly from the very first denoising steps.
 
-1. **Catastrophic Error Propagation in Unified Attention**:
-   In two-stream or separate-stream architectures (such as FLUX.1 or Qwen2), cross-attention and separate text/image projections isolate quantization noise. In Krea2's single-stream blocks, quantization noise in weight projections immediately corrupts both multimodal representations simultaneously, accelerating trajectory divergence from step 1.
+### 2. Failure to Reach 0.90 Final Latent Trajectory Cosine
+Even when deploying HSWQ 4-axis composite sensitivity ranking (dual activation energy, HistCosine V5, NVFP4 pack MSE, and SVD leverage) and selectively retaining high-sensitivity layers in original precision:
+- **Final Trajectory Cosine**: Consistently fails to reach **0.90**.
+- **Visual Artifacts**: A final cosine below 0.90 leads to severe trajectory drift, prompt misalignment, anatomical distortions, and complete structural bifurcations.
+- **Precision Floor**: 4-bit representation lacks the dynamic range necessary to preserve the fine latent representations required by Krea2's single-stream blocks.
 
-2. **Sub-0.90 Final Latent Trajectory Cosine**:
-   Even when applying HSWQ 4-axis sensitivity weighting ($E[x^2]$ energy, HistCosine V5, NVFP4 pack MSE, and SVD leverage) and selectively retaining high-impact blocks in original precision, the final latent trajectory cosine consistently fails to reach 0.90 across evaluation prompts and seeds.
-   - In diffusion models, a latent trajectory cosine below 0.92 indicates observable degradation in fine detail, while a cosine below 0.90 leads to severe structural bifurcations, subject deformity, and prompt misalignment.
-
-3. **Definitive Decision**:
-   Because 4-bit precision fundamentally cannot guarantee structural generation integrity on Krea2, all NVFP4 development for Krea2 is discontinued. Users should exclusively use **ConvRot INT8**, which delivers ~50% VRAM / disk savings while maintaining indistinguishable visual quality (mean cosine $\ge 0.98$, 0 bifurcations).
-
----
-
-### 2. SDXL INT8 Deterministic Trajectory Comparator (`benchmark/sdxl_int8_traj_compare.py`)
-
-To ensure rigorous validation of SDXL ConvRot INT8 models, `benchmark/sdxl_int8_traj_compare.py` provides deterministic, reproducible trajectory benchmarking:
-
-- **Step-by-Step Trajectory Tracking**: Compares intermediate latent vectors $z_t$ against the unquantized baseline at every denoising step.
-- **Metrics Computed**:
-  - Per-step and final Latent Trajectory Cosine Similarity ($\cos(z_t^{\text{quant}}, z_t^{\text{base}})$).
-  - Mean Squared Error (MSE) and Latent SSIM.
-  - Trajectory Divergence Index to identify the exact step where numerical drift begins.
-- **CLI Usage**:
-  ```bash
-  python benchmark/sdxl_int8_traj_compare.py \
-    --original "models/checkpoints/sdxl_base_bf16.safetensors" \
-    --quantized "models/checkpoints/sdxl_convrot_int8.safetensors" \
-    --seeds 10 \
-    --steps 20 \
-    --prompt "A professional studio portrait of an astronaut on Mars"
-  ```
+### 3. Definitive Architectural Conclusion
+Because 4-bit precision fundamentally cannot guarantee structural generation integrity on Krea2 even with HSWQ optimization, **all Krea2 Hybrid ConvRot NVFP4 development is cancelled**.
 
 ---
 
-### 3. Self-Contained Benchmark Architecture
+## Supported Quantization Path: Krea2 ConvRot INT8
 
-Benchmark scripts in `benchmark/` were decoupled from shared internal modules:
-- Removed external module dependencies (e.g. `common_bench`) to eliminate `ModuleNotFoundError` across different execution environments.
-- Self-contained CLI parsing, ComfyUI model loader discovery, and device allocation logic.
-- Startup crash fix: restored `Path` from `pathlib` in `benchmark/krea2_traj_compare.py`.
+Krea2 is supported strictly via **ConvRot INT8**:
+
+| Metric / Configuration | ConvRot INT8 | Hybrid ConvRot NVFP4 (Cancelled) |
+| :--- | :--- | :--- |
+| **Mean Trajectory Cosine** | **$\ge 0.98$** | **$< 0.90$** (Fails fidelity threshold) |
+| **Trajectory Bifurcations** | **0** | Frequent |
+| **Storage / VRAM Footprint** | **~50%** of original BF16 | ~30% of original BF16 |
+| **Visual Fidelity** | Indistinguishable from BF16 | Severe degradation & collapse |
+| **Status** | **Production Supported** | **Cancelled** |
+
+### Usage for Krea2 ConvRot INT8
+
+#### Standalone CLI Quantizer
+```bash
+# Canonical Native ConvRot INT8 conversion (1off bias, structural blacklist protected)
+python Krea2/hswq_convrot_int8_krea2_v1.5.py \
+  --model "models/diffusion_models/krea2_bf16.safetensors" \
+  --output "models/diffusion_models/krea2_convrot_int8.safetensors" \
+  --bias_correction 1off
+```
+
+#### ComfyUI Custom Node
+In ComfyUI workflows, use the **`Native ConvRot INT8 Quantize`** node (`comfyui_nodes/native_convrot_int8_convert.py`) with `model_type` set to `krea2`.
 
 ---
 
-## Recommended Quantization Matrix
+## Documentation Links
 
-| Target Model | Recommended Architecture / Format | CLI Converter | ComfyUI Custom Node | Expected Cosine |
-| :--- | :--- | :--- | :--- | :--- |
-| **Krea2 DiT** | **ConvRot INT8** (1off, blacklist protected) | `Krea2/hswq_convrot_int8_krea2_v1.5.py` | `Native ConvRot INT8 Quantize` | **$\ge 0.98$** |
-| **SDXL UNet** | **ConvRot INT8** (Card 1 bias correction) | `sdxl_convert/convert_sdxl_convrot_int8.py` | `Native ConvRot INT8 Quantize` | **$\ge 0.99$** |
-| **Qwen Image Edit** | **ConvRot INT8** (Hadamard rotation) | `Qwen Image/native_convert_int8_convrot_qwen.py` | `Native ConvRot INT8 Quantize` | **$\ge 0.99$** |
-| **TE / ControlNet** | **ConvRot INT8** (FPN/QKV split) | `clip_convert/convert_clip_convrot_int8.py` | `TE / ControlNet ConvRot INT8 Quantize` | **$\ge 0.99$** |
-| **Z-Image** | **HSWQ NVFP4** | `Z_Image/` | N/A | **$\ge 0.96$** |
-
-*(Note: Krea2 NVFP4 is discontinued and removed from the active quantization matrix).*
-
----
-
-## Verification & Documentation
-
+- **Krea2 Quantization Technical Guide**: [`md/How to quantize Krea2.md`](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20Krea2.md)
 - **Changelog**: [CHANGELOG.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/CHANGELOG.md)
-- **Krea2 Quantization Guide**: [`md/How to quantize Krea2.md`](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20Krea2.md)
