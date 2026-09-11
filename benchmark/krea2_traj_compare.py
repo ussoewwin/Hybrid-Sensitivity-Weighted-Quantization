@@ -575,11 +575,6 @@ def main() -> int:
         if args.attention == "sage2":
             unset_sage2_attention()
             print_sage2_attn_stats()
-        try:
-            from krea2_convrot_nvfp4.nvfp4_runtime import _log_act_stats
-            _log_act_stats()
-        except Exception:
-            pass
         del nv
         _hard_free_vram()
     finally:
