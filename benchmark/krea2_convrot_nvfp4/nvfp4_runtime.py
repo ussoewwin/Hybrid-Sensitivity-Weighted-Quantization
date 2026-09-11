@@ -547,6 +547,9 @@ def ensure_act_scale(x, scale):
     ``None``: caller should use ``ensure_act_scale_cached`` (module cache).
     """
     import torch
+    _ACT_STATS["total"] += 1
+    if scale is not None:
+        _ACT_STATS["from_ckpt"] += 1
 
     if scale is None:
         return _device_ones_scale(x.device)
