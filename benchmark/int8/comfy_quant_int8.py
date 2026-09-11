@@ -1778,23 +1778,18 @@ def _patch_kitchen_convrot_float32_act_rotate() -> bool:
             # rebind when they imported from int8_utils (same object family).
             m._build_hadamard = _build_hadamard_f32_always
 
-    # The CUDA fused ConvRot kernels are KEPT ENABLED. Measured on
-    # waiIllustriousSDXL_v170 INT8 (3 seeds x 6 steps, identical seeds/steps):
-    #   fused OFF : INT8/FP16 = 1.081x wall  (fp32 SGEMM appears: 45.3 + 13.4 ms
-    #               per step, 572+ calls)     cos mean 0.99340
-    #   fused ON  : INT8/FP16 = 0.976x wall  (no fp32 SGEMM)  cos mean 0.99211
-    # The fused kernel rotates in the graph dtype (H entries are +-2^-4, exactly
-    # representable in fp16/bf16); the resulting INT8 activation codes differ
-    # from the fp32-rotate path by 0.00011% on average, so accuracy is
-    # equivalent while the forced-fp32 rotate is removed.
+    # Disable CUDA fused ConvRot so int8_linear uses patched float32 rotate path.
     try:
         cuda_mod = importlib.import_module("comfy_kitchen.backends.cuda")
-        rebound.append(
-            "comfy_kitchen.backends.cuda(fused_on, max_k=%s)"
-            % getattr(cuda_mod, "_CONVROT_FUSED_MAX_K", "?")
-        )
+        if hasattr(cuda_mod, "_CONVROT_FUSED_MAX_K"):
+            cuda_mod._CONVROT_FUSED_MAX_K = -1
+        if hasattr(cuda_mod, "_should_use_convrot_fused_kernel"):
+            cuda_mod._should_use_convrot_fused_kernel = lambda *a, **k: False
+        if hasattr(cuda_mod, "_should_use_convrot_dequant_kernel"):
+            cuda_mod._should_use_convrot_dequant_kernel = lambda *a, **k: False
+        rebound.append("comfy_kitchen.backends.cuda(fused_off)")
     except Exception as e:
-        logger.warning("[HSWQ INT8] could not inspect CUDA fused ConvRot: %s", e)
+        logger.warning("[HSWQ INT8] could not disable CUDA fused ConvRot: %s", e)
 
     _console(
         "[HSWQ INT8] kitchen ConvRot act-rotate → float32 matmul "
