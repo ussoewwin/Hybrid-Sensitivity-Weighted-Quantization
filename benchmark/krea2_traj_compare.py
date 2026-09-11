@@ -16,6 +16,10 @@ Self-contained: the ComfyUI bootstrap / model loading / quant-patch helpers are
 embedded below, importing only the live krea2_convrot_nvfp4 package (and int8).
 No dependency on archives/.
 
+``--attention sage2`` arms SageAttention2 (INT8 QK + FP8 PV, sm120 auto path)
+for the NVFP4 run ONLY; the FP16 baseline always stays on stock ComfyUI
+attention. Default ``sdpa`` leaves both branches on stock attention.
+
 Usage:
     python krea2_traj_compare.py \
         --fp16 <base.safetensors> --nvfp4 <hybrid.safetensors> \
@@ -259,6 +263,111 @@ def _load_diffusion_model(unet_path: str):
 
 
 
+_SAGE2_STATS = {
+    "calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
+    "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0,
+}
+
+
+def apply_sage2_attention() -> None:
+    """Arm SageAttention2 for the NVFP4 run (INT8 QK + FP8 PV, sm120 auto path).
+
+    Layout handling is identical to the validated SA2 path (zi_traj_compare /
+    krea2_int8_traj_compare): stock attention_pytorch semantics with
+    skip_reshape=True ([B,H,N,D] in) and transpose(1,2) BEFORE reshape to
+    [B,N,H*D] on the way out. SDPA fallback for mask / head_dim > 256 /
+    exceptions. Krea2's SingleStreamDiT binds optimized_attention_masked via a
+    from-import, so the arch module is patched individually.
+    """
+    import time
+
+    from comfy.ldm.modules import attention as comfy_attention
+    from sageattention import sageattn
+    from torch.nn.functional import scaled_dot_product_attention as _sdpa
+
+    def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
+                        skip_reshape=False, skip_output_reshape=False, **kw):
+        in_dtype = v.dtype
+        if q.dtype == torch.float32 or k.dtype == torch.float32 or v.dtype == torch.float32:
+            q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
+
+        if skip_reshape:
+            b, _, _, dim_head = q.shape
+            qh, kh, vh = q, k, v
+        else:
+            b, n_q, _ = q.shape
+            dim_head = q.shape[-1] // heads
+            qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
+            kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
+            vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
+
+        use_fallback = (mask is not None) or (dim_head > 256)
+        _SAGE2_STATS["calls"] += 1
+        torch.cuda.synchronize()
+        if use_fallback:
+            if mask is not None:
+                _SAGE2_STATS["fb_mask"] += 1
+            else:
+                _SAGE2_STATS["fb_dim"] += 1
+            t0 = time.perf_counter()
+            out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
+            torch.cuda.synchronize()
+            _SAGE2_STATS["t_sdpa_ms"] += (time.perf_counter() - t0) * 1000.0
+        else:
+            try:
+                t0 = time.perf_counter()
+                out = sageattn(qh, kh, vh, tensor_layout="HND", is_causal=False)
+                torch.cuda.synchronize()
+                _SAGE2_STATS["t_sa2_ms"] += (time.perf_counter() - t0) * 1000.0
+                _SAGE2_STATS["sa2"] += 1
+            except Exception as e:
+                _SAGE2_STATS["err"] += 1
+                print(f"  [SAGE2] fallback ({type(e).__name__}: {str(e)[:60]})", flush=True)
+                out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
+
+        if skip_output_reshape:
+            pass
+        else:
+            out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        return out.to(in_dtype)
+
+    comfy_attention.optimized_attention_masked = attention_sage2
+    if hasattr(comfy_attention, "optimized_attention"):
+        comfy_attention.optimized_attention = attention_sage2
+    import importlib as _il
+    try:
+        _mod = _il.import_module("comfy.ldm.krea2.model")
+        if hasattr(_mod, "optimized_attention_masked"):
+            _mod.optimized_attention_masked = attention_sage2
+    except Exception:
+        pass
+    print("  [SAGE2] attention override armed (sageattn, INT8 QK + FP8 PV, sm120 auto)",
+          flush=True)
+
+
+def unset_sage2_attention() -> None:
+    """Restore stock attention after the NVFP4 run (reload binding modules)."""
+    import importlib
+
+    import comfy.ldm.modules.attention as comfy_attention
+
+    importlib.reload(comfy_attention)
+    try:
+        importlib.reload(importlib.import_module("comfy.ldm.krea2.model"))
+    except Exception:
+        pass
+    print("  [SAGE2] attention override restored to stock", flush=True)
+
+
+def print_sage2_attn_stats() -> None:
+    s = _SAGE2_STATS
+    print(f"  [SAGE2] attention calls: total={s['calls']} sa2={s['sa2']} "
+          f"fallback(mask)={s['fb_mask']} fallback(dim)={s['fb_dim']} errors={s['err']}",
+          flush=True)
+    print(f"  [SAGE2] attention time: sage2={s['t_sa2_ms']:.1f} ms "
+          f"sdpa_fallback={s['t_sdpa_ms']:.1f} ms", flush=True)
+
+
 def run_trajectory(model, positive, negative, latent, *, seed, steps, cfg,
                    sampler_name, scheduler):
     """Run full denoising; return (per_step_x, per_step_x0, final_sample).
@@ -318,6 +427,10 @@ def parse_args():
     ap.add_argument("--sampler", default="euler")
     ap.add_argument("--scheduler", default="simple")
     ap.add_argument("--mode", choices=["tc", "parity"], default="tc")
+    ap.add_argument("--attention", choices=["sdpa", "sage2"], default="sdpa",
+                    help="sage2: patch the NVFP4 branch attention to SageAttention2 "
+                         "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays "
+                         "on stock attention. sdpa (default): no attention patch.")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -374,6 +487,8 @@ def main() -> int:
         print(f"Applying NVFP4 ConvRot mode='{args.mode}' + INT8 + addmm patches...")
         apply_quant_patches(mode=args.mode)
         nv = _load_diffusion_model(args.nvfp4)
+        if args.attention == "sage2":
+            apply_sage2_attention()
         nv_runs = {}
         for s in seeds:
             print(f"[NVFP4] seed {s}")
@@ -382,6 +497,9 @@ def main() -> int:
                 cfg=args.cfg, sampler_name=args.sampler, scheduler=args.scheduler,
             )
             nv_runs[s] = (xs, x0s, final.detach().float().cpu())
+        if args.attention == "sage2":
+            unset_sage2_attention()
+            print_sage2_attn_stats()
         del nv
         _hard_free_vram()
     finally:
