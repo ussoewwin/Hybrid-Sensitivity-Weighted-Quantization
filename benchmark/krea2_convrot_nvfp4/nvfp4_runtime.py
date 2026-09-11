@@ -586,23 +586,6 @@ def ensure_act_scale_blockonly(x):
     return torch.ones(1, device=x.device, dtype=torch.float32)
 
 
-# Per-run act-scale diagnostics (Owner 2026-09-11: scale must be visible in log).
-_ACT_STATS = {"from_ckpt": 0, "amax": 0, "amax_ms": 0.0, "total": 0}
-
-
-def _log_act_stats():
-    s = _ACT_STATS
-    print(
-        f"[HSWQ NVFP4] act scale: from_ckpt={s['from_ckpt']} "
-        f"per_call_amax={s['amax']}/{s['total']} "
-        f"amax_total={s['amax_ms']:.1f} ms",
-        flush=True,
-    )
-
-
-def reset_act_stats():
-    for k in _ACT_STATS:
-        _ACT_STATS[k] = 0
 
 
 def ensure_act_scale_cached(module, x, scale):
@@ -655,6 +638,4 @@ def ensure_act_scale_cached(module, x, scale):
             delattr(module, "_hswq_nvfp4_alpha_bound_scale")
         return s
 
-    _ACT_STATS["from_ckpt"] += 1
-    _ACT_STATS["total"] += 1
     return ensure_act_scale(x, scale)
