@@ -28,8 +28,13 @@ import importlib.util
 import json
 import math
 import os
-import subprocess
 import sys
+
+# SDXL calibration uses pure UNet inference and does not use PEFT LoRA.
+# Bypass diffusers' strict runtime peft version assertion.
+os.environ["_CHECK_PEFT"] = "0"
+
+import subprocess
 
 import torch
 from safetensors.torch import load_file, save_file
