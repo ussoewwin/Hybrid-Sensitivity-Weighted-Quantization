@@ -2449,21 +2449,13 @@ def run_post_quantize_int8_bench(
         print(f"[FATAL] Post-quantize bench: INT8 (--output) missing: {int8_path}")
         return 1
 
-    resolved_comfy = comfy_path
-    if not resolved_comfy or not os.path.isdir(resolved_comfy):
-        default_master = os.path.join(script_dir, "ComfyUI-master")
-        default_comfy = os.path.join(script_dir, "ComfyUI")
-        live_comfy = r"D:\USERFILES\ComfyUI\ComfyUI"
-        if os.path.isdir(default_master):
-            resolved_comfy = default_master
-        elif "COMFYUI_PATH" in os.environ and os.path.isdir(os.environ["COMFYUI_PATH"]):
-            resolved_comfy = os.environ["COMFYUI_PATH"]
-        elif os.path.isdir(default_comfy):
-            resolved_comfy = default_comfy
-        elif os.path.isdir(live_comfy):
-            resolved_comfy = live_comfy
-        else:
-            resolved_comfy = os.environ.get("COMFYUI_PATH", os.path.join(os.getcwd(), "ComfyUI"))
+    master = os.path.join(script_dir, "ComfyUI-master")
+    if comfy_path and os.path.isdir(comfy_path) and os.path.isdir(os.path.join(comfy_path, "comfy")):
+        resolved_comfy = comfy_path
+    elif os.path.isdir(master):
+        resolved_comfy = master
+    else:
+        raise FileNotFoundError(f"ComfyUI-master not found: {master}")
 
     # Final gate: free any leftover parent CUDA before the bench process starts.
     _release_vram_before_bench("pre-INT8-bench subprocess")
@@ -2723,21 +2715,13 @@ def main():
     )
 
     # --- ComfyUI Path Setup ---
-    comfy_path = args.comfy_path
-    if not comfy_path or not os.path.isdir(comfy_path):
-        default_master = os.path.join(script_dir, "ComfyUI-master")
-        default_comfy = os.path.join(script_dir, "ComfyUI")
-        live_comfy = r"D:\USERFILES\ComfyUI\ComfyUI"
-        if os.path.isdir(default_master):
-            comfy_path = default_master
-        elif "COMFYUI_PATH" in os.environ and os.path.isdir(os.environ["COMFYUI_PATH"]):
-            comfy_path = os.environ["COMFYUI_PATH"]
-        elif os.path.isdir(default_comfy):
-            comfy_path = default_comfy
-        elif os.path.isdir(live_comfy):
-            comfy_path = live_comfy
-        else:
-            comfy_path = os.environ.get("COMFYUI_PATH", os.path.join(os.getcwd(), "ComfyUI"))
+    master = os.path.join(script_dir, "ComfyUI-master")
+    if args.comfy_path and os.path.isdir(args.comfy_path) and os.path.isdir(os.path.join(args.comfy_path, "comfy")):
+        comfy_path = args.comfy_path
+    elif os.path.isdir(master):
+        comfy_path = master
+    else:
+        raise FileNotFoundError(f"ComfyUI-master not found: {master}")
 
     if os.path.exists(comfy_path):
         if comfy_path not in sys.path:
