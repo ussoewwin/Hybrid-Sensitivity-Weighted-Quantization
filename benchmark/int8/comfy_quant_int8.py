@@ -872,8 +872,6 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
             )
             x = self._conv_forward(input, weight, bias)
             uncast_bias_weight(self, weight, bias, offload_stream)
-            if act_out_dtype is not None and x.dtype != act_out_dtype:
-                x = x.to(dtype=act_out_dtype)
             return x
 
         def forward(self, input, *args, **kwargs):
