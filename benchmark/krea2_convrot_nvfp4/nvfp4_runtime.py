@@ -65,6 +65,7 @@ def clear_nvfp4_cudagraphs() -> None:
 def clear_nvfp4_runtime_pools() -> None:
     _ACT_Q_POOL.clear()
     _ROT_OUT_POOL.clear()
+    _ROT_OUT_POOL_TC.clear()
     clear_nvfp4_cudagraphs()
 
 
@@ -103,6 +104,43 @@ def rotate_last_dim_pooled(x, h_matrix, group_size: int):
         out32, out = buf
     torch.matmul(x_grouped.to(compute_dtype), h_matrix, out=out32)
     out.copy_(out32)
+    return out.reshape(orig_shape)
+
+
+# Dedicated pool for the TC-path rotate (separate buffer family from the fp32
+# one above: the two forms must never share buffers).
+_ROT_OUT_POOL_TC: dict = {}
+
+
+def rotate_last_dim_pooled_tc(x, h_matrix, group_size: int):
+    """Pooled bf16 ConvRot rotate for the TC path (3.4-era pooled form).
+
+    One pooled output buffer, single matmul kernel, no fp32 intermediate and no
+    copy. Only taken for bf16 ``x`` (bf16 shares fp32's exponent range, so no
+    fp16-style partial-sum overflow); every other dtype falls back to
+    ``rotate_last_dim_pooled`` so nothing else changes.
+    """
+    import torch
+
+    if x.dtype != torch.bfloat16:
+        return rotate_last_dim_pooled(x, h_matrix, group_size)
+
+    orig_shape = x.shape
+    features = orig_shape[-1]
+    if features % group_size != 0:
+        raise ValueError(f"features {features} not divisible by group_size {group_size}")
+    group_count = features // group_size
+    x_grouped = x.reshape(-1, group_count, group_size)
+    if h_matrix.device != x.device or h_matrix.dtype != x.dtype:
+        h_matrix = h_matrix.to(dtype=x.dtype, device=x.device)
+
+    m = x_grouped.shape[0]
+    key = (m, group_count, group_size, x.dtype, _dev_key(x))
+    out = _ROT_OUT_POOL_TC.get(key)
+    if out is None or out.shape != x_grouped.shape:
+        out = torch.empty_like(x_grouped)
+        _ROT_OUT_POOL_TC[key] = out
+    torch.matmul(x_grouped, h_matrix, out=out)
     return out.reshape(orig_shape)
 
 
