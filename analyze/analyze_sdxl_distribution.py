@@ -1735,7 +1735,7 @@ def build_int8_analyze_character_table(
 
 # ---------------------------------------------------------------------------
 # Fully autonomous tunable derivation.
-# Owner hard ceiling INT8_FP16_BUDGET_MB_HARD (default 300 MiB; ZI V1.0 may
+# Owner hard ceiling INT8_FP16_BUDGET_MB_HARD (default 500 MiB; ZI V1.0 may
 # raise the same named ceiling to 600) is NOT a thinking-stop recipe:
 # auto knobs fill inside that frame and must never exceed it.
 # Every knob below is derived from THIS checkpoint's profile + DualMonitor
@@ -1744,7 +1744,7 @@ def build_int8_analyze_character_table(
 
 # Default = SDXL INT8. Callers (e.g. quantize_zi_int8_hswq_v1.0) may set this
 # module attribute before derive / assert; ranking / fill logic is unchanged.
-INT8_FP16_BUDGET_MB_HARD = 300.0
+INT8_FP16_BUDGET_MB_HARD = 500.0
 
 
 def _safe_percentile(values: List[float], pct: float) -> float:
@@ -1781,7 +1781,7 @@ def derive_int8_autonomous_tunables(
     """Derive EVERY INT8 knob from this checkpoint + calibration.
 
     Owner hard ceiling: fp16_budget_mb must equal INT8_FP16_BUDGET_MB_HARD
-    (default 300 MiB; ZI INT8 V1.0 uses 600 MiB via the same named ceiling).
+    (default 500 MiB; ZI INT8 V1.0 uses 600 MiB via the same named ceiling).
     Inside that frame: THIS model's auto analysis → extreme auto-optimal
     settings (Hard VETO fences, ranking weights, MSE release, BC scope,
     gray-zone, alpha/beta, search_low, sens_veto percentile).
@@ -1794,6 +1794,9 @@ def derive_int8_autonomous_tunables(
       - extreme outliers dominating max
       - tiny UNet (<50 layers) or huge (>5000)
     """
+    global INT8_FP16_BUDGET_MB_HARD
+    if fp16_budget_mb is not None and float(fp16_budget_mb) > 0:
+        INT8_FP16_BUDGET_MB_HARD = float(fp16_budget_mb)
     hard = float(INT8_FP16_BUDGET_MB_HARD)
     if abs(float(fp16_budget_mb) - hard) > 1e-6:
         raise ValueError(
@@ -1919,7 +1922,7 @@ def derive_int8_autonomous_tunables(
 
     # DualMonitor = FP16 candidates; analyze = VETO candidates.
     # Quantize fills THIS model's extreme auto-optimal FP16 set inside the
-    # 300 MiB hard ceiling (measured sens/sev/mse combinator). keep_ratio r0.
+    # 500 MiB hard ceiling (measured sens/sev/mse combinator). keep_ratio r0.
     # DualMonitor is never renamed Hard VETO and never invents keep_ratio.
     sens = dualmonitor_sensitivities or {}
     sens_values = [float(v) for v in sens.values()
@@ -2447,6 +2450,7 @@ def compute_int8_optimal_settings(
     *,
     device: Optional[str] = None,
     importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
+    fp16_budget_mb: float = INT8_FP16_BUDGET_MB_HARD,
 ) -> Dict[str, Any]:
     """Auto optimal INT8 settings = analyze × V4 SVD×Imp × DualMonitor (r32).
 
@@ -2456,7 +2460,7 @@ def compute_int8_optimal_settings(
       3) DualMonitor channel_importance from 32-sample / 25-step calibration
     """
     unet_prof = _unet_only_profile(profile)
-    tunables = derive_int8_autonomous_tunables(unet_prof)
+    tunables = derive_int8_autonomous_tunables(unet_prof, fp16_budget_mb=fp16_budget_mb)
     layers = unet_prof.get("layers", {})
 
     optimal: Dict[str, Any] = {
@@ -2570,6 +2574,7 @@ def enrich_profile_with_derived(
     *,
     device: Optional[str] = None,
     importance_by_layer: Optional[Dict[str, torch.Tensor]] = None,
+    fp16_budget_mb: float = INT8_FP16_BUDGET_MB_HARD,
 ) -> Dict[str, Any]:
     """Recompute scores; attach FP8 + INT8 tunables; auto-optimal via analyze×V4×calib.
 
@@ -2599,6 +2604,7 @@ def enrich_profile_with_derived(
         weight_tensors=weight_tensors,
         device=device,
         importance_by_layer=importance_by_layer,
+        fp16_budget_mb=fp16_budget_mb,
     )
     profile["veto_tunables_int8"] = int8_bundle["veto_tunables_int8"]
     profile["optimal_settings_int8"] = int8_bundle["optimal_settings_int8"]
@@ -2657,7 +2663,12 @@ def enrich_profile_with_derived(
 # CLI: build profile from safetensors
 # ---------------------------------------------------------------------------
 
-def analyze_unet(path: str, *, run_v4: bool = True) -> Dict[str, Any]:
+def analyze_unet(
+    path: str,
+    *,
+    run_v4: bool = True,
+    fp16_budget_mb: float = INT8_FP16_BUDGET_MB_HARD,
+) -> Dict[str, Any]:
     """Scan safetensors → layer stats → FP8/INT8 tunables → optional V4 stub.
 
     Weight-only analyze cannot supply DualMonitor importance (needs the
@@ -2682,12 +2693,19 @@ def analyze_unet(path: str, *, run_v4: bool = True) -> Dict[str, Any]:
         profile,
         weight_tensors=weight_tensors if run_v4 else None,
         importance_by_layer=None,
+        fp16_budget_mb=fp16_budget_mb,
     )
 
 
-def generate_model_profile(input_path: str, output_path: str) -> Dict[str, Any]:
+def generate_model_profile(
+    input_path: str,
+    output_path: str,
+    fp16_budget_mb: float = INT8_FP16_BUDGET_MB_HARD,
+) -> Dict[str, Any]:
     """Build profile JSON (CPU safetensors scan). Used by quantize_sdxl_hswq_v2.0."""
-    profile = analyze_unet(input_path)
+    global INT8_FP16_BUDGET_MB_HARD
+    INT8_FP16_BUDGET_MB_HARD = float(fp16_budget_mb)
+    profile = analyze_unet(input_path, fp16_budget_mb=fp16_budget_mb)
     os.makedirs(os.path.dirname(os.path.abspath(output_path)) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(profile, f, indent=2)
@@ -2699,12 +2717,13 @@ def main() -> None:
     parser.add_argument("safetensors", nargs="?", help="Path to SDXL UNet safetensors (positional)")
     parser.add_argument("--input", "-i", dest="input_path", help="Input safetensors (quantize CLI compat)")
     parser.add_argument("-o", "--output", required=True, help="Output profile JSON path")
+    parser.add_argument("--fp16_budget_mb", type=float, default=500.0, help="FP16 budget hard ceiling (MB)")
     args = parser.parse_args()
 
     src = args.input_path or args.safetensors
     if not src:
         parser.error("provide safetensors path as positional arg or --input")
-    profile = generate_model_profile(src, args.output)
+    profile = generate_model_profile(src, args.output, fp16_budget_mb=args.fp16_budget_mb)
     print(f"Wrote {len(profile['layers'])} layers to {args.output}")
     print(f"ff2_auto_full_class={profile['summary'].get('ff2_auto_full_class')}")
     summary = profile.get("summary", {})
