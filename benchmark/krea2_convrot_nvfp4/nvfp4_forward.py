@@ -187,6 +187,8 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         bias = bias.dequantize()
 
     from .nvfp4_runtime import (
+        _ACT_BLOCK_ONLY,
+        ensure_act_scale_blockonly,
         ensure_act_scale_cached,
         quantize_nvfp4_act_pooled,
         scaled_mm_nvfp4_pooled,
@@ -206,7 +208,14 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
     # Checkpoints may omit input_scale (placeholder ones). Per-call amax in the
     # ROTATED domain (converter: rotate first, then amax) — ones as tensor_scale
     # collapses NVFP4 act grids (SSIM~0.18); step-0 freeze mis-scales later steps.
-    scale_a = ensure_act_scale_cached(module, input_2d, act_scale)
+    #
+    # HSWQ_NVFP4_BLOCKONLY=1: dedicated block-scale-only path (scale_a = 1.0,
+    # no amax, checkpoint input_scale ignored). Separated from both amax paths;
+    # measured BEFORE the amax/freeze selection so the modes never mix.
+    if _ACT_BLOCK_ONLY:
+        scale_a = ensure_act_scale_blockonly(input_2d)
+    else:
+        scale_a = ensure_act_scale_cached(module, input_2d, act_scale)
     try:
         w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(
             module, weight_qt
