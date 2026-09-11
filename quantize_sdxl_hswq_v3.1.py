@@ -68,11 +68,17 @@ Profiling: analyze/analyze_sdxl_distribution.py (reused; INT8 tunables derived
 """
 import argparse
 import math
+import os
+import sys
+
+# SDXL calibration uses pure UNet inference and does not use PEFT LoRA.
+# Bypass diffusers' strict runtime peft version assertion.
+os.environ["_CHECK_PEFT"] = "0"
+
 import torch
 import torch.nn as nn
 from diffusers import StableDiffusionXLPipeline
 from safetensors.torch import load_file, save_file
-import os
 import gc
 from tqdm import tqdm
 import sys
