@@ -561,7 +561,23 @@ def main() -> int:
         # --- NVFP4 (patched) ---
         print(f"Applying NVFP4 ConvRot mode='{mode}' + INT8 + addmm patches...")
         apply_quant_patches(mode=mode)
+        from krea2_convrot_nvfp4.nvfp4_forward import nvfp4_forward_stats, reset_nvfp4_forward_stats
+        reset_nvfp4_forward_stats()
         nv = _load_diffusion_model(args.nvfp4)
+
+        n_nvfp4 = 0
+        n_scale_ckpt = 0
+        n_convrot = 0
+        for name, m in nv.model.diffusion_model.named_modules():
+            if getattr(m, "_hswq_nvfp4", False):
+                n_nvfp4 += 1
+                if getattr(m, "_hswq_nvfp4_scale_from_ckpt", False):
+                    n_scale_ckpt += 1
+                if getattr(m, "_hswq_nvfp4_convrot", False):
+                    n_convrot += 1
+        print(f"  [HSWQ NVFP4] NVFP4 Linears loaded: {n_nvfp4} (ConvRot: {n_convrot})", flush=True)
+        print(f"  [HSWQ NVFP4] Calibrated input_scale active: {n_scale_ckpt} / {n_nvfp4} layers (from checkpoint)", flush=True)
+
         if args.attention == "sage2":
             apply_sage2_attention()
         nv_runs = {}
@@ -575,6 +591,12 @@ def main() -> int:
         if args.attention == "sage2":
             unset_sage2_attention()
             print_sage2_attn_stats()
+        stats = nvfp4_forward_stats()
+        print(
+            f"  [HSWQ NVFP4] Forward execution: TC GEMM hits={stats['scaled_mm_hits']}, "
+            f"dequant fallbacks={stats['dequant_fallbacks']}",
+            flush=True,
+        )
         del nv
         _hard_free_vram()
     finally:

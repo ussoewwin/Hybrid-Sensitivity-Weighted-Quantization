@@ -49,9 +49,41 @@ def _console(msg: str) -> None:
     logger.info(msg)
 
 
+def _patch_load_model_weights_warnings() -> None:
+    """Filter expected missing/unexpected keys out of BaseModel.load_model_weights."""
+    try:
+        import comfy.model_base as mb
+
+        if getattr(mb.BaseModel.load_model_weights, "_hswq_warn_filter", False):
+            return
+
+        def _filtered(self, sd, unet_prefix="", assign=False):
+            to_load = {}
+            keys = list(sd.keys())
+            for k in keys:
+                if k.startswith(unet_prefix):
+                    to_load[k[len(unet_prefix):]] = sd.pop(k)
+            to_load = self.model_config.process_unet_state_dict(to_load)
+            m, u = self.diffusion_model.load_state_dict(to_load, strict=False, assign=assign)
+            m = [x for x in m if not x.endswith("input_scale") and not x.endswith("hswq_act_scale")]
+            u = [x for x in u if ".comfy_quant" not in x]
+            if len(m) > 0:
+                logging.warning("unet missing: {}".format(m))
+            if len(u) > 0:
+                logging.warning("unet unexpected: {}".format(u))
+            del to_load
+            return self
+
+        _filtered._hswq_warn_filter = True
+        mb.BaseModel.load_model_weights = _filtered
+    except Exception:
+        pass
+
+
 def apply_comfy_quant_nvfp4_patches() -> bool:
     """Install NVFP4 detection + full load + full TC Linear forward once."""
     global _PATCHES_APPLIED
+    _patch_load_model_weights_warnings()
     # Gap fill: always (re)ensure addmm → HSWQ hswq_scaled_mm_nvfp4 (idempotent).
     from .nvfp4_addmm_patch import register_nvfp4_addmm_handler
 
