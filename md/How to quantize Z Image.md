@@ -7,6 +7,26 @@ Use **native ConvRot INT8** via CLI (`Z_Image/native_convert_int8_convrot_zi.py`
 **Prefer a Z Image Turbo (ZIT) checkpoint.** Plain Z Image base models are not recommended.
 
 ## Validation premise - SA2 attention (read first)
+## Coexistence with the existing SageAttention node (read before building a workflow)
+
+HSWQ bakes quantization into the model; attention acceleration is **not** part of the quantized
+file. If you already use a SageAttention patch node, keep the two layers separate and mind the
+points below.
+
+| Item | Detail |
+|---|---|
+| Existing node | **`Patch Sage Attention DM`** from [ComfyUI-DistorchMemoryManager](https://github.com/ussoewwin/ComfyUI-DistorchMemoryManager) - place it **after** the model loader and it patches that model's attention |
+| Where this repo's loaders live | [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools) - the HSWQ model loaders / quantized-model nodes |
+| Do they conflict? | **No.** The quantized loader only touches Linear weights/activations; the SA node only sets `transformer_options["optimized_attention_override"]`. Neither installs attention overrides in the HSWQ loader, so there is nothing to fight over |
+| Recommended order | model loader -> `Patch Sage Attention DM` -> LoRA / sampler nodes. Applying the SA patch after the loader means the patched model is the one that reaches the sampler |
+| **Pick the right mode** | On **sm120 (RTX 50)** only the CUDA fp8 path works. Use `auto` (identical to what the benchmarks call internally: INT8 QK + FP8 PV, `fp32+fp16` = SageAttention2++). `sageattn_qk_int8_pv_fp16_cuda` / `..._fp16_triton` **fail on sm120** (no kernel image / Triton path not usable) and silently fall back to SDPA => **no speed-up** |
+| `..._fp8_cuda` vs `..._fp8_cuda++` | `..._fp8_cuda` uses `fp32+fp32` accumulation; only `..._fp8_cuda++` uses `fp32+fp16` (SageAttention2++). To get the same behaviour as the benchmarks, prefer `auto` |
+| `allow_compile` | Leave it off while validating fidelity (the reference measurements ran eager). Enabling it changes numerics/timing, so re-measure before trusting the numbers |
+| Measurement anchor | The published numbers in this guide were measured with the internal benchmark path (`sageattn()` auto dispatch). A node run with any other mode is a different configuration and is not directly comparable |
+| Order of validation | 1) quantized model fidelity without the SA node 2) same run with the SA node enabled 3) compare per-seed `final-cos` and wall time. Never judge quality from an SA-patched run alone |
+
+**Rule of thumb:** if the SA node's mode would not resolve to the sm120 CUDA fp8 path, the run
+measures SDPA, not SageAttention - do not file those numbers as accelerated results.
 
 The fidelity gate for a ConvRot INT8 conversion is measured with **SageAttention2 attention
 acceleration** (`--attention sage2`, INT8 QK + FP8 PV, sm120 path). **SA2 is the production
