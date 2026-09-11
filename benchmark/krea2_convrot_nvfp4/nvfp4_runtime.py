@@ -586,6 +586,25 @@ def ensure_act_scale_blockonly(x):
     return torch.ones(1, device=x.device, dtype=torch.float32)
 
 
+# Per-run act-scale diagnostics (Owner 2026-09-11: scale must be visible in log).
+_ACT_STATS = {"from_ckpt": 0, "amax": 0, "amax_ms": 0.0, "total": 0}
+
+
+def _log_act_stats():
+    s = _ACT_STATS
+    print(
+        f"[HSWQ NVFP4] act scale: from_ckpt={s['from_ckpt']} "
+        f"per_call_amax={s['amax']}/{s['total']} "
+        f"amax_total={s['amax_ms']:.1f} ms",
+        flush=True,
+    )
+
+
+def reset_act_stats():
+    for k in _ACT_STATS:
+        _ACT_STATS[k] = 0
+
+
 def ensure_act_scale_cached(module, x, scale):
     """Act scale when checkpoint omits input_scale (placeholder ones).
 
@@ -596,9 +615,21 @@ def ensure_act_scale_cached(module, x, scale):
     """
     import torch
 
+    ckpt_scale = getattr(module, "input_scale", None)
+    if ckpt_scale is not None:
+        _ACT_STATS["from_ckpt"] += 1
+        _ACT_STATS["total"] += 1
+        return ensure_act_scale(x, ckpt_scale)
     if getattr(module, "_hswq_nvfp4_scale_placeholder", False) or scale is None:
         if not _ACT_AMAX_FREEZE:
-            return ensure_act_scale_amax(x)
+            import time as _t
+            _t0 = _t.perf_counter()
+            s_r = ensure_act_scale_amax(x)
+            torch.cuda.synchronize()
+            _ACT_STATS["amax"] += 1
+            _ACT_STATS["total"] += 1
+            _ACT_STATS["amax_ms"] += (_t.perf_counter() - _t0) * 1000.0
+            return s_r
         cached = getattr(module, "_hswq_nvfp4_act_scale", None)
         if cached is not None and cached.device == x.device:
             return cached
@@ -636,4 +667,6 @@ def ensure_act_scale_cached(module, x, scale):
             delattr(module, "_hswq_nvfp4_alpha_bound_scale")
         return s
 
+    _ACT_STATS["from_ckpt"] += 1
+    _ACT_STATS["total"] += 1
     return ensure_act_scale(x, scale)
