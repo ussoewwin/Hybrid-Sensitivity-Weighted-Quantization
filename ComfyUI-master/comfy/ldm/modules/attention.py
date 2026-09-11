@@ -35,6 +35,13 @@ except ImportError as e:
             raise e
         exit(-1)
 
+SAGE_ATTENTION3_IS_AVAILABLE = False
+try:
+    from sageattn3 import sageattn3_blackwell
+    SAGE_ATTENTION3_IS_AVAILABLE = True
+except ImportError:
+    pass
+
 FLASH_ATTENTION_IS_AVAILABLE = False
 try:
     from flash_attn import flash_attn_func
@@ -596,6 +603,8 @@ def _comfy_kitchen_int8_inputs(q, k, v, heads, mask, skip_reshape, enable_gqa):
 
 @wrap_attn
 def attention_comfy_kitchen_int8(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    if kwargs.get("low_precision_attention", True) is False and q.dtype == torch.float32:
+        return attention_pytorch(q, k, v, heads, mask=mask, attn_precision=attn_precision, skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape, **kwargs)
     q, k, v, mask, b, dim_head = _comfy_kitchen_int8_inputs(
         q, k, v, heads, mask, skip_reshape, kwargs.get("enable_gqa", False)
     )
@@ -615,6 +624,8 @@ def _attention_comfy_kitchen_int8_containers(q, k, v, heads, mask=None, attn_pre
     q = q.take()
     k = k.take()
     v = v.take()
+    if kwargs.get("low_precision_attention", True) is False and q.dtype == torch.float32:
+        return attention_pytorch(q, k, v, heads, mask=mask, attn_precision=attn_precision, skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape, **kwargs)
     q, k, v, mask, b, dim_head = _comfy_kitchen_int8_inputs(
         q, k, v, heads, mask, skip_reshape, kwargs.get("enable_gqa", False)
     )
@@ -688,6 +699,116 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
         else:
             out = out.reshape(b, -1, heads * dim_head)
     return out
+
+@wrap_attn
+def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    exception_fallback = False
+    if (q.device.type != "cuda" or
+        q.dtype not in (torch.float16, torch.bfloat16) or
+        mask is not None):
+        return attention_pytorch(
+            q, k, v, heads,
+            mask=mask,
+            attn_precision=attn_precision,
+            skip_reshape=skip_reshape,
+            skip_output_reshape=skip_output_reshape,
+            **kwargs
+        )
+
+    if skip_reshape:
+        B, H, L, D = q.shape
+        if H != heads:
+            return attention_pytorch(
+                q, k, v, heads,
+                mask=mask,
+                attn_precision=attn_precision,
+                skip_reshape=True,
+                skip_output_reshape=skip_output_reshape,
+                **kwargs
+            )
+        N = q.shape[2]
+        dim_head = D
+    else:
+        B, N, inner_dim = q.shape
+        if inner_dim % heads != 0:
+            return attention_pytorch(
+                q, k, v, heads,
+                mask=mask,
+                attn_precision=attn_precision,
+                skip_reshape=False,
+                skip_output_reshape=skip_output_reshape,
+                **kwargs
+            )
+        dim_head = inner_dim // heads
+
+    if dim_head >= 256 or N <= 1024:
+        return attention_pytorch(
+                q, k, v, heads,
+                mask=mask,
+                attn_precision=attn_precision,
+                skip_reshape=skip_reshape,
+                skip_output_reshape=skip_output_reshape,
+                **kwargs
+            )
+
+    if skip_reshape:
+        q_s = q
+        if kwargs.get("enable_gqa", False):
+            k_s, v_s = comfy.ops.repeat_kv_for_gqa(k, v, H, -3)
+        else:
+            k_s, v_s = k, v
+    else:
+        q_s, k_s, v_s = _reshape_qkv_to_heads(q, k, v, B, heads, dim_head, kwargs.get("enable_gqa", False))
+        q_s, k_s, v_s = map(lambda t: t.permute(0, 2, 1, 3).contiguous(), (q_s, k_s, v_s))
+        B, H, L, D = q_s.shape
+
+    try:
+        out = sageattn3_blackwell(q_s, k_s, v_s, is_causal=False)
+    except Exception as e:
+        exception_fallback = True
+        logging.error("Error running SageAttention3: %s, falling back to pytorch attention.", e)
+
+    if exception_fallback:
+        if not skip_reshape:
+            del q_s, k_s, v_s
+        return attention_pytorch(
+                q, k, v, heads,
+                mask=mask,
+                attn_precision=attn_precision,
+                skip_reshape=skip_reshape,
+                skip_output_reshape=skip_output_reshape,
+                **kwargs
+            )
+
+    if skip_reshape:
+        if not skip_output_reshape:
+            out = out.permute(0, 2, 1, 3).reshape(B, L, H * D)
+    else:
+        if skip_output_reshape:
+            pass
+        else:
+            out = out.permute(0, 2, 1, 3).reshape(B, L, H * D)
+
+    return out
+
+try:
+    @torch.library.custom_op("comfy::flash_attn", mutates_args=())
+    def flash_attn_wrapper(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
+                    dropout_p: float = 0.0, causal: bool = False, softmax_scale: float = -1.0) -> torch.Tensor:
+        softmax_scale_arg = None if softmax_scale == -1.0 else softmax_scale
+        return flash_attn_func(q, k, v, dropout_p=dropout_p, causal=causal, softmax_scale=softmax_scale_arg)
+
+
+    @flash_attn_wrapper.register_fake
+    def flash_attn_fake(q, k, v, dropout_p=0.0, causal=False, softmax_scale=-1.0):
+        # Output shape is the same as q
+        return q.new_empty(q.shape)
+except AttributeError as error:
+    FLASH_ATTN_ERROR = error
+
+    def flash_attn_wrapper(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
+                    dropout_p: float = 0.0, causal: bool = False, softmax_scale: float = -1.0) -> torch.Tensor:
+        assert False, f"Could not define flash_attn_wrapper: {FLASH_ATTN_ERROR}"
 
 @wrap_attn
 def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
@@ -771,6 +892,8 @@ if COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE:
     register_attention_function("comfy_kitchen_int8", attention_comfy_kitchen_int8)
 if SAGE_ATTENTION_IS_AVAILABLE:
     register_attention_function("sage", attention_sage)
+if SAGE_ATTENTION3_IS_AVAILABLE:
+    register_attention_function("sage3", attention3_sage)
 if FLASH_ATTENTION_IS_AVAILABLE:
     register_attention_function("flash", attention_flash)
 if model_management.xformers_enabled():
