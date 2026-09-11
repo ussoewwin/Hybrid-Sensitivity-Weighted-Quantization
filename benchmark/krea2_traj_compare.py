@@ -24,7 +24,7 @@ Usage:
     python krea2_traj_compare.py \
         --fp16 <base.safetensors> --nvfp4 <hybrid.safetensors> \
         --clip_path <clip.safetensors> --comfy_path <ComfyUI-master> \
-        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] [--tc | --parity]
+        [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] [--tc | --parity] [--blockonly]
 """
 import argparse
 import gc
@@ -498,6 +498,10 @@ def parse_args():
                     help="native Tensor Core NVFP4 path (scaled_mm_nvfp4; default)")
     ap.add_argument("--parity", action="store_true",
                     help="stock dequant parity path instead of Tensor Core")
+    ap.add_argument("--blockonly", action="store_true",
+                    help="HSWQ_NVFP4_BLOCKONLY=1: block-scale-only act scale "
+                         "(scale_a exactly 1.0; no amax, no calib input_scale; "
+                         "block scales carry the range) — fastest TC act path")
     ap.add_argument("--attention", choices=["sdpa", "sage2"], default="sdpa",
                     help="sage2: patch the NVFP4 branch attention to SageAttention2 "
                          "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays "
@@ -514,6 +518,9 @@ def main() -> int:
         print("--tc and --parity are mutually exclusive", flush=True)
         return 2
     mode = "parity" if args.parity else "tc"
+    if args.blockonly:
+        os.environ["HSWQ_NVFP4_BLOCKONLY"] = "1"
+        print("[BLOCKONLY] HSWQ_NVFP4_BLOCKONLY=1 — block-scale-only act scale, amax/call skipped", flush=True)
     set_hf_token(args.token)
 
     saved_argv = _clear_argv_for_comfy()
