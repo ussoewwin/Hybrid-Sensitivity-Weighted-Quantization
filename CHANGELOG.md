@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.5
+
+**Krea2 Hybrid ConvRot NVFP4 development cancelled (ConvRot INT8 only)** — Extensive empirical evaluations demonstrated that 4-bit precision (NVFP4) cannot maintain structural generation fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, final latent trajectory cosine fails to reach 0.90 (resulting in severe trajectory drift and frequent bifurcations). Consequently, Krea2 Hybrid NVFP4 development has been officially discontinued. Krea2 is supported strictly via **ConvRot INT8** (`Krea2/hswq_convrot_int8_krea2_v1.5.py` and ComfyUI `Native ConvRot INT8 Quantize`), which reliably preserves high generation fidelity (mean trajectory cosine $\ge 0.98$). Also adds the deterministic trajectory comparator for SDXL (`benchmark/sdxl_int8_traj_compare.py`) and resolves startup imports in the benchmark suite.
+Release notes: [v2.3.5](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.5)
+
 ## v2.3.4
 
 **Krea2 ConvRot INT8 quantization method published** — Added native and HSWQ ConvRot INT8 quantization support for Krea2 DiT models via CLI quantizer (`Krea2/hswq_convrot_int8_krea2_v1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, native only). Features structural blacklist protection for entry/exit and normalization layers, 4-axis composite error ranking, and standard 1off bias configuration. For checkpoints achieving mean latent trajectory cosine $\ge 0.98$, native ConvRot INT8 without HSWQ is recommended. Includes 20-seed multi-trajectory benchmark (`benchmark/krea2_int8_traj_compare.py`) and technical guide (`md/How to quantize Krea2.md`).
