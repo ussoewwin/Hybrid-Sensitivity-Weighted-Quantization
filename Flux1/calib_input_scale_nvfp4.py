@@ -46,8 +46,6 @@ from pathlib import Path
 
 # --- inlined helper definitions (no external bench import) ---
 
-# --- inlined helper definitions (no external bench import) ---
-
 def apply_quant_patches() -> None:
     """NVFP4 + INT8 comfy_quant monkey-patch（krea2_convrot_nvfp4_bench 相当）."""
     import comfy.ops
