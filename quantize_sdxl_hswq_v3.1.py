@@ -617,8 +617,8 @@ class SdxlVetoTunables:
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
-    fp16_budget_mb: float = 300.0
-    fp16_budget_bytes: int = 314572800
+    fp16_budget_mb: float = 500.0
+    fp16_budget_bytes: int = 524288000
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
@@ -752,7 +752,7 @@ class SdxlVetoTunables:
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
             fp16_budget_mb=float(d["fp16_budget_mb"]),
-            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 300 * 1024 * 1024)),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", int(float(d.get("fp16_budget_mb", 500.0)) * 1024 * 1024))),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=True,
             alpha_auto=float(d["alpha_auto"]),
@@ -839,6 +839,8 @@ def resolve_veto_tunables(
     analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
+    import analyze_sdxl_distribution
+    analyze_sdxl_distribution.INT8_FP16_BUDGET_MB_HARD = float(fp16_budget_mb)
     from analyze_sdxl_distribution import (
         derive_int8_autonomous_tunables,
         emit_hswq_int8_full_visibility_log,
@@ -2745,7 +2747,16 @@ def main():
             print(f"    Input:  {input_abs}")
             print(f"    Result: {profile_path}")
             subprocess.run(
-                [sys.executable, analyze_script, "--input", input_abs, "--output", profile_path],
+                [
+                    sys.executable,
+                    analyze_script,
+                    "--input",
+                    input_abs,
+                    "--output",
+                    profile_path,
+                    "--fp16_budget_mb",
+                    str(args.fp16_budget_mb),
+                ],
                 check=True,
             )
         else:
