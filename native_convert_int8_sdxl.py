@@ -81,20 +81,22 @@ def _release_vram_before_bench(label: str = "post-convert") -> None:
         print(f"[*] VRAM clear ({label}): done")
 
 
+# 25-seed deterministic trajectory comparator for post-convert INT8 validation
+_FIXED_SDXL_TRAJ_SEEDS = (
+    "42,137,849,2024,5555,10842,39104,77201,104857,284719,392817,501285,"
+    "618302,739182,884910,928371,1048592,1294819,1582034,1849201,2049182,"
+    "2491823,2840192,3194820,3849102"
+)
+
+
 def run_post_convert_int8_bench(
     *,
     script_dir: str,
     fp16_path: str,
     int8_path: str,
 ) -> int:
-    """Owner INT8 bench shape + seed fixed inside this chain:
-
-    int8bench_sdxl.py --fp16 <path> --int8 <path>
-      --prompt "<fixed>" --seed <fixed>
-
-    (No parent --bench_seed CLI. steps left to int8bench default.)
-    """
-    bench_script = os.path.join(script_dir, "benchmark", "int8bench_sdxl.py")
+    """Run benchmark/sdxl_int8_traj_compare.py for deterministic 25-seed latent trajectory comparison."""
+    bench_script = os.path.join(script_dir, "benchmark", "sdxl_int8_traj_compare.py")
     if not os.path.isfile(bench_script):
         print(f"[FATAL] Post-convert bench script not found: {bench_script}")
         return 1
@@ -105,6 +107,12 @@ def run_post_convert_int8_bench(
         print(f"[FATAL] Post-convert bench: INT8 (--output) missing: {int8_path}")
         return 1
 
+    default_master = os.path.join(script_dir, "ComfyUI-master")
+    if os.path.isdir(default_master):
+        resolved_comfy = default_master
+    else:
+        resolved_comfy = os.environ.get("COMFYUI_PATH", os.path.join(os.getcwd(), "ComfyUI"))
+
     _release_vram_before_bench("pre-INT8-bench subprocess")
 
     cmd = [
@@ -114,18 +122,30 @@ def run_post_convert_int8_bench(
         fp16_path,
         "--int8",
         int8_path,
-        "--prompt",
-        _FIXED_INT8BENCH_PROMPT,
-        "--seed",
-        str(_FIXED_INT8BENCH_SEED),
+        "--comfy_path",
+        resolved_comfy,
+        "--steps",
+        "25",
+        "--seeds",
+        _FIXED_SDXL_TRAJ_SEEDS,
+        "--width",
+        "1024",
+        "--height",
+        "1024",
+        "--cfg",
+        "7.0",
+        "--sampler",
+        "dpmpp_2m",
+        "--scheduler",
+        "karras",
     ]
     print("=" * 60)
-    print("[*] Post-convert INT8 fidelity bench (owner command shape)")
+    print("[*] Post-convert INT8 trajectory comparator (25 seeds)")
     print(f"    script: {bench_script}")
     print(f"    --fp16: {fp16_path}")
     print(f"    --int8: {int8_path}")
-    print(f"    --prompt: {_FIXED_INT8BENCH_PROMPT}")
-    print(f"    --seed: {_FIXED_INT8BENCH_SEED} (fixed inside)")
+    print(f"    --comfy_path: {resolved_comfy}")
+    print(f"    --seeds: 25 seeds ({_FIXED_SDXL_TRAJ_SEEDS[:35]}...)")
     print("=" * 60)
     completed = subprocess.run(cmd, check=False)
     return int(completed.returncode)
@@ -623,9 +643,8 @@ if __name__ == "__main__":
         action=argparse.BooleanOptionalAction,
         default=True,
         help=(
-            "After save, run benchmark/int8bench_sdxl.py with "
-            "--fp16=--model/--input --int8=--output and the fixed --prompt "
-            "(same shape as the owner INT8 bench command). "
+            "After save, run benchmark/sdxl_int8_traj_compare.py with "
+            "--fp16=--model/--input --int8=--output across 25 random seeds (steps=25). "
             "Pass --no-bench to skip."
         ),
     )
