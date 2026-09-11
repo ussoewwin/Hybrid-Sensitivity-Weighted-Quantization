@@ -220,9 +220,13 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
 
         # Cache alpha; rebind only when the act scale object changes
         # (placeholder → frozen amax swap).
+        # f99bb2d-era semantics: alpha rebinds ONLY when the numeric value of
+        # scale_a changes (e.g. placeholder→frozen swap), never per call.
+        # Identity check on the tensor object made this misfire when the
+        # scale tensor was re-created by ensure_act_scale per call.
         cached_alpha = getattr(module, "_hswq_nvfp4_alpha", None)
         bound = getattr(module, "_hswq_nvfp4_alpha_bound_scale", None)
-        if cached_alpha is None or bound is not scale_a:
+        if cached_alpha is None or bound is None or not torch.equal(bound, scale_a):
             alpha = scale_a * scale_b
             if alpha.dtype != torch.float32:
                 alpha = alpha.to(dtype=torch.float32)
