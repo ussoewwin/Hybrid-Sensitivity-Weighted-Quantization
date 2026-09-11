@@ -547,9 +547,6 @@ def ensure_act_scale(x, scale):
     ``None``: caller should use ``ensure_act_scale_cached`` (module cache).
     """
     import torch
-    _ACT_STATS["total"] += 1
-    if scale is not None:
-        _ACT_STATS["from_ckpt"] += 1
 
     if scale is None:
         return _device_ones_scale(x.device)
@@ -618,21 +615,9 @@ def ensure_act_scale_cached(module, x, scale):
     """
     import torch
 
-    ckpt_scale = getattr(module, "input_scale", None)
-    if ckpt_scale is not None:
-        _ACT_STATS["from_ckpt"] += 1
-        _ACT_STATS["total"] += 1
-        return ensure_act_scale(x, ckpt_scale)
     if getattr(module, "_hswq_nvfp4_scale_placeholder", False) or scale is None:
         if not _ACT_AMAX_FREEZE:
-            import time as _t
-            _t0 = _t.perf_counter()
-            s_r = ensure_act_scale_amax(x)
-            torch.cuda.synchronize()
-            _ACT_STATS["amax"] += 1
-            _ACT_STATS["total"] += 1
-            _ACT_STATS["amax_ms"] += (_t.perf_counter() - _t0) * 1000.0
-            return s_r
+            return ensure_act_scale_amax(x)
         cached = getattr(module, "_hswq_nvfp4_act_scale", None)
         if cached is not None and cached.device == x.device:
             return cached
