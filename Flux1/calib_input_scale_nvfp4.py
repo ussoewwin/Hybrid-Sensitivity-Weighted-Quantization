@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import argparse
 import gc
-import importlib.util
 import json
 import os
 import sys
@@ -42,6 +41,176 @@ import sys
 import torch
 from safetensors import safe_open
 from safetensors.torch import load_file, save_file
+from pathlib import Path
+
+
+# --- inlined helper definitions (no external bench import) ---
+
+# --- inlined helper definitions (no external bench import) ---
+
+def apply_quant_patches() -> None:
+    """NVFP4 + INT8 comfy_quant monkey-patch（krea2_convrot_nvfp4_bench 相当）."""
+    import comfy.ops
+
+    from flux1_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
+    from flux1_nvfp4.nvfp4_comfy_parity import apply_nvfp4_comfy_parity
+    import flux1_nvfp4.comfy_quant_nvfp4 as _cq_nvfp4
+
+    from int8.comfy_quant_int8 import apply_comfy_quant_int8_patches
+    import int8.comfy_quant_int8 as _cq_int8
+
+    apply_comfy_quant_nvfp4_patches()
+    if not apply_nvfp4_comfy_parity():
+        raise RuntimeError("flux1_nvfp4 ComfyUI-only parity failed to apply")
+    print(f"  [BENCH] nvfp4 patch file: {os.path.abspath(_cq_nvfp4.__file__)}")
+    print(f"  [BENCH] comfy_quant_nvfp4 patched: {_cq_nvfp4._PATCHES_APPLIED}")
+
+    apply_comfy_quant_int8_patches()
+    print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
+    print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
+    if not _cq_int8._PATCHES_APPLIED:
+        raise RuntimeError("comfy_quant_int8 patches failed to apply")
+
+
+def _install_torchaudio_stub() -> None:
+    """Prevent real torchaudio from loading if comfy.sd is pulled in."""
+    import importlib.machinery
+    import types
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(
+                name, loader=None, is_package=True
+            )
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    ta = _stub_mod("torchaudio", is_package=True)
+    functional = _stub_mod("torchaudio.functional")
+
+    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
+        return waveform
+
+    functional.resample = _resample
+
+    transforms = _stub_mod("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
+def _load_diffusion_model(unet_path: str):
+    """Load DiT; wrap INT8 comfy_quant checkpoints in Conv2d inject scope."""
+    import comfy.sd
+    from int8.comfy_quant_int8 import (
+        _int8_quant_conv_scope,
+        checkpoint_looks_like_comfy_quant_int8,
+    )
+    from flux1_nvfp4.comfy_quant_nvfp4 import checkpoint_looks_like_comfy_quant_nvfp4
+
+    looks_nvfp4 = checkpoint_looks_like_comfy_quant_nvfp4(unet_path)
+    use_int8_scope = checkpoint_looks_like_comfy_quant_int8(unet_path)
+    print(f"  [BENCH] NVFP4 comfy_quant detect: {looks_nvfp4}")
+    print(f"  [BENCH] INT8 Conv2d load scope: {use_int8_scope}")
+    if use_int8_scope:
+        with _int8_quant_conv_scope():
+            return comfy.sd.load_diffusion_model(unet_path, {})
+    return comfy.sd.load_diffusion_model(unet_path, {})
+
+
+def setup_comfy(comfy_path: str) -> None:
+    comfy_root = Path(comfy_path).resolve()
+    if not comfy_root.is_dir():
+        raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
+    sys.path = [str(comfy_root)] + [p for p in sys.path if Path(p).resolve() != comfy_root]
+
+    _install_torchaudio_stub()
+
+    # NVFP4 ConvRot runtime: prebind kitchen tensor exports before comfy.quant_ops import
+    from flux1_nvfp4.kitchen_quant_ops_repair import (
+        ensure_kitchen_quant_ops,
+        prebind_missing_kitchen_tensor_exports,
+    )
+
+    prebind_missing_kitchen_tensor_exports()
+
+    import comfy.options
+
+    comfy.options.enable_args_parsing(False)
+
+    try:
+        import comfy_aimdo  # noqa: F401
+    except Exception:
+        import types
+
+        m = types.ModuleType("comfy_aimdo")
+        m.__file__ = "<stub>"
+        m.__path__ = []
+        sys.modules["comfy_aimdo"] = m
+        sys.modules["comfy_aimdo.filter"] = types.ModuleType("comfy_aimdo.filter")
+        sys.modules["comfy_aimdo.filter"].filter_modules = lambda *a, **k: None
+
+    try:
+        import psutil  # noqa: F401
+    except Exception:
+        import types
+
+        class _VM:
+            total = 64 * 1024**3
+            available = 32 * 1024**3
+
+        class _Proc:
+            def memory_info(self):
+                return types.SimpleNamespace(rss=0)
+
+            def memory_full_info(self):
+                return types.SimpleNamespace(uss=0)
+
+            def cpu_percent(self, interval=None):
+                return 0.0
+
+            def num_threads(self):
+                return 1
+
+        ps = types.ModuleType("psutil")
+        ps.virtual_memory = lambda: _VM()
+        ps.Process = lambda: _Proc()
+        sys.modules["psutil"] = ps
+
+    # Resolve quant_ops now (after prebind) and apply Branch A/B before model load.
+    import comfy.quant_ops  # noqa: F401
+
+    ensure_kitchen_quant_ops()
 
 
 def parse_args():
@@ -120,17 +289,6 @@ def _rotate_last_dim(x: torch.Tensor, gs: int) -> torch.Tensor:
 # Calibration
 # ---------------------------------------------------------------------------
 
-def _load_bench(repo: str):
-    sys.path.insert(0, os.path.join(repo, "benchmark"))
-    sys.path.insert(0, repo)
-    spec = importlib.util.spec_from_file_location(
-        "fluxbench", os.path.join(repo, "benchmark", "flux1_nvfp4", "flux_int8_bench.py")
-    )
-    bench = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(bench)
-    return bench
-
-
 def _default_prompts() -> list[str]:
     """Diverse synthetic prompts covering content variety."""
     base = [
@@ -162,7 +320,6 @@ def main() -> int:
 
     repo = os.path.abspath(a.repo_root) if a.repo_root else os.path.abspath(
         os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-    bench = _load_bench(repo)
 
     comfy_path = a.comfy_path
     if not comfy_path:
@@ -170,8 +327,8 @@ def main() -> int:
     if not os.path.isabs(comfy_path):
         joined = os.path.join(repo, comfy_path)
         comfy_path = os.path.abspath(joined) if os.path.isdir(joined) else os.path.abspath(comfy_path)
-    bench.setup_comfy(comfy_path)
-    bench.apply_int8_patches()
+    setup_comfy(comfy_path)
+    apply_quant_patches()
 
     a.base, a.hybrid, a.out = a.base.strip(), a.hybrid.strip(), a.out.strip()
 
@@ -186,7 +343,7 @@ def main() -> int:
     print(f"NVFP4 target layers: {len(targets)}")
 
     # 2) Load BASE fp16 model (same loader as diag_impact.py; weights NOT quantized)
-    model = bench._load_diffusion_model(a.base)  # ModelPatcher
+    model = _load_diffusion_model(a.base)  # ModelPatcher
     dm = model.model.diffusion_model
     dm.eval()
 
