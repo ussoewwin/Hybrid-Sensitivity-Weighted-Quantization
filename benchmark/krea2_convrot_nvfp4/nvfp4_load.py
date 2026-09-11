@@ -202,6 +202,10 @@ def load_nvfp4_linear_module(
             module.register_parameter(
                 param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False)
             )
+            if param_name == "input_scale":
+                module.hswq_act_scale = torch.nn.Parameter(
+                    _v.to(device=device), requires_grad=False
+                )
             manually_loaded_keys.append(param_key)
 
     arm_nvfp4_module(module, layer_conf)
