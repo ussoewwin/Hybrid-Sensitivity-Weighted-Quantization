@@ -34,6 +34,18 @@ import sys
 # Bypass diffusers' strict runtime peft version assertion.
 os.environ["_CHECK_PEFT"] = "0"
 
+def _install_kornia_compat_stub() -> None:
+    try:
+        import kornia.geometry.transform as _kgt  # noqa: F401
+        if not hasattr(_kgt, "build_laplacian_pyramid"):
+            def _dummy_laplacian(*args, **kwargs):
+                raise NotImplementedError("build_laplacian_pyramid stub")
+            _kgt.build_laplacian_pyramid = _dummy_laplacian
+    except Exception:
+        pass
+
+_install_kornia_compat_stub()
+
 import subprocess
 
 import torch
