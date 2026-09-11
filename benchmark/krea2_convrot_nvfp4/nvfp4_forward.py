@@ -20,7 +20,7 @@ import logging
 
 from .nvfp4_gemm import bake_nvfp4_weight_inplace, hswq_scaled_mm_nvfp4
 from .nvfp4_hadamard import build_hadamard
-from .nvfp4_runtime import rotate_last_dim_pooled
+from .nvfp4_runtime import rotate_last_dim_pooled, rotate_last_dim_pooled_tc
 from .nvfp4_tc_gate import note_scaled_mm_failure, nvfp4_tc_enabled
 
 logger = logging.getLogger(__name__)
@@ -323,7 +323,10 @@ def make_nvfp4_linear_forward(stock_forward):
             if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
                 h = build_hadamard(gs, device=input_2d.device, dtype=input_2d.dtype)
                 self._hswq_nvfp4_H = h
-            input_2d = rotate_last_dim_pooled(input_2d, h, gs)
+            # TC path: pooled bf16 rotate (3.4-era form; the act is FP4-quantized
+            # immediately after, so an fp32 intermediate + copy buys nothing).
+            # The _full_precision_mm branch above keeps the fp32 form untouched.
+            input_2d = rotate_last_dim_pooled_tc(input_2d, h, gs)
             _CONVROT_ACT_ROTATES += 1
 
         # 3) Weight / bias: skip cast_bias_weight when already on-device QT
