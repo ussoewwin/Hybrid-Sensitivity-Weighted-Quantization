@@ -347,6 +347,10 @@ def parse_args():
                     help="random context token seq length (default 256)")
     ap.add_argument("--seed", type=int, default=42,
                     help="trajectory seed (default 42)")
+    ap.add_argument("--skip-act-amax", action="store_true",
+                    help="skip amax hook capture + extra-seed runs "
+                         "(block-scale-only artifacts; JSON still carries "
+                         "act_amax:{} for gen_reverse compatibility)")
     return ap.parse_args()
 
 
@@ -415,8 +419,9 @@ def main():
     # gen_reverse_nvfp4.py writes this as convrot NVFP4 .input_scale
     # (amax / (F8_E4M3_MAX * F4_E2M1_MAX)); without it the runtime falls back to
     # per-call amax, which the reference converter documents as a quality loss.
-    _hadamard = _build_hadamard(256, device=device)
+    # --skip-act-amax (block-scale-only): no hooks, no extra-seed runs.
     act_amax = {}
+    _hadamard = _build_hadamard(256, device=device) if not a.skip_act_amax else None
 
     def _mk_amax_hook(name):
         def hook(module, inp):
@@ -428,25 +433,31 @@ def main():
                 act_amax[name] = max(act_amax.get(name, 0.0), a)
         return hook
 
-    _amax_hooks = [m.register_forward_pre_hook(_mk_amax_hook(n)) for n, m in mods.items()]
+    _amax_hooks = (
+        [m.register_forward_pre_hook(_mk_amax_hook(n)) for n, m in mods.items()]
+        if not a.skip_act_amax else []
+    )
 
     print("[*] pristine run", flush=True)
     x_ref = run()
     print("[*] pristine done", flush=True)
 
-    # input_scale calibration robustness: the reference converter calibrates
-    # on 32 samples x 25 steps; a single 4-step seed can under-cover real
-    # activation ranges (frozen input_scale then clips acts). Span extra seeds
-    # (running max) before detaching the amax hooks. Cost: a few extra forwards.
-    for extra in (1337, 7):
-        if extra == seed:
-            continue
-        run(extra)
-    print("[*] amax extra-seed runs done", flush=True)
+    if not a.skip_act_amax:
+        # input_scale calibration robustness: the reference converter calibrates
+        # on 32 samples x 25 steps; a single 4-step seed can under-cover real
+        # activation ranges (frozen input_scale then clips acts). Span extra seeds
+        # (running max) before detaching the amax hooks. Cost: a few extra forwards.
+        for extra in (1337, 7):
+            if extra == seed:
+                continue
+            run(extra)
+        print("[*] amax extra-seed runs done", flush=True)
 
     for h in _amax_hooks:
         h.remove()
     print(f"act_amax captured for {len(act_amax)} modules", flush=True)
+    if a.skip_act_amax:
+        print("[*] --skip-act-amax: act_amax left empty (block-scale-only)", flush=True)
 
     impacts = {}
     done = 0
