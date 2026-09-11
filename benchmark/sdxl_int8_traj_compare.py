@@ -90,9 +90,26 @@ def _install_torchaudio_stub() -> None:
 
 
 def setup_comfy(comfy_path: str) -> None:
-    comfy_root = Path(comfy_path).resolve()
-    if not comfy_root.is_dir():
-        raise FileNotFoundError(f"--comfy_path not found: {comfy_root}")
+    comfy_root = None
+    if comfy_path and os.path.isdir(comfy_path) and os.path.isdir(os.path.join(comfy_path, "comfy")):
+        comfy_root = Path(comfy_path).resolve()
+    else:
+        bench_dir = Path(__file__).resolve().parent
+        repo_dir = bench_dir.parent
+        for cand in [
+            comfy_path,
+            repo_dir / "ComfyUI-master",
+            repo_dir / "ComfyUI",
+            r"D:\USERFILES\ComfyUI\ComfyUI",
+            os.environ.get("COMFYUI_PATH"),
+            Path.cwd() / "ComfyUI-master",
+            Path.cwd() / "ComfyUI",
+        ]:
+            if cand and os.path.isdir(cand) and os.path.isdir(os.path.join(cand, "comfy")):
+                comfy_root = Path(cand).resolve()
+                break
+    if comfy_root is None or not comfy_root.is_dir():
+        raise FileNotFoundError(f"--comfy_path not found: {comfy_path}")
     bench_dir = Path(__file__).resolve().parent
     repo_dir = bench_dir.parent
 

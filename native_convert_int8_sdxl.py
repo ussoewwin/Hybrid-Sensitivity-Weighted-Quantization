@@ -125,8 +125,16 @@ def run_post_convert_int8_bench(
         return 1
 
     default_master = os.path.join(script_dir, "ComfyUI-master")
+    default_comfy = os.path.join(script_dir, "ComfyUI")
+    live_comfy = r"D:\USERFILES\ComfyUI\ComfyUI"
     if os.path.isdir(default_master):
         resolved_comfy = default_master
+    elif "COMFYUI_PATH" in os.environ and os.path.isdir(os.environ["COMFYUI_PATH"]):
+        resolved_comfy = os.environ["COMFYUI_PATH"]
+    elif os.path.isdir(default_comfy):
+        resolved_comfy = default_comfy
+    elif os.path.isdir(live_comfy):
+        resolved_comfy = live_comfy
     else:
         resolved_comfy = os.environ.get("COMFYUI_PATH", os.path.join(os.getcwd(), "ComfyUI"))
 
