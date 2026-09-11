@@ -187,7 +187,7 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         bias = bias.dequantize()
 
     from .nvfp4_runtime import (
-        ensure_act_scale,
+        ensure_act_scale_cached,
         quantize_nvfp4_act_pooled,
         scaled_mm_nvfp4_pooled,
     )
@@ -212,7 +212,7 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
     # measured BEFORE the amax/freeze selection so the modes never mix.
     # 2026-09-11: blockonly branch removed (Owner directive) — single act-scale
     # path restored, byte-identical to the f99bb2d^ 3.4-iteration era.
-    scale_a = ensure_act_scale(input_2d, act_scale)
+    scale_a = ensure_act_scale_cached(module, input_2d, act_scale)
     try:
         w_qdata, scale_b, block_scale_b, orig_n = _plain_weight_cached(
             module, weight_qt
