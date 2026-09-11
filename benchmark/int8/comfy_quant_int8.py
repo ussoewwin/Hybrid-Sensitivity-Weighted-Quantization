@@ -622,11 +622,21 @@ def _rotate_last_dim(x, h_matrix, group_size: int):
     return torch.matmul(x_f, h).reshape(orig_shape)
 
 
-def _rotate_activation_nchw(x, h_matrix, group_size: int):
+def _rotate_activation_nchw(x, h_matrix, group_size: int, out_dtype=None):
+    """Rotate an NCHW activation for ConvRot Conv2d.
+
+    The rotation accumulates in float32 (exact H), but the result must return to
+    the graph dtype BEFORE the permute-back, otherwise the permute/contiguous
+    and the following conv2d both run in float32 (measured: conv fp16 0.745 ms
+    vs conv fp32 1.568 ms; fp32 attention sdpa 3.24x the fp16 cost).
+    """
     if x.ndim != 4:
         raise ValueError(f"NCHW activation must be 4D, got ndim={x.ndim}")
+    in_dtype = x.dtype if out_dtype is None else out_dtype
     x_perm = x.permute(0, 2, 3, 1).contiguous()
     x_rot = _rotate_last_dim(x_perm, h_matrix, group_size)
+    if x_rot.dtype != in_dtype:
+        x_rot = x_rot.to(dtype=in_dtype)
     return x_rot.permute(0, 3, 1, 2).contiguous()
 
 
@@ -872,10 +882,7 @@ def _make_quantized_conv2d(ops_module, MixedPrecisionOps, disabled):
                 # cast the rotated activation back to the graph dtype BEFORE the
                 # conv, otherwise the conv runs in fp32 (measured 0.745 -> 1.568 ms)
                 # and float32 leaks into attention (query fp32 vs key/value fp16).
-                act_dtype = input.dtype
-                input = _rotate_activation_nchw(input, h, gs)
-                if input.dtype != act_dtype:
-                    input = input.to(dtype=act_dtype)
+                input = _rotate_activation_nchw(input, h, gs, out_dtype=input.dtype)
             want_requant = isinstance(getattr(self, "weight", None), QuantizedTensor)
             weight, bias, offload_stream = cast_bias_weight(
                 self,
