@@ -24,13 +24,13 @@ results are kept below as legacy reference only.
 | Configuration | 25-seed cosine mean | Note |
 |---|---|---|
 | FP16 baseline | 1.000 | identity (same checkpoint, both branches) |
-| native (full) ConvRot INT8 | ≈ 0.93 | all convertible layers INT8; the floor the hybrid must beat |
+| native ConvRot INT8 | ≈ 0.93 | all convertible layers INT8; the floor the hybrid must beat |
 
 ### Reverse hybrid (diag-reverse) results
 
 `<model>_hswq_rev_int<K>_convrot_int8.safetensors` — K lowest-impact layers ConvRot INT8, everything
 else FP16. Checkpoint: `waiIllustriousSDXL_v170` (788 quantifiable layers; FP16 base 6.94 GB;
-all-eligible INT8 upper bound 4.39 GB; GB = decimal).
+K=788 (all eligible layers) hybrid ≈ 4.39 GB; GB = decimal).
 
 > **Preliminary:** the rows below were measured with **5 of the 25 seeds** — they are **not gate
 > results**. The production verdict requires the full 25-seed set on a quiet GPU (concurrent GPU
@@ -47,7 +47,7 @@ all-eligible INT8 upper bound 4.39 GB; GB = decimal).
 | 580 | 4.97 | 5 | 0.94937 | 0.88577 | 0.98800 | 1/5 | 0/5 |
 | 620 | 4.82 | 5 | 0.96505 | 0.93282 | 0.99792 | 2/5 | 0/5 |
 
-All rows are above the native (full INT8) reference (≈ 0.93) as expected: the FP16-kept
+All rows are above the native ConvRot INT8 reference (≈ 0.93) as expected: the FP16-kept
 high-impact layers are the precision reserve that the full pack does not have.
 
 **Re-measurement note:** run-to-run variation was observed at 5 seeds (the same model and seed gave
