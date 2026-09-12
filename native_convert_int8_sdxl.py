@@ -46,6 +46,74 @@ def _install_kornia_compat_stub() -> None:
 
 _install_kornia_compat_stub()
 
+
+def _install_torchaudio_stub() -> None:
+    """Prevent real torchaudio from loading when diffusers, transformers, or comfy.sd is imported.
+
+    On cloud hosts torch/torchaudio CUDA builds often mismatch (e.g. torch 13.2
+    vs torchaudio 13.0) and abort. Replace torchaudio in sys.modules with a local stub.
+    """
+    import importlib.machinery
+    import types
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(
+                name, loader=None, is_package=True
+            )
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    ta = _stub_mod("torchaudio", is_package=True)
+    ta.__version__ = "2.5.0"
+    ta.load = lambda *args, **kwargs: (None, None)
+    ta.info = lambda *args, **kwargs: None
+
+    functional = _stub_mod("torchaudio.functional")
+
+    def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
+        return waveform
+
+    functional.resample = _resample
+
+    transforms = _stub_mod("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
+_install_torchaudio_stub()
+
 import subprocess
 
 import torch
