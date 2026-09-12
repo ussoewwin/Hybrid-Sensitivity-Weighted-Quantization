@@ -1,6 +1,6 @@
-# How to quantize SDXL (Reverse Hybrid ConvRot INT8)
+# How to quantize SDXL (Reverse Hybrid ConvRot INT8, v1.1)
 
-> **Prerequisite**: the original **FP16 SDXL checkpoint** (`<base>`). Nothing else.
+> **Prerequisite**: the original **FP16 SDXL checkpoint** (`<base>`). Nothing else is imported.
 
 This method is **fundamentally different** from the conventional "protect the top-important layers"
 approach (histogram MSE / cosine / SVD saliency). It is a **reverse method**: it measures every
@@ -9,18 +9,26 @@ layers to ConvRot INT8 in ascending impact order**, while **every other layer is
 (the original size and precision). Keeping the most sensitive layers in FP16 is what lifts the mixed
 checkpoint above a full INT8 pack at the same quality level.
 
-The conventional method ignores inter-layer interactions and is not sufficient for this hybrid. The
-reverse method stays in the low-error regime where additivity holds, so **single-layer ranking is
-valid** (see `md/diag_impact_trajectory_sensitivity_technical_guide.md`).
+**Converter: `sdxl/gen_reverse_int8_sdxl_v1.1.py`.** It uses the artifact-era boundary set (module
+names containing `conv_in.` / `conv_out.` / `time_embed.` / `add_embedding.` / `label_emb.` are never
+converted) and writes the same on-disk layout as the shipped ConvRot INT8 packs. The variant with the
+newer boundary set lives in `sdxl/gen_reverse_int8_sdxl.py`; the one-command driver selects v1.1 with
+`--legacy-gen`.
 
-**Validation is done with the deterministic 25-seed latent-trajectory comparison**
+**Candidate premise (HSWQ V3.1 selector).** The production pipeline does not measure all eligible
+layers: Step 1 runs the permitted V3.1 selector (`--artifact v31`) and measures only the pool it
+leaves. V3.1 itself decides which layers stay FP16 (calibration + weighted-histogram MSE + full SVD +
+a **300 MiB payload budget**, plus the key-pattern veto), and those layers are excluded from the pool,
+so they stay FP16 in the hybrid. **That protection is the invariant to preserve**: on the reference
+checkpoint the selector keeps **77 matmul layers** at FP16 (73 non-boundary + 4 boundary), and a valid
+hybrid keeps all 77 FP16 with weights byte-identical to the base.
+
+Validation is done with the deterministic 25-seed latent-trajectory comparison
 (`benchmark/sdxl_int8_traj_compare.py`): identical noise per seed for both models, per-step latent
 cosine, bifurcation detection. The production gate is **cosine mean ≥ 0.95 and 0/25 bifurcated**.
 
-The FP16 checkpoint is the only input: **every ConvRot-eligible Linear/Conv2d in it is a candidate**
-(788 layers on the reference checkpoint — 794 2D/4D weights minus the 6 boundary layers listed in
-Step 1). Scores are **checkpoint-specific**: the impact ranking, `K`, and the trajectory numbers must
-be re-measured for every model and are **not transferable**.
+Scores are **checkpoint-specific**: the impact ranking, `K`, and the trajectory numbers must be
+re-measured for every model and are **not transferable**.
 
 ---
 
@@ -61,8 +69,8 @@ step.
 | This repository | clone it; it bundles the ComfyUI checkout in `ComfyUI-master/` (read-only — never modify it) |
 | Runtime packages | `pip install -r requirements.txt` (ComfyUI runtime) and `pip install -U comfy_kitchen` (INT8 layouts) |
 | Base checkpoint | the original fp16 SDXL `.safetensors` (`<base>`, UNet + CLIP + VAE in one file) |
-| Calibration prompts (**only for `--bias_correction`**) | a prompt list, e.g. `sample/calibration_prompts_128.txt` |
-| Disk | keep **≥ 20 GB free** (base 6.9 GB + hybrid 4.4–6.9 GB + one intermediate) |
+| Calibration prompts | a prompt list, e.g. `sample/calibration_prompts_128.txt` — required by Step 1 (`--artifact v31`) and by Step 2 when `--bias_correction` is used |
+| Disk | keep **≥ 20 GB free** (base 6.9 GB + hybrid 4.4–6.9 GB + the V3.1 selector pack + one intermediate) |
 | Optional | `scikit-image` only if you also run the legacy decoded-image bench `benchmark/int8bench_sdxl.py` |
 
 ### Environment Setup
@@ -83,20 +91,30 @@ errors; never set `TORCH_LOGS` (torch import fails with an AttributeError).
 |---|---|
 | `<base>` | base fp16 SDXL checkpoint `.safetensors` (e.g. `waiIllustriousSDXL_v170.safetensors`) |
 | `<impact>.json` | **created by Step 1** (e.g. `impact_<model>.json`) — never downloaded, never copied from another model |
-| `<hybrid>` | hybrid output of Step 2, name pattern `<model>_hswq_rev_int<K>_convrot_int8.safetensors` |
-| `<K>` | integer: how many lowest-impact layers to convert to ConvRot INT8 (search this; not fixed) |
+| `protect_<stem>.json` | **created by Step 1** — the V3.1 selector's protected (FP16-kept) layer list, written next to `<impact>.json` |
+| `<stem>hswq_r32_1off_convrot_int8_repro.safetensors` | **created by Step 1** — the V3.1 selector's own pack, written next to `<base>` (its converted set defines the pool) |
+| `<hybrid>` | hybrid output of Step 2 (a name you pass on the command line, e.g. `<model>_rev_int<K>_convrot_int8.safetensors`) |
+| `<K>` | integer: how many lowest-impact pool layers to request (search this; not fixed) |
 | `<comfy_path>` | folder that contains `comfy/` (bundled: `ComfyUI-master`) |
+
+**Path handling:** run everything from the repository root and pass paths **relative to the current
+directory** (or absolute). Relative paths are forwarded unchanged to the child processes, so a path
+that already contains the repository folder name resolves to a doubled path and fails with
+`FileNotFoundError`.
 
 ## Overall flow
 
 ```
 <base>  (original FP16, 6.94 GB)
-  │ Step 1: sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" --steps 25 --seed 42
-  ▼                                                     (writes <impact>.json, ~30–60 min for 788 layers)
-<impact>.json
-  │ Step 2: sdxl/gen_reverse_int8_sdxl.py <K> "<hybrid>" "<base>" "<impact>.json" [--bias_correction ...]
+  │ Step 1: sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" \
+  │              --artifact v31 --calib_file "<prompts>" --comfy_path "<comfy_path>" \
+  │              --num_calib_samples 32 --num_inference_steps 25 --steps 25 --seed 42
+  ▼        (also writes protect_<stem>.json and <stem>hswq_r32_1off_convrot_int8_repro.safetensors)
+<impact>.json  (pool only: 715 layers on the reference checkpoint = 788 eligible − 73 protected)
+  │ Step 2: sdxl/gen_reverse_int8_sdxl_v1.1.py <K> "<hybrid>" "<base>" "<impact>.json" \
+  │              --bias_correction --calib_file "<prompts>" --comfy_path "<comfy_path>"
   ▼
-<hybrid>  (K lowest-impact layers → ConvRot INT8, everything else stays FP16)
+<hybrid>  (K lowest-impact pool layers → ConvRot INT8, everything else stays FP16)
   │ Step 3: benchmark/sdxl_int8_traj_compare.py --fp16 "<base>" --int8 "<hybrid>" --steps 25  (25 random seeds)
   ▼
 PASS iff final-cosine mean ≥ 0.95 and 0/25 bifurcated  →  else change <K> (Step 4)
@@ -106,47 +124,69 @@ Step 5: upload + cleanup
 
 ---
 
-## Step 1. Create `<impact>.json` (per-layer trajectory impact)
+## Step 1. Create `<impact>.json` (per-layer trajectory impact, V3.1 candidate premise)
 
 ```bash
 python sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" \
   --comfy_path "<comfy_path>" \
+  --artifact v31 \
+  --calib_file "sample/calibration_prompts_128.txt" \
+  --num_calib_samples 32 --num_inference_steps 25 \
   --steps 25 --seed 42
 ```
 
-- Every ConvRot-eligible Linear/Conv2d in the FP16 checkpoint is a candidate (788 layers on the
-  reference checkpoint). For each one, injects that layer's ConvRot INT8 reconstruction
+- `--artifact v31` first runs the permitted V3.1 selector (`sdxl/build_protect_list_sdxl.py` →
+  `sdxl/quantize_sdxl_hswq_v3.1.py`): calibration over `--num_calib_samples` prompts ×
+  `--num_inference_steps` steps, weighted-histogram MSE + full SVD, the 300 MiB payload budget and the
+  key-pattern veto. It writes the selector pack `<stem>hswq_r32_1off_convrot_int8_repro.safetensors`
+  next to `<base>` and the protected list `protect_<stem>.json` next to `<impact>.json`, then measures
+  **only the pool the selector left** (715 of the 788 eligible layers on the reference checkpoint).
+- Every ConvRot-eligible Linear/Conv2d of the checkpoint is a candidate; boundary layers
+  (`input_blocks.0.0`, `out.*`, `time_embed.*`, `add_embedding.*`, `label_emb.*`) are always excluded.
+  For each pool layer the script injects that layer's ConvRot INT8 reconstruction
   (`dequant(per-channel INT8(quantize(W @ H^T)))` — the ConvRot INT8 kernel, **no inverse rotation**),
-  runs a fixed-seed denoising trajectory, and records how far the final latent drifts (relative MSE).
-  That is the layer's **real importance under trajectory propagation** — i.e. the
-  FP16-vs-ConvRot-INT8 error of that layer, propagated.
-- `--steps` / `--seed` / `--width` / `--height` / `--prompt` are configurable. The production
-  measurement uses `--steps 25 --seed 42`; boundary layers (`input_blocks.0.0` / `out.*` /
-  `time_embed.*` / `add_embedding.*` / `label_emb.*`) are always excluded.
-- Progress prints as `[25/788] [50/788] ... [788/788]`. The first line can take a few minutes
-  (checkpoint load + CLIP conditioning + reference trajectory).
-- Writes `{"x_ref_norm": ..., "steps": ..., "seed": ..., "base": ..., "impacts": {<layer>: <rel MSE>, ...}}`.
-  The ranking is **not transferable** between checkpoints — always re-measure.
+  runs a fixed-seed denoising trajectory and records how far the final latent drifts (relative MSE).
+  That is the layer's **real importance under trajectory propagation**.
+- Two independent parameter groups:
+  - `--steps` / `--seed` / `--width` / `--height` / `--prompt` = the **trajectory measurement**. The
+    production measurement uses `--steps 25 --seed 42`. The ranking depends on these values, so keep
+    them fixed for every checkpoint you intend to compare, and do not compare rankings measured with
+    different `--steps`.
+  - `--calib_file` / `--num_calib_samples` / `--num_inference_steps` = the **V3.1 selector calibration**
+    (only used with `--artifact v31`).
+- Progress prints `[25/715] [50/715] ...`. The first line can take a few minutes (checkpoint load +
+  CLIP conditioning + reference trajectory).
+- Writes `{"x_ref_norm": ..., "steps": ..., "seed": ..., "cfg": ..., "sampler": ..., "scheduler": ...,
+  "base": ..., "impacts": {<layer>: <rel MSE>, ...}}`. Without `--artifact`, every eligible layer is
+  measured (788 on the reference checkpoint) instead of the pool.
 
 ---
 
-## Step 2. Reverse hybrid conversion (`<K>` lowest-impact layers → ConvRot INT8)
+## Step 2. Reverse hybrid conversion with v1.1 (`<K>` lowest-impact layers → ConvRot INT8)
 
 ```bash
-python sdxl/gen_reverse_int8_sdxl.py <K> \
-  "<model>_hswq_rev_int<K>_convrot_int8.safetensors" \
+python sdxl/gen_reverse_int8_sdxl_v1.1.py <K> \
+  "<hybrid>" \
   "<base>" "<impact>.json" \
-  [--out-dir "<output-dir>"] [--groupsize 256]      # default out-dir: "." (cwd)
+  --out-dir "<output-dir>" --groupsize 256 \
+  --bias_correction \
+  --calib_file "sample/calibration_prompts_128.txt" \
+  --comfy_path "<comfy_path>" \
+  --num_calib_samples 32 --num_inference_steps 25
 ```
 
 What it does:
 
-1. Ranks layers by `<impact>.json` **ascending** (lowest impact first).
-2. For the first **K** (excluding boundary layers): `W @ H^T` → per-channel INT8
+1. Ranks layers by `<impact>.json` **ascending** (lowest impact = safest first).
+2. For the first **K** ranked pool layers (skipping boundary layers): `W @ H^T` → per-channel INT8
    (Linear: rowwise `[out,1]`; Conv2d: channelwise `[out,1,1,1]`) → stores the **rotated INT8 weight**
    — the ConvRot INT8 kernel, **without re-rotation**.
 3. Replaces those layers with `.weight` (I8) / `.weight_scale` (F32) / `.comfy_quant` (U8 tensor).
-   **All other layers are copied unchanged from the FP16 baseline** (original dtype and size).
+   **All other layers are copied unchanged from the FP16 baseline** (original dtype and size) —
+   including every layer the V3.1 selector protected.
+4. Prints progress and a final summary:
+   `converted: <N>, protected-skip: <N>, not-found-skip: <N>, shape-skip: <N>`
+   (plus `UNet key prefix: '...'` at load time).
 
 **On-disk format of converted layers:**
 `.weight` I8 (Linear `[out, in]`, Conv2d `[out, in, kH, kW]`) + `.weight_scale` F32
@@ -157,38 +197,26 @@ rotated** (a large dequant-vs-fp16 deviation is expected).
 ComfyUI's mixed-precision ops select the quantized path per layer from the `.comfy_quant` marker, so
 one file carries both the FP16-kept and the ConvRot INT8 layers.
 
-### Optional bias correction (`--bias_correction`)
-
-```bash
-python sdxl/gen_reverse_int8_sdxl.py <K> \
-  "<model>_hswq_rev_int<K>_convrot_int8_bc.safetensors" \
-  "<base>" "<impact>.json" \
-  --bias_correction \
-  --calib_file "sample/calibration_prompts_128.txt" \
-  --comfy_path "<comfy_path>" \
-  [--num_calib_samples 32] [--num_inference_steps 25] [--calib_seed 42]
-```
+### Bias correction (`--bias_correction`)
 
 - ConvRot INT8 quantizes the **rotated** weight and the runtime rotates the activation online
   (`x_rot = x @ H`), so the systematic output shift of a converted layer is
   `delta[o] = sum_j (W_q_rot - W_rot)[o, j] * E[x_rot][j]`.
 - The converter collects `E[x_rot]` for each converted layer with forward pre-hooks during
   `--num_calib_samples` calibration passes through the **production sampler**
-  (dpmpp_2m / karras / cfg 7.0, fixed seed), then adds `-delta` to that layer's existing `.bias`.
-  Layers without a `.bias` are skipped; size and format are unchanged.
+  (dpmpp_2m / karras / cfg 7.0, fixed `--calib_seed`), then adds `-delta` to that layer's existing
+  `.bias`. Layers without a `.bias` are skipped; size and format are unchanged.
 - **Model-dependent:** bias correction can help or hurt. Measure both variants with the 25-seed gate
   (Step 3) before shipping.
 - The final log line `bias correction: applied=<N>, no_bias=<N>, no_act=<N>` confirms the effect:
-  expect `applied > 0` and `no_act = 0` (a non-zero `no_act` means the calibration hooks did not
-  reach those layers — the file would be identical to the non-corrected one).
+  expect `applied > 0` and `no_act = 0` (a non-zero `no_act` means the calibration hooks did not reach
+  those layers — the file would be identical to the non-corrected one).
 
-**Size:** the FP16 base is 6.94 GB. The hybrid converts only the K lowest-impact layers, so the
-size falls by roughly **3.2 MB per converted layer** on the reference checkpoint. Converting **all
-eligible layers (K = 788)** gives the smallest hybrid, ≈ **4.39 GB**.
+### Size (reference checkpoint)
 
-| K | 0 (FP16 base) | 788 (all eligible) |
-|---|---|---|
-| size (GB, decimal) | 6.94 | ≈ 4.39 |
+The FP16 base is 6.94 GB (6.46 GiB). Each converted layer drops roughly **3.1 MB** on average, so the
+hybrid size is `base − K × ~3.1 MB`. Measured: **K = 670 with bias correction → 4,875,339,410 B
+(4.54 GiB)**.
 
 ---
 
@@ -240,17 +268,26 @@ change with K). Search **sequentially, 10 at a time, one process at a time**:
    above the passing range, the cap is not achievable with this method for that checkpoint (the
    FP16-kept layers are the precision reserve).
 
+Notes for the V3.1 premise:
+
+- `K` counts ranked **pool** entries; layers skipped as boundary / not-found / ineligible do not
+  convert, so the final `converted:` count can be below K. `K` larger than the pool is capped by the
+  pool size (715 on the reference checkpoint).
+- Measured reference point (reference checkpoint, `--artifact v31`, `--bias_correction`):
+  **K = 670 → mean final-cos 0.96241, 0/25 bifurcated, 4.54 GiB**. Re-measure for every other
+  checkpoint; do not transfer this value.
+
 ---
 
 ## Step 5. Upload and cleanup
 
-Upload the final hybrid (`<model>_hswq_rev_int<K>_convrot_int8.safetensors`) to Hugging Face — the
-file needs no extra packing; ComfyUI loads it directly (mixed precision ops arm the INT8 layers from
-`.comfy_quant`). The `upload.py` template in the repo root uploads a file with `huggingface_hub`;
-edit the values at the top (username, repo, your **Write**-capable token, file path, in-repo
-filename), then run `python upload.py`.
+Upload the final hybrid (`<hybrid>`) to Hugging Face — the file needs no extra packing; ComfyUI loads
+it directly (mixed precision ops arm the INT8 layers from `.comfy_quant`). The `upload.py` template in
+the repo root uploads a file with `huggingface_hub`; edit the values at the top (username, repo, your
+**Write**-capable token, file path, in-repo filename), then run `python upload.py`.
 
-**Keep:** `<base>`, `<impact>.json`, and the final `<hybrid>` (production artifact).
+**Keep:** `<base>`, `<impact>.json`, `protect_<stem>.json`, and the final `<hybrid>` (production
+artifact).
 **Delete:** intermediate hybrids from rejected K values.
 
 ---
@@ -261,20 +298,29 @@ filename), then run `python upload.py`.
 |---|---|
 | `UnicodeDecodeError 'cp932'` | Windows locale issue; set `PYTHONIOENCODING=utf-8` in the shell |
 | torch import `AttributeError ... get_log_level_pairs` | `TORCH_LOGS` is set; unset it and never set it |
+| `--artifact v31 requires --calib_file` | Step 1 needs the calibration prompt file whenever `--artifact v31` is used |
+| `FileNotFoundError: .../<repo>/<repo>/sample/calibration_prompts_128.txt` | the path passed on the command line already contained the repository folder name while the working directory was already the repository root; pass `sample/calibration_prompts_128.txt` (relative to the current directory) or an absolute path |
+| `ModuleNotFoundError: No module named 'comfy'` | `--comfy_path` must point at the folder that contains `comfy/` (e.g. the bundled `ComfyUI-master`); the converter bootstraps `sys.path` from it before importing comfy |
 | `impact_*.json` missing | Created by Step 1; the second positional arg of `diag_impact_sdxl.py` is the **output** path |
-| 0 layers converted / `SKIP (not in sd)` for every layer | impact keys and checkpoint keys did not resolve — verify the impact json was produced from the **same** checkpoint |
+| 0 layers converted / many `SKIP (not in sd)` | impact keys and checkpoint keys did not resolve — verify the impact json was produced from the **same** checkpoint |
+| many `SKIP (boundary layer)` | the ranked entries fall on the boundary set (`conv_in.` / `conv_out.` / `time_embed.` / `add_embedding.` / `label_emb.`); this is expected and simply shrinks the converted count |
+| `UNet key prefix: ''` | the checkpoint does not use the `model.diffusion_model.` / `diffusion_model.` layout |
 | `save_file` ValueError | `.comfy_quant` must be a **U8 tensor**, not raw bytes (handled inside the script) |
 | final cosine collapses | `K` beyond the checkpoint's boundary — lower K (Step 4) |
 | mean ≥ 0.95 but bifurcated > 0 | Reject this K; lower K by 10 (high-impact layers are breaking) |
-| Numbers differ from a previous run | Another GPU process was running, or `--steps` / seed set differed; re-run on a quiet GPU with the fixed 25-seed set |
+| Numbers differ from a previous run | another GPU process was running, or `--steps` / seed set / machine differed; re-run on a quiet GPU with the fixed 25-seed set |
 | Process won't die | Kill the whole process tree (`taskkill /PID <parent> /T /F` on Windows) |
 
 ## Files in this repo
 
 | File | Purpose |
 |---|---|
-| `sdxl/diag_impact_sdxl.py` | Step 1 — per-layer ConvRot INT8 trajectory impact → `<impact>.json` |
-| `sdxl/gen_reverse_int8_sdxl.py` | Step 2 — reverse hybrid converter (K lowest-impact layers → ConvRot INT8, rest FP16) |
+| `sdxl/diag_impact_sdxl.py` | Step 1 — per-layer ConvRot INT8 trajectory impact (optionally over the V3.1 pool) → `<impact>.json` |
+| `sdxl/build_protect_list_sdxl.py` | Step 1 helper — runs the permitted V3.1 selector and derives `protect_<stem>.json` (the FP16-kept layer list) |
+| `sdxl/quantize_sdxl_hswq_v3.1.py` | the V3.1 selector itself (calibration + weighted-histogram MSE + full SVD + 300 MiB budget) |
+| `sdxl/gen_reverse_int8_sdxl_v1.1.py` | Step 2 — reverse hybrid converter, artifact-era boundary set (K lowest-impact layers → ConvRot INT8, rest FP16) |
+| `sdxl/gen_reverse_int8_sdxl.py` | Step 2 alternative — same conversion with the newer boundary set |
+| `sdxl/auto_reverse_int8_sdxl.py` | one-command driver (Step 1 → Step 2 → optional 25-seed gate); `--legacy-gen` selects v1.1 |
 | `benchmark/sdxl_int8_traj_compare.py` | Step 3 — deterministic 25-seed per-step trajectory divergence (cosine, bifurcation) |
 
 **Dependencies:** `comfy-kitchen` (INT8 layout), `safetensors`, plus the ComfyUI runtime
