@@ -98,13 +98,34 @@ def emit_hswq_int8_full_visibility_log(
     )
     lines = [banner] + _flatten_repr_lines(report) + [end]
     text = "\n".join(lines) + "\n"
-    try:
-        out.write(text)
-    except UnicodeEncodeError:
-        out.write(text.encode(out.encoding or "utf-8", errors="replace").decode(
-            out.encoding or "utf-8", errors="replace"
-        ))
-    out.flush()
+    # Full trace ALWAYS goes to the log file (same content as before). Stdout only
+    # gets a one-line summary unless HSWQ_FULL_STDOUT=full: thousands of
+    # layers_every_entry.* lines blow up remote notebook/cloud output memory.
+    import os as _os
+    if _os.environ.get("HSWQ_FULL_STDOUT", "").strip().lower() == "full":
+        try:
+            out.write(text)
+        except UnicodeEncodeError:
+            out.write(text.encode(out.encoding or "utf-8", errors="replace").decode(
+                out.encoding or "utf-8", errors="replace"
+            ))
+        out.flush()
+    else:
+        n_entries = len(report.get("layers_every_entry", {}) or {})
+        n_sens = len(report.get("dualmonitor_sensitivities_full", {}) or {})
+        summary = (
+            "[HSWQ FULL TRACE] suppressed stdout: "
+            f"layers_every_entry={n_entries} entries, "
+            f"dualmonitor_sens={n_sens} values "
+            f"(full dump -> log file; set HSWQ_FULL_STDOUT=full to restore)"
+        )
+        try:
+            out.write(summary + "\n")
+        except UnicodeEncodeError:
+            out.write((summary + "\n").encode(
+                out.encoding or "utf-8", errors="replace"
+            ).decode(out.encoding or "utf-8", errors="replace"))
+        out.flush()
     path: Optional[str] = None
     if also_write_file:
         env_p = (os.environ.get("HSWQ_FULL_TRACE_PATH") or "").strip()
