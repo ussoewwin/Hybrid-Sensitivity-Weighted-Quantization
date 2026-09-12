@@ -427,11 +427,11 @@ def main():
     if a.bias_correction:
         if not a.calib_file or not os.path.isfile(a.calib_file):
             raise FileNotFoundError(f"--calib_file not found: {a.calib_file}")
-        # Map sd module key -> ComfyUI named_modules name (diffusion_model.*).
+        # Map sd module key -> ComfyUI named_modules name.
+        # NOTE: model.model (BaseModel) -> diffusion_model.* WITHOUT a leading "model.".
         def sd_key_to_module(k: str) -> str:
-            for p in ("model.diffusion_model.", "diffusion_model."):
-                if k.startswith(p):
-                    return k
+            if k.startswith("model.diffusion_model."):
+                return k[len("model."):]          # -> diffusion_model.*
             return k
         targets = {sd_key_to_module(mk): (gs, ndim) for (mk, gs, ndim) in plan}
         mu_rot_raw = collect_rotated_act_means(
