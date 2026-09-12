@@ -74,7 +74,7 @@ def parse_args():
     ap.add_argument("--num_calib_samples", type=int, default=32)
     ap.add_argument("--num_inference_steps", type=int, default=25)
     ap.add_argument("--legacy-gen", action="store_true",
-                    help="use sdxl/gen_reverse_int8_sdxl_legacy.py (artifact-era boundary set) instead of the current converter")
+                    help="use sdxl/gen_reverse_int8_sdxl_v1.1.py (artifact-era boundary set) instead of the current converter")
     ap.add_argument("--bias_correction", action="store_true")
     ap.add_argument("--gate", action="store_true", help="run the 25-seed trajectory gate at the end")
     ap.add_argument("--gate-steps", type=int, default=25)
@@ -121,7 +121,7 @@ def main():
     # C) convert
     out_name = a.out_name or f"{stem}_rev_int{k}_convrot_int8.safetensors"
     out_path = os.path.join(out_dir, out_name)
-    gen_script = "gen_reverse_int8_sdxl_legacy.py" if a.legacy_gen else "gen_reverse_int8_sdxl.py"
+    gen_script = "gen_reverse_int8_sdxl_v1.1.py" if a.legacy_gen else "gen_reverse_int8_sdxl.py"
     gen = [py, os.path.join(here, gen_script), str(k), out_name, base, impact,
            "--out-dir", out_dir]
     if a.bias_correction:
