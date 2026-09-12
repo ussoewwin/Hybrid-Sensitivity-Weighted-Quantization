@@ -309,6 +309,8 @@ def parse_args():
                          "pack (_quantization_metadata), reproducing a pack-derived candidate list; layers the "
                          "pack kept at FP16 are then not measured")
     ap.add_argument("--limit", type=int, default=None, help="limit the number of measured layers (debug)")
+    ap.add_argument("--protect_list", default=None,
+                    help="optional: json/txt of layer names kept at FP16 (excluded from measurement)")
     ap.add_argument("--progress-every", type=int, default=25)
     return ap.parse_args()
 
@@ -384,6 +386,33 @@ def main():
               f"{len(skipped)} not eligible (first 5: {skipped[:5]})", flush=True)
     else:
         targets = sorted(mods.keys())
+    if args.protect_list:
+        raw = args.protect_list
+        if raw.lower().endswith(".json"):
+            with open(raw, encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                for key in ("protected", "layers", "names", "protect"):
+                    if key in data:
+                        data = data[key]
+                        break
+            names = list(data.keys()) if isinstance(data, dict) else list(data)
+        else:
+            with open(raw, encoding="utf-8") as f:
+                names = [ln.strip() for ln in f if ln.strip()]
+        protect = set()
+        for n in names:
+            b = n[:-len(".weight")] if n.endswith(".weight") else n
+            for p in ("model.diffusion_model.", "diffusion_model."):
+                if b.startswith(p):
+                    b = b[len(p):]
+                    break
+            protect.add(b)
+        before = len(targets)
+        targets = [t for t in targets
+                   if (t[len("diffusion_model."):] if t.startswith("diffusion_model.") else t) not in protect]
+        print(f"[target] protect_list: {len(protect)} names -> excluded {before - len(targets)} of {before}", flush=True)
+
     if args.limit:
         targets = targets[: args.limit]
     print(f"[target] measuring: {len(targets)}", flush=True)
