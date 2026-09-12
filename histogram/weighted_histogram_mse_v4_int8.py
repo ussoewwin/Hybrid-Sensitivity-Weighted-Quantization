@@ -573,9 +573,26 @@ def _emit_svd_mix_visibility(stats: dict) -> None:
         )
     lines.append(f"===== [/HSWQ SVD MIX FULL] layer={layer!r} =====")
     block = "\n".join(lines)
-    # Full SVD dump must appear immediately (default path). No -u / env tricks.
-    print(block, flush=True)
-    sys.stdout.flush()
+    # Full dump (including singular_values.all) goes to the trace FILE only.
+    # Stdout gets a one-line summary per layer unless HSWQ_SVD_STDOUT=full:
+    # hundreds of layers x full S-vector dumps on stdout blow up remote
+    # notebook/cloud output memory (observed: JupyterLab output OOM).
+    import os as _os
+    if _os.environ.get("HSWQ_SVD_STDOUT", "").strip().lower() == "full":
+        print(block, flush=True)
+        sys.stdout.flush()
+    else:
+        sv = stats.get("singular_values") or {}
+        nm = stats.get("norms") or {}
+        summary = (
+            f"[HSWQ SVD MIX] layer={layer!r} "
+            f"shape={stats.get('w2d_shape')!r} "
+            f"svd_n={sv.get('n')!r} "
+            f"svd_share={nm.get('svd_share_of_mix_l2')!r} "
+            f"top5={sv.get('top5')!r} "
+            f"(full dump -> trace file)"
+        )
+        print(summary, flush=True)
     _append_svd_mix_trace(block)
 
 
