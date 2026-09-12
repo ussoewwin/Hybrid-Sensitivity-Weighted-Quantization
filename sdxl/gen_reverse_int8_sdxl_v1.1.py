@@ -20,7 +20,7 @@ ComfyUI mixed-precision ops select the quantized path per layer from the .comfy_
 single file carries both the FP16-kept and the ConvRot INT8 layers.
 
 Usage:
-    python gen_reverse_int8_sdxl.py <K> <out_name.safetensors> <base.safetensors> <impact.json> \
+    python gen_reverse_int8_sdxl_v1.1.py <K> <out_name.safetensors> <base.safetensors> <impact.json> \
         [--out-dir <output-dir>] [--groupsize 256]
         [--bias_correction --calib_file <prompts> --comfy_path <root>
          [--num_calib_samples 32] [--num_inference_steps 25] [--calib_seed 42]]
