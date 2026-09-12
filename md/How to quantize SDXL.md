@@ -90,10 +90,10 @@ errors; never set `TORCH_LOGS` (torch import fails with an AttributeError).
 
 ```
 <base>  (original FP16, 6.94 GB)
-  │ Step 1: Z_Image/diag_impact_sdxl.py "<base>" "<impact>.json" --steps 25 --seed 42
+  │ Step 1: sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" --steps 25 --seed 42
   ▼                                                     (writes <impact>.json, ~30–60 min for 788 layers)
 <impact>.json
-  │ Step 2: Z_Image/gen_reverse_int8_sdxl.py <K> "<hybrid>" "<base>" "<impact>.json"
+  │ Step 2: sdxl/gen_reverse_int8_sdxl.py <K> "<hybrid>" "<base>" "<impact>.json"
   ▼
 <hybrid>  (K lowest-impact layers → ConvRot INT8, everything else stays FP16)
   │ Step 3: benchmark/sdxl_int8_traj_compare.py --fp16 "<base>" --int8 "<hybrid>" --steps 25  (25 random seeds)
@@ -108,7 +108,7 @@ Step 5: upload + cleanup
 ## Step 1. Create `<impact>.json` (per-layer trajectory impact)
 
 ```bash
-python Z_Image/diag_impact_sdxl.py "<base>" "<impact>.json" \
+python sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" \
   --comfy_path "<comfy_path>" \
   --steps 25 --seed 42
 ```
@@ -132,7 +132,7 @@ python Z_Image/diag_impact_sdxl.py "<base>" "<impact>.json" \
 ## Step 2. Reverse hybrid conversion (`<K>` lowest-impact layers → ConvRot INT8)
 
 ```bash
-python Z_Image/gen_reverse_int8_sdxl.py <K> \
+python sdxl/gen_reverse_int8_sdxl.py <K> \
   "<model>_hswq_rev_int<K>_convrot_int8.safetensors" \
   "<base>" "<impact>.json" \
   [--out-dir "<output-dir>"] [--groupsize 256]      # default out-dir: "." (cwd)
@@ -247,8 +247,8 @@ filename), then run `python upload.py`.
 
 | File | Purpose |
 |---|---|
-| `Z_Image/diag_impact_sdxl.py` | Step 1 — per-layer ConvRot INT8 trajectory impact → `<impact>.json` |
-| `Z_Image/gen_reverse_int8_sdxl.py` | Step 2 — reverse hybrid converter (K lowest-impact layers → ConvRot INT8, rest FP16) |
+| `sdxl/diag_impact_sdxl.py` | Step 1 — per-layer ConvRot INT8 trajectory impact → `<impact>.json` |
+| `sdxl/gen_reverse_int8_sdxl.py` | Step 2 — reverse hybrid converter (K lowest-impact layers → ConvRot INT8, rest FP16) |
 | `benchmark/sdxl_int8_traj_compare.py` | Step 3 — deterministic 25-seed per-step trajectory divergence (cosine, bifurcation) |
 
 **Dependencies:** `comfy-kitchen` (INT8 layout), `safetensors`, plus the ComfyUI runtime
