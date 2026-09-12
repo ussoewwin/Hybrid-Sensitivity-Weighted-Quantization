@@ -367,7 +367,7 @@ def main():
         protect_out = os.path.join(os.path.dirname(os.path.abspath(args.out)), f"protect_{stem}.json")
         cmd = [sys.executable, os.path.join(here, "build_protect_list_sdxl.py"),
                os.path.abspath(args.base), protect_out,
-               "--calib_file", os.path.abspath(args.calib_file),
+               "--calib_file", args.calib_file,
                "--comfy_path", os.path.abspath(args.comfy_path),
                "--pack-out", pack_out,
                "--num_calib_samples", str(args.num_calib_samples),
