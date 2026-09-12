@@ -2,12 +2,23 @@
 
 > **Prerequisite**: the original **FP16 SDXL checkpoint** (`<base>`). Nothing else is imported.
 
-This method is **fundamentally different** from the conventional "protect the top-important layers"
-approach (histogram MSE / cosine / SVD saliency). It is a **reverse method**: it measures every
-candidate layer's impact on a fixed denoising trajectory (Step 1), then converts the **K lowest-impact
-layers to ConvRot INT8 in ascending impact order**, while **every other layer is kept at FP16**
-(the original size and precision). Keeping the most sensitive layers in FP16 is what lifts the mixed
-checkpoint above a full INT8 pack at the same quality level.
+This method is the **existing HSWQ SDXL selector extended with a reverse (trajectory-impact) step** —
+not a replacement for it. The selector's protection pipeline stays as it is (calibration with
+**Dual Monitor hooks**, **weighted-histogram MSE V4**, **full SVD**, the **300 MiB payload budget** and
+the key-pattern veto) and it still decides which layers are protected and stay at FP16. What the
+reverse step adds is the selection inside the pool the selector leaves: the **diag** step measures the
+trajectory impact of every remaining pool layer (Step 1), and the converter turns the **K lowest-impact
+pool layers into ConvRot INT8 in ascending impact order**, while **every other layer is kept at FP16**
+(the original dtype and size) — the selector-protected layers included.
+
+Why the added step: the selector's protection is a **static** decision (weights / activation statistics
+plus the fixed payload budget), whereas the reverse step supplies the **dynamic** criterion for the
+rest of the pool by measuring the actual end effect of quantizing one layer — the drift of a fixed
+denoising trajectory, i.e. that layer's FP16-vs-ConvRot-INT8 error propagated through the sampler. This
+keeps the decision in the low-error regime where single-layer ranking is valid (see
+`md/diag_impact_trajectory_sensitivity_technical_guide.md`). Keeping the high-impact layers (the
+selector-protected ones plus the higher-impact pool layers) in FP16 is what lifts the hybrid above a
+full INT8 pack at the same quality level.
 
 **Converter: `sdxl/gen_reverse_int8_sdxl_v1.1.py`.** It uses the artifact-era boundary set (module
 names containing `conv_in.` / `conv_out.` / `time_embed.` / `add_embedding.` / `label_emb.` are never
@@ -17,9 +28,9 @@ newer boundary set lives in `sdxl/gen_reverse_int8_sdxl.py`; the one-command dri
 
 **Candidate premise (HSWQ V3.1 selector).** The production pipeline does not measure all eligible
 layers: Step 1 runs the permitted V3.1 selector (`--artifact v31`) and measures only the pool it
-leaves. V3.1 itself decides which layers stay FP16 (calibration + weighted-histogram MSE + full SVD +
-a **300 MiB payload budget**, plus the key-pattern veto), and those layers are excluded from the pool,
-so they stay FP16 in the hybrid. **That protection is the invariant to preserve**: on the reference
+leaves. V3.1 itself decides which layers stay FP16 (calibration with Dual Monitor hooks +
+weighted-histogram MSE V4 + full SVD + a **300 MiB payload budget**, plus the key-pattern veto), and
+those layers are excluded from the pool, so they stay FP16 in the hybrid. **That protection is the invariant to preserve**: on the reference
 checkpoint the selector keeps **77 matmul layers** at FP16 (73 non-boundary + 4 boundary), and a valid
 hybrid keeps all 77 FP16 with weights byte-identical to the base.
 
@@ -136,9 +147,9 @@ python sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" \
 ```
 
 - `--artifact v31` first runs the permitted V3.1 selector (`sdxl/build_protect_list_sdxl.py` →
-  `sdxl/quantize_sdxl_hswq_v3.1.py`): calibration over `--num_calib_samples` prompts ×
-  `--num_inference_steps` steps, weighted-histogram MSE + full SVD, the 300 MiB payload budget and the
-  key-pattern veto. It writes the selector pack `<stem>hswq_r32_1off_convrot_int8_repro.safetensors`
+  `sdxl/quantize_sdxl_hswq_v3.1.py`): calibration with Dual Monitor hooks over `--num_calib_samples`
+  prompts × `--num_inference_steps` steps, weighted-histogram MSE V4 + full SVD, the 300 MiB payload
+  budget and the key-pattern veto. It writes the selector pack `<stem>hswq_r32_1off_convrot_int8_repro.safetensors`
   next to `<base>` and the protected list `protect_<stem>.json` next to `<impact>.json`, then measures
   **only the pool the selector left** (715 of the 788 eligible layers on the reference checkpoint).
 - Every ConvRot-eligible Linear/Conv2d of the checkpoint is a candidate; boundary layers
