@@ -471,8 +471,15 @@ def parse_args():
                     default="masterpiece, best quality, 1girl, solo, standing, simple background")
     ap.add_argument("--negative", default="")
     ap.add_argument("--steps", type=int, default=25)
-    ap.add_argument("--seeds", default="42,1337,7,2024,555",
-                    help="comma-separated seeds; same seed = identical noise for both models")
+    ap.add_argument(
+        "--seeds",
+        default=(
+            "42,137,849,2024,7391,18429,53082,149206,382715,826401,1938502,4710928,"
+            "8391642,15820493,36192847,71058294,128491703,285039184,491730285,762019483,"
+            "938174026,1409285713,2683910547,3851729406,4195820371"
+        ),
+        help="comma-separated seeds; same seed = identical noise for both models",
+    )
     ap.add_argument("--width", type=int, default=1024)
     ap.add_argument("--height", type=int, default=1024)
     ap.add_argument("--cfg", type=float, default=7.0)
