@@ -45,7 +45,7 @@ pip install diffusers accelerate scikit-image
 
 > **ComfyUI Node Integration:** Progressive support for direct in-graph quantization inside ComfyUI via custom nodes (`comfyui_nodes/`) is currently underway. Support is already available for **native ConvRot INT8** (`Native ConvRot INT8 Quantize`), and additional model architectures / quantization formats will be rolled out sequentially.
 
-- **SDXL (ConvRot INT8):** [How to quantize SDXL ConvRot INT8](md/How%20to%20quantize%20SDXL.md)
+- **SDXL (ConvRot INT8, reverse hybrid):** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md) - measures each layer's trajectory impact on the FP16 baseline, then converts the **K lowest-impact layers to ConvRot INT8** while every other layer stays FP16 (reverse method); validated with the deterministic **25-seed** latent-trajectory comparison (cosine mean >= 0.95, 0/25 bifurcated).
 - **SDXL (ConvRot NVFP4):** [How to quantize SDXL ConvRot NVFP4](md/How%20to%20quantize%20SDXL%20NVFP4.md)
 - **Krea2 (ConvRot INT8):** [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md) — CLI (`Krea2/hswq_convrot_int8_krea2_v1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Krea2"`) quantization guide; for checkpoints with mean cosine ≥ 0.98, native ConvRot INT8 is directly recommended. (Note: Krea2 4-bit / Hybrid NVFP4 development has been cancelled; Krea2 supports ConvRot INT8 only.)
 - **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) — CLI and ComfyUI custom node (`Native ConvRot INT8 Quantize`) quantization guide. HSWQ-specific Z Image development has **ended**; this How-to introduces the **general** ConvRot INT8 quantization method.
@@ -54,7 +54,7 @@ pip install diffusers accelerate scikit-image
 - **Text Encoder, ControlNet & SAM 3 / 3.1 (native ConvRot INT8):** [How to quantize Text Encoder, ControlNet and SAM 3 / 3.1](md/How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md) — ComfyUI custom node (`TE / ControlNet ConvRot INT8 Quantize`, `HSWQ SAM3 Loader`) in-graph quantization guide for Text Encoders (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL), ControlNet / ControlNet Union / Model Patch models, and Segment Anything foundation models (SAM 3 / SAM 3.1 Multiplex).
 
 **Benchmark results:**
-- **SDXL (ConvRot INT8):** [MSE / SSIM](benchmark%20result/benchmark_sdxl_int8.md)
+- **SDXL (ConvRot INT8):** [trajectory (25 seeds)](benchmark%20result/benchmark_sdxl_int8.md)
 - **SDXL (ConvRot NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_convrotnvfp4.md)
 - **Krea2 (ConvRot INT8):** [MSE / SSIM](benchmark%20result/benchmark_krea2_int8.md)
 - **Z Image (Hybrid NVFP4):** [MSE / SSIM](benchmark%20result/benchmark_zi_nvfp4.md)
