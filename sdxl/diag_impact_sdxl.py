@@ -25,7 +25,7 @@ ascending K layers are the ones to convert.
 Usage:
     python diag_impact_sdxl.py <base.safetensors> <impact_out.json> \
         --comfy_path <ComfyUI-master> [--steps 25] [--seed 42] \
-        [--width 1024] [--height 1024] [--limit N] [--progress-every 25]
+        [--width 1024] [--height 1024] [--artifact <convrot_int8_pack>] [--limit N] [--progress-every 25]
 """
 import argparse
 import json
@@ -304,6 +304,10 @@ def parse_args():
     ap.add_argument("--sampler", default="dpmpp_2m")
     ap.add_argument("--scheduler", default="karras")
     ap.add_argument("--groupsize", type=int, default=256)
+    ap.add_argument("--artifact", default=None,
+                    help="optional: restrict the measured set to the layers converted in this ConvRot INT8 "
+                         "pack (_quantization_metadata), reproducing a pack-derived candidate list; layers the "
+                         "pack kept at FP16 are then not measured")
     ap.add_argument("--limit", type=int, default=None, help="limit the number of measured layers (debug)")
     ap.add_argument("--progress-every", type=int, default=25)
     return ap.parse_args()
@@ -342,7 +346,44 @@ def main():
         mods[n] = (m, gs)
     print(f"[target] modules eligible for ConvRot INT8: {len(mods)}", flush=True)
 
-    targets = sorted(mods.keys())
+    if args.artifact:
+        # Reproduce a pack-derived candidate list: measure only the layers a ConvRot INT8 pack actually
+        # converted, so the layers that pack kept at FP16 stay FP16 in the hybrid.
+        from safetensors import safe_open
+        with safe_open(os.path.abspath(args.artifact), framework="pt", device="cpu") as f:
+            pack_meta = json.loads(f.metadata()["_quantization_metadata"])
+        pack_layers = []
+        for k in pack_meta["layers"]:
+            b = k
+            for p in ("model.diffusion_model.", "diffusion_model."):
+                if b.startswith(p):
+                    b = b[len(p):]
+                    break
+            pack_layers.append(b)
+
+        def _resolve_pack_layer(b):
+            for cand in (f"diffusion_model.{b}", b):
+                if cand in mods:
+                    return cand
+            return None
+
+        targets, skipped = [], []
+        for b in pack_layers:
+            r = _resolve_pack_layer(b)
+            if r is None:
+                skipped.append(b)
+            else:
+                targets.append(r)
+        seen, uniq = set(), []
+        for t in targets:
+            if t not in seen:
+                seen.add(t)
+                uniq.append(t)
+        targets = uniq
+        print(f"[target] artifact mode: {len(pack_layers)} layers listed, {len(targets)} measured, "
+              f"{len(skipped)} not eligible (first 5: {skipped[:5]})", flush=True)
+    else:
+        targets = sorted(mods.keys())
     if args.limit:
         targets = targets[: args.limit]
     print(f"[target] measuring: {len(targets)}", flush=True)
