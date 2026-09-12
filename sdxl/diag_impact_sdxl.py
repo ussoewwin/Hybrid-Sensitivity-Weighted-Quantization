@@ -305,6 +305,10 @@ def parse_args():
     ap.add_argument("--scheduler", default="karras")
     ap.add_argument("--calib_file", default=None,
                     help="calibration prompts for the v3.1 candidate source (--artifact v31)")
+    ap.add_argument("--num_calib_samples", type=int, default=32,
+                    help="calibration samples for the v3.1 candidate source")
+    ap.add_argument("--num_inference_steps", type=int, default=25,
+                    help="calibration steps for the v3.1 candidate source")
     ap.add_argument("--groupsize", type=int, default=256)
     ap.add_argument("--artifact", default=None,
                     help="candidate source switch: a ConvRot INT8 pack path, or the literal \"v31\" to run "
@@ -365,7 +369,10 @@ def main():
                os.path.abspath(args.base), protect_out,
                "--calib_file", os.path.abspath(args.calib_file),
                "--comfy_path", os.path.abspath(args.comfy_path),
-               "--pack-out", pack_out, "--reuse-pack"]
+               "--pack-out", pack_out,
+               "--num_calib_samples", str(args.num_calib_samples),
+               "--num_inference_steps", str(args.num_inference_steps),
+               "--reuse-pack"]
         if not os.path.isfile(pack_out):
             cmd = [c for c in cmd if c != "--reuse-pack"]
         print("[v31] candidate source:", " ".join(cmd), flush=True)
