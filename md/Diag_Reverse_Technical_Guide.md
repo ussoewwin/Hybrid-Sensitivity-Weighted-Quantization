@@ -37,7 +37,7 @@ why the boundary of usability (the largest `K` that still passes) is **measured,
 | | SDXL | Krea2 |
 |---|---|---|
 | Target format | **ConvRot INT8** (`int8_tensorwise` + `convrot` stamp) | **NVFP4** (Kitchen `nvfp4`, `convrot: true`) |
-| Source the hybrid is built from | the **FP16 checkpoint** itself | the complete **ConvRot INT8** artifact (dequantized, weights stay rotated) |
+| Source the hybrid is built from | the **FP16 checkpoint** itself | the **ConvRot INT8** artifact the hybrid is built from (dequantized; weights stay rotated) |
 | Kept-at-high-precision set | complement of the K lowest-impact layers (FP16) | complement (INT8) |
 | Trajectory engine | ComfyUI **production sampler** | the model's own fixed-step Euler loop |
 | Status | production | **NVFP4 development cancelled** (machinery retained; see §4) |
@@ -126,7 +126,7 @@ differ here, and this difference is deliberate:
 |---|---|---|
 | Engine | `comfy.sample.sample(...)` — the **production sampler** | the DiT's own forward loop |
 | Call | `sample(patcher, noise, steps, cfg=7.0, "dpmpp_2m", "karras", pos, neg, latent, denoise=1.0, callback=cb, seed=seed)` | `x = x + (t_{k+1} − t_k) · model(x, t_k, context)` |
-| Schedule | the sampler's native Karras schedule | `t_steps = torch.linspace(1.0, 0.0, steps + 1)` |
+| Schedule | the sampler's own (Karras) schedule | `t_steps = torch.linspace(1.0, 0.0, steps + 1)` |
 | Context | CLIP positive/negative (`encode_from_tokens_scheduled`) | `randn(1, seq, txtlayers·txtdim)` |
 | Noise | `comfy.sample.prepare_noise(latent, seed, None)` | `randn(1, channels, lat, lat)`, `Generator(seed)` |
 | Latent | `[1, 4, H/8, W/8]` from `fix_empty_latent_channels` | `[1, channels, lat, lat]`, bf16 |
@@ -277,7 +277,7 @@ Measured 25-seed trajectory cosine means on one reference SDXL checkpoint (`waiI
 | Artifact | mean final-cos | bifurcated |
 |---|---|---|
 | FP16 baseline (identity) | 1.000 | — |
-| full ConvRot INT8 (all convertible layers) | ≈ 0.938 | 0 |
+| native ConvRot INT8 (all convertible layers INT8) | ≈ 0.938 | 0 |
 | reverse hybrid, K = 620 (4.82 GB) | ≈ 0.9625 | 0/25 |
 
 Numbers are **checkpoint-specific and not transferable**; a candidate must be re-measured after any change of
