@@ -5,31 +5,27 @@ Reverse hybrid INT8 method (see md/diag_impact_trajectory_sensitivity_technical_
   1. diag_impact_sdxl.py      -> impact json (relative MSE per layer, ascending = safest first)
   2. gen_reverse_int8_sdxl.py -> hybrid int{K} artifact (K lowest-impact layers -> ConvRot INT8)
 
-Injects a single layer at a time with its ConvRot INT8 reconstruction
-(dequant(per-channel INT8(quantize(W @ H^T))) -- exactly the kernel that produces the shipped INT8
-pack; no inverse rotation), runs a fixed-seed N-step denoising trajectory, and records how far the
-final latent drifts (relative MSE). Ascending order = the layer can be INT8 without breaking the
-trajectory, so the ascending K layers are the ones to convert.
+The measurement source is the FP16 checkpoint itself: every ConvRot-eligible Linear/Conv2d in the
+baseline is a candidate. Nothing else is needed (no other artifact is consulted).
+
+For each candidate layer, a single layer is replaced by its ConvRot INT8 reconstruction
+(dequant(per-channel INT8(quantize(W @ H^T))) -- the ConvRot INT8 kernel; no inverse rotation), a
+fixed-seed N-step denoising trajectory is run, and the drift of the final latent is recorded
+(relative MSE). Ascending order = the layer survives INT8 without breaking the trajectory, so the
+ascending K layers are the ones to convert.
 
 - baseline load is ComfyUI-native (comfy.sd.load_checkpoint_guess_config). No INT8 patch is applied
   (the baseline carries no INT8 tensors, so nothing would activate anyway).
-- trajectory: fixed-seed Euler loop (guide 2.2 / 3.3), x_{k+1} = x_k + (sigma_{k+1}-sigma_k)*v(x_k, sigma_k).
-  SDXL is epsilon-prediction, so v = eps.
-- conditioning: the SDXL real context (CLIP cond + the SDXL adm vector) is built once from the
-  baseline CLIP and reused for every run. model.apply_model is called directly; the extra cond "y"
-  is the SDXL.encode_adm() output (pooled emb + size embedding, 2816-dim) so the normal model path
-  is used.
+- trajectory: the production sampler itself (comfy.sample.sample, dpmpp_2m / karras / cfg 7.0 / the
+  same prompt and seed) -- identical to benchmark/sdxl_int8_traj_compare.py, so the measured ranking
+  follows exactly the trajectory the quality gate measures. No hand-rolled schedule.
+- conditioning: CLIP positive/negative, exactly as the benchmark builds them.
 - injection overwrites named_modules weight.data directly and restores it afterwards (guide 3.4).
 
 Usage:
     python diag_impact_sdxl.py <base.safetensors> <impact_out.json> \
-        --comfy_path <ComfyUI-master> [--steps 4] [--seed 42] \
-        [--width 1024] [--height 1024] \
-        [--artifact <full_convrot_int8.safetensors>] [--limit N] [--progress-every 25]
-
-With --artifact the measurement is restricted to the layers listed in that artifact's
-_quantization_metadata (the candidate set a full ConvRot INT8 pack actually converts).
-Without it, every eligible Linear/Conv in the baseline is measured.
+        --comfy_path <ComfyUI-master> [--steps 25] [--seed 42] \
+        [--width 1024] [--height 1024] [--limit N] [--progress-every 25]
 """
 import argparse
 import json
@@ -157,9 +153,9 @@ def convrot_int8_quant_error(w: torch.Tensor, group_size: int = 256) -> torch.Te
 
         What = dequant(per-channel INT8(W @ H^T))
 
-    This is exactly what native_convert_int8_sdxl.py writes into the shipped artifact; no inverse
-    rotation is applied (the shipped weights are stored rotated). The error relative to the FP16
-    weight is eps = What - W (guide 2.3), i.e. the FP16-vs-ConvRot-INT8 error of that layer.
+    The shipped ConvRot INT8 weights are stored rotated, so the reconstruction is produced in the
+    same rotated space; no inverse rotation is applied. The error relative to the FP16 weight is
+    eps = What - W (guide 2.3), i.e. the FP16-vs-ConvRot-INT8 error of that layer.
 
       Linear 2D : W@H^T -> rowwise [out,1]      (pairs with the kitchen online act rotate)
       Conv2d 4D : in_channels rotate -> channelwise [out,1,1,1] (pairs with the HSWQ INT8 Conv2d)
@@ -213,26 +209,11 @@ def load_sdxl(path: str):
 # Conditioning / latent / trajectory
 # ---------------------------------------------------------------------------
 
-def build_conditioning(model, clip, prompt: str, width: int, height: int):
-    """Build the SDXL context (CLIP cond + adm vector) once and reuse it for every run.
-
-    SDXL shapes:
-      ctx = c_crossattn  [1, 77, 2048]   (CLIP cond)
-      y   = c_adm        [1, 2816]       (pooled 1280 + size embedding 6*256)
-    y is produced through the normal model path (model.encode_adm), so model-specific details
-    (e.g. SDXLRefiner) stay ComfyUI's responsibility.
-    """
-    tokens = clip.tokenize(prompt)
-    cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-
-    adm = model.encode_adm(
-        pooled_output=pooled,
-        width=width,
-        height=height,
-        crop_w=0,
-        crop_h=0,
-    )
-    return {"c_crossattn": cond, "y": adm}
+def build_conditioning(clip, prompt: str, negative: str):
+    """Build the CLIP conditioning exactly as the benchmark does (list form for comfy.sample.sample)."""
+    positive = clip.encode_from_tokens_scheduled(clip.tokenize(prompt))
+    negative_cond = clip.encode_from_tokens_scheduled(clip.tokenize(negative))
+    return positive, negative_cond
 
 
 def make_latent(model, width: int, height: int):
@@ -248,31 +229,28 @@ def make_latent(model, width: int, height: int):
     return latent
 
 
-def run_trajectory(net, ctx, y, latent0, *, seed, steps):
-    """Fixed-seed Euler trajectory (guide 2.2) for SDXL (epsilon prediction):
+def run_trajectory(patcher, positive, negative, latent0, *, seed, steps, cfg, sampler, scheduler):
+    """Run the production sampler (comfy.sample.sample) and capture the per-step latent x.
 
-      x_{k+1} = x_k + (sigma_{k+1} - sigma_k) * eps(x_k, sigma_k)
-
-    Returns the per-step latent x list (cpu float32).
+    Identical engine, sampler, scheduler, cfg and seed as benchmark/sdxl_int8_traj_compare.py, so the
+    impact ranking is measured on exactly the trajectory the quality gate uses.
     """
-    noise = torch.randn(latent0.shape, generator=torch.Generator("cpu").manual_seed(seed),
-                        dtype=torch.float32).to(latent0.device)
-    sigmas = torch.linspace(1.0, 0.0, steps + 1, device=latent0.device, dtype=torch.float32)
-    x = (latent0 + noise * sigmas[0]).to(latent0.dtype)
+    import comfy.sample as comfy_sample
 
+    noise = comfy_sample.prepare_noise(latent0, seed, None)
     xs = []
+
+    def cb(step, x0, x, total_steps):
+        xs.append(x.detach().float().cpu())
+
     with torch.no_grad():
-        for i in range(steps):
-            t = torch.tensor([sigmas[i]], device=latent0.device, dtype=torch.float32)
-            eps = net.apply_model(
-                x, t, c_concat=None,
-                c_crossattn=ctx,
-                y=y,
-                control=None,
-                transformer_options={},
-            )
-            x = (x + (sigmas[i + 1] - sigmas[i]) * eps).to(latent0.dtype)
-            xs.append(x.detach().float().cpu())
+        comfy_sample.sample(
+            patcher, noise, steps, cfg, sampler, scheduler,
+            positive, negative, latent0, denoise=1.0,
+            disable_noise=False, start_step=None, last_step=None,
+            force_full_denoise=False, noise_mask=None,
+            callback=cb, disable_pbar=True, seed=seed,
+        )
     return xs
 
 
@@ -283,12 +261,14 @@ def rel_mse(a: torch.Tensor, b: torch.Tensor) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Boundary layers (same exclusion set as native_convert_int8_sdxl.py)
+# Boundary layers (kept at FP16; excluded from the candidate set)
 # ---------------------------------------------------------------------------
 
-_PROTECT_PATTERNS = (
-    "conv_in.",
-    "conv_out.",
+_BOUNDARY_EXACT = (
+    "input_blocks.0.0",   # conv_in (latent input projection)
+)
+_BOUNDARY_PREFIX = (
+    "out.",              # conv_out (final projection)
     "time_embed.",
     "add_embedding.",
     "label_emb.",
@@ -296,7 +276,13 @@ _PROTECT_PATTERNS = (
 
 
 def is_boundary_layer(module_name: str) -> bool:
-    return any(p in module_name for p in _PROTECT_PATTERNS)
+    """True for the SDXL UNet boundary modules, which are always kept at FP16."""
+    b = module_name
+    for p in ("model.diffusion_model.", "diffusion_model."):
+        if b.startswith(p):
+            b = b[len(p):]
+            break
+    return b in _BOUNDARY_EXACT or b.startswith(_BOUNDARY_PREFIX)
 
 
 # ---------------------------------------------------------------------------
@@ -308,13 +294,15 @@ def parse_args():
     ap.add_argument("base", help="baseline fp16 SDXL checkpoint (full ckpt: UNet+CLIP+VAE)")
     ap.add_argument("out", help="output impact json path")
     ap.add_argument("--comfy_path", required=True, help="ComfyUI-master root")
-    ap.add_argument("--artifact", default=None,
-                    help="FULL ConvRot INT8 safetensors; its _quantization_metadata.layers is the measured set")
     ap.add_argument("--steps", type=int, default=4, help="trajectory denoising steps (default 4)")
     ap.add_argument("--seed", type=int, default=42, help="trajectory seed (default 42)")
     ap.add_argument("--width", type=int, default=1024)
     ap.add_argument("--height", type=int, default=1024)
     ap.add_argument("--prompt", default="masterpiece, best quality, 1girl, solo, standing, simple background")
+    ap.add_argument("--negative", default="")
+    ap.add_argument("--cfg", type=float, default=7.0)
+    ap.add_argument("--sampler", default="dpmpp_2m")
+    ap.add_argument("--scheduler", default="karras")
     ap.add_argument("--groupsize", type=int, default=256)
     ap.add_argument("--limit", type=int, default=None, help="limit the number of measured layers (debug)")
     ap.add_argument("--progress-every", type=int, default=25)
@@ -337,28 +325,7 @@ def main():
     net.eval()
     print("[load] done", flush=True)
 
-    # Build the target layer list
-    if args.artifact:
-        from safetensors import safe_open
-        with safe_open(os.path.abspath(args.artifact), framework="pt", device="cpu") as f:
-            meta = json.loads(f.metadata()["_quantization_metadata"])
-        raw_layers = list(meta["layers"].keys())
-        # native_convert_int8 module keys may carry "model.diffusion_model."; normalize to
-        # named_modules names and drop boundary layers (same set the converter skips).
-        layers = []
-        for k in raw_layers:
-            for p in ("model.diffusion_model.", "diffusion_model."):
-                if k.startswith(p):
-                    k = k[len(p):]
-                    break
-            if is_boundary_layer(k):
-                continue
-            layers.append(k)
-        print(f"[target] artifact layers: {len(layers)} (boundary excluded)", flush=True)
-    else:
-        layers = None  # all eligible layers (collected below)
-
-    # eligible ConvRot modules among named_modules (boundary excluded)
+    # Candidate set: every ConvRot-eligible Linear/Conv2d of the baseline (boundary excluded).
     mods = {}
     for n, m in net.named_modules():
         if not hasattr(m, "weight") or m.weight is None:
@@ -375,47 +342,21 @@ def main():
         mods[n] = (m, gs)
     print(f"[target] modules eligible for ConvRot INT8: {len(mods)}", flush=True)
 
-    if layers is None:
-        targets = sorted(mods.keys())
-    else:
-        def resolve(k):
-            if k in mods:
-                return k
-            for cand in (f"diffusion_model.{k}", f"model.diffusion_model.{k}"):
-                if cand in mods:
-                    return cand
-            return None
-
-        targets = []
-        skipped = []
-        for k in layers:
-            r = resolve(k)
-            if r is None:
-                skipped.append(k)
-            else:
-                targets.append(r)
-        if skipped:
-            print(f"[target] artifact layers not eligible/missing: {len(skipped)} "
-                  f"(first 5: {skipped[:5]})", flush=True)
-        seen = set()
-        uniq = []
-        for t in targets:
-            if t not in seen:
-                seen.add(t)
-                uniq.append(t)
-        targets = uniq
+    targets = sorted(mods.keys())
     if args.limit:
         targets = targets[: args.limit]
     print(f"[target] measuring: {len(targets)}", flush=True)
 
-    cond = build_conditioning(net, clip, args.prompt, args.width, args.height)
+    positive, negative = build_conditioning(clip, args.prompt, args.negative)
     latent0 = make_latent(patcher, args.width, args.height)
     if latent0.device.type != device:
         latent0 = latent0.to(device)
 
-    print(f"[*] pristine run (steps={args.steps}, seed={args.seed})", flush=True)
-    x_ref = run_trajectory(net, cond["c_crossattn"], cond["y"], latent0,
-                           seed=args.seed, steps=args.steps)
+    print(f"[*] pristine run (steps={args.steps}, seed={args.seed}, cfg={args.cfg}, "
+          f"{args.sampler}/{args.scheduler})", flush=True)
+    x_ref = run_trajectory(patcher, positive, negative, latent0, seed=args.seed,
+                           steps=args.steps, cfg=args.cfg, sampler=args.sampler,
+                           scheduler=args.scheduler)
     print("[*] pristine done", flush=True)
 
     impacts = {}
@@ -429,8 +370,9 @@ def main():
             continue
         m.weight.data.copy_(qerr.to(w0.dtype))
         try:
-            x_t = run_trajectory(net, cond["c_crossattn"], cond["y"], latent0,
-                                 seed=args.seed, steps=args.steps)
+            x_t = run_trajectory(patcher, positive, negative, latent0, seed=args.seed,
+                                 steps=args.steps, cfg=args.cfg, sampler=args.sampler,
+                                 scheduler=args.scheduler)
             imp = sum(rel_mse(x_t[i], x_ref[i]) for i in range(len(x_ref))) / len(x_ref)
         except Exception as e:
             print(f"  ERR {n}: {e}", flush=True)
@@ -448,6 +390,9 @@ def main():
         "x_ref_norm": float((xr * xr).sum().item()),
         "steps": args.steps,
         "seed": args.seed,
+        "cfg": args.cfg,
+        "sampler": args.sampler,
+        "scheduler": args.scheduler,
         "base": os.path.abspath(args.base),
         "impacts": impacts,
     }
