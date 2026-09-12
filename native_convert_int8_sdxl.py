@@ -54,13 +54,6 @@ from tqdm import tqdm
 
 _DEFAULT_GROUPSIZE = 256
 
-# Exact --prompt from the owner INT8 SDXL bench command (fixed; not a CLI).
-_FIXED_INT8BENCH_PROMPT = (
-    "masterpiece, best quality, 1girl, solo, standing, simple background"
-)
-# Seed fixed inside the chain (not a parent CLI).
-_FIXED_INT8BENCH_SEED = 123456789
-
 
 def _release_vram_before_bench(label: str = "post-convert") -> None:
     """Drop parent-process CUDA holdings before spawning the fidelity bench.
@@ -98,11 +91,11 @@ def _release_vram_before_bench(label: str = "post-convert") -> None:
         print(f"[*] VRAM clear ({label}): done")
 
 
-# 25-seed deterministic trajectory comparator for post-convert INT8 validation
+# 25-seed deterministic trajectory comparator for post-convert INT8 validation (widely dispersed)
 _FIXED_SDXL_TRAJ_SEEDS = (
-    "42,137,849,2024,5555,10842,39104,77201,104857,284719,392817,501285,"
-    "618302,739182,884910,928371,1048592,1294819,1582034,1849201,2049182,"
-    "2491823,2840192,3194820,3849102"
+    "42,137,849,2024,7391,18429,53082,149206,382715,826401,1938502,4710928,"
+    "8391642,15820493,36192847,71058294,128491703,285039184,491730285,762019483,"
+    "938174026,1409285713,2683910547,3851729406,4195820371"
 )
 
 
@@ -592,7 +585,7 @@ if __name__ == "__main__":
             "UNet INT8 convert with FULL ConvRot (Linear+Conv2d) ON by default. "
             "Card 1 = --bias_correction. Card 3 = --per_channel_int8 for non-ConvRot "
             "plain packs. Use --no-convrot for plain INT8 only. No Approach A / no VETO. "
-            "After save, runs int8bench_sdxl by default (same as quantize_sdxl_hswq_v3.1)."
+            "After save, runs benchmark/sdxl_int8_traj_compare.py across 25 deterministic trajectory seeds."
         )
     )
     parser.add_argument(
