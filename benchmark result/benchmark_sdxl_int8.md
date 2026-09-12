@@ -29,8 +29,8 @@ results are kept below as legacy reference only.
 ### Reverse hybrid (diag-reverse) results
 
 `<model>_hswq_rev_int<K>_convrot_int8.safetensors` — K lowest-impact layers ConvRot INT8, everything
-else FP16. Checkpoint: `waiIllustriousSDXL_v170` (715 quantifiable layers; FP16 base 6.94 GB;
-full ConvRot INT8 4.69 GB; GB = decimal).
+else FP16. Checkpoint: `waiIllustriousSDXL_v170` (788 quantifiable layers; FP16 base 6.94 GB;
+all-eligible INT8 upper bound 4.39 GB; GB = decimal).
 
 > **Preliminary:** the rows below were measured with **5 of the 25 seeds** — they are **not gate
 > results**. The production verdict requires the full 25-seed set on a quiet GPU (concurrent GPU

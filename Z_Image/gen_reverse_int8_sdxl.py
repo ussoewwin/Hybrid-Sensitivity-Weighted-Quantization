@@ -8,7 +8,7 @@ SDXL counterpart of Z_Image/gen_reverse_nvfp4.py, INT8 variant. Method: reverse 
   - The K lowest-impact layers (ascending impact) are converted to ConvRot INT8:
       W_rot = W @ H^T  ->  per-channel INT8 (Linear: rowwise [out,1] /
       Conv2d: channelwise [out,1,1,1])  ->  the rotated INT8 weight is stored as-is
-      (same kernel as native_convert_int8_sdxl.py; no inverse rotation).
+      (no inverse rotation; the runtime applies the matching online activation rotate).
   - Every other layer is left untouched: FP16, same dtype and size as the baseline.
 
 Output is the hswq convrot int8 mixed checkpoint:
@@ -37,7 +37,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 
-# --- ConvRot kernel (same math as native_convert_int8_sdxl.py; inlined) ---
+# --- ConvRot kernel (matching the runtime rotate + per-channel INT8 quantization) ---
 
 def convrot_group_size_for_features(n: int, preferred: int = 256) -> int | None:
     """Largest power-of-4 group size <= preferred that divides n (or None)."""
@@ -124,19 +124,30 @@ def _encode_comfy_quant(config: dict) -> torch.Tensor:
     )
 
 
-# --- SDXL UNet boundary layers (same exclusion set as diag_impact_sdxl.py) ---
+# --- SDXL UNet boundary layers (always kept FP16; excluded from candidates) ---
 
-_PROTECT_PATTERNS = (
-    "conv_in.",
-    "conv_out.",
+_BOUNDARY_EXACT = (
+    "input_blocks.0.0",   # conv_in
+)
+_BOUNDARY_PREFIX = (
+    "out.",              # conv_out
     "time_embed.",
     "add_embedding.",
     "label_emb.",
 )
 
 
+def _bare(module_name: str) -> str:
+    b = module_name
+    for p in ("model.diffusion_model.", "diffusion_model."):
+        if b.startswith(p):
+            return b[len(p):]
+    return b
+
+
 def is_protected(module_name: str) -> bool:
-    return any(p in module_name for p in _PROTECT_PATTERNS)
+    b = _bare(module_name)
+    return b in _BOUNDARY_EXACT or b.startswith(_BOUNDARY_PREFIX)
 
 
 def parse_args():
