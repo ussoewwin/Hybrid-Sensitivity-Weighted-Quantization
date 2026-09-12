@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.6
+
+**SDXL ConvRot INT8 method: reverse (trajectory-impact) step added to the HSWQ V3.1 selector** — The SDXL INT8 pipeline keeps the V3.1 selector (DualMonitor + V4 weighted-histogram MSE + full SVD, fixed 300 MiB FP16 protection) and extends it with the reverse step: the per-layer ConvRot INT8 impact is measured on the production sampler over the pool the selector leaves, and the K lowest-impact pool layers are converted while every other layer — the selector-protected layers included — stays FP16.
+Release notes: [v2.3.6](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.6)
+
 ## v2.3.5
 
 **Krea2 Hybrid ConvRot NVFP4 development cancelled (ConvRot INT8 only)** — Extensive empirical evaluations demonstrated that 4-bit precision (NVFP4) cannot maintain structural generation fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, final latent trajectory cosine fails to reach 0.90 (resulting in severe trajectory drift and frequent bifurcations). Consequently, Krea2 Hybrid NVFP4 development has been officially discontinued. Krea2 is supported strictly via **ConvRot INT8** (`Krea2/hswq_convrot_int8_krea2_v1.5.py` and ComfyUI `Native ConvRot INT8 Quantize`), which reliably preserves high generation fidelity (mean trajectory cosine $\ge 0.98$).
