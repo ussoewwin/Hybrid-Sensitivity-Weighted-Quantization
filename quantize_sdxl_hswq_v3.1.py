@@ -2386,12 +2386,12 @@ def resolve_weights_path(raw_path: str, script_dir: str) -> tuple[str, list[str]
     return os.path.abspath(raw_path), tried
 
 
-# 25-seed deterministic trajectory comparator for post-quantize INT8 validation
-_FIXED_SDXL_TRAJ_SEEDS = (
-    "42,137,849,2024,5555,10842,39104,77201,104857,284719,392817,501285,"
-    "618302,739182,884910,928371,1048592,1294819,1582034,1849201,2049182,"
-    "2491823,2840192,3194820,3849102"
+# Exact --prompt from the owner INT8 SDXL bench command (fixed; not a CLI).
+_FIXED_INT8BENCH_PROMPT = (
+    "masterpiece, best quality, 1girl, solo, standing, simple background"
 )
+# Seed fixed inside the chain (not a parent CLI).
+_FIXED_INT8BENCH_SEED = 123456789
 
 
 def _release_vram_before_bench(label: str = "post-quantize") -> None:
@@ -2435,10 +2435,15 @@ def run_post_quantize_int8_bench(
     script_dir: str,
     fp16_path: str,
     int8_path: str,
-    comfy_path: str | None = None,
 ) -> int:
-    """Run benchmark/sdxl_int8_traj_compare.py for deterministic 25-seed latent trajectory comparison."""
-    bench_script = os.path.join(script_dir, "benchmark", "sdxl_int8_traj_compare.py")
+    """Owner INT8 bench shape + seed fixed inside this chain:
+
+    int8bench_sdxl.py --fp16 <path> --int8 <path>
+      --prompt "<fixed>" --seed <fixed>
+
+    (No parent --bench_seed CLI. steps left to int8bench default.)
+    """
+    bench_script = os.path.join(script_dir, "benchmark", "int8bench_sdxl.py")
     if not os.path.isfile(bench_script):
         print(f"[FATAL] Post-quantize bench script not found: {bench_script}")
         return 1
@@ -2448,14 +2453,6 @@ def run_post_quantize_int8_bench(
     if not os.path.isfile(int8_path):
         print(f"[FATAL] Post-quantize bench: INT8 (--output) missing: {int8_path}")
         return 1
-
-    master = os.path.join(script_dir, "ComfyUI-master")
-    if comfy_path and os.path.isdir(comfy_path) and os.path.isdir(os.path.join(comfy_path, "comfy")):
-        resolved_comfy = comfy_path
-    elif os.path.isdir(master):
-        resolved_comfy = master
-    else:
-        raise FileNotFoundError(f"ComfyUI-master not found: {master}")
 
     # Final gate: free any leftover parent CUDA before the bench process starts.
     _release_vram_before_bench("pre-INT8-bench subprocess")
@@ -2467,30 +2464,18 @@ def run_post_quantize_int8_bench(
         fp16_path,
         "--int8",
         int8_path,
-        "--comfy_path",
-        resolved_comfy,
-        "--steps",
-        "25",
-        "--seeds",
-        _FIXED_SDXL_TRAJ_SEEDS,
-        "--width",
-        "1024",
-        "--height",
-        "1024",
-        "--cfg",
-        "7.0",
-        "--sampler",
-        "dpmpp_2m",
-        "--scheduler",
-        "karras",
+        "--prompt",
+        _FIXED_INT8BENCH_PROMPT,
+        "--seed",
+        str(_FIXED_INT8BENCH_SEED),
     ]
     print("=" * 60)
-    print("[*] Post-quantize INT8 trajectory comparator (25 seeds)")
+    print("[*] Post-quantize INT8 fidelity bench (owner command shape)")
     print(f"    script: {bench_script}")
     print(f"    --fp16: {fp16_path}")
     print(f"    --int8: {int8_path}")
-    print(f"    --comfy_path: {resolved_comfy}")
-    print(f"    --seeds: 25 seeds ({_FIXED_SDXL_TRAJ_SEEDS[:35]}...)")
+    print(f"    --prompt: {_FIXED_INT8BENCH_PROMPT}")
+    print(f"    --seed: {_FIXED_INT8BENCH_SEED} (fixed inside)")
     print("=" * 60)
     completed = subprocess.run(cmd, check=False)
     return int(completed.returncode)
@@ -2582,8 +2567,9 @@ def main():
         action=argparse.BooleanOptionalAction,
         default=True,
         help=(
-            "After save, run benchmark/sdxl_int8_traj_compare.py with "
-            "--fp16=--input --int8=--output across 25 random seeds (steps=25). "
+            "After save, run benchmark/int8bench_sdxl.py with "
+            "--fp16=--input --int8=--output and the fixed --prompt "
+            "(same shape as the owner INT8 bench command). "
             "Pass --no-bench to skip."
         ),
     )
@@ -3493,7 +3479,6 @@ def main():
             script_dir=script_dir,
             fp16_path=args.input,
             int8_path=args.output,
-            comfy_path=comfy_path,
         )
         if bench_rc != 0:
             print(f"[FATAL] Post-quantize bench exited with code {bench_rc}")
