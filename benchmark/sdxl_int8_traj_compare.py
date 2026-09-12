@@ -89,6 +89,105 @@ def _install_torchaudio_stub() -> None:
     _stub_mod("torchaudio.transforms")
 
 
+def _install_comfy_aimdo_stub() -> None:
+    """Ensure comfy_aimdo and submodules (malloc_graph, filter, model_vbar) are available.
+
+    In environments with older comfy_aimdo (e.g. 0.4.13) lacking malloc_graph,
+    ComfyUI-master v0.35.0 hard-imports comfy_aimdo.malloc_graph in comfy/model_prefetch.py.
+    This stub safely provides the minimal interface so import comfy.sample completes.
+    """
+    import types
+
+    aimdo = sys.modules.get("comfy_aimdo")
+    if aimdo is None:
+        try:
+            import comfy_aimdo as aimdo
+        except Exception:
+            aimdo = types.ModuleType("comfy_aimdo")
+            aimdo.__file__ = "<hswq_comfy_aimdo_stub>"
+            aimdo.__path__ = []
+            sys.modules["comfy_aimdo"] = aimdo
+
+    # 1. comfy_aimdo.filter
+    if "comfy_aimdo.filter" not in sys.modules:
+        try:
+            import comfy_aimdo.filter  # noqa: F401
+        except Exception:
+            fmod = types.ModuleType("comfy_aimdo.filter")
+            fmod.filter_modules = lambda *a, **k: None
+            sys.modules["comfy_aimdo.filter"] = fmod
+            try:
+                setattr(aimdo, "filter", fmod)
+            except Exception:
+                pass
+
+    # 2. comfy_aimdo.malloc_graph
+    if "comfy_aimdo.malloc_graph" not in sys.modules:
+        try:
+            import comfy_aimdo.malloc_graph  # noqa: F401
+        except Exception:
+            class _MallocGraph:
+                def __init__(self, *args, **kwargs):
+                    self._comfy_active = False
+                    self._comfy_cuda_graph_modules = set()
+                    self.rogue_count = 0
+
+                def pause(self, *args, **kwargs):
+                    pass
+
+                def resume(self, *args, **kwargs):
+                    pass
+
+                def push(self, *args, **kwargs):
+                    pass
+
+                def pop(self, *args, **kwargs):
+                    return False
+
+                def abort(self, *args, **kwargs):
+                    pass
+
+                def iterate(self, *args, **kwargs):
+                    return False
+
+                def use_stream(self, *args, **kwargs):
+                    class _DummyCtx:
+                        def __enter__(self):
+                            pass
+
+                        def __exit__(self, *a):
+                            pass
+
+                    return _DummyCtx()
+
+            mg_mod = types.ModuleType("comfy_aimdo.malloc_graph")
+            mg_mod.MallocGraph = _MallocGraph
+            mg_mod.record = lambda *args, **kwargs: _MallocGraph()
+            sys.modules["comfy_aimdo.malloc_graph"] = mg_mod
+            try:
+                setattr(aimdo, "malloc_graph", mg_mod)
+            except Exception:
+                pass
+
+    # 3. comfy_aimdo.model_vbar
+    if "comfy_aimdo.model_vbar" not in sys.modules:
+        try:
+            import comfy_aimdo.model_vbar  # noqa: F401
+        except Exception:
+            vbar_mod = types.ModuleType("comfy_aimdo.model_vbar")
+            vbar_mod.vbar_unpin = lambda *a, **k: None
+            vbar_mod.vbar_fault = lambda *a, **k: 0
+            vbar_mod.vbar_signature_compare = lambda *a, **k: False
+            vbar_mod.vbars_reset_watermark_limits = lambda *a, **k: None
+            vbar_mod.vbars_analyze = lambda *a, **k: 0
+            vbar_mod.ModelVBAR = type("_VBAR", (), {"__init__": lambda s, *a, **k: None})
+            sys.modules["comfy_aimdo.model_vbar"] = vbar_mod
+            try:
+                setattr(aimdo, "model_vbar", vbar_mod)
+            except Exception:
+                pass
+
+
 def setup_comfy(comfy_path: str) -> None:
     bench_dir = Path(__file__).resolve().parent
     repo_dir = bench_dir.parent
@@ -114,22 +213,11 @@ def setup_comfy(comfy_path: str) -> None:
     sys.path = new_sys_path
 
     _install_torchaudio_stub()
+    _install_comfy_aimdo_stub()
 
     import comfy.options
 
     comfy.options.enable_args_parsing(False)
-
-    try:
-        import comfy_aimdo  # noqa: F401
-    except Exception:
-        import types
-
-        m = types.ModuleType("comfy_aimdo")
-        m.__file__ = "<stub>"
-        m.__path__ = []
-        sys.modules["comfy_aimdo"] = m
-        sys.modules["comfy_aimdo.filter"] = types.ModuleType("comfy_aimdo.filter")
-        sys.modules["comfy_aimdo.filter"].filter_modules = lambda *a, **k: None
 
     try:
         import psutil  # noqa: F401

@@ -2460,24 +2460,8 @@ def run_post_quantize_int8_bench(
     # Final gate: free any leftover parent CUDA before the bench process starts.
     _release_vram_before_bench("pre-INT8-bench subprocess")
 
-    # In environments with older comfy_aimdo packages lacking malloc_graph (e.g. ComfyUI-master v0.35.0),
-    # ensure comfy_aimdo.malloc_graph is safely stubbed in the child bench process so import comfy.sample completes.
-    bench_entry = (
-        "import sys, types; "
-        "M = type('_MG', (), {'__init__': lambda s, *a, **k: None, 'pause': lambda *a, **k: None, 'resume': lambda *a, **k: None, 'push': lambda *a, **k: None, 'pop': lambda *a, **k: False, 'abort': lambda *a, **k: None, '_comfy_active': False, '_comfy_cuda_graph_modules': set(), 'rogue_count': 0}); "
-        "m = types.ModuleType('comfy_aimdo.malloc_graph'); "
-        "m.MallocGraph = M; "
-        "m.record = lambda *a, **k: M(); "
-        "sys.modules['comfy_aimdo.malloc_graph'] = m; "
-        "exec(\"try:\\n import comfy_aimdo\\n comfy_aimdo.malloc_graph = m\\nexcept Exception:\\n pass\"); "
-        "sys.argv = sys.argv[1:]; "
-        "__import__('runpy').run_path(sys.argv[0], run_name='__main__')"
-    )
-
     cmd = [
         sys.executable,
-        "-c",
-        bench_entry,
         bench_script,
         "--fp16",
         fp16_path,
