@@ -175,21 +175,24 @@ from dataclasses import dataclass
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
-# Owner ceiling for FP16 overhead vs all-INT8 (default 500 MiB).
-FP16_BUDGET_MB_HARD = 500.0
+# Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
+# optimize INSIDE this frame. Not a thinking-stop formula constant.
+FP16_BUDGET_MB_HARD = 300.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
 
 
 def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
-    """Validate fp16_budget_mb (> 0)."""
+    """Refuse any fp16_budget_mb other than the owner hard ceiling (300)."""
     b = float(budget_mb)
-    if b <= 0.0:
+    if abs(b - FP16_BUDGET_MB_HARD) > 1e-6:
         raise ValueError(
-            f"fp16_budget_mb must be > 0. Got {b}."
+            f"fp16_budget_mb must be exactly {FP16_BUDGET_MB_HARD:g} MiB "
+            f"(owner hard ceiling; auto-optimal settings are inside this "
+            f"frame only  -  never outside). Got {b}."
         )
-    return b
+    return FP16_BUDGET_MB_HARD
 
 # Ensure histogram modules are importable regardless of clone path / CWD
 histogram_dir = os.path.join(current_dir, "histogram")
@@ -618,8 +621,8 @@ class SdxlVetoTunables:
     sens_veto_keep_ratio_gate: float = 0.0
     bias_correction_top_ratio: float = 1.0
     auto_keep_ratio: float = 0.0
-    fp16_budget_mb: float = 500.0
-    fp16_budget_bytes: int = 524288000
+    fp16_budget_mb: float = 300.0
+    fp16_budget_bytes: int = 314572800
     n_unet_layers: int = 0
     autonomous: bool = False
     # V4 Full-SVD×RMS mix weight from THIS multi-axis analyze character
@@ -753,7 +756,7 @@ class SdxlVetoTunables:
             bias_correction_top_ratio=float(d["bias_correction_top_ratio"]),
             auto_keep_ratio=float(d.get("auto_keep_ratio", 0.0)),
             fp16_budget_mb=float(d["fp16_budget_mb"]),
-            fp16_budget_bytes=int(d.get("fp16_budget_bytes", int(float(d.get("fp16_budget_mb", 500.0)) * 1024 * 1024))),
+            fp16_budget_bytes=int(d.get("fp16_budget_bytes", 300 * 1024 * 1024)),
             n_unet_layers=int(d.get("n_unet_layers", 0)),
             autonomous=True,
             alpha_auto=float(d["alpha_auto"]),
@@ -840,8 +843,6 @@ def resolve_veto_tunables(
     analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
-    import analyze_sdxl_distribution
-    analyze_sdxl_distribution.INT8_FP16_BUDGET_MB_HARD = float(fp16_budget_mb)
     from analyze_sdxl_distribution import (
         derive_int8_autonomous_tunables,
         emit_hswq_int8_full_visibility_log,
@@ -2532,8 +2533,9 @@ def main():
         "--fp16_budget_mb",
         type=float,
         default=FP16_BUDGET_MB_HARD,
-        help="FP16 overhead budget ceiling vs all-INT8 (default 500 MiB). "
-             "Per-model auto analysis fills this frame. "
+        help="Owner hard ceiling: must be exactly 300 MiB FP16 overhead vs "
+             "all-INT8. Per-model auto analysis / auto-optimal settings fill "
+             "this frame only  -  never redefine or exceed it. "
              "Extra cost = 1 byte per weight element.",
     )
     parser.add_argument("--comfy_path", type=str, help="Path to ComfyUI root directory (optional, will auto-detect)")
@@ -2704,7 +2706,7 @@ def main():
     device = "cuda"
     print("=" * 60)
     print(
-        f"HSWQ V3.1 SDXL INT8 — FP16 {args.fp16_budget_mb:g} MiB protect first, "
+        "HSWQ V3.1 SDXL INT8 — FP16 300 MiB protect first, "
         "then FULL ConvRot on remainder "
         f"(Card1={'ON' if args.bias_correction else 'OFF'}, Card2 OFF)"
     )
@@ -2752,16 +2754,7 @@ def main():
             print(f"    Input:  {input_abs}")
             print(f"    Result: {profile_path}")
             subprocess.run(
-                [
-                    sys.executable,
-                    analyze_script,
-                    "--input",
-                    input_abs,
-                    "--output",
-                    profile_path,
-                    "--fp16_budget_mb",
-                    str(args.fp16_budget_mb),
-                ],
+                [sys.executable, analyze_script, "--input", input_abs, "--output", profile_path],
                 check=True,
             )
         else:
