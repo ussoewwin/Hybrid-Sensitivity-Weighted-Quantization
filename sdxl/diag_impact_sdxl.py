@@ -303,11 +303,14 @@ def parse_args():
     ap.add_argument("--cfg", type=float, default=7.0)
     ap.add_argument("--sampler", default="dpmpp_2m")
     ap.add_argument("--scheduler", default="karras")
+    ap.add_argument("--calib_file", default=None,
+                    help="calibration prompts for the v3.1 candidate source (--artifact v31)")
     ap.add_argument("--groupsize", type=int, default=256)
     ap.add_argument("--artifact", default=None,
-                    help="optional: restrict the measured set to the layers converted in this ConvRot INT8 "
-                         "pack (_quantization_metadata), reproducing a pack-derived candidate list; layers the "
-                         "pack kept at FP16 are then not measured")
+                    help="candidate source switch: a ConvRot INT8 pack path, or the literal \"v31\" to run "
+                         "the permitted HSWQ V3.1 selector (calibration + V4 histogram MSE + full SVD + "
+                         "300 MiB budget) and use the candidate set it produced; without --artifact every "
+                         "ConvRot-eligible layer of the checkpoint is measured")
     ap.add_argument("--limit", type=int, default=None, help="limit the number of measured layers (debug)")
     ap.add_argument("--protect_list", default=None,
                     help="optional: json/txt of layer names kept at FP16 (excluded from measurement)")
@@ -347,6 +350,28 @@ def main():
             continue  # not ConvRot-eligible
         mods[n] = (m, gs)
     print(f"[target] modules eligible for ConvRot INT8: {len(mods)}", flush=True)
+
+    if args.artifact == "v31":
+        # One-option switch to the HSWQ V3.1 candidate premise: run the permitted selector
+        # (calibration + V4 histogram MSE + full SVD + 300 MiB budget) and use the pack it writes.
+        if not args.calib_file:
+            raise SystemExit("--artifact v31 requires --calib_file")
+        here = os.path.dirname(os.path.abspath(__file__))
+        stem = os.path.splitext(os.path.basename(args.base))[0]
+        pack_out = os.path.join(os.path.dirname(os.path.abspath(args.base)),
+                                f"{stem}hswq_r32_1off_convrot_int8_repro.safetensors")
+        protect_out = os.path.join(os.path.dirname(os.path.abspath(args.out)), f"protect_{stem}.json")
+        cmd = [sys.executable, os.path.join(here, "build_protect_list_sdxl.py"),
+               os.path.abspath(args.base), protect_out,
+               "--calib_file", os.path.abspath(args.calib_file),
+               "--comfy_path", os.path.abspath(args.comfy_path),
+               "--pack-out", pack_out, "--reuse-pack"]
+        if not os.path.isfile(pack_out):
+            cmd = [c for c in cmd if c != "--reuse-pack"]
+        print("[v31] candidate source:", " ".join(cmd), flush=True)
+        import subprocess
+        subprocess.run(cmd, check=True)
+        args.artifact = pack_out
 
     if args.artifact:
         # Reproduce a pack-derived candidate list: measure only the layers a ConvRot INT8 pack actually
