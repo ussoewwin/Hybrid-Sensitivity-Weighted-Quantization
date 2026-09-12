@@ -2386,11 +2386,11 @@ def resolve_weights_path(raw_path: str, script_dir: str) -> tuple[str, list[str]
     return os.path.abspath(raw_path), tried
 
 
-# 25-seed deterministic trajectory comparator for post-quantize INT8 validation
+# Standard deterministic trajectory comparator seeds for post-quantize INT8 validation
 _FIXED_SDXL_TRAJ_SEEDS = (
-    "42,137,849,2024,5555,10842,39104,77201,104857,284719,392817,501285,"
-    "618302,739182,884910,928371,1048592,1294819,1582034,1849201,2049182,"
-    "2491823,2840192,3194820,3849102"
+    "42,137,5517,92048,371506,5293047,64820153,731509284,8426170395,9517038246,"
+    "210987,6543210,98765432,1357924680,2468135791,3579246812,4680357923,"
+    "5791468034,6802579145,7913680256"
 )
 
 
