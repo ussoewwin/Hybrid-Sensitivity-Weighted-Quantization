@@ -6,7 +6,7 @@
 
 High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
 
-- **ConvRot INT8 (SDXL, reverse hybrid):** FP16 checkpoint as the only input; a per-layer **trajectory-impact** measurement (`Z_Image/diag_impact_sdxl.py`) ranks every candidate layer, then the **K lowest-impact layers** are packed as **FULL ConvRot INT8** while **every other layer stays FP16** (`Z_Image/gen_reverse_int8_sdxl.py`). Validated by the **deterministic 25-seed latent-trajectory comparison** (per-step cosine + bifurcation); production gate = **cosine mean ≥ 0.95 and 0/25 bifurcated**. The ranking is measured on the actual sampling trajectory, so it captures the nonlinear error amplification that static weight-space saliency cannot represent.
+- **ConvRot INT8 (SDXL, reverse hybrid):** FP16 checkpoint as the only input; a per-layer **trajectory-impact** measurement (`sdxl/diag_impact_sdxl.py`) ranks every candidate layer, then the **K lowest-impact layers** are packed as **FULL ConvRot INT8** while **every other layer stays FP16** (`sdxl/gen_reverse_int8_sdxl.py`). Validated by the **deterministic 25-seed latent-trajectory comparison** (per-step cosine + bifurcation); production gate = **cosine mean ≥ 0.95 and 0/25 bifurcated**. The ranking is measured on the actual sampling trajectory, so it captures the nonlinear error amplification that static weight-space saliency cannot represent.
 - **ConvRot NVFP4 (SDXL):** ComfyUI Load Diffusion Model `nvfp4` pack with **FULL ConvRot** (Linear→NVFP4, Conv2d→INT8 `int8_tensorwise`) after DualMonitor + V4 pack-MSE FP16 protection under a fixed **600 MiB** budget. Keep ratio is **0** (r0); calib writes NVFP4 `.input_scale`. Script: `hswq_convert_nvfp4_convrot_1.0.py`.
 - **Z Image INT8 (HSWQ):** **Development and public release ended.** For Z Image, **native ConvRot INT8** already reaches roughly **SSIM > 0.99** in general, so a separate HSWQ Z Image 8-bit line is no longer developed or published. Use native ConvRot INT8 for Z Image 8-bit; HSWQ INT8 work continues for **SDXL**.
 - **ConvRot INT8 (Krea2):** Full HSWQ pipeline with structure blacklist protection (`first.`, `last.`, `mod.`, `norm`, `projector`, `txtfusion`, etc.) and data-driven 4-axis composite ranking (`Krea2/hswq_convrot_int8_krea2_v1.5.py`). For checkpoints where native ConvRot INT8 already reaches mean latent trajectory cosine $\ge 0.98$, native ConvRot INT8 is directly recommended.
@@ -112,7 +112,7 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
      amplification (Lyapunov-style growth), marginal effects, and Shapley-style attribution —
      why per-layer static measures (histogram MSE / cosine / SVD) cannot predict joint quantization
      error; applies to any iterative sampling system, not a specific model. Sources:
-     `Z_Image/diag_impact_sdxl.py` (SDXL), `Z_Image/diag_impact.py` (Z Image). **Technical details:**
+     `sdxl/diag_impact_sdxl.py` (SDXL), `Z_Image/diag_impact.py` (Z Image). **Technical details:**
      [Trajectory-Sensitivity Impact Ranking —
      Technical Guide](md/diag_impact_trajectory_sensitivity_technical_guide.md).
 
@@ -122,7 +122,7 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 
 ### ConvRot INT8 (SDXL, reverse hybrid)
 
-- **Scripts:** `Z_Image/diag_impact_sdxl.py` (per-layer trajectory impact), `Z_Image/gen_reverse_int8_sdxl.py` (reverse hybrid conversion).
+- **Scripts:** `sdxl/diag_impact_sdxl.py` (per-layer trajectory impact), `sdxl/gen_reverse_int8_sdxl.py` (reverse hybrid conversion).
 - **Input:** the FP16 SDXL checkpoint **only** — no other artifact is consulted. Every ConvRot-eligible Linear/Conv2d in it is a candidate (788 on the reference checkpoint, after excluding the boundary layers `input_blocks.0.0` / `out.*` / `time_embed.*` / `add_embedding.*` / `label_emb.*`).
 - **Step 1 (impact):** inject one layer at a time with its ConvRot INT8 reconstruction (`dequant(per-channel INT8(quantize(W @ H^T)))`, no inverse rotation) and run the **production sampler** (`comfy.sample.sample`, dpmpp_2m / karras / cfg 7.0 / fixed seed) — the same trajectory the quality gate uses; record the final-latent drift (relative MSE).
 - **Step 2 (conversion):** pack the **K lowest-impact layers** as **FULL ConvRot INT8** (rotate → per-channel INT8; format tag `int8_tensorwise`, stamp `convrot:true`) and leave **every other layer untouched at FP16**.
