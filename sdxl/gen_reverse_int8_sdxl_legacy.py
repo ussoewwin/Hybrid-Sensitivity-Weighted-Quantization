@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Reverse hybrid INT8 converter for SDXL -- LEGACY variant (artifact-era boundary set + bias correction).
-
-Legacy companion of sdxl/gen_reverse_int8_sdxl.py: the conversion path and the --bias_correction
-feature are identical; only the boundary-pattern set is the original one ("conv_in." /
-"conv_out."), which does not match the SDXL UNet key names. Kept for reproducing the earlier
-artefact-era behaviour with bias correction enabled.
-
-Reverse hybrid INT8 converter for SDXL: FP16 baseline -> K lowest-impact layers ConvRot INT8.
+"""Reverse hybrid INT8 converter for SDXL: FP16 baseline -> K lowest-impact layers ConvRot INT8.
 
 SDXL counterpart of Z_Image/gen_reverse_nvfp4.py, INT8 variant. Method: reverse hybrid
 (see md/diag_impact_trajectory_sensitivity_technical_guide.md).
@@ -15,7 +8,7 @@ SDXL counterpart of Z_Image/gen_reverse_nvfp4.py, INT8 variant. Method: reverse 
   - The K lowest-impact layers (ascending impact) are converted to ConvRot INT8:
       W_rot = W @ H^T  ->  per-channel INT8 (Linear: rowwise [out,1] /
       Conv2d: channelwise [out,1,1,1])  ->  the rotated INT8 weight is stored as-is
-      (no inverse rotation; the runtime applies the matching online activation rotate).
+      (same kernel as native_convert_int8_sdxl.py; no inverse rotation).
   - Every other layer is left untouched: FP16, same dtype and size as the baseline.
 
 Output is the hswq convrot int8 mixed checkpoint:
@@ -26,22 +19,11 @@ Output is the hswq convrot int8 mixed checkpoint:
 ComfyUI mixed-precision ops select the quantized path per layer from the .comfy_quant marker, so a
 single file carries both the FP16-kept and the ConvRot INT8 layers.
 
-Bias correction (optional, --bias_correction):
-  ConvRot INT8 quantizes the ROTATED weight, and the runtime rotates the activation online
-  (x_rot = x @ H) to match. The systematic output shift is therefore
-
-      delta[o] = sum_j (W_q_rot - W_rot)[o, j] * E[x_rot][j],
-
-  i.e. the quantization error contracted with the mean ROTATED activation. The converter collects
-  E[x_rot] per converted layer with forward hooks during a fixed-seed calibration pass (the
-  production sampler), then adds -delta to that layer's existing .bias. Layers without a .bias are
-  skipped. Calibration and correction are self-contained; no other artifact is consulted.
-
 Usage:
     python gen_reverse_int8_sdxl.py <K> <out_name.safetensors> <base.safetensors> <impact.json> \
-        [--out-dir <output-dir>] [--groupsize 256] \
-        [--bias_correction --calib_file <prompts.txt> --comfy_path <ComfyUI-master>] \
-        [--num_calib_samples 32] [--num_inference_steps 25]
+        [--out-dir <output-dir>] [--groupsize 256]
+        [--bias_correction --calib_file <prompts> --comfy_path <root>
+         [--num_calib_samples 32] [--num_inference_steps 25] [--calib_seed 42]]
 
 Validation:
     python benchmark/sdxl_int8_traj_compare.py --fp16 <base> --int8 <out> ...
@@ -57,7 +39,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 
-# --- ConvRot kernel (matching the runtime rotate + per-channel INT8 quantization) ---
+# --- ConvRot kernel (same math as native_convert_int8_sdxl.py; inlined) ---
 
 def convrot_group_size_for_features(n: int, preferred: int = 256) -> int | None:
     """Largest power-of-4 group size <= preferred that divides n (or None)."""
@@ -113,23 +95,6 @@ def rotate_weight_conv2d(weight: torch.Tensor, h_matrix: torch.Tensor, group_siz
     return flat_rot.reshape(out_c, k_h, k_w, in_c).permute(0, 3, 1, 2).contiguous()
 
 
-def rotate_activation_lastdim(x: torch.Tensor, h_matrix: torch.Tensor, group_size: int) -> torch.Tensor:
-    """Online Linear rotate: x_rot = x @ H (last dim = features). Matches the runtime."""
-    orig = x.shape
-    f = orig[-1]
-    gc = f // group_size
-    xg = x.reshape(-1, gc, group_size)
-    h = h_matrix.to(dtype=x.dtype, device=x.device)
-    return torch.matmul(xg, h).reshape(orig)
-
-
-def rotate_activation_nchw(x: torch.Tensor, h_matrix: torch.Tensor, group_size: int) -> torch.Tensor:
-    """Online Conv2d rotate: rotate the channel dim of an NCHW activation."""
-    xp = x.permute(0, 2, 3, 1).contiguous()
-    xr = rotate_activation_lastdim(xp, h_matrix, group_size)
-    return xr.permute(0, 3, 1, 2).contiguous()
-
-
 def quantize_int8_rowwise(w: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """Per-output-channel INT8 for Linear: weight_scale [out, 1]."""
     abs_max = w.abs().amax(dim=-1, keepdim=True).float().clamp(min=1e-30)
@@ -161,9 +126,24 @@ def _encode_comfy_quant(config: dict) -> torch.Tensor:
     )
 
 
-# --- Boundary layers excluded from the candidate set ---
-# Legacy (artifact-era) pattern set kept for this variant: these patterns do not match the SDXL
-# UNet key names, so conv_in (input_blocks.0.0) and conv_out (out.*) are not excluded by them.
+def rotate_activation_lastdim(x: torch.Tensor, h_matrix: torch.Tensor, group_size: int) -> torch.Tensor:
+    """Online Linear rotate: x_rot = x @ H (last dim = features). Matches the runtime."""
+    orig = x.shape
+    f = orig[-1]
+    gc = f // group_size
+    xg = x.reshape(-1, gc, group_size)
+    h = h_matrix.to(dtype=x.dtype, device=x.device)
+    return torch.matmul(xg, h).reshape(orig)
+
+
+def rotate_activation_nchw(x: torch.Tensor, h_matrix: torch.Tensor, group_size: int) -> torch.Tensor:
+    """Online Conv2d rotate: rotate the channel dim of an NCHW activation."""
+    xp = x.permute(0, 2, 3, 1).contiguous()
+    xr = rotate_activation_lastdim(xp, h_matrix, group_size)
+    return xr.permute(0, 3, 1, 2).contiguous()
+
+
+# --- SDXL UNet boundary layers (same exclusion set as diag_impact_sdxl.py) ---
 
 _PROTECT_PATTERNS = (
     "conv_in.",
@@ -365,10 +345,10 @@ def parse_args():
 def main():
     a = parse_args()
     out = os.path.join(a.out_dir, a.out_name)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     with open(a.impact, encoding="utf-8") as f:
         imp = json.load(f)["impacts"]
+    # ascending = safest first; diag keys are named_modules names (with diffusion_model.)
     ranked = []
     for k, v in sorted(imp.items(), key=lambda kv: kv[1]):
         if isinstance(v, float) and math.isnan(v):
@@ -384,7 +364,15 @@ def main():
         raw_meta = f.metadata() or {}
         sd = {k: f.get_tensor(k) for k in keys}
 
+    prefix = ""
+    for cand in ("model.diffusion_model.", "diffusion_model."):
+        if any(k.startswith(cand) for k in keys):
+            prefix = cand
+            break
+    print(f"UNet key prefix: {prefix!r}")
+
     def module_to_sd_key(mod_name: str) -> str | None:
+        """Map a diag module name (named_modules) to the checkpoint module key."""
         for pre in ("model.diffusion_model.", "diffusion_model."):
             if pre + mod_name + ".weight" in sd:
                 return pre + mod_name
@@ -395,73 +383,87 @@ def main():
                     return pre + bare
         return None
 
-    # Resolve the conversion targets first (calibration needs the same set).
-    plan = []           # (sd_module_key, gs, ndim, is_conv2d)
+    quant_meta_layers = {}
+    converted = 0
     skipped_protected = 0
     skipped_not_found = 0
     skipped_shape = 0
+
+    mu_rot = {}
+    bias_applied = 0
+    bias_skipped_no_bias = 0
+    bias_skipped_no_act = 0
+    if a.bias_correction:
+        if not a.calib_file or not os.path.isfile(a.calib_file):
+            raise FileNotFoundError(f"--calib_file not found: {a.calib_file}")
+
+        def sd_key_to_module(k: str) -> str:
+            # model.model (BaseModel) exposes diffusion_model.* (no leading "model.")
+            if k.startswith("model.diffusion_model."):
+                return k[len("model."):]
+            return k
+
+        plan = []
+        for name in ranked[: a.k]:
+            mk = module_to_sd_key(name)
+            if mk is None or is_protected(name):
+                continue
+            w = sd.get(mk + ".weight")
+            if w is None or w.ndim not in (2, 4):
+                continue
+            gs = convrot_group_size_for_features(int(w.shape[1]), a.groupsize)
+            if gs is None:
+                continue
+            plan.append((mk, gs, w.ndim))
+        targets = {sd_key_to_module(mk): (gs, nd) for (mk, gs, nd) in plan}
+        raw_means = collect_rotated_act_means(
+            a.base, a.comfy_path, targets,
+            calib_file=a.calib_file, num_samples=a.num_calib_samples,
+            num_steps=a.num_inference_steps,
+            prompt_fallback="masterpiece, best quality, 1girl, solo, standing, simple background",
+            width=a.width, height=a.height, seed=a.calib_seed,
+            device="cuda" if torch.cuda.is_available() else "cpu",
+        )
+        for (mk, _gs, _nd) in plan:
+            m = raw_means.get(sd_key_to_module(mk))
+            if m is not None:
+                mu_rot[mk] = m
+
     for name in ranked[: a.k]:
-        mk = module_to_sd_key(name)
-        if mk is None:
+        module_key = module_to_sd_key(name)
+        if module_key is None:
             skipped_not_found += 1
+            print(f"  SKIP (not in sd): {name}")
             continue
-        w = sd[mk + ".weight"]
+        wk = module_key + ".weight"
+        w = sd[wk]
         if w.ndim not in (2, 4) or w.dtype not in (torch.float16, torch.bfloat16, torch.float32):
             skipped_shape += 1
             continue
         if is_protected(name):
             skipped_protected += 1
+            print(f"  SKIP (boundary layer): {name}")
             continue
+
         gs = convrot_group_size_for_features(int(w.shape[1]), a.groupsize)
         if gs is None:
             skipped_shape += 1
+            print(f"  SKIP (no eligible group size): {name} in={w.shape[1]}")
             continue
-        plan.append((mk, gs, w.ndim))
-    print(f"conversion plan: {len(plan)} layers "
-          f"(protected-skip {skipped_protected}, not-found {skipped_not_found}, shape {skipped_shape})")
 
-    # Optional calibration: collect rotated activation means for exactly these layers.
-    mu_rot = {}
-    if a.bias_correction:
-        if not a.calib_file or not os.path.isfile(a.calib_file):
-            raise FileNotFoundError(f"--calib_file not found: {a.calib_file}")
-        # Map sd module key -> ComfyUI named_modules name.
-        # NOTE: model.model (BaseModel) -> diffusion_model.* WITHOUT a leading "model.".
-        def sd_key_to_module(k: str) -> str:
-            if k.startswith("model.diffusion_model."):
-                return k[len("model."):]          # -> diffusion_model.*
-            return k
-        targets = {sd_key_to_module(mk): (gs, ndim) for (mk, gs, ndim) in plan}
-        mu_rot_raw = collect_rotated_act_means(
-            a.base, a.comfy_path, targets,
-            calib_file=a.calib_file, num_samples=a.num_calib_samples,
-            num_steps=a.num_inference_steps,
-            prompt_fallback="masterpiece, best quality, 1girl, solo, standing, simple background",
-            width=a.width, height=a.height, seed=a.calib_seed, device=device,
-        )
-        mu_rot = {mk: mu_rot_raw.get(sd_key_to_module(mk)) for (mk, _gs, _nd) in plan}
-
-    quant_meta_layers = {}
-    converted = 0
-    bias_applied = 0
-    bias_skipped_no_bias = 0
-    bias_skipped_no_act = 0
-    for mk, gs, ndim in plan:
-        wk = mk + ".weight"
-        w = sd[wk]
         h = build_hadamard(gs, device="cpu", dtype=torch.float32)
         wf = w.float()
-        if ndim == 2:
+        # rotate then per-channel INT8 (same kernel as the shipped converter; no inverse rotation)
+        if w.ndim == 2:
             w_rot = rotate_weight(wf, h, gs)
             q, scale = quantize_int8_rowwise(w_rot)
         else:
             w_rot = rotate_weight_conv2d(wf, h, gs)
             q, scale = quantize_int8_channelwise(w_rot)
 
-        # Bias correction: delta = (W_q_rot - W_rot) @ E[x_rot], applied as -delta on .bias.
         if a.bias_correction:
-            bk = mk + ".bias"
-            m = mu_rot.get(mk)
+            bk = module_key + ".bias"
+            m = mu_rot.get(module_key)
             if m is None:
                 bias_skipped_no_act += 1
             elif bk not in sd:
@@ -478,15 +480,20 @@ def main():
 
         del sd[wk]
         sd[wk] = q
-        sd[mk + ".weight_scale"] = scale
-        conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": int(gs)}
-        sd[mk + ".comfy_quant"] = _encode_comfy_quant(conf)
-        quant_meta_layers[mk] = conf
+        sd[module_key + ".weight_scale"] = scale
+        conf = {
+            "format": "int8_tensorwise",
+            "convrot": True,
+            "convrot_groupsize": int(gs),
+        }
+        sd[module_key + ".comfy_quant"] = _encode_comfy_quant(conf)
+        quant_meta_layers[module_key] = conf
         converted += 1
-        if converted % 25 == 0 or converted == len(plan):
-            print(f"  [{converted}/{len(plan)}] last: {mk}  {tuple(w.shape)}")
+        if converted % 25 == 0 or converted == a.k:
+            print(f"  [{converted}/{a.k}] last: {name}  {tuple(w.shape)}")
 
-    print(f"converted: {converted}")
+    print(f"converted: {converted}, protected-skip: {skipped_protected}, "
+          f"not-found-skip: {skipped_not_found}, shape-skip: {skipped_shape}")
     if a.bias_correction:
         print(f"bias correction: applied={bias_applied}, no_bias={bias_skipped_no_bias}, "
               f"no_act={bias_skipped_no_act}")
