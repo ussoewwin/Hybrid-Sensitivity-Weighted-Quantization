@@ -345,7 +345,7 @@ def parse_args():
     ap = argparse.ArgumentParser(
         description="FP16 baseline -> K lowest-impact layers ConvRot INT8 (hswq mixed checkpoint)"
     )
-    ap.add_argument("k", type=int, help="number of layers (ascending impact) to convert to ConvRot INT8")
+    ap.add_argument("k", help="number of layers (ascending impact) to convert to ConvRot INT8, or 'all'")
     ap.add_argument("out_name", help="output filename (created under the output directory)")
     ap.add_argument("base", help="FP16 baseline SDXL checkpoint (full ckpt)")
     ap.add_argument("impact", help="impact json from diag_impact_sdxl.py")
@@ -378,7 +378,9 @@ def main():
         if k.endswith(".weight"):
             k = k[: -len(".weight")]
         ranked.append(k)
+    k_req = len(ranked) if str(a.k).lower() == "all" else int(a.k)
     print(f"ranked layers available: {len(ranked)}")
+    print(f"converting: {min(k_req, len(ranked))} layer(s)")
 
     print(f"loading baseline: {a.base}")
     with safe_open(os.path.abspath(a.base), framework="pt", device="cpu") as f:
@@ -402,7 +404,7 @@ def main():
     skipped_protected = 0
     skipped_not_found = 0
     skipped_shape = 0
-    for name in ranked[: a.k]:
+    for name in ranked[: k_req]:
         mk = module_to_sd_key(name)
         if mk is None:
             skipped_not_found += 1
@@ -501,7 +503,7 @@ def main():
     metadata["hswq_reverse_int8"] = json.dumps({
         "base": os.path.abspath(a.base),
         "impact": os.path.abspath(a.impact),
-        "k_requested": a.k,
+        "k_requested": k_req,
         "converted": converted,
         "groupsize": a.groupsize,
         "bias_correction": bool(a.bias_correction),
