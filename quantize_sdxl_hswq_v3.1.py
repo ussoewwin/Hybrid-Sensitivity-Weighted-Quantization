@@ -88,30 +88,15 @@ def _install_kornia_compat_stub() -> None:
 
 _install_kornia_compat_stub()
 
-import torch
-import torch.nn as nn
-from diffusers import StableDiffusionXLPipeline
-from safetensors.torch import load_file, save_file
-import gc
-from tqdm import tqdm
-import sys
-import json
-import numpy as np
-import subprocess
-from dataclasses import dataclass
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-
 
 def _install_torchaudio_stub() -> None:
-    """Prevent real torchaudio from loading if comfy.sd is pulled in.
+    """Prevent real torchaudio from loading when diffusers, transformers, or comfy.sd is imported.
 
-    ComfyUI-master is placed on sys.path below. comfy.sd imports
-    comfy.ldm.lightricks.vae.audio_vae, which does a hard ``import torchaudio``.
     On cloud hosts torch/torchaudio CUDA builds often mismatch (e.g. torch 13.2
     vs torchaudio 13.0) and abort before UNet calib. SDXL INT8 calib uses
-    Diffusers only — never AudioVAE — so replace torchaudio in sys.modules
-    with a local stub. Does not touch ComfyUI-master sources.
+    Diffusers only for UNet inference — never AudioVAE or audio utils — so replace
+    torchaudio in sys.modules with a local stub BEFORE diffusers/transformers
+    attempts to import it. Does not touch ComfyUI-master sources.
     """
     import importlib.machinery
     import types
@@ -121,8 +106,6 @@ def _install_torchaudio_stub() -> None:
             del sys.modules[key]
 
     def _stub_mod(name: str, *, is_package: bool = False):
-        # transformers uses importlib.util.find_spec("torchaudio"); a ModuleType
-        # without __spec__ raises ValueError: torchaudio.__spec__ is None.
         mod = types.ModuleType(name)
         mod.__file__ = "<hswq_torchaudio_stub>"
         if is_package:
@@ -137,6 +120,10 @@ def _install_torchaudio_stub() -> None:
         return mod
 
     ta = _stub_mod("torchaudio", is_package=True)
+    ta.__version__ = "2.5.0"
+    ta.load = lambda *args, **kwargs: (None, None)
+    ta.info = lambda *args, **kwargs: None
+
     functional = _stub_mod("torchaudio.functional")
 
     def _resample(waveform, orig_freq, new_freq, *args, **kwargs):
@@ -170,8 +157,22 @@ def _install_torchaudio_stub() -> None:
     sys.modules["torchaudio.transforms"] = transforms
 
 
-# Always stub before ComfyUI is on sys.path (CUDA mismatch abort guard).
+# Always stub BEFORE diffusers/transformers/comfy import (CUDA mismatch abort guard).
 _install_torchaudio_stub()
+
+import torch
+import torch.nn as nn
+from diffusers import StableDiffusionXLPipeline
+from safetensors.torch import load_file, save_file
+import gc
+from tqdm import tqdm
+import sys
+import json
+import numpy as np
+import subprocess
+from dataclasses import dataclass
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
 
 # Owner ceiling for FP16 overhead vs all-INT8 (default 500 MiB).
