@@ -61,6 +61,7 @@ step.
 | This repository | clone it; it bundles the ComfyUI checkout in `ComfyUI-master/` (read-only — never modify it) |
 | Runtime packages | `pip install -r requirements.txt` (ComfyUI runtime) and `pip install -U comfy_kitchen` (INT8 layouts) |
 | Base checkpoint | the original fp16 SDXL `.safetensors` (`<base>`, UNet + CLIP + VAE in one file) |
+| Calibration prompts (**only for `--bias_correction`**) | a prompt list, e.g. `sample/calibration_prompts_128.txt` |
 | Disk | keep **≥ 20 GB free** (base 6.9 GB + hybrid 4.4–6.9 GB + one intermediate) |
 | Optional | `scikit-image` only if you also run the legacy decoded-image bench `benchmark/int8bench_sdxl.py` |
 
@@ -93,7 +94,7 @@ errors; never set `TORCH_LOGS` (torch import fails with an AttributeError).
   │ Step 1: sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" --steps 25 --seed 42
   ▼                                                     (writes <impact>.json, ~30–60 min for 788 layers)
 <impact>.json
-  │ Step 2: sdxl/gen_reverse_int8_sdxl.py <K> "<hybrid>" "<base>" "<impact>.json"
+  │ Step 2: sdxl/gen_reverse_int8_sdxl.py <K> "<hybrid>" "<base>" "<impact>.json" [--bias_correction ...]
   ▼
 <hybrid>  (K lowest-impact layers → ConvRot INT8, everything else stays FP16)
   │ Step 3: benchmark/sdxl_int8_traj_compare.py --fp16 "<base>" --int8 "<hybrid>" --steps 25  (25 random seeds)
@@ -155,6 +156,31 @@ rotated** (a large dequant-vs-fp16 deviation is expected).
 
 ComfyUI's mixed-precision ops select the quantized path per layer from the `.comfy_quant` marker, so
 one file carries both the FP16-kept and the ConvRot INT8 layers.
+
+### Optional bias correction (`--bias_correction`)
+
+```bash
+python sdxl/gen_reverse_int8_sdxl.py <K> \
+  "<model>_hswq_rev_int<K>_convrot_int8_bc.safetensors" \
+  "<base>" "<impact>.json" \
+  --bias_correction \
+  --calib_file "sample/calibration_prompts_128.txt" \
+  --comfy_path "<comfy_path>" \
+  [--num_calib_samples 32] [--num_inference_steps 25] [--calib_seed 42]
+```
+
+- ConvRot INT8 quantizes the **rotated** weight and the runtime rotates the activation online
+  (`x_rot = x @ H`), so the systematic output shift of a converted layer is
+  `delta[o] = sum_j (W_q_rot - W_rot)[o, j] * E[x_rot][j]`.
+- The converter collects `E[x_rot]` for each converted layer with forward pre-hooks during
+  `--num_calib_samples` calibration passes through the **production sampler**
+  (dpmpp_2m / karras / cfg 7.0, fixed seed), then adds `-delta` to that layer's existing `.bias`.
+  Layers without a `.bias` are skipped; size and format are unchanged.
+- **Model-dependent:** bias correction can help or hurt. Measure both variants with the 25-seed gate
+  (Step 3) before shipping.
+- The final log line `bias correction: applied=<N>, no_bias=<N>, no_act=<N>` confirms the effect:
+  expect `applied > 0` and `no_act = 0` (a non-zero `no_act` means the calibration hooks did not
+  reach those layers — the file would be identical to the non-corrected one).
 
 **Size:** the FP16 base is 6.94 GB. The hybrid converts only the K lowest-impact layers, so the
 size falls by roughly **3.2 MB per converted layer** on the reference checkpoint. Converting **all
