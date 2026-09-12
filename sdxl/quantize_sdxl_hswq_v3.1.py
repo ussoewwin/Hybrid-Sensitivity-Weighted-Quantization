@@ -173,7 +173,21 @@ import subprocess
 from dataclasses import dataclass
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
+
+
+def _repo_root_from(script_dir: str) -> str:
+    """Repository root for the sibling assets (ComfyUI-master, analyze/, benchmark/,
+    native_convert_int8_convrot.py). This script may live in a subfolder (e.g. sdxl/)."""
+    for d in (script_dir, os.path.dirname(script_dir)):
+        if (os.path.isdir(os.path.join(d, "analyze"))
+                or os.path.isdir(os.path.join(d, "ComfyUI-master"))
+                or os.path.isfile(os.path.join(d, "native_convert_int8_convrot.py"))):
+            return d
+    return script_dir
+
+
+repo_root = _repo_root_from(current_dir)
+sys.path.insert(0, os.path.join(repo_root, "ComfyUI-master"))
 
 # Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
 # optimize INSIDE this frame. Not a thinking-stop formula constant.
@@ -195,7 +209,7 @@ def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
     return FP16_BUDGET_MB_HARD
 
 # Ensure histogram modules are importable regardless of clone path / CWD
-histogram_dir = os.path.join(current_dir, "histogram")
+histogram_dir = os.path.join(repo_root, "histogram")
 if histogram_dir not in sys.path:
     sys.path.insert(0, histogram_dir)
 
@@ -219,7 +233,7 @@ def _load_native_convert_int8_convrot():
     """Load authority FULL ConvRot converter (do not diverge from this file)."""
     import importlib.util
 
-    path = os.path.join(current_dir, "native_convert_int8_convrot.py")
+    path = os.path.join(repo_root, "native_convert_int8_convrot.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"native_convert_int8_convrot.py not found: {path}")
     name = "native_convert_int8_convrot_for_sdxl_hswq_v31"
@@ -840,7 +854,7 @@ def resolve_veto_tunables(
     No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
     fp16_budget_mb = _require_fp16_budget_mb_hard(fp16_budget_mb)
-    analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
+    analyze_dir = os.path.join(repo_root, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import (
@@ -954,7 +968,7 @@ def _discover_ff2_suffixes(
     """Discover FFN output Linear suffixes from this checkpoint profile (no layer names)."""
     if not norm_profile:
         return ()
-    analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
+    analyze_dir = os.path.join(repo_root, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import _classify_layer_key
@@ -1713,7 +1727,7 @@ def _apply_fp16_budget_cap(
             f"(got alpha={alpha}, beta={beta})"
         )
     budget_mb = _require_fp16_budget_mb_hard(budget_mb)
-    analyze_dir = os.path.join(current_dir, "analyze")
+    analyze_dir = os.path.join(repo_root, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import (
@@ -2658,7 +2672,7 @@ def main():
         sys.exit(1)
     args.keep_ratio = 0.0
 
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_dir = _repo_root_from(os.path.dirname(os.path.abspath(__file__)))
     raw_input_arg = args.input
     resolved_input, tried_inputs = resolve_weights_path(raw_input_arg, script_dir)
     if not os.path.isfile(resolved_input):
