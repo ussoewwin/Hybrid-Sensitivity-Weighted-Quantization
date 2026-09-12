@@ -15,7 +15,7 @@ High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, 
 
 **Technical details — active**
 
-- **diag → reverse hybrid, current method for SDXL / Krea2:** [md/Diag_Reverse_Technical_Guide.md](md/Diag_Reverse_Technical_Guide.md) — per-layer trajectory impact measured on the production sampler, then the K lowest-impact layers are converted to the target format while everything else stays high-precision; validated by the deterministic 25-seed latent-trajectory gate.
+- **diag → reverse hybrid (SDXL, v1.1):** [md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md](md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md) — the SDXL V3.1 selector (DualMonitor + V4 weighted-histogram MSE + full SVD, fixed 300 MiB FP16 protection) extended with the reverse step: per-layer ConvRot INT8 impact is measured on the production sampler, the K lowest-impact layers of the remaining pool are converted while every other layer (the protected set included) stays FP16; validated by the deterministic 25-seed latent-trajectory gate.
 - **V5 histogram cosine:** [md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md) — Stage-3 amax search with the same SVD×RMS hybrid importance as V4, but **cosine similarity loss** on the importance-weighted magnitude histogram (not weighted MSE); includes a full MSE↔cosine mathematical comparison for quantization fidelity.
 
 **Technical details — development ended (retained as technical assets)**
