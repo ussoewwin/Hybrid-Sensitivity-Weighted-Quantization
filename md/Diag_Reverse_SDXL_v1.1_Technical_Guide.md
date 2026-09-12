@@ -70,7 +70,7 @@ Measured evidence for keeping both parts (reference checkpoint, 25-seed gate):
   layers), and
 * a pure dynamic selection over the whole candidate set (no static protection) already drops below
   0.96 at `K ≈ 570–590`, whereas the combination (static 300 MiB protection + dynamic selection of the
-  pool) holds **0.9625** at `K = 620`.
+  pool) holds **0.96241** at `K = 670` (bias correction on).
 
 Two operational consequences follow, and both are contracts rather than suggestions:
 
@@ -172,10 +172,8 @@ measurement raises is recorded as `NaN` (the converter drops `NaN` entries when 
 
 `impact(l)` is a function of the trajectory, so **the number of denoising steps changes the ranking**.
 Measured on the reference checkpoint: a ranking measured with a 25-step trajectory and one measured
-with a 4-step trajectory select **different layer sets at the same `K`** — they agreed on 555 of 620
-layers, exchanging 65 layers in each direction; in the 25-step ranking the 65 layers that the other
-ranking had converted were ranked just below the cutoff (620–705), i.e. the disagreement concentrates
-at the `K` boundary. Consequently:
+with a 4-step trajectory select **different layer sets at the same `K`**, and the disagreement
+concentrates at the `K` boundary. Consequently:
 
 * fix `--steps` for the whole production line (`--steps 25`);
 * never compare artifacts whose rankings were measured with different `--steps`, **and never expect
@@ -185,8 +183,7 @@ at the `K` boundary. Consequently:
   a cloud run).
 
 What *is* machine-independent is the conversion itself: given the same layer set, the rotated INT8
-weights and scales are **byte-identical** across machines (measured on the shared 555 layers of the two
-rankings above).
+weights and scales are **byte-identical** across machines.
 
 ### 5.5 The JSON contract
 
@@ -315,8 +312,7 @@ Reference checkpoint: base **6.94 GB** (decimal) / 6.46 GiB. A converted layer d
 **3.1 MB** on average (a 2D/4D weight goes from 2 bytes/element to 1 byte/element plus a per-channel
 f32 scale). Measured: `K = 670` → **4,875,339,410 B (4.88 GB / 4.54 GiB)**. Because `K` counts layers
 and not bytes, two artifacts with the same `K` can differ in size — the size difference is exactly the
-difference in the *identity* of the converted layers (measured: two 620-layer packs whose conversion
-sets differed by 65 layers differed by 182.3 MB, fully accounted for byte-by-byte by those 65 layers).
+difference in the *identity* of the converted layers.
 
 ## 8. Bias correction (`--bias_correction`)
 
@@ -365,8 +361,8 @@ INT8 pack at the same size.
 
 **Measured invariant (reference checkpoint).** The predicate's protection is the pack's FP16 matmul
 set: **77 layers** (73 non-boundary candidates + 4 boundary: `input_blocks.0.0`, `out.2`,
-`label_emb.0.0`, `label_emb.0.2`). In two independent hybrids (K = 620 and K = 670) all 77 were still
-FP16 with weights **byte-identical to the base**, and **0** protected layers were converted. The
+`label_emb.0.0`, `label_emb.0.2`). In the hybrids this pipeline produced (verified at `K = 670`), all 77
+stayed FP16 with weights **byte-identical to the base**, and **0** protected layers were converted. The
 protection is structural, not coincidental: the pool excludes them.
 
 ## 10. The gate
@@ -399,7 +395,6 @@ it is not achievable with this method for that checkpoint.
 | FP16 baseline | — | — | 6.94 GB | 1.000 (identity) | — |
 | native ConvRot INT8 (all convertible layers) | all | — | — | 0.93874 | 0/25 |
 | reverse hybrid v1.1, `K = 670` (pool 715, 25-step ranking) | 670 | on | 4,875,339,410 B (4.54 GiB) | **0.96241** | 0/25 |
-| reverse hybrid, `K = 620` (earlier reference run) | 620 | off | 4,819,078,807 B (4.49 GiB) | **0.96251** | 0/25 |
 
 Every number is **checkpoint- and condition-specific** and must be re-measured after any change of
 checkpoint, candidate set, `K`, ranking conditions or bias-correction setting. Per-model tables:
