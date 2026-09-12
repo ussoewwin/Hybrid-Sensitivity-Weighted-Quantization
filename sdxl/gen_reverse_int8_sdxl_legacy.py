@@ -211,10 +211,11 @@ def collect_rotated_act_means(
     `targets` maps a ComfyUI module name -> (group_size, weight_ndim). The rotated mean is
     accumulated per in-channel of the ROTATED activation (the online rotate the runtime applies).
     """
+    _setup_comfy(comfy_path)
+
     import comfy.model_management as mm
     import comfy.sample as comfy_sample
 
-    _setup_comfy(comfy_path)
     patcher, clip, _vae = _load_sdxl(base_path)
     net = patcher.model
     net.to(device)
