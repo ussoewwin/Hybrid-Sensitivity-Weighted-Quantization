@@ -1,5 +1,14 @@
 """ComfyUI node: quantize a loaded Z Image (NextDiT) UNet to native ConvRot INT8.
 
+.model_type dropdown: Z Image / Qwen Image Edit / Krea2 / SDXL.
+SDXL follows sdxl/native_convert_int8_sdxl.py exactly:
+  ConvRot (Linear+Conv2d) + per-channel pack for BOTH 2D and 4D
+  (n8.quantize_int8_channelwise == script pack_channelwise; the amax clamp in
+  the script is an identity because amax is the per-channel max abs).
+  Benchmark: integrated in-node traj bench, 25 deterministic seeds
+  (42,137,849,...,4195820371), steps=25, cfg=7.0, dpmpp_2m/karras, 1024x1024,
+  4-channel latent (fix_empty_latent_channels normalizes).
+
 Connects to the standard UNet loader's MODEL output (no file-path input).
 Extracts the diffusion-model weights in-memory, quantizes them with the same
 algorithm as ``Z_Image/native_convert_int8_convrot_zi.py``, and saves a checkpoint the
@@ -291,7 +300,7 @@ def _quantize_state_dict(
     model_type: str = "Z Image",
     k2=None,
 ):
-    """In-memory ConvRot INT8 packing (supports Z Image, Qwen Image Edit, and Krea2)."""
+    """In-memory ConvRot INT8 packing (supports Z Image, Qwen Image Edit, Krea2, SDXL)."""
     if model_type == "Krea2":
         if k2 is None:
             k2 = _load_krea2_native_int8()
@@ -302,6 +311,7 @@ def _quantize_state_dict(
     new_sd = {}
     meta_layers = {}
     n_linear = n_conv2d = n_plain = n_kept = 0
+    is_sdxl = model_type == "SDXL"
 
     for key, tensor in sd.items():
         if model_type == "Qwen Image Edit" and _is_qwen_blacklisted(key):
@@ -323,7 +333,8 @@ def _quantize_state_dict(
             if gs is not None:
                 h = n8.build_hadamard(gs, device="cpu")
                 w = n8.rotate_weight(w, h, gs)
-                q, scale = n8.quantize_int8_rowwise(w)
+                # SDXL script packs ConvRot Linear per-channel (pack_channelwise).
+                q, scale = n8.quantize_int8_channelwise(w) if is_sdxl else n8.quantize_int8_rowwise(w)
                 conf = {"format": "int8_tensorwise", "convrot": True,
                         "convrot_groupsize": int(gs)}
                 n_linear += 1
@@ -369,6 +380,16 @@ _BENCH_SAGE2_STATS = {
     "calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
     "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0, "armed": False,
 }
+
+
+# Same 25 deterministic trajectory seeds as benchmark/sdxl_int8_traj_compare.py
+# and sdxl/native_convert_int8_sdxl.py (_FIXED_SDXL_TRAJ_SEEDS).
+_SDXL_TRAJ_SEEDS = (
+    42, 137, 849, 2024, 7391, 18429, 53082, 149206, 382715, 826401,
+    1938502, 4710928, 8391642, 15820493, 36192847, 71058294, 128491703,
+    285039184, 491730285, 762019483, 938174026, 1409285713, 2683910547,
+    3851729406, 4195820371,
+)
 
 
 def _apply_bench_sage2_attention() -> None:
@@ -513,7 +534,7 @@ class NativeConvRotInt8Quantize:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model_type": (["Z Image", "Qwen Image Edit", "Krea2"], {"default": "Z Image"}),
+                "model_type": (["Z Image", "Qwen Image Edit", "Krea2", "SDXL"], {"default": "Z Image"}),
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
                 "benchmark_prompt": (
@@ -633,18 +654,33 @@ class NativeConvRotInt8Quantize:
                 tokens = clip.tokenize(prompt_text)
                 positive = clip.encode_from_tokens_scheduled(tokens)
                 negative = clip.encode_from_tokens_scheduled(clip.tokenize(""))
-                
-                device = mm.intermediate_device()
-                width, height = 1024, 1024
-                latent_base = torch.zeros([1, 16, height // 8, width // 8], device=device)
-                latent_base = comfy_sample.fix_empty_latent_channels(model, latent_base)
 
                 is_krea2 = (model_type == "Krea2")
+                is_sdxl = (model_type == "SDXL")
                 steps = 12
                 cfg = 1.0 if is_krea2 else 2.5
                 num_seeds = 20 if is_krea2 else 10
                 force_full_denoise = True if is_krea2 else False
-                seeds = [random.randint(1, 10000000) for _ in range(num_seeds)]
+                sampler_name = "euler"
+                scheduler = "simple"
+                latent_channels = 16
+                if is_sdxl:
+                    steps = 25
+                    cfg = 7.0
+                    num_seeds = 25
+                    sampler_name = "dpmpp_2m"
+                    scheduler = "karras"
+                    latent_channels = 4
+                    seeds = list(_SDXL_TRAJ_SEEDS)
+                else:
+                    seeds = [random.randint(1, 10000000) for _ in range(num_seeds)]
+
+                device = mm.intermediate_device()
+                width, height = 1024, 1024
+                latent_base = torch.zeros(
+                    [1, latent_channels, height // 8, width // 8], device=device
+                )
+                latent_base = comfy_sample.fix_empty_latent_channels(model, latent_base)
 
                 def _cos(a, b):
                     a = a.reshape(1, -1).float()
@@ -664,7 +700,7 @@ class NativeConvRotInt8Quantize:
                         x0s.append(x0.detach().float().cpu())
 
                     out = comfy_sample.sample(
-                        m, noise, steps, cfg, "euler", "simple",
+                        m, noise, steps, cfg, sampler_name, scheduler,
                         positive, negative, lat, denoise=1.0,
                         disable_noise=False, start_step=None, last_step=None,
                         force_full_denoise=force_full_denoise, noise_mask=None,
@@ -770,7 +806,7 @@ class NativeConvRotInt8Quantize:
                     line = f"[{i+1}/{num_seeds} | Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f} | max-drop: {max_drop:.4f} | {verdict}"
                     report.append(line)
 
-                if is_krea2:
+                if is_krea2 or is_sdxl:
                     report.append("\n--- Multi-seed summary ---")
                     report.append(f"{'seed':>8} {'final-cos':>10} {'final-mse':>12} {'max-drop':>9} {'verdict':>22}")
                     for r in final_rows:
