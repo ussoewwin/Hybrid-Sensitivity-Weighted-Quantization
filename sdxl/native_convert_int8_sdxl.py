@@ -169,12 +169,11 @@ _FIXED_SDXL_TRAJ_SEEDS = (
 
 def run_post_convert_int8_bench(
     *,
-    script_dir: str,
     fp16_path: str,
     int8_path: str,
 ) -> int:
     """Run benchmark/sdxl_int8_traj_compare.py for deterministic 25-seed latent trajectory comparison."""
-    bench_script = os.path.join(script_dir, "benchmark", "sdxl_int8_traj_compare.py")
+    bench_script = os.path.join(_REPO_ROOT, "benchmark", "sdxl_int8_traj_compare.py")
     if not os.path.isfile(bench_script):
         print(f"[FATAL] Post-convert bench script not found: {bench_script}")
         return 1
@@ -185,7 +184,7 @@ def run_post_convert_int8_bench(
         print(f"[FATAL] Post-convert bench: INT8 (--output) missing: {int8_path}")
         return 1
 
-    master = os.path.join(script_dir, "ComfyUI-master")
+    master = os.path.join(_REPO_ROOT, "ComfyUI-master")
     if os.path.isdir(master):
         resolved_comfy = master
     else:
@@ -229,10 +228,15 @@ def run_post_convert_int8_bench(
     return int(completed.returncode)
 
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+
 def _load_hswq_v30():
-    """Load quantize_sdxl_hswq_v3.0.py as a module (filename has a digit)."""
+    """Load archives/quantize_sdxl_hswq_v3.0.py as a module (filename has a digit)."""
     path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "quantize_sdxl_hswq_v3.0.py"
+        _REPO_ROOT, "archives", "quantize_sdxl_hswq_v3.0.py"
     )
     if not os.path.isfile(path):
         raise FileNotFoundError(f"HSWQ V3.0 script not found: {path}")
@@ -247,9 +251,7 @@ def _load_hswq_v30():
 
 def _load_native_convert_int8():
     """Load sibling native_convert_int8.py for Hadamard / rotate_weight."""
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "native_convert_int8.py"
-    )
+    path = os.path.join(_REPO_ROOT, "native_convert_int8.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"native_convert_int8.py not found: {path}")
     name = "native_convert_int8_for_simple"
@@ -754,9 +756,7 @@ if __name__ == "__main__":
     )
 
     if args.bench:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
         bench_rc = run_post_convert_int8_bench(
-            script_dir=script_dir,
             fp16_path=args.model,
             int8_path=args.output,
         )

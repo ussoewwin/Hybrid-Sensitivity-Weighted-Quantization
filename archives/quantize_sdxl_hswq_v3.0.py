@@ -72,7 +72,27 @@ import subprocess
 from dataclasses import dataclass
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(current_dir, "ComfyUI-master"))
+
+
+def _repo_root_from(script_dir: str) -> str:
+    """Repository root for the sibling assets (ComfyUI-master, histogram/, analyze/).
+
+    Walks up from script_dir until a directory containing ComfyUI-master is
+    found; falls back to the parent of script_dir.
+    """
+    d = script_dir
+    for _ in range(8):
+        if os.path.isdir(os.path.join(d, "histogram")) or os.path.isdir(os.path.join(d, "ComfyUI-master")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return os.path.dirname(script_dir)
+
+
+repo_root = _repo_root_from(current_dir)
+sys.path.insert(0, os.path.join(repo_root, "ComfyUI-master"))
 
 # Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
 # optimize INSIDE this frame. Not a thinking-stop formula constant.
@@ -94,12 +114,12 @@ def _require_fp16_budget_mb_hard(budget_mb: float) -> float:
     return FP16_BUDGET_MB_HARD
 
 # Ensure histogram modules are importable regardless of clone path / CWD
-histogram_dir = os.path.join(current_dir, "histogram")
+histogram_dir = os.path.join(repo_root, "histogram")
 if histogram_dir not in sys.path:
     sys.path.insert(0, histogram_dir)
 
 # Support for optional venv site-packages (e.g. local wheels)
-venv_site_packages = os.path.join(os.path.dirname(current_dir), "venv", "Lib", "site-packages")
+venv_site_packages = os.path.join(os.path.dirname(repo_root), "venv", "Lib", "site-packages")
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
     sys.path.append(venv_site_packages)
 
@@ -690,7 +710,7 @@ def resolve_veto_tunables(
     No hardcoded 90.0 / 15.0 / 2.0 / 0.5 / 40.0 recipe constants.
     """
     fp16_budget_mb = _require_fp16_budget_mb_hard(fp16_budget_mb)
-    analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
+    analyze_dir = os.path.join(repo_root, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import (
@@ -804,7 +824,7 @@ def _discover_ff2_suffixes(
     """Discover FFN output Linear suffixes from this checkpoint profile (no layer names)."""
     if not norm_profile:
         return ()
-    analyze_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyze")
+    analyze_dir = os.path.join(repo_root, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import _classify_layer_key
@@ -1563,7 +1583,7 @@ def _apply_fp16_budget_cap(
             f"(got alpha={alpha}, beta={beta})"
         )
     budget_mb = _require_fp16_budget_mb_hard(budget_mb)
-    analyze_dir = os.path.join(current_dir, "analyze")
+    analyze_dir = os.path.join(repo_root, "analyze")
     if analyze_dir not in sys.path:
         sys.path.insert(0, analyze_dir)
     from analyze_sdxl_distribution import (
@@ -2956,7 +2976,7 @@ def main():
                 if args.bias_correction:
                     if bc_allowed_modules is not None and module_name not in bc_allowed_modules:
                         bias_corr_skipped_low_sens += 1
-            else:
+                    else:
                         act_mean = act_mean_dict.get(module_name)
                         if act_mean is None:
                             bias_corr_skipped_no_act += 1
