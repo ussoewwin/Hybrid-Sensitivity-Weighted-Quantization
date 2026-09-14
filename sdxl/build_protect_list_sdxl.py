@@ -159,8 +159,15 @@ def main():
     conv = converted_layers(pack)
     protected = sorted(cands - conv)
     extra = sorted(conv - cands)
+    pool = sorted(cands & conv)
+    print(f"[v31] pack: {len(conv)} converted -> {len(pool)} pool candidates (candidates={len(cands)}, protected={len(protected)})", flush=True)
     if extra:
-        print(f"[warn] pack converted {len(extra)} layers not in the candidate set (first 3: {extra[:3]})", flush=True)
+        # The permitted V3.1 selector also quantizes a few boundary matmuls
+        # (time_embed.* / label_emb.* / input_blocks.0.0). diag candidates and the
+        # reverse converter both exclude boundary layers, so these stay FP16 in the
+        # hybrid and are not part of the pool.
+        print(f"[v31] boundary layers in the pack (excluded from the pool): "
+              f"{len(extra)} -> {extra}", flush=True)
 
     payload = 0
     from safetensors import safe_open
@@ -176,6 +183,9 @@ def main():
         "source": os.path.abspath(pack),
         "candidates": len(cands),
         "converted_by_v31": len(conv),
+        "pool": pool,
+        "pool_count": len(pool),
+        "boundary_in_pack": extra,
         "protected": protected,
         "protected_count": len(protected),
         "protected_payload_mib": payload / (1024 ** 2),
@@ -183,8 +193,8 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=1)
-    print(f"[protect] candidates={len(cands)} converted={len(conv)} protected={len(protected)} "
-          f"payload={payload / (1024 ** 2):.1f} MiB", flush=True)
+    print(f"[protect] candidates={len(cands)} converted={len(conv)} pool={len(pool)} "
+          f"protected={len(protected)} payload={payload / (1024 ** 2):.1f} MiB", flush=True)
     print(f"saved {a.out}", flush=True)
     print("DONE", flush=True)
 
