@@ -50,7 +50,10 @@ from pathlib import Path  # noqa: E402
 
 def _install_torchaudio_stub() -> None:
     """comfy.sd imports comfy.ldm.lightricks.vae.audio_vae which hard-imports
-    torchaudio; cloud/embedded torch builds often miss it."""
+    torchaudio; cloud/embedded torch builds often miss it, and CUDA-mismatched
+    builds raise on import. transformers then probes the module with
+    importlib.util.find_spec("torchaudio"), so the stub must carry a __spec__
+    (a spec-less module raises "ValueError: torchaudio.__spec__ is None")."""
     try:
         import torchaudio  # noqa: F401
         return
@@ -78,6 +81,11 @@ def _install_torchaudio_stub() -> None:
         if name in sys.modules:
             return
         mod = _StubModule(name, is_package=is_package)
+        # transformers calls importlib.util.find_spec("torchaudio"); a module
+        # without __spec__ makes that raise "ValueError: torchaudio.__spec__ is None".
+        mod.__spec__ = importlib.machinery.ModuleSpec(
+            name, loader=None, is_package=is_package
+        )
         sys.modules[name] = mod
         parent, _, child = name.rpartition(".")
         if parent:
