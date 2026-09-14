@@ -82,6 +82,13 @@ def run_v31(v31_path: str, base: str, pack_out: str, calib_file: str, comfy_path
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+    except Exception:
+        pass
     saved = list(sys.argv)
     sys.argv = [
         os.path.basename(v31_path),
@@ -101,6 +108,18 @@ def run_v31(v31_path: str, base: str, pack_out: str, calib_file: str, comfy_path
         mod.main()
     finally:
         sys.argv = saved
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                print(
+                    f"[v31] peak VRAM (selector process): "
+                    f"{torch.cuda.max_memory_allocated() / 2**30:.2f} GiB allocated, "
+                    f"{torch.cuda.max_memory_reserved() / 2**30:.2f} GiB reserved",
+                    flush=True,
+                )
+        except Exception:
+            pass
 
 
 def parse_args():
