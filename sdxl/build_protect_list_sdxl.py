@@ -180,6 +180,7 @@ def main():
         "protected_count": len(protected),
         "protected_payload_mib": payload / (1024 ** 2),
     }
+    os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=1)
     print(f"[protect] candidates={len(cands)} converted={len(conv)} protected={len(protected)} "
