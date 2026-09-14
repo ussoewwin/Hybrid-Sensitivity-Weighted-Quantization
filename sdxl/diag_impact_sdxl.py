@@ -23,9 +23,13 @@ ascending K layers are the ones to convert.
 - injection overwrites named_modules weight.data directly and restores it afterwards (guide 3.4).
 
 Usage:
-    python diag_impact_sdxl.py <base.safetensors> <impact_out.json> \
+    python diag_impact_sdxl.py <base.safetensors> [impact_out.json] \
         --comfy_path <ComfyUI-master> [--steps 25] [--seed 42] \
         [--width 1024] [--height 1024] [--artifact <convrot_int8_pack>] [--limit N] [--progress-every 25]
+
+    The impact json is written to <repo>/impact/ by default: omit impact_out.json,
+    or pass a bare filename. Give a path with a directory to write it elsewhere.
+    The directory comes from this file's location (no machine path is hardcoded).
 """
 import argparse
 import json
@@ -35,6 +39,25 @@ import sys
 import types
 
 import torch
+
+
+# Impact json output dir: <repo>/impact (repo-relative; never a machine path).
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_IMPACT_DIR = os.path.join(_REPO_ROOT, "impact")
+
+
+def _resolve_impact_out(out: str | None, base_path: str) -> str:
+    """Target impact json: omitted or a bare filename -> <repo>/impact/.
+
+    A path that carries a directory component is used as given. No absolute path
+    is hardcoded; the repo root is derived from this file's location.
+    """
+    if not out:
+        stem = os.path.splitext(os.path.basename(base_path))[0]
+        return os.path.join(_IMPACT_DIR, f"impact_{stem}.json")
+    if os.path.dirname(out):
+        return out
+    return os.path.join(_IMPACT_DIR, out)
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +372,9 @@ def is_boundary_layer(module_name: str) -> bool:
 def parse_args():
     ap = argparse.ArgumentParser(description="SDXL per-layer ConvRot INT8 trajectory impact")
     ap.add_argument("base", help="baseline fp16 SDXL checkpoint (full ckpt: UNet+CLIP+VAE)")
-    ap.add_argument("out", help="output impact json path")
+    ap.add_argument("out", nargs="?", default=None,
+                    help="output impact json; default <repo>/impact/impact_<base-stem>.json "
+                         "(a bare filename is placed in <repo>/impact/)")
     ap.add_argument("--comfy_path", required=True, help="ComfyUI-master root")
     ap.add_argument("--steps", type=int, default=4, help="trajectory denoising steps (default 4)")
     ap.add_argument("--seed", type=int, default=42, help="trajectory seed (default 42)")
@@ -381,6 +406,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    args.out = _resolve_impact_out(args.out, args.base)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -555,6 +581,7 @@ def main():
         "base": os.path.abspath(args.base),
         "impacts": impacts,
     }
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=1)
     print(f"saved {args.out}", flush=True)
