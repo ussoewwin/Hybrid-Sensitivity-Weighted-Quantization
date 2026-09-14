@@ -41,6 +41,18 @@ import types
 import torch
 
 
+def _vram(tag: str) -> None:
+    """Print the CUDA memory used since the last _vram call, then reset the peak counter."""
+    if torch.cuda.is_available():
+        print(
+            f"[vram] {tag}: alloc={torch.cuda.memory_allocated() / 2**30:.2f} GiB "
+            f"reserved={torch.cuda.memory_reserved() / 2**30:.2f} GiB "
+            f"peak={torch.cuda.max_memory_allocated() / 2**30:.2f} GiB",
+            flush=True,
+        )
+        torch.cuda.reset_peak_memory_stats()
+
+
 # Impact json output dir: <repo>/impact (repo-relative; never a machine path).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _IMPACT_DIR = os.path.join(_REPO_ROOT, "impact")
@@ -273,7 +285,7 @@ def load_sdxl(path: str):
     try:
         out = comfy.sd.load_checkpoint_guess_config(
             os.path.abspath(path),
-            output_vae=True,
+            output_vae=False,  # the VAE is never used by the trajectory measurement
             output_clip=True,
             embedding_directory=None,
         )
@@ -414,33 +426,11 @@ def main():
     setup_comfy(args.comfy_path)
     import_comfy()
 
-    print(f"[load] baseline: {args.base}", flush=True)
-    patcher, clip, _vae = load_sdxl(args.base)
-    net = patcher.model            # BaseModel
-    net.to(device)
-    net.eval()
-    print("[load] done", flush=True)
-
-    # Candidate set: every ConvRot-eligible Linear/Conv2d of the baseline (boundary excluded).
-    mods = {}
-    for n, m in net.named_modules():
-        if not hasattr(m, "weight") or m.weight is None:
-            continue
-        if m.weight.ndim not in (2, 4):
-            continue
-        if m.weight.shape[1] < 4:
-            continue
-        if is_boundary_layer(n):
-            continue
-        gs = convrot_group_size_for_features(int(m.weight.shape[1]), args.groupsize)
-        if gs is None:
-            continue  # not ConvRot-eligible
-        mods[n] = (m, gs)
-    print(f"[target] modules eligible for ConvRot INT8: {len(mods)}", flush=True)
-
     if args.artifact == "v31":
         # One-option switch to the HSWQ V3.1 candidate premise: run the permitted selector
         # (calibration + V4 histogram MSE + full SVD + 300 MiB budget) and use the pack it writes.
+        # Run it BEFORE the baseline is loaded: the selector is a separate process that loads its
+        # own full model copy, and running both copies at once exceeds a 16 GiB card.
         if not args.calib_file:
             raise SystemExit("--artifact v31 requires --calib_file")
         here = os.path.dirname(os.path.abspath(__file__))
@@ -462,6 +452,36 @@ def main():
         import subprocess
         subprocess.run(cmd, check=True)
         args.artifact = pack_out
+        # The selector process has exited; make sure its VRAM is really back before
+        # the baseline is loaded (peak stays one model copy, not two).
+        if device == "cuda":
+            torch.cuda.empty_cache()
+        _vram("after v31 selector")
+
+    print(f"[load] baseline: {args.base}", flush=True)
+    patcher, clip, _vae = load_sdxl(args.base)
+    net = patcher.model            # BaseModel
+    net.to(device)
+    net.eval()
+    print("[load] done", flush=True)
+    _vram("baseline loaded")
+
+    # Candidate set: every ConvRot-eligible Linear/Conv2d of the baseline (boundary excluded).
+    mods = {}
+    for n, m in net.named_modules():
+        if not hasattr(m, "weight") or m.weight is None:
+            continue
+        if m.weight.ndim not in (2, 4):
+            continue
+        if m.weight.shape[1] < 4:
+            continue
+        if is_boundary_layer(n):
+            continue
+        gs = convrot_group_size_for_features(int(m.weight.shape[1]), args.groupsize)
+        if gs is None:
+            continue  # not ConvRot-eligible
+        mods[n] = (m, gs)
+    print(f"[target] modules eligible for ConvRot INT8: {len(mods)}", flush=True)
 
     if args.artifact:
         # Reproduce a pack-derived candidate list: measure only the layers a ConvRot INT8 pack actually
@@ -533,6 +553,12 @@ def main():
     print(f"[target] measuring: {len(targets)}", flush=True)
 
     positive, negative = build_conditioning(clip, args.prompt, args.negative)
+    # CLIP is only needed to build the conditioning; free it before the long
+    # measurement loop so the peak stays on the model plus activations.
+    del clip
+    if device == "cuda":
+        torch.cuda.empty_cache()
+    _vram("conditioning built (clip freed)")
     latent0 = make_latent(patcher, args.width, args.height)
     if latent0.device.type != device:
         latent0 = latent0.to(device)
@@ -543,6 +569,7 @@ def main():
                            steps=args.steps, cfg=args.cfg, sampler=args.sampler,
                            scheduler=args.scheduler)
     print("[*] pristine done", flush=True)
+    _vram("pristine done")
 
     impacts = {}
     done = 0
@@ -571,6 +598,7 @@ def main():
             print(f"  [{done}/{len(targets)}]", flush=True)
 
     xr = x_ref[-1].float().reshape(1, -1)
+    _vram("measurement done")
     payload = {
         "x_ref_norm": float((xr * xr).sum().item()),
         "steps": args.steps,
