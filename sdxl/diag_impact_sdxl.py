@@ -520,8 +520,11 @@ def main():
                 seen.add(t)
                 uniq.append(t)
         targets = uniq
-        print(f"[target] artifact mode: {len(pack_layers)} layers listed, {len(targets)} measured, "
-              f"{len(skipped)} not eligible (first 5: {skipped[:5]})", flush=True)
+        boundary_skipped = [b for b in skipped if is_boundary_layer(b)]
+        other_skipped = [b for b in skipped if b not in boundary_skipped]
+        print(f"[target] artifact mode: {len(pack_layers)} pack layers -> {len(targets)} measured; "
+              f"excluded {len(boundary_skipped)} boundary (stay FP16: {boundary_skipped[:6]}) "
+              f"and {len(other_skipped)} not ConvRot-eligible (first 5: {other_skipped[:5]})", flush=True)
     else:
         targets = sorted(mods.keys())
     if args.protect_list:
