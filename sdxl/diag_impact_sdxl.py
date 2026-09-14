@@ -419,6 +419,9 @@ def parse_args():
 def main():
     args = parse_args()
     args.out = _resolve_impact_out(args.out, args.base)
+    # The v31 selector writes protect_<stem>.json next to the impact json, and it
+    # runs before the impact json is saved - create the directory up front.
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
