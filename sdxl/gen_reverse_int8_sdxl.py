@@ -44,6 +44,7 @@ import json
 import math
 import os
 import sys
+import types
 
 import torch
 from safetensors import safe_open
@@ -188,11 +189,67 @@ def _clear_argv_for_comfy():
     return saved
 
 
+def _install_torchaudio_stub() -> None:
+    """Prevent real torchaudio from loading when comfy.sd is imported.
+
+    On cloud hosts torch/torchaudio CUDA builds often mismatch (e.g. torch 13.2
+    vs torchaudio 13.0) and abort at ``import torchaudio``, which comfy.sd pulls
+    in via comfy.ldm.lightricks.vae.audio_vae (also the ace/mmaudio audio VAEs).
+    SDXL runs never use AudioVAE, so replace torchaudio in sys.modules with a
+    local stub. Does not touch ComfyUI-master.
+    """
+    import importlib.machinery
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(name, loader=None, is_package=True)
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    ta = _stub_mod("torchaudio", is_package=True)
+    functional = _stub_mod("torchaudio.functional")
+    functional.resample = lambda waveform, orig_freq, new_freq, *a, **k: waveform
+    transforms = _stub_mod("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
 def _setup_comfy(comfy_path: str) -> None:
     root = os.path.abspath(comfy_path)
     if not os.path.isdir(os.path.join(root, "comfy")):
         raise FileNotFoundError(f"comfy/ package missing under: {root}")
     sys.path = [root] + [p for p in sys.path if os.path.abspath(p or ".") != root]
+    _install_torchaudio_stub()
     import comfy.options
     comfy.options.args_parsing = False
     import comfy.model_management  # noqa: F401
