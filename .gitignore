@@ -28,6 +28,7 @@ cache/
 
 # Local test folder (never commit or push)
 test/*
+!test/_hf_README_*.md
 
 # All .txt ignored (score logs / dumps); keep product / ComfyUI / sample prompts
 *.txt
