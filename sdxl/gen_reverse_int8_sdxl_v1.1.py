@@ -242,7 +242,7 @@ def _load_sdxl(path: str):
     saved = _clear_argv_for_comfy()
     try:
         out = comfy.sd.load_checkpoint_guess_config(
-            os.path.abspath(path), output_vae=True, output_clip=True, embedding_directory=None
+            os.path.abspath(path), output_vae=False, output_clip=True, embedding_directory=None
         )
     finally:
         sys.argv = saved
