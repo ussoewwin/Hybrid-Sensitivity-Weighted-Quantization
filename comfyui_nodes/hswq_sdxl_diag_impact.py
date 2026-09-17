@@ -184,7 +184,13 @@ class HSWQSDXLDiagImpact:
             free_memory = getattr(mm, "free_memory", None)
             if callable(free_memory):
                 try:
-                    free_memory(1e30)
+                    # comfy's free_memory(minimum_free_memory, device)
+                    free_memory(1e30, mm.get_torch_device())
+                except TypeError:
+                    try:
+                        free_memory(1e30)
+                    except Exception as e:
+                        print(f"[HSWQ SDXL diag] WARN: free_memory: {e}", flush=True)
                 except Exception as e:
                     print(f"[HSWQ SDXL diag] WARN: free_memory: {e}", flush=True)
             if callable(getattr(mm, "soft_empty_cache", None)):
