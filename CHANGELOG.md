@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.7
+
+**SDXL ConvRot INT8 reverse converters: the unused VAE is no longer loaded** — `sdxl/gen_reverse_int8_sdxl.py` and `sdxl/gen_reverse_int8_sdxl_v1.1.py` load the checkpoint with `output_vae=False` (the returned VAE slot is `None` and is never used); conversion and calibration run in latent space only, so the VAE is not needed. The output pack is unaffected: its VAE tensors are copied straight from the base safetensors via `safe_open` -> `save_file`.
+Release notes: [v2.3.7](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.7)
+
 ## v2.3.6
 
 **SDXL ConvRot INT8 method: reverse (trajectory-impact) step added to the HSWQ V3.1 selector** — The SDXL INT8 pipeline keeps the V3.1 selector (DualMonitor + V4 weighted-histogram MSE + full SVD, fixed 300 MiB FP16 protection) and extends it with the reverse step: the per-layer ConvRot INT8 impact is measured on the production sampler over the pool the selector leaves, and the K lowest-impact pool layers are converted while every other layer — the selector-protected layers included — stays FP16.
