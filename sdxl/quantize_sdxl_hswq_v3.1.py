@@ -545,6 +545,14 @@ def load_unet_from_safetensors(path, device="cuda"):
             "Refusing to start DualMonitor calibration (would hang at 0/25 on CPU fp16)."
         )
     print(f"  [Pipeline] UNet device={unet_dev}")
+    # The calibration runs with output_type="latent": the VAE loaded by
+    # from_pretrained is never used, so keep it off the GPU.
+    _vae_comp = getattr(pipeline, "vae", None)
+    if isinstance(_vae_comp, torch.nn.Module):
+        _vae_comp.to("cpu")
+    if torch.cuda.is_available():
+        print(f"  [vram] selector pipeline loaded: alloc={torch.cuda.memory_allocated() / 2**30:.2f} GiB "
+              f"reserved={torch.cuda.memory_reserved() / 2**30:.2f} GiB", flush=True)
     print("Building key mapping...")
     comfyui_to_diffusers_map = unet_to_diffusers_mapping(unet_config, state_dict)
     print("Loading UNet weights...")
@@ -2882,6 +2890,11 @@ def main():
                 output_type="latent",
                 generator=generator,
             )
+        if torch.cuda.is_available():
+            print(f"  [vram] selector calib {i + 1}/{args.num_calib_samples}: "
+                  f"alloc={torch.cuda.memory_allocated() / 2**30:.2f} GiB "
+                  f"reserved={torch.cuda.memory_reserved() / 2**30:.2f} GiB "
+                  f"peak={torch.cuda.max_memory_allocated() / 2**30:.2f} GiB", flush=True)
         if (i + 1) % 10 == 0:
             gc.collect()
             torch.cuda.empty_cache()
