@@ -573,6 +573,13 @@ def main():
         "bias_applied": bias_applied,
     })
 
+    # The VAE is applied separately at inference time, so the pack must not carry
+    # the checkpoint-embedded copy: drop first_stage_model.* before saving.
+    _vae_keys = [k for k in sd if k.startswith("first_stage_model.")]
+    for _k in _vae_keys:
+        del sd[_k]
+    if _vae_keys:
+        print(f"dropped {len(_vae_keys)} VAE tensors (first_stage_model.*) from the output")
     print(f"saving: {out}")
     save_file(sd, out, metadata=metadata)
     size_gb = os.path.getsize(out) / 1e9
