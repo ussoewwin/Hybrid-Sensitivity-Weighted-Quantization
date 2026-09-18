@@ -1,18 +1,20 @@
 # Diag → Reverse Hybrid Quantization (SDXL, v1.1) — Technical Guide
 
-**Document version:** 2.0
-**Date:** 2026-09-13
+**Document version:** 3.0
+**Date:** 2026-09-18
 **Scope:** the SDXL ConvRot INT8 reverse hybrid, as implemented by
 
 | Stage | Script |
 |---|---|
 | V3.1 predicate (protection) | `sdxl/build_protect_list_sdxl.py` → `sdxl/quantize_sdxl_hswq_v3.1.py` |
 | Trajectory impact (diag) | `sdxl/diag_impact_sdxl.py` |
-| Reverse hybrid converter | `sdxl/gen_reverse_int8_sdxl_v1.1.py` |
+| Reverse hybrid converter | `sdxl/gen_reverse_int8_sdxl.py` |
+| Legacy converter (artifact-era) | `sdxl/gen_reverse_int8_sdxl_v1.1.py` |
+| Automation driver | `sdxl/auto_reverse_int8_sdxl.py` |
 | Gate | `benchmark/sdxl_int8_traj_compare.py` |
 
-Version 1.0 of this document covered SDXL and Krea2 together. This revision is **SDXL-only**: the Krea2
-counterpart is documented separately, and the Z Image NVFP4 variant has its own how-to.
+This revision is **SDXL-only**: the Krea2 counterpart is documented separately, and the Z Image NVFP4
+variant has its own how-to.
 
 **Companion documents:** [Trajectory-Sensitivity Impact Ranking — Technical Guide](diag_impact_trajectory_sensitivity_technical_guide.md)
 (the universal theory: interaction terms, nonlinear amplification, marginal effects),
@@ -102,13 +104,27 @@ boundary weights and 2 without an eligible group size).
 (matched after stripping the `model.diffusion_model.` / `diffusion_model.` prefix). They stay at their
 original precision in every artifact this pipeline produces.
 
-> **Note — boundary sets are not identical across scripts.** `diag_impact_sdxl.py` uses the exact-match
-> + prefix rule above; the converter `gen_reverse_int8_sdxl_v1.1.py` uses the *artifact-era* substring
+Both the diag script and the current converter (`gen_reverse_int8_sdxl.py`) use the same boundary
+definition:
+
+```python
+_BOUNDARY_EXACT = ("input_blocks.0.0",)
+_BOUNDARY_PREFIX = ("out.", "time_embed.", "add_embedding.", "label_emb.")
+```
+
+A name is stripped of the `model.diffusion_model.` or `diffusion_model.` prefix, then matched with
+exact equality against `_BOUNDARY_EXACT` and with `startswith` against `_BOUNDARY_PREFIX`.
+
+> **Note — the legacy converter differs.** `gen_reverse_int8_sdxl_v1.1.py` uses artifact-era substring
 > patterns `conv_in.` / `conv_out.` / `time_embed.` / `add_embedding.` / `label_emb.` (a name is
-> protected if it contains one of them). In the production flow the ranked names come from the diag
-> pool, which already excludes the diag boundary set, so the converter's own filter rarely fires — but
-> the two sets are **not** the same object, and the difference is intentional (`v1.1` = artifact-era
-> boundary set; `sdxl/gen_reverse_int8_sdxl.py` carries the newer set).
+> protected if it *contains* one of them). In ComfyUI SDXL checkpoints, `conv_in` is named
+> `input_blocks.0.0` and `conv_out` is `out.2`, so `"conv_in."` fails to match `input_blocks.0.0` and
+> `"conv_out."` fails to match `out.2`. In the production flow the ranked names come from the diag
+> pool, which already excludes the diag boundary set, so the legacy converter's own filter rarely
+> fires — but the two sets are **not** the same object. `gen_reverse_int8_sdxl.py` (the current
+> converter) fixes this by using the exact/prefix matching scheme, and
+> `auto_reverse_int8_sdxl.py` defaults to the current converter (use `--legacy-gen` only for
+> artifact-era reproduction).
 
 ## 5. The measurement (diag)
 
@@ -123,13 +139,15 @@ Linear 2D :  w_rot = w @ Hᵀ                       (group-wise, group = gs)
              q, s  = per-output-channel INT8      rowwise  scale [out, 1]
 Conv2d 4D :  w_rot = rotate along in_channels     (permute → flat 2D rotate → permute back)
              q, s  = per-output-channel INT8      channelwise scale [out, 1, 1, 1]
-injected  =  q · s                                # Ŵ_rot ; NO un-rotation
+injected  =  q · s                                # Ŵ_rot ; NO un-rotation
 ```
 
 * `H` = normalized regular Hadamard matrix of size `gs` (`build_hadamard`: `kron` of the 4×4 base,
   divided by `√gs`).
-* `scale = amax / 127`, `q = round(w / scale).clamp(−127, 127)`; the Linear path clamps the amax from
-  below (`1e-30`), the Conv2d path from below at `1e-6`.
+* Linear: `scale = amax / 127`, `q = round(w / scale).clamp(−127, 127)`; amax clamped from
+  below at `1e-30`.
+* Conv2d: `scale = amax / 127`, `q = round(w / scale).clamp(−127, 127)`; amax clamped from
+  below at `1e-6`.
 * Because the shipped weights are stored **rotated** and the runtime rotates the activation online
   (`x_rot = x @ H`), injecting the rotated reconstruction is the correct single-layer model of the
   deployed computation. An un-rotated injection would model a different layer.
@@ -156,6 +174,8 @@ comfy_sample.sample(patcher, noise, steps, cfg, sampler, scheduler,
 * `torch.backends.cudnn.deterministic = True`, `benchmark = False`.
 * Defaults (and the production values): `--steps 25 --seed 42 --width 1024 --height 1024 --cfg 7.0
   --sampler dpmpp_2m --scheduler karras`.
+* CLIP is freed (`del clip; torch.cuda.empty_cache()`) after building the conditioning and before the
+  measurement loop, so peak VRAM is bounded to the UNet and its activations.
 
 ### 5.3 The impact value
 
@@ -196,8 +216,34 @@ weights and scales are **byte-identical** across machines.
 ```
 
 Keys are `named_modules()` names **without** the `model.` prefix (i.e. `diffusion_model.*`). Ascending
-order = safest to convert. Progress prints every `--progress-every` layers (`[25/715] ...`); the first
-line can take minutes (checkpoint load + CLIP conditioning + pristine trajectory).
+order = safest to convert. Progress prints every `--progress-every` layers (default 25:
+`[25/715] ...`); the first line can take minutes (checkpoint load + CLIP conditioning + pristine
+trajectory).
+
+### 5.6 CLI
+
+| Argument | Default | Description |
+|---|---|---|
+| `base` (positional) | *(required)* | FP16 SDXL checkpoint (full ckpt: UNet+CLIP+VAE) |
+| `out` (positional) | `<repo>/impact/impact_<base-stem>.json` | Output impact JSON path; a bare filename is placed in `<repo>/impact/` |
+| `--comfy_path` | *(required)* | ComfyUI-master root |
+| `--steps` | `25` | Trajectory denoising steps |
+| `--seed` | `42` | Trajectory seed |
+| `--width` | `1024` | Image width |
+| `--height` | `1024` | Image height |
+| `--prompt` | `"masterpiece, best quality, 1girl, solo, standing, simple background"` | Positive prompt |
+| `--negative` | `""` | Negative prompt |
+| `--cfg` | `7.0` | CFG scale |
+| `--sampler` | `"dpmpp_2m"` | Sampler name |
+| `--scheduler` | `"karras"` | Scheduler type |
+| `--groupsize` | `256` | ConvRot Hadamard group size |
+| `--artifact` | `None` | Candidate source: a pack path or the literal `"v31"` to run the V3.1 selector; without this flag every ConvRot-eligible layer is measured |
+| `--protect_list` | `None` | JSON/txt of layer names excluded from measurement (kept at FP16) |
+| `--limit` | `None` | Debug: limit the number of measured layers |
+| `--progress-every` | `25` | Print progress every N layers |
+| `--calib_file` | `None` | Calibration prompts (required with `--artifact v31`) |
+| `--num_calib_samples` | `32` | Calibration samples for V3.1 |
+| `--num_inference_steps` | `25` | Calibration steps for V3.1 |
 
 ## 6. The V3.1 predicate (static protection)
 
@@ -206,9 +252,9 @@ the protection list from the pack it writes.
 
 * It imports `sdxl/quantize_sdxl_hswq_v3.1.py` and calls its `main()` with
   `--input <base> --output <pack> --calib_file <prompts> --num_calib_samples N --num_inference_steps N
-  --keep_ratio 0 --convrot --no-bias_correction --comfy_path <root> --no-bench`. The selector runs the
-  calibration (Dual Monitor hooks) and applies its weighted-histogram MSE V4, full SVD, the 300 MiB
-  payload budget and the key-pattern veto.
+  --keep_ratio 0 --per_channel_int8 --convrot --no-bias_correction --comfy_path <root> --no-bench`.
+  The selector runs the calibration (Dual Monitor hooks) and applies its weighted-histogram MSE V4,
+  full SVD, the 300 MiB payload budget and the key-pattern veto.
 * Pack path: `<base-dir>/<base-stem>hswq_r32_1off_convrot_int8_repro.safetensors`.
   Protect list: `<impact-dir>/protect_<base-stem>.json`.
 * The protection list is derived structurally: `protected = candidates(base) − converted(pack)`.
@@ -220,6 +266,8 @@ the protection list from the pack it writes.
 ```json
 { "source": "<pack path>",
   "candidates": 788, "converted_by_v31": 717,
+  "pool": ["...", "..."], "pool_count": 715,
+  "boundary_in_pack": ["..."],
   "protected": ["...", "..."], "protected_count": 73,
   "protected_payload_mib": 294.84 }        // Σ(numel of protected weights) / 2^20
 ```
@@ -247,7 +295,7 @@ never be selected by the ranking, so it stays FP16 in the hybrid.
 debugging. Operational detail: with `--artifact v31` an **existing** pack at the expected path is
 reused (`--reuse-pack` is passed automatically) — delete the pack to force a re-run of the selector.
 
-## 7. The reverse conversion (`gen_reverse_int8_sdxl_v1.1.py`)
+## 7. The reverse conversion (`gen_reverse_int8_sdxl.py`)
 
 ### 7.1 Ranking and target resolution
 
@@ -256,21 +304,21 @@ reused (`--reuse-pack` is passed automatically) — delete the pack to force a r
    `converting: min(K, N) layer(s)`.
 2. `K` is a **count of ranked entries**: `K = all` requests the whole pool. Entries that do not convert
    (see 7.2) do not consume a slot, so the final `converted:` count is `≤ K`.
-3. Load the base checkpoint into memory (all tensors; RAM ≥ 1× file size) and log the detected UNet key
-   prefix (`UNet key prefix: 'model.diffusion_model.'`).
+3. Load the base checkpoint via `safetensors.safe_open` into an in-memory dict `sd` (all tensors;
+   RAM ≥ 1× file size). The `plan` is built in a single up-front pass over `ranked[:k_req]`.
 4. Resolve each diag module name to the checkpoint module key (`module_to_sd_key`): try
    `model.diffusion_model.<name>` and `diffusion_model.<name>`.
 
 ### 7.2 Skip classes (counted and printed)
 
-| Skip | Printed as | Meaning |
+| Skip | Condition | Meaning |
 |---|---|---|
-| name does not resolve in the checkpoint | `SKIP (not in sd): <name>` | the impact json was not measured on this checkpoint |
-| name matches the converter's artifact-era boundary set | `SKIP (boundary layer): <name>` | boundary layers stay FP16 |
-| weight is not 2D/4D, or no eligible group size | `SKIP (no eligible group size): <name> in=<n>` | not ConvRot-convertible |
+| not found | name does not resolve via `module_to_sd_key` | the impact JSON was not measured on this checkpoint |
+| boundary/protected | name matches `_BOUNDARY_EXACT` or `_BOUNDARY_PREFIX` (§4.1) | boundary layers stay FP16 |
+| shape/dtype | weight is not 2D/4D, or dtype not in `{fp16, bf16, fp32}`, or no eligible group size | not ConvRot-convertible |
 
-The final summary line is
-`converted: <N>, protected-skip: <N>, not-found-skip: <N>, shape-skip: <N>`.
+The plan is built once; both calibration (if `--bias_correction`) and conversion iterate over the
+same `plan`.
 
 ### 7.3 Rotation and quantization (identical kernel to diag)
 
@@ -313,6 +361,25 @@ Reference checkpoint: base **6.94 GB** (decimal) / 6.46 GiB. A converted layer d
 f32 scale). Measured: `K = 670` → **4,875,339,410 B (4.88 GB / 4.54 GiB)**. Because `K` counts layers
 and not bytes, two artifacts with the same `K` can differ in size — the size difference is exactly the
 difference in the *identity* of the converted layers.
+
+### 7.6 CLI
+
+| Argument | Default | Description |
+|---|---|---|
+| `k` (positional) | *(required)* | Number of layers to convert (ascending impact), or `'all'` |
+| `out_name` (positional) | *(required)* | Output filename (created under `--out-dir`) |
+| `base` (positional) | *(required)* | FP16 baseline SDXL checkpoint (full ckpt) |
+| `impact` (positional) | *(required)* | Impact JSON from `diag_impact_sdxl.py` |
+| `--out-dir` | `.` | Output directory |
+| `--groupsize` | `256` | ConvRot Hadamard group size (power of 4) |
+| `--bias_correction` | `False` | Collect rotated activation means and cancel INT8 bias shift |
+| `--calib_file` | `None` | Calibration prompts (required with `--bias_correction`) |
+| `--comfy_path` | `"ComfyUI-master"` | ComfyUI root (required with `--bias_correction`) |
+| `--num_calib_samples` | `32` | Number of calibration samples |
+| `--num_inference_steps` | `25` | Denoising steps per calibration sample |
+| `--width` | `1024` | Calibration image width |
+| `--height` | `1024` | Calibration image height |
+| `--calib_seed` | `42` | Seed for calibration sampling |
 
 ## 8. Bias correction (`--bias_correction`)
 
@@ -371,22 +438,103 @@ Acceptance is **not** decoded-image SSIM. It is the deterministic per-step laten
 (`benchmark/sdxl_int8_traj_compare.py`): both models are sampled from **identical noise per seed** and
 the per-step latent cosine is compared.
 
-| Metric | Threshold | Meaning |
-|---|---|---|
-| `final-cos` | — | final-step latent cosine (FP16 vs candidate, same seed) |
-| `max-step-drop` | **> 0.05** | that seed is **bifurcated** (sudden trajectory jump = a different picture, not a degradation) |
-| `same-image` | **≥ 0.98** | final cosine high enough to call it the same picture |
-| **PASS** | **mean ≥ 0.95 AND 0/25 bifurcated** | production gate |
+### 10.1 Protocol
 
-Fixed protocol: 25 random seeds, `--steps 25`, 1024×1024, cfg 7.0, `dpmpp_2m` / `karras`. `drifted`
-(final-cos < 0.98) is normal small divergence and **not** a failure.
+1. **Load** the FP16 baseline with `output_vae=False`.
+2. **Encode** conditioning (CLIP positive/negative) once from the FP16 model's encoder; reuse the same
+   conditioning tensors for both models.
+3. **Run** the FP16 model on all 25 seeds, capturing per-step latents (`x` and `x0` predictions) via a
+   callback. Offload results to CPU, then free the FP16 model and VRAM
+   (`gc.collect`, `unload_all_models`, `empty_cache`, `ipc_collect`).
+4. **Load** the INT8 model (with quantized-op patches armed), run on the same 25 seeds with the same
+   conditioning. Free the INT8 model and VRAM.
+5. **Compare** offline on CPU: per-step cosine, final cosine, MSE, bifurcation detection.
+
+### 10.2 Seeds
+
+Seeds are a **fixed, hardcoded list of 25 integers** (not generated from a base seed):
+
+```
+42, 137, 849, 2024, 7391, 18429, 53082, 149206, 382715, 826401,
+1938502, 4710928, 8391642, 15820493, 36192847, 71058294, 128491703,
+285039184, 491730285, 762019483, 938174026, 1409285713, 2683910547,
+3851729406, 4195820371
+```
+
+The list is overridable with `--seeds` (comma-separated).
+
+### 10.3 Bifurcation detection
+
+Bifurcation is detected by the **maximum single-step cosine drop**:
+
+```python
+BIFURC_DROP = 0.05
+max_drop = max over consecutive step pairs of (step_cos[i-1] - step_cos[i])
+bifurcated = (max_drop > 0.05)
+```
+
+This detects a sudden trajectory jump between consecutive denoising steps — the quantized model falls
+into a different attractor basin, producing a different picture entirely (not gradual degradation).
+
+### 10.4 Per-seed verdict
+
+| Priority | Condition | Verdict |
+|---|---|---|
+| 1 (highest) | `max_drop > 0.05` | `bifurcated @step N` |
+| 2 | `final_cos >= 0.98` | `same-image` |
+| 3 | otherwise | `drifted (different image)` |
+
+`drifted` is normal small divergence and **not** a failure.
+
+### 10.5 Production gate
+
+| Metric | Threshold |
+|---|---|
+| **Mean final-cosine** (across 25 seeds) | **≥ 0.95** |
+| **Bifurcated seeds** | **0 / 25** |
+
+A model that fails either criterion is rejected.
 
 **Finding `K`:** search sequentially (±10, one process at a time). The answer is the **largest `K` that
 still passes**; any `K` with a bifurcated seed is rejected even if the mean passes. If a size cap
 applies, quality degrades monotonically in `K`, so the cap must be compatible with a passing `K` — or
 it is not achievable with this method for that checkpoint.
 
-## 11. Measured results (reference checkpoint, `waiIllustriousSDXL_v170`)
+### 10.6 CLI
+
+| Argument | Default | Description |
+|---|---|---|
+| `--fp16` | *(required)* | FP16 baseline SDXL checkpoint |
+| `--int8` / `--fp8` / `--quant` | *(required)* | ConvRot INT8 quantized checkpoint |
+| `--comfy_path` | *(required)* | ComfyUI root |
+| `--prompt` | `"masterpiece, best quality, 1girl, solo, standing, simple background"` | Positive prompt |
+| `--negative` | `""` | Negative prompt |
+| `--steps` | `25` | Sampler steps |
+| `--seeds` | 25 fixed seeds (see §10.2) | Comma-separated seed list |
+| `--width` | `1024` | Image width |
+| `--height` | `1024` | Image height |
+| `--cfg` | `7.0` | CFG scale |
+| `--sampler` | `"dpmpp_2m"` | Sampler name |
+| `--scheduler` | `"karras"` | Scheduler type |
+| `--attention` | `"sdpa"` | `sdpa` (stock) or `sage2` (SageAttention2 for INT8 branch only; FP16 stays stock) |
+| `--show-steps` | `False` | Print per-step divergence curve for every seed |
+
+## 11. Automation driver (`auto_reverse_int8_sdxl.py`)
+
+`sdxl/auto_reverse_int8_sdxl.py` is a self-contained driver that executes the four stages
+(A → B → C → D) as subprocesses of this repository's scripts:
+
+| Stage | Script | Skipped when |
+|---|---|---|
+| A. SELECT | `build_protect_list_sdxl.py` | `--reuse-protect` and the protect list already exists |
+| B. IMPACT | `diag_impact_sdxl.py --protect_list <list>` | the impact JSON already exists (override: `--force-impact`) |
+| C. CONVERT | `gen_reverse_int8_sdxl.py` with `K = candidates − protected` | — |
+| D. GATE | `sdxl_int8_traj_compare.py` | `--gate` not given |
+
+Key defaults: `--steps 25` (diag trajectory), `--seed 42`, `--gate-steps 25` (gate trajectory).
+With `--legacy-gen`, stage C uses `gen_reverse_int8_sdxl_v1.1.py` instead.
+
+## 12. Measured results (reference checkpoint, `waiIllustriousSDXL_v170`)
 
 25 seeds × 25 steps, 1024×1024, cfg 7.0, dpmpp_2m/karras (gate protocol):
 
@@ -400,22 +548,22 @@ Every number is **checkpoint- and condition-specific** and must be re-measured a
 checkpoint, candidate set, `K`, ranking conditions or bias-correction setting. Per-model tables:
 `benchmark result/benchmark_sdxl_int8.md`.
 
-## 12. End-to-end function map (SDXL)
+## 13. End-to-end function map (SDXL)
 
 | Stage | Functions |
 |---|---|
-| Bootstrap | `setup_comfy` / `import_comfy` (diag), `_setup_comfy` / `_clear_argv_for_comfy` (v1.1) |
-| Load | `load_sdxl` / `_load_sdxl` → `comfy.sd.load_checkpoint_guess_config` |
+| Bootstrap | `setup_comfy` / `import_comfy` (diag), `_setup_comfy` / `_clear_argv_for_comfy` (converter) |
+| Load | `load_sdxl` / `_load_sdxl` → `comfy.sd.load_checkpoint_guess_config` (`output_vae=False`) |
 | Candidates | `net.named_modules()` loop; `is_boundary_layer`; `convrot_group_size_for_features` |
 | Predicate | `build_protect_list_sdxl.main` → `run_v31` (importlib → `quantize_sdxl_hswq_v3.1.main`); `matmul_modules`; `converted_layers` |
 | Kernel | `build_hadamard`, `rotate_weight`, `rotate_weight_conv2d`, `quantize_int8_rowwise`, `quantize_int8_channelwise`, `convrot_int8_quant_error` |
 | Trajectory | `build_conditioning`, `make_latent`, `run_trajectory` (`comfy.sample.prepare_noise` / `comfy.sample.sample`) |
 | Rank (diag) | `rel_mse`; per-layer inject / restore loop; JSON payload |
-| Convert | `parse_args` → rank → `module_to_sd_key` → rotate + per-channel INT8 → `_encode_comfy_quant` → `save_file` |
+| Convert | `parse_args` → rank → `module_to_sd_key` → plan → rotate + per-channel INT8 → `_encode_comfy_quant` → `save_file` |
 | Bias (opt.) | `collect_rotated_act_means` (pre-hooks, `rotate_activation_lastdim` / `rotate_activation_nchw`), `compute_bias_delta_rotated` |
 | Gate | `benchmark/sdxl_int8_traj_compare.py` |
 
-## 13. Key formulas (symbol ↔ code)
+## 14. Key formulas (symbol ↔ code)
 
 | Symbol | Code / meaning |
 |---|---|
@@ -432,7 +580,7 @@ checkpoint, candidate set, `K`, ranking conditions or bias-correction setting. P
 | protected | `matmul_modules(base) − converted_layers(pack)` (bare names) |
 | gate | `benchmark/sdxl_int8_traj_compare.py` — per-step cosine; bifurcated if `max-step-drop > 0.05` |
 
-## 14. Forbidden mistakes
+## 15. Forbidden mistakes
 
 | Mistake | Why it is wrong |
 |---|---|
@@ -449,7 +597,7 @@ checkpoint, candidate set, `K`, ranking conditions or bias-correction setting. P
 | Concluding from a few seeds | Small seed counts are noisy; always run the full 25-seed set on a quiet GPU |
 | Extrapolating the usable `K` across checkpoints | The cliff is a property of the checkpoint; it is found by **measurement** |
 
-## 15. Reference-checkpoint notes
+## 16. Reference-checkpoint notes
 
 * **Protection payload:** 73 protected non-boundary layers; FP16 payload 589.69 MiB, selector meter
   (1 B/element) **294.84 MiB ≤ 300 MiB**.
@@ -460,10 +608,10 @@ checkpoint, candidate set, `K`, ranking conditions or bias-correction setting. P
   the base and in every derived pack — this pipeline never converts or rewrites conditioner tensors.
   Recorded here so the numbers in the gate are not mistaken for a pipeline defect.
 
-## 16. Related documents
+## 17. Related documents
 
 * [Trajectory-Sensitivity Impact Ranking — Technical Guide](diag_impact_trajectory_sensitivity_technical_guide.md) — the universal theory
 * [How to quantize SDXL](How%20to%20quantize%20SDXL.md) — CLI contract for this pipeline
-* Scripts: `sdxl/diag_impact_sdxl.py`, `sdxl/build_protect_list_sdxl.py`, `sdxl/quantize_sdxl_hswq_v3.1.py`, `sdxl/gen_reverse_int8_sdxl_v1.1.py`, `sdxl/gen_reverse_int8_sdxl.py`
+* Scripts: `sdxl/diag_impact_sdxl.py`, `sdxl/build_protect_list_sdxl.py`, `sdxl/quantize_sdxl_hswq_v3.1.py`, `sdxl/gen_reverse_int8_sdxl.py`, `sdxl/gen_reverse_int8_sdxl_v1.1.py`, `sdxl/auto_reverse_int8_sdxl.py`
 * Gate: `benchmark/sdxl_int8_traj_compare.py`
 * Benchmarks: `benchmark result/benchmark_sdxl_int8.md`
