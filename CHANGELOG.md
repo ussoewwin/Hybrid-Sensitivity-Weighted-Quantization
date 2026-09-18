@@ -2,7 +2,7 @@
 
 ## v2.3.7
 
-**SDXL ConvRot INT8 reverse converters: the unused VAE is no longer loaded** — `sdxl/gen_reverse_int8_sdxl.py` and `sdxl/gen_reverse_int8_sdxl_v1.1.py` load the checkpoint with `output_vae=False` (the returned VAE slot is `None` and is never used); conversion and calibration run in latent space only, so the VAE is not needed. The output pack is unaffected: its VAE tensors are copied straight from the base safetensors via `safe_open` -> `save_file`.
+**SDXL ConvRot INT8 reverse converters: the embedded VAE is removed from the quantized file** — `sdxl/gen_reverse_int8_sdxl_v1.1.py` drops `first_stage_model.*` (the checkpoint-embedded VAE: 248 tensors / ~160 MiB on the reference pack) immediately before `save_file`, and both reverse converters load the checkpoint with `output_vae=False` (the returned VAE slot is `None` and is never used). Conversion and calibration run in latent space only and never decode an image, so the embedded VAE was payload only. The quantized UNet body (`model.diffusion_model.*`) is unchanged; decoding uses a separate VAE.
 Release notes: [v2.3.7](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.7)
 
 ## v2.3.6
