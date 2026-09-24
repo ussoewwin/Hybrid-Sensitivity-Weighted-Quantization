@@ -84,7 +84,7 @@ Filename convention: `<model>_hswq_1on_re<K>_convrot_int8.safetensors` — rever
 | `realvisxlV30_v30TurboBakedvae_hswq_1on_re650_convrot_int8.safetensors` | [RealVisXL V3.0 (Turbo)](https://civitai.red/models/139562?modelVersionId=361593) | v3.0 Turbo | CreativeML Open RAIL++-M |
 | `realvisxlV50_v40Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v4.0 BakedVAE | CreativeML Open RAIL++-M |
 | `realvisxlV50_v50Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v5.0 BakedVAE | CreativeML Open RAIL++-M |
-| `uwazumimixILL_v50_hswq_r32_1on_convrot_int8.safetensors` | UwazumiMix | v5.0 | Fair AI Public License 1.0-SD |
+| `uwazumimixILL_v50_hswq_1on_re720_convrot_int8.safetensors` | UwazumiMix | v5.0 | Fair AI Public License 1.0-SD |
 | `waiIllustriousSDXL_v170_hswq_1on_re597_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 | Fair AI Public License 1.0-SD |
 | `waiREALCN_v150_hswq_1on_re630_convrot_int8.safetensors` | WAI-REAL_CN | v15.0 | Fair AI Public License 1.0-SD |
 | `waiREALISM_v10_hswq_r32_1on_convrot_int8.safetensors` | WAI-REALISM | v1.0 | Fair AI Public License 1.0-SD |
