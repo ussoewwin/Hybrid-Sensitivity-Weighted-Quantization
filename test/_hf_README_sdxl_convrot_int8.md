@@ -81,7 +81,7 @@ Filename convention: `<model>_hswq_1on_re<K>_convrot_int8.safetensors` — rever
 | `novaAsianXL_illustriousV70_hswq_1on_re550_convrot_int8.safetensors` | Nova Asian XL | v7.0 | Fair AI Public License 1.0-SD |
 | `oneObsession_v24_hswq_1on_re572_convrot_int8.safetensors` | [OneObsession](https://civitai.red/models/691062) | v24 | CreativeML Open RAIL++-M |
 | `prefectIllustriousXL_v8_hswq_1on_re610_convrot_int8.safetensors` | Prefect Illustrious XL | v8 | Fair AI Public License 1.0-SD |
-| `realvisxlV30_v30TurboBakedvae_hswqr32_r32_1on_convrot_int8_.safetensors` | [RealVisXL V3.0 (Turbo)](https://civitai.red/models/139562?modelVersionId=361593) | v3.0 Turbo | CreativeML Open RAIL++-M |
+| `realvisxlV30_v30TurboBakedvae_hswq_1on_re650_convrot_int8.safetensors` | [RealVisXL V3.0 (Turbo)](https://civitai.red/models/139562?modelVersionId=361593) | v3.0 Turbo | CreativeML Open RAIL++-M |
 | `realvisxlV50_v40Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v4.0 BakedVAE | CreativeML Open RAIL++-M |
 | `realvisxlV50_v50Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v5.0 BakedVAE | CreativeML Open RAIL++-M |
 | `uwazumimixILL_v50_hswq_r32_1on_convrot_int8.safetensors` | UwazumiMix | v5.0 | Fair AI Public License 1.0-SD |
