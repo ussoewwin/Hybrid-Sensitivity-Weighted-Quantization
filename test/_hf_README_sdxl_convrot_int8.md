@@ -75,21 +75,21 @@ Filename convention: `<model>_hswq_1on_re<K>_convrot_int8.safetensors` — rever
 | `JANKUTrainedChenkinNoobai_v777_hswq_1on_re550_convrot_int8.safetensors` | [JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)](https://civitai.red/models/1277670/janku-trained-chenkin-and-noobai-rouwei-illustrious-xl) | v777 | Fair AI Public License 1.0-SD |
 | `bluePencilXL_v031_hswq_1on_re570_convrot_int8.safetensors` | [blue_pencil-XL](https://civitai.red/models/119012) | v0.3.1 | CreativeML Open RAIL++-M |
 | `epicrealismXL_pureFix_hswq_1on_re570_convrot_int8.safetensors` | [epiCRealism XL](https://civitai.red/models/277058) | pureFix | CreativeML Open RAIL++-M |
-| `koronemixIllustrious_v70_hswq_1on_re550_convrot_int8.safetensors` | koronemixIllustrious | v70 | Fair AI Public License 1.0-SD |
-| `koronemixVpred_v20_hswq_1on_re550_convrot_int8.safetensors` | koronemixVpred | v2.0 | CreativeML Open RAIL++-M |
-| `novaAnimeXL_ilV190_hswq_1on_re599_convrot_int8.safetensors` | Nova Anime XL | ilV190 | Fair AI Public License 1.0-SD |
-| `novaAsianXL_illustriousV70_hswq_1on_re550_convrot_int8.safetensors` | Nova Asian XL | v7.0 | Fair AI Public License 1.0-SD |
+| `koronemixIllustrious_v70_hswq_1on_re550_convrot_int8.safetensors` | [koronemixIllustrious](https://civitai.red/user/koronen) | v70 | Fair AI Public License 1.0-SD |
+| `koronemixVpred_v20_hswq_1on_re550_convrot_int8.safetensors` | [koronemixVpred](https://civitai.red/user/koronen) | v2.0 | CreativeML Open RAIL++-M |
+| `novaAnimeXL_ilV190_hswq_1on_re599_convrot_int8.safetensors` | [Nova Anime XL](https://civitai.red/user/Crody) | ilV190 | Fair AI Public License 1.0-SD |
+| `novaAsianXL_illustriousV70_hswq_1on_re550_convrot_int8.safetensors` | [Nova Asian XL](https://civitai.red/user/Crody) | v7.0 | Fair AI Public License 1.0-SD |
 | `oneObsession_v24_hswq_1on_re572_convrot_int8.safetensors` | [OneObsession](https://civitai.red/models/691062) | v24 | CreativeML Open RAIL++-M |
-| `prefectIllustriousXL_v8_hswq_1on_re610_convrot_int8.safetensors` | Prefect Illustrious XL | v8 | Fair AI Public License 1.0-SD |
+| `prefectIllustriousXL_v8_hswq_1on_re610_convrot_int8.safetensors` | [Prefect Illustrious XL](https://civitai.red/user/Goofy_Ai) | v8 | Fair AI Public License 1.0-SD |
 | `realvisxlV30_v30TurboBakedvae_hswq_1on_re650_convrot_int8.safetensors` | [RealVisXL V3.0 (Turbo)](https://civitai.red/models/139562?modelVersionId=361593) | v3.0 Turbo | CreativeML Open RAIL++-M |
 | `realvisxlV50_v40Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v4.0 BakedVAE | CreativeML Open RAIL++-M |
 | `realvisxlV50_v50Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v5.0 BakedVAE | CreativeML Open RAIL++-M |
-| `uwazumimixILL_v50_hswq_1on_re720_convrot_int8.safetensors` | UwazumiMix | v5.0 | Fair AI Public License 1.0-SD |
+| `uwazumimixILL_v50_hswq_1on_re720_convrot_int8.safetensors` | [UwazumiMix](https://civitai.red/user/UWAZUMI) | v5.0 | Fair AI Public License 1.0-SD |
 | `waiANIPONYXL_v140_hswq_1on_re650_convrot_int8.safetensors` | [WAI-ANI-PONY-XL](https://civitai.red/user/WAI0731) | v14.0 | Fair AI Public License 1.0-SD |
 | `waiANIPONYXL_v90_hswq_1on_re650_convrot_int8.safetensors` | [WAI-ANI-PONY-XL](https://civitai.red/user/WAI0731) | v9.0 | Fair AI Public License 1.0-SD |
 | `waiIllustriousSDXL_v170_hswq_1on_re597_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 | Fair AI Public License 1.0-SD |
-| `waiREALCN_v150_hswq_1on_re630_convrot_int8.safetensors` | WAI-REAL_CN | v15.0 | Fair AI Public License 1.0-SD |
-| `waiREALISM_v10_hswq_r32_1on_convrot_int8.safetensors` | WAI-REALISM | v1.0 | Fair AI Public License 1.0-SD |
+| `waiREALCN_v150_hswq_1on_re630_convrot_int8.safetensors` | [WAI-REAL_CN](https://civitai.red/user/WAI0731) | v15.0 | Fair AI Public License 1.0-SD |
+| `waiREALISM_v10_hswq_r32_1on_convrot_int8.safetensors` | [WAI-REALISM](https://civitai.red/user/WAI0731) | v1.0 | Fair AI Public License 1.0-SD |
 
 ---
 
@@ -106,7 +106,7 @@ These models are derivatives of their respective creators. All credit for aesthe
 - **epiCRealism XL**: Created by [epinikion](https://civitai.red/user/epinikion).
 - **WAI-illustrious-SDXL / WAI-REAL_CN / WAI-REALISM / WAI-ANI-PONY-XL**: Created by [WAI0731](https://civitai.red/user/WAI0731).
 - **koronemixIllustrious / koronemixVpred**: Created by [koronen](https://civitai.red/user/koronen).
-- **Nova Anime XL / Nova Asian XL**: Original creator on Civitai.
+- **Nova Anime XL / Nova Asian XL**: Created by [Crody](https://civitai.red/user/Crody).
 - **Prefect Illustrious XL**: Created by [Goofy_Ai](https://civitai.red/user/Goofy_Ai).
 - **OneObsession**: Created by [Polyhedron](https://civitai.red/user/Polyhedron).
 - **RealVisXL**: Created by [SG_161222](https://civitai.red/user/SG_161222).
