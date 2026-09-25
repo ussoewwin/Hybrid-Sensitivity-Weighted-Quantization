@@ -74,7 +74,7 @@ pip install diffusers accelerate scikit-image
 | :--- | :--- | :--- | :--- |
 | **Compatibility** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible |
 | **File format** | INT8 weights + scale (`int8_tensorwise`) for the K lowest-impact layers; all other layers stay **FP16** | Linear **NVFP4** + Conv2d **INT8** (`int8_tensorwise`); **FULL ConvRot** on eligible layers | Hybrid: lowest-impact layers → **NVFP4**, remaining layers stay **ConvRot INT8**; built from complete native ConvRot INT8 UNet |
-| **Image quality (SSIM)** | decoded-image bench not the gate; trajectory gate below | **0.92-0.98** | **0.97-0.99** |
+| **Image quality** | decoded-image bench not the gate; trajectory gate below | SSIM **0.92-0.98** | trajectory cosine **0.96-0.97** (mean, 20 seeds) |
 | **Mechanism** | Per-layer **trajectory-impact** ranking on the FP16 baseline (production sampler); K lowest-impact layers → FULL ConvRot INT8, rest FP16 | Absmax + DualMonitor / V4 FP16 protect (r0, **600 MiB**); FULL ConvRot (Linear→NVFP4, Conv2d→INT8) | **Reverse method**: start from ConvRot INT8 (error ≈ 0), convert layers to NVFP4 in ascending per-layer impact order |
 | **Keep ratio** | N/A (layer count `K` varies per model; the rest is FP16) | **0 (fixed)** | N/A (layer count varies per model, e.g. nv60-nv110) |
 | **Benchmark** | Deterministic 25-seed latent trajectory (cosine mean ≥ 0.95, 0/25 bifurcated) | Measurable | Measurable |
@@ -184,9 +184,9 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 | Naive FP8 | SSIM | 0.75-0.93 | 50% | High |
 | **HSWQ ConvRot INT8 (SDXL, reverse hybrid)** | 25-seed trajectory cosine mean | **≥ 0.95 (gate)** | **63%** (FP16 mixed) | **High** (ComfyUI INT8) |
 | **HSWQ ConvRot NVFP4** | SSIM | **0.92-0.98** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
-| **Z Image Hybrid NVFP4** | SSIM | **0.97-0.99** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
+| **Z Image Hybrid NVFP4** | 20-seed trajectory cosine mean | **0.96-0.97** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
-HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with 0/25 bifurcated (FP16 base 6.94 GB → all-eligible hybrid ≈ 4.39 GB, i.e. ≈ 63%). HSWQ ConvRot NVFP4 targets **SSIM 0.92-0.98**; Z Image Hybrid NVFP4 targets **SSIM 0.97-0.99**. All keep full loader compatibility on their respective formats.
+HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with 0/25 bifurcated (FP16 base 6.94 GB → all-eligible hybrid ≈ 4.39 GB, i.e. ≈ 63%). HSWQ ConvRot NVFP4 targets **SSIM 0.92-0.98**; Z Image Hybrid NVFP4 targets a **20-seed latent-trajectory cosine mean of 0.96-0.97** with **0/200 bifurcated**. All keep full loader compatibility on their respective formats.
 
 ---
 
