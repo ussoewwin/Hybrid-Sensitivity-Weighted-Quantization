@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.8
+
+**SDXL ConvRot INT8 benchmark record format switched to the latent-trajectory format** — `benchmark result/benchmark_sdxl_int8.md` is now generated from the deterministic 25-seed latent-trajectory comparison (`benchmark result/score_sdxl_int8.txt`) and reports **HSWQ ConvRot INT8 vs Native ConvRot INT8** as a cross-model summary plus per-model per-seed side-by-side tables (final cosine, latent MSE, bifurcation, speedup). The previous decoded-image MSE / SSIM tables and the 5-seed reverse-hybrid K table are removed, and the README benchmark list label is updated to match.
+Release notes: [v2.3.8](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.8)
+
 ## v2.3.7
 
 **SDXL ConvRot INT8 reverse converters: the embedded VAE is removed from the quantized file** — `sdxl/gen_reverse_int8_sdxl_v1.1.py` drops `first_stage_model.*` (the checkpoint-embedded VAE: 248 tensors / ~160 MiB on the reference pack) immediately before `save_file`, and both reverse converters load the checkpoint with `output_vae=False` (the returned VAE slot is `None` and is never used). Conversion and calibration run in latent space only and never decode an image, so the embedded VAE was payload only. The quantized UNet body (`model.diffusion_model.*`) is unchanged; decoding uses a separate VAE.
