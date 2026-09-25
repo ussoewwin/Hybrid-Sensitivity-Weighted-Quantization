@@ -85,6 +85,8 @@ Filename convention: `<model>_hswq_1on_re<K>_convrot_int8.safetensors` — rever
 | `realvisxlV50_v40Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v4.0 BakedVAE | CreativeML Open RAIL++-M |
 | `realvisxlV50_v50Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v5.0 BakedVAE | CreativeML Open RAIL++-M |
 | `uwazumimixILL_v50_hswq_1on_re720_convrot_int8.safetensors` | UwazumiMix | v5.0 | Fair AI Public License 1.0-SD |
+| `waiANIPONYXL_v140_hswq_1on_re650_convrot_int8.safetensors` | [WAI-ANI-PONY-XL](https://civitai.red/user/WAI0731) | v14.0 | Fair AI Public License 1.0-SD |
+| `waiANIPONYXL_v90_hswq_1on_re650_convrot_int8.safetensors` | [WAI-ANI-PONY-XL](https://civitai.red/user/WAI0731) | v9.0 | Fair AI Public License 1.0-SD |
 | `waiIllustriousSDXL_v170_hswq_1on_re597_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 | Fair AI Public License 1.0-SD |
 | `waiREALCN_v150_hswq_1on_re630_convrot_int8.safetensors` | WAI-REAL_CN | v15.0 | Fair AI Public License 1.0-SD |
 | `waiREALISM_v10_hswq_r32_1on_convrot_int8.safetensors` | WAI-REALISM | v1.0 | Fair AI Public License 1.0-SD |
@@ -102,7 +104,7 @@ These models are derivatives of their respective creators. All credit for aesthe
 - **JANKU Trained Chenkin & Noobai-Rouwei (Illustrious-XL)**: Created by [janxd](https://civitai.red/user/janxd).
 - **blue_pencil-XL**: Created by [Euge_us](https://civitai.red/user/Euge_us).
 - **epiCRealism XL**: Created by [epinikion](https://civitai.red/user/epinikion).
-- **WAI-illustrious-SDXL / WAI-REAL_CN / WAI-REALISM**: Created by [WAI0731](https://civitai.red/user/WAI0731).
+- **WAI-illustrious-SDXL / WAI-REAL_CN / WAI-REALISM / WAI-ANI-PONY-XL**: Created by [WAI0731](https://civitai.red/user/WAI0731).
 - **koronemixIllustrious / koronemixVpred**: Created by [koronen](https://civitai.red/user/koronen).
 - **Nova Anime XL / Nova Asian XL**: Original creator on Civitai.
 - **Prefect Illustrious XL**: Created by [Goofy_Ai](https://civitai.red/user/Goofy_Ai).
