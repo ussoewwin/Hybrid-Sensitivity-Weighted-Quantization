@@ -84,12 +84,13 @@ Filename convention: `<model>_hswq_1on_re<K>_convrot_int8.safetensors` — rever
 | `realvisxlV30_v30TurboBakedvae_hswq_1on_re650_convrot_int8.safetensors` | [RealVisXL V3.0 (Turbo)](https://civitai.red/models/139562?modelVersionId=361593) | v3.0 Turbo | CreativeML Open RAIL++-M |
 | `realvisxlV50_v40Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v4.0 BakedVAE | CreativeML Open RAIL++-M |
 | `realvisxlV50_v50Bakedvae_hswq_1on_re550_convrot_int8.safetensors` | [RealVisXL V5.0 (Lightning)](https://civitai.red/models/139562/realvisxl-v50) | v5.0 BakedVAE | CreativeML Open RAIL++-M |
+| `unholyDesireMixSinister_v90_hswq_1on_re590_convrot_int8.safetensors` | [Unholy Desire Mix - Sinister](https://civitai.red/models/1307857) | v9.0 | Fair AI Public License 1.0-SD |
 | `uwazumimixILL_v50_hswq_1on_re720_convrot_int8.safetensors` | [UwazumiMix](https://civitai.red/user/UWAZUMI) | v5.0 | Fair AI Public License 1.0-SD |
 | `waiANIPONYXL_v140_hswq_1on_re650_convrot_int8.safetensors` | [WAI-ANI-PONY-XL](https://civitai.red/user/WAI0731) | v14.0 | Fair AI Public License 1.0-SD |
 | `waiANIPONYXL_v90_hswq_1on_re650_convrot_int8.safetensors` | [WAI-ANI-PONY-XL](https://civitai.red/user/WAI0731) | v9.0 | Fair AI Public License 1.0-SD |
 | `waiIllustriousSDXL_v170_hswq_1on_re597_convrot_int8.safetensors` | [Illustrious-XL v1.7 (WAI-illustrious-SDXL)](https://civitai.red/models/827184/wai-illustrious-sdxl) | v17.0 | Fair AI Public License 1.0-SD |
 | `waiREALCN_v150_hswq_1on_re630_convrot_int8.safetensors` | [WAI-REAL_CN](https://civitai.red/user/WAI0731) | v15.0 | Fair AI Public License 1.0-SD |
-| `waiREALISM_v10_hswq_r32_1on_convrot_int8.safetensors` | [WAI-REALISM](https://civitai.red/user/WAI0731) | v1.0 | Fair AI Public License 1.0-SD |
+| `waiREALISM_v10_hswq_1on_re590_convrot_int8.safetensors` | [WAI-REALISM](https://civitai.red/user/WAI0731) | v1.0 | Fair AI Public License 1.0-SD |
 
 ---
 
@@ -110,6 +111,7 @@ These models are derivatives of their respective creators. All credit for aesthe
 - **Prefect Illustrious XL**: Created by [Goofy_Ai](https://civitai.red/user/Goofy_Ai).
 - **OneObsession**: Created by [Polyhedron](https://civitai.red/user/Polyhedron).
 - **RealVisXL**: Created by [SG_161222](https://civitai.red/user/SG_161222).
+- **Unholy Desire Mix - Sinister**: Created by [UnholyDesiresStudio](https://civitai.red/user/UnholyDesiresStudio).
 - **UwazumiMix**: Created by [UWAZUMI](https://civitai.red/user/UWAZUMI).
 
 ---
