@@ -101,8 +101,9 @@ bench_meta_*.json
 *_analysis_*.json
 *_ranking.json
 impact_*.json
-impact/
+# Keep empty impact/ folder on remote; never track impact body or JSON dump files
 impact/*
+!impact/.gitkeep
 _backup_merge_20260806/
 upload.py
 bench_*.png
