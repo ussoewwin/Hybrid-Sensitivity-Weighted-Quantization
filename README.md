@@ -134,7 +134,7 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 - **Step 1 (impact):** inject one layer at a time with its ConvRot INT8 reconstruction (`dequant(per-channel INT8(quantize(W @ H^T)))`, no inverse rotation) and run the **production sampler** (`comfy.sample.sample`, dpmpp_2m / karras / cfg 7.0 / fixed seed) — the same trajectory the quality gate uses; record the final-latent drift (relative MSE).
 - **Step 2 (conversion):** pack the **K lowest-impact layers** as **FULL ConvRot INT8** (rotate → per-channel INT8; format tag `int8_tensorwise`, stamp `convrot:true`) and leave **every other layer untouched at FP16**.
 - **Format:** `.weight` I8 + `.weight_scale` F32 + `.comfy_quant`; ComfyUI mixed-precision ops arm the INT8 layers per layer marker.
-- **Size:** FP16 base 6.94 GB → all-eligible hybrid ≈ 4.39 GB (≈ 3.2 MB saved per converted layer).
+- **Size:** FP16 base 6.94 GB → reverse hybrid pack ≈ 4.8-5.0 GB (measured on the published packs; reference `waiIllustriousSDXL_v170` at K = 597 = 4.92 GB; ≈ 3.1 MB saved per converted layer).
 - **Validation:** deterministic **25-seed x 25-step** latent-trajectory comparison; production gate = **cosine mean ≥ 0.95 and 0/25 bifurcated**. Guide: [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md).
 
 ### ConvRot INT8 (Krea2)
@@ -182,11 +182,11 @@ File size is reduced by about **30-40%** vs FP16 while keeping best quality per 
 | :--- | :--- | :--- | :--- | :--- |
 | Original FP16 | SSIM | 1.0000 | 100% | High |
 | Naive FP8 | SSIM | 0.75-0.93 | 50% | High |
-| **HSWQ ConvRot INT8 (SDXL, reverse hybrid)** | 25-seed trajectory cosine mean | **≥ 0.95 (gate)** | **63%** (FP16 mixed) | **High** (ComfyUI INT8) |
+| **HSWQ ConvRot INT8 (SDXL, reverse hybrid)** | 25-seed trajectory cosine mean | **≥ 0.95 (gate)** | **71%** (FP16 mixed) | **High** (ComfyUI INT8) |
 | **HSWQ ConvRot NVFP4** | SSIM | **0.92-0.98** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 | **Z Image Hybrid NVFP4** | 20-seed trajectory cosine mean | **0.96-0.97** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
-HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with 0/25 bifurcated (FP16 base 6.94 GB → all-eligible hybrid ≈ 4.39 GB, i.e. ≈ 63%). HSWQ ConvRot NVFP4 targets **SSIM 0.92-0.98**; Z Image Hybrid NVFP4 targets a **20-seed latent-trajectory cosine mean of 0.96-0.97** with **0/200 bifurcated**. All keep full loader compatibility on their respective formats.
+HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with 0/25 bifurcated (FP16 base 6.94 GB → reverse hybrid pack ≈ 4.9 GB, i.e. ≈ 71%). HSWQ ConvRot NVFP4 targets **SSIM 0.92-0.98**; Z Image Hybrid NVFP4 targets a **20-seed latent-trajectory cosine mean of 0.96-0.97** with **0/200 bifurcated**. All keep full loader compatibility on their respective formats.
 
 ---
 
