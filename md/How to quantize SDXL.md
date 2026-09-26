@@ -226,8 +226,9 @@ one file carries both the FP16-kept and the ConvRot INT8 layers.
 ### Size (reference checkpoint)
 
 The FP16 base is 6.94 GB (6.46 GiB). Each converted layer drops roughly **3.1 MB** on average, so the
-hybrid size is `base − K × ~3.1 MB`. Measured: **K = 670 with bias correction → 4,875,339,410 B
-(4.54 GiB)**.
+hybrid size is `base − K × ~3.1 MB`, minus the embedded VAE (about **0.16 GB**) that is no longer
+written since v2.3.7. Measured with the VAE still embedded: **K = 670 with bias correction → 4,875,339,410 B
+(4.54 GiB)**. Measured after the removal: **K = 597 → 4,923,161,506 B (4.92 GB / 4.59 GiB)**.
 
 ---
 
@@ -285,7 +286,7 @@ Notes for the V3.1 premise:
   convert, so the final `converted:` count can be below K. `K` larger than the pool is capped by the
   pool size (715 on the reference checkpoint).
 - Measured reference point (reference checkpoint, `--artifact v31`, `--bias_correction`):
-  **K = 670 → mean final-cos 0.96241, 0/25 bifurcated, 4.54 GiB**. Re-measure for every other
+  **K = 670 → mean final-cos 0.96241, 0/25 bifurcated, 4.54 GiB (size measured before the embedded-VAE removal)**. Re-measure for every other
   checkpoint; do not transfer this value.
 
 ---
