@@ -50,19 +50,11 @@ The quantized file does not embed a VAE (`first_stage_model.*` is removed at con
 
 **Production gate: deterministic 25-seed latent-trajectory comparison** (`benchmark/sdxl_int8_traj_compare.py`). PASS = final-cosine mean ≥ 0.95 and 0/25 bifurcated.
 
-| Configuration | 25-seed cosine mean | Note |
-| :--- | :--- | :--- |
-| Original FP16 | 1.000 | identity |
-| Native ConvRot INT8 (all layers) | ≈ 0.93 | the floor the hybrid must beat |
-| **HSWQ Reverse Hybrid ConvRot INT8** | **≥ 0.95 (gate)** | K lowest-impact layers INT8, rest FP16 |
-
-**Legacy decoded-image reference (not the gate):**
-
-| Model | SSIM (Avg) | File size | Compatibility |
+| Configuration | 25-seed trajectory cosine mean | File size | Compatibility |
 | :--- | :--- | :--- | :--- |
-| Original FP16 | 1.0000 | 100% | High |
-| Naive INT8 | 0.95-0.97 | 50% | High |
-| **HSWQ ConvRot INT8** | **0.94-0.98** | 71% (FP16 mixed) | **High** (ComfyUI INT8) |
+| Original FP16 | 1.000 | 100% | High |
+| Native ConvRot INT8 (all convertible layers) | ≈ 0.93 | ~50% | High |
+| **HSWQ Reverse Hybrid ConvRot INT8** | **≥ 0.95 (gate)** | **71%** (FP16 mixed) | **High** (ComfyUI INT8) |
 
 ---
 

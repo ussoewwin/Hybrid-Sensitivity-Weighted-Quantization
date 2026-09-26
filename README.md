@@ -180,8 +180,8 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 
 | Model | Metric | Score | File size | Compatibility |
 | :--- | :--- | :--- | :--- | :--- |
-| Original FP16 | SSIM | 1.0000 | 100% | High |
-| Naive FP8 | SSIM | 0.75-0.93 | 50% | High |
+| Original FP16 | 25-seed trajectory cosine mean | 1.000 | 100% | High |
+| Native ConvRot INT8 (all convertible layers) | 25-seed trajectory cosine mean | ≈ 0.93 | 50% | High |
 | **HSWQ ConvRot INT8 (SDXL, reverse hybrid)** | 25-seed trajectory cosine mean | **≥ 0.95 (gate)** | **71%** (FP16 mixed) | **High** (ComfyUI INT8) |
 | **HSWQ ConvRot NVFP4** | SSIM | **0.92-0.98** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 | **Z Image Hybrid NVFP4** | 20-seed trajectory cosine mean | **0.96-0.97** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
