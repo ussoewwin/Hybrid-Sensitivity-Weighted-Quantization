@@ -86,7 +86,7 @@ pip install diffusers accelerate scikit-image
 
 **Validation (Z Image Hybrid NVFP4):** production gate is the **deterministic 20-seed latent-trajectory comparison** — per-step cosine with a bifurcation detector; pass = **mean ≥ 0.95 and 0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration.
 
-File size is reduced by about **30-40%** vs FP16 while keeping best quality per use case.
+File size is reduced by about **29-40%** vs FP16 while keeping best quality per use case.
 
 ---
 

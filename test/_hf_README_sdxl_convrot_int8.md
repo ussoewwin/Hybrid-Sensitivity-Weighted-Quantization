@@ -62,7 +62,7 @@ The quantized file does not embed a VAE (`first_stage_model.*` is removed at con
 | :--- | :--- | :--- | :--- |
 | Original FP16 | 1.0000 | 100% | High |
 | Naive INT8 | 0.95-0.97 | 50% | High |
-| **HSWQ ConvRot INT8** | **0.94-0.98** | 68% (FP16 mixed) | **High** (ComfyUI INT8) |
+| **HSWQ ConvRot INT8** | **0.94-0.98** | 71% (FP16 mixed) | **High** (ComfyUI INT8) |
 
 ---
 

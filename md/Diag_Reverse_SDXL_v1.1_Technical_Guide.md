@@ -358,9 +358,11 @@ because skips make them differ.
 
 Reference checkpoint: base **6.94 GB** (decimal) / 6.46 GiB. A converted layer drops roughly
 **3.1 MB** on average (a 2D/4D weight goes from 2 bytes/element to 1 byte/element plus a per-channel
-f32 scale). Measured: `K = 670` → **4,875,339,410 B (4.88 GB / 4.54 GiB)**. Because `K` counts layers
-and not bytes, two artifacts with the same `K` can differ in size — the size difference is exactly the
-difference in the *identity* of the converted layers.
+f32 scale). Measured before the embedded VAE was removed (v2.3.7): `K = 670` → **4,875,339,410 B
+(4.88 GB / 4.54 GiB)**. The pack is now about **0.16 GB** smaller than that (the embedded VAE is no
+longer written); measured after the change: `K = 597` → **4,923,161,506 B (4.92 GB / 4.59 GiB)**.
+Because `K` counts layers and not bytes, two artifacts with the same `K` can differ in size — the
+size difference is exactly the difference in the *identity* of the converted layers.
 
 ### 7.6 CLI
 
@@ -542,7 +544,7 @@ With `--legacy-gen`, stage C uses `gen_reverse_int8_sdxl_v1.1.py` instead.
 |---|---|---|---|---|---|
 | FP16 baseline | — | — | 6.94 GB | 1.000 (identity) | — |
 | native ConvRot INT8 (all convertible layers) | all | — | — | 0.93874 | 0/25 |
-| reverse hybrid v1.1, `K = 670` (pool 715, 25-step ranking) | 670 | on | 4,875,339,410 B (4.54 GiB) | **0.96241** | 0/25 |
+| reverse hybrid v1.1, `K = 670` (pool 715, 25-step ranking) | 670 | on | 4,875,339,410 B (4.54 GiB) — measured before the embedded-VAE removal (v2.3.7) | **0.96241** | 0/25 |
 
 Every number is **checkpoint- and condition-specific** and must be re-measured after any change of
 checkpoint, candidate set, `K`, ranking conditions or bias-correction setting. Per-model tables:
