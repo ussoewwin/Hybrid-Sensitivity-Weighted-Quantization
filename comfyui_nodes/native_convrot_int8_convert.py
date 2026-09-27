@@ -174,17 +174,13 @@ def _is_qwen_blacklisted(key: str) -> bool:
     return any(marker in key for marker in _QWEN_EDIT_BLACKLIST)
 
 
+# Krea2 SingleStreamDiT: only the layers whose quantization causes empty/black
+# latent output (entry/exit boundaries + adaptive modulation) stay in original
+# precision. 1D norm / bias tensors are never packed, so they need no marker.
 _KREA2_BLACKLIST = (
     "first.",
     "last.",
     "mod.",
-    "norm",
-    "projector",
-    "tmlp",
-    "txtmlp",
-    "tproj",
-    "txtfusion",
-    "bias",
 )
 
 
