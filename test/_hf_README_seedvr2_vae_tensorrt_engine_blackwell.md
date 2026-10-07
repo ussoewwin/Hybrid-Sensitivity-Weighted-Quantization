@@ -35,7 +35,7 @@ This repository provides pre-compiled TensorRT execution engine plans (`.rtxplan
 - **Spatial Configuration:** Optimized for deterministic 256×256 spatial tiling (`tile_256`) to maximize L2 cache utilization, minimize VRAM spikes, and prevent out-of-memory errors on 4K/8K video upscaling.
 - **Temporal Configuration:** Comprehensive temporal coverage spanning single-image inference (`1f`) up to 97 frames (`97f`) in standard **4n+1** sequence increments (`1f`, `5f`, `21f`, `25f`, `29f`, `33f`, `37f`, `41f`, `45f`, `49f`, `53f`, `57f`, `61f`, `65f`, `69f`, `73f`, `77f`, `81f`, `85f`, `89f`, `93f`, `97f`).
 - **Base Checkpoint:** [Comfy-Org/SeedVR2 (seedvr2_ema_vae_fp16)](https://huggingface.co/Comfy-Org/SeedVR2) / ByteDance SeedVR2.
-- **ComfyUI Loader & Upscaler Node:** [ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder](https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder)
+- **ComfyUI Loader & Upscaler Node:** [ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT](https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT)
 
 ---
 
@@ -90,26 +90,26 @@ Optimized for decoding compressed spatial-temporal latents back to RGB video fra
 ## 🚀 Usage in ComfyUI
 
 These TensorRT engine plans (`.rtxplan`) are directly loaded and executed via the dedicated custom node:
-- **Loader & Node Repository:** [ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder](https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder)
+- **Loader & Node Repository:** [ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT](https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT)
 
 ### 1. Installation
 Clone the custom node repository into your ComfyUI `custom_nodes/` directory:
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder.git
+git clone https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT.git
 ```
 
 ### 2. Engine Placement
 Place the downloaded `.rtxplan` engine files into the `tensorrt_backend/artifacts/` folder:
 ```
-ComfyUI/custom_nodes/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder/tensorrt_backend/artifacts/vae_decoder_tile_256_<frames>f.rtxplan
+ComfyUI/custom_nodes/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT/tensorrt_backend/artifacts/vae_decoder_tile_256_<frames>f.rtxplan
 ```
 Upon launching ComfyUI, all downloaded frame engines will automatically populate the `engine_frames` dropdown list of the **`SeedVR2 Load TensorRT VAE Decoder`** node.
 
 ### 3. Workflow Examples
 
 #### Complete Video Upscaler Workflow (TensorRT VAE & Quantized Models)
-Workflow JSON: [`example_workflows/SeedVR2_tensorrt_decode.json`](https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder/blob/main/example_workflows/SeedVR2_tensorrt_decode.json)
+Workflow JSON: [`example_workflows/SeedVR2_tensorrt.json`](https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT/blob/main/example_workflows/SeedVR2_tensorrt.json)
 
 ![Usage Example - Full Workflow](docs/usage_01.png)
 
@@ -134,7 +134,7 @@ Built engines are saved directly into `tensorrt_backend/artifacts/` and become i
 
 ## 📜 Credits & References
 
-- **ComfyUI TensorRT Loader:** [ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder](https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT-Decoder)
+- **ComfyUI TensorRT Loader:** [ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT](https://github.com/ussoewwin/ComfyUI-SeedVR2-VideoUpscaler-with-TensorRT)
 - **SeedVR / SeedVR2 Foundation:** ByteDance Seed Team ([ByteDance-Seed/SeedVR](https://github.com/ByteDance-Seed/SeedVR))
 - **Official VAE Checkpoint:** [Comfy-Org/SeedVR2](https://huggingface.co/Comfy-Org/SeedVR2) (`seedvr2_ema_vae_fp16.safetensors`)
 - **ComfyUI Implementation:** [NumZ](https://github.com/numz) & [AInVFX](https://www.youtube.com/@AInVFX) ([ComfyUI-SeedVR2_VideoUpscaler](https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler))
