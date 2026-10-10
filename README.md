@@ -144,7 +144,7 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 - **Data-driven protection:** `--blacklist_keep N` and `--keep_sensitive M` revert the highest-error DiT weights to original dtype based on 4-axis composite ranking.
 - **Bias correction (Card 1):** Omitted (**`1off`**). In Krea2 `SingleStreamDiT`, all quantized transformer blocks are `bias=False`, and layers containing bias are already protected by the structure blacklist; Card 1 bias delta has zero effect on Krea2.
 - **Native recommendation:** For checkpoints where native ConvRot INT8 achieves mean latent trajectory cosine $\ge 0.98$ (and 0 bifurcations), using native ConvRot INT8 directly without HSWQ is recommended.
-- **Format:** `int8_tensorwise` with FULL ConvRot Hadamard rotation on eligible Linear/Conv2d; ComfyUI native load compatible. Guide: [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md).
+- **Format:** `int8_tensorwise` with FULL ConvRot Hadamard rotation on eligible Linear/Conv2d; ComfyUI native load compatible.
 - **NVFP4 / 4-bit status:** **Development cancelled.** Extensive empirical testing demonstrated that 4-bit precision (NVFP4) cannot maintain structural fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, the final latent trajectory cosine fails to reach 0.90 (frequent trajectory collapse and bifurcations). Development has been officially cancelled, and Krea2 is supported strictly in **ConvRot INT8 only**.
 
 ### ConvRot NVFP4 (SDXL)
