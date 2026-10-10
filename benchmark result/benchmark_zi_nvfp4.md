@@ -13,6 +13,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 | Model | Setup | HSWQ Mean Cosine (↑) | Native Mean Cosine (↑) | Δ Cosine | HSWQ Mean MSE (↓) | Native Mean MSE (↓) | HSWQ Bifurcated (↓) | Native Bifurcated (↓) | Winner |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **moodyWildMixZIBZID_v02** | nv99 | **0.96546** | 0.93505 | **+0.03041** | **0.8584** | 1.6914 | **0/20 (0%)** | 1/20 (5%) | **HSWQ** |
 | **moodyProMix_collectorsEdition** | nv100 | **0.96158** | 0.92672 | **+0.03486** | **0.9576** | 1.7175 | **0/20 (0%)** | 0/20 (0%) | **HSWQ** |
 | **moodyRealMix_xhsEdition** | nv100 | **0.97366** | 0.94680 | **+0.02686** | **0.7410** | 1.4552 | **0/20 (0%)** | 0/20 (0%) | **HSWQ** |
 | **zimageTurboByStable_2602** | nv99 | **0.96242** | 0.92187 | **+0.04055** | **0.8143** | 1.8329 | **0/20 (0%)** | 0/20 (0%) | **HSWQ** |
@@ -23,13 +24,52 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **2127ZImageAsianUtopian_v40Turbo** | nv100 | **0.96558** | 0.91271 | **+0.05287** | **0.9961** | 2.5376 | **0/20 (0%)** | 1/20 (5%) | **HSWQ** |
 | **copaxTimeless_xplusZ13** | nv100 | **0.96408** | 0.94334 | **+0.02074** | **1.2582** | 1.9680 | **0/20 (0%)** | 0/20 (0%) | **HSWQ** |
 | **unstablebastard_v14** | nv100 | **0.96382** | 0.92822 | **+0.03560** | **0.8252** | 1.5471 | **0/20 (0%)** | 0/20 (0%) | **HSWQ** |
-| **Family Average** | — | **—** | — | **—** | **—** | — | **0.0%** | **1.5%** | **HSWQ (Zero Bifurcations vs 3 Native)** |
+| **Family Average** | — | **—** | — | **—** | **—** | — | **0.0%** | **1.8%** | **HSWQ (Zero Bifurcations vs 4 Native)** |
 
 ---
 
 ## 2. Detailed Results per Model
 
-### 2.1. moodyProMix_collectorsEdition (nv100)
+### 2.1. moodyWildMixZIBZID_v02 (nv99)
+
+#### Metric Overview
+| Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
+| :--- | :--- | :--- | :--- |
+| **Mean Final Cosine** (↑ better) | **0.96546** | 0.93505 | **+0.03041** |
+| **Min Final Cosine** (↑ better) | **0.94122** | 0.68926 | **+0.25196** |
+| **Max Final Cosine** (↑ better) | **0.98259** | 0.97350 | **+0.00909** |
+| **Mean Final Latent MSE** (↓ better) | **0.8584** | 1.6914 | **−0.8330 (49% error reduction)** |
+| **Bifurcated Seeds Rate** (↓ better) | **0/20 (0%)** | **1/20 (5%)** | **Zero bifurcations vs 1 Native** |
+| **Trajectory Verdict** | 3/20 same-image, 17/20 drifted | 19/20 drifted, 1/20 bifurcated | **HSWQ preserves trajectory structure** |
+
+#### Side-by-Side per Seed (moodyWildMixZIBZID_v02)
+| Seed | HSWQ Cosine | Native Cosine | Δ Cosine (↑ better) | HSWQ MSE | Native MSE | Δ MSE (↓ better) | HSWQ Verdict | Native Verdict | Winner |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **42** | **0.98227** | 0.96093 | **+0.02134** | **0.5053** | 1.0830 | **−0.5777** | same-image | drifted (different image) | **HSWQ** |
+| **1337** | **0.96849** | 0.95647 | **+0.01202** | **0.8563** | 1.1760 | **−0.3197** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **7** | **0.95134** | 0.93854 | **+0.01280** | **1.0390** | 1.2740 | **−0.2350** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **2024** | **0.95939** | 0.93317 | **+0.02622** | **0.8795** | 1.4280 | **−0.5485** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **555** | **0.97426** | 0.96225 | **+0.01201** | **0.6969** | 1.0290 | **−0.3321** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **43** | 0.95282 | **0.95865** | −0.00583 | 1.3550 | **1.1600** | +0.1950 | drifted (different image) | drifted (different image) | Native |
+| **1458** | **0.98259** | 0.96731 | **+0.01528** | **0.5633** | 1.0400 | **−0.4767** | same-image | drifted (different image) | **HSWQ** |
+| **9** | **0.95070** | 0.93868 | **+0.01202** | **1.2200** | 1.5300 | **−0.3100** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **2026** | **0.97288** | 0.96928 | **+0.00360** | **0.7799** | 0.8730 | **−0.0931** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **777** | **0.97352** | 0.94314 | **+0.03038** | **0.5836** | 1.2630 | **−0.6794** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **44** | **0.94813** | 0.91647 | **+0.03166** | **1.1620** | 1.8550 | **−0.6930** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **1338** | **0.97773** | 0.96268 | **+0.01505** | **0.5985** | 0.9896 | **−0.3911** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **8** | **0.94122** | 0.86222 | **+0.07900** | **1.7330** | 3.8220 | **−2.0890** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **2028** | **0.97966** | 0.96936 | **+0.01030** | **0.5855** | 0.9040 | **−0.3185** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **888** | **0.97311** | 0.92553 | **+0.04758** | **0.6570** | 1.7610 | **−1.1040** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **46** | **0.96897** | 0.95086 | **+0.01811** | **0.9073** | 1.4470 | **−0.5397** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **1587** | **0.97837** | 0.96067 | **+0.01770** | **0.6108** | 1.1130 | **−0.5022** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **12** | **0.94450** | 0.68926 | **+0.25524** | **1.5100** | 8.3130 | **−6.8030** | drifted (different image) | bifurcated @step 10 | **HSWQ** |
+| **2047** | 0.94906 | **0.96204** | −0.01298 | 1.3120 | **0.9808** | +0.3312 | drifted (different image) | drifted (different image) | Native |
+| **222** | **0.98028** | 0.97350 | **+0.00678** | **0.6133** | 0.7859 | **−0.1726** | same-image | drifted (different image) | **HSWQ** |
+| **Mean** | **0.96546** | **0.93505** | **+0.03041** | **0.8584** | **1.6914** | **−0.8330** | **0/20 Bifurcated** | **1/20 Bifurcated** | **HSWQ (18/20)** |
+
+---
+
+### 2.2. moodyProMix_collectorsEdition (nv100)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -68,7 +108,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.2. moodyRealMix_xhsEdition (nv100)
+### 2.3. moodyRealMix_xhsEdition (nv100)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -107,7 +147,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.3. zimageTurboByStable_2602 (nv99)
+### 2.4. zimageTurboByStable_2602 (nv99)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -146,7 +186,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.4. unstableRevolution_V3Fp16 (nv100)
+### 2.5. unstableRevolution_V3Fp16 (nv100)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -185,7 +225,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.5. gonzalomoZpop_insta2 (nv100)
+### 2.6. gonzalomoZpop_insta2 (nv100)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -224,7 +264,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.6. divingZImageTurbo_v70Fp16 (nv99)
+### 2.7. divingZImageTurbo_v70Fp16 (nv99)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -263,7 +303,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.7. beyondREALITY_V30 (nv100)
+### 2.8. beyondREALITY_V30 (nv100)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -302,7 +342,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.8. 2127ZImageAsianUtopian_v40Turbo (nv100)
+### 2.9. 2127ZImageAsianUtopian_v40Turbo (nv100)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -341,7 +381,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.9. copaxTimeless_xplusZ13 (nv100)
+### 2.10. copaxTimeless_xplusZ13 (nv100)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -380,7 +420,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.10. unstablebastard_v14 (nv100)
+### 2.11. unstablebastard_v14 (nv100)
 
 #### Metric Overview
 | Metric / Property | HSWQ Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
@@ -422,9 +462,9 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 ## 3. Key Findings and Trajectory Analysis
 
 1. **Complete Elimination of Trajectory Bifurcations:**
-   Across all 10 tested Z-Image models (200 total seed evaluations), Native NVFP4 suffers catastrophic Step 10 bifurcations on challenging checkpoints (e.g. `beyondREALITY_V30`, `2127ZImageAsianUtopian_v40Turbo`), where severe quantization noise forces the denoising path into completely distinct picture attractor basins (final cosine dropping to 0.54–0.70). HSWQ ConvRot Hybrid NVFP4 completely eliminates all bifurcations (0/200 seeds = 0.0%), achieving flawless stability.
+   Across all 11 tested Z-Image models (220 total seed evaluations), Native NVFP4 suffers catastrophic Step 10 bifurcations on challenging checkpoints (e.g. `beyondREALITY_V30`, `2127ZImageAsianUtopian_v40Turbo`, `moodyWildMixZIBZID_v02`), where severe quantization noise forces the denoising path into completely distinct picture attractor basins (final cosine dropping to 0.54–0.70). HSWQ ConvRot Hybrid NVFP4 completely eliminates all bifurcations (0/220 seeds = 0.0%), achieving flawless stability.
 2. **High-Fidelity Semantic and Compositional Preservation:**
-   HSWQ consistently achieves high cosine similarity across all models (mean cosine 0.960–0.974 vs Native 0.900–0.947). Furthermore, 53 out of 200 runs (26.5%) achieve `same-image` status (final cosine ≥ 0.98), whereas Native NVFP4 achieves 0 same-image seeds (0/200).
+   HSWQ consistently achieves high cosine similarity across all models (mean cosine 0.960–0.974 vs Native 0.900–0.947). Furthermore, 56 out of 220 runs (25.5%) achieve `same-image` status (final cosine ≥ 0.98), whereas Native NVFP4 achieves 0 same-image seeds (0/220).
 3. **Substantial Latent MSE Reduction:**
    By preserving the sensitive layers identified via sensitivity weighting and rotation, HSWQ reduces final latent Mean Squared Error by ~40–60% across the board compared to native full-model quantization.
 4. **Worst-Case Robustness Across Random Seeds:**
