@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.9
+
+**Krea2 deprecated NVFP4 scripts and benchmark suite removed** — Following the official discontinuation of Krea2 Hybrid NVFP4 in v2.3.5 in favor of ConvRot INT8, all legacy NVFP4 files have been removed from the repository. This cleans up the calibration, impact diagnosis, and reverse conversion scripts (`Krea2/calib_input_scale_nvfp4.py`, `Krea2/diag_impact.py`, `Krea2/gen_reverse_nvfp4.py`), the standalone NVFP4 runtime benchmark package (`benchmark/krea2_convrot_nvfp4/`), and the trajectory comparison script (`benchmark/krea2_traj_compare.py`). Krea2 quantization and benchmarking are maintained exclusively via the high-fidelity ConvRot INT8 pipeline (`Krea2/hswq_convrot_int8_krea2_v1.5.py` and `benchmark/krea2_int8_traj_compare.py`).
+Release notes: [v2.3.9](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.3.9)
+
 ## v2.3.8
 
 **SDXL ConvRot INT8 benchmark record format switched to the latent-trajectory format** — `benchmark result/benchmark_sdxl_int8.md` is now generated from the deterministic 25-seed latent-trajectory comparison (`benchmark result/score_sdxl_int8.txt`) and reports **HSWQ ConvRot INT8 vs Native ConvRot INT8** as a cross-model summary plus per-model per-seed side-by-side tables (final cosine, latent MSE, bifurcation, speedup). The previous decoded-image MSE / SSIM tables and the 5-seed reverse-hybrid K table are removed, and the README benchmark list label is updated to match.
