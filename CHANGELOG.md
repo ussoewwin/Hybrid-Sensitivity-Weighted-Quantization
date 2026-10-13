@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.4.0
+
+**SDXL ConvRot NVFP4 development cancelled (ConvRot INT8 only)** — Deterministic latent-trajectory measurements revealed that 4-bit precision (NVFP4) fails to maintain latent trajectory fidelity on SDXL (final trajectory cosine fails to reach 0.90, suffering severe trajectory drift and collapse). The legacy decoded-image benchmark scores (SSIM ~0.95) were an artifact masked and smoothed by VAE decoding rather than true latent-space preservation. Following the same conclusion as Krea2 in v2.3.5, SDXL NVFP4 development has been officially discontinued, and SDXL is maintained strictly via the high-fidelity **ConvRot INT8 (reverse hybrid)** pipeline. All deprecated SDXL NVFP4 conversion scripts and benchmark tools (`hswq_sdxl_convert_nvfp4_1.0.py`, `hswq_sdxl_convert_nvfp4_1.2.py`, `benchmark/nvfp4bench_sdxl.py`, and trajectory comparators) have been relocated to `archives/`, and documentation has been updated.
+Release notes: [v2.4.0](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.4.0)
+
 ## v2.3.9
 
 **Krea2 deprecated NVFP4 scripts and benchmark suite removed** — Following the official discontinuation of Krea2 Hybrid NVFP4 in v2.3.5 in favor of ConvRot INT8, all legacy NVFP4 files have been removed from the repository. This cleans up the calibration, impact diagnosis, and reverse conversion scripts (`Krea2/calib_input_scale_nvfp4.py`, `Krea2/diag_impact.py`, `Krea2/gen_reverse_nvfp4.py`), the standalone NVFP4 runtime benchmark package (`benchmark/krea2_convrot_nvfp4/`), and the trajectory comparison script (`benchmark/krea2_traj_compare.py`). Krea2 quantization and benchmarking are maintained exclusively via the high-fidelity ConvRot INT8 pipeline (`Krea2/hswq_convrot_int8_krea2_v1.5.py` and `benchmark/krea2_int8_traj_compare.py`).
