@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity **ConvRot INT8** and **ConvRot NVFP4** quantization for **SDXL**, **Flux1.dev**, and **Z Image Turbo** diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
+High-fidelity **ConvRot INT8** (SDXL, Krea2, Qwen Image Edit) and **ConvRot NVFP4** (Z Image Turbo) quantization for diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
 
 - **ConvRot INT8 (SDXL, reverse hybrid):** FP16 checkpoint as the only input; a per-layer **trajectory-impact** measurement (`sdxl/diag_impact_sdxl.py`) ranks every candidate layer, then the **K lowest-impact layers** are packed as **FULL ConvRot INT8** while **every other layer stays FP16** (`sdxl/gen_reverse_int8_sdxl.py`). Validated by the **deterministic 25-seed latent-trajectory comparison** (per-step cosine + bifurcation); production gate = **cosine mean ≥ 0.95 and 0/25 bifurcated**. The ranking is measured on the actual sampling trajectory, so it captures the nonlinear error amplification that static weight-space saliency cannot represent. The quantized file does not embed a VAE (`first_stage_model.*` is removed at conversion): load it with a separate SDXL VAE.
 - **SDXL ConvRot NVFP4:** **Development cancelled.** Deterministic trajectory-divergence measurements reveal that 4-bit precision (NVFP4) fails to maintain latent trajectory fidelity on SDXL (final latent trajectory cosine fails to reach 0.90, suffering severe trajectory collapse and drift); the legacy decoded SSIM ~0.95 results were masked by VAE decoding rather than true latent preservation. Development has been officially cancelled. SDXL is supported strictly in **ConvRot INT8 (reverse hybrid)** only.
@@ -93,17 +93,17 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 ## Architecture
 
 1. **Dual Monitor System** — During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ. **ConvRot NVFP4 (SDXL):** keep ratio **0**; FP16 set comes from automatic analysis / budget ranking, not a keep-ratio %. The **ConvRot INT8 (SDXL) reverse hybrid** does not use this path: its FP16 set is the complement of the K lowest-impact layers measured on the trajectory.
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ. (Note: SDXL ConvRot NVFP4 development has been cancelled; SDXL uses the reverse hybrid path below). The **ConvRot INT8 (SDXL) reverse hybrid** does not use this static path: its FP16 set is the complement of the K lowest-impact layers measured directly on the sampling trajectory.
    - **Importance:** V1 uses per-channel input mean-abs; V4 uses per-element SVD leverage × RMS magnitude hybrid → weights of the weighted histogram.
    **Technical details:** [Dual Monitor System — Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
 2. **Rigorous grid / pack simulation**
    - **ConvRot INT8 (SDXL reverse hybrid):** each candidate layer's ConvRot INT8 reconstruction is injected on the FP16 baseline and propagated through the production sampler; the resulting trajectory drift ranks the layers. The K lowest-impact layers are packed (`rotate → per-channel INT8`); the rest stay FP16.
-   - **ConvRot NVFP4 (SDXL):** absmax pack point for Linear→NVFP4 and Conv2d→INT8; V4 pack-MSE ranks FP16 protection under the **600 MiB** budget, then **FULL ConvRot** on eligible remainder.
+   - **ConvRot NVFP4 (SDXL — cancelled):** legacy absmax pack point for Linear→NVFP4 and Conv2d→INT8; V4 pack-MSE ranked FP16 protection under the **600 MiB** budget. Cancelled in favor of the ConvRot INT8 reverse hybrid.
 
 3. **Weighted Histogram Optimization** — Finds parameters that minimize quantization error using an importance-weighted histogram (not a plain frequency histogram).
    - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
-   - **V4 (SVD × RMS hybrid, MSE):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers. Used by **SDXL ConvRot NVFP4** for FP16-candidate ranking at the absmax pack point. **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
+   - **V4 (SVD × RMS hybrid, MSE):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers (retained as technical asset). **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
    - **V5 (SVD × RMS hybrid, cosine):** same hybrid importance family as V4; Stage-3 objective is **importance-weighted cosine loss** \(L=1-\langle x,q\rangle_H/(\|x\|_H\|q\|_H)\) against the physical FP8 E4M3 quantize–dequantize map (scale-invariant angular fidelity; reduces absolute-tail blackmail of \(\Delta^*\)). Source: `histogram/weighted_histogram_cosine_v5.py`. **Technical details:** [HSWQ V5 SVD-RMS Cosine — Technical Guide](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md).
 4. **Trajectory-Sensitivity Impact Ranking** — Ranks each layer by the divergence its
    quantization error actually causes after propagating through the full model and sampler
@@ -153,7 +153,7 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 - **Prerequisite:** A complete **native ConvRot INT8** UNet created by `Z_Image/native_convert_int8_convrot_zi.py`.
 - **Method:** **Reverse method** — start from the complete ConvRot INT8 model (error ≈ 0) and convert layers to NVFP4 in **ascending order of per-layer impact** (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid.
 - **TC / W4A4:** enabled only after calibration writes `*.input_scale` (`amax / 2688`); forcing TC on an uncalibrated checkpoint collapses quality (cosine ~0.18). Auto-detect uses parity (W4A16) without `input_scale`; `--tc` / `--parity` / `HSWQ_ZI_FORCE_TC` / `HSWQ_ZI_FORCE_PARITY` override.
-- **Loader / format:** ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4`; same pack format as SDXL ConvRot NVFP4.
+- **Loader / format:** ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4`; standard ComfyUI NVFP4 pack format (Linear NVFP4 + Conv2d INT8).
 - **Validation:** deterministic 20-seed x 12-step latent-trajectory comparison; production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** (per-checkpoint numbers; reference example in the hybrid NVFP4 how-to).
 - **NVFP4 layer count:** Varies per model; search K (start nv90).
 
