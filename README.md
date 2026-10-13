@@ -175,10 +175,9 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 | Original FP16 | 25-seed trajectory cosine mean | 1.000 | 100% | High |
 | Native ConvRot INT8 (all convertible layers) | 25-seed trajectory cosine mean | ≈ 0.93 | 50% | High |
 | **HSWQ ConvRot INT8 (SDXL, reverse hybrid)** | 25-seed trajectory cosine mean | **≥ 0.95 (gate)** | **71%** (FP16 mixed) | **High** (ComfyUI INT8) |
-| **HSWQ ConvRot NVFP4** | SSIM | **0.92-0.98** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
-| **Z Image Hybrid NVFP4** | 20-seed trajectory cosine mean | **0.96-0.97** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
+| **Z Image Hybrid ConvRot NVFP4** | 20-seed trajectory cosine mean | **0.96-0.97** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
-HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with 0/25 bifurcated (FP16 base 6.94 GB → reverse hybrid pack ≈ 4.9 GB, i.e. ≈ 71%). HSWQ ConvRot NVFP4 targets **SSIM 0.92-0.98**; Z Image Hybrid NVFP4 targets a **20-seed latent-trajectory cosine mean of 0.96-0.97** with **0/200 bifurcated**. All keep full loader compatibility on their respective formats.
+HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with 0/25 bifurcated (FP16 base 6.94 GB → reverse hybrid pack ≈ 4.9 GB, i.e. ≈ 71%). Z Image Hybrid ConvRot NVFP4 targets a **20-seed latent-trajectory cosine mean of 0.96-0.97** with **0/20 bifurcated**. All keep full loader compatibility on their respective formats.
 
 ---
 
