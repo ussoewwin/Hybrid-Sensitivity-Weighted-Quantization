@@ -68,17 +68,19 @@ pip install diffusers accelerate scikit-image
 
 ## Overview
 
-| Feature | ConvRot INT8 (SDXL, reverse hybrid) | ConvRot NVFP4 (SDXL) | Z Image Hybrid ConvRot NVFP4 |
-| :--- | :--- | :--- | :--- |
-| **Compatibility** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible |
-| **File format** | INT8 weights + scale (`int8_tensorwise`) for the K lowest-impact layers; all other layers stay **FP16** | Linear **NVFP4** + Conv2d **INT8** (`int8_tensorwise`); **FULL ConvRot** on eligible layers | Hybrid: lowest-impact layers → **NVFP4**, remaining layers stay **ConvRot INT8**; built from complete native ConvRot INT8 UNet |
-| **Image quality** | decoded-image bench not the gate; trajectory gate below | SSIM **0.92-0.98** | trajectory cosine **0.96-0.97** (mean, 20 seeds) |
-| **Mechanism** | Per-layer **trajectory-impact** ranking on the FP16 baseline (production sampler); K lowest-impact layers → FULL ConvRot INT8, rest FP16 | Absmax + DualMonitor / V4 FP16 protect (r0, **600 MiB**); FULL ConvRot (Linear→NVFP4, Conv2d→INT8) | **Reverse method**: start from ConvRot INT8 (error ≈ 0), convert layers to NVFP4 in ascending per-layer impact order |
-| **Keep ratio** | N/A (layer count `K` varies per model; the rest is FP16) | **0 (fixed)** | N/A (layer count varies per model, e.g. nv60-nv110) |
-| **Benchmark** | Deterministic 25-seed latent trajectory (cosine mean ≥ 0.95, 0/25 bifurcated) | Measurable | Measurable |
-| **Use case** | SDXL ConvRot INT8 distribution / kitchen loaders | SDXL ConvRot NVFP4 distribution / native ComfyUI load | Z Image Turbo Hybrid NVFP4 distribution / native ComfyUI load |
+| Feature | ConvRot INT8 (SDXL & Krea2) | Z Image Hybrid ConvRot NVFP4 |
+| :--- | :--- | :--- |
+| **Compatibility** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible |
+| **File format** | INT8 weights + scale (`int8_tensorwise`) on eligible layers; high-impact / structural layers stay FP16 / BF16 | Hybrid: lowest-impact layers → **NVFP4**, remaining layers stay **ConvRot INT8**; built from complete native ConvRot INT8 UNet |
+| **Image quality** | Validated on latent trajectory gate (no VAE-masked degradation) | trajectory cosine **0.96-0.97** (mean, 20 seeds) |
+| **Mechanism** | **SDXL:** Reverse hybrid — per-layer **trajectory-impact** ranking on FP16 baseline; K lowest-impact layers → FULL ConvRot INT8, rest FP16<br>**Krea2:** Structure blacklist protection (`first.`, `last.`, `mod.`, `norm`, etc.) + 4-axis composite ranking (or native ConvRot INT8) | **Reverse method**: start from ConvRot INT8 (error ≈ 0), convert layers to NVFP4 in ascending per-layer impact order |
+| **Keep ratio** | N/A (layer count `K` varies per model for SDXL; structure + sensitivity retention for Krea2) | N/A (layer count varies per model, e.g. nv60-nv110) |
+| **Benchmark** | **Deterministic 25-seed latent trajectory**:<br>• **SDXL:** cosine mean $\ge 0.95$ and 0/25 bifurcated<br>• **Krea2:** cosine mean $\ge 0.98$ and 0/25 bifurcated | Deterministic 20-seed latent trajectory (cosine mean $\ge 0.95$, 0/20 bifurcated) |
+| **Use case** | SDXL & Krea2 ConvRot INT8 distribution / native ComfyUI load | Z Image Turbo Hybrid NVFP4 distribution / native ComfyUI load |
 
-**Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL path.
+**Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL & Krea2 path.
+
+**Note (SDXL 4-bit / NVFP4):** SDXL ConvRot NVFP4 development has been **cancelled**. Deterministic trajectory measurements confirm that 4-bit precision (NVFP4) fails to preserve latent trajectory fidelity (cosine fails to reach 0.90, suffering severe trajectory drift and collapse); legacy SSIM scores were masked by VAE decoding. SDXL is supported strictly in **ConvRot INT8 (reverse hybrid)** only.
 
 **Note (Krea2 4-bit / NVFP4):** Krea2 Hybrid ConvRot NVFP4 development has been **cancelled**. 4-bit precision (NVFP4) cannot maintain acceptable fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, the final latent trajectory cosine fails to reach 0.90. Krea2 is supported strictly in **ConvRot INT8** only.
 
@@ -144,14 +146,6 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 - **Native recommendation:** For checkpoints where native ConvRot INT8 achieves mean latent trajectory cosine $\ge 0.98$ (and 0 bifurcations), using native ConvRot INT8 directly without HSWQ is recommended.
 - **Format:** `int8_tensorwise` with FULL ConvRot Hadamard rotation on eligible Linear/Conv2d; ComfyUI native load compatible.
 - **NVFP4 / 4-bit status:** **Development cancelled.** Extensive empirical testing demonstrated that 4-bit precision (NVFP4) cannot maintain structural fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, the final latent trajectory cosine fails to reach 0.90 (frequent trajectory collapse and bifurcations). Development has been officially cancelled, and Krea2 is supported strictly in **ConvRot INT8 only**.
-
-### ConvRot NVFP4 (SDXL)
-
-- **Script:** `hswq_convert_nvfp4_convrot_1.0.py` (SDXL ConvRot NVFP4; **600 MiB** FP16 budget; FULL ConvRot default ON).
-- **Order:** (1) FP16 keep via DualMonitor + analyze + V4 under the **600 MiB** hard ceiling → (2) remaining eligible layers **FULL ConvRot** — Linear → **NVFP4**, Conv2d → **INT8** (`int8_tensorwise`).
-- **Loader / format:** ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4`; NVFP4 `.input_scale` from PTQ calib (`--calib_file`).
-- **Keep ratio:** **0 (fixed)** — FP16 protection is automatic (analyze Hard VETO + DualMonitor + V4 pack-MSE ranking inside the FP16 budget), not a percentage keep-ratio.
-- **Image quality (SSIM):** **0.92-0.98**.
 
 ### Z Image Hybrid ConvRot NVFP4
 
