@@ -1,6 +1,6 @@
 """ComfyUI node: quantize a loaded Z Image (NextDiT) UNet to native ConvRot INT8.
 
-.model_type dropdown: Z Image / Qwen Image Edit / Krea2 / SDXL.
+.model_type dropdown: Z Image / Qwen Image Edit / Krea2 / SDXL / SD1.5.
 SDXL follows sdxl/native_convert_int8_sdxl.py exactly:
   ConvRot (Linear+Conv2d) + per-channel pack for BOTH 2D and 4D
   (n8.quantize_int8_channelwise == script pack_channelwise; the amax clamp in
@@ -308,8 +308,13 @@ def _quantize_state_dict(
     meta_layers = {}
     n_linear = n_conv2d = n_plain = n_kept = 0
     is_sdxl = model_type == "SDXL"
+    is_sd15 = model_type == "SD1.5"
 
     for key, tensor in sd.items():
+        # Drop embedded VAE (first_stage_model.*) for SD1.5/SDXL to minimize file size
+        if (is_sd15 or is_sdxl) and key.startswith("first_stage_model."):
+            continue
+
         if model_type == "Qwen Image Edit" and _is_qwen_blacklisted(key):
             new_sd[key] = tensor
             n_kept += 1
@@ -329,8 +334,8 @@ def _quantize_state_dict(
             if gs is not None:
                 h = n8.build_hadamard(gs, device="cpu")
                 w = n8.rotate_weight(w, h, gs)
-                # SDXL script packs ConvRot Linear per-channel (pack_channelwise).
-                q, scale = n8.quantize_int8_channelwise(w) if is_sdxl else n8.quantize_int8_rowwise(w)
+                # SDXL and SD1.5 pack ConvRot Linear per-channel (pack_channelwise).
+                q, scale = n8.quantize_int8_channelwise(w) if (is_sdxl or is_sd15) else n8.quantize_int8_rowwise(w)
                 conf = {"format": "int8_tensorwise", "convrot": True,
                         "convrot_groupsize": int(gs)}
                 n_linear += 1
@@ -530,7 +535,7 @@ class NativeConvRotInt8Quantize:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model_type": (["Z Image", "Qwen Image Edit", "Krea2", "SDXL"], {"default": "Z Image"}),
+                "model_type": (["Z Image", "Qwen Image Edit", "Krea2", "SDXL", "SD1.5"], {"default": "Z Image"}),
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
                 "benchmark_prompt": (
@@ -653,6 +658,7 @@ class NativeConvRotInt8Quantize:
 
                 is_krea2 = (model_type == "Krea2")
                 is_sdxl = (model_type == "SDXL")
+                is_sd15 = (model_type == "SD1.5")
                 steps = 12
                 cfg = 1.0 if is_krea2 else 2.5
                 num_seeds = 20 if is_krea2 else 10
@@ -660,6 +666,7 @@ class NativeConvRotInt8Quantize:
                 sampler_name = "euler"
                 scheduler = "simple"
                 latent_channels = 16
+                width, height = 1024, 1024
                 if is_sdxl:
                     steps = 25
                     cfg = 7.0
@@ -668,11 +675,19 @@ class NativeConvRotInt8Quantize:
                     scheduler = "karras"
                     latent_channels = 4
                     seeds = list(_SDXL_TRAJ_SEEDS)
+                elif is_sd15:
+                    steps = 25
+                    cfg = 7.0
+                    num_seeds = 25
+                    sampler_name = "dpmpp_2m"
+                    scheduler = "karras"
+                    latent_channels = 4
+                    width, height = 512, 512
+                    seeds = [random.randint(1, 10000000) for _ in range(num_seeds)]
                 else:
                     seeds = [random.randint(1, 10000000) for _ in range(num_seeds)]
 
                 device = mm.intermediate_device()
-                width, height = 1024, 1024
                 latent_base = torch.zeros(
                     [1, latent_channels, height // 8, width // 8], device=device
                 )
@@ -802,7 +817,7 @@ class NativeConvRotInt8Quantize:
                     line = f"[{i+1}/{num_seeds} | Seed {s}] FP16: {t_fp16_list[i]:.2f}s | INT8: {t_int8_list[i]:.2f}s | MSE: {mse_val:.4f} | Cosine: {cos_val:.4f} | max-drop: {max_drop:.4f} | {verdict}"
                     report.append(line)
 
-                if is_krea2 or is_sdxl:
+                if is_krea2 or is_sdxl or is_sd15:
                     report.append("\n--- Multi-seed summary ---")
                     report.append(f"{'seed':>8} {'final-cos':>10} {'final-mse':>12} {'max-drop':>9} {'verdict':>22}")
                     for r in final_rows:
