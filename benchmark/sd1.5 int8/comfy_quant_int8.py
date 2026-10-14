@@ -2194,14 +2194,16 @@ class _Sd15CudaGraphExecutor:
     the graph output is identical to eager (measured max|graph-eager| = 0.0).
     Capture is keyed on the input signature; a signature change re-captures.
 
-    Scope: capture is attempted ONLY in the small-latent (<=512) regime it was
-    designed for. At 1024 the INT8 path is already GPU-bound and faster eager,
-    and a capture attempt there is both useless and unsafe (an uncapturable op
-    invalidates the stream). Larger shapes run eager, untouched.
+    Capture uses capture_error_mode="relaxed". The default "global" mode aborts
+    on harmless ops that are illegal only during capture (e.g. diagnostic/
+    synchronising calls); relaxed tolerates them and the graph captures cleanly
+    at every tested resolution (latent 64 / 80 / 96 / 128). Verified 512-1024.
+
+    Scope: capture is attempted only for latent sides up to _MAX_CAPTURE_LATENT_SIDE
+    (covers up to 1024x1024, the practical SD1.5 max). Anything larger runs eager.
     """
 
-    _MAX_CAPTURE_LATENT_SIDE = 64  # 512x512 -> latent 64; >=1024 stays eager
-
+    _MAX_CAPTURE_LATENT_SIDE = 128  # covers up to 1024x1024; larger runs eager
     def __init__(self, base_model):
         self._base = base_model
         self._orig = base_model.apply_model
@@ -2234,7 +2236,7 @@ class _Sd15CudaGraphExecutor:
     def _call(self, x, t, **c):
         import torch
 
-        # Small-latent-only: never attempt capture in the GPU-bound regime.
+        # Large-latent-only guard: skip capture beyond the practical SD1.5 range.
         try:
             if max(int(x.shape[-1]), int(x.shape[-2])) > self._MAX_CAPTURE_LATENT_SIDE:
                 return self._orig(x, t, **c)
@@ -2283,7 +2285,7 @@ class _Sd15CudaGraphExecutor:
             torch.cuda.current_stream().wait_stream(s)
             torch.cuda.synchronize()
             graph = torch.cuda.CUDAGraph()
-            with torch.cuda.graph(graph):
+            with torch.cuda.graph(graph, capture_error_mode="relaxed"):
                 sy = self._orig(sx, st, **c_in)
             torch.cuda.synchronize()
         except Exception as exc:  # noqa: BLE001
