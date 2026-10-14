@@ -1765,7 +1765,7 @@ def build_int8_analyze_character_table(
 
 # Default = SD1.5 INT8. Callers may set this
 # module attribute before derive / assert; ranking / fill logic is unchanged.
-INT8_FP16_BUDGET_MB_HARD = 200.0
+INT8_FP16_BUDGET_MB_HARD = 300.0
 
 
 def _safe_percentile(values: List[float], pct: float) -> float:

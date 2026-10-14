@@ -193,7 +193,7 @@ sys.path.insert(0, os.path.join(repo_root, "ComfyUI-master"))
 # as the analyzer's INT8_FP16_BUDGET_MB_HARD); the owner may move it between
 # runs - the quantizer reads the analyzer's current value at runtime so the
 # two stay in lockstep. ZI precedent: the same named ceiling was moved 300->600.
-FP16_BUDGET_MB_HARD = 100.0
+FP16_BUDGET_MB_HARD = 300.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
