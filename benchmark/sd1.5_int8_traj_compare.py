@@ -375,6 +375,21 @@ def apply_sage2_attention() -> None:
 
     def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
                         skip_reshape=False, skip_output_reshape=False, **kw):
+        def _unwrap(t):
+            if hasattr(t, "take"):
+                return t.take()
+            if hasattr(t, "peek"):
+                return t.peek()
+            if hasattr(t, "tensor"):
+                return t.tensor
+            return t
+
+        q = _unwrap(q)
+        k = _unwrap(k)
+        v = _unwrap(v)
+        if mask is not None:
+            mask = _unwrap(mask)
+
         in_dtype = v.dtype
         if q.dtype == torch.float32 or k.dtype == torch.float32 or v.dtype == torch.float32:
             q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
@@ -385,9 +400,21 @@ def apply_sage2_attention() -> None:
         else:
             b, n_q, _ = q.shape
             dim_head = q.shape[-1] // heads
-            qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
-            kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
-            vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
+            if hasattr(comfy_attention, "_reshape_qkv_to_heads"):
+                qh, kh, vh = comfy_attention._reshape_qkv_to_heads(
+                    q, k, v, b, heads, dim_head, kw.get("enable_gqa", False), expand_kv=False
+                )
+                qh, kh, vh = map(lambda t: t.transpose(1, 2), (qh, kh, vh))
+            else:
+                qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
+                kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
+                vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
+
+        if mask is not None:
+            if mask.ndim == 2:
+                mask = mask.unsqueeze(0)
+            if mask.ndim == 3:
+                mask = mask.unsqueeze(1)
 
         use_fallback = (mask is not None) or (dim_head > 256)
         _SAGE2_STATS["calls"] += 1
@@ -419,9 +446,10 @@ def apply_sage2_attention() -> None:
             out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
         return out.to(in_dtype)
 
-    comfy_attention.optimized_attention_masked = attention_sage2
+    wrapped_sage2 = comfy_attention.wrap_attn(attention_sage2) if hasattr(comfy_attention, "wrap_attn") else attention_sage2
+    comfy_attention.optimized_attention_masked = wrapped_sage2
     if hasattr(comfy_attention, "optimized_attention"):
-        comfy_attention.optimized_attention = attention_sage2
+        comfy_attention.optimized_attention = wrapped_sage2
     print("  [SAGE2] attention override armed (sageattn, INT8 QK + FP8 PV, sm120 auto)",
           flush=True)
 
