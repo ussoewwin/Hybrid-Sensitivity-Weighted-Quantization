@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.4.1
+
+**SD1.5 Native ConvRot INT8 quantization and ComfyUI integration** — Added full Native ConvRot INT8 quantization support for Stable Diffusion 1.5 (SD1.5) via dedicated CLI quantizer (`sd1.5/native_convert_int8_sd1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "SD1.5"`). Because SD1.5 is naturally lightweight (~1.9 GB FP16) and Native ConvRot INT8 routinely reaches mean latent trajectory cosine $\ge 0.96$ (~0.97), HSWQ hybrid FP16 retention is omitted to preserve maximum compression. To maximize file size reduction, the checkpoint-embedded VAE (`first_stage_model.*`) is automatically stripped during quantization, reducing file size to approximately **850–950 MB** (saves ~160–330 MB). Features integrated 25-seed deterministic latent trajectory benchmark (512x512, dpmpp_2m/karras, cfg 7.0, 25 steps) to evaluate fidelity strictly in latent space without VAE decoder smoothing bias. Includes technical how-to guide (`md/How to quantize SD1.5.md`) and workflow reference image (`png/sd1.5.png`).
+Release notes: [v2.4.1](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.4.1)
+
 ## v2.4.0
 
 **SDXL ConvRot NVFP4 development cancelled (ConvRot INT8 only)** — Deterministic latent-trajectory measurements revealed that 4-bit precision (NVFP4) fails to maintain latent trajectory fidelity on SDXL (final trajectory cosine fails to reach 0.90, suffering severe trajectory drift and collapse). The legacy decoded-image benchmark scores (SSIM ~0.95) were an artifact masked and smoothed by VAE decoding rather than true latent-space preservation. Following the same conclusion as Krea2 in v2.3.5, SDXL NVFP4 development has been officially discontinued, and SDXL is maintained strictly via the high-fidelity **ConvRot INT8 (reverse hybrid)** pipeline. All deprecated SDXL NVFP4 conversion scripts and benchmark tools (`hswq_sdxl_convert_nvfp4_1.0.py`, `hswq_sdxl_convert_nvfp4_1.2.py`, `benchmark/nvfp4bench_sdxl.py`, and trajectory comparators) have been relocated to `archives/`, and documentation has been updated.
