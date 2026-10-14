@@ -246,9 +246,3 @@ Latest measured reference (HSWQ V1.0, 300 MiB, 0.5xxmix9realistic_v40+0.5BRA7):
 | `benchmark/sd1.5_int8_traj_compare.py` | standalone trajectory bench |
 | `benchmark/sd1.5 int8/comfy_quant_int8.py` | runtime patches (CLIP INT8 load, CUDA graph, TLS scope) |
 | `sample/calibration_prompts_512.txt` | r32 calibration prompts |
-
-## Related Documents
-
-* `md/SD1.5_INT8_Speed_Optimization_Root_Cause_and_Fix_2026-10-14.md` — UNet speed (CUDA graph, TLS scope)
-* `md/SD1.5_ConvRot_INT8_CLIP_Technical_Record_2026-10-15.md` — CLIP INT8 loader mechanics
-* `md/How to quantize SDXL.md` — SDXL HSWQ line (same engine family)
