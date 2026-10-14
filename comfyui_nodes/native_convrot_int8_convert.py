@@ -31,11 +31,16 @@ auto-detected by walking up from this package until that script is found.
 """
 from __future__ import annotations
 
+import datetime
 import importlib.util
 import json
 import math
 import os
+import random
 import sys
+import time
+
+import torch
 
 _N8 = None
 
@@ -422,6 +427,7 @@ def _apply_bench_sage2_attention() -> None:
     loaded; call _unset_bench_sage2_attention() to restore stock attention.
     """
     import time
+    import torch
 
     from comfy.ldm.modules import attention as comfy_attention
     from sageattention import sageattn
@@ -429,21 +435,6 @@ def _apply_bench_sage2_attention() -> None:
 
     def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
                         skip_reshape=False, skip_output_reshape=False, **kw):
-        def _unwrap(t):
-            if isinstance(t, torch.Tensor):
-                return t
-            if type(t).__name__ == "AttentionTensorContainer":
-                return t.take() if hasattr(t, "take") else t.tensor
-            if hasattr(t, "tensor") and isinstance(t.tensor, torch.Tensor):
-                return t.tensor
-            return t
-
-        q = _unwrap(q)
-        k = _unwrap(k)
-        v = _unwrap(v)
-        if mask is not None:
-            mask = _unwrap(mask)
-
         in_dtype = v.dtype
         if q.dtype == torch.float32 or k.dtype == torch.float32 or v.dtype == torch.float32:
             q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
@@ -454,21 +445,9 @@ def _apply_bench_sage2_attention() -> None:
         else:
             b, n_q, _ = q.shape
             dim_head = q.shape[-1] // heads
-            if hasattr(comfy_attention, "_reshape_qkv_to_heads"):
-                qh, kh, vh = comfy_attention._reshape_qkv_to_heads(
-                    q, k, v, b, heads, dim_head, kw.get("enable_gqa", False), expand_kv=False
-                )
-                qh, kh, vh = map(lambda t: t.transpose(1, 2), (qh, kh, vh))
-            else:
-                qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
-                kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
-                vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
-
-        if mask is not None:
-            if mask.ndim == 2:
-                mask = mask.unsqueeze(0)
-            if mask.ndim == 3:
-                mask = mask.unsqueeze(1)
+            qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
+            kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
+            vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
 
         use_fallback = (mask is not None) or (dim_head > 256)
         _BENCH_SAGE2_STATS["calls"] += 1
@@ -500,10 +479,9 @@ def _apply_bench_sage2_attention() -> None:
             out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
         return out.to(in_dtype)
 
-    wrapped_sage2 = comfy_attention.wrap_attn(attention_sage2) if hasattr(comfy_attention, "wrap_attn") else attention_sage2
-    comfy_attention.optimized_attention_masked = wrapped_sage2
+    comfy_attention.optimized_attention_masked = attention_sage2
     if hasattr(comfy_attention, "optimized_attention"):
-        comfy_attention.optimized_attention = wrapped_sage2
+        comfy_attention.optimized_attention = attention_sage2
     # Model modules bind optimized_attention_masked at import time via
     # from-imports, so each architecture module must be patched individually.
     # Z Image -> comfy.ldm.lumina.model, Qwen Image Edit -> comfy.ldm.qwen_image.model,
@@ -513,7 +491,7 @@ def _apply_bench_sage2_attention() -> None:
             import importlib as _il
             _mod = _il.import_module(mod_name)
             if hasattr(_mod, "optimized_attention_masked"):
-                _mod.optimized_attention_masked = wrapped_sage2
+                _mod.optimized_attention_masked = attention_sage2
         except Exception:
             pass
     _BENCH_SAGE2_STATS["armed"] = True
@@ -799,8 +777,12 @@ class NativeConvRotInt8Quantize:
                 # 3. INT8 inference for all seeds (sage2 arms SA2 for this branch only;
                 #    the FP16 baseline above always ran on stock attention)
                 if benchmark_attention:
-                    _reset_bench_sage2_stats()
-                    _apply_bench_sage2_attention()
+                    if is_sd15:
+                        sd15_bench = _load_sd15_bench()
+                        sd15_bench.apply_sage2_attention()
+                    else:
+                        _reset_bench_sage2_stats()
+                        _apply_bench_sage2_attention()
                 lat_int8_list = []
                 xs_int8_list = []
                 x0s_int8_list = []
@@ -815,7 +797,11 @@ class NativeConvRotInt8Quantize:
                     xs_int8_list.append(xs_int8)
                     x0s_int8_list.append(x0s_int8)
                 if benchmark_attention:
-                    _unset_bench_sage2_attention()
+                    if is_sd15:
+                        sd15_bench = _load_sd15_bench()
+                        sd15_bench.unset_sage2_attention()
+                    else:
+                        _unset_bench_sage2_attention()
 
                 # VAE decode removed — trajectory comparison is latent-space only
 
