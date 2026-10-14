@@ -3260,6 +3260,9 @@ def main():
     convrot_linear = 0
     convrot_conv2d = 0
     plain_int8_count = 0
+    clip_convrot_count = 0
+    clip_plain_count = 0
+    clip_kept_count = 0
     bias_corr_pending = {}  # comfy module prefix -> float32 bias delta (O,)
     bias_corr_applied = 0
     bias_corr_skipped_no_bias = 0
@@ -3382,10 +3385,62 @@ def main():
             )
         # SD1.5 HSWQ pack mirrors the native SD1.5 converter: drop the
         # checkpoint-embedded VAE (first_stage_model.*) to minimise file size.
-        # CLIP (cond_stage_model.*) is kept FP16, exactly like the node path.
         if key.startswith("first_stage_model."):
             dropped_vae_count += 1
             continue
+
+        # SD1.5: CLIP (cond_stage_model.*) also quantized to ConvRot INT8 (Linear layers)
+        if key.startswith("cond_stage_model."):
+            is_linear_weight = (
+                key.endswith(".weight")
+                and value.ndim == 2
+                and "embedding" not in key
+                and value.dtype in (torch.float16, torch.float32, torch.bfloat16)
+            )
+            if not is_linear_weight:
+                output_state_dict[key] = value
+                clip_kept_count += 1
+                continue
+
+            w_fp = value.float()
+            comfy_module = key[:-len(".weight")]
+            used_gs = None
+            if (
+                enable_convrot
+                and convrot_group_size_for_features is not None
+                and build_hadamard is not None
+            ):
+                used_gs = convrot_group_size_for_features(
+                    int(w_fp.shape[1]), group_size
+                )
+
+            if used_gs is not None and rotate_weight is not None:
+                h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
+                w_fp = rotate_weight(w_fp, h_matrix, used_gs)
+                q, scale = pack_channelwise_native(w_fp)
+                quant_config = {
+                    "format": "int8_tensorwise",
+                    "convrot": True,
+                    "convrot_groupsize": int(used_gs),
+                }
+                clip_convrot_count += 1
+            elif args.per_channel_int8:
+                q, scale = pack_channelwise_native(w_fp)
+                quant_config = {"format": "int8_tensorwise"}
+                clip_plain_count += 1
+            else:
+                q, scale = pack_tensorwise_native(w_fp)
+                quant_config = {"format": "int8_tensorwise"}
+                clip_plain_count += 1
+
+            output_state_dict[key] = q
+            output_state_dict[f"{comfy_module}.weight_scale"] = scale
+            output_state_dict[f"{comfy_module}.comfy_quant"] = (
+                encode_comfy_quant_native(quant_config)
+            )
+            quant_meta_layers[comfy_module] = dict(quant_config)
+            continue
+
         output_state_dict[key] = value
 
     if args.bias_correction and bias_corr_pending:
@@ -3420,6 +3475,11 @@ def main():
         print(
             f"    ConvRot Linear: {convrot_linear}, ConvRot Conv2d: {convrot_conv2d}, "
             f"plain INT8: {plain_int8_count}"
+        )
+    if clip_convrot_count + clip_plain_count > 0:
+        print(
+            f"  CLIP ConvRot INT8: {clip_convrot_count}, plain INT8: {clip_plain_count}, "
+            f"kept as-is (embeddings/norms/biases): {clip_kept_count}"
         )
     print(f"  Per-channel INT8 (Card 3): {args.per_channel_int8}")
     print(f"  Asymmetric INT8 pack: {args.asymmetric_int8} (forced OFF)")
@@ -3523,6 +3583,8 @@ def main():
         f"(Linear={convrot_linear} Conv2d={convrot_conv2d} plain={plain_int8_count}) | "
         f"Asymmetric: {args.asymmetric_int8} | Bias correction: {args.bias_correction}"
     )
+    if clip_convrot_count + clip_plain_count > 0:
+        print(f"  CLIP INT8 layers: {clip_convrot_count + clip_plain_count} (convrot={clip_convrot_count})")
 
     # Quantize complete: drop convert holdings before optional chained bench.
     del output_state_dict
