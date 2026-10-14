@@ -405,13 +405,13 @@ def _load_sd15_bench():
     path = os.path.join(bench_dir, "sd1.5_int8_traj_compare.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"SD1.5 bench script not found: {path}")
-    if "sd15_int8_traj_compare" in sys.modules:
-        return sys.modules["sd15_int8_traj_compare"]
     spec = importlib.util.spec_from_file_location("sd15_int8_traj_compare", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load module spec for {path}")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["sd15_int8_traj_compare"] = mod
+    mod = sys.modules.get("sd15_int8_traj_compare")
+    if mod is None:
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["sd15_int8_traj_compare"] = mod
     spec.loader.exec_module(mod)
     return mod
 
