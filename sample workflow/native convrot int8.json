@@ -1,8 +1,8 @@
 {
   "id": "06293941-8863-4438-832e-69381d9a07a8",
   "revision": 0,
-  "last_node_id": 31,
-  "last_link_id": 28,
+  "last_node_id": 35,
+  "last_link_id": 33,
   "nodes": [
     {
       "id": 2,
@@ -110,7 +110,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 15,
+      "order": 17,
       "mode": 4,
       "inputs": [
         {
@@ -195,7 +195,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 9,
+      "order": 10,
       "mode": 4,
       "inputs": [
         {
@@ -240,21 +240,23 @@
         }
       },
       "widgets_values": [
-        "Qwen Image Edit",
+        "SDXL",
         "",
         "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
         256,
         true,
         true,
+        true,
         true
       ],
       "widgets_values_named": {
-        "model_type": "Qwen Image Edit",
+        "model_type": "SDXL",
         "benchmark_prompt": "",
         "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
         "group_size": 256,
         "convrot": true,
         "per_channel_int8": true,
+        "benchmark_attention": true,
         "run_benchmark": true
       }
     },
@@ -267,7 +269,7 @@
       ],
       "size": [
         287.9,
-        226
+        250
       ],
       "flags": {
         "pinned": true
@@ -277,8 +279,6 @@
       "inputs": [],
       "outputs": [],
       "properties": {
-        "cnr_id": "ComfyUI-NunchakuFluxLoraStacker",
-        "ver": "89faa66c13a28f215a654f5449a844956063bed6",
         "matchColors": "red",
         "matchTitle": "",
         "showNav": true,
@@ -287,6 +287,8 @@
         "customSortAlphabet": "",
         "toggleRestriction": "default",
         "effectMode": "Bypass",
+        "cnr_id": "ComfyUI-NunchakuFluxLoraStacker",
+        "ver": "89faa66c13a28f215a654f5449a844956063bed6",
         "Node name for S&R": "FastGroupsBypasserV2",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -354,7 +356,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 10,
+      "order": 11,
       "mode": 4,
       "inputs": [
         {
@@ -431,7 +433,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 16,
+      "order": 18,
       "mode": 4,
       "inputs": [
         {
@@ -457,12 +459,6 @@
           "input_ue_unconnectable": {},
           "version": "7.8"
         }
-      },
-      "widgets_values": [
-        "[CLIP Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors\n  Summary: layers=290 (convrot=290, plain_int8=0) | file_size=1764.68 MB\n  Stats: convrot=True group_size=256 convrot_linear=290 plain_int8=0 kept_as_is=487 fallback=0"
-      ],
-      "widgets_values_named": {
-        "text_0": "[CLIP Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors\n  Summary: layers=290 (convrot=290, plain_int8=0) | file_size=1764.68 MB\n  Stats: convrot=True group_size=256 convrot_linear=290 plain_int8=0 kept_as_is=487 fallback=0"
       }
     },
     {
@@ -522,7 +518,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 11,
+      "order": 12,
       "mode": 4,
       "inputs": [
         {
@@ -599,7 +595,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 17,
+      "order": 19,
       "mode": 4,
       "inputs": [
         {
@@ -625,65 +621,14 @@
           "input_ue_unconnectable": {},
           "version": "7.8"
         }
-      },
-      "widgets_values": [
-        "[ControlNet Quantization]\n  Saved: D:\\USERFILES\\StableDiffusion\\models\\ControlNet\\noobaiXLControlnet_epsLineartRealistic_convrot_int8.safetensors\n  Summary: layers=362 (convrot=362, plain_int8=0) | file_size=1331.66 MB\n  Stats: convrot=True group_size=256 convrot_linear=362 plain_int8=0 kept_as_is=482 fallback=0"
-      ],
-      "widgets_values_named": {
-        "text_0": "[ControlNet Quantization]\n  Saved: D:\\USERFILES\\StableDiffusion\\models\\ControlNet\\noobaiXLControlnet_epsLineartRealistic_convrot_int8.safetensors\n  Summary: layers=362 (convrot=362, plain_int8=0) | file_size=1331.66 MB\n  Stats: convrot=True group_size=256 convrot_linear=362 plain_int8=0 kept_as_is=482 fallback=0"
-      }
-    },
-    {
-      "id": 23,
-      "type": "ModelPatchLoaderCustom",
-      "pos": [
-        -9.223050164373786,
-        1991.326759185297
-      ],
-      "size": [
-        270,
-        138
-      ],
-      "flags": {
-        "pinned": true
-      },
-      "order": 6,
-      "mode": 4,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "MODEL_PATCH",
-          "type": "MODEL_PATCH",
-          "links": [
-            21
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-NunchakuFluxLoraStacker",
-        "ver": "89faa66c13a28f215a654f5449a844956063bed6",
-        "Node name for S&R": "ModelPatchLoaderCustom",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_convrot_int8.safetensors",
-        true
-      ],
-      "widgets_values_named": {
-        "name": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_convrot_int8.safetensors",
-        "cpu_offload": true
       }
     },
     {
       "id": 21,
       "type": "TEControlNetConvRotInt8Quantize",
       "pos": [
-        340.04259037627446,
-        1990.9864587937777
+        361.40456653695827,
+        1990.2011120078023
       ],
       "size": [
         360.890625,
@@ -692,7 +637,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 12,
+      "order": 16,
       "mode": 4,
       "inputs": [
         {
@@ -711,7 +656,7 @@
           "name": "model_patch",
           "shape": 7,
           "type": "MODEL_PATCH",
-          "link": 21
+          "link": 33
         },
         {
           "name": "model",
@@ -769,7 +714,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 18,
+      "order": 23,
       "mode": 4,
       "inputs": [
         {
@@ -795,12 +740,6 @@
           "input_ue_unconnectable": {},
           "version": "7.8"
         }
-      },
-      "widgets_values": [
-        "[ModelPatch Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\model_patches\\Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps_convrot_int8.safetensors\n  Summary: layers=38 (convrot=38, plain_int8=0) | file_size=962.97 MB\n  Stats: convrot=True group_size=256 convrot_linear=38 plain_int8=0 kept_as_is=43 fallback=0"
-      ],
-      "widgets_values_named": {
-        "text_0": "[ModelPatch Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\model_patches\\Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps_convrot_int8.safetensors\n  Summary: layers=38 (convrot=38, plain_int8=0) | file_size=962.97 MB\n  Stats: convrot=True group_size=256 convrot_linear=38 plain_int8=0 kept_as_is=43 fallback=0"
       }
     },
     {
@@ -818,7 +757,7 @@
         "pinned": true
       },
       "order": 13,
-      "mode": 0,
+      "mode": 4,
       "inputs": [
         {
           "name": "clip",
@@ -894,8 +833,8 @@
       "flags": {
         "pinned": true
       },
-      "order": 19,
-      "mode": 0,
+      "order": 20,
+      "mode": 4,
       "inputs": [
         {
           "name": "text",
@@ -920,12 +859,6 @@
           "input_ue_unconnectable": {},
           "version": "7.8"
         }
-      },
-      "widgets_values": [
-        "[Model Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\sam3_convrot_int8.safetensors\n  Summary: layers=444 (convrot=440, plain_int8=4) | file_size=550.66 MB\n  Stats: convrot=True group_size=256 convrot_linear=440 plain_int8=4 kept_as_is=844 fallback=4"
-      ],
-      "widgets_values_named": {
-        "text_0": "[Model Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\sam3_convrot_int8.safetensors\n  Summary: layers=444 (convrot=440, plain_int8=4) | file_size=550.66 MB\n  Stats: convrot=True group_size=256 convrot_linear=440 plain_int8=4 kept_as_is=844 fallback=4"
       }
     },
     {
@@ -942,8 +875,8 @@
       "flags": {
         "pinned": true
       },
-      "order": 7,
-      "mode": 0,
+      "order": 6,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -987,8 +920,8 @@
       "flags": {
         "pinned": true
       },
-      "order": 20,
-      "mode": 0,
+      "order": 21,
+      "mode": 4,
       "inputs": [
         {
           "name": "text",
@@ -1013,12 +946,6 @@
           "input_ue_unconnectable": {},
           "version": "7.8"
         }
-      },
-      "widgets_values": [
-        "[Model Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\sam3_convrot_int8.safetensors\n  Summary: layers=589 (convrot=585, plain_int8=4) | file_size=889.37 MB\n  Stats: convrot=True group_size=256 convrot_linear=585 plain_int8=4 kept_as_is=1087 fallback=4"
-      ],
-      "widgets_values_named": {
-        "text_0": "[Model Quantization]\n  Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\sam3_convrot_int8.safetensors\n  Summary: layers=589 (convrot=585, plain_int8=4) | file_size=889.37 MB\n  Stats: convrot=True group_size=256 convrot_linear=585 plain_int8=4 kept_as_is=1087 fallback=4"
       }
     },
     {
@@ -1036,7 +963,7 @@
         "pinned": true
       },
       "order": 14,
-      "mode": 0,
+      "mode": 4,
       "inputs": [
         {
           "name": "clip",
@@ -1112,8 +1039,8 @@
       "flags": {
         "pinned": true
       },
-      "order": 8,
-      "mode": 0,
+      "order": 7,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -1139,6 +1066,224 @@
       ],
       "widgets_values_named": {
         "sam3_name": "sam3.pt"
+      }
+    },
+    {
+      "id": 32,
+      "type": "ZImageConvRotInt8Quantize",
+      "pos": [
+        1799.7735531772435,
+        430.92714454101076
+      ],
+      "size": [
+        313.890625,
+        342
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 29
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 30
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 31
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            32
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "b1943185da96802a9ad368a76d9665cca4460653",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        },
+        "Node name for S&R": "ZImageConvRotInt8Quantize"
+      },
+      "widgets_values": [
+        "SD1.5",
+        "",
+        "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        256,
+        true,
+        true,
+        true,
+        true
+      ],
+      "widgets_values_named": {
+        "model_type": "SD1.5",
+        "benchmark_prompt": "",
+        "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        "group_size": 256,
+        "convrot": true,
+        "per_channel_int8": true,
+        "benchmark_attention": true,
+        "run_benchmark": true
+      }
+    },
+    {
+      "id": 33,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        1450.0751133327258,
+        430.9252716952144
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            29
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            30
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            31
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "0.5xxmix9realistic_v40+0.5BRA7.safetensors"
+      ],
+      "widgets_values_named": {
+        "ckpt_name": "0.5xxmix9realistic_v40+0.5BRA7.safetensors"
+      }
+    },
+    {
+      "id": 34,
+      "type": "ShowText|pysssss",
+      "pos": [
+        2200.5709359775165,
+        431.24211244973895
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 32
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "609f3afaa74b2f88ef9ce8d939626065e3247469",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "ShowText|pysssss"
+      }
+    },
+    {
+      "id": 35,
+      "type": "HSWQModelPatchLoader",
+      "pos": [
+        -39.66344024792771,
+        2031.0240473307113
+      ],
+      "size": [
+        374.9,
+        58
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 9,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model_patch",
+          "type": "MODEL_PATCH",
+          "links": [
+            33
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "16f3983bfab0b4f0292e3667e0a9edb5e02cea42",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "HSWQModelPatchLoader"
+      },
+      "widgets_values": [
+        "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_convrot_int8.safetensors"
+      ],
+      "widgets_values_named": {
+        "name": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_convrot_int8.safetensors"
       }
     }
   ],
@@ -1216,14 +1361,6 @@
       "STRING"
     ],
     [
-      21,
-      23,
-      0,
-      21,
-      2,
-      "MODEL_PATCH"
-    ],
-    [
       22,
       24,
       1,
@@ -1254,6 +1391,46 @@
       29,
       3,
       "MODEL"
+    ],
+    [
+      29,
+      33,
+      0,
+      32,
+      0,
+      "MODEL"
+    ],
+    [
+      30,
+      33,
+      1,
+      32,
+      1,
+      "CLIP"
+    ],
+    [
+      31,
+      33,
+      2,
+      32,
+      2,
+      "VAE"
+    ],
+    [
+      32,
+      32,
+      1,
+      34,
+      0,
+      "STRING"
+    ],
+    [
+      33,
+      35,
+      0,
+      21,
+      2,
+      "MODEL_PATCH"
     ]
   ],
   "groups": [
@@ -1340,16 +1517,30 @@
       "flags": {
         "pinned": true
       }
+    },
+    {
+      "id": 8,
+      "title": "SD1.5",
+      "bounding": [
+        1401.7435625891983,
+        320.4052651723509,
+        998.5642316685496,
+        538.9437280208152
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
     }
   ],
   "config": {},
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.4665073802097341,
+      "scale": 0.5644739300537777,
       "offset": [
-        929.9677194905103,
-        -2022.7982967477953
+        -201.73482382849636,
+        -29.650837695562547
       ]
     },
     "anomalous_hashes": {
@@ -1365,21 +1556,18 @@
         "hash": "",
         "size": 5004167832
       },
-      "28_sam3.1_multiplex_fp16.safetensors": {
+      "33_0.5xxmix9realistic_v40+0.5BRA7.safetensors": {
         "hash": "",
-        "size": 1745546848
-      },
-      "31_sam3.pt": {
-        "hash": "",
-        "size": 3450062241
+        "size": 2132627582
       }
     },
     "links_added_by_ue": [],
-    "frontendVersion": "1.49.6",
+    "frontendVersion": "1.53.10",
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,
     "VHS_KeepIntermediate": true
   },
-  "version": 0.4
+  "version": 0.4,
+  "seed_widgets": {}
 }
