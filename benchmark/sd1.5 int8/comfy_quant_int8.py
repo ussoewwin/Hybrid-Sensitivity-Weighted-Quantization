@@ -699,6 +699,7 @@ def _get_triton_convrot_kernels():
             wsc = tl.load(ws_ptr + offs_n, mask=nmask, other=0.0)
             bias = tl.load(bias_ptr + offs_n, mask=nmask, other=0.0)
             o = a * asc[:, None] * wsc[None, :] + bias[None, :]
+            o = tl.minimum(tl.maximum(o, -65504.0), 65504.0)
             bidx = offs_m // (hs * ws_)
             rem = offs_m % (hs * ws_)
             oy = rem // ws_
@@ -847,6 +848,8 @@ def _int8_conv_rot_imma(module, x):
     out = out.mul_(wscale_1d.view(1, -1))
     if module.bias is not None:
         out = out.add_(module.bias.detach().float().to(out.device).view(1, -1))
+    if x.dtype == torch.float16:
+        out = out.clamp(-65504.0, 65504.0)
     out = out.to(x.dtype)
     out = out.view(B, hs, ws_, o).permute(0, 3, 1, 2)
     return out.contiguous()

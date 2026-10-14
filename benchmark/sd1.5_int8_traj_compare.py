@@ -402,8 +402,6 @@ def apply_sage2_attention() -> None:
             mask = _unwrap(mask)
 
         in_dtype = v.dtype
-        if q.dtype == torch.float32 or k.dtype == torch.float32 or v.dtype == torch.float32:
-            q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
 
         if skip_reshape:
             b, _, _, dim_head = q.shape
@@ -440,6 +438,8 @@ def apply_sage2_attention() -> None:
             torch.cuda.synchronize()
             _SAGE2_STATS["t_sdpa_ms"] += (time.perf_counter() - t0) * 1000.0
         else:
+            if qh.dtype == torch.float32 or kh.dtype == torch.float32 or vh.dtype == torch.float32:
+                qh, kh, vh = qh.to(torch.float16), kh.to(torch.float16), vh.to(torch.float16)
             try:
                 t0 = time.perf_counter()
                 out = sageattn(qh, kh, vh, tensor_layout="HND", is_causal=False)
@@ -476,6 +476,14 @@ def unset_sage2_attention() -> None:
         comfy_attention.optimized_attention = _ORIGINAL_ATTENTION
         _ORIGINAL_ATTENTION = None
     print("  [SAGE2] attention override restored to stock", flush=True)
+
+
+def reset_sage2_attn_stats() -> None:
+    global _SAGE2_STATS
+    _SAGE2_STATS = {
+        "calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
+        "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0,
+    }
 
 
 def print_sage2_attn_stats() -> None:
