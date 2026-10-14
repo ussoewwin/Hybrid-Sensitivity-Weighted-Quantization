@@ -623,6 +623,15 @@ def main() -> int:
         # --- ConvRot INT8 (patches already applied) ---
         print("[INT8] loading checkpoint...")
         int8, clip8, vae8 = _load_checkpoint(args.int8_path)
+        positive_int8 = positive
+        negative_int8 = negative
+        if clip8 is not None:
+            try:
+                positive_int8 = clip8.encode_from_tokens_scheduled(clip8.tokenize(args.prompt))
+                negative_int8 = clip8.encode_from_tokens_scheduled(clip8.tokenize(args.negative))
+                print("  [INT8] Successfully encoded prompt with ConvRot INT8 CLIP.")
+            except Exception as e:
+                print(f"  [INT8] Warning: encoding with INT8 CLIP failed ({e}), using baseline CLIP conditioning.")
         if args.attention == "sage2":
             apply_sage2_attention()
         int8_runs = {}
@@ -630,7 +639,7 @@ def main() -> int:
             print(f"[INT8] seed {s}")
             t0 = __import__("time").perf_counter()
             xs, x0s, final = run_trajectory(
-                int8, positive, negative, latent, seed=s, steps=args.steps,
+                int8, positive_int8, negative_int8, latent, seed=s, steps=args.steps,
                 cfg=args.cfg, sampler_name=args.sampler, scheduler=args.scheduler,
             )
             times_int8.append(__import__("time").perf_counter() - t0)
