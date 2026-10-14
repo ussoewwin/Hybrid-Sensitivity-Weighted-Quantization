@@ -685,6 +685,21 @@ class NativeConvRotInt8Quantize:
             model_type=model_type,
         )
 
+        # SD1.5: CLIP(Text Encoder)必須。clipが入力されている場合、cond_stage_model.* としてnew_sdに統合保存
+        clip_keys_added = 0
+        if model_type == "SD1.5" and clip is not None:
+            clip_sd = None
+            if hasattr(clip, "get_sd") and callable(clip.get_sd):
+                clip_sd = clip.get_sd()
+            elif hasattr(clip, "cond_stage_model"):
+                clip_sd = clip.cond_stage_model.state_dict()
+
+            if clip_sd:
+                for k, v in clip_sd.items():
+                    key = k if k.startswith("cond_stage_model.") else f"cond_stage_model.{k}"
+                    new_sd[key] = v.detach().cpu()
+                    clip_keys_added += 1
+
         from safetensors.torch import save_file
 
         metadata = {
@@ -700,7 +715,8 @@ class NativeConvRotInt8Quantize:
             _summarize(output_path),
             f"convrot={bool(convrot)} group_size={group_size} "
             f"linear={stats['linear']} conv2d={stats['conv2d']} "
-            f"plain={stats['plain']} kept={stats['kept']}",
+            f"plain={stats['plain']} kept={stats['kept']}"
+            + (f" clip_keys={clip_keys_added}" if clip_keys_added > 0 else ""),
         ]
 
         if run_benchmark:
