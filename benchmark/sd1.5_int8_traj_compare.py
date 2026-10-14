@@ -366,12 +366,23 @@ _SAGE2_STATS = {
 }
 
 
+_ORIGINAL_ATTENTION_MASKED = None
+_ORIGINAL_ATTENTION = None
+
+
 def apply_sage2_attention() -> None:
+    global _ORIGINAL_ATTENTION_MASKED, _ORIGINAL_ATTENTION
     import time
+    import torch
 
     from comfy.ldm.modules import attention as comfy_attention
     from sageattention import sageattn
     from torch.nn.functional import scaled_dot_product_attention as _sdpa
+
+    if _ORIGINAL_ATTENTION_MASKED is None and hasattr(comfy_attention, "optimized_attention_masked"):
+        _ORIGINAL_ATTENTION_MASKED = comfy_attention.optimized_attention_masked
+    if _ORIGINAL_ATTENTION is None and hasattr(comfy_attention, "optimized_attention"):
+        _ORIGINAL_ATTENTION = comfy_attention.optimized_attention
 
     def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
                         skip_reshape=False, skip_output_reshape=False, **kw):
@@ -455,11 +466,15 @@ def apply_sage2_attention() -> None:
 
 
 def unset_sage2_attention() -> None:
-    import importlib
+    global _ORIGINAL_ATTENTION_MASKED, _ORIGINAL_ATTENTION
+    from comfy.ldm.modules import attention as comfy_attention
 
-    import comfy.ldm.modules.attention as comfy_attention
-
-    importlib.reload(comfy_attention)
+    if _ORIGINAL_ATTENTION_MASKED is not None:
+        comfy_attention.optimized_attention_masked = _ORIGINAL_ATTENTION_MASKED
+        _ORIGINAL_ATTENTION_MASKED = None
+    if _ORIGINAL_ATTENTION is not None:
+        comfy_attention.optimized_attention = _ORIGINAL_ATTENTION
+        _ORIGINAL_ATTENTION = None
     print("  [SAGE2] attention override restored to stock", flush=True)
 
 
