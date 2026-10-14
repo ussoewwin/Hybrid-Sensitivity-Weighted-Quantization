@@ -3255,6 +3255,7 @@ def main():
     bias_corr_skipped_no_bias = 0
     bias_corr_skipped_no_act = 0
     bias_corr_skipped_low_sens = 0
+    dropped_vae_count = 0
     enable_convrot = bool(args.convrot)
     group_size = int(args.groupsize)
 
@@ -3369,6 +3370,12 @@ def main():
                 f"from keep_layers and weight_amax_dict / "
                 f"weight_channel_amax_dict. Refuse silent FP16 leak."
             )
+        # SD1.5 HSWQ pack mirrors the native SD1.5 converter: drop the
+        # checkpoint-embedded VAE (first_stage_model.*) to minimise file size.
+        # CLIP (cond_stage_model.*) is kept FP16, exactly like the node path.
+        if key.startswith("first_stage_model."):
+            dropped_vae_count += 1
+            continue
         output_state_dict[key] = value
 
     if args.bias_correction and bias_corr_pending:
@@ -3397,6 +3404,7 @@ def main():
     print("Conversion done:")
     print(f"  INT8 layers: {converted_count}")
     print(f"  FP16-kept layers (budget winners): {kept_count}")
+    print(f"  Dropped embedded VAE layers (first_stage_model.*): {dropped_vae_count}")
     print(f"  FULL ConvRot: {enable_convrot}")
     if enable_convrot:
         print(
