@@ -1,0 +1,2642 @@
+[
+ {
+  "module": "blocks.0.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07302797585725784,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.0.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07293440401554108,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.0.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306219637393951,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.0.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07301732152700424,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.0.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07275612652301788,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.0.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07318571209907532,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.0.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07321316003799438,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.0.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07285154610872269,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.1.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308052480220795,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.1.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07295780628919601,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.1.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312655448913574,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.1.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07292091101408005,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.1.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0729822963476181,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.1.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07327563315629959,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.1.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07323268055915833,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.1.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311683148145676,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.10.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310084998607635,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.10.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307553291320801,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.10.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304982841014862,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.10.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310394942760468,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.10.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305637001991272,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.10.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07301723212003708,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.10.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310626655817032,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.10.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310739159584045,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.11.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312066853046417,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.11.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304409146308899,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.11.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307267189025879,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.11.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07309193164110184,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.11.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306921482086182,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.11.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07297314703464508,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.11.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07298783957958221,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.11.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07302393019199371,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.12.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0730719342827797,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.12.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0730578824877739,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.12.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307133823633194,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.12.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07300872355699539,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.12.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07298960536718369,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.12.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303399592638016,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.12.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.073056660592556,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.12.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308514416217804,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.13.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307817041873932,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.13.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307048887014389,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.13.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310465723276138,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.13.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07309763878583908,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.13.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07300575077533722,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.13.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308351248502731,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.13.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311554253101349,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.13.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311119139194489,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.14.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305113971233368,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.14.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0730382427573204,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.14.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310868799686432,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.14.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304061949253082,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.14.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07300419360399246,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.14.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07314793020486832,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.14.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07324644178152084,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.14.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07319451123476028,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.15.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305387407541275,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.15.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307302951812744,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.15.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07309761643409729,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.15.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304031401872635,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.15.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0729534924030304,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.15.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07319319993257523,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.15.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07328031212091446,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.15.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07322721928358078,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.16.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307764887809753,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.16.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303521782159805,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.16.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311764359474182,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.16.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303246855735779,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.16.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07301219552755356,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.16.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07323763519525528,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.16.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07325641065835953,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.16.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07329025119543076,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.17.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308588922023773,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.17.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303808629512787,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.17.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0731147900223732,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.17.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304549217224121,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.17.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07299482822418213,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.17.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07324974238872528,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.17.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07328204065561295,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.17.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07323713600635529,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.18.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0730772465467453,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.18.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0730167031288147,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.18.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308818399906158,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.18.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308652251958847,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.18.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07301516830921173,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.18.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07326222956180573,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.18.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07326005399227142,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.18.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07326175272464752,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.19.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310453057289124,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.19.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303517311811447,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.19.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311244308948517,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.19.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303820550441742,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.19.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07300660014152527,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.19.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07323529571294785,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.19.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07323336601257324,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.19.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07326170802116394,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.2.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304734736680984,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.2.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305818051099777,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.2.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0731273889541626,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.2.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303117960691452,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.2.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303675264120102,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.2.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07318811863660812,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.2.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07329799979925156,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.2.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07321655750274658,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.20.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312411069869995,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.20.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305216044187546,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.20.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07309774309396744,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.20.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304546236991882,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.20.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07302623987197876,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.20.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07320127636194229,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.20.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0731993243098259,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.20.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0732935220003128,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.21.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310851663351059,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.21.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305671274662018,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.21.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311006635427475,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.21.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305276393890381,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.21.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07302050292491913,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.21.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07317253947257996,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.21.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07316692918539047,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.21.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07327815890312195,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.22.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310797274112701,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.22.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303519546985626,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.22.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07317888736724854,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.22.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312435656785965,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.22.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303131371736526,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.22.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310818135738373,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.22.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305490225553513,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.22.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07321901619434357,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.23.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308776676654816,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.23.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07296111434698105,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.23.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311642915010452,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.23.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0730825737118721,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.23.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07287462055683136,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.23.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07297056913375854,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.23.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07300866395235062,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.23.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07320093363523483,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.24.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307740300893784,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.24.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07300728559494019,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.24.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07314794510602951,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.24.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310859113931656,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.24.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07299493253231049,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.24.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07300758361816406,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.24.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07298912853002548,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.24.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07315269857645035,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.25.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311122119426727,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.25.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07296635955572128,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.25.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07319596409797668,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.25.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07299584895372391,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.25.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07299425452947617,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.25.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07316383719444275,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.25.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305914163589478,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.25.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305167615413666,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.26.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304038852453232,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.26.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07300293445587158,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.26.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07352010160684586,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.26.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303393632173538,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.26.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07288702577352524,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.26.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07296870648860931,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.26.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0732354074716568,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.26.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07297983765602112,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.27.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305339723825455,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.27.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07293525338172913,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.27.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07349832355976105,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.27.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07290256023406982,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.27.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07263587415218353,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.27.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07267599552869797,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.27.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07299567759037018,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.27.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312161475419998,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.3.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308762520551682,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.3.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307734340429306,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.3.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07309848815202713,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.3.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304041087627411,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.3.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303152233362198,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.3.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312004268169403,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.3.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07323215901851654,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.3.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07328446954488754,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.4.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07309269905090332,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.4.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306840270757675,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.4.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308188080787659,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.4.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308035343885422,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.4.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304924726486206,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.4.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307243347167969,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.4.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07316326349973679,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.4.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07330938428640366,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.5.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312151044607162,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.5.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308001816272736,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.5.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308807969093323,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.5.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312187552452087,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.5.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07308132201433182,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.5.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07304197549819946,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.5.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07309368997812271,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.5.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07323749363422394,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.6.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07310725748538971,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.6.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311483472585678,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.6.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306741923093796,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.6.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07309781759977341,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.6.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306468486785889,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.6.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07302578538656235,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.6.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307884842157364,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.6.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07319919764995575,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.7.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312566787004471,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.7.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0730535089969635,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.7.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306858897209167,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.7.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07311034947633743,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.7.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305537909269333,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.7.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07301537692546844,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.7.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07302490621805191,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.7.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312452048063278,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.8.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07312358915805817,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.8.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306483387947083,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.8.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0730767771601677,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.8.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.0731177106499672,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.8.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306906580924988,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.8.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07299183309078217,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.8.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07299426198005676,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.8.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07306885719299316,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.9.attn.gate",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07313476502895355,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.9.attn.wk",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07307741791009903,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.9.attn.wo",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07303611934185028,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.9.attn.wq",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07313832640647888,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.9.attn.wv",
+  "N": 1536,
+  "K": 6144,
+  "params": 9437184,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07305045425891876,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.9.mlp.down",
+  "N": 6144,
+  "K": 16384,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07301690429449081,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.9.mlp.gate",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07298508286476135,
+  "protected_now": false
+ },
+ {
+  "module": "blocks.9.mlp.up",
+  "N": 16384,
+  "K": 6144,
+  "params": 100663296,
+  "base_dtype": "torch.bfloat16",
+  "routing": "w4a8",
+  "relL2": 0.07302980870008469,
+  "protected_now": false
+ },
+ {
+  "module": "first",
+  "N": 6144,
+  "K": 64,
+  "params": 393216,
+  "base_dtype": "torch.float32",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "last.linear",
+  "N": 64,
+  "K": 6144,
+  "params": 393216,
+  "base_dtype": "torch.float32",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "tmlp.0",
+  "N": 6144,
+  "K": 256,
+  "params": 1572864,
+  "base_dtype": "torch.float32",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "tmlp.2",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.float32",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "tproj.1",
+  "N": 36864,
+  "K": 6144,
+  "params": 226492416,
+  "base_dtype": "torch.float32",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.0.attn.gate",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.0.attn.wk",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.0.attn.wo",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.0.attn.wq",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.0.attn.wv",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.0.mlp.down",
+  "N": 2560,
+  "K": 6912,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.0.mlp.gate",
+  "N": 6912,
+  "K": 2560,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.0.mlp.up",
+  "N": 6912,
+  "K": 2560,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.1.attn.gate",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.1.attn.wk",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.1.attn.wo",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.1.attn.wq",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.1.attn.wv",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.1.mlp.down",
+  "N": 2560,
+  "K": 6912,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.1.mlp.gate",
+  "N": 6912,
+  "K": 2560,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.layerwise_blocks.1.mlp.up",
+  "N": 6912,
+  "K": 2560,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.projector",
+  "N": 1,
+  "K": 12,
+  "params": 12,
+  "base_dtype": "torch.float32",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.0.attn.gate",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.0.attn.wk",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.0.attn.wo",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.0.attn.wq",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.0.attn.wv",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.0.mlp.down",
+  "N": 2560,
+  "K": 6912,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.0.mlp.gate",
+  "N": 6912,
+  "K": 2560,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.0.mlp.up",
+  "N": 6912,
+  "K": 2560,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.1.attn.gate",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.1.attn.wk",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.1.attn.wo",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.1.attn.wq",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.1.attn.wv",
+  "N": 2560,
+  "K": 2560,
+  "params": 6553600,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.1.mlp.down",
+  "N": 2560,
+  "K": 6912,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.1.mlp.gate",
+  "N": 6912,
+  "K": 2560,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtfusion.refiner_blocks.1.mlp.up",
+  "N": 6912,
+  "K": 2560,
+  "params": 17694720,
+  "base_dtype": "torch.bfloat16",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtmlp.1",
+  "N": 6144,
+  "K": 2560,
+  "params": 15728640,
+  "base_dtype": "torch.float32",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ },
+ {
+  "module": "txtmlp.3",
+  "N": 6144,
+  "K": 6144,
+  "params": 37748736,
+  "base_dtype": "torch.float32",
+  "routing": "fp_keep_current",
+  "relL2": null,
+  "protected_now": true
+ }
+]
