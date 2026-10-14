@@ -685,8 +685,10 @@ class NativeConvRotInt8Quantize:
             model_type=model_type,
         )
 
-        # SD1.5: CLIP(Text Encoder)必須。clipが入力されている場合、cond_stage_model.* としてnew_sdに統合保存
-        clip_keys_added = 0
+        # SD1.5: CLIP(Text Encoder)もConvRot INT8化してnew_sdに統合保存
+        clip_convrot_count = 0
+        clip_plain_count = 0
+        clip_kept_count = 0
         if model_type == "SD1.5" and clip is not None:
             clip_sd = None
             if hasattr(clip, "get_sd") and callable(clip.get_sd):
@@ -695,10 +697,52 @@ class NativeConvRotInt8Quantize:
                 clip_sd = clip.cond_stage_model.state_dict()
 
             if clip_sd:
-                for k, v in clip_sd.items():
+                h_cache = {}
+                for k, tensor in sorted(clip_sd.items()):
                     key = k if k.startswith("cond_stage_model.") else f"cond_stage_model.{k}"
-                    new_sd[key] = v.detach().cpu()
-                    clip_keys_added += 1
+
+                    # Embedding layers (token_embedding, position_embedding) and non-2D/non-float tensors stay float
+                    is_linear_weight = (
+                        key.endswith(".weight")
+                        and tensor.ndim == 2
+                        and "embedding" not in key
+                        and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+                    )
+                    if not is_linear_weight:
+                        new_sd[key] = tensor.detach().cpu()
+                        clip_kept_count += 1
+                        continue
+
+                    w = tensor.float().cpu()
+                    module_key = key[:-len(".weight")]
+                    conf = {"format": "int8_tensorwise"}
+
+                    if convrot:
+                        gs = n8.convrot_group_size_for_features(w.shape[1], group_size)
+                        if gs is not None:
+                            if gs not in h_cache:
+                                h_cache[gs] = n8.build_hadamard(gs, device="cpu")
+                            w_rot = n8.rotate_weight(w, h_cache[gs], gs)
+                            q, scale = n8.quantize_int8_channelwise(w_rot)
+                            conf = {
+                                "format": "int8_tensorwise",
+                                "convrot": True,
+                                "convrot_groupsize": int(gs),
+                            }
+                            clip_convrot_count += 1
+                        else:
+                            q, scale = _plain_pack(w, per_channel_int8, n8)
+                            conf = {"format": "int8_tensorwise"}
+                            clip_plain_count += 1
+                    else:
+                        q, scale = _plain_pack(w, per_channel_int8, n8)
+                        conf = {"format": "int8_tensorwise"}
+                        clip_plain_count += 1
+
+                    new_sd[key] = q
+                    new_sd[f"{module_key}.weight_scale"] = scale
+                    new_sd[f"{module_key}.comfy_quant"] = n8._encode_comfy_quant(conf)
+                    meta_layers[module_key] = dict(conf)
 
         from safetensors.torch import save_file
 
@@ -713,10 +757,11 @@ class NativeConvRotInt8Quantize:
         report = [
             f"Saved: {output_path}",
             _summarize(output_path),
-            f"convrot={bool(convrot)} group_size={group_size} "
+            f"UNet: convrot={bool(convrot)} group_size={group_size} "
             f"linear={stats['linear']} conv2d={stats['conv2d']} "
             f"plain={stats['plain']} kept={stats['kept']}"
-            + (f" clip_keys={clip_keys_added}" if clip_keys_added > 0 else ""),
+            + (f" | CLIP: convrot={clip_convrot_count} plain={clip_plain_count} kept={clip_kept_count}"
+               if (clip_convrot_count + clip_plain_count > 0) else ""),
         ]
 
         if run_benchmark:
