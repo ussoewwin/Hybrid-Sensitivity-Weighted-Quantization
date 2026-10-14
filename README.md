@@ -4,31 +4,31 @@
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity **ConvRot INT8** (SDXL, Krea2, Qwen Image Edit, SD1.5) and **ConvRot NVFP4** (Z Image Turbo) quantization for diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast.
+High-fidelity **ConvRot INT8** (SDXL, Krea2, Qwen Image Edit, SD1.5) and **ConvRot NVFP4** (Z Image Turbo) quantization for diffusion models. HSWQ uses **sensitivity** and **importance** analysis instead of naive uniform cast. SD1.5 ships as **HSWQ V1.0 hybrid**: r32-calibrated FP16 300 MiB protection + FULL ConvRot INT8 (UNet + embedded CLIP).
 
 - **ConvRot INT8 (SDXL, reverse hybrid):** FP16 checkpoint as the only input; a per-layer **trajectory-impact** measurement (`sdxl/diag_impact_sdxl.py`) ranks every candidate layer, then the **K lowest-impact layers** are packed as **FULL ConvRot INT8** while **every other layer stays FP16** (`sdxl/gen_reverse_int8_sdxl.py`). Validated by the **deterministic 25-seed latent-trajectory comparison** (per-step cosine + bifurcation); production gate = **cosine mean ≥ 0.95 and 0/25 bifurcated**. The ranking is measured on the actual sampling trajectory, so it captures the nonlinear error amplification that static weight-space saliency cannot represent. The quantized file does not embed a VAE (`first_stage_model.*` is removed at conversion): load it with a separate SDXL VAE.
-- **ConvRot INT8 (SD1.5):** Checkpoint size is reduced to roughly **850–950 MB** by ConvRot INT8 conversion and automatic removal of the embedded VAE (`first_stage_model.*`). Empirical trajectory measurements revealed that uniform **Native ConvRot INT8 alone is insufficient** across diverse SD1.5 checkpoints, with certain models dropping below the **mean latent trajectory cosine < 0.95** quality threshold. Consequently, **HSWQ sensitivity analysis and hybrid optimization are required** for robust trajectory preservation on SD1.5 (HSWQ SD1.5 pipeline details to be documented). Validated with the deterministic 25-seed latent-trajectory gate (512x512, dpmpp_2m/karras).
+- **ConvRot INT8 (SD1.5, HSWQ hybrid):** **HSWQ V1.0** (`sd1.5/quantize_sd1.5_hswq_v1.0.py`) is the production path: mandatory r32 calibration (32 samples x 25 steps) feeds DualMonitor sensitivity + V4 MSE, which rank a **FP16 protection set under a hard 300 MiB budget**; the remaining UNet Linear/Conv2d layers - and the checkpoint-embedded **CLIP Linear layers** (72) - are packed as **FULL ConvRot INT8**; the embedded VAE (`first_stage_model.*`) is stripped. The loader (`benchmark/sd1.5 int8/comfy_quant_int8.py`) injects the CLIP quantization metadata so the text encoder runs as true INT8. Validated with the deterministic 25-seed latent-trajectory gate (512x512, dpmpp_2m/karras, 25 steps): **mean final-cosine 0.96613, 14/25 same-image, +14.9% vs FP16** (0.5xxmix9realistic_v40+0.5BRA7 reference). A native all-INT8 pack (no protection, no CLIP calibration) measures 0.94760 on the same gate - the 300 MiB protection is what lifts SD1.5 above the 0.95 threshold. Sizes (measured): native all-INT8 ~821 MB; HSWQ pack ~1275 MB (UNet INT8 + 300 MiB FP16 protection + CLIP INT8). Load with a separate SD1.5 VAE.
 - **SDXL ConvRot NVFP4:** **Development cancelled.** Deterministic trajectory-divergence measurements reveal that 4-bit precision (NVFP4) fails to maintain latent trajectory fidelity on SDXL (final latent trajectory cosine fails to reach 0.90, suffering severe trajectory collapse and drift); the legacy decoded SSIM ~0.95 results were masked by VAE decoding rather than true latent preservation. Development has been officially cancelled. SDXL is supported strictly in **ConvRot INT8 (reverse hybrid)** only.
 - **Z Image INT8 (HSWQ):** **Development and public release ended.** For Z Image, **native ConvRot INT8** already reaches roughly **SSIM > 0.99** in general, so a separate HSWQ Z Image 8-bit line is no longer developed or published. Use native ConvRot INT8 for Z Image 8-bit; HSWQ INT8 work continues for **SDXL**.
 - **ConvRot INT8 (Krea2):** Full HSWQ pipeline with structure blacklist protection (`first.`, `last.`, `mod.`, `norm`, `projector`, `txtfusion`, etc.) and data-driven 4-axis composite ranking (`Krea2/hswq_convrot_int8_krea2_v1.5.py`). For checkpoints where native ConvRot INT8 already reaches mean latent trajectory cosine $\ge 0.98$, native ConvRot INT8 is directly recommended.
 - **Krea2 Hybrid ConvRot NVFP4:** **Development cancelled.** 4-bit precision (NVFP4) cannot maintain structural fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity protection, final latent trajectory cosine fails to reach 0.90 (severe trajectory drift and collapse). Development has been officially cancelled. Krea2 is supported strictly in **ConvRot INT8** only.
-- **Z Image Hybrid ConvRot NVFP4:** Built from a complete **native ConvRot INT8** UNet via the **reverse method** — layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid. The number of NVFP4 layers varies per model (search `K`). Calibrated with `input_scale = amax / 2688` and validated by the **deterministic 20-seed latent-trajectory comparison** (per-step cosine + bifurcation): production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** in **TC (W4A4)** mode (reference numbers for one example model are listed in the hybrid NVFP4 how-to). Scripts: `Z_Image/diag_impact.py`, `Z_Image/gen_reverse_nvfp4.py`, `Z_Image/calib_input_scale_nvfp4.py`, `benchmark/zi_convrot_nvfp4_traj_compare.py`.
+- **Z Image Hybrid ConvRot NVFP4:** Built from a complete **native ConvRot INT8** UNet via the **reverse method** - layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid. The number of NVFP4 layers varies per model (search `K`). Calibrated with `input_scale = amax / 2688` and validated by the **deterministic 20-seed latent-trajectory comparison** (per-step cosine + bifurcation): production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** in **TC (W4A4)** mode (reference numbers for one example model are listed in the hybrid NVFP4 how-to). Scripts: `Z_Image/diag_impact.py`, `Z_Image/gen_reverse_nvfp4.py`, `Z_Image/calib_input_scale_nvfp4.py`, `benchmark/zi_convrot_nvfp4_traj_compare.py`.
 
-**Technical details — active**
+**Technical details - active**
 
-- **diag → reverse hybrid (SDXL, v1.1):** [md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md](md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md) — the SDXL V3.1 selector (DualMonitor + V4 weighted-histogram MSE + full SVD, fixed 300 MiB FP16 protection) extended with the reverse step: per-layer ConvRot INT8 impact is measured on the production sampler, the K lowest-impact layers of the remaining pool are converted while every other layer (the protected set included) stays FP16; validated by the deterministic 25-seed latent-trajectory gate.
-- **V5 histogram cosine:** [md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md) — Stage-3 amax search with the same SVD×RMS hybrid importance as V4, but **cosine similarity loss** on the importance-weighted magnitude histogram (not weighted MSE); includes a full MSE↔cosine mathematical comparison for quantization fidelity.
+- **diag → reverse hybrid (SDXL, v1.1):** [md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md](md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md) - the SDXL V3.1 selector (DualMonitor + V4 weighted-histogram MSE + full SVD, fixed 300 MiB FP16 protection) extended with the reverse step: per-layer ConvRot INT8 impact is measured on the production sampler, the K lowest-impact layers of the remaining pool are converted while every other layer (the protected set included) stays FP16; validated by the deterministic 25-seed latent-trajectory gate.
+- **V5 histogram cosine:** [md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md) - Stage-3 amax search with the same SVD×RMS hybrid importance as V4, but **cosine similarity loss** on the importance-weighted magnitude histogram (not weighted MSE); includes a full MSE↔cosine mathematical comparison for quantization fidelity.
 
-**Technical details — development ended (retained as technical assets)**
+**Technical details - development ended (retained as technical assets)**
 
-- **FP8:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) — **FP8 development has ended**; this document is retained as a technical asset.
-- **INT8 FP16-protect / pack overview:** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md) — **development ended**; this document is retained as a technical asset (static FP16-protect / pack path).
+- **FP8:** [md/HSWQ_ Hybrid Sensitivity Weighted Quantization.md](md/HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) - **FP8 development has ended**; this document is retained as a technical asset.
+- **INT8 FP16-protect / pack overview:** [md/HSWQ_INT8_SDXL_Technical_Guide.md](md/HSWQ_INT8_SDXL_Technical_Guide.md) - **development ended**; this document is retained as a technical asset (static FP16-protect / pack path).
 
-**ComfyUI Loader for ConvRot INT8 / INT8:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)  
-**ComfyUI Loader for ConvRot NVFP4:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)  
-**VAE (SDXL ConvRot INT8 packs):** the quantized file does not embed a VAE. The checkpoint-embedded VAE (`first_stage_model.*`) is removed at conversion, so decode with a separate SDXL VAE.  
-**VAE (SD1.5 ConvRot INT8 packs):** the quantized file does not embed a VAE. The checkpoint-embedded VAE (`first_stage_model.*`) is removed at conversion to minimize file size (~850–950 MB), so decode with a separate SD1.5 VAE.  
-**Quantized ControlNet Models (Hugging Face):** [ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8) — Pre-quantized ConvRot INT8 weights for Illustrious-XL, SDXL 1.0, Qwen-Image, and FLUX.1-dev ControlNet Union models.
+**ComfyUI Loader for ConvRot INT8 / INT8:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
+**ComfyUI Loader for ConvRot NVFP4:** To use these models in ComfyUI, please use this custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
+**VAE (SDXL ConvRot INT8 packs):** the quantized file does not embed a VAE. The checkpoint-embedded VAE (`first_stage_model.*`) is removed at conversion, so decode with a separate SDXL VAE.
+**VAE (SD1.5 ConvRot INT8 packs):** the quantized file does not embed a VAE. The checkpoint-embedded VAE (`first_stage_model.*`) is removed at conversion (native all-INT8 pack ~821 MB; HSWQ pack ~1275 MB with 300 MiB FP16 protection + CLIP INT8), so decode with a separate SD1.5 VAE.
+**Quantized ControlNet Models (Hugging Face):** [ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8) - Pre-quantized ConvRot INT8 weights for Illustrious-XL, SDXL 1.0, Qwen-Image, and FLUX.1-dev ControlNet Union models.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/logo.png" width="400">
@@ -55,12 +55,12 @@ pip install diffusers accelerate scikit-image
 > **ComfyUI Node Integration:** Progressive support for direct in-graph quantization inside ComfyUI via custom nodes (`comfyui_nodes/`) is currently underway. Support is already available for **native ConvRot INT8** (`Native ConvRot INT8 Quantize`), and additional model architectures / quantization formats will be rolled out sequentially.
 
 - **SDXL (ConvRot INT8, reverse hybrid):** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md) - FP16 checkpoint in, per-layer trajectory-impact ranking, K lowest-impact layers to ConvRot INT8 and everything else kept at FP16 (reverse method); validated with the deterministic **25-seed** latent-trajectory comparison (cosine mean >= 0.95, 0/25 bifurcated).
-- **SD1.5 (ConvRot INT8):** [How to quantize SD1.5](md/How%20to%20quantize%20SD1.5.md) — CLI (`sd1.5/native_convert_int8_sd1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "SD1.5"`) quantization guide; details the necessity of HSWQ hybrid optimization over uniform Native INT8 (which drops below cosine 0.95 on certain checkpoints), embedded VAE stripping (~850–950 MB), and the 25-seed deterministic trajectory comparison.
-- **Krea2 (ConvRot INT8):** [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md) — CLI (`Krea2/hswq_convrot_int8_krea2_v1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Krea2"`) quantization guide; for checkpoints with mean cosine ≥ 0.98, native ConvRot INT8 is directly recommended. (Note: Krea2 4-bit / Hybrid NVFP4 development has been cancelled; Krea2 supports ConvRot INT8 only.)
-- **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) — CLI and ComfyUI custom node (`Native ConvRot INT8 Quantize`) quantization guide. HSWQ-specific Z Image development has **ended**; this How-to introduces the **general** ConvRot INT8 quantization method.
-- **Z Image (Hybrid NVFP4, reverse method):** [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md) — build a hybrid NVFP4 model from native ConvRot INT8 by converting the lowest-impact layers first (reverse method), calibrate `input_scale` for Tensor-Core W4A4, and validate with the deterministic 20-seed trajectory comparison (cosine mean ≥ 0.95, 0/20 bifurcated)..
-- **Qwen Image Edit (native ConvRot INT8):** [How to quantize Qwen Image Edit](md/How%20to%20quantize%20Qwen%20Image%20Edit.md) — CLI (`Qwen Image/native_convert_int8_convrot_qwen.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Qwen Image Edit"`) quantization guide; post-convert benchmark is latent-space trajectory divergence (per-step cosine + bifurcation detection).
-- **Text Encoder, ControlNet & SAM 3 / 3.1 (native ConvRot INT8):** [How to quantize Text Encoder, ControlNet and SAM 3 / 3.1](md/How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md) — ComfyUI custom node (`TE / ControlNet ConvRot INT8 Quantize`, `HSWQ SAM3 Loader`) in-graph quantization guide for Text Encoders (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL), ControlNet / ControlNet Union / Model Patch models, and Segment Anything foundation models (SAM 3 / SAM 3.1 Multiplex).
+- **SD1.5 (ConvRot INT8, HSWQ hybrid):** [How to quantize SD1.5](md/How%20to%20quantize%20SD1.5.md) - HSWQ V1.0 quantizer (`sd1.5/quantize_sd1.5_hswq_v1.0.py`): mandated distribution analysis -> r32 calibration -> V4 MSE -> FP16 300 MiB protection -> ConvRot INT8 on the remainder **including the embedded CLIP** -> automatic 25-seed trajectory bench (INT8 CLIP conditioning, CUDA-graph executor). Also covers the native CLI/node baseline and the CLIP INT8 loader mechanics.
+- **Krea2 (ConvRot INT8):** [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md) - CLI (`Krea2/hswq_convrot_int8_krea2_v1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Krea2"`) quantization guide; for checkpoints with mean cosine ≥ 0.98, native ConvRot INT8 is directly recommended. (Note: Krea2 4-bit / Hybrid NVFP4 development has been cancelled; Krea2 supports ConvRot INT8 only.)
+- **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) - CLI and ComfyUI custom node (`Native ConvRot INT8 Quantize`) quantization guide. HSWQ-specific Z Image development has **ended**; this How-to introduces the **general** ConvRot INT8 quantization method.
+- **Z Image (Hybrid NVFP4, reverse method):** [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md) - build a hybrid NVFP4 model from native ConvRot INT8 by converting the lowest-impact layers first (reverse method), calibrate `input_scale` for Tensor-Core W4A4, and validate with the deterministic 20-seed trajectory comparison (cosine mean ≥ 0.95, 0/20 bifurcated)..
+- **Qwen Image Edit (native ConvRot INT8):** [How to quantize Qwen Image Edit](md/How%20to%20quantize%20Qwen%20Image%20Edit.md) - CLI (`Qwen Image/native_convert_int8_convrot_qwen.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Qwen Image Edit"`) quantization guide; post-convert benchmark is latent-space trajectory divergence (per-step cosine + bifurcation detection).
+- **Text Encoder, ControlNet & SAM 3 / 3.1 (native ConvRot INT8):** [How to quantize Text Encoder, ControlNet and SAM 3 / 3.1](md/How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md) - ComfyUI custom node (`TE / ControlNet ConvRot INT8 Quantize`, `HSWQ SAM3 Loader`) in-graph quantization guide for Text Encoders (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL), ControlNet / ControlNet Union / Model Patch models, and Segment Anything foundation models (SAM 3 / SAM 3.1 Multiplex).
 
 **Benchmark results:**
 - **SDXL (ConvRot INT8):** [trajectory (25 seeds)](benchmark%20result/benchmark_sdxl_int8.md)
@@ -74,11 +74,11 @@ pip install diffusers accelerate scikit-image
 | Feature | ConvRot INT8 (SDXL, Krea2, SD1.5) | Z Image Hybrid ConvRot NVFP4 |
 | :--- | :--- | :--- |
 | **Compatibility** | ComfyUI `int8_tensorwise` / QUANT_ALGOS compatible | ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4` compatible |
-| **File format** | INT8 weights + scale (`int8_tensorwise`) on eligible layers; high-impact / structural layers stay FP16 / BF16 (SD1.5: 100% INT8 unet, embedded VAE stripped) | Hybrid: lowest-impact layers → **NVFP4**, remaining layers stay **ConvRot INT8**; built from complete native ConvRot INT8 UNet |
+| **File format** | INT8 weights + scale (`int8_tensorwise`) on eligible layers; high-impact / structural layers stay FP16 / BF16 (SD1.5: FP16 protection set under a 300 MiB budget, embedded VAE stripped, embedded CLIP ConvRot INT8) | Hybrid: lowest-impact layers → **NVFP4**, remaining layers stay **ConvRot INT8**; built from complete native ConvRot INT8 UNet |
 | **Image quality** | Validated on latent trajectory gate (no VAE-masked degradation) | trajectory cosine **0.96-0.97** (mean, 20 seeds) |
-| **Mechanism** | **SDXL:** Reverse hybrid — per-layer **trajectory-impact** ranking on FP16 baseline; K lowest-impact layers → FULL ConvRot INT8, rest FP16<br>**Krea2:** Structure blacklist protection (`first.`, `last.`, `mod.`, `norm`, etc.) + 4-axis composite ranking (or native ConvRot INT8)<br>**SD1.5:** Native ConvRot INT8 (Linear+Conv2d) + automatic embedded VAE removal (no hybrid needed) | **Reverse method**: start from ConvRot INT8 (error ≈ 0), convert layers to NVFP4 in ascending per-layer impact order |
-| **Keep ratio** | N/A (layer count `K` varies per model for SDXL; structure + sensitivity retention for Krea2; pure native for SD1.5) | N/A (layer count varies per model, e.g. nv60-nv110) |
-| **Benchmark** | **Deterministic 25-seed latent trajectory**:<br>• **SDXL:** cosine mean $\ge 0.95$ and 0/25 bifurcated<br>• **Krea2:** cosine mean $\ge 0.98$ and 0/25 bifurcated<br>• **SD1.5:** cosine mean $\ge 0.96$ (~0.97) and 0/25 bifurcated | Deterministic 20-seed latent trajectory (cosine mean $\ge 0.95$, 0/20 bifurcated) |
+| **Mechanism** | **SDXL:** Reverse hybrid - per-layer **trajectory-impact** ranking on FP16 baseline; K lowest-impact layers → FULL ConvRot INT8, rest FP16<br>**Krea2:** Structure blacklist protection (`first.`, `last.`, `mod.`, `norm`, etc.) + 4-axis composite ranking (or native ConvRot INT8)<br>**SD1.5:** HSWQ hybrid - r32 calibration -> DualMonitor + V4 ranking -> FP16 300 MiB protection -> ConvRot INT8 on the remainder (incl. embedded CLIP) + automatic embedded VAE removal | **Reverse method**: start from ConvRot INT8 (error ≈ 0), convert layers to NVFP4 in ascending per-layer impact order |
+| **Keep ratio** | N/A (layer count `K` varies per model for SDXL; structure + sensitivity retention for Krea2; FP16 300 MiB budget for SD1.5) | N/A (layer count varies per model, e.g. nv60-nv110) |
+| **Benchmark** | **Deterministic 25-seed latent trajectory**:<br>• **SDXL:** cosine mean $\ge 0.95$ and 0/25 bifurcated<br>• **Krea2:** cosine mean $\ge 0.98$ and 0/25 bifurcated<br>• **SD1.5:** cosine mean $\ge 0.96$ (measured 0.96613 with INT8 CLIP conditioning) and 0/25 bifurcated | Deterministic 20-seed latent trajectory (cosine mean $\ge 0.95$, 0/20 bifurcated) |
 | **Use case** | SDXL, Krea2 & SD1.5 ConvRot INT8 distribution / native ComfyUI load | Z Image Turbo Hybrid NVFP4 distribution / native ComfyUI load |
 
 **Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL & Krea2 path.
@@ -87,7 +87,7 @@ pip install diffusers accelerate scikit-image
 
 **Note (Krea2 4-bit / NVFP4):** Krea2 Hybrid ConvRot NVFP4 development has been **cancelled**. 4-bit precision (NVFP4) cannot maintain acceptable fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, the final latent trajectory cosine fails to reach 0.90. Krea2 is supported strictly in **ConvRot INT8** only.
 
-**Validation (Z Image Hybrid NVFP4):** production gate is the **deterministic 20-seed latent-trajectory comparison** — per-step cosine with a bifurcation detector; pass = **mean ≥ 0.95 and 0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration.
+**Validation (Z Image Hybrid NVFP4):** production gate is the **deterministic 20-seed latent-trajectory comparison** - per-step cosine with a bifurcation detector; pass = **mean ≥ 0.95 and 0/20 bifurcated**, measured in **TC (W4A4)** mode after `input_scale` calibration.
 
 File size is reduced by about **29-40%** vs FP16 while keeping best quality per use case.
 
@@ -95,20 +95,20 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 
 ## Architecture
 
-1. **Dual Monitor System** — During calibration, two metrics are collected:
+1. **Dual Monitor System** - During calibration, two metrics are collected:
    - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ. (Note: SDXL ConvRot NVFP4 development has been cancelled; SDXL uses the reverse hybrid path below). The **ConvRot INT8 (SDXL) reverse hybrid** does not use this static path: its FP16 set is the complement of the K lowest-impact layers measured directly on the sampling trajectory.
    - **Importance:** V1 uses per-channel input mean-abs; V4 uses per-element SVD leverage × RMS magnitude hybrid → weights of the weighted histogram.
-   **Technical details:** [Dual Monitor System — Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
+   **Technical details:** [Dual Monitor System - Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
 2. **Rigorous grid / pack simulation**
    - **ConvRot INT8 (SDXL reverse hybrid):** each candidate layer's ConvRot INT8 reconstruction is injected on the FP16 baseline and propagated through the production sampler; the resulting trajectory drift ranks the layers. The K lowest-impact layers are packed (`rotate → per-channel INT8`); the rest stay FP16.
-   - **ConvRot NVFP4 (SDXL — cancelled):** legacy absmax pack point for Linear→NVFP4 and Conv2d→INT8; V4 pack-MSE ranked FP16 protection under the **600 MiB** budget. Cancelled in favor of the ConvRot INT8 reverse hybrid.
+   - **ConvRot NVFP4 (SDXL - cancelled):** legacy absmax pack point for Linear→NVFP4 and Conv2d→INT8; V4 pack-MSE ranked FP16 protection under the **600 MiB** budget. Cancelled in favor of the ConvRot INT8 reverse hybrid.
 
-3. **Weighted Histogram Optimization** — Finds parameters that minimize quantization error using an importance-weighted histogram (not a plain frequency histogram).
-   - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram. **Technical details:** [Weighted Histogram MSE — Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
-   - **V4 (SVD × RMS hybrid, MSE):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers (retained as technical asset). **Technical details:** [HSWQ V4 SVD-RMS — Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
-   - **V5 (SVD × RMS hybrid, cosine):** same hybrid importance family as V4; Stage-3 objective is **importance-weighted cosine loss** \(L=1-\langle x,q\rangle_H/(\|x\|_H\|q\|_H)\) against the physical FP8 E4M3 quantize–dequantize map (scale-invariant angular fidelity; reduces absolute-tail blackmail of \(\Delta^*\)). Source: `histogram/weighted_histogram_cosine_v5.py`. **Technical details:** [HSWQ V5 SVD-RMS Cosine — Technical Guide](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md).
-4. **Trajectory-Sensitivity Impact Ranking** — Ranks each layer by the divergence its
+3. **Weighted Histogram Optimization** - Finds parameters that minimize quantization error using an importance-weighted histogram (not a plain frequency histogram).
+   - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram. **Technical details:** [Weighted Histogram MSE - Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
+   - **V4 (SVD × RMS hybrid, MSE):** per-element importance blends **SVD structural leverage** \(L(i,j)=(U_i\cdot\sigma)^2\cdot(V_j)^2\) with **RMS magnitude**; \(\alpha\) tilts toward SVD on heavy-tailed layers (retained as technical asset). **Technical details:** [HSWQ V4 SVD-RMS - Technical Guide](md/HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md).
+   - **V5 (SVD × RMS hybrid, cosine):** same hybrid importance family as V4; Stage-3 objective is **importance-weighted cosine loss** \(L=1-\langle x,q\rangle_H/(\|x\|_H\|q\|_H)\) against the physical FP8 E4M3 quantize-dequantize map (scale-invariant angular fidelity; reduces absolute-tail blackmail of \(\Delta^*\)). Source: `histogram/weighted_histogram_cosine_v5.py`. **Technical details:** [HSWQ V5 SVD-RMS Cosine - Technical Guide](md/HSWQ_V5_Hybrid_SVD_RMS_Cosine_Technical_Guide.md).
+4. **Trajectory-Sensitivity Impact Ranking** - Ranks each layer by the divergence its
    quantization error actually causes after propagating through the full model and sampler
    (dynamical importance, replacing static weight-space saliency).
    - **Reverse method (SDXL ConvRot INT8):** the FP16 checkpoint is the only input; each candidate
@@ -119,11 +119,11 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
      (error ≈ 0) and convert layers to NVFP4 in ascending impact order; single-layer ranking stays
      valid in the low-error additivity regime.
    - **Universal theory:** error interaction (Taylor cross terms, error cancellation), nonlinear
-     amplification (Lyapunov-style growth), marginal effects, and Shapley-style attribution —
+     amplification (Lyapunov-style growth), marginal effects, and Shapley-style attribution -
      why per-layer static measures (histogram MSE / cosine / SVD) cannot predict joint quantization
      error; applies to any iterative sampling system, not a specific model. Sources:
      `sdxl/diag_impact_sdxl.py` (SDXL), `Z_Image/diag_impact.py` (Z Image). **Technical details:**
-     [Trajectory-Sensitivity Impact Ranking —
+     [Trajectory-Sensitivity Impact Ranking -
      Technical Guide](md/diag_impact_trajectory_sensitivity_technical_guide.md).
 
 ---
@@ -133,8 +133,8 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 ### ConvRot INT8 (SDXL, reverse hybrid)
 
 - **Scripts:** `sdxl/diag_impact_sdxl.py` (per-layer trajectory impact), `sdxl/gen_reverse_int8_sdxl.py` (reverse hybrid conversion).
-- **Input:** the FP16 SDXL checkpoint **only** — no other artifact is consulted. Every ConvRot-eligible Linear/Conv2d in it is a candidate (788 on the reference checkpoint, after excluding the boundary layers `input_blocks.0.0` / `out.*` / `time_embed.*` / `add_embedding.*` / `label_emb.*`).
-- **Step 1 (impact):** inject one layer at a time with its ConvRot INT8 reconstruction (`dequant(per-channel INT8(quantize(W @ H^T)))`, no inverse rotation) and run the **production sampler** (`comfy.sample.sample`, dpmpp_2m / karras / cfg 7.0 / fixed seed) — the same trajectory the quality gate uses; record the final-latent drift (relative MSE).
+- **Input:** the FP16 SDXL checkpoint **only** - no other artifact is consulted. Every ConvRot-eligible Linear/Conv2d in it is a candidate (788 on the reference checkpoint, after excluding the boundary layers `input_blocks.0.0` / `out.*` / `time_embed.*` / `add_embedding.*` / `label_emb.*`).
+- **Step 1 (impact):** inject one layer at a time with its ConvRot INT8 reconstruction (`dequant(per-channel INT8(quantize(W @ H^T)))`, no inverse rotation) and run the **production sampler** (`comfy.sample.sample`, dpmpp_2m / karras / cfg 7.0 / fixed seed) - the same trajectory the quality gate uses; record the final-latent drift (relative MSE).
 - **Step 2 (conversion):** pack the **K lowest-impact layers** as **FULL ConvRot INT8** (rotate → per-channel INT8; format tag `int8_tensorwise`, stamp `convrot:true`) and leave **every other layer untouched at FP16**.
 - **Format:** `.weight` I8 + `.weight_scale` F32 + `.comfy_quant`; ComfyUI mixed-precision ops arm the INT8 layers per layer marker.
 - **Size:** FP16 base 6.94 GB → reverse hybrid pack ≈ 4.8-5.0 GB (measured on the published packs; reference `waiIllustriousSDXL_v170` at K = 597 = 4.92 GB; ≈ 3.1 MB saved per converted layer).
@@ -154,7 +154,7 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 
 - **Scripts:** `Z_Image/diag_impact.py` (per-layer trajectory impact), `Z_Image/gen_reverse_nvfp4.py` (reverse hybrid conversion), `Z_Image/calib_input_scale_nvfp4.py` (TC `input_scale` calibration), `benchmark/zi_convrot_nvfp4_traj_compare.py` (validation).
 - **Prerequisite:** A complete **native ConvRot INT8** UNet created by `Z_Image/native_convert_int8_convrot_zi.py`.
-- **Method:** **Reverse method** — start from the complete ConvRot INT8 model (error ≈ 0) and convert layers to NVFP4 in **ascending order of per-layer impact** (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid.
+- **Method:** **Reverse method** - start from the complete ConvRot INT8 model (error ≈ 0) and convert layers to NVFP4 in **ascending order of per-layer impact** (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid.
 - **TC / W4A4:** enabled only after calibration writes `*.input_scale` (`amax / 2688`); forcing TC on an uncalibrated checkpoint collapses quality (cosine ~0.18). Auto-detect uses parity (W4A16) without `input_scale`; `--tc` / `--parity` / `HSWQ_ZI_FORCE_TC` / `HSWQ_ZI_FORCE_PARITY` override.
 - **Loader / format:** ComfyUI Load Diffusion Model / QUANT_ALGOS `nvfp4`; standard ComfyUI NVFP4 pack format (Linear NVFP4 + Conv2d INT8).
 - **Validation:** deterministic 20-seed x 12-step latent-trajectory comparison; production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** (per-checkpoint numbers; reference example in the hybrid NVFP4 how-to).
@@ -164,8 +164,8 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 
 ## Recommended Parameters
 
-- **Samples:** 32 (recommended) — number of calibration samples (**same for FP8 and ConvRot INT8**).
-- **Steps:** 25 — number of inference steps per sample during calibration (**same for FP8 and ConvRot INT8**).
+- **Samples:** 32 (recommended) - number of calibration samples (**same for FP8 and ConvRot INT8**).
+- **Steps:** 25 - number of inference steps per sample during calibration (**same for FP8 and ConvRot INT8**).
 - **ConvRot group size (SDXL reverse hybrid):** power of 4 (default 256 from the script CLI; drops to the largest power-of-4 divisor per layer).
 - **Trajectory steps (SDXL reverse hybrid gate):** 25 steps x 25 random seeds (same as the validation benchmark).
 
@@ -196,4 +196,4 @@ This project is built upon the following repositories:
 
 | Repository | In-repo path | Upstream |
 | :--- | :--- | :--- |
-| **[ComfyUI](https://github.com/Comfy-Org/ComfyUI)** | `ComfyUI-master/` | [@Comfy-Org](https://github.com/Comfy-Org) — The most powerful and modular diffusion model GUI, API and backend with a graph/nodes interface. |
+| **[ComfyUI](https://github.com/Comfy-Org/ComfyUI)** | `ComfyUI-master/` | [@Comfy-Org](https://github.com/Comfy-Org) - The most powerful and modular diffusion model GUI, API and backend with a graph/nodes interface. |
