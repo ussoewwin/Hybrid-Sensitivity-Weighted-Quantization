@@ -427,7 +427,7 @@ def apply_sage2_attention() -> None:
             if mask.ndim == 3:
                 mask = mask.unsqueeze(1)
 
-        use_fallback = (mask is not None) or (dim_head > 256)
+        use_fallback = (mask is not None) or (dim_head not in (64, 128))
         _SAGE2_STATS["calls"] += 1
         torch.cuda.synchronize()
         if use_fallback:
