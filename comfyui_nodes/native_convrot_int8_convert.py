@@ -648,6 +648,7 @@ class NativeConvRotInt8Quantize:
         run_benchmark,
         vae=None,
     ):
+        import torch
         n8 = _load_native_int8()
 
         group_size = int(group_size)
