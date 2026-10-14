@@ -1,6 +1,6 @@
-# How to quantize SD1.5 (Native ConvRot INT8)
+# How to quantize SD1.5 (ConvRot INT8)
 
-Quantize **Stable Diffusion 1.5 (SD1.5)** checkpoints to **Native ConvRot INT8** via CLI (`sd1.5/native_convert_int8_sd1.5.py`) or directly in ComfyUI using the dedicated custom node **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/`, `model_type = "SD1.5"`).
+Quantize **Stable Diffusion 1.5 (SD1.5)** checkpoints to **ConvRot INT8** via CLI (`sd1.5/native_convert_int8_sd1.5.py`) or directly in ComfyUI using the dedicated custom node **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/`, `model_type = "SD1.5"`).
 
 <p align="center">
   <img src="../png/sd1.5.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow for SD1.5" width="800">
@@ -8,15 +8,17 @@ Quantize **Stable Diffusion 1.5 (SD1.5)** checkpoints to **Native ConvRot INT8**
 
 ---
 
-## Architectural Rationale: Native ConvRot INT8 Only
+## Architectural Rationale: Why HSWQ is Required for SD1.5
 
-For SD1.5 models, **Native ConvRot INT8 is the only supported and recommended quantization mode**. HSWQ hybrid precision (retaining selected sensitive layers in FP16) is deliberately omitted for the following reasons:
+While SD1.5 has a relatively compact UNet architecture, comprehensive trajectory evaluations demonstrated that **uniform Native ConvRot INT8 alone is insufficient**. Rigorous deterministic 25-seed latent trajectory benchmarking showed that certain SD1.5 fine-tunes and merged checkpoints suffer non-negligible error amplification, causing the final latent trajectory cosine similarity to drop **below the 0.95 quality threshold** (`cosine < 0.95`).
 
-1. **Model Payload & Size Economy:**
-   Standard SD1.5 checkpoints occupy approximately **1.9 GB** in FP16. Full INT8 quantization halves the UNet down to roughly **850–950 MB** (after removing the embedded VAE). Applying FP16 sensitivity protection to even a handful of ResBlock/Attention layers adds 200–350 MB back to the payload, completely defeating the primary purpose of quantizing a lightweight model.
-2. **Diminishing Returns on Trajectory Fidelity:**
-   Empirical measurements on SD1.5 show that FP16 protection yields negligible improvements in latent trajectory alignment. Native ConvRot INT8 alone routinely achieves **mean latent trajectory cosine similarity $\ge 0.97$**, rendering hybrid FP16 retention redundant.
-3. **Embedded VAE Removal:**
+1. **The Limits of Uniform Native INT8:**
+   Uniformly quantizing all Linear and Conv2d layers without sensitivity awareness risks degrading critical structural and attention projections. In checkpoints with sharp weight distributions or delicate fine-tuned representations, uniform INT8 quantization causes latent drift and fails the strict deterministic trajectory production gate ($\ge 0.95$).
+2. **Necessity of HSWQ Sensitivity & Hybrid Optimization:**
+   To guarantee production-grade fidelity across all SD1.5 checkpoints, **HSWQ sensitivity analysis and hybrid optimization are necessary** to identify and protect the most vulnerable layers while keeping the majority of the network in ConvRot INT8. (Comprehensive HSWQ SD1.5 pipeline specifications, impact diagnosis, and hybrid conversion procedures will be detailed in a forthcoming update).
+3. **Model Payload & Size Economy:**
+   Standard SD1.5 checkpoints occupy approximately **1.9 GB** in FP16. Converting the model to ConvRot INT8 halves the payload down to roughly **850–950 MB** (after removing the embedded VAE).
+4. **Embedded VAE Removal:**
    Standard SD1.5 checkpoints bundle the VAE (`first_stage_model.*`), consuming 160–330 MB of redundant storage. The quantization process **automatically strips the embedded VAE** from the output checkpoint to maximize compression. At inference time, connect an external SD1.5 VAE (e.g., `vae-ft-mse-840000-ema-pruned.safetensors`).
 
 ---
@@ -94,7 +96,7 @@ python sd1.5/native_convert_int8_sd1.5.py \
 - **`--groupsize`:** Hadamard group size (power of 4, default: `256`). Adaptive power-of-4 divisors (gs256, gs64, gs4) are selected based on input feature dimension.
 - **`--per_channel_int8`:** Per-out-channel scale packaging (`int8_tensorwise`).
 - **`--bias_correction`:** (Optional) Enables Card 1 activation-mean bias correction (`bias += -(W_q - W) @ mu_x`). Requires `--calib_file <prompts.txt>`.
-- **`--fp_keep_layers`:** (Optional, default `0`) Keeps top-N layers in original FP16 based on static requant error ranking. Recommended to leave at `0` for pure native INT8.
+- **`--fp_keep_layers`:** (Optional, default `0`) Keeps top-N layers in original FP16 based on static requant error ranking.
 
 ---
 
