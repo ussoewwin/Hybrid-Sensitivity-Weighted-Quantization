@@ -712,8 +712,9 @@ class NativeConvRotInt8Quantize:
                     seeds = [random.randint(1, 10000000) for _ in range(num_seeds)]
 
                 device = mm.intermediate_device()
+                latent_dtype = mm.intermediate_dtype() if is_sd15 else torch.float32
                 latent_base = torch.zeros(
-                    [1, latent_channels, height // 8, width // 8], device=device
+                    [1, latent_channels, height // 8, width // 8], device=device, dtype=latent_dtype
                 )
                 latent_base = comfy_sample.fix_empty_latent_channels(model, latent_base)
 
@@ -741,6 +742,8 @@ class NativeConvRotInt8Quantize:
                         force_full_denoise=force_full_denoise, noise_mask=None,
                         callback=cb, disable_pbar=True, seed=s,
                     )
+                    if is_sd15 and torch.isnan(out).any():
+                        print(f"  [BENCH-NAN] Seed {s} sample output contains NaN! (model={type(m.model).__name__})", flush=True)
                     return out, xs, x0s
 
                 # 1. FP16 baseline inference for all seeds
@@ -779,6 +782,8 @@ class NativeConvRotInt8Quantize:
                 if benchmark_attention:
                     if is_sd15:
                         sd15_bench = _load_sd15_bench()
+                        if hasattr(sd15_bench, "reset_sage2_attn_stats"):
+                            sd15_bench.reset_sage2_attn_stats()
                         sd15_bench.apply_sage2_attention()
                     else:
                         _reset_bench_sage2_stats()
@@ -800,6 +805,8 @@ class NativeConvRotInt8Quantize:
                     if is_sd15:
                         sd15_bench = _load_sd15_bench()
                         sd15_bench.unset_sage2_attention()
+                        if hasattr(sd15_bench, "print_sage2_attn_stats"):
+                            sd15_bench.print_sage2_attn_stats()
                     else:
                         _unset_bench_sage2_attention()
 
@@ -826,6 +833,8 @@ class NativeConvRotInt8Quantize:
                 for i, s in enumerate(seeds):
                     a = lat_fp16_list[i].reshape(-1)
                     b = lat_int8_list[i].reshape(-1)
+                    if is_sd15 and (torch.isnan(a).any() or torch.isnan(b).any()):
+                        print(f"  [BENCH-NAN] Seed {s}: FP16 NaN={torch.isnan(a).any().item()}, INT8 NaN={torch.isnan(b).any().item()}", flush=True)
                     mse_val = _mse(a, b)
                     cos_val = _cos(a, b)
                     mse_list.append(mse_val)
@@ -896,6 +905,11 @@ class NativeConvRotInt8Quantize:
                 if _BENCH_SAGE2_STATS["armed"]:
                     try:
                         _unset_bench_sage2_attention()
+                    except Exception:
+                        pass
+                if is_sd15 and 'sd15_bench' in locals():
+                    try:
+                        sd15_bench.unset_sage2_attention()
                     except Exception:
                         pass
 
