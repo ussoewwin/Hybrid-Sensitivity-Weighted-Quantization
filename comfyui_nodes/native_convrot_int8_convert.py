@@ -393,6 +393,24 @@ _SDXL_TRAJ_SEEDS = (
 )
 
 
+def _load_sd15_bench():
+    """Load benchmark/sd1.5_int8_traj_compare.py dynamically via spec-from-path."""
+    import importlib.util
+    bench_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "benchmark")
+    path = os.path.join(bench_dir, "sd1.5_int8_traj_compare.py")
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"SD1.5 bench script not found: {path}")
+    if "sd15_int8_traj_compare" in sys.modules:
+        return sys.modules["sd15_int8_traj_compare"]
+    spec = importlib.util.spec_from_file_location("sd15_int8_traj_compare", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load module spec for {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["sd15_int8_traj_compare"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _apply_bench_sage2_attention() -> None:
     """Arm SageAttention2 for the benchmark's quantized-model run only.
 
@@ -411,6 +429,21 @@ def _apply_bench_sage2_attention() -> None:
 
     def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
                         skip_reshape=False, skip_output_reshape=False, **kw):
+        def _unwrap(t):
+            if hasattr(t, "take"):
+                return t.take()
+            if hasattr(t, "peek"):
+                return t.peek()
+            if hasattr(t, "tensor"):
+                return t.tensor
+            return t
+
+        q = _unwrap(q)
+        k = _unwrap(k)
+        v = _unwrap(v)
+        if mask is not None:
+            mask = _unwrap(mask)
+
         in_dtype = v.dtype
         if q.dtype == torch.float32 or k.dtype == torch.float32 or v.dtype == torch.float32:
             q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
@@ -421,9 +454,21 @@ def _apply_bench_sage2_attention() -> None:
         else:
             b, n_q, _ = q.shape
             dim_head = q.shape[-1] // heads
-            qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
-            kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
-            vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
+            if hasattr(comfy_attention, "_reshape_qkv_to_heads"):
+                qh, kh, vh = comfy_attention._reshape_qkv_to_heads(
+                    q, k, v, b, heads, dim_head, kw.get("enable_gqa", False), expand_kv=False
+                )
+                qh, kh, vh = map(lambda t: t.transpose(1, 2), (qh, kh, vh))
+            else:
+                qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
+                kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
+                vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
+
+        if mask is not None:
+            if mask.ndim == 2:
+                mask = mask.unsqueeze(0)
+            if mask.ndim == 3:
+                mask = mask.unsqueeze(1)
 
         use_fallback = (mask is not None) or (dim_head > 256)
         _BENCH_SAGE2_STATS["calls"] += 1
@@ -455,9 +500,10 @@ def _apply_bench_sage2_attention() -> None:
             out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
         return out.to(in_dtype)
 
-    comfy_attention.optimized_attention_masked = attention_sage2
+    wrapped_sage2 = comfy_attention.wrap_attn(attention_sage2) if hasattr(comfy_attention, "wrap_attn") else attention_sage2
+    comfy_attention.optimized_attention_masked = wrapped_sage2
     if hasattr(comfy_attention, "optimized_attention"):
-        comfy_attention.optimized_attention = attention_sage2
+        comfy_attention.optimized_attention = wrapped_sage2
     # Model modules bind optimized_attention_masked at import time via
     # from-imports, so each architecture module must be patched individually.
     # Z Image -> comfy.ldm.lumina.model, Qwen Image Edit -> comfy.ldm.qwen_image.model,
@@ -467,7 +513,7 @@ def _apply_bench_sage2_attention() -> None:
             import importlib as _il
             _mod = _il.import_module(mod_name)
             if hasattr(_mod, "optimized_attention_masked"):
-                _mod.optimized_attention_masked = attention_sage2
+                _mod.optimized_attention_masked = wrapped_sage2
         except Exception:
             pass
     _BENCH_SAGE2_STATS["armed"] = True
@@ -683,7 +729,7 @@ class NativeConvRotInt8Quantize:
                     scheduler = "karras"
                     latent_channels = 4
                     width, height = 512, 512
-                    seeds = [random.randint(1, 10000000) for _ in range(num_seeds)]
+                    seeds = list(_SDXL_TRAJ_SEEDS)
                 else:
                     seeds = [random.randint(1, 10000000) for _ in range(num_seeds)]
 
@@ -740,7 +786,14 @@ class NativeConvRotInt8Quantize:
 
                 # 2. Load INT8 model
                 t0 = time.perf_counter()
-                model_int8 = comfy.sd.load_diffusion_model(output_path, {})
+                if is_sd15:
+                    sd15_bench = _load_sd15_bench()
+                    sd15_bench.apply_int8_patches()
+                    cq_int8 = sd15_bench._load_int8_patch_module()
+                    with cq_int8._int8_quant_conv_scope():
+                        model_int8 = comfy.sd.load_diffusion_model(output_path, {})
+                else:
+                    model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                 load_int8 = time.perf_counter() - t0
 
                 # 3. INT8 inference for all seeds (sage2 arms SA2 for this branch only;
