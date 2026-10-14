@@ -298,13 +298,13 @@ def _load_int8_patch_module():
     path = os.path.join(_BENCH_DIR, "sd1.5 int8", "comfy_quant_int8.py")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"INT8 patch module not found: {path}")
-    if _PATCH_MOD_NAME in sys.modules:
-        return sys.modules[_PATCH_MOD_NAME]
     spec = importlib.util.spec_from_file_location(_PATCH_MOD_NAME, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load module spec for {path}")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[_PATCH_MOD_NAME] = mod
+    mod = sys.modules.get(_PATCH_MOD_NAME)
+    if mod is None:
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[_PATCH_MOD_NAME] = mod
     spec.loader.exec_module(mod)
     return mod
 
