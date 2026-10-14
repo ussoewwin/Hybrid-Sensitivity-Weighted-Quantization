@@ -829,7 +829,9 @@ class NativeConvRotInt8Quantize:
                 def _mse(a, b):
                     return float((a.float() - b.float()).pow(2).mean().item())
 
-                def _sample(m, s):
+                def _sample(m, s, pos=None, neg=None):
+                    p = positive if pos is None else pos
+                    n = negative if neg is None else neg
                     lat = latent_base.clone()
                     noise = comfy_sample.prepare_noise(lat, s, None)
                     xs, x0s = [], []
@@ -840,7 +842,7 @@ class NativeConvRotInt8Quantize:
 
                     out = comfy_sample.sample(
                         m, noise, steps, cfg, sampler_name, scheduler,
-                        positive, negative, lat, denoise=1.0,
+                        p, n, lat, denoise=1.0,
                         disable_noise=False, start_step=None, last_step=None,
                         force_full_denoise=force_full_denoise, noise_mask=None,
                         callback=cb, disable_pbar=True, seed=s,
@@ -870,6 +872,9 @@ class NativeConvRotInt8Quantize:
 
                 # 2. Load INT8 model
                 t0 = time.perf_counter()
+                int8_positive = positive
+                int8_negative = negative
+                int8_clip_loaded = False
                 if is_sd15:
                     sd15_bench = _load_sd15_bench()
                     sd15_bench.apply_int8_patches()
@@ -877,6 +882,24 @@ class NativeConvRotInt8Quantize:
                     _scope = _arm_active_int8_conv_scope(cq_int8._int8_quant_conv_scope())
                     with _scope:
                         model_int8 = comfy.sd.load_diffusion_model(output_path, {})
+                        # SD1.5: checkpoint から ConvRot INT8 CLIP をロードし、INT8ブランチのconditioningに使用
+                        try:
+                            _sd, _meta = comfy.utils.load_torch_file(output_path, return_metadata=True)
+                            if any(k.startswith("cond_stage_model.") for k in _sd):
+                                print("  [BENCH-SD15] Loading ConvRot INT8 CLIP from checkpoint for INT8 branch...", flush=True)
+                                _res = comfy.sd.load_checkpoint_guess_config(
+                                    output_path, output_vae=False, output_clip=True, output_model=False,
+                                    embedding_directory=None
+                                )
+                                int8_clip = _res[1]
+                                if int8_clip is not None:
+                                    int8_tokens = int8_clip.tokenize(prompt_text)
+                                    int8_positive = int8_clip.encode_from_tokens_scheduled(int8_tokens)
+                                    int8_negative = int8_clip.encode_from_tokens_scheduled(int8_clip.tokenize(""))
+                                    int8_clip_loaded = True
+                                    print("  [BENCH-SD15] Successfully encoded conditioning with ConvRot INT8 CLIP.", flush=True)
+                        except Exception as e:
+                            print(f"  [BENCH-SD15] Warning: could not load INT8 CLIP ({e}), using baseline CLIP conditioning.", flush=True)
                 else:
                     model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                 load_int8 = time.perf_counter() - t0
@@ -898,7 +921,7 @@ class NativeConvRotInt8Quantize:
                 t_int8_list = []
                 for s in seeds:
                     t0 = time.perf_counter()
-                    out_int8, xs_int8, x0s_int8 = _sample(model_int8, s)
+                    out_int8, xs_int8, x0s_int8 = _sample(model_int8, s, pos=int8_positive, neg=int8_negative)
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                     t_int8_list.append(time.perf_counter() - t0)
@@ -922,6 +945,8 @@ class NativeConvRotInt8Quantize:
                 report.append(f"Run Time: {current_time}")
                 report.append(f"Model Architecture: {model_type}")
                 report.append(f"Prompt: {prompt_text}")
+                if is_sd15 and int8_clip_loaded:
+                    report.append("Benchmark CLIP: ConvRot INT8 (evaluated on quantized branch)")
                 report.append(f"INT8 Model Load Time: {load_int8:.2f}s")
                 report.append(f"Seeds: {seeds}")
                 report.append(f"Benchmark attention: {'sage2 (quantized branch only; FP16 baseline on stock attention)' if benchmark_attention else 'sdpa (stock)'}\n")

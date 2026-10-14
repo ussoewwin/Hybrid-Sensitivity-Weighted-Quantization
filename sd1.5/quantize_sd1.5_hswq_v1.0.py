@@ -189,9 +189,11 @@ def _repo_root_from(script_dir: str) -> str:
 repo_root = _repo_root_from(current_dir)
 sys.path.insert(0, os.path.join(repo_root, "ComfyUI-master"))
 
-# Owner hard ceiling for FP16 overhead vs all-INT8. Auto analysis may only
-# optimize INSIDE this frame. Not a thinking-stop formula constant.
-FP16_BUDGET_MB_HARD = 300.0
+# Owner hard ceiling for the SD1.5 INT8 quantizer. Named constant (same role
+# as the analyzer's INT8_FP16_BUDGET_MB_HARD); the owner may move it between
+# runs - the quantizer reads the analyzer's current value at runtime so the
+# two stay in lockstep. ZI precedent: the same named ceiling was moved 300->600.
+FP16_BUDGET_MB_HARD = 100.0
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
@@ -262,6 +264,10 @@ def _load_analyze_sd15_module():
         mod = importlib.util.module_from_spec(spec)
         sys.modules[name] = mod
         spec.loader.exec_module(mod)
+    # Owner may move the hard ceiling between runs; the analyzer is the single
+    # source of truth (INT8_FP16_BUDGET_MB_HARD). Keep both in lockstep.
+    global FP16_BUDGET_MB_HARD
+    FP16_BUDGET_MB_HARD = float(getattr(mod, "INT8_FP16_BUDGET_MB_HARD", FP16_BUDGET_MB_HARD))
     return mod
 
 # --- SD1.5 UNet load (ComfyUI safetensors -> Diffusers pipeline) ---
@@ -2670,7 +2676,11 @@ def main():
         encode_comfy_quant_native = _ncc._encode_comfy_quant
         print("[V1.0] ConvRot OFF (--no-convrot); plain pack still uses native pack_*")
 
-    # 300 MiB hard ceiling: auto analysis / auto-optimal settings only inside.
+    # Owner hard ceiling: the analyzer (INT8_FP16_BUDGET_MB_HARD) is the single
+    # source of truth. Refresh this module's mirror BEFORE validation so the
+    # default CLI budget always matches the analyzer's current value.
+    _load_analyze_sd15_module()
+    args.fp16_budget_mb = FP16_BUDGET_MB_HARD
     try:
         args.fp16_budget_mb = _require_fp16_budget_mb_hard(args.fp16_budget_mb)
     except ValueError as e:
