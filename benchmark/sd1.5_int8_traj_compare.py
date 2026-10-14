@@ -376,11 +376,11 @@ def apply_sage2_attention() -> None:
     def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
                         skip_reshape=False, skip_output_reshape=False, **kw):
         def _unwrap(t):
-            if hasattr(t, "take"):
-                return t.take()
-            if hasattr(t, "peek"):
-                return t.peek()
-            if hasattr(t, "tensor"):
+            if isinstance(t, torch.Tensor):
+                return t
+            if type(t).__name__ == "AttentionTensorContainer":
+                return t.take() if hasattr(t, "take") else t.tensor
+            if hasattr(t, "tensor") and isinstance(t.tensor, torch.Tensor):
                 return t.tensor
             return t
 
