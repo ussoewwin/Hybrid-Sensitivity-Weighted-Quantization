@@ -70,8 +70,17 @@ _LORA_SKIP_PRINT_MAX = 40
 
 def _console(msg: str) -> None:
     """Always visible in ComfyUI console (print + INFO)."""
-    print(msg, flush=True)
-    logger.info(msg)
+    try:
+        print(msg, flush=True)
+    except UnicodeEncodeError:
+        try:
+            print(msg.encode("ascii", errors="replace").decode("ascii"), flush=True)
+        except Exception:
+            pass
+    try:
+        logger.info(msg)
+    except Exception:
+        pass
 
 
 def record_lora_shape_skip(lora_name: str, key: str, reason: str) -> None:
