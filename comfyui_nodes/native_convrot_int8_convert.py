@@ -881,7 +881,7 @@ class NativeConvRotInt8Quantize:
                 report.append(f"same-image seeds : {n_same}/{num_seeds}")
                 report.append(f"bifurcated seeds : {n_bif}/{num_seeds}   (sudden trajectory jump = different picture, not degradation)")
                 if benchmark_attention:
-                    st = _BENCH_SAGE2_STATS
+                    st = sd15_bench._SAGE2_STATS if is_sd15 else _BENCH_SAGE2_STATS
                     report.append(f"[SAGE2] attention calls: total={st['calls']} sa2={st['sa2']} "
                                   f"fallback(mask)={st['fb_mask']} fallback(dim)={st['fb_dim']} errors={st['err']}")
                     report.append(f"[SAGE2] attention time: sage2={st['t_sa2_ms']:.1f} ms sdpa_fallback={st['t_sdpa_ms']:.1f} ms")
