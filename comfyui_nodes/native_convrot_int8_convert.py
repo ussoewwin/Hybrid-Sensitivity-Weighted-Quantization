@@ -398,6 +398,48 @@ _SDXL_TRAJ_SEEDS = (
 )
 
 
+def _arm_active_int8_conv_scope(fallback_ctx):
+    """SD1.5 in-node bench only.
+
+    A live ComfyUI process usually already has a comfy_quant_int8 wrapper
+    installed on comfy.ops.mixed_precision_ops by the HSWQ loader custom node.
+    That wrapper checks the _int8_quant_conv_tls of the module that DEFINES it,
+    not the TLS of this bench copy, so opening the bench copy's
+    _int8_quant_conv_scope() never injects the quantized Conv2d class (int8
+    weights then load as fp16 -> NaN trajectories). Walk the wrapper chain and
+    activate the TLS of whichever module installed the active wrapper; fall
+    back to the bench copy's own scope when no wrapper marker is found.
+    """
+    try:
+        import comfy.ops as _ops
+    except ImportError:
+        return fallback_ctx
+    cur = getattr(_ops, "mixed_precision_ops", None)
+    tls = None
+    hops = 0
+    while cur is not None and hops < 8:
+        g = getattr(cur, "__globals__", None) or {}
+        tls = g.get("_int8_quant_conv_tls", None)
+        if tls is not None:
+            break
+        cur = getattr(cur, "_hswq_orig_mixed_precision_ops", None)
+        hops += 1
+    if tls is None:
+        return fallback_ctx
+
+    class _ActiveWrapperScope:
+        def __enter__(self):
+            self._prev = getattr(tls, "active", False)
+            tls.active = True
+            return None
+
+        def __exit__(self, *args):
+            tls.active = self._prev
+            return False
+
+    return _ActiveWrapperScope()
+
+
 def _load_sd15_bench():
     """Load benchmark/sd1.5_int8_traj_compare.py dynamically via spec-from-path."""
     import importlib.util
@@ -771,7 +813,8 @@ class NativeConvRotInt8Quantize:
                     sd15_bench = _load_sd15_bench()
                     sd15_bench.apply_int8_patches()
                     cq_int8 = sd15_bench._load_int8_patch_module()
-                    with cq_int8._int8_quant_conv_scope():
+                    _scope = _arm_active_int8_conv_scope(cq_int8._int8_quant_conv_scope())
+                    with _scope:
                         model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                 else:
                     model_int8 = comfy.sd.load_diffusion_model(output_path, {})
