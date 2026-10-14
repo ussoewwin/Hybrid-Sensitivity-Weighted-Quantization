@@ -1,6 +1,14 @@
-# How to quantize SD1.5 (ConvRot INT8)
+# How to Quantize SD1.5 (HSWQ Hybrid ConvRot INT8)
 
-Quantize **Stable Diffusion 1.5 (SD1.5)** checkpoints to **ConvRot INT8** via CLI (`sd1.5/native_convert_int8_sd1.5.py`) or directly in ComfyUI using the dedicated custom node **`Native ConvRot INT8 Quantize`** (`comfyui_nodes/`, `model_type = "SD1.5"`).
+Quantize **Stable Diffusion 1.5 (SD1.5)** checkpoints with **HSWQ V1.0** —
+sensitivity-ranked **FP16 protection under a hard 300 MiB budget**, FULL
+**ConvRot INT8** on the remainder, embedded-CLIP ConvRot INT8, and an automatic
+deterministic trajectory benchmark. Two entry points:
+
+- **Recommended (one command):** HSWQ quantizer CLI — `sd1.5/quantize_sd1.5_hswq_v1.0.py`
+- **In-ComfyUI:** `Native ConvRot INT8 Quantize` node (`comfyui_nodes/`, `model_type = "SD1.5"`)
+- **Native (no protection):** `sd1.5/native_convert_int8_sd1.5.py` (all-layer
+  ConvRot INT8, no FP16 budget, no calibration) — kept for A/B comparison
 
 <p align="center">
   <img src="../png/sd1.5.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow for SD1.5" width="800">
@@ -8,18 +16,34 @@ Quantize **Stable Diffusion 1.5 (SD1.5)** checkpoints to **ConvRot INT8** via CL
 
 ---
 
-## Architectural Rationale: Why HSWQ is Required for SD1.5
+## Why HSWQ (not plain Native) for SD1.5
 
-While SD1.5 has a relatively compact UNet architecture, comprehensive trajectory evaluations demonstrated that **uniform Native ConvRot INT8 alone is insufficient**. Rigorous deterministic 25-seed latent trajectory benchmarking showed that certain SD1.5 fine-tunes and merged checkpoints suffer non-negligible error amplification, causing the final latent trajectory cosine similarity to drop **below the 0.95 quality threshold** (`cosine < 0.95`).
+| | Native ConvRot INT8 | **HSWQ V1.0 (this document)** |
+|---|---|---|
+| Quantized layers | all eligible Linear+Conv2d | remainder after FP16 protection |
+| FP16 protection | none | **DualMonitor + analyze + V4 MSE ranking, hard 300 MiB budget** |
+| CLIP (text encoder) | ConvRot INT8 (fp16 fallback on old loaders) | ConvRot INT8 **+ loader fix: metadata consumed correctly** |
+| Calibration | none (Card 1 opt-in) | **r32 recipe (32 samples × 25 steps) mandatory** |
+| Embedded CLIP/VAE | CLIP kept, VAE stripped | CLIP ConvRot INT8 (197→72 quantized + 125 float), VAE stripped |
+| Post-quantize bench | node only (10-25 seeds) | **automatic 25-seed × 25-step trajectory bench, INT8 CLIP conditioning** |
+| Typical size (0.5xxmix9realistic_v40+0.5BRA7) | ~821 MB | **~1.28 GB** (measured 1275 MB: UNet INT8 + FP16 protect 300 MiB + CLIP INT8) |
 
-1. **The Limits of Uniform Native INT8:**
-   Uniformly quantizing all Linear and Conv2d layers without sensitivity awareness risks degrading critical structural and attention projections. In checkpoints with sharp weight distributions or delicate fine-tuned representations, uniform INT8 quantization causes latent drift and fails the strict deterministic trajectory production gate ($\ge 0.95$).
-2. **Necessity of HSWQ Sensitivity & Hybrid Optimization:**
-   To guarantee production-grade fidelity across all SD1.5 checkpoints, **HSWQ sensitivity analysis and hybrid optimization are necessary** to identify and protect the most vulnerable layers while keeping the majority of the network in ConvRot INT8. (Comprehensive HSWQ SD1.5 pipeline specifications, impact diagnosis, and hybrid conversion procedures will be detailed in a forthcoming update).
-3. **Model Payload & Size Economy:**
-   Standard SD1.5 checkpoints occupy approximately **1.9 GB** in FP16. Converting the model to ConvRot INT8 halves the payload down to roughly **850–950 MB** (after removing the embedded VAE).
-4. **Embedded VAE Removal:**
-   Standard SD1.5 checkpoints bundle the VAE (`first_stage_model.*`), consuming 160–330 MB of redundant storage. The quantization process **automatically strips the embedded VAE** from the output checkpoint to maximize compression. At inference time, connect an external SD1.5 VAE (e.g., `vae-ft-mse-840000-ema-pruned.safetensors`).
+Measured rationale (0.5xxmix9realistic_v40+0.5BRA7, 25 seeds × 25 steps, 512×512):
+
+| pack | mean final-cos | same-image | speed |
+|---|---|---|---|
+| Native (all-INT8) | 0.94760 | 13/25 | 0.65x (CPU-bound 512) |
+| **HSWQ V1.0 (300 MiB)** | **0.97120** (FP16-CLIP cond) / **0.96613** (INT8-CLIP cond) | 11-14/25 | **+14.9%** (CUDA-graph) |
+
+Uniform INT8 alone can drop below the 0.95 gate on fine-tuned/merged SD1.5
+checkpoints. HSWQ protects the most vulnerable layers (ranked by DualMonitor
+sensitivity + V4 MSE + analyze severity) inside the fixed 300 MiB frame, then
+ConvRot-INT8s everything else.
+
+> **`How to` protocol is mandatory:** calibration is the r32 recipe (32 samples,
+> 25 steps). `analyze/analyze_sd1.5_distribution.py` derives all tunables
+> (VETO fences, alpha/beta, MAD floors, FP16 priority) from the model itself —
+> no hand-tuned constants.
 
 ---
 
@@ -30,103 +54,201 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 cd Hybrid-Sensitivity-Weighted-Quantization
 ```
 
-### 1. Install PyTorch (CUDA)
-
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
-```
-
-### 2. Install Dependencies
-
-```bash
 pip install -r requirements.txt
 pip install -U comfy_kitchen
 pip install diffusers accelerate tqdm safetensors
 ```
 
-- `comfy_kitchen` provides the fast quantization kernels, memory layouts, and online Hadamard activation rotation.
-- `diffusers` is required if running optional Card 1 calibration (`--bias_correction`).
+- `comfy_kitchen` — INT8 GEMM kernels, ConvRot Hadamard rotation (CUDA fused gs256).
+- `diffusers` — the calibration pipeline (SD1.5 base is pulled from HuggingFace
+  on first run; ~2 GB into `$env:HF_HOME`).
+
+Calibration prompts: `sample/calibration_prompts_512.txt` (32 prompts).
 
 ---
 
-## Method 1: Quantize via ComfyUI Node (Recommended)
+## Method 1 (Recommended): HSWQ Quantizer CLI
 
-Quantization can be executed directly within ComfyUI using the custom node **`Native ConvRot INT8 Quantize`** from `comfyui_nodes/`.
-
-<p align="center">
-  <img src="../png/sd1.5.png" alt="ComfyUI Native ConvRot INT8 Quantize SD1.5 Node" width="800">
-</p>
-
-### Node Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| **`model_type`** | Dropdown | `SD1.5` | Target architecture selector. Sets latent dimensions to 4-channel, 512×512 resolution, DPMPP 2M / Karras sampler defaults. |
-| **`model`** | MODEL | (Required) | Connect from standard `Load Checkpoint`. |
-| **`clip`** | CLIP | (Required) | Connect from `Load Checkpoint` for benchmark evaluation. |
-| **`vae`** | VAE | (Optional) | Optional VAE connection. |
-| **`benchmark_prompt`**| STRING | Default prompt | Conditioning text used during trajectory comparison. |
-| **`output_path`** | STRING | (Empty) | Output path for the quantized `.safetensors`. Defaults to ComfyUI output directory. |
-| **`group_size`** | INT | `256` | ConvRot Hadamard transform group size (must be a power of 4, $\ge 4$). |
-| **`convrot`** | BOOLEAN | `true` | Enables FULL ConvRot rotation on Linear and Conv2d weights. |
-| **`per_channel_int8`**| BOOLEAN | `true` | Per-channel scaling for kitchen dequantization. |
-| **`benchmark_attention`**| BOOLEAN | `true` | Tests attention performance in the benchmark. |
-| **`run_benchmark`** | BOOLEAN | `true` | Automatically executes the deterministic 25-seed latent trajectory benchmark immediately after saving. |
-
----
-
-## Method 2: Quantize via CLI Script
-
-For headless environments or batch pipelines, use `sd1.5/native_convert_int8_sd1.5.py`.
-
-```bash
-python sd1.5/native_convert_int8_sd1.5.py \
-    --model "D:/models/checkpoints/v1-5-pruned-emaonly.safetensors" \
-    --output "D:/models/checkpoints/v1-5-pruned-emaonly_convrot_int8.safetensors" \
-    --per_channel_int8 \
-    --convrot \
-    --groupsize 256
+```powershell
+$env:HF_HOME = 'D:\USERFILES\MyDocuments\HuggingFace'
+$env:PYTHONIOENCODING = 'utf-8'
+python sd1.5/quantize_sd1.5_hswq_v1.0.py `
+  --input  "D:/models/checkpoints/0.5xxmix9realistic_v40+0.5BRA7.safetensors" `
+  --output "D:/models/checkpoints/0.5xxmix9realistic_v40+0.5BRA7_hswq_int8.safetensors" `
+  --calib_file "sample/calibration_prompts_512.txt"
 ```
+
+One command runs the whole mandated pipeline:
+
+1. **Distribution analysis** — `analyze/analyze_sd1.5_distribution.py` profiles
+   all 282 UNet layers (CPU safetensors scan; Tukey fences, engine tunables,
+   alpha/beta derivation). Auto-generates the profile JSON (cached).
+2. **r32 calibration** — DualMonitor FP16/INT8 sensitivity (32 samples × 25
+   steps, 512×512, StableDiffusionPipeline).
+3. **V4 MSE** — Full-SVD×RMS mixed impact per layer (Full-SVD scheduled ON).
+4. **FP16 300 MiB selection** — priority fill of keep-layers under the hard
+   budget (post-pack assert: any float Linear/Conv leak aborts).
+5. **ConvRot INT8 pack** — remaining Linear/Conv2d, Hadamard group 256/64/4 by
+   feature dim; **CLIP Linear layers also ConvRot INT8** (72 quantized, 125
+   embeddings/norms/biases kept float); embedded VAE (`first_stage_model.*`)
+   stripped.
+6. **25-seed trajectory bench** — 512×512, dpmpp_2m/karras, **INT8 CLIP
+   conditioning**, CUDA-graph executor. Skippable with `--no-bench`.
 
 ### CLI Arguments
 
-- **`--model` / `--input`:** Path to the input SD1.5 `.safetensors` file (full checkpoint or UNet-only).
-- **`--output`:** Path where the quantized INT8 checkpoint will be saved.
-- **`--convrot` / `--no-convrot`:** Enables/disables FULL ConvRot Hadamard rotation on all eligible Linear and Conv2d layers. (Default: **ON**).
-- **`--groupsize`:** Hadamard group size (power of 4, default: `256`). Adaptive power-of-4 divisors (gs256, gs64, gs4) are selected based on input feature dimension.
-- **`--per_channel_int8`:** Per-out-channel scale packaging (`int8_tensorwise`).
-- **`--bias_correction`:** (Optional) Enables Card 1 activation-mean bias correction (`bias += -(W_q - W) @ mu_x`). Requires `--calib_file <prompts.txt>`.
-- **`--fp_keep_layers`:** (Optional, default `0`) Keeps top-N layers in original FP16 based on static requant error ranking.
+| Argument | Default | Description |
+|---|---|---|
+| `--input` / `--output` | required | Source SD1.5 checkpoint / output pack. |
+| `--calib_file` | required | Calibration prompts (r32 = 32 lines). |
+| `--num_calib_samples` | `32` | r32 recipe. Do not lower. |
+| `--num_inference_steps` | `25` | Steps per calibration sample. |
+| `--fp16_budget_mb` | `300` | **Owner hard ceiling.** Must be exactly 300. |
+| `--profile` | auto | Distribution profile JSON (auto-generated if missing). |
+| `--comfy_path` | auto | ComfyUI root (auto-detected). |
+| `--bias_correction` | **OFF** | Card 1: cancel systematic INT8 output bias into layer biases. |
+| `--per_channel_int8` | OFF | Card 3: per-output-channel absmax. |
+| `--asymmetric_int8` | **forced OFF** | Card 2 is disabled in V1.0. |
+| `--convrot` / `--no-convrot` | ON | FULL ConvRot Hadamard rotation. |
+| `--groupsize` | `256` | Hadamard group (adaptive gs256/64/4 by feature dim). |
+| `--bench` / `--no-bench` | ON | Post-quantize 25-seed trajectory bench. |
+
+### Expected Output
+
+```
+Conversion done:
+  INT8 layers: 203
+  FP16-kept layers (budget winners): 79
+  Dropped embedded VAE layers (first_stage_model.*): 248
+  CLIP ConvRot INT8: 72, plain INT8: 0, kept as-is (embeddings/norms/biases): 125
+...
+post-pack FP16 keep: 299.96 MiB / ceiling=300 MiB
+Saved INT8 quantized model: ...
+CLIP INT8 layers: 72 (convrot=72)
+```
+
+Benchmark acceptance (see §Validation): log must contain
+`Successfully encoded prompt with ConvRot INT8 CLIP` and must **not** contain
+`using baseline CLIP conditioning`.
+
+---
+
+## Method 2: ComfyUI Node (`Native ConvRot INT8 Quantize`)
+
+Same engine as the native path, in-workflow. Load a full checkpoint, connect
+MODEL+CLIP, run: UNet + CLIP are quantized, VAE stripped, and the node's
+built-in bench (25 seeds for SD1.5) evaluates **INT8 CLIP conditioning**
+(report line `Benchmark CLIP: ConvRot INT8 (evaluated on quantized branch)`).
+
+Node parameters: `model_type=SD1.5`, `model`, `clip`, `benchmark_prompt`,
+`output_path`, `group_size=256`, `convrot=true`, `per_channel_int8=true`,
+`benchmark_attention`, `run_benchmark=true`.
+
+> The node path has **no FP16 300 MiB protection** (all eligible layers are
+> INT8). For protection-ranked packs use Method 1. The node is the native
+> engine's UI; HSWQ protection is a CLI-side pipeline.
+
+---
+
+## Method 3: Native CLI (A/B baseline)
+
+```bash
+python sd1.5/native_convert_int8_sd1.5.py \
+    --model  "D:/models/checkpoints/v1-5-pruned-emaonly.safetensors" \
+    --output "D:/models/checkpoints/v1-5-pruned-emaonly_convrot_int8.safetensors" \
+    --per_channel_int8 --convrot --groupsize 256
+```
+
+No calibration, no protection budget, no HSWQ ranking. Use it to A/B against
+the HSWQ pack (the measured 0.94760 vs 0.97120 gap above is the value of the
+300 MiB protection).
+
+---
+
+## CLIP ConvRot INT8 (loader mechanics)
+
+The pack stores CLIP Linear weights as int8 + `.weight_scale` + `.comfy_quant`
+(metadata `_quantization_metadata`). For the text encoder to actually run INT8,
+ComfyUI must build it with `mixed_precision_ops` — this requires
+`model_options["quantization_metadata"]`, which the stock SD1.5 TE load path
+never sets. `benchmark/sd1.5 int8/comfy_quant_int8.py`
+(`_patch_sd15_clip_quant_metadata`) injects it via `te_model_options` and
+completes the checkpoint-absent `text_projection` (all-zeros) / `logit_scale`
+(4.6055) exactly like the FP16 path.
+
+Technical details and measured failure modes (key-space force-nesting, the
+`text_projection` trap, silent-fallback detection):
+see `md/SD1.5_ConvRot_INT8_CLIP_Technical_Record_2026-10-15.md`.
+
+**Acceptance markers** (both required in a valid bench):
+
+```
+[HSWQ INT8][SD1.5 CLIP] injecting ConvRot INT8 metadata for 72 text-encoder layers
+[INT8] Successfully encoded prompt with ConvRot INT8 CLIP.
+```
+
+Forbidden (means the bench silently measured FP16 conditioning):
+
+```
+[INT8] Warning: encoding with INT8 CLIP failed (...) using baseline CLIP conditioning.
+WARNING:root:Missing weight for layer clip_l.transformer.text_projection
+```
 
 ---
 
 ## Validation & Quality Gates (Latent Trajectory)
 
-Fidelity is measured strictly via **deterministic latent-space trajectory divergence**, comparing step-by-step intermediate latents ($x_t$) between the FP16 baseline and the quantized model under identical initial noise.
+Fidelity is measured strictly via **deterministic latent-space trajectory
+divergence** (per-step $x_t$ cosine between FP16 baseline and quantized model
+under identical noise) — decoded SSIM is masked by the VAE decoder and rejected
+as a gate.
 
-> **Why Latent Trajectory over Pixel SSIM:**  
-> Conventional decoded SSIM (~0.95–0.98) can be severely misleading on diffusion models because the non-linear VAE decoder smooths high-frequency noise and masks structural degradation. Evaluating raw latent trajectories eliminates decoder bias.
+- **Resolution:** 512 × 512 · **Sampler:** `dpmpp_2m` / `karras` · **Steps/CFG:** 25 / 7.0
+- **Seeds:** 25 fixed seeds (`42` … `4195820371`)
 
-### Benchmark Setup
+| Metric | Target |
+|---|---|
+| Cosine mean | **≥ 0.96** |
+| Max step drop | ≤ 0.05 (bifurcation = structural divergence) |
+| Bifurcated seeds | **0 / 25** |
+| INT8 CLIP used | **required** (see acceptance markers above) |
 
-- **Resolution:** 512 × 512 (4 latent channels)
-- **Sampler / Scheduler:** `dpmpp_2m` / `karras`
-- **Steps & CFG:** 25 steps, CFG = 7.0
-- **Seeds:** 25 random deterministic seeds
+Latest measured reference (HSWQ V1.0, 300 MiB, 0.5xxmix9realistic_v40+0.5BRA7):
 
-### Metric Criteria
-
-| Metric | Target | Description |
-|---|---|---|
-| **Cosine Mean** | **$\ge 0.96$** (typically ~0.97) | Average cosine similarity of final latent representations ($x_0$) across all 25 seeds. |
-| **Max Step Drop**| **$\le 0.05$** | Maximum step-to-step cosine drop. A drop $> 0.05$ flags trajectory **bifurcation** (structural divergence). |
-| **Bifurcated Seeds**| **0 / 25** | The model must never produce a bifurcated trajectory across the canonical seed set. |
+| conditioning | mean cos | same-image | speed |
+|---|---|---|---|
+| INT8 CLIP | **0.96613** | 14/25 | +14.9% (FP16 1.82s → INT8 1.55s) |
 
 ---
 
 ## ComfyUI Inference Workflow
 
-1. Load the quantized `.safetensors` file using standard ComfyUI loader:
-   - **`Load Checkpoint`** or **`Load Diffusion Model`** (the format is natively recognized as `int8_tensorwise` via ComfyUI's internal quantization dispatcher).
-2. Connect an external **SD1.5 VAE** (`Load VAE` $\rightarrow$ `VAE Decode`) since embedded VAE weights were removed during quantization.
-3. Sample normally using standard samplers (Euler, DPM++ 2M, etc.). No custom loaders are required.
+1. Load the pack with the standard **`Load Checkpoint`** (int8_tensorwise is
+   natively recognized; the HSWQ loader custom node handles CLIP INT8 + LoRA
+   bake). `Load Diffusion Model` works for UNet-only use.
+2. Connect an external **SD1.5 VAE** (`Load VAE` → `VAE Decode`) — the embedded
+   VAE was stripped (`first_stage_model.*`).
+3. Sample normally. No extra nodes required; ConvRot INT8 + CUDA-graph
+   acceleration engage automatically on the HSWQ loader path.
+
+---
+
+## File Map
+
+| file | role |
+|---|---|
+| `sd1.5/quantize_sd1.5_hswq_v1.0.py` | HSWQ V1.0 quantizer (analysis → r32 → V4 → 300 MiB → ConvRot INT8 → bench) |
+| `analyze/analyze_sd1.5_distribution.py` | distribution analyzer (tunables derivation) |
+| `sd1.5/native_convert_int8_sd1.5.py` | native CLI (no protection) |
+| `comfyui_nodes/native_convrot_int8_convert.py` | ComfyUI node (native engine + bench) |
+| `benchmark/sd1.5_int8_traj_compare.py` | standalone trajectory bench |
+| `benchmark/sd1.5 int8/comfy_quant_int8.py` | runtime patches (CLIP INT8 load, CUDA graph, TLS scope) |
+| `sample/calibration_prompts_512.txt` | r32 calibration prompts |
+
+## Related Documents
+
+* `md/SD1.5_INT8_Speed_Optimization_Root_Cause_and_Fix_2026-10-14.md` — UNet speed (CUDA graph, TLS scope)
+* `md/SD1.5_ConvRot_INT8_CLIP_Technical_Record_2026-10-15.md` — CLIP INT8 loader mechanics
+* `md/How to quantize SDXL.md` — SDXL HSWQ line (same engine family)
