@@ -2193,13 +2193,21 @@ class _Sd15CudaGraphExecutor:
     Correctness contract: capture buffers are copied-in before each replay, so
     the graph output is identical to eager (measured max|graph-eager| = 0.0).
     Capture is keyed on the input signature; a signature change re-captures.
+
+    Scope: capture is attempted ONLY in the small-latent (<=512) regime it was
+    designed for. At 1024 the INT8 path is already GPU-bound and faster eager,
+    and a capture attempt there is both useless and unsafe (an uncapturable op
+    invalidates the stream). Larger shapes run eager, untouched.
     """
+
+    _MAX_CAPTURE_LATENT_SIDE = 64  # 512x512 -> latent 64; >=1024 stays eager
 
     def __init__(self, base_model):
         self._base = base_model
         self._orig = base_model.apply_model
         self._graphs = {}
         self._captures = 0
+        self._skip = set()
         base_model.apply_model = self._call
         try:
             base_model._hswq_sd15_graph_executor = self
@@ -2226,13 +2234,20 @@ class _Sd15CudaGraphExecutor:
     def _call(self, x, t, **c):
         import torch
 
+        # Small-latent-only: never attempt capture in the GPU-bound regime.
+        try:
+            if max(int(x.shape[-1]), int(x.shape[-2])) > self._MAX_CAPTURE_LATENT_SIDE:
+                return self._orig(x, t, **c)
+        except Exception:
+            return self._orig(x, t, **c)
         key = self._key(x, t, c)
+        if key in self._skip:
+            return self._orig(x, t, **c)
         ent = self._graphs.get(key)
         if ent is None:
-            try:
-                ent = self._capture(x, t, c)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("[HSWQ INT8][SD1.5 graph] capture failed, eager: %s", exc)
+            ent = self._capture(x, t, c)
+            if ent is None:
+                self._skip.add(key)
                 return self._orig(x, t, **c)
             self._graphs[key] = ent
         sx, st, sc, graph, sy = ent
@@ -2259,21 +2274,38 @@ class _Sd15CudaGraphExecutor:
             if torch.is_tensor(v)
         }
         c_in = {k: (sc[k] if torch.is_tensor(v) else v) for k, v in c.items()}
-        s = torch.cuda.Stream()
-        s.wait_stream(torch.cuda.current_stream())
-        with torch.cuda.stream(s):
-            for _ in range(3):
-                self._orig(sx, st, **c_in)
-        torch.cuda.current_stream().wait_stream(s)
-        torch.cuda.synchronize()
-        graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(graph):
-            sy = self._orig(sx, st, **c_in)
-        torch.cuda.synchronize()
+        try:
+            s = torch.cuda.Stream()
+            s.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(s):
+                for _ in range(3):
+                    self._orig(sx, st, **c_in)
+            torch.cuda.current_stream().wait_stream(s)
+            torch.cuda.synchronize()
+            graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(graph):
+                sy = self._orig(sx, st, **c_in)
+            torch.cuda.synchronize()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[HSWQ INT8][SD1.5 graph] capture failed, eager fallback: %s", exc
+            )
+            # A failed capture can leave capture state pending; make sure the
+            # context is quiescent so eager fallback stays usable.
+            try:
+                torch.cuda.synchronize()
+            except Exception:
+                pass
+            return None
         self._captures += 1
+        ctx_shape = (
+            tuple(c["c_crossattn"].shape)
+            if torch.is_tensor(c.get("c_crossattn"))
+            else "-"
+        )
         _console(
             f"[HSWQ INT8][SD1.5 graph] captured #{self._captures} "
-            f"x={tuple(x.shape)} ctx={tuple(c['c_crossattn'].shape) if torch.is_tensor(c.get('c_crossattn')) else '-'}"
+            f"x={tuple(x.shape)} ctx={ctx_shape}"
         )
         return (sx, st, sc, graph, sy)
 
