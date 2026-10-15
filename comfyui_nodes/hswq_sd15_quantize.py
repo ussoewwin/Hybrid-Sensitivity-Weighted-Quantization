@@ -89,13 +89,14 @@ def _free_vram_before_run():
         print(f"[HSWQ SD1.5] WARN: could not free models before run: {e}", flush=True)
 
 
-class HSWQSD15Quantize:
-    """Quantize an SD1.5 checkpoint using HSWQ V1.0 (FP16 300 MiB protection + ConvRot INT8)."""
+class HSWQQuantize:
+    """Quantize a diffusion model using HSWQ V1.0 (FP16 protection + ConvRot INT8)."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
+                "model_type": (["SD1.5"], {"default": "SD1.5"}),
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
@@ -187,11 +188,12 @@ class HSWQSD15Quantize:
     RETURN_NAMES = ("output_path", "report")
     FUNCTION = "quantize"
     CATEGORY = "HSWQ/Quantize"
-    TITLE = "HSWQ SD1.5 Quantize (ConvRot INT8)"
+    TITLE = "HSWQ Quantize (ConvRot INT8)"
     OUTPUT_NODE = True
 
     def quantize(
         self,
+        model_type,
         model,
         clip,
         output_path,
@@ -206,6 +208,10 @@ class HSWQSD15Quantize:
         vae=None,
         input_checkpoint="",
     ):
+        if model_type != "SD1.5":
+            raise NotImplementedError(
+                f"model_type {model_type!r} is not yet implemented for HSWQ quantizer."
+            )
         base_path = (input_checkpoint or "").strip()
         if not base_path:
             base_path = _model_base_path(model)
@@ -316,3 +322,8 @@ class HSWQSD15Quantize:
         print(f"[HSWQ SD1.5 Quantize] Completed: {output_path}", flush=True)
         report = "\n".join(lines[-60:])
         return (output_path, report)
+
+
+# Backwards compatibility alias
+HSWQSD15Quantize = HSWQQuantize
+
