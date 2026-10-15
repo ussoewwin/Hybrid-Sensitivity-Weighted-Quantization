@@ -18,7 +18,7 @@ import torch
 # Locate repository root (two levels up from comfyui_nodes/)
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _QUANT_SCRIPT = os.path.join("sd1.5", "quantize_sd1.5_hswq_v1.0.py")
-_DEFAULT_CALIB_FILE = os.path.join("sample", "calibration_prompts_512.txt")
+_DEFAULT_CALIB_FILE = os.path.join("sample", "calibration_prompts_128.txt")
 
 
 def _model_base_path(model) -> str:
@@ -103,7 +103,7 @@ class HSWQQuantize:
                 "calib_file": (
                     ["128", "256", "512"],
                     {
-                        "default": "512",
+                        "default": "128",
                         "tooltip": "Calibration prompts sheet from sample/ (128, 256, or 512 lines).",
                     },
                 ),

@@ -141,7 +141,7 @@ Benchmark acceptance (see §Validation): log must contain
 
 Dedicated in-workflow HSWQ V1.0 quantizer (`comfyui_nodes/hswq_sd15_quantize.py`). Executes the complete HSWQ V1.0 pipeline without manual terminal commands:
 
-- **Inputs:** `model_type` (dropdown: `SD1.5`), `model` (MODEL), `clip` (CLIP), `output_path` (optional, auto-generated if empty), `calib_file` (dropdown: `128`, `256`, `512` prompts from `sample/`), `num_calib_samples` (32, r32 mandatory), `num_inference_steps` (25), `fp16_budget_mb` (300.0 hard ceiling), `group_size` (256), `convrot` (true), `bias_correction` (false), `run_benchmark` (true), optional `vae` (VAE), `custom_calib_file` (custom prompts path override), and `input_checkpoint` (path override).
+- **Inputs:** `model_type` (dropdown: `SD1.5`), `model` (MODEL), `clip` (CLIP), `output_path` (optional, auto-generated if empty), `calib_file` (dropdown: `128`, `256`, `512` prompts from `sample/`, default `128`), `num_calib_samples` (32, r32 mandatory), `num_inference_steps` (25), `fp16_budget_mb` (300.0 hard ceiling), `group_size` (256), `convrot` (true), `bias_correction` (false), `run_benchmark` (true), optional `vae` (VAE), `custom_calib_file` (custom prompts path override), and `input_checkpoint` (path override).
 - **Behavior:** Automatically purges VRAM, resolves the source checkpoint path from `MODEL`, and runs the full HSWQ V1.0 pipeline (distribution profiling, r32 calibration, V4 MSE ranking, 300 MiB FP16 protection, UNet + CLIP ConvRot INT8 pack, and 25-seed deterministic trajectory benchmark with INT8 CLIP conditioning).
 
 ### 2. `Native ConvRot INT8 Quantize` (Native All-INT8 Workflow)
