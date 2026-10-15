@@ -26,7 +26,7 @@ deterministic trajectory benchmark. Two entry points:
 | Calibration | none (Card 1 opt-in) | **r32 recipe (32 samples × 25 steps) mandatory** |
 | Embedded CLIP/VAE | CLIP kept, VAE stripped | CLIP ConvRot INT8 (197→72 quantized + 125 float), VAE stripped |
 | Post-quantize bench | node only (10-25 seeds) | **automatic 25-seed × 25-step trajectory bench, INT8 CLIP conditioning** |
-| Typical size (0.5xxmix9realistic_v40+0.5BRA7) | ~821 MB | **~1.28 GB** (measured 1275 MB: UNet INT8 + FP16 protect 300 MiB + CLIP INT8) |
+| Typical size (0.5xxmix9realistic_v40+0.5BRA7) | **~1.02 GB** (UNet INT8 ~821 MB + CLIP ~200 MB; UNet-only without CLIP: ~821 MB) | **~1.28 GB** (measured 1275 MB: UNet INT8 ~821 MB + FP16 protect 300 MiB + CLIP INT8 ~200 MB) |
 
 Measured rationale (0.5xxmix9realistic_v40+0.5BRA7, 25 seeds × 25 steps, 512×512):
 
