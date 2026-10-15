@@ -33,6 +33,26 @@ _COMFY_PATH = "ComfyUI-master"
 _DEFAULT_CALIB_FILE = os.path.join("sample", "calibration_prompts_128.txt")
 
 
+def _alloc_conf_for_child(env: dict) -> None:
+    """Give the HSWQ quantize child tree the caching allocator.
+
+    ComfyUI (cu13+) auto-appends ',backend:cudaMallocAsync' to
+    PYTORCH_CUDA_ALLOC_CONF. Under that backend a triton launch inside an
+    active CUDA-graph capture is rejected even with every tensor on cuda:0
+    (measured 2026-10-16), costing ~11.6% INT8 speed after the once-flag
+    abandons the fused path. The quantize child and its bench descendant own
+    their allocator choice; strip the backend flag for this child tree only.
+    """
+    conf = env.get("PYTORCH_CUDA_ALLOC_CONF", "")
+    if conf and "backend:" in conf:
+        kept = ",".join(
+            p for p in (s.strip() for s in conf.split(","))
+            if p and not p.startswith("backend:")
+        )
+        env["PYTORCH_CUDA_ALLOC_CONF"] = kept
+
+
+
 def _model_base_path(model) -> str:
     """Checkpoint path of a loaded MODEL, as recorded by the loader."""
     try:
@@ -346,6 +366,7 @@ class HSWQQuantize:
             hf_default = r"D:\USERFILES\MyDocuments\HuggingFace"
             if os.path.isdir(hf_default):
                 env["HF_HOME"] = hf_default
+        _alloc_conf_for_child(env)
 
         print("[HSWQ SD1.5 Quantize] " + " ".join(cmd), flush=True)
         lines = []
@@ -463,6 +484,7 @@ class HSWQQuantize:
 
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"
+        _alloc_conf_for_child(env)
 
         # Step 2: reverse hybrid conversion (K lowest-impact pool layers -> ConvRot INT8).
         cmd = [
