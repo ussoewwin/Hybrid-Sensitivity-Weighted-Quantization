@@ -417,6 +417,23 @@ def _is_protected_sdxl_clip_weight(key: str) -> bool:
     return False
 
 
+# SD1.5 CLIP-L protection (same structural pattern as SDXL CLIP-L; measured
+# identical across 11 SD1.5 checkpoints: kurtosis/outlier_ratio of
+# embeddings.position_embedding ~652/78, encoder.layers.0.mlp.fc1 ~111/78,
+# embeddings.token_embedding 0.36/47, encoder.layers.0.mlp.fc2 ~15.5/40).
+_SD15_CLIP_PROTECT_EXACT = (
+    "cond_stage_model.transformer.text_model.embeddings.token_embedding.weight",
+    "cond_stage_model.transformer.text_model.embeddings.position_embedding.weight",
+    "cond_stage_model.transformer.text_model.encoder.layers.0.mlp.fc1.weight",
+    "cond_stage_model.transformer.text_model.encoder.layers.0.mlp.fc2.weight",
+)
+
+
+def _is_protected_sd15_clip_weight(key: str) -> bool:
+    """True if this SD1.5 CLIP weight must stay FP16 (rule-based protection set)."""
+    return key in _SD15_CLIP_PROTECT_EXACT
+
+
 def _clip_internal_to_pack_key(k: str):
     """Map a CLIP.get_sd() internal key (clip_l. / clip_g.) to the pack-space
     name (conditioner.embedders.{0,1}), inverting SDXL.process_clip_state_dict.
@@ -793,6 +810,14 @@ class NativeConvRotInt8Quantize:
                         and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
                     )
                     if not is_linear_weight:
+                        new_sd[key] = tensor.detach().cpu()
+                        clip_kept_count += 1
+                        continue
+
+                    # Rule-based FP16 protection (SDXL CLIP-L parity): keep the
+                    # highest-risk CLIP layers float (layers.0.mlp.fc1/fc2 are
+                    # kurtosis 111/15.5 across every measured SD1.5 checkpoint).
+                    if _is_protected_sd15_clip_weight(key):
                         new_sd[key] = tensor.detach().cpu()
                         clip_kept_count += 1
                         continue
