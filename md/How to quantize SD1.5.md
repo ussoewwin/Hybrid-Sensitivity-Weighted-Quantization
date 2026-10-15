@@ -11,7 +11,7 @@ deterministic trajectory benchmark. Two entry points:
   ConvRot INT8, no FP16 budget, no calibration) — kept for A/B comparison
 
 <p align="center">
-  <img src="../png/sd1.5.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow for SD1.5" width="800">
+  <img src="../png/hswq sd1.5.png" alt="ComfyUI HSWQ Quantize ConvRot INT8 Workflow for SD1.5" width="800">
 </p>
 
 ---
@@ -139,12 +139,56 @@ Benchmark acceptance (see §Validation): log must contain
 
 ### 1. `HSWQ Quantize ConvRot INT8` (Recommended In-Workflow)
 
-Dedicated in-workflow HSWQ V1.0 quantizer (`comfyui_nodes/hswq_sd15_quantize.py`). Executes the complete HSWQ V1.0 pipeline without manual terminal commands:
+<p align="center">
+  <img src="../png/hswq sd1.5.png" alt="ComfyUI HSWQ Quantize ConvRot INT8 Workflow for SD1.5" width="800">
+</p>
 
-- **Inputs:** `model_type` (dropdown: `SD1.5`), `model` (MODEL), `clip` (CLIP), `output_path` (optional, auto-generated if empty), `calib_file` (dropdown: `128`, `256`, `512` prompts from `sample/`, default `128`), `num_calib_samples` (32, r32 mandatory), `num_inference_steps` (25), `fp16_budget_mb` (300.0 hard ceiling), `group_size` (256), `convrot` (true), `bias_correction` (false), `run_benchmark` (true), optional `vae` (VAE), and `input_checkpoint` (path override).
-- **Behavior:** Automatically purges VRAM, resolves the source checkpoint path from `MODEL`, and runs the full HSWQ V1.0 pipeline (distribution profiling, r32 calibration, V4 MSE ranking, 300 MiB FP16 protection, UNet + CLIP ConvRot INT8 pack, and 25-seed deterministic trajectory benchmark with INT8 CLIP conditioning).
+Dedicated in-workflow HSWQ V1.0 quantizer (`comfyui_nodes/hswq_sd15_quantize.py`). Executes the complete HSWQ V1.0 pipeline directly within ComfyUI without manual terminal commands:
+
+#### Node Setup & Wiring
+
+1. **`Load Checkpoint`**: Load the target SD1.5 FP16 checkpoint (e.g. `0.5xxmix9realistic_v40+0.5BRA7.safetensors`).
+   - Connect **`MODEL`** → `HSWQ Quantize ConvRot INT8` (`model`)
+   - Connect **`CLIP`** → `HSWQ Quantize ConvRot INT8` (`clip`)
+   - Connect **`VAE`** → `HSWQ Quantize ConvRot INT8` (`vae`, optional)
+2. **`HSWQ Quantize ConvRot INT8`**: Node located under category `HSWQ/Quantize`.
+3. **`Show Text`**: Connect `HSWQ Quantize ConvRot INT8` (`report`) → `Show Text` (`text`) to view live logs, quantize completion stats, and the deterministic 25-seed trajectory benchmark results directly in the ComfyUI canvas.
+
+#### Node Parameters
+
+| Parameter | Default / Recommended | Description |
+|---|---|---|
+| `model_type` | `SD1.5` | Target architecture family (dropdown). |
+| `output_path` | *(empty)* | Output `.safetensors` path. If empty, automatically writes to `<ComfyUI>/output/<stem>_hswq_int8_<timestamp>.safetensors`. |
+| `calib_file` | `128` | Dropdown to select calibration prompts sheet from `sample/` (`128`, `256`, or `512` prompts). Default is `128` (`sample/calibration_prompts_128.txt`). |
+| `num_calib_samples` | `32` | Mandatory r32 calibration recipe. Do not lower. |
+| `num_inference_steps` | `25` | Diffusion steps per calibration sample. |
+| `fp16_budget_mb` | `300.0` | **Mandatory owner hard ceiling.** Must be exactly `300.0` MiB. |
+| `group_size` | `256` | ConvRot Hadamard rotation block size (power of 4, default: 256). |
+| `convrot` | `true` | Enables FULL ConvRot Hadamard rotation on UNet and CLIP. |
+| `bias_correction` | `false` | Card 1: systematic INT8 output bias cancellation (default OFF). |
+| `run_benchmark` | `true` | Automated 25-seed deterministic trajectory benchmark post-quantization. |
+| `input_checkpoint` | *(empty)* | Optional manual override path if `model` does not supply `cached_patcher_init`. |
+
+#### In-Workflow Execution Steps
+
+1. Click **Queue Prompt**.
+2. The node automatically:
+   - Purges ComfyUI VRAM and collects garbage before launching the quantizer to prevent memory exhaustion.
+   - Automatically derives model-specific tunables via `analyze/analyze_sd1.5_distribution.py`.
+   - Runs r32 DualMonitor calibration (32 samples × 25 steps).
+   - Computes V4 Full-SVD×RMS weighted histogram MSE ranking.
+   - Enforces the hard 300 MiB FP16 protection budget (most vulnerable layers stay FP16).
+   - Packs remaining UNet Linear and Conv2d layers into ConvRot INT8 (`int8_tensorwise`).
+   - Converts CLIP text encoder layers to ConvRot INT8 (72 quantized, 125 float) and strips embedded VAE (`first_stage_model.*`).
+   - Executes the automated 25-seed deterministic trajectory benchmark using INT8 CLIP conditioning.
+3. The trailing 60 lines of the console execution log and final benchmark scores (mean cosine $\ge 0.96$, 0/25 bifurcated) appear in the `Show Text` node upon completion.
 
 ### 2. `Native ConvRot INT8 Quantize` (Native All-INT8 Workflow)
+
+<p align="center">
+  <img src="../png/sd1.5.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow for SD1.5" width="800">
+</p>
 
 In-workflow Native quantizer (`model_type = "SD1.5"`): UNet + CLIP are all-layer INT8 quantized without FP16 budget protection (A/B baseline in ComfyUI).
 
