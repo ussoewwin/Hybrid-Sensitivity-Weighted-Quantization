@@ -188,7 +188,7 @@ class HSWQQuantize:
     RETURN_NAMES = ("output_path", "report")
     FUNCTION = "quantize"
     CATEGORY = "HSWQ/Quantize"
-    TITLE = "HSWQ Quantize (ConvRot INT8)"
+    TITLE = "HSWQ Quantize ConvRot INT8"
     OUTPUT_NODE = True
 
     def quantize(

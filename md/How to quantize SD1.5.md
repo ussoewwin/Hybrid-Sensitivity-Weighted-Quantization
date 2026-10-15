@@ -6,7 +6,7 @@ sensitivity-ranked **FP16 protection under a hard 300 MiB budget**, FULL
 deterministic trajectory benchmark. Two entry points:
 
 - **Recommended (one command):** HSWQ quantizer CLI — `sd1.5/quantize_sd1.5_hswq_v1.0.py`
-- **In-ComfyUI:** `HSWQ SD1.5 Quantize (ConvRot INT8)` node (HSWQ V1.0 full pipeline) / `Native ConvRot INT8 Quantize` node (`model_type = "SD1.5"`, native baseline)
+- **In-ComfyUI:** `HSWQ Quantize ConvRot INT8` node (HSWQ V1.0 full pipeline) / `Native ConvRot INT8 Quantize` node (`model_type = "SD1.5"`, native baseline)
 - **Native (no protection):** `sd1.5/native_convert_int8_sd1.5.py` (all-layer
   ConvRot INT8, no FP16 budget, no calibration) — kept for A/B comparison
 
@@ -137,7 +137,7 @@ Benchmark acceptance (see §Validation): log must contain
 
 ## Method 2: ComfyUI Nodes
 
-### 1. `HSWQ SD1.5 Quantize (ConvRot INT8)` (Recommended In-Workflow)
+### 1. `HSWQ Quantize ConvRot INT8` (Recommended In-Workflow)
 
 Dedicated in-workflow HSWQ V1.0 quantizer (`comfyui_nodes/hswq_sd15_quantize.py`). Executes the complete HSWQ V1.0 pipeline without manual terminal commands:
 
