@@ -1,8 +1,17 @@
-"""ComfyUI node: quantize SD1.5 checkpoints with HSWQ V1.0 (FP16 300 MiB protection + ConvRot INT8).
+"""ComfyUI node: quantize SD1.5 / SDXL checkpoints with HSWQ (FP16 protection + ConvRot INT8).
 
-Executes the official sd1.5/quantize_sd1.5_hswq_v1.0.py engine without modifying
-the script. Freeing live VRAM models prior to execution ensures clean calibration
-and deterministic 25-seed trajectory benchmarking.
+Two fully separated branches, selected by ``model_type``:
+
+* **SD1.5** - runs ``sd1.5/quantize_sd1.5_hswq_v1.0.py`` (HSWQ V1.0: 300 MiB FP16
+  protection + ConvRot INT8 + the automatic 25-seed trajectory bench).
+* **SDXL**  - runs ``sdxl/gen_reverse_int8_sdxl_v1.1.py`` (reverse hybrid: the K
+  lowest-impact pool layers -> ConvRot INT8, every other layer stays FP16). It consumes
+  the impact json produced by the *HSWQ SDXL Diag Impact* node (Step 1) and, optionally,
+  runs the deterministic 25-seed gate ``benchmark/sdxl_int8_traj_compare.py`` (Step 3).
+
+The engines run unchanged as child processes of this repository's own toolkit, so the
+result is identical to running them by hand. Freeing live VRAM models prior to execution
+ensures clean calibration and deterministic 25-seed trajectory benchmarking.
 """
 from __future__ import annotations
 
@@ -18,7 +27,22 @@ import torch
 # Locate repository root (two levels up from comfyui_nodes/)
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _QUANT_SCRIPT = os.path.join("sd1.5", "quantize_sd1.5_hswq_v1.0.py")
+_SDXL_REVERSE_SCRIPT = os.path.join("sdxl", "gen_reverse_int8_sdxl_v1.1.py")
+_SDXL_TRAJ_GATE = os.path.join("benchmark", "sdxl_int8_traj_compare.py")
+_COMFY_PATH = "ComfyUI-master"
 _DEFAULT_CALIB_FILE = os.path.join("sample", "calibration_prompts_128.txt")
+
+
+def _model_base_path(model) -> str:
+    """Checkpoint path of a loaded MODEL, as recorded by the loader."""
+    try:
+        if getattr(model, "cached_patcher_init", None):
+            _func, args = model.cached_patcher_init[:2]
+            if args and isinstance(args, tuple) and isinstance(args[0], str):
+                return args[0]
+    except Exception:
+        pass
+    return ""
 
 
 def _output_dir() -> str:
@@ -68,46 +92,25 @@ def _free_vram_before_run():
         gc.collect()
         if torch.cuda.is_available():
             print(
-                f"[HSWQ SD1.5] pre-run VRAM: "
+                f"[HSWQ] pre-run VRAM: "
                 f"{torch.cuda.memory_allocated() / 2**30:.2f} GiB allocated, "
                 f"{torch.cuda.memory_reserved() / 2**30:.2f} GiB reserved",
                 flush=True,
             )
     except Exception as e:
-        print(f"[HSWQ SD1.5] WARN: could not free models before run: {e}", flush=True)
+        print(f"[HSWQ] WARN: could not free models before run: {e}", flush=True)
 
 
 class HSWQQuantize:
-    """Quantize a diffusion model using HSWQ V1.0 (FP16 protection + ConvRot INT8).
-
-    VRAM contract: this node takes the source as a *checkpoint name* (not a live
-    MODEL/CLIP object). The engine re-loads the checkpoint itself, so accepting a
-    live MODEL would make ComfyUI load it to VRAM for nothing and double-load
-    against the subprocess - the historical cause of "VRAM explodes + slow" when
-    a standalone script is ported into a node. Name-only input keeps the node's
-    own VRAM footprint at zero before the subprocess starts.
-    """
+    """Quantize a diffusion model using HSWQ (FP16 protection + ConvRot INT8)."""
 
     @classmethod
     def INPUT_TYPES(cls):
-        import folder_paths
-
-        try:
-            ckpt_names = folder_paths.get_filename_list("checkpoints")
-        except Exception:
-            ckpt_names = []
-        if not ckpt_names:
-            ckpt_names = [""]
         return {
             "required": {
-                "model_type": (["SD1.5"], {"default": "SD1.5"}),
-                "checkpoint": (
-                    ckpt_names,
-                    {
-                        "default": ckpt_names[0],
-                        "tooltip": "SD1.5 checkpoint (models/checkpoints). The engine loads it itself; no live MODEL/CLIP is needed.",
-                    },
-                ),
+                "model_type": (["SD1.5", "SDXL"], {"default": "SD1.5"}),
+                "model": ("MODEL",),
+                "clip": ("CLIP",),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
                 "calib_file": (
                     ["128", "256", "512"],
@@ -141,7 +144,7 @@ class HSWQQuantize:
                         "min": 0.0,
                         "max": 1000.0,
                         "step": 1.0,
-                        "tooltip": "Hard ceiling budget for FP16-kept layers (must be 300.0).",
+                        "tooltip": "SD1.5 hard ceiling budget for FP16-kept layers (must be 300.0).",
                     },
                 ),
                 "group_size": (
@@ -157,31 +160,50 @@ class HSWQQuantize:
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "Enables FULL ConvRot Hadamard rotation on UNet and CLIP.",
+                        "tooltip": "SD1.5: enables FULL ConvRot Hadamard rotation on UNet and CLIP.",
                     },
                 ),
                 "bias_correction": (
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "Card 1: cancel systematic INT8 output bias into layer biases.",
+                        "tooltip": "Cancel the systematic INT8 output bias into layer biases.",
                     },
                 ),
                 "run_benchmark": (
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "Run automatic 25-seed deterministic trajectory benchmark.",
+                        "tooltip": "Run the automatic 25-seed deterministic trajectory benchmark.",
                     },
                 ),
             },
             "optional": {
+                "vae": ("VAE",),
                 "input_checkpoint": (
                     "STRING",
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "Optional full path override for the source checkpoint (takes precedence over the checkpoint dropdown).",
+                        "tooltip": "Optional manual override path to the source checkpoint if MODEL does not contain cached_patcher_init.",
+                    },
+                ),
+                "impact_json": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": False,
+                        "forceInput": True,
+                        "tooltip": "SDXL only: connect the impact_json output of the HSWQ SDXL Diag Impact node (Step 1). Required for model_type=SDXL.",
+                    },
+                ),
+                "k_layers": (
+                    "INT",
+                    {
+                        "default": 60,
+                        "min": 1,
+                        "max": 1000,
+                        "tooltip": "SDXL only: K lowest-impact pool layers to convert to ConvRot INT8 (Step 2).",
                     },
                 ),
             },
@@ -201,7 +223,8 @@ class HSWQQuantize:
     def quantize(
         self,
         model_type,
-        checkpoint,
+        model,
+        clip,
         output_path,
         calib_file,
         num_calib_samples,
@@ -211,34 +234,41 @@ class HSWQQuantize:
         convrot,
         bias_correction,
         run_benchmark,
+        vae=None,
         input_checkpoint="",
+        impact_json="",
+        k_layers=60,
         **kwargs,
     ):
+        # Family separation: SDXL has its own dedicated branch.
+        if model_type == "SDXL":
+            return self._quantize_sdxl(
+                model,
+                output_path,
+                calib_file,
+                num_calib_samples,
+                num_inference_steps,
+                group_size,
+                bias_correction,
+                run_benchmark,
+                input_checkpoint,
+                impact_json,
+                k_layers,
+            )
         if model_type != "SD1.5":
             raise NotImplementedError(
                 f"model_type {model_type!r} is not yet implemented for HSWQ quantizer."
             )
 
-        # Resolve the source checkpoint path from the name dropdown (or the
-        # explicit path override). No live MODEL/CLIP is taken: the engine
-        # reloads the checkpoint itself, so accepting a live MODEL would only
-        # make ComfyUI load it to VRAM for nothing and double-load against the
-        # subprocess (the historical VRAM blow-up when porting the script).
         base_path = (input_checkpoint or "").strip()
         if not base_path:
-            try:
-                import folder_paths
-                base_path = folder_paths.get_full_path_or_raise("checkpoints", checkpoint)
-            except Exception as e:
-                raise ValueError(
-                    f"checkpoint {checkpoint!r} could not be resolved from models/checkpoints: {e}"
-                )
+            base_path = _model_base_path(model)
 
         if not base_path or not os.path.isfile(base_path):
             raise ValueError(
-                "checkpoint: cannot resolve the source checkpoint file. "
-                "Pick a checkpoint from the dropdown or set input_checkpoint to a full path. "
-                f"Got: {base_path!r}"
+                "model: cannot resolve the checkpoint path of the MODEL input. "
+                "Ensure the model is loaded from a standard Load Checkpoint node, "
+                f"or specify input_checkpoint manually. Got: {base_path!r}"
             )
 
         script_path = os.path.join(_REPO_ROOT, _QUANT_SCRIPT)
@@ -254,18 +284,10 @@ class HSWQQuantize:
         }
         if calib_str in calib_map:
             calib_path = calib_map[calib_str]
-        elif os.path.isabs(calib_str) and os.path.isfile(calib_str):
-            calib_path = calib_str
+        elif not os.path.isabs(calib_str):
+            calib_path = os.path.join(_REPO_ROOT, calib_str)
         else:
-            # Stale/unknown widget value (e.g. a path left over from an older
-            # widget layout). Fall back to the mandated default sheet instead of
-            # failing, so a shifted workflow still runs.
-            print(
-                f"[HSWQ SD1.5 Quantize] WARN: calib_file {calib_file!r} is not a "
-                f"known preset; using 128.",
-                flush=True,
-            )
-            calib_path = calib_map["128"]
+            calib_path = calib_str
 
         if not os.path.isfile(calib_path):
             raise FileNotFoundError(f"Calibration prompts file not found: {calib_path}")
@@ -274,24 +296,8 @@ class HSWQQuantize:
         if not _is_power_of_4(group_size):
             raise ValueError(f"group_size must be a power of 4 (>=4), got {group_size}")
 
-        # Resolve output_path.
-        # ComfyUI widgets are positional, so a workflow saved under an older
-        # widget layout can shift values by one slot and drop a *calibration*
-        # path into output_path (observed: --output <...calibration_prompts_*.txt>).
-        # Heal that: an output_path that is a .txt / a directory / not a
-        # .safetensors target is not a valid output and is treated as empty.
+        # Resolve output_path
         output_path = (output_path or "").strip()
-        if output_path and (
-            output_path.lower().endswith(".txt")
-            or os.path.normcase(os.path.abspath(output_path))
-            == os.path.normcase(os.path.abspath(calib_path))
-        ):
-            print(
-                f"[HSWQ SD1.5 Quantize] WARN: output_path {output_path!r} looks like a "
-                f"calibration file (stale widget); using the default output name.",
-                flush=True,
-            )
-            output_path = ""
         original_stem = os.path.splitext(os.path.basename(base_path))[0]
         ts = int(time.time())
         default_name = f"{original_stem}_hswq_int8_{ts}.safetensors"
@@ -300,8 +306,6 @@ class HSWQQuantize:
         output_path = os.path.abspath(output_path)
         if os.path.isdir(output_path):
             output_path = os.path.join(output_path, default_name)
-        if not output_path.lower().endswith(".safetensors"):
-            output_path = output_path + ".safetensors"
         out_dir = os.path.dirname(output_path)
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
@@ -377,7 +381,170 @@ class HSWQQuantize:
         report = "\n".join(lines[-60:])
         return (output_path, report)
 
+    # ------------------------------------------------------------------
+    # SDXL branch (reverse hybrid ConvRot INT8; Step 2 -> optional Step 3)
+    # ------------------------------------------------------------------
+    def _quantize_sdxl(
+        self,
+        model,
+        output_path,
+        calib_file,
+        num_calib_samples,
+        num_inference_steps,
+        group_size,
+        bias_correction,
+        run_benchmark,
+        input_checkpoint,
+        impact_json,
+        k_layers,
+    ):
+        base_path = (input_checkpoint or "").strip()
+        if not base_path:
+            base_path = _model_base_path(model)
+        if not base_path or not os.path.isfile(base_path):
+            raise ValueError(
+                "model: cannot resolve the checkpoint path of the MODEL input. "
+                "Ensure the model is loaded from a standard Load Checkpoint node, "
+                f"or specify input_checkpoint manually. Got: {base_path!r}"
+            )
+
+        # Step 1 output: the per-layer trajectory impact json (HSWQ SDXL Diag Impact node).
+        imp = (impact_json or "").strip()
+        if not imp:
+            stem = os.path.splitext(os.path.basename(base_path))[0]
+            candidate = os.path.join(_REPO_ROOT, "impact", f"impact_{stem}.json")
+            imp = candidate if os.path.isfile(candidate) else ""
+        if not imp or not os.path.isfile(imp):
+            raise ValueError(
+                "impact_json: the SDXL reverse hybrid needs the impact json produced by "
+                "the HSWQ SDXL Diag Impact node (Step 1). Connect that node's impact_json "
+                f"output, or set the path manually. Got: {imp!r}"
+            )
+
+        script_path = os.path.join(_REPO_ROOT, _SDXL_REVERSE_SCRIPT)
+        if not os.path.isfile(script_path):
+            raise FileNotFoundError(f"HSWQ SDXL converter not found: {script_path}")
+
+        group_size = int(group_size)
+        if not _is_power_of_4(group_size):
+            raise ValueError(f"group_size must be a power of 4 (>=4), got {group_size}")
+
+        # Calibration prompts (used only when bias correction is enabled).
+        calib_str = str(calib_file).strip()
+        calib_map = {
+            "128": os.path.join(_REPO_ROOT, "sample", "calibration_prompts_128.txt"),
+            "256": os.path.join(_REPO_ROOT, "sample", "calibration_prompts_256.txt"),
+            "512": os.path.join(_REPO_ROOT, "sample", "calibration_prompts_512.txt"),
+        }
+        if calib_str in calib_map:
+            calib_path = calib_map[calib_str]
+        elif not os.path.isabs(calib_str):
+            calib_path = os.path.join(_REPO_ROOT, calib_str)
+        else:
+            calib_path = calib_str
+
+        # Resolve output_path (the hybrid safetensors).
+        k_layers = int(k_layers)
+        output_path = (output_path or "").strip()
+        original_stem = os.path.splitext(os.path.basename(base_path))[0]
+        ts = int(time.time())
+        default_name = f"{original_stem}_rev_int{k_layers}_convrot_int8_{ts}.safetensors"
+        if not output_path:
+            output_path = os.path.join(_output_dir(), default_name)
+        output_path = os.path.abspath(output_path)
+        if os.path.isdir(output_path):
+            output_path = os.path.join(output_path, default_name)
+        out_dir = os.path.dirname(output_path)
+        out_name = os.path.basename(output_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+
+        _free_vram_before_run()
+
+        env = dict(os.environ)
+        env["PYTHONIOENCODING"] = "utf-8"
+
+        # Step 2: reverse hybrid conversion (K lowest-impact pool layers -> ConvRot INT8).
+        cmd = [
+            sys.executable,
+            script_path,
+            str(k_layers),
+            out_name,
+            base_path,
+            imp,
+            "--out-dir", out_dir,
+            "--groupsize", str(group_size),
+        ]
+        if bias_correction:
+            if not os.path.isfile(calib_path):
+                raise FileNotFoundError(f"Calibration prompts file not found: {calib_path}")
+            cmd += [
+                "--bias_correction",
+                "--calib_file", calib_path,
+                "--comfy_path", _COMFY_PATH,
+                "--num_calib_samples", str(int(num_calib_samples)),
+                "--num_inference_steps", str(int(num_inference_steps)),
+            ]
+
+        print("[HSWQ SDXL Quantize] " + " ".join(cmd), flush=True)
+        lines = self._run_child(cmd, env)
+        if not os.path.isfile(output_path):
+            raise RuntimeError(
+                "HSWQ SDXL conversion finished but the hybrid file was not written: "
+                f"{output_path}\nOutput tail:\n" + "\n".join(lines[-40:])
+            )
+
+        # Step 3 (optional): deterministic 25-seed trajectory gate.
+        if run_benchmark:
+            gate = os.path.join(_REPO_ROOT, _SDXL_TRAJ_GATE)
+            if not os.path.isfile(gate):
+                raise FileNotFoundError(f"HSWQ SDXL trajectory gate not found: {gate}")
+            cmd_gate = [
+                sys.executable,
+                gate,
+                "--fp16", base_path,
+                "--int8", output_path,
+                "--comfy_path", _COMFY_PATH,
+                "--steps", "25",
+            ]
+            print("[HSWQ SDXL Gate] " + " ".join(cmd_gate), flush=True)
+            lines += self._run_child(cmd_gate, env)
+
+        print(f"[HSWQ SDXL Quantize] Completed: {output_path}", flush=True)
+        report = "\n".join(lines[-60:])
+        return (output_path, report)
+
+    @staticmethod
+    def _run_child(cmd, env):
+        lines = []
+        proc = subprocess.Popen(
+            cmd,
+            cwd=_REPO_ROOT,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+        )
+        try:
+            for line in proc.stdout:
+                line = line.rstrip("\n")
+                lines.append(line)
+                print("  " + line, flush=True)
+            proc.wait()
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"HSWQ step failed (exit {proc.returncode}). Output tail:\n"
+                + "\n".join(lines[-40:])
+            )
+        return lines
+
 
 # Backwards compatibility alias
 HSWQSD15Quantize = HSWQQuantize
-
