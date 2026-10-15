@@ -5,6 +5,7 @@ Provides native ConvRot INT8 quantization nodes supporting multiple architecture
 """
 from .native_convrot_int8_convert import NativeConvRotInt8Quantize, ZImageConvRotInt8Quantize
 from .hswq_sdxl_diag_impact import HSWQSDXLDiagImpact
+from .hswq_sd15_quantize import HSWQSD15Quantize
 from .te_controlnet_convrot_int8_convert import TEControlNetConvRotInt8Quantize
 from .hswq_model_patch_loader import HSWQModelPatchLoader
 from .sam3_pt_loader import HSWQSAM3Loader
@@ -20,6 +21,7 @@ NODE_CLASS_MAPPINGS = {
     "NativeConvRotInt8Quantize": NativeConvRotInt8Quantize,
     "ZImageConvRotInt8Quantize": ZImageConvRotInt8Quantize,
     "HSWQSDXLDiagImpact": HSWQSDXLDiagImpact,
+    "HSWQSD15Quantize": HSWQSD15Quantize,
     "TEControlNetConvRotInt8Quantize": TEControlNetConvRotInt8Quantize,
     "HSWQModelPatchLoader": HSWQModelPatchLoader,
     "HSWQSimpleCLIPLoader": HSWQSimpleCLIPLoader,
@@ -33,6 +35,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "NativeConvRotInt8Quantize": "Native ConvRot INT8 Quantize",
     "ZImageConvRotInt8Quantize": "Native ConvRot INT8 Quantize",
     "HSWQSDXLDiagImpact": "HSWQ SDXL Diag Impact (ConvRot INT8)",
+    "HSWQSD15Quantize": "HSWQ SD1.5 Quantize (ConvRot INT8)",
     "TEControlNetConvRotInt8Quantize": "TE / ControlNet ConvRot INT8 Quantize",
     "HSWQModelPatchLoader": "HSWQ Load Model Patch (ConvRot INT8)",
     "HSWQSimpleCLIPLoader": "HSWQ Load CLIP (Simple)",

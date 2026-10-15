@@ -52,7 +52,7 @@ pip install diffusers accelerate scikit-image
 
 ## How to quantize
 
-> **ComfyUI Node Integration:** Progressive support for direct in-graph quantization inside ComfyUI via custom nodes (`comfyui_nodes/`) is currently underway. Support is already available for **native ConvRot INT8** (`Native ConvRot INT8 Quantize`), and additional model architectures / quantization formats will be rolled out sequentially.
+> **ComfyUI Node Integration:** Progressive support for direct in-graph quantization inside ComfyUI via custom nodes (`comfyui_nodes/`) is currently underway. Support is available for **HSWQ SD1.5 Quantize** (`HSWQ SD1.5 Quantize`), **native ConvRot INT8** (`Native ConvRot INT8 Quantize`), and additional model architectures / quantization formats will be rolled out sequentially.
 
 - **SDXL (ConvRot INT8, reverse hybrid):** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md) - FP16 checkpoint in, per-layer trajectory-impact ranking, K lowest-impact layers to ConvRot INT8 and everything else kept at FP16 (reverse method); validated with the deterministic **25-seed** latent-trajectory comparison (cosine mean >= 0.95, 0/25 bifurcated).
 - **SD1.5 (ConvRot INT8, HSWQ hybrid):** [How to quantize SD1.5](md/How%20to%20quantize%20SD1.5.md) - HSWQ V1.0 quantizer (`sd1.5/quantize_sd1.5_hswq_v1.0.py`): mandated distribution analysis -> r32 calibration -> V4 MSE -> FP16 300 MiB protection -> ConvRot INT8 on the remainder **including the embedded CLIP** -> automatic 25-seed trajectory bench (INT8 CLIP conditioning, CUDA-graph executor). Also covers the native CLI/node baseline and the CLIP INT8 loader mechanics.
