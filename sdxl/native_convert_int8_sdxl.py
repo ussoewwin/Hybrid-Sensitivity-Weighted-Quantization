@@ -299,6 +299,92 @@ def pack_channelwise(weight: torch.Tensor):
     return q, scale_view.to(dtype=torch.float32)
 
 
+# ---------------------------------------------------------------------------
+# SDXL CLIP FP16 protection rule (model-independent; measured across
+# waiIllustrious / waiREALCN / animemix / bluePencil). Protected Linear weights
+# stay FP16; the rest of the CLIP is FULL ConvRot INT8. Keys are pack-space
+# (conditioner.embedders.*).
+# ---------------------------------------------------------------------------
+import re as _re
+
+_SDXL_CLIP_L_PROTECT_EXACT = (
+    "conditioner.embedders.0.transformer.text_model.embeddings.token_embedding.weight",
+    "conditioner.embedders.0.transformer.text_model.embeddings.position_embedding.weight",
+    "conditioner.embedders.0.transformer.text_model.encoder.layers.0.mlp.fc1.weight",
+    "conditioner.embedders.0.transformer.text_model.encoder.layers.0.mlp.fc2.weight",
+)
+_SDXL_CLIP_G_CPROJ_RE = _re.compile(
+    r"^conditioner\.embedders\.1\.model\.transformer\.resblocks\.\d+\.mlp\.c_proj\.weight$"
+)
+_SDXL_CLIP_G_OUTPROJ_PROTECT = {
+    "conditioner.embedders.1.model.transformer.resblocks.2.attn.out_proj.weight",
+    "conditioner.embedders.1.model.transformer.resblocks.29.attn.out_proj.weight",
+}
+
+
+def is_protected_sdxl_clip_weight(key: str) -> bool:
+    """True if this SDXL CLIP weight must stay FP16 (rule-based protection set)."""
+    if key in _SDXL_CLIP_L_PROTECT_EXACT:
+        return True
+    if key in _SDXL_CLIP_G_OUTPROJ_PROTECT:
+        return True
+    if _SDXL_CLIP_G_CPROJ_RE.match(key):
+        return True
+    return False
+
+
+def quantize_sdxl_clip(state_dict, quant_meta_layers, *, enable_convrot,
+                       group_size, per_channel_int8,
+                       build_hadamard, rotate_weight,
+                       convrot_group_size_for_features):
+    """Quantize the checkpoint-embedded SDXL CLIPs (conditioner.embedders.*) to
+    FULL ConvRot INT8, keeping the rule-based FP16 protection set.
+
+    Modifies state_dict / quant_meta_layers in place. Returns
+    (convrot_count, plain_count, protected_count, kept_count).
+    """
+    h_cache = {}
+    convrot_count = plain_count = protected_count = kept_count = 0
+    for key in sorted(list(state_dict.keys())):
+        if not key.startswith("conditioner.embedders."):
+            continue
+        tensor = state_dict[key]
+        if not (key.endswith(".weight") and tensor.ndim == 2):
+            kept_count += 1
+            continue
+        if tensor.dtype not in (torch.float16, torch.float32, torch.bfloat16):
+            kept_count += 1
+            continue
+        if is_protected_sdxl_clip_weight(key):
+            protected_count += 1
+            continue  # stays FP16, untouched
+
+        w = tensor.float().cpu()
+        module_key = key[: -len(".weight")]
+        conf = {"format": "int8_tensorwise"}
+        if enable_convrot and convrot_group_size_for_features is not None:
+            gs = convrot_group_size_for_features(w.shape[1], group_size)
+            if gs is not None:
+                if gs not in h_cache:
+                    h_cache[gs] = build_hadamard(gs, device="cpu", dtype=torch.float32)
+                w_rot = rotate_weight(w, h_cache[gs], gs)
+                q, scale = pack_channelwise(w_rot)
+                conf = {"format": "int8_tensorwise", "convrot": True,
+                        "convrot_groupsize": int(gs)}
+                convrot_count += 1
+            else:
+                q, scale = (pack_channelwise(w) if per_channel_int8 else pack_tensorwise(w))
+                plain_count += 1
+        else:
+            q, scale = (pack_channelwise(w) if per_channel_int8 else pack_tensorwise(w))
+            plain_count += 1
+        state_dict[key] = q
+        state_dict[f"{module_key}.weight_scale"] = scale
+        state_dict[f"{module_key}.comfy_quant"] = _encode_comfy_quant(conf)
+        quant_meta_layers[module_key] = dict(conf)
+    return convrot_count, plain_count, protected_count, kept_count
+
+
 def run_card1_calib(
     *,
     input_path: str,
@@ -616,6 +702,22 @@ def convert_to_int8(
         )
     }
 
+    # SDXL CLIP (conditioner.embedders.0 / .1): ConvRot INT8 with the rule-based
+    # FP16 protection set. Runs before save so the companions land in
+    # quant_meta_layers and the pack carries the SDXL loader's metadata path.
+    clip_convrot_count = clip_plain_count = clip_protected = clip_kept = 0
+    if any(k.startswith("conditioner.embedders.") for k in new_state_dict):
+        clip_convrot_count, clip_plain_count, clip_protected, clip_kept = quantize_sdxl_clip(
+            new_state_dict, quant_meta_layers,
+            enable_convrot=enable_convrot, group_size=group_size,
+            per_channel_int8=per_channel_int8,
+            build_hadamard=build_hadamard, rotate_weight=rotate_weight,
+            convrot_group_size_for_features=convrot_group_size_for_features,
+        )
+        metadata["_quantization_metadata"] = json.dumps(
+            {"format_version": "1.0", "layers": quant_meta_layers}
+        )
+
     print(f"Saving to: {output_path}")
     print(f"Converted layers: {converted_count}, Kept layers: {skipped_count}")
     print(f"Per-channel INT8 (Card 3): {per_channel_int8}")
@@ -630,6 +732,11 @@ def convert_to_int8(
         )
     else:
         print(f"  plain INT8: {plain_int8_count}")
+    if clip_convrot_count + clip_plain_count + clip_protected > 0:
+        print(
+            f"  SDXL CLIP: convrot={clip_convrot_count} plain={clip_plain_count} "
+            f"fp16_protected={clip_protected} kept={clip_kept}"
+        )
 
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
