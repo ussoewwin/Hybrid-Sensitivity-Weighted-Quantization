@@ -382,6 +382,89 @@ def _plain_pack(w, per_channel_int8, n8):
     return n8.quantize_int8_tensorwise(w)
 
 
+# ---------------------------------------------------------------------------
+# SDXL CLIP FP16 protection rule (model-independent; measured across
+# waiIllustrious / waiREALCN / animemix / bluePencil - risk metrics kurtosis /
+# outlier_ratio identical). Protected Linear weights stay FP16; the rest of the
+# CLIP is FULL ConvRot INT8. Keys are the pack-space names
+# (conditioner.embedders.*).
+# ---------------------------------------------------------------------------
+import re as _re
+
+_SDXL_CLIP_L_PROTECT_EXACT = (
+    "conditioner.embedders.0.transformer.text_model.embeddings.token_embedding.weight",
+    "conditioner.embedders.0.transformer.text_model.embeddings.position_embedding.weight",
+    "conditioner.embedders.0.transformer.text_model.encoder.layers.0.mlp.fc1.weight",
+    "conditioner.embedders.0.transformer.text_model.encoder.layers.0.mlp.fc2.weight",
+)
+_SDXL_CLIP_G_CPROJ_RE = _re.compile(
+    r"^conditioner\.embedders\.1\.model\.transformer\.resblocks\.\d+\.mlp\.c_proj\.weight$"
+)
+_SDXL_CLIP_G_OUTPROJ_PROTECT = {
+    "conditioner.embedders.1.model.transformer.resblocks.2.attn.out_proj.weight",
+    "conditioner.embedders.1.model.transformer.resblocks.29.attn.out_proj.weight",
+}
+
+
+def _is_protected_sdxl_clip_weight(key: str) -> bool:
+    """True if this SDXL CLIP weight must stay FP16 (rule-based protection set)."""
+    if key in _SDXL_CLIP_L_PROTECT_EXACT:
+        return True
+    if key in _SDXL_CLIP_G_OUTPROJ_PROTECT:
+        return True
+    if _SDXL_CLIP_G_CPROJ_RE.match(key):
+        return True
+    return False
+
+
+def _clip_internal_to_pack_key(k: str):
+    """Map a CLIP.get_sd() internal key (clip_l. / clip_g.) to the pack-space
+    name (conditioner.embedders.{0,1}), inverting SDXL.process_clip_state_dict.
+
+    clip_l: clip_l.transformer.* -> conditioner.embedders.0.transformer.*  (plain)
+    clip_g: clip_g.transformer.text_model.* -> conditioner.embedders.1.model.transformer.*
+            (inverse of transformers_convert's text_model.encoder.layers -> resblocks)
+
+    Returns None for keys that cannot be mapped.
+    """
+    if k.startswith("clip_l.transformer."):
+        return "conditioner.embedders.0." + k[len("clip_l."):]
+    if k == "clip_l.logit_scale":
+        return "conditioner.embedders.0.logit_scale"
+    if k.startswith("clip_g."):
+        rest = k[len("clip_g."):]  # transformer.* or logit_scale or text_projection...
+        # invert transformers_convert: transformer.text_model.encoder.layers.N.* -> transformer.resblocks.N.*
+        m = _re.match(
+            r"transformer\.text_model\.encoder\.layers\.(\d+)\.(layer_norm1|layer_norm2|mlp\.fc1|mlp\.fc2|self_attn\.out_proj)(\..*)?$",
+            rest,
+        )
+        if m:
+            idx, sub, suffix = m.group(1), m.group(2), m.group(3) or ""
+            sub_map = {
+                "layer_norm1": "ln_1",
+                "layer_norm2": "ln_2",
+                "mlp.fc1": "mlp.c_fc",
+                "mlp.fc2": "mlp.c_proj",
+                "self_attn.out_proj": "attn.out_proj",
+            }
+            return (
+                f"conditioner.embedders.1.model.transformer.resblocks.{idx}.{sub_map[sub]}{suffix}"
+            )
+        # whole-model renames (with optional .weight / .bias suffix)
+        for internal, pack in (
+            ("transformer.text_model.embeddings.token_embedding", "token_embedding"),
+            ("transformer.text_model.embeddings.position_embedding", "positional_embedding"),
+            ("transformer.text_model.final_layer_norm", "ln_final"),
+            ("transformer.text_projection", "text_projection"),
+        ):
+            if rest == internal or rest.startswith(internal + "."):
+                return "conditioner.embedders.1.model." + pack + rest[len(internal):]
+        if rest == "logit_scale":
+            return "conditioner.embedders.1.model.logit_scale"
+        return None
+    return None
+
+
 _BENCH_SAGE2_STATS = {
     "calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
     "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0, "armed": False,
@@ -710,6 +793,73 @@ class NativeConvRotInt8Quantize:
                         and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
                     )
                     if not is_linear_weight:
+                        new_sd[key] = tensor.detach().cpu()
+                        clip_kept_count += 1
+                        continue
+
+                    w = tensor.float().cpu()
+                    module_key = key[:-len(".weight")]
+                    conf = {"format": "int8_tensorwise"}
+
+                    if convrot:
+                        gs = n8.convrot_group_size_for_features(w.shape[1], group_size)
+                        if gs is not None:
+                            if gs not in h_cache:
+                                h_cache[gs] = n8.build_hadamard(gs, device="cpu")
+                            w_rot = n8.rotate_weight(w, h_cache[gs], gs)
+                            q, scale = n8.quantize_int8_channelwise(w_rot)
+                            conf = {
+                                "format": "int8_tensorwise",
+                                "convrot": True,
+                                "convrot_groupsize": int(gs),
+                            }
+                            clip_convrot_count += 1
+                        else:
+                            q, scale = _plain_pack(w, per_channel_int8, n8)
+                            conf = {"format": "int8_tensorwise"}
+                            clip_plain_count += 1
+                    else:
+                        q, scale = _plain_pack(w, per_channel_int8, n8)
+                        conf = {"format": "int8_tensorwise"}
+                        clip_plain_count += 1
+
+                    new_sd[key] = q
+                    new_sd[f"{module_key}.weight_scale"] = scale
+                    new_sd[f"{module_key}.comfy_quant"] = n8._encode_comfy_quant(conf)
+                    meta_layers[module_key] = dict(conf)
+
+        elif model_type == "SDXL" and clip is not None:
+            # SDXL: CLIP-L + CLIP-G ConvRot INT8 with the rule-based FP16
+            # protection set. clip.get_sd() returns internal names
+            # (clip_l. / clip_g.), which are mapped back to the pack-space
+            # conditioner.embedders.{0,1} names so the SDXL loader's CLIP
+            # metadata path (nodes/sdxl_convrot_int8/sdxl_clip_quant.py) consumes
+            # them, and so transformers_convert restructures them on load.
+            clip_sd = None
+            if hasattr(clip, "get_sd") and callable(clip.get_sd):
+                clip_sd = clip.get_sd()
+            elif hasattr(clip, "cond_stage_model"):
+                clip_sd = clip.cond_stage_model.state_dict()
+
+            if clip_sd:
+                h_cache = {}
+                for k, tensor in sorted(clip_sd.items()):
+                    key = _clip_internal_to_pack_key(k)
+                    if key is None:
+                        continue
+                    is_linear_weight = (
+                        key.endswith(".weight")
+                        and tensor.ndim == 2
+                        and "embedding" not in key
+                        and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+                    )
+                    if not is_linear_weight:
+                        new_sd[key] = tensor.detach().cpu()
+                        clip_kept_count += 1
+                        continue
+
+                    if _is_protected_sdxl_clip_weight(key):
+                        # Rule-based FP16 protection: keep the raw float weight.
                         new_sd[key] = tensor.detach().cpu()
                         clip_kept_count += 1
                         continue
