@@ -21,18 +21,6 @@ _QUANT_SCRIPT = os.path.join("sd1.5", "quantize_sd1.5_hswq_v1.0.py")
 _DEFAULT_CALIB_FILE = os.path.join("sample", "calibration_prompts_128.txt")
 
 
-def _model_base_path(model) -> str:
-    """Checkpoint path of a loaded MODEL, as recorded by the loader."""
-    try:
-        if getattr(model, "cached_patcher_init", None):
-            _func, args = model.cached_patcher_init[:2]
-            if args and isinstance(args, tuple) and isinstance(args[0], str):
-                return args[0]
-    except Exception:
-        pass
-    return ""
-
-
 def _output_dir() -> str:
     try:
         import folder_paths
@@ -90,15 +78,36 @@ def _free_vram_before_run():
 
 
 class HSWQQuantize:
-    """Quantize a diffusion model using HSWQ V1.0 (FP16 protection + ConvRot INT8)."""
+    """Quantize a diffusion model using HSWQ V1.0 (FP16 protection + ConvRot INT8).
+
+    VRAM contract: this node takes the source as a *checkpoint name* (not a live
+    MODEL/CLIP object). The engine re-loads the checkpoint itself, so accepting a
+    live MODEL would make ComfyUI load it to VRAM for nothing and double-load
+    against the subprocess - the historical cause of "VRAM explodes + slow" when
+    a standalone script is ported into a node. Name-only input keeps the node's
+    own VRAM footprint at zero before the subprocess starts.
+    """
 
     @classmethod
     def INPUT_TYPES(cls):
+        import folder_paths
+
+        try:
+            ckpt_names = folder_paths.get_filename_list("checkpoints")
+        except Exception:
+            ckpt_names = []
+        if not ckpt_names:
+            ckpt_names = [""]
         return {
             "required": {
                 "model_type": (["SD1.5"], {"default": "SD1.5"}),
-                "model": ("MODEL",),
-                "clip": ("CLIP",),
+                "checkpoint": (
+                    ckpt_names,
+                    {
+                        "default": ckpt_names[0],
+                        "tooltip": "SD1.5 checkpoint (models/checkpoints). The engine loads it itself; no live MODEL/CLIP is needed.",
+                    },
+                ),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
                 "calib_file": (
                     ["128", "256", "512"],
@@ -167,13 +176,12 @@ class HSWQQuantize:
                 ),
             },
             "optional": {
-                "vae": ("VAE",),
                 "input_checkpoint": (
                     "STRING",
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "Optional manual override path to the source checkpoint if MODEL does not contain cached_patcher_init.",
+                        "tooltip": "Optional full path override for the source checkpoint (takes precedence over the checkpoint dropdown).",
                     },
                 ),
             },
@@ -193,8 +201,7 @@ class HSWQQuantize:
     def quantize(
         self,
         model_type,
-        model,
-        clip,
+        checkpoint,
         output_path,
         calib_file,
         num_calib_samples,
@@ -204,7 +211,6 @@ class HSWQQuantize:
         convrot,
         bias_correction,
         run_benchmark,
-        vae=None,
         input_checkpoint="",
         **kwargs,
     ):
@@ -212,15 +218,27 @@ class HSWQQuantize:
             raise NotImplementedError(
                 f"model_type {model_type!r} is not yet implemented for HSWQ quantizer."
             )
+
+        # Resolve the source checkpoint path from the name dropdown (or the
+        # explicit path override). No live MODEL/CLIP is taken: the engine
+        # reloads the checkpoint itself, so accepting a live MODEL would only
+        # make ComfyUI load it to VRAM for nothing and double-load against the
+        # subprocess (the historical VRAM blow-up when porting the script).
         base_path = (input_checkpoint or "").strip()
         if not base_path:
-            base_path = _model_base_path(model)
+            try:
+                import folder_paths
+                base_path = folder_paths.get_full_path_or_raise("checkpoints", checkpoint)
+            except Exception as e:
+                raise ValueError(
+                    f"checkpoint {checkpoint!r} could not be resolved from models/checkpoints: {e}"
+                )
 
         if not base_path or not os.path.isfile(base_path):
             raise ValueError(
-                "model: cannot resolve the checkpoint path of the MODEL input. "
-                "Ensure the model is loaded from a standard Load Checkpoint node, "
-                f"or specify input_checkpoint manually. Got: {base_path!r}"
+                "checkpoint: cannot resolve the source checkpoint file. "
+                "Pick a checkpoint from the dropdown or set input_checkpoint to a full path. "
+                f"Got: {base_path!r}"
             )
 
         script_path = os.path.join(_REPO_ROOT, _QUANT_SCRIPT)
@@ -236,10 +254,18 @@ class HSWQQuantize:
         }
         if calib_str in calib_map:
             calib_path = calib_map[calib_str]
-        elif not os.path.isabs(calib_str):
-            calib_path = os.path.join(_REPO_ROOT, calib_str)
-        else:
+        elif os.path.isabs(calib_str) and os.path.isfile(calib_str):
             calib_path = calib_str
+        else:
+            # Stale/unknown widget value (e.g. a path left over from an older
+            # widget layout). Fall back to the mandated default sheet instead of
+            # failing, so a shifted workflow still runs.
+            print(
+                f"[HSWQ SD1.5 Quantize] WARN: calib_file {calib_file!r} is not a "
+                f"known preset; using 128.",
+                flush=True,
+            )
+            calib_path = calib_map["128"]
 
         if not os.path.isfile(calib_path):
             raise FileNotFoundError(f"Calibration prompts file not found: {calib_path}")
@@ -248,8 +274,24 @@ class HSWQQuantize:
         if not _is_power_of_4(group_size):
             raise ValueError(f"group_size must be a power of 4 (>=4), got {group_size}")
 
-        # Resolve output_path
+        # Resolve output_path.
+        # ComfyUI widgets are positional, so a workflow saved under an older
+        # widget layout can shift values by one slot and drop a *calibration*
+        # path into output_path (observed: --output <...calibration_prompts_*.txt>).
+        # Heal that: an output_path that is a .txt / a directory / not a
+        # .safetensors target is not a valid output and is treated as empty.
         output_path = (output_path or "").strip()
+        if output_path and (
+            output_path.lower().endswith(".txt")
+            or os.path.normcase(os.path.abspath(output_path))
+            == os.path.normcase(os.path.abspath(calib_path))
+        ):
+            print(
+                f"[HSWQ SD1.5 Quantize] WARN: output_path {output_path!r} looks like a "
+                f"calibration file (stale widget); using the default output name.",
+                flush=True,
+            )
+            output_path = ""
         original_stem = os.path.splitext(os.path.basename(base_path))[0]
         ts = int(time.time())
         default_name = f"{original_stem}_hswq_int8_{ts}.safetensors"
@@ -258,6 +300,8 @@ class HSWQQuantize:
         output_path = os.path.abspath(output_path)
         if os.path.isdir(output_path):
             output_path = os.path.join(output_path, default_name)
+        if not output_path.lower().endswith(".safetensors"):
+            output_path = output_path + ".safetensors"
         out_dir = os.path.dirname(output_path)
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
