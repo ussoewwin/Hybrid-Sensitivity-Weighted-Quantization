@@ -101,11 +101,10 @@ class HSWQQuantize:
                 "clip": ("CLIP",),
                 "output_path": ("STRING", {"default": "", "multiline": False}),
                 "calib_file": (
-                    "STRING",
+                    ["128", "256", "512"],
                     {
-                        "default": _DEFAULT_CALIB_FILE,
-                        "multiline": False,
-                        "tooltip": "Calibration prompts file (sample/calibration_prompts_512.txt, 32 prompts).",
+                        "default": "512",
+                        "tooltip": "Calibration prompts sheet from sample/ (128, 256, or 512 lines).",
                     },
                 ),
                 "num_calib_samples": (
@@ -169,6 +168,14 @@ class HSWQQuantize:
             },
             "optional": {
                 "vae": ("VAE",),
+                "custom_calib_file": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": False,
+                        "tooltip": "Optional path to a custom calibration prompts text file (overrides calib_file dropdown).",
+                    },
+                ),
                 "input_checkpoint": (
                     "STRING",
                     {
@@ -206,6 +213,7 @@ class HSWQQuantize:
         bias_correction,
         run_benchmark,
         vae=None,
+        custom_calib_file="",
         input_checkpoint="",
     ):
         if model_type != "SD1.5":
@@ -227,10 +235,24 @@ class HSWQQuantize:
         if not os.path.isfile(script_path):
             raise FileNotFoundError(f"HSWQ SD1.5 script not found: {script_path}")
 
-        # Resolve calib_file
-        calib_path = calib_file.strip()
-        if not os.path.isabs(calib_path):
-            calib_path = os.path.join(_REPO_ROOT, calib_path)
+        # Resolve calib_file from preset dropdown (128, 256, 512) or custom path
+        custom_path = (custom_calib_file or "").strip()
+        if custom_path:
+            calib_path = custom_path if os.path.isabs(custom_path) else os.path.join(_REPO_ROOT, custom_path)
+        else:
+            calib_str = str(calib_file).strip()
+            calib_map = {
+                "128": os.path.join(_REPO_ROOT, "sample", "calibration_prompts_128.txt"),
+                "256": os.path.join(_REPO_ROOT, "sample", "calibration_prompts_256.txt"),
+                "512": os.path.join(_REPO_ROOT, "sample", "calibration_prompts_512.txt"),
+            }
+            if calib_str in calib_map:
+                calib_path = calib_map[calib_str]
+            elif not os.path.isabs(calib_str):
+                calib_path = os.path.join(_REPO_ROOT, calib_str)
+            else:
+                calib_path = calib_str
+
         if not os.path.isfile(calib_path):
             raise FileNotFoundError(f"Calibration prompts file not found: {calib_path}")
 
