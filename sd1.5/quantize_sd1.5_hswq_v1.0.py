@@ -194,6 +194,18 @@ sys.path.insert(0, os.path.join(repo_root, "ComfyUI-master"))
 # runs - the quantizer reads the analyzer's current value at runtime so the
 # two stay in lockstep. ZI precedent: the same named ceiling was moved 300->600.
 FP16_BUDGET_MB_HARD = 300.0
+
+# SD1.5 CLIP-L FP16 protection rule (SDXL CLIP-L parity; measured identical
+# across 11 SD1.5 checkpoints: embeddings.position_embedding ~652/78,
+# encoder.layers.0.mlp.fc1 ~111/78, embeddings.token_embedding 0.36/47,
+# encoder.layers.0.mlp.fc2 ~15.5/40 for kurtosis / outlier_ratio). These stay
+# FP16; the rest of the CLIP is FULL ConvRot INT8.
+_SD15_CLIP_PROTECT_EXACT = (
+    "cond_stage_model.transformer.text_model.embeddings.token_embedding.weight",
+    "cond_stage_model.transformer.text_model.embeddings.position_embedding.weight",
+    "cond_stage_model.transformer.text_model.encoder.layers.0.mlp.fc1.weight",
+    "cond_stage_model.transformer.text_model.encoder.layers.0.mlp.fc2.weight",
+)
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
@@ -3398,6 +3410,14 @@ def main():
                 and value.dtype in (torch.float16, torch.float32, torch.bfloat16)
             )
             if not is_linear_weight:
+                output_state_dict[key] = value
+                clip_kept_count += 1
+                continue
+
+            # Rule-based FP16 protection (SDXL CLIP-L parity): keep the
+            # highest-risk CLIP layers float (layers.0.mlp.fc1/fc2 are kurtosis
+            # 111/15.5 across every measured SD1.5 checkpoint).
+            if key in _SD15_CLIP_PROTECT_EXACT:
                 output_state_dict[key] = value
                 clip_kept_count += 1
                 continue
