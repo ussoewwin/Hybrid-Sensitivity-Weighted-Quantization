@@ -313,7 +313,7 @@ artifact).
 ### 1. `HSWQ SDXL Diag Impact` + `HSWQ Quantize ConvRot INT8` (Recommended In-Workflow)
 
 <p align="center">
-  <img src="../png/hswq%20sdsl.png" alt="ComfyUI HSWQ SDXL Diag Impact + Quantize ConvRot INT8 Workflow" width="800">
+  <img src="../png/hswq%20sdxl.png" alt="ComfyUI HSWQ SDXL Diag Impact + Quantize ConvRot INT8 Workflow" width="800">
 </p>
 
 In-workflow SDXL reverse-hybrid pipeline (`comfyui_nodes/hswq_sdxl_diag_impact.py` +
