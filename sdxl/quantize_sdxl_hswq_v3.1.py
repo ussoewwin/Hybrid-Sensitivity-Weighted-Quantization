@@ -75,6 +75,39 @@ import sys
 # Bypass diffusers' strict runtime peft version assertion.
 os.environ["_CHECK_PEFT"] = "0"
 
+
+def _strip_async_backend_for_this_process() -> None:
+    """Keep this script off the cudaMallocAsync allocator backend.
+
+    Measured (2026-10-17, waiIllustriousSDXL_v170, 2-sample calib at
+    1024x1024): `backend:cudaMallocAsync` balloons reserved VRAM to 17.00 GiB
+    while allocated stays 6.35 GiB (peak 7.05) - thrashing on a 16 GiB card,
+    ~1.1 it/s calibration sampling. The default caching allocator reserves
+    10.28 GiB (-6.7 GiB) and the thrashing disappears. ComfyUI auto-appends
+    the backend on cu13 torch; the ComfyUI HSWQ nodes strip it for their child
+    trees (566fcba / b7eeda9). This guard covers the documented STANDALONE
+    script runs: drop any `backend:` entry from PYTORCH_CUDA_ALLOC_CONF in
+    this process only, BEFORE torch initializes CUDA. Other conf entries
+    (max_split_size_mb, garbage_collection_threshold, expandable_segments)
+    are preserved; unset variable is left untouched.
+    """
+    conf = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+    if conf and "backend:" in conf:
+        kept = ",".join(
+            p for p in (s.strip() for s in conf.split(","))
+            if p and not p.startswith("backend:")
+        )
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = kept
+        print(
+            "[HSWQ SDXL] PYTORCH_CUDA_ALLOC_CONF: removed the cudaMallocAsync "
+            "backend entry for this run (measured: reserved 17.00 -> 10.28 GiB "
+            "at 1024x1024 calibration; the async graph pool does not return "
+            "freed blocks and thrashes on 16 GiB cards)"
+        )
+
+
+_strip_async_backend_for_this_process()
+
 # Guard against broken kornia geometry transform in host venv (guiders frequency_decoupled_guidance)
 def _install_kornia_compat_stub() -> None:
     try:
