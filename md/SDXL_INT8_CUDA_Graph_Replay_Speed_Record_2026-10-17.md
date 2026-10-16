@@ -77,7 +77,7 @@ Loader branch wiring (loader side, after the measured bench): `_arm_sdxl_cudagra
 
 Sensitivity check: the quality gate table is unchanged to the last seed (13 same-image / 12 drifted-but-not-bifurcated, min 0.83745 / max 0.99675 / 0 bifurcated) — the executor's copy-in + replay contract produced a bit-stable result.
 
-## 5. Why this beats the SD1.5 results trit-Port attempt (measured round-up)
+## 5. Measured round-up: SDXL lever verification (vs the SD1.5 port attempt)
 
 | lever | SD1.5 measured | SDXL measured |
 |---|---|---|
