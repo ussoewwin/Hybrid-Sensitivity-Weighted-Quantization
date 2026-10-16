@@ -316,6 +316,8 @@ artifact).
   <img src="../png/hswq%20sdxl.png" alt="ComfyUI HSWQ SDXL Diag Impact + Quantize ConvRot INT8 Workflow" width="800">
 </p>
 
+> **Sample Workflow:** [`sample workflow/hswq sdxl convrot int8.json`](../sample%20workflow/hswq%20sdxl%20convrot%20int8.json)
+
 In-workflow SDXL reverse-hybrid pipeline (`comfyui_nodes/hswq_sdxl_diag_impact.py` +
 `comfyui_nodes/hswq_sd15_quantize.py` with `model_type = "SDXL"`). Runs the complete
 Step 1 (diag impact) / Step 2 (reverse hybrid) / Step 3 (25-seed gate) chain directly
@@ -368,6 +370,8 @@ Widgets used only by the SD1.5 branch (`fp16_budget_mb`, `convrot`) are ignored 
 <p align="center">
   <img src="../png/sdxl_native_convrot_int8.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow for SDXL" width="800">
 </p>
+
+> **Sample Workflow:** [`sample workflow/native convrot int8.json`](../sample%20workflow/native%20convrot%20int8.json)
 
 The shared native node (`comfyui_nodes/native_convrot_int8_convert.py`, engine
 `sdxl/native_convert_int8_sdxl.py`) supports SDXL alongside the other families:
@@ -448,6 +452,11 @@ reverse hybrid.
 | `sdxl/gen_reverse_int8_sdxl.py` | Step 2 alternative — same conversion with the newer boundary set |
 | `sdxl/auto_reverse_int8_sdxl.py` | one-command driver (Step 1 → Step 2 → optional 25-seed gate); `--legacy-gen` selects v1.1 |
 | `benchmark/sdxl_int8_traj_compare.py` | Step 3 — deterministic 25-seed per-step trajectory divergence (cosine, bifurcation) |
+| `comfyui_nodes/hswq_sdxl_diag_impact.py` | ComfyUI node — HSWQ SDXL Diag Impact (Step 1 trajectory measurement) |
+| `comfyui_nodes/hswq_sdxl_load_impact_json.py` | ComfyUI node — HSWQ Load Diag Impact Json (reuses saved impact JSON) |
+| `comfyui_nodes/hswq_sd15_quantize.py` | ComfyUI node — HSWQ Quantize ConvRot INT8 (Step 2 UNet + Step 2b CLIP + Step 3 gate) |
+| `sample workflow/hswq sdxl convrot int8.json` | ComfyUI sample workflow — HSWQ SDXL Reverse Hybrid ConvRot INT8 pipeline |
+| `sample workflow/native convrot int8.json` | ComfyUI sample workflow — Native ConvRot INT8 baseline pipeline |
 
 **Dependencies:** `comfy-kitchen` (INT8 layout), `safetensors`, plus the ComfyUI runtime
 (`requirements.txt`, used via the bundled `ComfyUI-master/` tree). Run Steps 1–3 with
