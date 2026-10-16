@@ -400,6 +400,16 @@ python sdxl/native_convert_int8_sdxl.py \
     --per_channel_int8 --convrot --groupsize 256
 ```
 
+### HSWQ vs native (honest)
+
+HSWQ ConvRot INT8 does **not** always beat native ConvRot INT8 on measured
+scores (MSE / SSIM). On some SDXL checkpoints, **native scores higher**.
+Compare both on your own model before choosing which path to ship — run the
+Step 3 trajectory gate on each output against the same FP16 baseline and the
+same fixed prompt/seed (reference: a native full pack measures ≈ **0.93** mean
+final-cosine at 25 seeds on the reference checkpoint; the reverse hybrid must
+beat it).
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
