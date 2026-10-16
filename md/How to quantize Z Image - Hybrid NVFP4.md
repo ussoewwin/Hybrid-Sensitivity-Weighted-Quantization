@@ -125,7 +125,7 @@ On Windows, set `PYTHONIOENCODING=utf-8` in the shell to avoid cp932 decode erro
 |---|---|
 | `<base>` | base fp16/bf16 Z Image UNet `.safetensors` (e.g. `test.safetensors`) |
 | `<int8>` | complete ConvRot INT8 UNet from [How to quantize Z Image.md](How%20to%20quantize%20Z%20Image.md) (e.g. `test2.safetensors`) |
-| `<impact>.json` | **created by Step 2** (e.g. `impact_moody.json`) — never downloaded, never copied from another model |
+| `<impact>.json` | **created by Step 2** at `impact/impact_<stem>.json` — never downloaded, never copied from another model |
 | `<hybrid>` | hybrid output of Step 3, name pattern `<model>_hswq_hybrid_nv<K>_convrot_nvfp4.safetensors` |
 | `<calib>` | calibrated hybrid output of Step 5, name pattern `<model>_hswq_hybrid_nv<K>_convrot_nvfp4_calib.safetensors` |
 | `<native>` | native full-NVFP4 output of Step 4 (e.g. `test4.safetensors`) |
@@ -174,10 +174,10 @@ python Z_Image/native_convert_int8_convrot_zi.py \
 
 ---
 
-## Step 2. Create `<impact>.json` (per-layer trajectory impact, 15–50 min)
+## Step 2. Create `<impact>.json` in impact/ (per-layer trajectory impact, 15-50 min)
 
 ```bash
-python Z_Image/diag_impact.py "<base>" "<int8>" "<impact>.json" \
+python Z_Image/diag_impact.py "<base>" "<int8>" "impact/impact_<stem>.json" \
   --comfy-path "<comfy_path>" --steps 12 --seed 42
 ```
 
@@ -386,7 +386,7 @@ then run `python upload.py`.
 |---|---|
 | `UnicodeDecodeError 'cp932'` | Windows locale issue; set `PYTHONIOENCODING=utf-8` in the shell |
 | torch import `AttributeError ... get_log_level_pairs` | `TORCH_LOGS` is set; unset it and never set it |
-| `impact_*.json` missing | Created by Step 2; the third positional arg of `diag_impact.py` is the **output** path |
+| `impact_*.json` missing | Created by Step 2 in `impact/`; the third positional arg of `diag_impact.py` is the **output** path |
 | 0 NVFP4 layers / bench CRITICAL ERROR (0 armed) | `gen_reverse_nvfp4.py` failed to match impact keys. Check the key normalization; regenerate with K ≥ 1 |
 | `save_file` ValueError | `.comfy_quant` must be a **U8 tensor** (`torch.frombuffer(...).clone()`), not raw bytes |
 | `GEMM MODE: PARITY` while `--tc` was passed | `input_scale` keys missing or force not applied — run Step 5 and re-check the key count |
