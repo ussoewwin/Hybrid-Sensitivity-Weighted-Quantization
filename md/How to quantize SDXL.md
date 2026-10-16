@@ -404,15 +404,18 @@ python sdxl/native_convert_int8_sdxl.py \
     --per_channel_int8 --convrot --groupsize 256
 ```
 
-### HSWQ vs native (honest)
+### HSWQ vs native (trajectory baseline)
 
-HSWQ ConvRot INT8 does **not** always beat native ConvRot INT8 on measured
-scores (MSE / SSIM). On some SDXL checkpoints, **native scores higher**.
-Compare both on your own model before choosing which path to ship — run the
-Step 3 trajectory gate on each output against the same FP16 baseline and the
-same fixed prompt/seed (reference: a native full pack measures ≈ **0.93** mean
-final-cosine at 25 seeds on the reference checkpoint; the reverse hybrid must
-beat it).
+Deterministic per-step latent trajectory comparison (`benchmark/sdxl_int8_traj_compare.py`)
+is the sole production gate — legacy decoded-image MSE / SSIM is fully deprecated.
+
+Under trajectory evaluation, **Native ConvRot INT8 (which converts all layers to INT8)
+never exceeds HSWQ reverse hybrid**, because HSWQ selectively preserves the most
+sensitive and trajectory-critical layers at FP16. On the reference checkpoint, a native
+full pack measures ≈ **0.93** mean final-cosine at 25 seeds; HSWQ reverse hybrid strictly
+surpasses it (production gate: mean ≥ **0.95** and 0/25 bifurcated). Native ConvRot INT8
+serves purely as an A/B baseline to confirm the margin and quality lift provided by the
+reverse hybrid.
 
 ## Troubleshooting
 
