@@ -2,10 +2,12 @@
 
 The diag impact measurement is the slow stage of the SDXL reverse-hybrid
 pipeline (715 pool layers x 25-step trajectories). Once measured for a
-checkpoint, the impact json is checkpoint-specific and reusable as the Step 2
-input. This node lists every "*.json" under ``<repo>/analyze/json/`` in a
-dropdown and hands the selected file's absolute path to the HSWQ Quantize node
-(model_type=SDXL) without re-running the measurement.
+checkpoint, the impact json is checkpoint-specific and usable as the Step 2
+input. This node lists every ``impact_*.json`` under ``<repo>/analyze/json/``
+in a dropdown and hands the selected file's absolute path to the HSWQ Quantize
+node (model_type=SDXL) without re-running the measurement. The distribution
+profile jsons the quantizers store in the same folder are excluded (they are
+not diag impact jsons).
 
 Validation (refuses loudly, never passes through silently):
 - the selected file must parse as JSON
@@ -24,11 +26,16 @@ _ANALYZE_JSON_DIR = os.path.join(_REPO_ROOT, "analyze", "json")
 
 
 def _list_impact_jsons() -> list[str]:
+    """Diag impact jsons only (impact_*.json) — analyze/json/ also holds the
+    quantizers' <stem>_distribution_profile.json, which is NOT a diag impact
+    json and must not appear in this dropdown."""
     try:
         entries = os.listdir(_ANALYZE_JSON_DIR)
     except Exception:
         return []
-    files = [e for e in entries if e.lower().endswith(".json")
+    files = [e for e in entries
+             if e.lower().endswith(".json")
+             and e.startswith("impact_")
              and os.path.isfile(os.path.join(_ANALYZE_JSON_DIR, e))]
     return sorted(files)
 
@@ -43,7 +50,7 @@ class HSWQLoadDiagImpactJson:
         return {
             "required": {
                 "impact_json": (choices, {"default": choices[0],
-                                           "tooltip": "Impact json under <repo>/analyze/json/ (from the HSWQ SDXL Diag Impact measurement)."}),
+                                           "tooltip": "Diag impact json (impact_*.json) under <repo>/analyze/json/, from the HSWQ SDXL Diag Impact measurement."}),
             },
         }
 
@@ -62,7 +69,7 @@ class HSWQLoadDiagImpactJson:
         sel = (impact_json or "").strip()
         if not sel or sel.startswith("("):
             raise ValueError(
-                "impact_json: no impact json is stored under "
+                "impact_json: no diag impact json (impact_*.json) is stored under "
                 f"{_ANALYZE_JSON_DIR} yet. Run the HSWQ SDXL Diag Impact node "
                 "once (its json lands under analyze/json) and reload this node."
             )
