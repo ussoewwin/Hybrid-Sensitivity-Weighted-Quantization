@@ -1,8 +1,8 @@
 {
   "id": "06293941-8863-4438-832e-69381d9a07a8",
   "revision": 0,
-  "last_node_id": 35,
-  "last_link_id": 33,
+  "last_node_id": 43,
+  "last_link_id": 43,
   "nodes": [
     {
       "id": 2,
@@ -41,11 +41,11 @@
         }
       },
       "widgets_values": [
-        "qwnImageEdit_v16Bf16.safetensors",
+        "waiIllustriousSDXL_v170.safetensors",
         "default"
       ],
       "widgets_values_named": {
-        "unet_name": "qwnImageEdit_v16Bf16.safetensors",
+        "unet_name": "waiIllustriousSDXL_v170.safetensors",
         "weight_dtype": "default"
       }
     },
@@ -110,7 +110,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 17,
+      "order": 19,
       "mode": 4,
       "inputs": [
         {
@@ -195,7 +195,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 10,
+      "order": 11,
       "mode": 4,
       "inputs": [
         {
@@ -269,7 +269,7 @@
       ],
       "size": [
         287.9,
-        250
+        274
       ],
       "flags": {
         "pinned": true
@@ -356,7 +356,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 11,
+      "order": 12,
       "mode": 4,
       "inputs": [
         {
@@ -433,7 +433,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 18,
+      "order": 20,
       "mode": 4,
       "inputs": [
         {
@@ -518,7 +518,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 12,
+      "order": 13,
       "mode": 4,
       "inputs": [
         {
@@ -595,7 +595,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 19,
+      "order": 21,
       "mode": 4,
       "inputs": [
         {
@@ -637,7 +637,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 16,
+      "order": 17,
       "mode": 4,
       "inputs": [
         {
@@ -714,7 +714,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 23,
+      "order": 25,
       "mode": 4,
       "inputs": [
         {
@@ -756,7 +756,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 13,
+      "order": 14,
       "mode": 4,
       "inputs": [
         {
@@ -833,7 +833,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 20,
+      "order": 22,
       "mode": 4,
       "inputs": [
         {
@@ -920,7 +920,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 21,
+      "order": 23,
       "mode": 4,
       "inputs": [
         {
@@ -962,7 +962,7 @@
       "flags": {
         "pinned": true
       },
-      "order": 14,
+      "order": 15,
       "mode": 4,
       "inputs": [
         {
@@ -1082,8 +1082,8 @@
       "flags": {
         "pinned": true
       },
-      "order": 15,
-      "mode": 0,
+      "order": 16,
+      "mode": 4,
       "inputs": [
         {
           "name": "model",
@@ -1162,7 +1162,7 @@
         "pinned": true
       },
       "order": 8,
-      "mode": 0,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -1218,8 +1218,8 @@
       "flags": {
         "pinned": true
       },
-      "order": 22,
-      "mode": 0,
+      "order": 24,
+      "mode": 4,
       "inputs": [
         {
           "name": "text",
@@ -1293,6 +1293,183 @@
       ],
       "widgets_values_named": {
         "name": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_convrot_int8.safetensors"
+      }
+    },
+    {
+      "id": 40,
+      "type": "ZImageConvRotInt8Quantize",
+      "pos": [
+        1801.703892896719,
+        1130.5952210791984
+      ],
+      "size": [
+        313.890625,
+        342
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 41
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 42
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 43
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            39
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "b1943185da96802a9ad368a76d9665cca4460653",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        },
+        "Node name for S&R": "ZImageConvRotInt8Quantize"
+      },
+      "widgets_values": [
+        "SDXL",
+        "",
+        "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        256,
+        true,
+        true,
+        true,
+        true
+      ],
+      "widgets_values_named": {
+        "model_type": "SDXL",
+        "benchmark_prompt": "",
+        "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        "group_size": 256,
+        "convrot": true,
+        "per_channel_int8": true,
+        "benchmark_attention": true,
+        "run_benchmark": true
+      }
+    },
+    {
+      "id": 41,
+      "type": "ShowText|pysssss",
+      "pos": [
+        2200.7623901576276,
+        1130.11289621095
+      ],
+      "size": [
+        374.453125,
+        268.90625
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 39
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "26a13291c8081135b9a80794daf818793c37ef24",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        },
+        "Node name for S&R": "ShowText|pysssss"
+      }
+    },
+    {
+      "id": 43,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        1441.118681946216,
+        1130.1600041015693
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            41
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            42
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            43
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.40.0",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "waiIllustriousSDXL_v170.safetensors"
+      ],
+      "widgets_values_named": {
+        "ckpt_name": "waiIllustriousSDXL_v170.safetensors"
       }
     }
   ],
@@ -1440,6 +1617,38 @@
       21,
       2,
       "MODEL_PATCH"
+    ],
+    [
+      39,
+      40,
+      1,
+      41,
+      0,
+      "STRING"
+    ],
+    [
+      41,
+      43,
+      0,
+      40,
+      0,
+      "MODEL"
+    ],
+    [
+      42,
+      43,
+      1,
+      40,
+      1,
+      "CLIP"
+    ],
+    [
+      43,
+      43,
+      2,
+      40,
+      2,
+      "VAE"
     ]
   ],
   "groups": [
@@ -1538,22 +1747,36 @@
       ],
       "color": "#A88",
       "flags": {}
+    },
+    {
+      "id": 9,
+      "title": "SDXL",
+      "bounding": [
+        1401.3004209284875,
+        999.2187887189414,
+        1247.1873744462098,
+        600.1922336126852
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
     }
   ],
   "config": {},
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.3855432894295325,
+      "scale": 0.18564593118235898,
       "offset": [
-        -78.19933860929987,
-        144.0572518570699
+        2329.9947586836774,
+        662.713844042481
       ]
     },
     "anomalous_hashes": {
-      "2_qwnImageEdit_v16Bf16.safetensors": {
+      "2_waiIllustriousSDXL_v170.safetensors": {
         "hash": "",
-        "size": 40861031560
+        "size": 6938040682
       },
       "8_Wan2_1_VAE_fp32.safetensors": {
         "hash": "",
@@ -1566,14 +1789,21 @@
       "33_0.5xxmix9realistic_v40+0.5BRA7.safetensors": {
         "hash": "",
         "size": 2132627582
+      },
+      "43_waiIllustriousSDXL_v170.safetensors": {
+        "hash": "",
+        "size": 6938040682
       }
     },
     "links_added_by_ue": [],
-    "frontendVersion": "1.53.10",
+    "frontendVersion": "1.55.17",
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,
     "VHS_KeepIntermediate": true
+  },
+  "extensions": {
+    "seed_widgets": {}
   },
   "version": 0.4,
   "seed_widgets": {}
