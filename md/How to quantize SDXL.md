@@ -365,6 +365,10 @@ Widgets used only by the SD1.5 branch (`fp16_budget_mb`, `convrot`) are ignored 
 
 ### 1. `Native ConvRot INT8 Quantize` ComfyUI Node (model_type = "SDXL")
 
+<p align="center">
+  <img src="../png/sdxl_native_convrot_int8.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow for SDXL" width="800">
+</p>
+
 The shared native node (`comfyui_nodes/native_convrot_int8_convert.py`, engine
 `sdxl/native_convert_int8_sdxl.py`) supports SDXL alongside the other families:
 
