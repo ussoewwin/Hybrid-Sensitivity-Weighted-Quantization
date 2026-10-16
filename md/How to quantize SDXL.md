@@ -135,6 +135,10 @@ Step 5: upload + cleanup
 
 ---
 
+---
+
+## Method 1: CLI pipeline (full reverse-hybrid flow, Steps 1-5)
+
 ## Step 1. Create `<impact>.json` (per-layer trajectory impact, V3.1 candidate premise)
 
 ```bash
@@ -303,6 +307,68 @@ artifact).
 **Delete:** intermediate hybrids from rejected K values.
 
 ---
+
+## Method 2: ComfyUI Nodes
+
+### 1. `HSWQ SDXL Diag Impact` + `HSWQ Quantize ConvRot INT8` (Recommended In-Workflow)
+
+<p align="center">
+  <img src="../png/hswq%20sdsl.png" alt="ComfyUI HSWQ SDXL Diag Impact + Quantize ConvRot INT8 Workflow" width="800">
+</p>
+
+In-workflow SDXL reverse-hybrid pipeline (`comfyui_nodes/hswq_sdxl_diag_impact.py` +
+`comfyui_nodes/hswq_sd15_quantize.py` with `model_type = "SDXL"`). Runs the complete
+Step 1 (diag impact) / Step 2 (reverse hybrid) / Step 3 (25-seed gate) chain directly
+within ComfyUI, without manual terminal commands.
+
+#### Node Setup & Wiring
+
+1. **`Load Checkpoint`**: Load the target SDXL FP16 checkpoint (e.g. `waiIllustriousSDXL_v170.safetensors`).
+   - Connect **`MODEL` / `CLIP` / `VAE`** to **`HSWQ SDXL Diag Impact`** (`model` / `clip`) and to **`HSWQ Quantize ConvRot INT8`** (`model` / `clip` / `vae`).
+2. **`HSWQ SDXL Diag Impact`** (category `HSWQ/Quantize`): runs the Step 1 measurement for the connected MODEL.
+   - Connect its **`impact_json`** output → `Switch (Any)` `input1`.
+   - Widget values (production recipe): `steps 25` / `seed 42` / `width 1024` / `height 1024` / `cfg 7.0` / `sampler dpmpp_2m` / `scheduler karras` / `group_size 256`.
+   - This stage is the slow one (715 pool layers × 25-step trajectories; the per-step sampling bar is now visible in the log).
+3. **`HSWQ Load Diag Impact Json`** (category `HSWQ/Quantize`): lists the stored impact jsons (`impact_*.json` under `<repo>/impact/`) in a dropdown — reuse a measurement without re-running Step 1.
+   - Connect its **`impact_json`** output → `Switch (Any)` `input2`.
+   - Use this input when the model was already measured with the SAME recipe (`steps 25 / seed 42`); the node refuses files that do not carry an `impacts` dict and `steps`/`seed`.
+4. **`Switch (Any)`**: `select` = 1 → Step 1's fresh measurement; `select` = 2 → the stored json from the loader node.
+5. **`HSWQ Quantize ConvRot INT8`** (`model_type = "SDXL"`): consumes `model` / `clip` / `impact_json` (from the Switch) and runs Step 2 → Step 2b (CLIP ConvRot INT8) → Step 3 (gate).
+   - Connect **`output_path` / `report`** → `Show Text` to view live logs and the final trajectory-gate scores.
+
+#### Node Parameters (HSWQ Quantize ConvRot INT8, model_type=SDXL)
+
+| Parameter | Default / Recommended | Description |
+|---|---|---|
+| `model_type` | `SDXL` | Target architecture family (dropdown). |
+| `output_path` | *(empty)* | Output `.safetensors` path. If empty, writes to `<ComfyUI>/output/<stem>_rev_int<K>_convrot_int8_<timestamp>.safetensors`. |
+| `calib_file` | `128` | Calibration prompts sheet from `sample/` (used by Step 2 bias correction). |
+| `num_calib_samples` | `32` | Mandatory r32 recipe. |
+| `num_inference_steps` | `25` | Steps per calibration sample. |
+| `group_size` | `256` | ConvRot Hadamard rotation block size (power of 4). |
+| `bias_correction` | `true` | Step 2 systematic INT8 bias cancellation (script reference flow uses it). |
+| `run_benchmark` | `true` | Automated 25-seed deterministic trajectory gate on the FINAL pack (CLIP INT8 included). |
+| `impact_json` | — | Input terminal: the Step 1 impact json (fresh or stored). |
+| `k_layers` | `60` | K lowest-impact pool layers to convert (search per checkpoint, one process at a time). |
+
+Widgets used only by the SD1.5 branch (`fp16_budget_mb`, `convrot`) are ignored in the SDXL branch.
+
+#### In-Workflow Execution Steps
+
+1. Enable exactly one of the two measurement sources via the **`Fast Groups Bypasser V2`** (`Enable: Diag Impact` for the fresh Step 1 run / `Enable: Load json` for the stored-json path — the disabled side must be bypassed; the stored loader node stays bypassed by default).
+2. Click **Queue Prompt**. The graph then runs: Step 1 (or json load) → Step 2 (UNet reverse hybrid, K lowest-impact layers) → Step 2b (CLIP ConvRot INT8, 133 layers / 38 protected) → Step 3 (25-seed gate).
+3. The trailing log lines and the final gate block (per-seed final-cos + `mean/bifurcated/same-image` summary) appear in the `Show Text` node. **PASS** iff mean ≥ 0.95 and 0/25 bifurcated; otherwise lower K and re-run Step 2/3 (the stored json can be reused for every K).
+
+---
+
+## Method 3: Native CLI (A/B baseline)
+
+```bash
+python sdxl/native_convert_int8_sdxl.py \
+    --model  "<path-to-unet>/<sdxl_unet>.safetensors" \
+    --output "<path-to-unet>/<sdxl_unet>_native_convrot_int8.safetensors" \
+    --per_channel_int8 --convrot --groupsize 256
+```
 
 ## Troubleshooting
 
