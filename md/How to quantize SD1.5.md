@@ -80,7 +80,7 @@ python sd1.5/quantize_sd1.5_hswq_v1.0.py `
   --calib_file "sample/calibration_prompts_512.txt"
 ```
 
-One command runs the whole mandated pipeline:
+One command runs the whole pipeline:
 
 1. **Distribution analysis** — `analyze/analyze_sd1.5_distribution.py` profiles
    all 282 UNet layers (CPU safetensors scan; Tukey fences, engine tunables,
@@ -106,7 +106,7 @@ One command runs the whole mandated pipeline:
 | `--calib_file` | required | Calibration prompts (r32 = 32 lines). |
 | `--num_calib_samples` | `32` | r32 recipe. Do not lower. |
 | `--num_inference_steps` | `25` | Steps per calibration sample. |
-| `--fp16_budget_mb` | `300` | **Owner hard ceiling.** Must be exactly 300. |
+| `--fp16_budget_mb` | `300` | Hard ceiling. Must be exactly 300. |
 | `--profile` | auto | Distribution profile JSON under `analyze/json/` (auto-generated if missing). |
 | `--comfy_path` | auto | ComfyUI root (auto-detected). |
 | `--bias_correction` | **OFF** | Card 1: cancel systematic INT8 output bias into layer biases. |
@@ -164,7 +164,7 @@ Dedicated in-workflow HSWQ V1.0 quantizer (`comfyui_nodes/hswq_sd15_quantize.py`
 | `calib_file` | `128` | Dropdown to select calibration prompts sheet from `sample/` (`128`, `256`, or `512` prompts). Default is `128` (`sample/calibration_prompts_128.txt`). |
 | `num_calib_samples` | `32` | Mandatory r32 calibration recipe. Do not lower. |
 | `num_inference_steps` | `25` | Diffusion steps per calibration sample. |
-| `fp16_budget_mb` | `300.0` | **Mandatory owner hard ceiling.** Must be exactly `300.0` MiB. |
+| `fp16_budget_mb` | `300.0` | Mandatory hard ceiling. Must be exactly `300.0` MiB. |
 | `group_size` | `256` | ConvRot Hadamard rotation block size (power of 4, default: 256). |
 | `convrot` | `true` | Enables FULL ConvRot Hadamard rotation on UNet and CLIP. |
 | `bias_correction` | `false` | Card 1: systematic INT8 output bias cancellation (default OFF). |
