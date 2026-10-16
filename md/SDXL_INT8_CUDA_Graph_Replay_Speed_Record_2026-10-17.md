@@ -98,7 +98,7 @@ Sensitivity check: the quality gate table is unchanged to the last seed (13 same
 | `e84e60b` | bench-side `_SdxlBenchGraphExecutor` + arm after INT8 load (`benchmark/sdxl_int8_traj_compare.py`) |
 | `c89c079` | loader-port stage 1 (SDXL graph-first loader branch) |
 | `037df4a` | temporary revert (superseded by the reapply `37a0a0a`) (`无视任务范围·擅自改写他仓库之罪`, 2026-10-17) |
-| `37a0a0a` | reapply (restores `c89c079` per Owner instruction) |
+| `37a0a0a` | reapply (restores `c89c079`) |
 
 Loader file identity at push time: `nodes/sdxl_convrot_int8/sdxl_convrot_fast.py` and `patches/comfy_quant_int8.py` — repo ↔ live byte-identical (SHA256).
 

@@ -442,7 +442,7 @@ FP8 SDXL / Z Image benches remain in [`benchmark result/benchmark_test.md`](../b
 |---|---|
 | “Absmax ⇒ skip V4 histogram” | V4 ranks FP16 keep; pack and ranking are separate jobs |
 | Non-zero `keep_ratio` / blaming “dynamic keep” for r0 failures | r0 is the contract; DualMonitor ≠ keep_ratio |
-| Raising or inventing FP16 budget ≠ 300 MiB | Owner hard ceiling; auto settings only fill inside |
+| Raising or inventing FP16 budget ≠ 300 MiB | Hard ceiling; auto settings only fill inside |
 | Flattening Hard VETO severity to a constant | Collapses combinator `w_sev`; thinking-stop ranking |
 | Collapsing fences by 127/448 into grid units | Weight-space fences must stay weight-space |
 | Editing FP8 `derive_veto_tunables` for INT8 | Branch must stay INT8-only |

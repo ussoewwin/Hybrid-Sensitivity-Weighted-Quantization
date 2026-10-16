@@ -6,7 +6,7 @@ for conditioning, and evaluated in benchmarks instead of silently falling back.
 
 **Files (all changes live in exactly two files):**
 - `benchmark/sd1.5 int8/comfy_quant_int8.py` — loader fix (commit `47acae7`)
-- `sd1.5/quantize_sd1.5_hswq_v1.0.py` + `comfyui_nodes/native_convrot_int8_convert.py` — CLIP quantization (Owner's work, commits `6142989`→`03b19d7`→`a2b3ef7`→`31537d4`→`282fb9e`)
+- `sd1.5/quantize_sd1.5_hswq_v1.0.py` + `comfyui_nodes/native_convrot_int8_convert.py` — CLIP quantization (commits `6142989`→`03b19d7`→`a2b3ef7`→`31537d4`→`282fb9e`)
 
 **Result (25 seeds × 25 steps, 512×512):** INT8 CLIP genuinely used
 (`Successfully encoded prompt with ConvRot INT8 CLIP`), mean final-cos
