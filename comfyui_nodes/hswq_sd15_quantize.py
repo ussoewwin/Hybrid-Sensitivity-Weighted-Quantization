@@ -516,7 +516,31 @@ class HSWQQuantize:
                 f"{output_path}\nOutput tail:\n" + "\n".join(lines[-40:])
             )
 
-        # Step 3 (optional): deterministic 25-seed trajectory gate.
+        # Step 2b: CLIP ConvRot INT8 with rule-based FP16 protection (same stage
+        # the script reference flow runs after the UNet reverse hybrid; without
+        # it the output pack keeps the CLIP at FP16 and is ~382 MiB larger than
+        # the script-made reference).
+        clip_script = os.path.join(_REPO_ROOT, "sdxl", "quantize_sdxl_clip_int8.py")
+        if not os.path.isfile(clip_script):
+            raise FileNotFoundError(f"HSWQ SDXL CLIP converter not found: {clip_script}")
+        clip_tmp = output_path + ".clip_tmp.safetensors"
+        cmd_clip = [
+            sys.executable,
+            clip_script,
+            "--input", output_path,
+            "--output", clip_tmp,
+        ]
+        print("[HSWQ SDXL CLIP INT8] " + " ".join(cmd_clip), flush=True)
+        lines += self._run_child(cmd_clip, env)
+        if not os.path.isfile(clip_tmp):
+            raise RuntimeError(
+                "HSWQ SDXL CLIP conversion finished but the output was not written: "
+                f"{clip_tmp}\nOutput tail:\n" + "\n".join(lines[-40:])
+            )
+        os.replace(clip_tmp, output_path)
+
+        # Step 3 (optional): deterministic 25-seed trajectory gate on the FINAL
+        # pack (CLIP INT8 included — the gate must measure what gets used).
         if run_benchmark:
             gate = os.path.join(_REPO_ROOT, _SDXL_TRAJ_GATE)
             if not os.path.isfile(gate):
