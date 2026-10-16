@@ -101,7 +101,7 @@ errors; never set `TORCH_LOGS` (torch import fails with an AttributeError).
 | Placeholder | Meaning |
 |---|---|
 | `<base>` | base fp16 SDXL checkpoint `.safetensors` (e.g. `waiIllustriousSDXL_v170.safetensors`) |
-| `<impact>.json` | **created by Step 1** (e.g. `impact_<model>.json`) — never downloaded, never copied from another model |
+| `<impact>.json` | **created by Step 1** at `<repo>/impact/impact_<model>.json` — never downloaded, never copied from another model |
 | `protect_<stem>.json` | **created by Step 1** — the V3.1 selector's protected (FP16-kept) layer list, written next to `<impact>.json` |
 | `<stem>hswq_r32_1off_convrot_int8_repro.safetensors` | **created by Step 1** — the V3.1 selector's own pack, written next to `<base>` (its converted set defines the pool) |
 | `<hybrid>` | hybrid output of Step 2 (a name you pass on the command line, e.g. `<model>_rev_int<K>_convrot_int8.safetensors`) |
@@ -120,7 +120,7 @@ that already contains the repository folder name resolves to a doubled path and 
   │ Step 1: sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" \
   │              --artifact v31 --calib_file "<prompts>" --comfy_path "<comfy_path>" \
   │              --num_calib_samples 32 --num_inference_steps 25 --steps 25 --seed 42
-  ▼        (also writes protect_<stem>.json and <stem>hswq_r32_1off_convrot_int8_repro.safetensors)
+  ▼        (json lands in <repo>/impact/; also writes protect_<stem>.json and the Step-1 repro pack)
 <impact>.json  (pool only: 715 layers on the reference checkpoint = 788 eligible − 73 protected)
   │ Step 2: sdxl/gen_reverse_int8_sdxl_v1.1.py <K> "<hybrid>" "<base>" "<impact>.json" \
   │              --bias_correction --calib_file "<prompts>" --comfy_path "<comfy_path>"
@@ -138,7 +138,7 @@ Step 5: upload + cleanup
 ## Step 1. Create `<impact>.json` (per-layer trajectory impact, V3.1 candidate premise)
 
 ```bash
-python sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" \
+python sdxl/diag_impact_sdxl.py "<base>" "impact/impact_<model>.json" \
   --comfy_path "<comfy_path>" \
   --artifact v31 \
   --calib_file "sample/calibration_prompts_128.txt" \
@@ -150,7 +150,7 @@ python sdxl/diag_impact_sdxl.py "<base>" "<impact>.json" \
   `sdxl/quantize_sdxl_hswq_v3.1.py`): calibration with Dual Monitor hooks over `--num_calib_samples`
   prompts × `--num_inference_steps` steps, weighted-histogram MSE V4 + full SVD, the 300 MiB payload
   budget and the key-pattern veto. It writes the selector pack `<stem>hswq_r32_1off_convrot_int8_repro.safetensors`
-  next to `<base>` and the protected list `protect_<stem>.json` next to `<impact>.json`, then measures
+  next to `<base>` and the protected list `protect_<stem>.json` next to the impact json, then measures
   **only the pool the selector left** (715 of the 788 eligible layers on the reference checkpoint).
 - Every ConvRot-eligible Linear/Conv2d of the checkpoint is a candidate; boundary layers
   (`input_blocks.0.0`, `out.*`, `time_embed.*`, `add_embedding.*`, `label_emb.*`) are always excluded.
@@ -298,7 +298,7 @@ it directly (mixed precision ops arm the INT8 layers from `.comfy_quant`). The `
 the repo root uploads a file with `huggingface_hub`; edit the values at the top (username, repo, your
 **Write**-capable token, file path, in-repo filename), then run `python upload.py`.
 
-**Keep:** `<base>`, `<impact>.json`, `protect_<stem>.json`, and the final `<hybrid>` (production
+**Keep:** `<base>`, `impact/impact_<stem>.json`, `protect_<stem>.json`, and the final `<hybrid>` (production
 artifact).
 **Delete:** intermediate hybrids from rejected K values.
 
@@ -313,7 +313,7 @@ artifact).
 | `--artifact v31 requires --calib_file` | Step 1 needs the calibration prompt file whenever `--artifact v31` is used |
 | `FileNotFoundError: .../<repo>/<repo>/sample/calibration_prompts_128.txt` | the path passed on the command line already contained the repository folder name while the working directory was already the repository root; pass `sample/calibration_prompts_128.txt` (relative to the current directory) or an absolute path |
 | `ModuleNotFoundError: No module named 'comfy'` | `--comfy_path` must point at the folder that contains `comfy/` (e.g. the bundled `ComfyUI-master`); the converter bootstraps `sys.path` from it before importing comfy |
-| `impact_*.json` missing | Created by Step 1; the second positional arg of `diag_impact_sdxl.py` is the **output** path |
+| `impact_*.json` missing | Created by Step 1 in `<repo>/impact/`; the second positional arg of `diag_impact_sdxl.py` is the **output** path |
 | 0 layers converted / many `SKIP (not in sd)` | impact keys and checkpoint keys did not resolve — verify the impact json was produced from the **same** checkpoint |
 | many `SKIP (boundary layer)` | the ranked entries fall on the boundary set (`conv_in.` / `conv_out.` / `time_embed.` / `add_embedding.` / `label_emb.`); this is expected and simply shrinks the converted count |
 | `UNet key prefix: ''` | the checkpoint does not use the `model.diffusion_model.` / `diffusion_model.` layout |
