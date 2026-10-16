@@ -361,7 +361,37 @@ Widgets used only by the SD1.5 branch (`fp16_budget_mb`, `convrot`) are ignored 
 
 ---
 
-## Method 3: Native CLI (A/B baseline)
+## Method 3: Native ConvRot INT8 (A/B baseline)
+
+### 1. `Native ConvRot INT8 Quantize` ComfyUI Node (model_type = "SDXL")
+
+The shared native node (`comfyui_nodes/native_convrot_int8_convert.py`, engine
+`sdxl/native_convert_int8_sdxl.py`) supports SDXL alongside the other families:
+
+| Parameter | Value | Description |
+|---|---|---|
+| `model_type` | `SDXL` | Native engine branch (`native_convert_int8_sdxl.py`). |
+| `model` / `clip` | — | MODEL + CLIP inputs: connect a standard `Load Checkpoint`. |
+| `vae` | *(optional VAE input)* | VAE forward hook setup; pass it when the source checkpoint bundles one. |
+| `benchmark_prompt` | *(default)* | Prompt used by the in-node post-convert benchmark. |
+| `output_path` | *(empty)* | Output path of the native pack (`<stem>_native_convrot_int8.safetensors`). |
+| `group_size` | `256` | ConvRot Hadamard group size. |
+| `convrot` | `true` | FULL ConvRot rotation on all converted layers. |
+| `per_channel_int8` | `true` | Per-channel weight scales. |
+| `benchmark_attention` | `true` | Run the in-node benchmark attention paths. |
+| `run_benchmark` | `true` | In-node post-convert benchmark (latent trajectory). |
+
+Wiring:
+
+```
+[Load Checkpoint] ─MODEL/CLIP(/VAE)→ [Native ConvRot INT8 Quantize]
+```
+
+After queueing, the node runs the same engine as the CLI method and prints the
+conversion summary (converted layer count, INT8/F16 split, module breakdown) plus the
+in-node benchmark into the log.
+
+### 2. Native CLI (equivalent)
 
 ```bash
 python sdxl/native_convert_int8_sdxl.py \
