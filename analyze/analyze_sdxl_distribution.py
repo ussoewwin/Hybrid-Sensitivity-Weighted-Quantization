@@ -2719,12 +2719,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze SDXL UNet weight distribution")
     parser.add_argument("safetensors", nargs="?", help="Path to SDXL UNet safetensors (positional)")
     parser.add_argument("--input", "-i", dest="input_path", help="Input safetensors (quantize CLI compat)")
-    parser.add_argument("-o", "--output", required=True, help="Output profile JSON path")
+    parser.add_argument("-o", "--output", help="Output profile JSON path (default: analyze/json/<input-stem>_distribution_profile.json)")
     args = parser.parse_args()
 
     src = args.input_path or args.safetensors
     if not src:
         parser.error("provide safetensors path as positional arg or --input")
+    # Owner 2026-10-17: profile JSONs live under analyze/json (not repo root).
+    if not args.output:
+        stem2 = os.path.splitext(os.path.basename(src))[0] or "model"
+        args.output = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "analyze", "json", f"{stem2}_distribution_profile.json",
+        )
+
     profile = generate_model_profile(src, args.output)
     print(f"Wrote {len(profile['layers'])} layers to {args.output}")
     print(f"ff2_auto_full_class={profile['summary'].get('ff2_auto_full_class')}")
