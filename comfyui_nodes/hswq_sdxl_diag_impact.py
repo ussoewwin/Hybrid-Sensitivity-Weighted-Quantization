@@ -35,7 +35,7 @@ Inputs (the command's parameters):
     clip        CLIP   optional; not used (the command loads CLIP from the
                        checkpoint itself)
 
-Output: <repo>/impact/impact_<model>.json (repo-relative; created on save)
+Output: <repo>/analyze/json/impact_<model>.json (created on save)
 Outputs: impact_json (STRING), report (STRING)
 """
 from __future__ import annotations
@@ -46,7 +46,7 @@ import sys
 
 # This file lives in <repo>/comfyui_nodes/, so the repo root is two levels up.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_IMPACT_DIR = os.path.join(_REPO_ROOT, "impact")
+_IMPACT_DIR = os.path.join(_REPO_ROOT, "analyze", "json")  # Owner 2026-10-17: diag impact jsons live alongside the distribution profiles in analyze/json/
 
 _DEFAULT_PROMPT = "masterpiece, best quality, 1girl, solo, standing, simple background"
 
@@ -60,7 +60,7 @@ _NUM_INFERENCE_STEPS = 25
 
 
 def _resolve_output_path(base_name: str) -> str:
-    """Impact json target: <repo>/impact/impact_<model>.json."""
+    """Impact json target: <repo>/analyze/json/impact_<model>.json."""
     stem = os.path.splitext(os.path.basename(base_name or "model"))[0] or "model"
     return os.path.join(_IMPACT_DIR, f"impact_{stem}.json")
 
