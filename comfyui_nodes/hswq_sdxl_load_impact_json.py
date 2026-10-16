@@ -1,20 +1,17 @@
-"""HSWQ node: load an existing SDXL diag impact json (reuse across runs).
+"""HSWQ node: pick and load an SDXL diag impact json from analyze/json/.
 
 The diag impact measurement is the slow stage of the SDXL reverse-hybrid
 pipeline (715 pool layers x 25-step trajectories). Once measured for a
-checkpoint (fixed --steps 25, fixed seed), the impact json is checkpoint-
-specific and reusable as the Step 2 input. This node loads such a json from
-disk and hands its path to the HSWQ Quantize node (model_type=SDXL) without
-re-running the measurement.
+checkpoint, the impact json is checkpoint-specific and reusable as the Step 2
+input. This node lists every "*.json" under ``<repo>/analyze/json/`` in a
+dropdown and hands the selected file's absolute path to the HSWQ Quantize node
+(model_type=SDXL) without re-running the measurement.
 
 Validation (refuses loudly, never passes through silently):
-- the file must parse as JSON
+- the selected file must parse as JSON
 - must contain a non-empty "impacts" dict (layer -> relative MSE)
 - must record "steps" and "seed" (the ranking is only valid for the
   trajectory parameters it was measured with)
-
-Default path (no explicit input): <repo>/impact/impact_<checkpoint-stem>.json
-— the same convention the diag node writes.
 """
 from __future__ import annotations
 
@@ -23,39 +20,36 @@ import os
 import time
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_IMPACT_DIR = os.path.join(_REPO_ROOT, "impact")
+_ANALYZE_JSON_DIR = os.path.join(_REPO_ROOT, "analyze", "json")
 
 
-def _model_base_path(model) -> str:
-    """Checkpoint path of a loaded MODEL, as recorded by the loader."""
+def _list_impact_jsons() -> list[str]:
     try:
-        if getattr(model, "cached_patcher_init", None):
-            _func, args = model.cached_patcher_init[:2]
-            if args and isinstance(args, tuple) and isinstance(args[0], str):
-                return args[0]
+        entries = os.listdir(_ANALYZE_JSON_DIR)
     except Exception:
-        pass
-    return ""
+        return []
+    files = [e for e in entries if e.lower().endswith(".json")
+             and os.path.isfile(os.path.join(_ANALYZE_JSON_DIR, e))]
+    return sorted(files)
 
 
 class HSWQLoadDiagImpactJson:
-    """Load a stored SDXL diag impact json for reuse by the quantize node."""
+    """Select and load a stored SDXL diag impact json for reuse."""
 
     @classmethod
     def INPUT_TYPES(cls):
+        files = _list_impact_jsons()
+        choices = files if files else ["(no json in analyze/json yet)"]
         return {
             "required": {
-                "json_path": ("STRING", {"default": "", "multiline": False,
-                                          "tooltip": "Path to the impact json (blank = auto: <repo>/impact/impact_<checkpoint-stem>.json)."}),
-            },
-            "optional": {
-                "model": ("MODEL",),
+                "impact_json": (choices, {"default": choices[0],
+                                           "tooltip": "Impact json under <repo>/analyze/json/ (from the HSWQ SDXL Diag Impact measurement)."}),
             },
         }
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
-        return float(time.time())
+        return float(time.time())  # dropdown list must refresh when files change
 
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("impact_json", "report")
@@ -64,20 +58,15 @@ class HSWQLoadDiagImpactJson:
     TITLE = "HSWQ Load Diag Impact Json"
     OUTPUT_NODE = False
 
-    def load(self, json_path, model=None):
-        path = (json_path or "").strip()
-        if not path and model is not None:
-            base = _model_base_path(model)
-            if base:
-                stem = os.path.splitext(os.path.basename(base))[0]
-                path = os.path.join(_IMPACT_DIR, f"impact_{stem}.json")
-        if not path:
+    def load(self, impact_json):
+        sel = (impact_json or "").strip()
+        if not sel or sel.startswith("("):
             raise ValueError(
-                "json_path: no path given and the MODEL input could not resolve "
-                "<repo>/impact/impact_<stem>.json. Provide the impact json path "
-                "explicitly."
+                "impact_json: no impact json is stored under "
+                f"{_ANALYZE_JSON_DIR} yet. Run the HSWQ SDXL Diag Impact node "
+                "once (its json lands under analyze/json) and reload this node."
             )
-        path = os.path.abspath(path)
+        path = os.path.abspath(os.path.join(_ANALYZE_JSON_DIR, sel))
         if not os.path.isfile(path):
             raise FileNotFoundError(f"impact json not found: {path}")
 
