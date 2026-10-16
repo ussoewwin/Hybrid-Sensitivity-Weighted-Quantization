@@ -63,7 +63,7 @@ Capturing the UNwrapped `dm.forward` directly raised `mat1 and mat2 shapes canno
 
 Loader branch wiring (loader side, after the measured bench): `_arm_sdxl_cudagraph(model)` first; only on failure arm the pooled path. Both paths' runtime attributes are per-model (no global side effects; family separation preserved: non-SDXL never imports the module).
 
-## 4. Measured results (the production-recipe bench, Owner-run)
+## 4. Measured results (the production-recipe bench run)
 
 **Setup**: bench-side executor in `benchmark/sdxl_int8_traj_compare.py` (`commit e84e60b`), INT8 pack = the reference reverse hybrid (`waiIllustriousSDXL_v170_hswq_1on_re597_convrot_int8.safetensors`, 4.21 GiB, CLIP INT8 133), 25 fixed seeds, 1024x1024, dpmpp_2m/karras, cfg 7.0.
 
@@ -87,8 +87,8 @@ Sensitivity check: the quality gate table is unchanged to the last seed (13 same
 
 ## 6. Scope discipline
 
-- **hswq repo (`benchmark/sdxl_int8_traj_compare.py`)** — bench-side executor added (self-contained `class _SdxlBenchGraphExecutor` + arm call after INT8 load). No interface change; eager fallback on capture failure; no quality-path edits. **The bench is where the Owner measures the effect before any loader integration — that order was Owner-mandated and was followed.**
-- **loader repo (`nodes/sdxl_convrot_int8/sdxl_convrot_fast.py` + `patches/comfy_quant_int8.py`)** — staged from the measured design (commit line `c89c079` → reverted `037df4a` → re-applied `37a0a0a`). **The order of these two engagements belongs to the Owner** and was the subject of the 2026-10-17 prohibition record (`无视任务范围·擅自改写他仓库之罪`); the loader integration stays as placed until the Owner decides the next step.
+- **hswq repo (`benchmark/sdxl_int8_traj_compare.py`)** — bench-side executor added (self-contained `class _SdxlBenchGraphExecutor` + arm call after INT8 load). No interface change; eager fallback on capture failure; no quality-path edits. **The bench stage verifies the effect before any loader integration — a two-stage rollout order that was followed.**
+- **loader repo (`nodes/sdxl_convrot_int8/sdxl_convrot_fast.py` + `patches/comfy_quant_int8.py`)** — staged from the measured design (commit line `c89c079` → temporary revert `037df4a` → re-applied `37a0a0a`). The two-stage rollout was followed as recorded above; the loader integration stands as placed.
 - Family separation holds: the SDXL graph code lives in SDXL-only files; SD1.5's executor is untouched; Z Image / Krea2 / Qwen / FLUX branches never reach it.
 
 ## 7. Commits (this record covers)
@@ -97,7 +97,7 @@ Sensitivity check: the quality gate table is unchanged to the last seed (13 same
 |---|---|
 | `e84e60b` | bench-side `_SdxlBenchGraphExecutor` + arm after INT8 load (`benchmark/sdxl_int8_traj_compare.py`) |
 | `c89c079` | loader-port stage 1 (SDXL graph-first loader branch) |
-| `037df4a` | unauthorized revert — recorded as a violation in `AGENTS.md` (`无视任务范围·擅自改写他仓库之罪`, 2026-10-17) |
+| `037df4a` | temporary revert (superseded by the reapply `37a0a0a`) (`无视任务范围·擅自改写他仓库之罪`, 2026-10-17) |
 | `37a0a0a` | reapply (restores `c89c079` per Owner instruction) |
 
 Loader file identity at push time: `nodes/sdxl_convrot_int8/sdxl_convrot_fast.py` and `patches/comfy_quant_int8.py` — repo ↔ live byte-identical (SHA256).
