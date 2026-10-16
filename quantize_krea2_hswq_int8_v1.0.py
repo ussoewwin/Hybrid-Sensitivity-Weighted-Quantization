@@ -2600,7 +2600,7 @@ def main():
     profile_path = args.profile
     is_auto = False
     if not profile_path:
-        profile_path = os.path.join(script_dir, f"{input_root}_distribution_profile.json")
+        profile_path = os.path.join(script_dir, "analyze", "json", f"{input_root}_distribution_profile.json")
         is_auto = True
 
     should_run_analysis = is_auto or not os.path.exists(profile_path)

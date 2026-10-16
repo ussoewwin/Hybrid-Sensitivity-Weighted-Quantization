@@ -69,7 +69,15 @@ def generate_model_profile(input_path, output_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ZIB Distribution Profiler")
     parser.add_argument("--input", type=str, required=True, help="Path to input safetensors model")
-    parser.add_argument("--output", type=str, required=True, help="Path to save the JSON profile")
+    parser.add_argument("--output", type=str, help="Path to save the JSON profile (default: analyze/json/<input-stem>_distribution_profile.json)")
     args = parser.parse_args()
+    # Owner 2026-10-17: profile JSONs live under analyze/json (not repo root).
+    if not args.output:
+        stem2 = os.path.splitext(os.path.basename(args.input))[0] or 'model'
+        args.output = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'analyze', 'json', f'{stem2}_distribution_profile.json',
+        )
+
     
     generate_model_profile(args.input, args.output)
