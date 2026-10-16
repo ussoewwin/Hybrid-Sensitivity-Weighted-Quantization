@@ -100,7 +100,7 @@ From **this** profile’s layer vectors (kurtosis / outlier / abs_max / MAD):
 | MSE release / gray-zone gates | THIS P75 (and related) on outlier / magnitude |
 | `bias_correction_top_ratio` | Autonomous scope (refined again after DualMonitor) |
 | **`alpha_auto`** | `_alpha_auto_from_this_character` — multi-axis mix; floor so non-degenerate profiles keep SVD in the mix |
-| `fp16_budget_mb` | Must equal owner hard ceiling (**300** SDXL / **700** ZI); never redefined by analysis |
+| `fp16_budget_mb` | Must equal the hard ceiling (**300** SDXL / **700** ZI); never redefined by analysis |
 
 `alpha_auto` is the **SVD mix weight** for Full-SVD×RMS. Code refuses `alpha_auto ≤ 0` when a non-empty THIS profile is present (SVD-cut rebellion).
 
@@ -250,7 +250,7 @@ Same code path; **different numbers every run**. That is the autonomous engine c
 
 | Checkpoint | What to look for |
 |---|---|
-| Analyze | `Loading Analysis Data: …_distribution_profile.json` / mandated analyze subprocess |
+| Analyze | `Loading Analysis Data: …_distribution_profile.json` / analyze subprocess |
 | DualMonitor | Calib progress; `[FP16 budget] … dm_sens=N`; refusal if DualMonitor missing |
 | V4 | `[V4→FP16 protect] measuring V4 estimated_mse…` and `SVD×Imp=` / `SVD-only=` counts |
 | SVD | `[HSWQ SVD SETTINGS LOCK]`; per-layer `[HSWQ SVD MIX FULL]`; `proof_svd_in_ranking.svd_share_gt_0` |
