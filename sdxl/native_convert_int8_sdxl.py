@@ -738,6 +738,14 @@ def convert_to_int8(
             f"fp16_protected={clip_protected} kept={clip_kept}"
         )
 
+    # The VAE is applied separately at inference time, so the pack must not carry
+    # the checkpoint-embedded copy: drop first_stage_model.* before saving.
+    _vae_keys = [k for k in new_state_dict if k.startswith("first_stage_model.")]
+    for _k in _vae_keys:
+        del new_state_dict[_k]
+    if _vae_keys:
+        print(f"dropped {len(_vae_keys)} VAE tensors (first_stage_model.*) from the output")
+
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
 
