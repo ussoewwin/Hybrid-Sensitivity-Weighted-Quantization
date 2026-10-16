@@ -65,6 +65,27 @@ def _resolve_output_path(base_name: str) -> str:
     return os.path.join(_IMPACT_DIR, f"impact_{stem}.json")
 
 
+def _alloc_conf_for_child(env: dict) -> None:
+    """Give the diag child tree the caching allocator.
+
+    Measured (2026-10-16, waiIllustriousSDXL_v170, 2-sample selector calib):
+    with ComfyUI's auto-appended backend:cudaMallocAsync the v3.1 selector's
+    reserved VRAM grows to 17.00 GiB (thrashing on a 16 GiB card) while the
+    same run with the caching allocator reserves 10.28 GiB (-6.7 GiB). The
+    diag child and its selector descendant own their allocator choice; strip
+    the backend flag for this child tree only. Same mechanism as the SD1.5
+    quantize node (commit 566fcba); kept as a self-contained copy per family
+    separation.
+    """
+    conf = env.get("PYTORCH_CUDA_ALLOC_CONF", "")
+    if conf and "backend:" in conf:
+        kept = ",".join(
+            p for p in (s.strip() for s in conf.split(","))
+            if p and not p.startswith("backend:")
+        )
+        env["PYTORCH_CUDA_ALLOC_CONF"] = kept
+
+
 def _model_base_path(model) -> str:
     """Checkpoint path of a loaded MODEL, as recorded by the loader."""
     try:
@@ -211,6 +232,7 @@ class HSWQSDXLDiagImpact:
 
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"  # Windows cp932 decode errors otherwise
+        _alloc_conf_for_child(env)
 
         print("[HSWQ SDXL diag] " + " ".join(cmd), flush=True)
         lines = []
