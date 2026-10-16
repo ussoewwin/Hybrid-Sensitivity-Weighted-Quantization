@@ -336,12 +336,15 @@ def run_trajectory(patcher, positive, negative, latent0, *, seed, steps, cfg, sa
         xs.append(x.detach().float().cpu())
 
     with torch.no_grad():
+        # disable_pbar=False: show the per-step sampling bar in the log. The
+        # measurement loop used to be invisible (only [N/715] marks), which made
+        # it impossible to tell whether the 25-step trajectory was running.
         comfy_sample.sample(
             patcher, noise, steps, cfg, sampler, scheduler,
             positive, negative, latent0, denoise=1.0,
             disable_noise=False, start_step=None, last_step=None,
             force_full_denoise=False, noise_mask=None,
-            callback=cb, disable_pbar=True, seed=seed,
+            callback=cb, disable_pbar=False, seed=seed,
         )
     return xs
 
