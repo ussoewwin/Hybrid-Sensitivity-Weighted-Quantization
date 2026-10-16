@@ -43,6 +43,19 @@ re-measured for every model and are **not transferable**.
 
 ---
 
+## Available Methods & Sample Workflows
+
+| Method | Type | Description | Ready-to-Use Workflow |
+|---|---|---|---|
+| **[Method 1: CLI Pipeline](#method-1-cli-pipeline-full-reverse-hybrid-flow-steps-1-5)** | CLI | Full reverse-hybrid CLI automation (Step 1 Diag Impact → Step 2 Reverse Hybrid → Step 3 Trajectory Gate) | `sdxl/auto_reverse_int8_sdxl.py` |
+| **[Method 2: HSWQ ComfyUI Nodes](#method-2-comfyui-nodes)** | GUI (HSWQ) | In-workflow reverse hybrid: `HSWQ SDXL Diag Impact` + `HSWQ Quantize ConvRot INT8` | [**`sample workflow/hswq sdxl convrot int8.json`**](../sample%20workflow/hswq%20sdxl%20convrot%20int8.json) |
+| **[Method 3: Native ConvRot INT8](#method-3-native-convrot-int8-ab-baseline)** | GUI (Native) | Full-layer INT8 A/B comparison baseline via `Native ConvRot INT8 Quantize` node | [**`sample workflow/native convrot int8.json`**](../sample%20workflow/native%20convrot%20int8.json) |
+
+- **HSWQ SDXL Sample Workflow:** [**`sample workflow/hswq sdxl convrot int8.json`**](../sample%20workflow/hswq%20sdxl%20convrot%20int8.json) (Workflow image: [`png/hswq sdxl.png`](../png/hswq%20sdxl.png))
+- **Native SDXL Sample Workflow:** [**`sample workflow/native convrot int8.json`**](../sample%20workflow/native%20convrot%20int8.json) (Workflow image: [`png/sdxl_native_convrot_int8.png`](../png/sdxl_native_convrot_int8.png))
+
+---
+
 ## Judgement criteria (read first)
 
 The production quality gate is the deterministic per-step latent trajectory comparison
@@ -316,7 +329,8 @@ artifact).
   <img src="../png/hswq%20sdxl.png" alt="ComfyUI HSWQ SDXL Diag Impact + Quantize ConvRot INT8 Workflow" width="800">
 </p>
 
-> **Sample Workflow:** [`sample workflow/hswq sdxl convrot int8.json`](../sample%20workflow/hswq%20sdxl%20convrot%20int8.json)
+> - **Sample Workflow:** [**`sample workflow/hswq sdxl convrot int8.json`**](../sample%20workflow/hswq%20sdxl%20convrot%20int8.json)
+> - **A/B Baseline:** Compare against [Method 3: Native ConvRot INT8](#method-3-native-convrot-int8-ab-baseline) ([`sample workflow/native convrot int8.json`](../sample%20workflow/native%20convrot%20int8.json))
 
 In-workflow SDXL reverse-hybrid pipeline (`comfyui_nodes/hswq_sdxl_diag_impact.py` +
 `comfyui_nodes/hswq_sd15_quantize.py` with `model_type = "SDXL"`). Runs the complete
@@ -371,7 +385,8 @@ Widgets used only by the SD1.5 branch (`fp16_budget_mb`, `convrot`) are ignored 
   <img src="../png/sdxl_native_convrot_int8.png" alt="ComfyUI Native ConvRot INT8 Quantize Workflow for SDXL" width="800">
 </p>
 
-> **Sample Workflow:** [`sample workflow/native convrot int8.json`](../sample%20workflow/native%20convrot%20int8.json)
+> - **Sample Workflow:** [**`sample workflow/native convrot int8.json`**](../sample%20workflow/native%20convrot%20int8.json)
+> - **HSWQ Pipeline:** Full reverse-hybrid setup at [Method 2: HSWQ SDXL Reverse Hybrid](#method-2-comfyui-nodes) ([`sample workflow/hswq sdxl convrot int8.json`](../sample%20workflow/hswq%20sdxl%20convrot%20int8.json))
 
 The shared native node (`comfyui_nodes/native_convrot_int8_convert.py`, engine
 `sdxl/native_convert_int8_sdxl.py`) supports SDXL alongside the other families:
