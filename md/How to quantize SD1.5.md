@@ -84,7 +84,8 @@ One command runs the whole mandated pipeline:
 
 1. **Distribution analysis** — `analyze/analyze_sd1.5_distribution.py` profiles
    all 282 UNet layers (CPU safetensors scan; Tukey fences, engine tunables,
-   alpha/beta derivation). Auto-generates the profile JSON (cached).
+   alpha/beta derivation). Auto-generates the profile JSON (cached) at
+   `analyze/json/<model>_distribution_profile.json`.
 2. **r32 calibration** — DualMonitor FP16/INT8 sensitivity (32 samples × 25
    steps, 512×512, StableDiffusionPipeline).
 3. **V4 MSE** — Full-SVD×RMS mixed impact per layer (Full-SVD scheduled ON).
@@ -106,7 +107,7 @@ One command runs the whole mandated pipeline:
 | `--num_calib_samples` | `32` | r32 recipe. Do not lower. |
 | `--num_inference_steps` | `25` | Steps per calibration sample. |
 | `--fp16_budget_mb` | `300` | **Owner hard ceiling.** Must be exactly 300. |
-| `--profile` | auto | Distribution profile JSON (auto-generated if missing). |
+| `--profile` | auto | Distribution profile JSON under `analyze/json/` (auto-generated if missing). |
 | `--comfy_path` | auto | ComfyUI root (auto-detected). |
 | `--bias_correction` | **OFF** | Card 1: cancel systematic INT8 output bias into layer biases. |
 | `--per_channel_int8` | OFF | Card 3: per-output-channel absmax. |
