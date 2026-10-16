@@ -318,6 +318,7 @@ artifact).
 | many `SKIP (boundary layer)` | the ranked entries fall on the boundary set (`conv_in.` / `conv_out.` / `time_embed.` / `add_embedding.` / `label_emb.`); this is expected and simply shrinks the converted count |
 | `UNet key prefix: ''` | the checkpoint does not use the `model.diffusion_model.` / `diffusion_model.` layout |
 | `save_file` ValueError | `.comfy_quant` must be a **U8 tensor**, not raw bytes (handled inside the script) |
+| Sampling crawls (~1.1 it/s) and reserved VRAM balloons to ~17 GiB during calibration | `backend:cudaMallocAsync` (auto-appended by ComfyUI on cu13 torch) does not return freed blocks from the Diffusers calibration churn; the selector script strips it at import (measured: reserved 17.00 → 10.28 GiB). If you set the allocator yourself, omit `backend:` |
 | final cosine collapses | `K` beyond the checkpoint's boundary — lower K (Step 4) |
 | mean ≥ 0.95 but bifurcated > 0 | Reject this K; lower K by 10 (high-impact layers are breaking) |
 | Numbers differ from a previous run | another GPU process was running, or `--steps` / seed set / machine differed; re-run on a quiet GPU with the fixed 25-seed set |
