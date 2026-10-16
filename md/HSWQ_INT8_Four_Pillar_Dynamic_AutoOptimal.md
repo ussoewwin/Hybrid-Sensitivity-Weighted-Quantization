@@ -85,7 +85,7 @@ Pack policy remains orthogonal: **every packed INT8 layer uses absmax** (`search
 
 ### 2.1 Load / generate
 
-- Default path: `{input_basename}_distribution_profile.json` next to the quantize script root.  
+- Default path: `analyze/json/{input_basename}_distribution_profile.json` under the repository root.  
 - If missing (or `--profile` absent with auto path): run `analyze/analyze_sdxl_distribution.py --input … --output …` (**no skip**).  
 - Remap Comfy / Safetensors keys → Diffusers module names via the load map before any veto / ranking.
 
