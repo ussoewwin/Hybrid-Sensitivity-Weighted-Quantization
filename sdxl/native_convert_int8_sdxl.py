@@ -483,6 +483,7 @@ def convert_to_int8(
     num_inference_steps: int = 25,
     enable_convrot: bool = True,
     group_size: int = _DEFAULT_GROUPSIZE,
+    skip_clip_int8: bool = False,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     act_mean_dict = {}
@@ -706,7 +707,7 @@ def convert_to_int8(
     # FP16 protection set. Runs before save so the companions land in
     # quant_meta_layers and the pack carries the SDXL loader's metadata path.
     clip_convrot_count = clip_plain_count = clip_protected = clip_kept = 0
-    if any(k.startswith("conditioner.embedders.") for k in new_state_dict):
+    if not skip_clip_int8 and any(k.startswith("conditioner.embedders.") for k in new_state_dict):
         clip_convrot_count, clip_plain_count, clip_protected, clip_kept = quantize_sdxl_clip(
             new_state_dict, quant_meta_layers,
             enable_convrot=enable_convrot, group_size=group_size,
@@ -717,6 +718,8 @@ def convert_to_int8(
         metadata["_quantization_metadata"] = json.dumps(
             {"format_version": "1.0", "layers": quant_meta_layers}
         )
+    elif skip_clip_int8:
+        print("  SDXL CLIP: skipped INT8 quantization (all CLIP layers kept in original precision).")
 
     print(f"Saving to: {output_path}")
     print(f"Converted layers: {converted_count}, Kept layers: {skipped_count}")
@@ -843,6 +846,12 @@ if __name__ == "__main__":
             "Pass --no-bench to skip."
         ),
     )
+    parser.add_argument(
+        "--skip_clip_int8",
+        "--no_clip_int8",
+        action="store_true",
+        help="Do not quantize SDXL CLIP (conditioner.embedders.*) to INT8; keep original FP16 weights.",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
@@ -868,6 +877,7 @@ if __name__ == "__main__":
         num_inference_steps=args.num_inference_steps,
         enable_convrot=bool(args.convrot),
         group_size=int(args.groupsize),
+        skip_clip_int8=bool(args.skip_clip_int8),
     )
 
     if args.bench:
