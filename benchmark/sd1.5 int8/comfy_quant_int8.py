@@ -2597,9 +2597,20 @@ def _staticize_for_capture(model) -> bool:
             if getattr(mod, "comfy_cast_weights", False):
                 mod.comfy_cast_weights = False
                 disabled += 1
-            if hasattr(mod, "weight_function") and mod.weight_function is not None:
-                mod.weight_function = None
-                disabled += 1
+            # comfy.ops int8/Kitchen Linear reads len(weight_function) and
+            # len(bias_function) unconditionally (ops.py:1490). The patcher
+            # writes lists; keep this attribute a LIST on every module that
+            # can carry it - never None. Setting an empty list is the correct
+            # static state (no hooks = pure forward).
+            if hasattr(mod, "weight_function"):
+                wf = getattr(mod, "weight_function", None)
+                if wf is None or len(wf) > 0:
+                    mod.weight_function = []
+                    disabled += 1
+            if hasattr(mod, "bias_function"):
+                bf = getattr(mod, "bias_function", None)
+                if bf is None or len(bf) > 0:
+                    mod.bias_function = []
         except Exception:
             pass
     try:
