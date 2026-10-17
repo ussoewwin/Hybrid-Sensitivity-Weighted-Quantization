@@ -1123,15 +1123,9 @@ class NativeConvRotInt8Quantize:
 
                 # 3. INT8 inference for all seeds (sage2 arms SA2 for this branch only;
                 #    the FP16 baseline above always ran on stock attention)
-                if benchmark_attention:
-                    if is_sd15:
-                        sd15_bench = _load_sd15_bench()
-                        if hasattr(sd15_bench, "reset_sage2_attn_stats"):
-                            sd15_bench.reset_sage2_attn_stats()
-                        sd15_bench.apply_sage2_attention()
-                    else:
-                        _reset_bench_sage2_stats()
-                        _apply_bench_sage2_attention()
+                if benchmark_attention and not is_sd15:
+                    _reset_bench_sage2_stats()
+                    _apply_bench_sage2_attention()
                 lat_int8_list = []
                 xs_int8_list = []
                 x0s_int8_list = []
@@ -1145,14 +1139,8 @@ class NativeConvRotInt8Quantize:
                     lat_int8_list.append(out_int8.detach().float().cpu())
                     xs_int8_list.append(xs_int8)
                     x0s_int8_list.append(x0s_int8)
-                if benchmark_attention:
-                    if is_sd15:
-                        sd15_bench = _load_sd15_bench()
-                        sd15_bench.unset_sage2_attention()
-                        if hasattr(sd15_bench, "print_sage2_attn_stats"):
-                            sd15_bench.print_sage2_attn_stats()
-                    else:
-                        _unset_bench_sage2_attention()
+                if benchmark_attention and not is_sd15:
+                    _unset_bench_sage2_attention()
 
                 # VAE decode removed — trajectory comparison is latent-space only
 
@@ -1254,11 +1242,6 @@ class NativeConvRotInt8Quantize:
                 if _BENCH_SAGE2_STATS["armed"]:
                     try:
                         _unset_bench_sage2_attention()
-                    except Exception:
-                        pass
-                if is_sd15 and 'sd15_bench' in locals():
-                    try:
-                        sd15_bench.unset_sage2_attention()
                     except Exception:
                         pass
 
