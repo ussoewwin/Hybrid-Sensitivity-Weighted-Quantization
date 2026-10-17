@@ -24,11 +24,11 @@ Usage:
         --comfy_path <ComfyUI-master> \
         [--seeds "42,1337,7,2024,555"] [--steps 25] [--prompt "..."] \
         [--width 1024] [--height 1024] [--cfg 7.0] \
-        [--sampler dpmpp_2m] [--scheduler karras] [--attention sdpa|sage2]
+        [--sampler dpmpp_2m] [--scheduler karras]
 
-``--attention sage2`` arms SageAttention2 (INT8 QK + FP8 PV, sm120 auto path) for
-the INT8 branch ONLY; the FP16 baseline always stays on stock attention. Default
-``sdpa`` leaves both branches on stock attention.
+Attention is always the stock backend for BOTH branches - the same backend
+production runs. (SageAttention2 does not exist in the SD1.5 family; it is an
+SDXL-family measurement feature.)
 """
 import argparse
 import os
