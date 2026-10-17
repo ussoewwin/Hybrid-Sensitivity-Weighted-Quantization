@@ -190,6 +190,15 @@ class HSWQQuantize:
                         "tooltip": "Cancel the systematic INT8 output bias into layer biases.",
                     },
                 ),
+                "quantize_clip": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "SD1.5/SDXL: quantize the checkpoint-embedded CLIP to "
+                        "ConvRot INT8 (production setting). When OFF the CLIP stays "
+                        "FP16 (the original production pass) for one-variable testing.",
+                    },
+                ),
                 "run_benchmark": (
                     "BOOLEAN",
                     {
@@ -253,6 +262,7 @@ class HSWQQuantize:
         group_size,
         convrot,
         bias_correction,
+        quantize_clip,
         run_benchmark,
         vae=None,
         input_checkpoint="",
@@ -354,6 +364,11 @@ class HSWQQuantize:
             cmd.append("--bias_correction")
         else:
             cmd.append("--no-bias_correction")
+
+        # One-variable switch: keep the checkpoint-embedded CLIP in FP16 when
+        # the toggle is OFF (SD1.5 branch passes it to the HSWQ script).
+        if not quantize_clip:
+            cmd.append("--skip_clip_int8")
 
         if run_benchmark:
             cmd.append("--bench")
@@ -519,25 +534,30 @@ class HSWQQuantize:
         # Step 2b: CLIP ConvRot INT8 with rule-based FP16 protection (same stage
         # the script reference flow runs after the UNet reverse hybrid; without
         # it the output pack keeps the CLIP at FP16 and is ~382 MiB larger than
-        # the script-made reference).
+        # the script-made reference). Gated by the quantize_clip toggle: OFF
+        # keeps the CLIP FP16 (original production pass, one-variable test).
         clip_script = os.path.join(_REPO_ROOT, "sdxl", "quantize_sdxl_clip_int8.py")
-        if not os.path.isfile(clip_script):
-            raise FileNotFoundError(f"HSWQ SDXL CLIP converter not found: {clip_script}")
+        clip_tmp = None
+        if os.path.isfile(clip_script) and quantize_clip:
+            pass  # fall through to the child conversion below
+        elif not quantize_clip:
+            print("[HSWQ SDXL Quantize] quantize_clip is False: keeping the embedded CLIP FP16 (Step 2b skipped)", flush=True)
         clip_tmp = output_path + ".clip_tmp.safetensors"
-        cmd_clip = [
-            sys.executable,
-            clip_script,
-            "--input", output_path,
-            "--output", clip_tmp,
-        ]
-        print("[HSWQ SDXL CLIP INT8] " + " ".join(cmd_clip), flush=True)
-        lines += self._run_child(cmd_clip, env)
-        if not os.path.isfile(clip_tmp):
-            raise RuntimeError(
-                "HSWQ SDXL CLIP conversion finished but the output was not written: "
-                f"{clip_tmp}\nOutput tail:\n" + "\n".join(lines[-40:])
-            )
-        os.replace(clip_tmp, output_path)
+        if quantize_clip:
+            cmd_clip = [
+                sys.executable,
+                clip_script,
+                "--input", output_path,
+                "--output", clip_tmp,
+            ]
+            print("[HSWQ SDXL CLIP INT8] " + " ".join(cmd_clip), flush=True)
+            lines += self._run_child(cmd_clip, env)
+            if not os.path.isfile(clip_tmp):
+                raise RuntimeError(
+                    "HSWQ SDXL CLIP conversion finished but the output was not written: "
+                    f"{clip_tmp}\nOutput tail:\n" + "\n".join(lines[-40:])
+                )
+            os.replace(clip_tmp, output_path)
 
         # Step 3 (optional): deterministic 25-seed trajectory gate on the FINAL
         # pack (CLIP INT8 included — the gate must measure what gets used).
