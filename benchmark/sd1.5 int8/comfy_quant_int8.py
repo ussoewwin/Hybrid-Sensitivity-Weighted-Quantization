@@ -2499,6 +2499,30 @@ class _Sd15CudaGraphExecutor:
                 out_c["control"] = {k: list(v) for k, v in sc_ctrl.items()}
             return out_c
 
+        # Re-assert the static precondition right before capture: the patcher
+        # re-attaches LoRA hook state during its load cycle (measured: 391
+        # modules can show weight_function=None after arm), and len(None)
+        # breaks ops.py:1490 inside the captured forward. Rewriting the two
+        # lists is the precondition enforcement for a valid capture, not a
+        # fallback.
+        dm2 = getattr(self._base, "diffusion_model", None)
+        if dm2 is not None:
+            for _n, mod in dm2.named_modules():
+                try:
+                    if getattr(mod, "comfy_cast_weights", False):
+                        mod.comfy_cast_weights = False
+                    if hasattr(mod, "weight_function") and getattr(
+                        mod, "weight_function", None
+                    ) is None:
+                        mod.weight_function = []
+                    if hasattr(mod, "bias_function") and getattr(
+                        mod, "bias_function", None
+                    ) is None:
+                        mod.bias_function = []
+                except Exception:
+                    pass
+            torch.cuda.synchronize(dev)
+
         _SD15_IN_GRAPH_CAPTURE = True
         try:
             s = torch.cuda.Stream(device=dev)
