@@ -434,6 +434,24 @@ def _is_protected_sd15_clip_weight(key: str) -> bool:
     return key in _SD15_CLIP_PROTECT_EXACT
 
 
+def _sd15_clip_pack_key(k: str) -> str:
+    """Map SD1ClipModel internal names to the SD1.5 checkpoint pack layout.
+
+    ``clip.get_sd()`` / ``cond_stage_model.state_dict()`` use internal names
+    (``clip_l.*``). SD1.5 packs store the bare ``cond_stage_model.transformer.*``
+    layout with no ``clip_l.`` segment, and the ``logit_scale`` companion is not
+    part of a standard checkpoint (it is reconstructed at load time), so it is
+    dropped here. Returns "" for keys that must not be written.
+    """
+    if k == "clip_l.logit_scale":
+        return ""
+    if k.startswith("clip_l."):
+        k = k[len("clip_l."):]
+    if k.startswith("clip_g."):
+        k = k[len("clip_g."):]
+    return "cond_stage_model." + k
+
+
 def _clip_internal_to_pack_key(k: str):
     """Map a CLIP.get_sd() internal key (clip_l. / clip_g.) to the pack-space
     name (conditioner.embedders.{0,1}), inverting SDXL.process_clip_state_dict.
@@ -717,6 +735,7 @@ class NativeConvRotInt8Quantize:
                 "per_channel_int8": ("BOOLEAN", {"default": True}),
                 "benchmark_attention": ("BOOLEAN", {"default": True}),
                 "run_benchmark": ("BOOLEAN", {"default": True}),
+                "quantize_clip": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "vae": ("VAE",),
@@ -746,7 +765,9 @@ class NativeConvRotInt8Quantize:
         per_channel_int8,
         benchmark_attention,
         run_benchmark,
+        quantize_clip=True,
         vae=None,
+        **kwargs,
     ):
         import torch
         n8 = _load_native_int8()
@@ -798,60 +819,70 @@ class NativeConvRotInt8Quantize:
                 clip_sd = clip.cond_stage_model.state_dict()
 
             if clip_sd:
-                h_cache = {}
-                for k, tensor in sorted(clip_sd.items()):
-                    key = k if k.startswith("cond_stage_model.") else f"cond_stage_model.{k}"
-
-                    # Embedding layers (token_embedding, position_embedding) and non-2D/non-float tensors stay float
-                    is_linear_weight = (
-                        key.endswith(".weight")
-                        and tensor.ndim == 2
-                        and "embedding" not in key
-                        and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
-                    )
-                    if not is_linear_weight:
+                if not quantize_clip:
+                    for k, tensor in sorted(clip_sd.items()):
+                        key = _sd15_clip_pack_key(k)
+                        if not key:
+                            continue
                         new_sd[key] = tensor.detach().cpu()
                         clip_kept_count += 1
-                        continue
+                else:
+                    h_cache = {}
+                    for k, tensor in sorted(clip_sd.items()):
+                        key = _sd15_clip_pack_key(k)
+                        if not key:
+                            continue
 
-                    # Rule-based FP16 protection (SDXL CLIP-L parity): keep the
-                    # highest-risk CLIP layers float (layers.0.mlp.fc1/fc2 are
-                    # kurtosis 111/15.5 across every measured SD1.5 checkpoint).
-                    if _is_protected_sd15_clip_weight(key):
-                        new_sd[key] = tensor.detach().cpu()
-                        clip_kept_count += 1
-                        continue
+                        # Embedding layers (token_embedding, position_embedding) and non-2D/non-float tensors stay float
+                        is_linear_weight = (
+                            key.endswith(".weight")
+                            and tensor.ndim == 2
+                            and "embedding" not in key
+                            and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+                        )
+                        if not is_linear_weight:
+                            new_sd[key] = tensor.detach().cpu()
+                            clip_kept_count += 1
+                            continue
 
-                    w = tensor.float().cpu()
-                    module_key = key[:-len(".weight")]
-                    conf = {"format": "int8_tensorwise"}
+                        # Rule-based FP16 protection (SDXL CLIP-L parity): keep the
+                        # highest-risk CLIP layers float (layers.0.mlp.fc1/fc2 are
+                        # kurtosis 111/15.5 across every measured SD1.5 checkpoint).
+                        if _is_protected_sd15_clip_weight(key):
+                            new_sd[key] = tensor.detach().cpu()
+                            clip_kept_count += 1
+                            continue
 
-                    if convrot:
-                        gs = n8.convrot_group_size_for_features(w.shape[1], group_size)
-                        if gs is not None:
-                            if gs not in h_cache:
-                                h_cache[gs] = n8.build_hadamard(gs, device="cpu")
-                            w_rot = n8.rotate_weight(w, h_cache[gs], gs)
-                            q, scale = n8.quantize_int8_channelwise(w_rot)
-                            conf = {
-                                "format": "int8_tensorwise",
-                                "convrot": True,
-                                "convrot_groupsize": int(gs),
-                            }
-                            clip_convrot_count += 1
+                        w = tensor.float().cpu()
+                        module_key = key[:-len(".weight")]
+                        conf = {"format": "int8_tensorwise"}
+
+                        if convrot:
+                            gs = n8.convrot_group_size_for_features(w.shape[1], group_size)
+                            if gs is not None:
+                                if gs not in h_cache:
+                                    h_cache[gs] = n8.build_hadamard(gs, device="cpu")
+                                w_rot = n8.rotate_weight(w, h_cache[gs], gs)
+                                q, scale = n8.quantize_int8_channelwise(w_rot)
+                                conf = {
+                                    "format": "int8_tensorwise",
+                                    "convrot": True,
+                                    "convrot_groupsize": int(gs),
+                                }
+                                clip_convrot_count += 1
+                            else:
+                                q, scale = _plain_pack(w, per_channel_int8, n8)
+                                conf = {"format": "int8_tensorwise"}
+                                clip_plain_count += 1
                         else:
                             q, scale = _plain_pack(w, per_channel_int8, n8)
                             conf = {"format": "int8_tensorwise"}
                             clip_plain_count += 1
-                    else:
-                        q, scale = _plain_pack(w, per_channel_int8, n8)
-                        conf = {"format": "int8_tensorwise"}
-                        clip_plain_count += 1
 
-                    new_sd[key] = q
-                    new_sd[f"{module_key}.weight_scale"] = scale
-                    new_sd[f"{module_key}.comfy_quant"] = n8._encode_comfy_quant(conf)
-                    meta_layers[module_key] = dict(conf)
+                        new_sd[key] = q
+                        new_sd[f"{module_key}.weight_scale"] = scale
+                        new_sd[f"{module_key}.comfy_quant"] = n8._encode_comfy_quant(conf)
+                        meta_layers[module_key] = dict(conf)
 
         elif model_type == "SDXL" and clip is not None:
             # SDXL: CLIP-L + CLIP-G ConvRot INT8 with the rule-based FP16
@@ -867,58 +898,65 @@ class NativeConvRotInt8Quantize:
                 clip_sd = clip.cond_stage_model.state_dict()
 
             if clip_sd:
-                h_cache = {}
-                for k, tensor in sorted(clip_sd.items()):
-                    key = _clip_internal_to_pack_key(k)
-                    if key is None:
-                        continue
-                    is_linear_weight = (
-                        key.endswith(".weight")
-                        and tensor.ndim == 2
-                        and "embedding" not in key
-                        and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
-                    )
-                    if not is_linear_weight:
-                        new_sd[key] = tensor.detach().cpu()
-                        clip_kept_count += 1
-                        continue
+                if not quantize_clip:
+                    for k, tensor in sorted(clip_sd.items()):
+                        key = _clip_internal_to_pack_key(k)
+                        if key is not None:
+                            new_sd[key] = tensor.detach().cpu()
+                            clip_kept_count += 1
+                else:
+                    h_cache = {}
+                    for k, tensor in sorted(clip_sd.items()):
+                        key = _clip_internal_to_pack_key(k)
+                        if key is None:
+                            continue
+                        is_linear_weight = (
+                            key.endswith(".weight")
+                            and tensor.ndim == 2
+                            and "embedding" not in key
+                            and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+                        )
+                        if not is_linear_weight:
+                            new_sd[key] = tensor.detach().cpu()
+                            clip_kept_count += 1
+                            continue
 
-                    if _is_protected_sdxl_clip_weight(key):
-                        # Rule-based FP16 protection: keep the raw float weight.
-                        new_sd[key] = tensor.detach().cpu()
-                        clip_kept_count += 1
-                        continue
+                        if _is_protected_sdxl_clip_weight(key):
+                            # Rule-based FP16 protection: keep the raw float weight.
+                            new_sd[key] = tensor.detach().cpu()
+                            clip_kept_count += 1
+                            continue
 
-                    w = tensor.float().cpu()
-                    module_key = key[:-len(".weight")]
-                    conf = {"format": "int8_tensorwise"}
+                        w = tensor.float().cpu()
+                        module_key = key[:-len(".weight")]
+                        conf = {"format": "int8_tensorwise"}
 
-                    if convrot:
-                        gs = n8.convrot_group_size_for_features(w.shape[1], group_size)
-                        if gs is not None:
-                            if gs not in h_cache:
-                                h_cache[gs] = n8.build_hadamard(gs, device="cpu")
-                            w_rot = n8.rotate_weight(w, h_cache[gs], gs)
-                            q, scale = n8.quantize_int8_channelwise(w_rot)
-                            conf = {
-                                "format": "int8_tensorwise",
-                                "convrot": True,
-                                "convrot_groupsize": int(gs),
-                            }
-                            clip_convrot_count += 1
+                        if convrot:
+                            gs = n8.convrot_group_size_for_features(w.shape[1], group_size)
+                            if gs is not None:
+                                if gs not in h_cache:
+                                    h_cache[gs] = n8.build_hadamard(gs, device="cpu")
+                                w_rot = n8.rotate_weight(w, h_cache[gs], gs)
+                                q, scale = n8.quantize_int8_channelwise(w_rot)
+                                conf = {
+                                    "format": "int8_tensorwise",
+                                    "convrot": True,
+                                    "convrot_groupsize": int(gs),
+                                }
+                                clip_convrot_count += 1
+                            else:
+                                q, scale = _plain_pack(w, per_channel_int8, n8)
+                                conf = {"format": "int8_tensorwise"}
+                                clip_plain_count += 1
                         else:
                             q, scale = _plain_pack(w, per_channel_int8, n8)
                             conf = {"format": "int8_tensorwise"}
                             clip_plain_count += 1
-                    else:
-                        q, scale = _plain_pack(w, per_channel_int8, n8)
-                        conf = {"format": "int8_tensorwise"}
-                        clip_plain_count += 1
 
-                    new_sd[key] = q
-                    new_sd[f"{module_key}.weight_scale"] = scale
-                    new_sd[f"{module_key}.comfy_quant"] = n8._encode_comfy_quant(conf)
-                    meta_layers[module_key] = dict(conf)
+                        new_sd[key] = q
+                        new_sd[f"{module_key}.weight_scale"] = scale
+                        new_sd[f"{module_key}.comfy_quant"] = n8._encode_comfy_quant(conf)
+                        meta_layers[module_key] = dict(conf)
 
         from safetensors.torch import save_file
 
@@ -1060,20 +1098,23 @@ class NativeConvRotInt8Quantize:
                         model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                         # SD1.5: checkpoint から ConvRot INT8 CLIP をロードし、INT8ブランチのconditioningに使用
                         try:
-                            _sd, _meta = comfy.utils.load_torch_file(output_path, return_metadata=True)
-                            if any(k.startswith("cond_stage_model.") for k in _sd):
-                                print("  [BENCH-SD15] Loading ConvRot INT8 CLIP from checkpoint for INT8 branch...", flush=True)
-                                _res = comfy.sd.load_checkpoint_guess_config(
-                                    output_path, output_vae=False, output_clip=True, output_model=False,
-                                    embedding_directory=None
-                                )
-                                int8_clip = _res[1]
-                                if int8_clip is not None:
-                                    int8_tokens = int8_clip.tokenize(prompt_text)
-                                    int8_positive = int8_clip.encode_from_tokens_scheduled(int8_tokens)
-                                    int8_negative = int8_clip.encode_from_tokens_scheduled(int8_clip.tokenize(""))
-                                    int8_clip_loaded = True
-                                    print("  [BENCH-SD15] Successfully encoded conditioning with ConvRot INT8 CLIP.", flush=True)
+                            if quantize_clip:
+                                _sd, _meta = comfy.utils.load_torch_file(output_path, return_metadata=True)
+                                if any(k.startswith("cond_stage_model.") and k.endswith(".comfy_quant") for k in _sd):
+                                    print("  [BENCH-SD15] Loading ConvRot INT8 CLIP from checkpoint for INT8 branch...", flush=True)
+                                    _res = comfy.sd.load_checkpoint_guess_config(
+                                        output_path, output_vae=False, output_clip=True, output_model=False,
+                                        embedding_directory=None
+                                    )
+                                    int8_clip = _res[1]
+                                    if int8_clip is not None:
+                                        int8_tokens = int8_clip.tokenize(prompt_text)
+                                        int8_positive = int8_clip.encode_from_tokens_scheduled(int8_tokens)
+                                        int8_negative = int8_clip.encode_from_tokens_scheduled(int8_clip.tokenize(""))
+                                        int8_clip_loaded = True
+                                        print("  [BENCH-SD15] Successfully encoded conditioning with ConvRot INT8 CLIP.", flush=True)
+                            else:
+                                print("  [BENCH-SD15] quantize_clip is False: using FP16 baseline CLIP conditioning directly.", flush=True)
                         except Exception as e:
                             print(f"  [BENCH-SD15] Warning: could not load INT8 CLIP ({e}), using baseline CLIP conditioning.", flush=True)
                 else:
@@ -1206,7 +1247,10 @@ class NativeConvRotInt8Quantize:
                 mm.soft_empty_cache()
 
             except Exception as e:
-                report.append(f"\n[Benchmark Error] {str(e)}")
+                import traceback
+                tb = traceback.format_exc()
+                print(f"[Benchmark Error Traceback]\n{tb}", flush=True)
+                report.append(f"\n[Benchmark Error] {str(e)}\n{tb}")
                 if _BENCH_SAGE2_STATS["armed"]:
                     try:
                         _unset_bench_sage2_attention()
