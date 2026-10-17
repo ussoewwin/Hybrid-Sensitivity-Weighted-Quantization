@@ -315,16 +315,6 @@ def apply_int8_patches() -> None:
     _cq_int8 = _load_int8_patch_module()
 
     _cq_int8.apply_comfy_quant_int8_patches()
-    # Measurement-mode separation: this bench measures eager INT8 with its SA2
-    # instrumentation. sageattn inside a CUDA-graph capture aborts the
-    # cudaMallocAsync allocator (measured 2026-10-17), so the bench never arms
-    # the production graph executor. Graph speed is verified by the dedicated
-    # verify harness instead.
-    _cq_int8._SD15_GRAPH_ARM_DISABLED = True
-    print(
-        "  [BENCH] SD1.5 CUDA-graph executor: disabled "
-        "(bench measures eager INT8 + SA2; graph is production-runtime only)"
-    )
     print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
     print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
     print(
@@ -368,150 +358,6 @@ def _load_checkpoint(path: str):
 # goes through comfy.ops.scaled_dot_product_attention inside attention_pytorch,
 # which reads optimized_attention_masked via comfy.ldm.modules.attention, so patching
 # the core module is sufficient; no per-arch from-import binding exists for SD1.5)
-# ---------------------------------------------------------------------------
-
-_SAGE2_STATS = {
-    "calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
-    "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0,
-}
-
-
-_ORIGINAL_ATTENTION_MASKED = None
-_ORIGINAL_ATTENTION = None
-
-
-def apply_sage2_attention() -> None:
-    global _ORIGINAL_ATTENTION_MASKED, _ORIGINAL_ATTENTION
-    import time
-    import torch
-
-    from comfy.ldm.modules import attention as comfy_attention
-    from sageattention import sageattn
-    from torch.nn.functional import scaled_dot_product_attention as _sdpa
-
-    if _ORIGINAL_ATTENTION_MASKED is None and hasattr(comfy_attention, "optimized_attention_masked"):
-        _ORIGINAL_ATTENTION_MASKED = comfy_attention.optimized_attention_masked
-    if _ORIGINAL_ATTENTION is None and hasattr(comfy_attention, "optimized_attention"):
-        _ORIGINAL_ATTENTION = comfy_attention.optimized_attention
-
-    def attention_sage2(q, k, v, heads, mask=None, attn_precision=None,
-                        skip_reshape=False, skip_output_reshape=False, **kw):
-        def _unwrap(t):
-            if isinstance(t, torch.Tensor):
-                return t
-            if type(t).__name__ == "AttentionTensorContainer":
-                return t.take() if hasattr(t, "take") else t.tensor
-            if hasattr(t, "tensor") and isinstance(t.tensor, torch.Tensor):
-                return t.tensor
-            return t
-
-        q = _unwrap(q)
-        k = _unwrap(k)
-        v = _unwrap(v)
-        if mask is not None:
-            mask = _unwrap(mask)
-
-        in_dtype = v.dtype
-
-        if skip_reshape:
-            b, _, _, dim_head = q.shape
-            qh, kh, vh = q, k, v
-        else:
-            b, n_q, _ = q.shape
-            dim_head = q.shape[-1] // heads
-            if hasattr(comfy_attention, "_reshape_qkv_to_heads"):
-                qh, kh, vh = comfy_attention._reshape_qkv_to_heads(
-                    q, k, v, b, heads, dim_head, kw.get("enable_gqa", False), expand_kv=False
-                )
-                qh, kh, vh = map(lambda t: t.transpose(1, 2), (qh, kh, vh))
-            else:
-                qh = q.view(b, n_q, heads, dim_head).transpose(1, 2)
-                kh = k.view(b, k.shape[1], heads, dim_head).transpose(1, 2)
-                vh = v.view(b, v.shape[1], heads, dim_head).transpose(1, 2)
-
-        if mask is not None:
-            if mask.ndim == 2:
-                mask = mask.unsqueeze(0)
-            if mask.ndim == 3:
-                mask = mask.unsqueeze(1)
-
-        use_fallback = (mask is not None) or (dim_head not in (64, 128))
-        _SAGE2_STATS["calls"] += 1
-        # The SA2 override is benchmark instrumentation; its device-wide
-        # synchronize is illegal inside a CUDA-graph capture
-        # (cudaErrorStreamCaptureUnsupported, measured 2026-10-17). Skip the
-        # timing sync while capturing; keep the math path identical.
-        if not torch.cuda.is_current_stream_capturing():
-            torch.cuda.synchronize()
-        if use_fallback:
-            if mask is not None:
-                _SAGE2_STATS["fb_mask"] += 1
-            else:
-                _SAGE2_STATS["fb_dim"] += 1
-            t0 = time.perf_counter()
-            out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
-            if not torch.cuda.is_current_stream_capturing():
-                torch.cuda.synchronize()
-                _SAGE2_STATS["t_sdpa_ms"] += (time.perf_counter() - t0) * 1000.0
-        else:
-            if qh.dtype == torch.float32 or kh.dtype == torch.float32 or vh.dtype == torch.float32:
-                qh, kh, vh = qh.to(torch.float16), kh.to(torch.float16), vh.to(torch.float16)
-            try:
-                t0 = time.perf_counter()
-                out = sageattn(qh, kh, vh, tensor_layout="HND", is_causal=False)
-                if not torch.cuda.is_current_stream_capturing():
-                    torch.cuda.synchronize()
-                    _SAGE2_STATS["t_sa2_ms"] += (time.perf_counter() - t0) * 1000.0
-                _SAGE2_STATS["sa2"] += 1
-            except Exception as e:
-                _SAGE2_STATS["err"] += 1
-                print(f"  [SAGE2] fallback ({type(e).__name__}: {str(e)[:60]})", flush=True)
-                out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
-
-        if skip_output_reshape:
-            pass
-        else:
-            out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
-        return out.to(in_dtype)
-
-    wrapped_sage2 = comfy_attention.wrap_attn(attention_sage2) if hasattr(comfy_attention, "wrap_attn") else attention_sage2
-    comfy_attention.optimized_attention_masked = wrapped_sage2
-    if hasattr(comfy_attention, "optimized_attention"):
-        comfy_attention.optimized_attention = wrapped_sage2
-    print("  [SAGE2] attention override armed (sageattn, INT8 QK + FP8 PV, sm120 auto)",
-          flush=True)
-
-
-def unset_sage2_attention() -> None:
-    global _ORIGINAL_ATTENTION_MASKED, _ORIGINAL_ATTENTION
-    from comfy.ldm.modules import attention as comfy_attention
-
-    if _ORIGINAL_ATTENTION_MASKED is not None:
-        comfy_attention.optimized_attention_masked = _ORIGINAL_ATTENTION_MASKED
-        _ORIGINAL_ATTENTION_MASKED = None
-    if _ORIGINAL_ATTENTION is not None:
-        comfy_attention.optimized_attention = _ORIGINAL_ATTENTION
-        _ORIGINAL_ATTENTION = None
-    print("  [SAGE2] attention override restored to stock", flush=True)
-
-
-def reset_sage2_attn_stats() -> None:
-    global _SAGE2_STATS
-    _SAGE2_STATS = {
-        "calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
-        "t_sdpa_ms": 0.0, "t_sa2_ms": 0.0,
-    }
-
-
-def print_sage2_attn_stats() -> None:
-    s = _SAGE2_STATS
-    print(f"  [SAGE2] attention calls: total={s['calls']} sa2={s['sa2']} "
-          f"fallback(mask)={s['fb_mask']} fallback(dim)={s['fb_dim']} errors={s['err']}",
-          flush=True)
-    print(f"  [SAGE2] attention time: sage2={s['t_sa2_ms']:.1f} ms "
-          f"sdpa_fallback={s['t_sdpa_ms']:.1f} ms", flush=True)
-
-
 # ---------------------------------------------------------------------------
 # Trajectory capture
 # ---------------------------------------------------------------------------
@@ -580,10 +426,6 @@ def parse_args():
     ap.add_argument("--cfg", type=float, default=7.0)
     ap.add_argument("--sampler", default="dpmpp_2m")
     ap.add_argument("--scheduler", default="karras")
-    ap.add_argument("--attention", choices=["sdpa", "sage2"], default="sdpa",
-                    help="sage2: patch the INT8 branch attention to SageAttention2 "
-                         "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays "
-                         "on stock attention. sdpa (default): no attention patch.")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -649,8 +491,6 @@ def main() -> int:
                 print("  [INT8] Successfully encoded prompt with ConvRot INT8 CLIP.")
             except Exception as e:
                 print(f"  [INT8] Warning: encoding with INT8 CLIP failed ({e}), using baseline CLIP conditioning.")
-        if args.attention == "sage2":
-            apply_sage2_attention()
         int8_runs = {}
         for s in seeds:
             print(f"[INT8] seed {s}")
@@ -661,9 +501,6 @@ def main() -> int:
             )
             times_int8.append(__import__("time").perf_counter() - t0)
             int8_runs[s] = (xs, x0s, final.detach().float().cpu())
-        if args.attention == "sage2":
-            unset_sage2_attention()
-            print_sage2_attn_stats()
         del int8, clip8, vae8
         _hard_free_vram()
     finally:
