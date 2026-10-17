@@ -417,40 +417,6 @@ def _is_protected_sdxl_clip_weight(key: str) -> bool:
     return False
 
 
-# SD1.5 CLIP-L protection (same structural pattern as SDXL CLIP-L; measured
-# identical across 11 SD1.5 checkpoints: kurtosis/outlier_ratio of
-# embeddings.position_embedding ~652/78, encoder.layers.0.mlp.fc1 ~111/78,
-# embeddings.token_embedding 0.36/47, encoder.layers.0.mlp.fc2 ~15.5/40).
-_SD15_CLIP_PROTECT_EXACT = (
-    "cond_stage_model.transformer.text_model.embeddings.token_embedding.weight",
-    "cond_stage_model.transformer.text_model.embeddings.position_embedding.weight",
-    "cond_stage_model.transformer.text_model.encoder.layers.0.mlp.fc1.weight",
-    "cond_stage_model.transformer.text_model.encoder.layers.0.mlp.fc2.weight",
-)
-
-
-def _is_protected_sd15_clip_weight(key: str) -> bool:
-    """True if this SD1.5 CLIP weight must stay FP16 (rule-based protection set)."""
-    return key in _SD15_CLIP_PROTECT_EXACT
-
-
-def _sd15_clip_pack_key(k: str) -> str:
-    """Map SD1ClipModel internal names to the SD1.5 checkpoint pack layout.
-
-    ``clip.get_sd()`` / ``cond_stage_model.state_dict()`` use internal names
-    (``clip_l.*``). SD1.5 packs store the bare ``cond_stage_model.transformer.*``
-    layout with no ``clip_l.`` segment, and the ``logit_scale`` companion is not
-    part of a standard checkpoint (it is reconstructed at load time), so it is
-    dropped here. Returns "" for keys that must not be written.
-    """
-    if k == "clip_l.logit_scale":
-        return ""
-    if k.startswith("clip_l."):
-        k = k[len("clip_l."):]
-    if k.startswith("clip_g."):
-        k = k[len("clip_g."):]
-    return "cond_stage_model." + k
-
 
 def _clip_internal_to_pack_key(k: str):
     """Map a CLIP.get_sd() internal key (clip_l. / clip_g.) to the pack-space
@@ -735,7 +701,6 @@ class NativeConvRotInt8Quantize:
                 "per_channel_int8": ("BOOLEAN", {"default": True}),
                 "benchmark_attention": ("BOOLEAN", {"default": True}),
                 "run_benchmark": ("BOOLEAN", {"default": True}),
-                "quantize_clip": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "vae": ("VAE",),
@@ -765,7 +730,7 @@ class NativeConvRotInt8Quantize:
         per_channel_int8,
         benchmark_attention,
         run_benchmark,
-        quantize_clip=True,
+        quantize_clip=True,  # SDXL branch default (UI input removed; SD1.5 no longer uses CLIP INT8)
         vae=None,
         **kwargs,
     ):
@@ -807,7 +772,7 @@ class NativeConvRotInt8Quantize:
             model_type=model_type,
         )
 
-        # SD1.5: CLIP(Text Encoder)もConvRot INT8化してnew_sdに統合保存
+        # SD1.5: the checkpoint-embedded CLIP stays in FP16 (CLIP INT8 path removed).
         clip_convrot_count = 0
         clip_plain_count = 0
         clip_kept_count = 0
@@ -819,70 +784,14 @@ class NativeConvRotInt8Quantize:
                 clip_sd = clip.cond_stage_model.state_dict()
 
             if clip_sd:
-                if not quantize_clip:
-                    for k, tensor in sorted(clip_sd.items()):
-                        key = _sd15_clip_pack_key(k)
-                        if not key:
-                            continue
-                        new_sd[key] = tensor.detach().cpu()
-                        clip_kept_count += 1
-                else:
-                    h_cache = {}
-                    for k, tensor in sorted(clip_sd.items()):
-                        key = _sd15_clip_pack_key(k)
-                        if not key:
-                            continue
-
-                        # Embedding layers (token_embedding, position_embedding) and non-2D/non-float tensors stay float
-                        is_linear_weight = (
-                            key.endswith(".weight")
-                            and tensor.ndim == 2
-                            and "embedding" not in key
-                            and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
-                        )
-                        if not is_linear_weight:
-                            new_sd[key] = tensor.detach().cpu()
-                            clip_kept_count += 1
-                            continue
-
-                        # Rule-based FP16 protection (SDXL CLIP-L parity): keep the
-                        # highest-risk CLIP layers float (layers.0.mlp.fc1/fc2 are
-                        # kurtosis 111/15.5 across every measured SD1.5 checkpoint).
-                        if _is_protected_sd15_clip_weight(key):
-                            new_sd[key] = tensor.detach().cpu()
-                            clip_kept_count += 1
-                            continue
-
-                        w = tensor.float().cpu()
-                        module_key = key[:-len(".weight")]
-                        conf = {"format": "int8_tensorwise"}
-
-                        if convrot:
-                            gs = n8.convrot_group_size_for_features(w.shape[1], group_size)
-                            if gs is not None:
-                                if gs not in h_cache:
-                                    h_cache[gs] = n8.build_hadamard(gs, device="cpu")
-                                w_rot = n8.rotate_weight(w, h_cache[gs], gs)
-                                q, scale = n8.quantize_int8_channelwise(w_rot)
-                                conf = {
-                                    "format": "int8_tensorwise",
-                                    "convrot": True,
-                                    "convrot_groupsize": int(gs),
-                                }
-                                clip_convrot_count += 1
-                            else:
-                                q, scale = _plain_pack(w, per_channel_int8, n8)
-                                conf = {"format": "int8_tensorwise"}
-                                clip_plain_count += 1
-                        else:
-                            q, scale = _plain_pack(w, per_channel_int8, n8)
-                            conf = {"format": "int8_tensorwise"}
-                            clip_plain_count += 1
-
-                        new_sd[key] = q
-                        new_sd[f"{module_key}.weight_scale"] = scale
-                        new_sd[f"{module_key}.comfy_quant"] = n8._encode_comfy_quant(conf)
-                        meta_layers[module_key] = dict(conf)
+                for k, tensor in sorted(clip_sd.items()):
+                    if k.startswith("clip_l."):
+                        key = "cond_stage_model." + k[len("clip_l."):]
+                    elif k.startswith("cond_stage_model."):
+                        key = k
+                    else:
+                        key = "cond_stage_model." + k
+                    new_sd[key] = tensor.detach().cpu()
 
         elif model_type == "SDXL" and clip is not None:
             # SDXL: CLIP-L + CLIP-G ConvRot INT8 with the rule-based FP16
@@ -973,9 +882,7 @@ class NativeConvRotInt8Quantize:
             _summarize(output_path),
             f"UNet: convrot={bool(convrot)} group_size={group_size} "
             f"linear={stats['linear']} conv2d={stats['conv2d']} "
-            f"plain={stats['plain']} kept={stats['kept']}"
-            + (f" | CLIP: convrot={clip_convrot_count} plain={clip_plain_count} kept={clip_kept_count}"
-               if (clip_convrot_count + clip_plain_count > 0) else ""),
+            f"plain={stats['plain']} kept={stats['kept']}",
         ]
 
         _bench_base_path = ""
@@ -1152,7 +1059,6 @@ class NativeConvRotInt8Quantize:
                 t0 = time.perf_counter()
                 int8_positive = positive
                 int8_negative = negative
-                int8_clip_loaded = False
                 if is_sd15:
                     sd15_bench = _load_sd15_bench()
                     sd15_bench.apply_int8_patches()
@@ -1160,27 +1066,6 @@ class NativeConvRotInt8Quantize:
                     _scope = _arm_active_int8_conv_scope(cq_int8._int8_quant_conv_scope())
                     with _scope:
                         model_int8 = comfy.sd.load_diffusion_model(output_path, {})
-                        # SD1.5: checkpoint から ConvRot INT8 CLIP をロードし、INT8ブランチのconditioningに使用
-                        try:
-                            if quantize_clip:
-                                _sd, _meta = comfy.utils.load_torch_file(output_path, return_metadata=True)
-                                if any(k.startswith("cond_stage_model.") and k.endswith(".comfy_quant") for k in _sd):
-                                    print("  [BENCH-SD15] Loading ConvRot INT8 CLIP from checkpoint for INT8 branch...", flush=True)
-                                    _res = comfy.sd.load_checkpoint_guess_config(
-                                        output_path, output_vae=False, output_clip=True, output_model=False,
-                                        embedding_directory=None
-                                    )
-                                    int8_clip = _res[1]
-                                    if int8_clip is not None:
-                                        int8_tokens = int8_clip.tokenize(prompt_text)
-                                        int8_positive = int8_clip.encode_from_tokens_scheduled(int8_tokens)
-                                        int8_negative = int8_clip.encode_from_tokens_scheduled(int8_clip.tokenize(""))
-                                        int8_clip_loaded = True
-                                        print("  [BENCH-SD15] Successfully encoded conditioning with ConvRot INT8 CLIP.", flush=True)
-                            else:
-                                print("  [BENCH-SD15] quantize_clip is False: using FP16 baseline CLIP conditioning directly.", flush=True)
-                        except Exception as e:
-                            print(f"  [BENCH-SD15] Warning: could not load INT8 CLIP ({e}), using baseline CLIP conditioning.", flush=True)
                 else:
                     model_int8 = comfy.sd.load_diffusion_model(output_path, {})
                 load_int8 = time.perf_counter() - t0
@@ -1214,8 +1099,6 @@ class NativeConvRotInt8Quantize:
                 report.append(f"Run Time: {current_time}")
                 report.append(f"Model Architecture: {model_type}")
                 report.append(f"Prompt: {prompt_text}")
-                if is_sd15 and int8_clip_loaded:
-                    report.append("Benchmark CLIP: ConvRot INT8 (evaluated on quantized branch)")
                 report.append(f"INT8 Model Load Time: {load_int8:.2f}s")
                 report.append(f"Seeds: {seeds}")
                 report.append(f"Benchmark attention: {'sage2 (quantized branch only; FP16 baseline on stock attention)' if benchmark_attention else 'sdpa (stock)'}\n")
