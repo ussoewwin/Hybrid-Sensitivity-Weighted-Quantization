@@ -566,13 +566,29 @@ def _should_inject_int8_conv(quant_config) -> bool:
 
 
 def _model_has_int8_quantized_weights(model) -> bool:
-    """True if model already carries INT8 / QuantizedTensor weights (post-load)."""
+    """True if model already carries INT8 / QuantizedTensor weights (post-load).
+
+    Accepts a ModelPatcher/ModelPatcherDynamic (unwraps to the inner module)
+    as well as a bare nn.Module. load_diffusion_model returns a patcher, so
+    calling named_modules() on it directly raised AttributeError (measured in
+    the native convert node benchmark, 2026-10-17).
+    """
     try:
         import torch
         from comfy.quant_ops import QuantizedTensor
     except ImportError:
         return False
-    for _, module in model.named_modules():
+    if model is None:
+        return False
+    if hasattr(model, "named_modules"):
+        root = model
+    elif hasattr(model, "model"):
+        root = model.model
+    else:
+        return False
+    if not hasattr(root, "named_modules"):
+        return False
+    for _, module in root.named_modules():
         w = getattr(module, "weight", None)
         if w is None:
             continue
@@ -2203,7 +2219,10 @@ def _patch_sd15_cudagraph_executor() -> bool:
         return False
 
     def _maybe_arm(model):
-        if (getattr(_int8_quant_conv_tls, "active", False) or _model_has_int8_quantized_weights(model)) and model is not None:
+        if model is not None and (
+            getattr(_int8_quant_conv_tls, "active", False)
+            or _model_has_int8_quantized_weights(model)
+        ):
             try:
                 _arm_sd15_cudagraph(model)
             except Exception as exc:  # noqa: BLE001
