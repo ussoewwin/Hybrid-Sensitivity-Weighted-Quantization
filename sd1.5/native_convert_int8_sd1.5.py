@@ -316,6 +316,7 @@ def convert_to_int8(
     enable_convrot: bool = True,
     group_size: int = _DEFAULT_GROUPSIZE,
     fp_keep_layers: int = 0,
+    skip_clip_int8: bool = False,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     act_mean_dict = {}
@@ -580,7 +581,7 @@ def convert_to_int8(
     # protection set (SDXL CLIP-L parity). Runs before save so the companions
     # land in quant_meta_layers.
     clip_convrot_count = clip_plain_count = clip_protected = clip_kept = 0
-    if any(k.startswith("cond_stage_model.") for k in new_state_dict):
+    if not skip_clip_int8 and any(k.startswith("cond_stage_model.") for k in new_state_dict):
         clip_convrot_count, clip_plain_count, clip_protected, clip_kept = quantize_sd15_clip(
             new_state_dict, quant_meta_layers,
             enable_convrot=enable_convrot, group_size=group_size,
@@ -597,6 +598,8 @@ def convert_to_int8(
             f"  SD1.5 CLIP: convrot={clip_convrot_count} plain={clip_plain_count} "
             f"fp16_protected={clip_protected} kept={clip_kept}"
         )
+    elif skip_clip_int8:
+        print("  SD1.5 CLIP: skipped INT8 quantization (all CLIP layers kept in original precision).")
 
     # Drop embedded VAE (first_stage_model.*) to reduce checkpoint size.
     # VAE is loaded separately at inference time.
@@ -697,6 +700,12 @@ if __name__ == "__main__":
             "+337.5 MiB vs full-INT8 pack)."
         ),
     )
+    parser.add_argument(
+        "--skip_clip_int8",
+        "--no_clip_int8",
+        action="store_true",
+        help="Do not quantize CLIP (cond_stage_model.*) to INT8; keep original FP16 weights.",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
@@ -729,4 +738,5 @@ if __name__ == "__main__":
         enable_convrot=bool(args.convrot),
         group_size=int(args.groupsize),
         fp_keep_layers=int(args.fp_keep_layers),
+        skip_clip_int8=bool(args.skip_clip_int8),
     )

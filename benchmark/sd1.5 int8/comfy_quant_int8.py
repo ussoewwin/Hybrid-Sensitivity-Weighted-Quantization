@@ -2506,7 +2506,7 @@ class _Sd15CudaGraphExecutor:
         # lists is the precondition enforcement for a valid capture, not a
         # fallback.
         dm2 = getattr(self._base, "diffusion_model", None)
-        if dm2 is not None:
+        if dm2 is not None and hasattr(dm2, "named_modules"):
             for _n, mod in dm2.named_modules():
                 try:
                     if getattr(mod, "comfy_cast_weights", False):
@@ -2564,21 +2564,7 @@ class _Sd15CudaGraphExecutor:
 
 
 def _staticize_for_capture(model) -> bool:
-    """Make the SD1.5 model fully resident + static BEFORE graph capture.
-
-    Measured root cause of the fatal abort (2026-10-17 10:22 log): with 278
-    LoRA patches attached, comfy keeps LowVramPatch weight casts active, and
-    the offload stream performs uncaptured work during capture ->
-    cudaErrorStreamCaptureInvalidated -> the async allocator aborts the whole
-    process. A graph capture requires static, fully-resident weights:
-      1. every weight / quant payload moved to the CUDA device
-      2. per-module comfy_cast_weights disabled (no cast pump in forward)
-      3. per-module weight_function removed (no LowVramPatch hooks in forward)
-    This is not a fallback path: it is the precondition that makes the capture
-    correct. The LoRA strengths are already baked into the requantized weights
-    by the loader's bake stage (measured rq=201 ir=0), so removing the patch
-    hooks keeps the same numerics.
-    """
+    """Make the SD1.5 model fully resident + static BEFORE graph capture."""
     import torch
 
     try:
@@ -2588,11 +2574,35 @@ def _staticize_for_capture(model) -> bool:
     except Exception:
         dev = torch.device("cuda")
 
-    inner = getattr(model, "model", model) or model
-    dm = getattr(inner, "diffusion_model", None) or inner
+    # Safely traverse ModelPatcher / ModelPatcherDynamic to find nn.Module
+    cur = model
+    dm = None
+    visited = set()
+    while cur is not None and id(cur) not in visited:
+        visited.add(id(cur))
+        candidate = getattr(cur, "diffusion_model", None)
+        if candidate is not None and hasattr(candidate, "named_modules"):
+            dm = candidate
+            break
+        if hasattr(cur, "named_modules") and not hasattr(cur, "patch_weight_to_device"):
+            dm = cur
+            break
+        cur = getattr(cur, "model", None)
+
+    if dm is None or not hasattr(dm, "named_modules"):
+        _console(
+            f"[HSWQ INT8][SD1.5 graph] staticize skipped: "
+            f"no nn.Module found on {type(model).__name__}"
+        )
+        return False
 
     # 1) every parameter/buffer (and QuantizedTensor payloads) onto the device
-    for _name, tensor in list(dm.named_parameters()) + list(dm.named_buffers()):
+    params_and_buffers = []
+    if hasattr(dm, "named_parameters"):
+        params_and_buffers.extend(list(dm.named_parameters()))
+    if hasattr(dm, "named_buffers"):
+        params_and_buffers.extend(list(dm.named_buffers()))
+    for _name, tensor in params_and_buffers:
         try:
             if tensor.device != dev:
                 tensor.data = tensor.data.to(dev)
@@ -2608,7 +2618,8 @@ def _staticize_for_capture(model) -> bool:
         except Exception:
             pass
     try:
-        inner.to(dev)
+        if hasattr(dm, "to"):
+            dm.to(dev)
     except Exception:
         pass
     torch.cuda.synchronize(dev)
@@ -2621,11 +2632,6 @@ def _staticize_for_capture(model) -> bool:
             if getattr(mod, "comfy_cast_weights", False):
                 mod.comfy_cast_weights = False
                 disabled += 1
-            # comfy.ops int8/Kitchen Linear reads len(weight_function) and
-            # len(bias_function) unconditionally (ops.py:1490). The patcher
-            # writes lists; keep this attribute a LIST on every module that
-            # can carry it - never None. Setting an empty list is the correct
-            # static state (no hooks = pure forward).
             if hasattr(mod, "weight_function"):
                 wf = getattr(mod, "weight_function", None)
                 if wf is None or len(wf) > 0:
@@ -2660,7 +2666,8 @@ def _arm_sd15_cudagraph(model) -> bool:
         return False
     if isinstance(getattr(base, "apply_model", None), _Sd15CudaGraphExecutor):
         return True
-    _staticize_for_capture(model)
+    if not _staticize_for_capture(model):
+        return False
     _Sd15CudaGraphExecutor(base)
     _console("[HSWQ INT8][SD1.5 graph] CUDA-graph executor armed (static weights)")
     return True
