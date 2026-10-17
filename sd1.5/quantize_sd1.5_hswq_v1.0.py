@@ -195,17 +195,6 @@ sys.path.insert(0, os.path.join(repo_root, "ComfyUI-master"))
 # two stay in lockstep. ZI precedent: the same named ceiling was moved 300->600.
 FP16_BUDGET_MB_HARD = 300.0
 
-# SD1.5 CLIP-L FP16 protection rule (SDXL CLIP-L parity; measured identical
-# across 11 SD1.5 checkpoints: embeddings.position_embedding ~652/78,
-# encoder.layers.0.mlp.fc1 ~111/78, embeddings.token_embedding 0.36/47,
-# encoder.layers.0.mlp.fc2 ~15.5/40 for kurtosis / outlier_ratio). These stay
-# FP16; the rest of the CLIP is FULL ConvRot INT8.
-_SD15_CLIP_PROTECT_EXACT = (
-    "cond_stage_model.transformer.text_model.embeddings.token_embedding.weight",
-    "cond_stage_model.transformer.text_model.embeddings.position_embedding.weight",
-    "cond_stage_model.transformer.text_model.encoder.layers.0.mlp.fc1.weight",
-    "cond_stage_model.transformer.text_model.encoder.layers.0.mlp.fc2.weight",
-)
 # Post-pack assert slack: owner fill-band (~10 MiB). Not a shield for pack
 # leaks or wrong meters (1D norms / silent Linear-Conv float).
 FP16_BUDGET_ASSERT_TOLERANCE_MIB = 10.0
@@ -2640,15 +2629,6 @@ def main():
             "Pass --no-bench to skip."
         ),
     )
-    parser.add_argument(
-        "--skip_clip_int8",
-        action="store_true",
-        help=(
-            "Keep the checkpoint-embedded CLIP (cond_stage_model.*) entirely in "
-            "its original FP16 precision: skip the CLIP ConvRot INT8 stage. "
-            "One-variable test of the production pack (quantize_clip=OFF on the node)."
-        ),
-    )
     args = parser.parse_args()
 
     # V1.0: Card 2 forced OFF. Card 1 is opt-in (--bias_correction, default OFF).
@@ -3281,9 +3261,6 @@ def main():
     convrot_linear = 0
     convrot_conv2d = 0
     plain_int8_count = 0
-    clip_convrot_count = 0
-    clip_plain_count = 0
-    clip_kept_count = 0
     bias_corr_pending = {}  # comfy module prefix -> float32 bias delta (O,)
     bias_corr_applied = 0
     bias_corr_skipped_no_bias = 0
@@ -3410,72 +3387,6 @@ def main():
             dropped_vae_count += 1
             continue
 
-        # SD1.5: CLIP (cond_stage_model.*) also quantized to ConvRot INT8 (Linear layers)
-        if key.startswith("cond_stage_model."):
-            if args.skip_clip_int8:
-                # One-variable switch (node quantize_clip=OFF): keep every CLIP
-                # tensor at its original precision, no ConvRot INT8 stage.
-                output_state_dict[key] = value
-                clip_kept_count += 1
-                continue
-            is_linear_weight = (
-                key.endswith(".weight")
-                and value.ndim == 2
-                and "embedding" not in key
-                and value.dtype in (torch.float16, torch.float32, torch.bfloat16)
-            )
-            if not is_linear_weight:
-                output_state_dict[key] = value
-                clip_kept_count += 1
-                continue
-
-            # Rule-based FP16 protection (SDXL CLIP-L parity): keep the
-            # highest-risk CLIP layers float (layers.0.mlp.fc1/fc2 are kurtosis
-            # 111/15.5 across every measured SD1.5 checkpoint).
-            if key in _SD15_CLIP_PROTECT_EXACT:
-                output_state_dict[key] = value
-                clip_kept_count += 1
-                continue
-
-            w_fp = value.float()
-            comfy_module = key[:-len(".weight")]
-            used_gs = None
-            if (
-                enable_convrot
-                and convrot_group_size_for_features is not None
-                and build_hadamard is not None
-            ):
-                used_gs = convrot_group_size_for_features(
-                    int(w_fp.shape[1]), group_size
-                )
-
-            if used_gs is not None and rotate_weight is not None:
-                h_matrix = build_hadamard(used_gs, device="cpu", dtype=torch.float32)
-                w_fp = rotate_weight(w_fp, h_matrix, used_gs)
-                q, scale = pack_channelwise_native(w_fp)
-                quant_config = {
-                    "format": "int8_tensorwise",
-                    "convrot": True,
-                    "convrot_groupsize": int(used_gs),
-                }
-                clip_convrot_count += 1
-            elif args.per_channel_int8:
-                q, scale = pack_channelwise_native(w_fp)
-                quant_config = {"format": "int8_tensorwise"}
-                clip_plain_count += 1
-            else:
-                q, scale = pack_tensorwise_native(w_fp)
-                quant_config = {"format": "int8_tensorwise"}
-                clip_plain_count += 1
-
-            output_state_dict[key] = q
-            output_state_dict[f"{comfy_module}.weight_scale"] = scale
-            output_state_dict[f"{comfy_module}.comfy_quant"] = (
-                encode_comfy_quant_native(quant_config)
-            )
-            quant_meta_layers[comfy_module] = dict(quant_config)
-            continue
-
         output_state_dict[key] = value
 
     if args.bias_correction and bias_corr_pending:
@@ -3510,11 +3421,6 @@ def main():
         print(
             f"    ConvRot Linear: {convrot_linear}, ConvRot Conv2d: {convrot_conv2d}, "
             f"plain INT8: {plain_int8_count}"
-        )
-    if clip_convrot_count + clip_plain_count > 0:
-        print(
-            f"  CLIP ConvRot INT8: {clip_convrot_count}, plain INT8: {clip_plain_count}, "
-            f"kept as-is (embeddings/norms/biases): {clip_kept_count}"
         )
     print(f"  Per-channel INT8 (Card 3): {args.per_channel_int8}")
     print(f"  Asymmetric INT8 pack: {args.asymmetric_int8} (forced OFF)")
@@ -3618,8 +3524,6 @@ def main():
         f"(Linear={convrot_linear} Conv2d={convrot_conv2d} plain={plain_int8_count}) | "
         f"Asymmetric: {args.asymmetric_int8} | Bias correction: {args.bias_correction}"
     )
-    if clip_convrot_count + clip_plain_count > 0:
-        print(f"  CLIP INT8 layers: {clip_convrot_count + clip_plain_count} (convrot={clip_convrot_count})")
 
     # Quantize complete: drop convert holdings before optional chained bench.
     del output_state_dict
