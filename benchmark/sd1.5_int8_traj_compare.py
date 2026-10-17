@@ -427,7 +427,12 @@ def apply_sage2_attention() -> None:
 
         use_fallback = (mask is not None) or (dim_head not in (64, 128))
         _SAGE2_STATS["calls"] += 1
-        torch.cuda.synchronize()
+        # The SA2 override is benchmark instrumentation; its device-wide
+        # synchronize is illegal inside a CUDA-graph capture
+        # (cudaErrorStreamCaptureUnsupported, measured 2026-10-17). Skip the
+        # timing sync while capturing; keep the math path identical.
+        if not torch.cuda.is_current_stream_capturing():
+            torch.cuda.synchronize()
         if use_fallback:
             if mask is not None:
                 _SAGE2_STATS["fb_mask"] += 1
@@ -435,16 +440,18 @@ def apply_sage2_attention() -> None:
                 _SAGE2_STATS["fb_dim"] += 1
             t0 = time.perf_counter()
             out = _sdpa(qh, kh, vh, attn_mask=mask, is_causal=False)
-            torch.cuda.synchronize()
-            _SAGE2_STATS["t_sdpa_ms"] += (time.perf_counter() - t0) * 1000.0
+            if not torch.cuda.is_current_stream_capturing():
+                torch.cuda.synchronize()
+                _SAGE2_STATS["t_sdpa_ms"] += (time.perf_counter() - t0) * 1000.0
         else:
             if qh.dtype == torch.float32 or kh.dtype == torch.float32 or vh.dtype == torch.float32:
                 qh, kh, vh = qh.to(torch.float16), kh.to(torch.float16), vh.to(torch.float16)
             try:
                 t0 = time.perf_counter()
                 out = sageattn(qh, kh, vh, tensor_layout="HND", is_causal=False)
-                torch.cuda.synchronize()
-                _SAGE2_STATS["t_sa2_ms"] += (time.perf_counter() - t0) * 1000.0
+                if not torch.cuda.is_current_stream_capturing():
+                    torch.cuda.synchronize()
+                    _SAGE2_STATS["t_sa2_ms"] += (time.perf_counter() - t0) * 1000.0
                 _SAGE2_STATS["sa2"] += 1
             except Exception as e:
                 _SAGE2_STATS["err"] += 1
