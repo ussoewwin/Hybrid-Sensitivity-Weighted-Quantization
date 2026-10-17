@@ -996,7 +996,7 @@ class NativeConvRotInt8Quantize:
             import random
             import datetime
 
-            if is_sd15 and _bench_base_path:
+            if model_type == "SD1.5" and _bench_base_path:
                 # SD1.5 bench runs as a SUBPROCESS with the same production
                 # environment the HSWQ node proved (+15.1% measured): the
                 # cudaMallocAsync backend flag is stripped for the child tree
