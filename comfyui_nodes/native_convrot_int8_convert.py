@@ -978,6 +978,14 @@ class NativeConvRotInt8Quantize:
                if (clip_convrot_count + clip_plain_count > 0) else ""),
         ]
 
+        _bench_base_path = ""
+        if hasattr(model, "cached_patcher_init") and model.cached_patcher_init:
+            try:
+                _f0, _a0 = model.cached_patcher_init[:2]
+                if _a0 and isinstance(_a0, tuple) and isinstance(_a0[0], str):
+                    _bench_base_path = _a0[0]
+            except Exception:
+                _bench_base_path = ""
         if run_benchmark:
             import comfy.model_management as mm
             import comfy.sample as comfy_sample
@@ -987,6 +995,62 @@ class NativeConvRotInt8Quantize:
             import math
             import random
             import datetime
+
+            if is_sd15 and _bench_base_path:
+                # SD1.5 bench runs as a SUBPROCESS with the same production
+                # environment the HSWQ node proved (+15.1% measured): the
+                # cudaMallocAsync backend flag is stripped for the child tree
+                # so CUDA-graph capture and the fused triton ConvRot kernels
+                # run under the caching allocator, exactly like production.
+                import subprocess
+                _bench_root = _default_repo_root()
+                gate = os.path.join(_bench_root, "benchmark", "sd1.5_int8_traj_compare.py")
+                if not os.path.isfile(gate):
+                    raise FileNotFoundError(f"SD1.5 trajectory bench not found: {gate}")
+                env = dict(os.environ)
+                _conf = env.get("PYTORCH_CUDA_ALLOC_CONF", "")
+                if _conf and "backend:" in _conf:
+                    env["PYTORCH_CUDA_ALLOC_CONF"] = ",".join(
+                        p for p in (s.strip() for s in _conf.split(","))
+                        if p and not p.startswith("backend:")
+                    )
+                _bench_prompt = (benchmark_prompt or "").strip() or (
+                    "masterpiece, best quality, 1girl, solo, standing, simple background"
+                )
+                cmd = [
+                    sys.executable, gate,
+                    "--fp16", _bench_base_path,
+                    "--int8", output_path,
+                    "--comfy_path", "ComfyUI-master",
+                    "--prompt", _bench_prompt,
+                    "--steps", "25", "--width", "512", "--height", "512",
+                    "--cfg", "7.0", "--sampler", "dpmpp_2m", "--scheduler", "karras",
+                ]
+                print("[NATIVE-SD15 BENCH] " + " ".join(cmd), flush=True)
+                proc = subprocess.Popen(
+                    cmd, cwd=_bench_root, env=env, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                    errors="replace", bufsize=1,
+                )
+                out_lines = []
+                try:
+                    for _l in proc.stdout:
+                        _l = _l.rstrip("\n")
+                        out_lines.append(_l)
+                        print("  " + _l, flush=True)
+                    proc.wait()
+                finally:
+                    if proc.poll() is None:
+                        proc.kill()
+                        proc.wait()
+                if proc.returncode != 0:
+                    raise RuntimeError(
+                        "SD1.5 bench failed (exit " + str(proc.returncode) + "). Tail:\n"
+                        + "\n".join(out_lines[-40:])
+                    )
+                report.append("=== BENCHMARK: SD1.5 subprocess trajectory bench (25 seeds) complete ===")
+                report.extend(out_lines[-60:])
+                return (output_path, "\n".join(report))
 
             try:
                 # Prepare baseline tokens
