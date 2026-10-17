@@ -353,12 +353,6 @@ def _load_checkpoint(path: str):
     return out[0], out[1], out[2]
 
 
-# ---------------------------------------------------------------------------
-# SA2 attention (SD1.5 attention
-# goes through comfy.ops.scaled_dot_product_attention inside attention_pytorch,
-# which reads optimized_attention_masked via comfy.ldm.modules.attention, so patching
-# the core module is sufficient; no per-arch from-import binding exists for SD1.5)
-# ---------------------------------------------------------------------------
 # Trajectory capture
 # ---------------------------------------------------------------------------
 
