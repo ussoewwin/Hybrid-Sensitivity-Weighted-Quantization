@@ -315,6 +315,16 @@ def apply_int8_patches() -> None:
     _cq_int8 = _load_int8_patch_module()
 
     _cq_int8.apply_comfy_quant_int8_patches()
+    # Measurement-mode separation: this bench measures eager INT8 with its SA2
+    # instrumentation. sageattn inside a CUDA-graph capture aborts the
+    # cudaMallocAsync allocator (measured 2026-10-17), so the bench never arms
+    # the production graph executor. Graph speed is verified by the dedicated
+    # verify harness instead.
+    _cq_int8._SD15_GRAPH_ARM_DISABLED = True
+    print(
+        "  [BENCH] SD1.5 CUDA-graph executor: disabled "
+        "(bench measures eager INT8 + SA2; graph is production-runtime only)"
+    )
     print(f"  [BENCH] int8_tensorwise: {'int8_tensorwise' in comfy.ops.QUANT_ALGOS}")
     print(f"  [BENCH] comfy_quant_int8 patched: {_cq_int8._PATCHES_APPLIED}")
     print(
