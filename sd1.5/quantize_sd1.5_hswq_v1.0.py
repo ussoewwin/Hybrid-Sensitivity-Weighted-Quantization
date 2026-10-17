@@ -2640,6 +2640,15 @@ def main():
             "Pass --no-bench to skip."
         ),
     )
+    parser.add_argument(
+        "--skip_clip_int8",
+        action="store_true",
+        help=(
+            "Keep the checkpoint-embedded CLIP (cond_stage_model.*) entirely in "
+            "its original FP16 precision: skip the CLIP ConvRot INT8 stage. "
+            "One-variable test of the production pack (quantize_clip=OFF on the node)."
+        ),
+    )
     args = parser.parse_args()
 
     # V1.0: Card 2 forced OFF. Card 1 is opt-in (--bias_correction, default OFF).
@@ -3403,6 +3412,12 @@ def main():
 
         # SD1.5: CLIP (cond_stage_model.*) also quantized to ConvRot INT8 (Linear layers)
         if key.startswith("cond_stage_model."):
+            if args.skip_clip_int8:
+                # One-variable switch (node quantize_clip=OFF): keep every CLIP
+                # tensor at its original precision, no ConvRot INT8 stage.
+                output_state_dict[key] = value
+                clip_kept_count += 1
+                continue
             is_linear_weight = (
                 key.endswith(".weight")
                 and value.ndim == 2
