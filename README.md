@@ -8,7 +8,7 @@ High-fidelity **ConvRot INT8** (SDXL, Krea2, Qwen Image Edit, SD1.5) and **ConvR
 
 - **ConvRot INT8 (SDXL, reverse hybrid):** FP16 checkpoint as the only input; a per-layer **trajectory-impact** measurement (`sdxl/diag_impact_sdxl.py`) ranks every candidate layer, then the **K lowest-impact layers** are packed as **FULL ConvRot INT8** while **every other layer stays FP16** (`sdxl/gen_reverse_int8_sdxl.py`). Validated by the **deterministic 25-seed latent-trajectory comparison** (per-step cosine + bifurcation); production gate = **cosine mean ≥ 0.95 and 0/25 bifurcated**. The ranking is measured on the actual sampling trajectory, so it captures the nonlinear error amplification that static weight-space saliency cannot represent. The quantized file does not embed a VAE (`first_stage_model.*` is removed at conversion): load it with a separate SDXL VAE.
 - **ConvRot INT8 (SD1.5, HSWQ hybrid):** **HSWQ V1.0** (`sd1.5/quantize_sd1.5_hswq_v1.0.py`) is the production path: mandatory r32 calibration (32 samples x 25 steps) feeds DualMonitor sensitivity + V4 MSE, which rank a **FP16 protection set under a hard 300 MiB budget**; the remaining UNet Linear/Conv2d layers - and the checkpoint-embedded **CLIP Linear layers** (72) - are packed as **FULL ConvRot INT8**; the embedded VAE (`first_stage_model.*`) is stripped. The loader (`benchmark/sd1.5 int8/comfy_quant_int8.py`) injects the CLIP quantization metadata so the text encoder runs as true INT8. Validated with the deterministic 25-seed latent-trajectory gate (512x512, dpmpp_2m/karras, 25 steps): **mean final-cosine 0.96613, 14/25 same-image, +14.9% vs FP16** (0.5xxmix9realistic_v40+0.5BRA7 reference). A native all-INT8 pack (no protection, no CLIP calibration) measures 0.94760 on the same gate - the 300 MiB protection is what lifts SD1.5 above the 0.95 threshold. Sizes (measured): native all-INT8 ~1.02 GB; HSWQ pack ~1275 MB (~1.28 GB). Load with a separate SD1.5 VAE.
-- **SDXL ConvRot NVFP4:** **Development cancelled.** Deterministic trajectory-divergence measurements reveal that 4-bit precision (NVFP4) fails to maintain latent trajectory fidelity on SDXL (final latent trajectory cosine fails to reach 0.90, suffering severe trajectory collapse and drift); the legacy decoded SSIM ~0.95 results were masked by VAE decoding rather than true latent preservation. Development has been officially cancelled. SDXL is supported strictly in **ConvRot INT8 (reverse hybrid)** only.
+
 - **Z Image INT8 (HSWQ):** **Development and public release ended.** For Z Image, **native ConvRot INT8** already reaches roughly **SSIM > 0.99** in general, so a separate HSWQ Z Image 8-bit line is no longer developed or published. Use native ConvRot INT8 for Z Image 8-bit; HSWQ INT8 work continues for **SDXL**.
 - **ConvRot INT8 (Krea2):** Full HSWQ pipeline with structure blacklist protection (`first.`, `last.`, `mod.`, `norm`, `projector`, `txtfusion`, etc.) and data-driven 4-axis composite ranking (`Krea2/hswq_convrot_int8_krea2_v1.5.py`). For checkpoints where native ConvRot INT8 already reaches mean latent trajectory cosine $\ge 0.98$, native ConvRot INT8 is directly recommended.
 - **Krea2 Hybrid ConvRot NVFP4:** **Development cancelled.** 4-bit precision (NVFP4) cannot maintain structural fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity protection, final latent trajectory cosine fails to reach 0.90 (severe trajectory drift and collapse). Development has been officially cancelled. Krea2 is supported strictly in **ConvRot INT8** only.
@@ -83,7 +83,7 @@ pip install diffusers accelerate scikit-image
 
 **Note (Z Image 8-bit):** HSWQ Z Image INT8 development and publication **ended**. Native ConvRot INT8 is sufficient for Z Image (typically **SSIM > 0.99**). HSWQ INT8 remains the SDXL & Krea2 path.
 
-**Note (SDXL 4-bit / NVFP4):** SDXL ConvRot NVFP4 development has been **cancelled**. Deterministic trajectory measurements confirm that 4-bit precision (NVFP4) fails to preserve latent trajectory fidelity (cosine fails to reach 0.90, suffering severe trajectory drift and collapse); legacy SSIM scores were masked by VAE decoding. SDXL is supported strictly in **ConvRot INT8 (reverse hybrid)** only.
+
 
 **Note (Krea2 4-bit / NVFP4):** Krea2 Hybrid ConvRot NVFP4 development has been **cancelled**. 4-bit precision (NVFP4) cannot maintain acceptable fidelity on Krea2 SingleStreamDiT; even with HSWQ sensitivity weighting and layer retention, the final latent trajectory cosine fails to reach 0.90. Krea2 is supported strictly in **ConvRot INT8** only.
 
@@ -96,13 +96,13 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 ## Architecture
 
 1. **Dual Monitor System** - During calibration, two metrics are collected:
-   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ. (Note: SDXL ConvRot NVFP4 development has been cancelled; SDXL uses the reverse hybrid path below). The **ConvRot INT8 (SDXL) reverse hybrid** does not use this static path: its FP16 set is the complement of the K lowest-impact layers measured directly on the sampling trajectory.
+   - **Sensitivity** (output variance): layers that hurt image quality most if corrupted → kept in FP16 when selected by HSWQ. The **ConvRot INT8 (SDXL) reverse hybrid** does not use this static path: its FP16 set is the complement of the K lowest-impact layers measured directly on the sampling trajectory.
    - **Importance:** V1 uses per-channel input mean-abs; V4 uses per-element SVD leverage × RMS magnitude hybrid → weights of the weighted histogram.
    **Technical details:** [Dual Monitor System - Technical Guide](md/Dual_Monitor_System_Technical_Guide.md).
 
 2. **Rigorous grid / pack simulation**
    - **ConvRot INT8 (SDXL reverse hybrid):** each candidate layer's ConvRot INT8 reconstruction is injected on the FP16 baseline and propagated through the production sampler; the resulting trajectory drift ranks the layers. The K lowest-impact layers are packed (`rotate → per-channel INT8`); the rest stay FP16.
-   - **ConvRot NVFP4 (SDXL - cancelled):** legacy absmax pack point for Linear→NVFP4 and Conv2d→INT8; V4 pack-MSE ranked FP16 protection under the **600 MiB** budget. Cancelled in favor of the ConvRot INT8 reverse hybrid.
+
 
 3. **Weighted Histogram Optimization** - Finds parameters that minimize quantization error using an importance-weighted histogram (not a plain frequency histogram).
    - **V1 / Fast:** per-channel importance (activation mean-abs) drives the histogram. **Technical details:** [Weighted Histogram MSE - Technical Guide](md/Weighted_Histogram_MSE_Technical_Guide.md).
