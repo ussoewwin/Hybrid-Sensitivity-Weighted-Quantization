@@ -1055,6 +1055,7 @@
         "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
         "ver": "fd407fd279c2c13e5030635dfb0e232c502d371b",
         "Node name for S&R": "HSWQSAM3Loader",
+        "cnr_id": "comfyui-hswq-loader-and-tools",
         "ue_properties": {
           "widget_ue_connectable": {},
           "input_ue_unconnectable": {},
@@ -1072,8 +1073,8 @@
       "id": 32,
       "type": "ZImageConvRotInt8Quantize",
       "pos": [
-        1799.7735531772435,
-        430.92714454101076
+        1800.8519772775574,
+        402.35054968642305
       ],
       "size": [
         313.890625,
@@ -1083,7 +1084,7 @@
         "pinned": true
       },
       "order": 16,
-      "mode": 4,
+      "mode": 0,
       "inputs": [
         {
           "name": "model",
@@ -1162,7 +1163,7 @@
         "pinned": true
       },
       "order": 8,
-      "mode": 4,
+      "mode": 0,
       "inputs": [],
       "outputs": [
         {
@@ -1219,7 +1220,7 @@
         "pinned": true
       },
       "order": 24,
-      "mode": 4,
+      "mode": 0,
       "inputs": [
         {
           "name": "text",
@@ -1246,10 +1247,10 @@
         }
       },
       "widgets_values": [
-        "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7_native_convrot_int8_1791984898.safetensors\nlayers=355 convrot=355 plain_int8=0\nUNet: convrot=True group_size=256 linear=184 conv2d=98 plain=0 kept=404 | CLIP: convrot=73 plain=0 kept=125\n\n=== BENCHMARK (25 Random Seeds, per-step trajectory) ===\nRun Time: 2026-10-14 22:39:03\nModel Architecture: SD1.5\nPrompt: masterpiece, best quality, 1girl, solo, standing, simple background\nINT8 Model Load Time: 0.27s\nSeeds: [42, 137, 849, 2024, 7391, 18429, 53082, 149206, 382715, 826401, 1938502, 4710928, 8391642, 15820493, 36192847, 71058294, 128491703, 285039184, 491730285, 762019483, 938174026, 1409285713, 2683910547, 3851729406, 4195820371]\nBenchmark attention: sage2 (quantized branch only; FP16 baseline on stock attention)\n\n[1/25 | Seed 42] FP16: 17.22s | INT8: 6.45s | MSE: 0.9083 | Cosine: 0.9812 | max-drop: 0.0026 | same-image\n[2/25 | Seed 137] FP16: 3.18s | INT8: 5.55s | MSE: 0.6256 | Cosine: 0.9826 | max-drop: 0.0024 | same-image\n[3/25 | Seed 849] FP16: 3.20s | INT8: 6.93s | MSE: 0.1804 | Cosine: 0.9946 | max-drop: 0.0007 | same-image\n[4/25 | Seed 2024] FP16: 3.13s | INT8: 5.92s | MSE: 1.1771 | Cosine: 0.9770 | max-drop: 0.0031 | drifted (different image)\n[5/25 | Seed 7391] FP16: 3.16s | INT8: 5.65s | MSE: 1.6166 | Cosine: 0.9631 | max-drop: 0.0050 | drifted (different image)\n[6/25 | Seed 18429] FP16: 3.15s | INT8: 5.77s | MSE: 8.7843 | Cosine: 0.8312 | max-drop: 0.0211 | drifted (different image)\n[7/25 | Seed 53082] FP16: 3.17s | INT8: 5.67s | MSE: 10.9658 | Cosine: 0.6563 | max-drop: 0.0454 | drifted (different image)\n[8/25 | Seed 149206] FP16: 3.17s | INT8: 5.68s | MSE: 0.5515 | Cosine: 0.9892 | max-drop: 0.0011 | same-image\n[9/25 | Seed 382715] FP16: 3.18s | INT8: 5.73s | MSE: 1.1603 | Cosine: 0.9716 | max-drop: 0.0038 | drifted (different image)\n[10/25 | Seed 826401] FP16: 3.13s | INT8: 5.80s | MSE: 1.2683 | Cosine: 0.9540 | max-drop: 0.0065 | drifted (different image)\n[11/25 | Seed 1938502] FP16: 3.15s | INT8: 5.67s | MSE: 1.5869 | Cosine: 0.9670 | max-drop: 0.0045 | drifted (different image)\n[12/25 | Seed 4710928] FP16: 3.17s | INT8: 5.59s | MSE: 6.6941 | Cosine: 0.7685 | max-drop: 0.0309 | drifted (different image)\n[13/25 | Seed 8391642] FP16: 3.28s | INT8: 5.64s | MSE: 2.0032 | Cosine: 0.9602 | max-drop: 0.0049 | drifted (different image)\n[14/25 | Seed 15820493] FP16: 3.40s | INT8: 5.78s | MSE: 0.9697 | Cosine: 0.9828 | max-drop: 0.0022 | same-image\n[15/25 | Seed 36192847] FP16: 3.23s | INT8: 5.86s | MSE: 1.9580 | Cosine: 0.9592 | max-drop: 0.0054 | drifted (different image)\n[16/25 | Seed 71058294] FP16: 3.19s | INT8: 5.85s | MSE: 3.9469 | Cosine: 0.9223 | max-drop: 0.0099 | drifted (different image)\n[17/25 | Seed 128491703] FP16: 3.19s | INT8: 5.82s | MSE: 0.6653 | Cosine: 0.9857 | max-drop: 0.0020 | same-image\n[18/25 | Seed 285039184] FP16: 3.18s | INT8: 5.66s | MSE: 0.8468 | Cosine: 0.9819 | max-drop: 0.0024 | same-image\n[19/25 | Seed 491730285] FP16: 3.17s | INT8: 5.69s | MSE: 0.3632 | Cosine: 0.9924 | max-drop: 0.0010 | same-image\n[20/25 | Seed 762019483] FP16: 3.18s | INT8: 5.59s | MSE: 5.2458 | Cosine: 0.9111 | max-drop: 0.0108 | drifted (different image)\n[21/25 | Seed 938174026] FP16: 3.24s | INT8: 5.57s | MSE: 0.0926 | Cosine: 0.9980 | max-drop: 0.0002 | same-image\n[22/25 | Seed 1409285713] FP16: 3.22s | INT8: 5.60s | MSE: 0.1450 | Cosine: 0.9965 | max-drop: 0.0004 | same-image\n[23/25 | Seed 2683910547] FP16: 3.17s | INT8: 5.58s | MSE: 0.2831 | Cosine: 0.9911 | max-drop: 0.0012 | same-image\n[24/25 | Seed 3851729406] FP16: 3.20s | INT8: 5.57s | MSE: 0.9756 | Cosine: 0.9806 | max-drop: 0.0025 | same-image\n[25/25 | Seed 4195820371] FP16: 3.16s | INT8: 5.30s | MSE: 0.3617 | Cosine: 0.9923 | max-drop: 0.0010 | same-image\n\n--- Multi-seed summary ---\n    seed  final-cos    final-mse  max-drop                verdict\n      42    0.98116    9.083e-01    0.0026             same-image\n     137    0.98259    6.256e-01    0.0024             same-image\n     849    0.99464    1.804e-01    0.0007             same-image\n    2024    0.97698    1.177e+00    0.0031 drifted (different image)\n    7391    0.96310    1.617e+00    0.0050 drifted (different image)\n   18429    0.83116    8.784e+00    0.0211 drifted (different image)\n   53082    0.65633    1.097e+01    0.0454 drifted (different image)\n  149206    0.98918    5.515e-01    0.0011             same-image\n  382715    0.97164    1.160e+00    0.0038 drifted (different image)\n  826401    0.95403    1.268e+00    0.0065 drifted (different image)\n 1938502    0.96699    1.587e+00    0.0045 drifted (different image)\n 4710928    0.76852    6.694e+00    0.0309 drifted (different image)\n 8391642    0.96017    2.003e+00    0.0049 drifted (different image)\n15820493    0.98280    9.697e-01    0.0022             same-image\n36192847    0.95917    1.958e+00    0.0054 drifted (different image)\n71058294    0.92226    3.947e+00    0.0099 drifted (different image)\n128491703    0.98572    6.653e-01    0.0020             same-image\n285039184    0.98193    8.468e-01    0.0024             same-image\n491730285    0.99237    3.632e-01    0.0010             same-image\n762019483    0.91111    5.246e+00    0.0108 drifted (different image)\n938174026    0.99804    9.259e-02    0.0002             same-image\n1409285713    0.99649    1.450e-01    0.0004             same-image\n2683910547    0.99106    2.831e-01    0.0012             same-image\n3851729406    0.98062    9.756e-01    0.0025             same-image\n4195820371    0.99229    3.617e-01    0.0010             same-image\n\n--- Summary (25-Seed Average) ---\nAvg FP16 Time: 3.75s\nAvg INT8 Time: 5.76s\nSpeedup: 0.65x\nAvg MSE: 2.1350\nAvg Cosine: 0.9476\nCosine: min=0.6563 max=0.9980\nsame-image seeds : 13/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n[SAGE2] attention calls: total=0 sa2=0 fallback(mask)=0 fallback(dim)=0 errors=0\n[SAGE2] attention time: sage2=0.0 ms sdpa_fallback=0.0 ms"
+        "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7_native_convrot_int8_1792272904.safetensors\nlayers=282 convrot=282 plain_int8=0\nUNet: convrot=True group_size=256 linear=184 conv2d=98 plain=0 kept=404\n=== BENCHMARK: SD1.5 subprocess trajectory bench (25 seeds) complete ===\n========================================================================\n[seed 42] final-cos=0.98524  max_step_drop=0.0020  -> same-image\n[seed 137] final-cos=0.97665  max_step_drop=0.0033  -> drifted (different image)\n[seed 849] final-cos=0.96341  max_step_drop=0.0048  -> drifted (different image)\n[seed 2024] final-cos=0.98124  max_step_drop=0.0024  -> same-image\n[seed 7391] final-cos=0.97558  max_step_drop=0.0032  -> drifted (different image)\n[seed 18429] final-cos=0.96543  max_step_drop=0.0053  -> drifted (different image)\n[seed 53082] final-cos=0.79762  max_step_drop=0.0269  -> drifted (different image)\n[seed 149206] final-cos=0.99913  max_step_drop=0.0001  -> same-image\n[seed 382715] final-cos=0.96209  max_step_drop=0.0053  -> drifted (different image)\n[seed 826401] final-cos=0.97448  max_step_drop=0.0037  -> drifted (different image)\n[seed 1938502] final-cos=0.98035  max_step_drop=0.0028  -> same-image\n[seed 4710928] final-cos=0.77574  max_step_drop=0.0299  -> drifted (different image)\n[seed 8391642] final-cos=0.98937  max_step_drop=0.0011  -> same-image\n[seed 15820493] final-cos=0.97984  max_step_drop=0.0025  -> drifted (different image)\n[seed 36192847] final-cos=0.95999  max_step_drop=0.0055  -> drifted (different image)\n[seed 71058294] final-cos=0.95664  max_step_drop=0.0055  -> drifted (different image)\n[seed 128491703] final-cos=0.98421  max_step_drop=0.0021  -> same-image\n[seed 285039184] final-cos=0.98210  max_step_drop=0.0024  -> same-image\n[seed 491730285] final-cos=0.99665  max_step_drop=0.0003  -> same-image\n[seed 762019483] final-cos=0.91077  max_step_drop=0.0107  -> drifted (different image)\n[seed 938174026] final-cos=0.99748  max_step_drop=0.0002  -> same-image\n[seed 1409285713] final-cos=0.99244  max_step_drop=0.0009  -> same-image\n[seed 2683910547] final-cos=0.98950  max_step_drop=0.0015  -> same-image\n[seed 3851729406] final-cos=0.99689  max_step_drop=0.0004  -> same-image\n[seed 4195820371] final-cos=0.99338  max_step_drop=0.0008  -> same-image\n\n--- Multi-seed summary ---\n    seed  final-cos    final-mse  max-drop                verdict\n      42    0.98524    7.107e-01    0.0020             same-image\n     137    0.97665    8.394e-01    0.0033 drifted (different image)\n     849    0.96341    1.219e+00    0.0048 drifted (different image)\n    2024    0.98124    9.582e-01    0.0024             same-image\n    7391    0.97558    1.065e+00    0.0032 drifted (different image)\n   18429    0.96543    1.895e+00    0.0053 drifted (different image)\n   53082    0.79762    6.517e+00    0.0269 drifted (different image)\n  149206    0.99913    4.527e-02    0.0001             same-image\n  382715    0.96209    1.541e+00    0.0053 drifted (different image)\n  826401    0.97448    7.089e-01    0.0037 drifted (different image)\n 1938502    0.98035    9.388e-01    0.0028             same-image\n 4710928    0.77574    6.489e+00    0.0299 drifted (different image)\n 8391642    0.98937    5.352e-01    0.0011             same-image\n15820493    0.97984    1.173e+00    0.0025 drifted (different image)\n36192847    0.95999    1.908e+00    0.0055 drifted (different image)\n71058294    0.95664    2.185e+00    0.0055 drifted (different image)\n128491703    0.98421    7.354e-01    0.0021             same-image\n285039184    0.98210    8.376e-01    0.0024             same-image\n491730285    0.99665    1.584e-01    0.0003             same-image\n762019483    0.91077    5.294e+00    0.0107 drifted (different image)\n938174026    0.99748    1.193e-01    0.0002             same-image\n1409285713    0.99244    3.116e-01    0.0009             same-image\n2683910547    0.98950    3.309e-01    0.0015             same-image\n3851729406    0.99689    1.567e-01    0.0004             same-image\n4195820371    0.99338    3.105e-01    0.0008             same-image\n\nfinal-cosine: min=0.77574  mean=0.96265  max=0.99913\nsame-image seeds : 13/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n\navg wall/seed: FP16 1.86s | INT8 1.34s (+28.1%)"
       ],
       "widgets_values_named": {
-        "text_0": "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7_native_convrot_int8_1791984898.safetensors\nlayers=355 convrot=355 plain_int8=0\nUNet: convrot=True group_size=256 linear=184 conv2d=98 plain=0 kept=404 | CLIP: convrot=73 plain=0 kept=125\n\n=== BENCHMARK (25 Random Seeds, per-step trajectory) ===\nRun Time: 2026-10-14 22:39:03\nModel Architecture: SD1.5\nPrompt: masterpiece, best quality, 1girl, solo, standing, simple background\nINT8 Model Load Time: 0.27s\nSeeds: [42, 137, 849, 2024, 7391, 18429, 53082, 149206, 382715, 826401, 1938502, 4710928, 8391642, 15820493, 36192847, 71058294, 128491703, 285039184, 491730285, 762019483, 938174026, 1409285713, 2683910547, 3851729406, 4195820371]\nBenchmark attention: sage2 (quantized branch only; FP16 baseline on stock attention)\n\n[1/25 | Seed 42] FP16: 17.22s | INT8: 6.45s | MSE: 0.9083 | Cosine: 0.9812 | max-drop: 0.0026 | same-image\n[2/25 | Seed 137] FP16: 3.18s | INT8: 5.55s | MSE: 0.6256 | Cosine: 0.9826 | max-drop: 0.0024 | same-image\n[3/25 | Seed 849] FP16: 3.20s | INT8: 6.93s | MSE: 0.1804 | Cosine: 0.9946 | max-drop: 0.0007 | same-image\n[4/25 | Seed 2024] FP16: 3.13s | INT8: 5.92s | MSE: 1.1771 | Cosine: 0.9770 | max-drop: 0.0031 | drifted (different image)\n[5/25 | Seed 7391] FP16: 3.16s | INT8: 5.65s | MSE: 1.6166 | Cosine: 0.9631 | max-drop: 0.0050 | drifted (different image)\n[6/25 | Seed 18429] FP16: 3.15s | INT8: 5.77s | MSE: 8.7843 | Cosine: 0.8312 | max-drop: 0.0211 | drifted (different image)\n[7/25 | Seed 53082] FP16: 3.17s | INT8: 5.67s | MSE: 10.9658 | Cosine: 0.6563 | max-drop: 0.0454 | drifted (different image)\n[8/25 | Seed 149206] FP16: 3.17s | INT8: 5.68s | MSE: 0.5515 | Cosine: 0.9892 | max-drop: 0.0011 | same-image\n[9/25 | Seed 382715] FP16: 3.18s | INT8: 5.73s | MSE: 1.1603 | Cosine: 0.9716 | max-drop: 0.0038 | drifted (different image)\n[10/25 | Seed 826401] FP16: 3.13s | INT8: 5.80s | MSE: 1.2683 | Cosine: 0.9540 | max-drop: 0.0065 | drifted (different image)\n[11/25 | Seed 1938502] FP16: 3.15s | INT8: 5.67s | MSE: 1.5869 | Cosine: 0.9670 | max-drop: 0.0045 | drifted (different image)\n[12/25 | Seed 4710928] FP16: 3.17s | INT8: 5.59s | MSE: 6.6941 | Cosine: 0.7685 | max-drop: 0.0309 | drifted (different image)\n[13/25 | Seed 8391642] FP16: 3.28s | INT8: 5.64s | MSE: 2.0032 | Cosine: 0.9602 | max-drop: 0.0049 | drifted (different image)\n[14/25 | Seed 15820493] FP16: 3.40s | INT8: 5.78s | MSE: 0.9697 | Cosine: 0.9828 | max-drop: 0.0022 | same-image\n[15/25 | Seed 36192847] FP16: 3.23s | INT8: 5.86s | MSE: 1.9580 | Cosine: 0.9592 | max-drop: 0.0054 | drifted (different image)\n[16/25 | Seed 71058294] FP16: 3.19s | INT8: 5.85s | MSE: 3.9469 | Cosine: 0.9223 | max-drop: 0.0099 | drifted (different image)\n[17/25 | Seed 128491703] FP16: 3.19s | INT8: 5.82s | MSE: 0.6653 | Cosine: 0.9857 | max-drop: 0.0020 | same-image\n[18/25 | Seed 285039184] FP16: 3.18s | INT8: 5.66s | MSE: 0.8468 | Cosine: 0.9819 | max-drop: 0.0024 | same-image\n[19/25 | Seed 491730285] FP16: 3.17s | INT8: 5.69s | MSE: 0.3632 | Cosine: 0.9924 | max-drop: 0.0010 | same-image\n[20/25 | Seed 762019483] FP16: 3.18s | INT8: 5.59s | MSE: 5.2458 | Cosine: 0.9111 | max-drop: 0.0108 | drifted (different image)\n[21/25 | Seed 938174026] FP16: 3.24s | INT8: 5.57s | MSE: 0.0926 | Cosine: 0.9980 | max-drop: 0.0002 | same-image\n[22/25 | Seed 1409285713] FP16: 3.22s | INT8: 5.60s | MSE: 0.1450 | Cosine: 0.9965 | max-drop: 0.0004 | same-image\n[23/25 | Seed 2683910547] FP16: 3.17s | INT8: 5.58s | MSE: 0.2831 | Cosine: 0.9911 | max-drop: 0.0012 | same-image\n[24/25 | Seed 3851729406] FP16: 3.20s | INT8: 5.57s | MSE: 0.9756 | Cosine: 0.9806 | max-drop: 0.0025 | same-image\n[25/25 | Seed 4195820371] FP16: 3.16s | INT8: 5.30s | MSE: 0.3617 | Cosine: 0.9923 | max-drop: 0.0010 | same-image\n\n--- Multi-seed summary ---\n    seed  final-cos    final-mse  max-drop                verdict\n      42    0.98116    9.083e-01    0.0026             same-image\n     137    0.98259    6.256e-01    0.0024             same-image\n     849    0.99464    1.804e-01    0.0007             same-image\n    2024    0.97698    1.177e+00    0.0031 drifted (different image)\n    7391    0.96310    1.617e+00    0.0050 drifted (different image)\n   18429    0.83116    8.784e+00    0.0211 drifted (different image)\n   53082    0.65633    1.097e+01    0.0454 drifted (different image)\n  149206    0.98918    5.515e-01    0.0011             same-image\n  382715    0.97164    1.160e+00    0.0038 drifted (different image)\n  826401    0.95403    1.268e+00    0.0065 drifted (different image)\n 1938502    0.96699    1.587e+00    0.0045 drifted (different image)\n 4710928    0.76852    6.694e+00    0.0309 drifted (different image)\n 8391642    0.96017    2.003e+00    0.0049 drifted (different image)\n15820493    0.98280    9.697e-01    0.0022             same-image\n36192847    0.95917    1.958e+00    0.0054 drifted (different image)\n71058294    0.92226    3.947e+00    0.0099 drifted (different image)\n128491703    0.98572    6.653e-01    0.0020             same-image\n285039184    0.98193    8.468e-01    0.0024             same-image\n491730285    0.99237    3.632e-01    0.0010             same-image\n762019483    0.91111    5.246e+00    0.0108 drifted (different image)\n938174026    0.99804    9.259e-02    0.0002             same-image\n1409285713    0.99649    1.450e-01    0.0004             same-image\n2683910547    0.99106    2.831e-01    0.0012             same-image\n3851729406    0.98062    9.756e-01    0.0025             same-image\n4195820371    0.99229    3.617e-01    0.0010             same-image\n\n--- Summary (25-Seed Average) ---\nAvg FP16 Time: 3.75s\nAvg INT8 Time: 5.76s\nSpeedup: 0.65x\nAvg MSE: 2.1350\nAvg Cosine: 0.9476\nCosine: min=0.6563 max=0.9980\nsame-image seeds : 13/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n[SAGE2] attention calls: total=0 sa2=0 fallback(mask)=0 fallback(dim)=0 errors=0\n[SAGE2] attention time: sage2=0.0 ms sdpa_fallback=0.0 ms"
+        "text_0": "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7_native_convrot_int8_1792272904.safetensors\nlayers=282 convrot=282 plain_int8=0\nUNet: convrot=True group_size=256 linear=184 conv2d=98 plain=0 kept=404\n=== BENCHMARK: SD1.5 subprocess trajectory bench (25 seeds) complete ===\n========================================================================\n[seed 42] final-cos=0.98524  max_step_drop=0.0020  -> same-image\n[seed 137] final-cos=0.97665  max_step_drop=0.0033  -> drifted (different image)\n[seed 849] final-cos=0.96341  max_step_drop=0.0048  -> drifted (different image)\n[seed 2024] final-cos=0.98124  max_step_drop=0.0024  -> same-image\n[seed 7391] final-cos=0.97558  max_step_drop=0.0032  -> drifted (different image)\n[seed 18429] final-cos=0.96543  max_step_drop=0.0053  -> drifted (different image)\n[seed 53082] final-cos=0.79762  max_step_drop=0.0269  -> drifted (different image)\n[seed 149206] final-cos=0.99913  max_step_drop=0.0001  -> same-image\n[seed 382715] final-cos=0.96209  max_step_drop=0.0053  -> drifted (different image)\n[seed 826401] final-cos=0.97448  max_step_drop=0.0037  -> drifted (different image)\n[seed 1938502] final-cos=0.98035  max_step_drop=0.0028  -> same-image\n[seed 4710928] final-cos=0.77574  max_step_drop=0.0299  -> drifted (different image)\n[seed 8391642] final-cos=0.98937  max_step_drop=0.0011  -> same-image\n[seed 15820493] final-cos=0.97984  max_step_drop=0.0025  -> drifted (different image)\n[seed 36192847] final-cos=0.95999  max_step_drop=0.0055  -> drifted (different image)\n[seed 71058294] final-cos=0.95664  max_step_drop=0.0055  -> drifted (different image)\n[seed 128491703] final-cos=0.98421  max_step_drop=0.0021  -> same-image\n[seed 285039184] final-cos=0.98210  max_step_drop=0.0024  -> same-image\n[seed 491730285] final-cos=0.99665  max_step_drop=0.0003  -> same-image\n[seed 762019483] final-cos=0.91077  max_step_drop=0.0107  -> drifted (different image)\n[seed 938174026] final-cos=0.99748  max_step_drop=0.0002  -> same-image\n[seed 1409285713] final-cos=0.99244  max_step_drop=0.0009  -> same-image\n[seed 2683910547] final-cos=0.98950  max_step_drop=0.0015  -> same-image\n[seed 3851729406] final-cos=0.99689  max_step_drop=0.0004  -> same-image\n[seed 4195820371] final-cos=0.99338  max_step_drop=0.0008  -> same-image\n\n--- Multi-seed summary ---\n    seed  final-cos    final-mse  max-drop                verdict\n      42    0.98524    7.107e-01    0.0020             same-image\n     137    0.97665    8.394e-01    0.0033 drifted (different image)\n     849    0.96341    1.219e+00    0.0048 drifted (different image)\n    2024    0.98124    9.582e-01    0.0024             same-image\n    7391    0.97558    1.065e+00    0.0032 drifted (different image)\n   18429    0.96543    1.895e+00    0.0053 drifted (different image)\n   53082    0.79762    6.517e+00    0.0269 drifted (different image)\n  149206    0.99913    4.527e-02    0.0001             same-image\n  382715    0.96209    1.541e+00    0.0053 drifted (different image)\n  826401    0.97448    7.089e-01    0.0037 drifted (different image)\n 1938502    0.98035    9.388e-01    0.0028             same-image\n 4710928    0.77574    6.489e+00    0.0299 drifted (different image)\n 8391642    0.98937    5.352e-01    0.0011             same-image\n15820493    0.97984    1.173e+00    0.0025 drifted (different image)\n36192847    0.95999    1.908e+00    0.0055 drifted (different image)\n71058294    0.95664    2.185e+00    0.0055 drifted (different image)\n128491703    0.98421    7.354e-01    0.0021             same-image\n285039184    0.98210    8.376e-01    0.0024             same-image\n491730285    0.99665    1.584e-01    0.0003             same-image\n762019483    0.91077    5.294e+00    0.0107 drifted (different image)\n938174026    0.99748    1.193e-01    0.0002             same-image\n1409285713    0.99244    3.116e-01    0.0009             same-image\n2683910547    0.98950    3.309e-01    0.0015             same-image\n3851729406    0.99689    1.567e-01    0.0004             same-image\n4195820371    0.99338    3.105e-01    0.0008             same-image\n\nfinal-cosine: min=0.77574  mean=0.96265  max=0.99913\nsame-image seeds : 13/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n\navg wall/seed: FP16 1.86s | INT8 1.34s (+28.1%)"
       }
     },
     {
@@ -1310,7 +1311,7 @@
         "pinned": true
       },
       "order": 18,
-      "mode": 0,
+      "mode": 4,
       "inputs": [
         {
           "name": "model",
@@ -1346,12 +1347,12 @@
       "properties": {
         "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
         "ver": "b1943185da96802a9ad368a76d9665cca4460653",
+        "Node name for S&R": "ZImageConvRotInt8Quantize",
         "ue_properties": {
           "widget_ue_connectable": {},
           "input_ue_unconnectable": {},
           "version": "7.8"
-        },
-        "Node name for S&R": "ZImageConvRotInt8Quantize"
+        }
       },
       "widgets_values": [
         "SDXL",
@@ -1389,7 +1390,7 @@
         "pinned": true
       },
       "order": 26,
-      "mode": 0,
+      "mode": 4,
       "inputs": [
         {
           "name": "text",
@@ -1408,12 +1409,18 @@
       "properties": {
         "cnr_id": "comfyui-custom-scripts",
         "ver": "26a13291c8081135b9a80794daf818793c37ef24",
+        "Node name for S&R": "ShowText|pysssss",
         "ue_properties": {
           "widget_ue_connectable": {},
           "input_ue_unconnectable": {},
           "version": "7.8"
-        },
-        "Node name for S&R": "ShowText|pysssss"
+        }
+      },
+      "widgets_values": [
+        "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\waiIllustriousSDXL_v170_native_convrot_int8_1792181105.safetensors\nlayers=928 convrot=928 plain_int8=0\nUNet: convrot=True group_size=256 linear=743 conv2d=51 plain=0 kept=886 | CLIP: convrot=134 plain=0 kept=390\n\n[Benchmark Error] argument of type 'int' is not iterable"
+      ],
+      "widgets_values_named": {
+        "text_0": "Saved: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\waiIllustriousSDXL_v170_native_convrot_int8_1792181105.safetensors\nlayers=928 convrot=928 plain_int8=0\nUNet: convrot=True group_size=256 linear=743 conv2d=51 plain=0 kept=886 | CLIP: convrot=134 plain=0 kept=390\n\n[Benchmark Error] argument of type 'int' is not iterable"
       }
     },
     {
@@ -1431,7 +1438,7 @@
         "pinned": true
       },
       "order": 10,
-      "mode": 0,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
@@ -1459,11 +1466,12 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.40.0",
+        "Node name for S&R": "CheckpointLoaderSimple",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "CheckpointLoaderSimple"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": [
         "waiIllustriousSDXL_v170.safetensors"
@@ -1474,30 +1482,6 @@
     }
   ],
   "links": [
-    [
-      8,
-      2,
-      0,
-      9,
-      0,
-      "MODEL"
-    ],
-    [
-      9,
-      6,
-      0,
-      9,
-      1,
-      "CLIP"
-    ],
-    [
-      10,
-      8,
-      0,
-      9,
-      2,
-      "VAE"
-    ],
     [
       11,
       9,
@@ -1579,30 +1563,6 @@
       "MODEL"
     ],
     [
-      29,
-      33,
-      0,
-      32,
-      0,
-      "MODEL"
-    ],
-    [
-      30,
-      33,
-      1,
-      32,
-      1,
-      "CLIP"
-    ],
-    [
-      31,
-      33,
-      2,
-      32,
-      2,
-      "VAE"
-    ],
-    [
       32,
       32,
       1,
@@ -1625,6 +1585,54 @@
       41,
       0,
       "STRING"
+    ],
+    [
+      8,
+      2,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      9,
+      6,
+      0,
+      9,
+      1,
+      "CLIP"
+    ],
+    [
+      10,
+      8,
+      0,
+      9,
+      2,
+      "VAE"
+    ],
+    [
+      29,
+      33,
+      0,
+      32,
+      0,
+      "MODEL"
+    ],
+    [
+      30,
+      33,
+      1,
+      32,
+      1,
+      "CLIP"
+    ],
+    [
+      31,
+      33,
+      2,
+      32,
+      2,
+      "VAE"
     ],
     [
       41,
@@ -1740,13 +1748,15 @@
       "id": 8,
       "title": "SD1.5",
       "bounding": [
-        1401.7435625891983,
-        320.4052651723509,
-        1096.715816499888,
-        540.9674638722981
+        1377.0519417148414,
+        305.16994066271826,
+        1162.4516100580265,
+        546.49149671232
       ],
       "color": "#A88",
-      "flags": {}
+      "flags": {
+        "pinned": true
+      }
     },
     {
       "id": 9,
@@ -1767,10 +1777,10 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.18564593118235898,
+      "scale": 0.3288830914913524,
       "offset": [
-        2329.9947586836774,
-        662.713844042481
+        1051.107255498338,
+        388.2490843764618
       ]
     },
     "anomalous_hashes": {
@@ -1805,6 +1815,5 @@
   "extensions": {
     "seed_widgets": {}
   },
-  "version": 0.4,
-  "seed_widgets": {}
+  "version": 0.4
 }
