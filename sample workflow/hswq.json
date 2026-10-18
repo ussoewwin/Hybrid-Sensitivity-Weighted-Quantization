@@ -1,0 +1,319 @@
+{
+  "id": "0383a69f-cce2-4ff2-aaab-3373e526e305",
+  "revision": 0,
+  "last_node_id": 4,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        3140.9467697298574,
+        400.9162869978332
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2",
+        "Node name for S&R": "CheckpointLoaderSimple",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "0.5xxmix9realistic_v40+0.5BRA7.safetensors"
+      ],
+      "widgets_values_named": {
+        "ckpt_name": "0.5xxmix9realistic_v40+0.5BRA7.safetensors"
+      }
+    },
+    {
+      "id": 2,
+      "type": "HSWQSD15Quantize",
+      "pos": [
+        3479.1763941802665,
+        399.5939787919619
+      ],
+      "size": [
+        354.9,
+        406
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 3
+        },
+        {
+          "name": "impact_json",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "05f81eda8aedd6a820fd3ab062c157c45b869d80",
+        "Node name for S&R": "HSWQSD15Quantize",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "SD1.5",
+        "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        "128",
+        32,
+        25,
+        300,
+        256,
+        256,
+        true,
+        true,
+        "",
+        60
+      ],
+      "widgets_values_named": {
+        "model_type": "SD1.5",
+        "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        "calib_file": "128",
+        "num_calib_samples": 32,
+        "num_inference_steps": 25,
+        "fp16_budget_mb": 300,
+        "group_size": 256,
+        "convrot": 256,
+        "bias_correction": true,
+        "run_benchmark": true,
+        "input_checkpoint": "",
+        "k_layers": 60
+      }
+    },
+    {
+      "id": 3,
+      "type": "ShowText|pysssss",
+      "pos": [
+        3900.3666287265028,
+        399.535390765603
+      ],
+      "size": [
+        303.21799945045586,
+        282.7787353801797
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "609f3afaa74b2f88ef9ce8d939626065e3247469",
+        "Node name for S&R": "ShowText|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "     137    0.95801    1.501e+00    0.0060 drifted (different image)\n     849    0.99574    1.446e-01    0.0006             same-image\n    2024    0.99174    4.217e-01    0.0010             same-image\n    7391    0.96437    1.555e+00    0.0046 drifted (different image)\n   18429    0.96333    2.022e+00    0.0054 drifted (different image)\n   53082    0.80846    6.173e+00    0.0255 drifted (different image)\n  149206    0.99796    1.064e-01    0.0002             same-image\n  382715    0.96089    1.594e+00    0.0054 drifted (different image)\n  826401    0.98346    4.537e-01    0.0023             same-image\n 1938502    0.98160    8.795e-01    0.0026             same-image\n 4710928    0.73964    7.591e+00    0.0347 drifted (different image)\n 8391642    0.96419    1.816e+00    0.0043 drifted (different image)\n15820493    0.98618    8.045e-01    0.0018             same-image\n36192847    0.95907    1.968e+00    0.0054 drifted (different image)\n71058294    0.95647    2.195e+00    0.0055 drifted (different image)\n128491703    0.99025    4.534e-01    0.0014             same-image\n285039184    0.97709    1.065e+00    0.0030 drifted (different image)\n491730285    0.99505    2.344e-01    0.0006             same-image\n762019483    0.94036    3.573e+00    0.0071 drifted (different image)\n938174026    0.99780    1.051e-01    0.0002             same-image\n1409285713    0.99721    1.151e-01    0.0003             same-image\n2683910547    0.99288    2.227e-01    0.0010             same-image\n3851729406    0.99879    6.100e-02    0.0001             same-image\n4195820371    0.99324    3.163e-01    0.0010             same-image\n\nfinal-cosine: min=0.73964  mean=0.96087  max=0.99879\nsame-image seeds : 13/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n\navg wall/seed: FP16 2.20s | INT8 1.53s (+30.2%)\n\n[Bias Correction] Applying deltas to 203 INT8 layers...\n  [Bias Correction] applied=126, no_bias=77, no_act=0, low_sens_skip=0\nConversion done:\n  INT8 layers: 203\n  FP16-kept layers (budget winners): 79\n  Dropped embedded VAE layers (first_stage_model.*): 248\n  FULL ConvRot: True\n    ConvRot Linear: 128, ConvRot Conv2d: 75, plain INT8: 0\n  Per-channel INT8 (Card 3): False\n  Asymmetric INT8 pack: False (forced OFF)\n  Bias correction (Card 1): True\n  [FP16 budget] post-pack FP16 keep extra vs all-INT8: 299.96 MiB (79 modules; Linear=56 Conv=23; skipped_non_LinearConv=109) / ceiling=300 MiB (assert tol=10 MiB)\nSaved INT8 quantized model: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7_hswq_int8_1792273059.safetensors\n  Format: int8_tensorwise (ComfyUI QUANT_ALGOS compatible)\n  Quantized layers: 203\n  FP16 kept layers: 79\n  Per-channel (Card 3): False | ConvRot: True (Linear=128 Conv2d=75 plain=0) | Asymmetric: False | Bias correction: True\n[*] Releasing VRAM (after INT8 quantize save) before post-bench...\n[*] VRAM clear (after INT8 quantize save): allocated=50.0 MiB reserved=156.0 MiB\n[*] Releasing VRAM (pre-INT8-bench subprocess) before post-bench...\n[*] VRAM clear (pre-INT8-bench subprocess): allocated=50.0 MiB reserved=156.0 MiB\n============================================================\n[*] Post-quantize INT8 trajectory comparator (25 seeds)\n    script: D:\\USERFILES\\ComfyUI\\ComfyUI\\custom_nodes\\Hybrid-Sensitivity-Weighted-Quantization\\benchmark\\sd1.5_int8_traj_compare.py\n    --fp16: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7.safetensors\n    --int8: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7_hswq_int8_1792273059.safetensors\n    --comfy_path: D:\\USERFILES\\ComfyUI\\ComfyUI\\custom_nodes\\Hybrid-Sensitivity-Weighted-Quantization\\ComfyUI-master\n    --seeds: 25 seeds (42,137,849,2024,7391,18429,53082,14...)\n============================================================"
+      ],
+      "widgets_values_named": {
+        "text_0": "     137    0.95801    1.501e+00    0.0060 drifted (different image)\n     849    0.99574    1.446e-01    0.0006             same-image\n    2024    0.99174    4.217e-01    0.0010             same-image\n    7391    0.96437    1.555e+00    0.0046 drifted (different image)\n   18429    0.96333    2.022e+00    0.0054 drifted (different image)\n   53082    0.80846    6.173e+00    0.0255 drifted (different image)\n  149206    0.99796    1.064e-01    0.0002             same-image\n  382715    0.96089    1.594e+00    0.0054 drifted (different image)\n  826401    0.98346    4.537e-01    0.0023             same-image\n 1938502    0.98160    8.795e-01    0.0026             same-image\n 4710928    0.73964    7.591e+00    0.0347 drifted (different image)\n 8391642    0.96419    1.816e+00    0.0043 drifted (different image)\n15820493    0.98618    8.045e-01    0.0018             same-image\n36192847    0.95907    1.968e+00    0.0054 drifted (different image)\n71058294    0.95647    2.195e+00    0.0055 drifted (different image)\n128491703    0.99025    4.534e-01    0.0014             same-image\n285039184    0.97709    1.065e+00    0.0030 drifted (different image)\n491730285    0.99505    2.344e-01    0.0006             same-image\n762019483    0.94036    3.573e+00    0.0071 drifted (different image)\n938174026    0.99780    1.051e-01    0.0002             same-image\n1409285713    0.99721    1.151e-01    0.0003             same-image\n2683910547    0.99288    2.227e-01    0.0010             same-image\n3851729406    0.99879    6.100e-02    0.0001             same-image\n4195820371    0.99324    3.163e-01    0.0010             same-image\n\nfinal-cosine: min=0.73964  mean=0.96087  max=0.99879\nsame-image seeds : 13/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n\navg wall/seed: FP16 2.20s | INT8 1.53s (+30.2%)\n\n[Bias Correction] Applying deltas to 203 INT8 layers...\n  [Bias Correction] applied=126, no_bias=77, no_act=0, low_sens_skip=0\nConversion done:\n  INT8 layers: 203\n  FP16-kept layers (budget winners): 79\n  Dropped embedded VAE layers (first_stage_model.*): 248\n  FULL ConvRot: True\n    ConvRot Linear: 128, ConvRot Conv2d: 75, plain INT8: 0\n  Per-channel INT8 (Card 3): False\n  Asymmetric INT8 pack: False (forced OFF)\n  Bias correction (Card 1): True\n  [FP16 budget] post-pack FP16 keep extra vs all-INT8: 299.96 MiB (79 modules; Linear=56 Conv=23; skipped_non_LinearConv=109) / ceiling=300 MiB (assert tol=10 MiB)\nSaved INT8 quantized model: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7_hswq_int8_1792273059.safetensors\n  Format: int8_tensorwise (ComfyUI QUANT_ALGOS compatible)\n  Quantized layers: 203\n  FP16 kept layers: 79\n  Per-channel (Card 3): False | ConvRot: True (Linear=128 Conv2d=75 plain=0) | Asymmetric: False | Bias correction: True\n[*] Releasing VRAM (after INT8 quantize save) before post-bench...\n[*] VRAM clear (after INT8 quantize save): allocated=50.0 MiB reserved=156.0 MiB\n[*] Releasing VRAM (pre-INT8-bench subprocess) before post-bench...\n[*] VRAM clear (pre-INT8-bench subprocess): allocated=50.0 MiB reserved=156.0 MiB\n============================================================\n[*] Post-quantize INT8 trajectory comparator (25 seeds)\n    script: D:\\USERFILES\\ComfyUI\\ComfyUI\\custom_nodes\\Hybrid-Sensitivity-Weighted-Quantization\\benchmark\\sd1.5_int8_traj_compare.py\n    --fp16: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7.safetensors\n    --int8: D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\0.5xxmix9realistic_v40+0.5BRA7_hswq_int8_1792273059.safetensors\n    --comfy_path: D:\\USERFILES\\ComfyUI\\ComfyUI\\custom_nodes\\Hybrid-Sensitivity-Weighted-Quantization\\ComfyUI-master\n    --seeds: 25 seeds (42,137,849,2024,7391,18429,53082,14...)\n============================================================"
+      }
+    },
+    {
+      "id": 4,
+      "type": "FastGroupsBypasserV2",
+      "pos": [
+        2702.931488628818,
+        331.9363113222983
+      ],
+      "size": [
+        287.9,
+        106
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "matchColors": "red",
+        "matchTitle": "",
+        "showNav": true,
+        "showAllGraphs": true,
+        "sort": "position",
+        "customSortAlphabet": "",
+        "toggleRestriction": "default",
+        "effectMode": "Bypass",
+        "cnr_id": "ComfyUI-NunchakuFluxLoraStacker",
+        "ver": "88f6d6cde4817367224c25de8336aff884a8a3c4",
+        "Node name for S&R": "FastGroupsBypasserV2",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    }
+  ],
+  "links": [
+    [
+      4,
+      2,
+      1,
+      3,
+      0,
+      "STRING"
+    ],
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      1,
+      2,
+      1,
+      "CLIP"
+    ],
+    [
+      3,
+      1,
+      2,
+      2,
+      2,
+      "VAE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "SD1.5",
+      "bounding": [
+        3100.6982998638746,
+        299.69672568467695,
+        1198.1243568637342,
+        639.4607620153816
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.7049901147190677,
+      "offset": [
+        -2581.3863792815623,
+        -83.00986584899898
+      ]
+    },
+    "anomalous_hashes": {
+      "1_0.5xxmix9realistic_v40+0.5BRA7.safetensors": {
+        "hash": "",
+        "size": 2132627582
+      }
+    },
+    "frontendVersion": "1.55.17",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "links_added_by_ue": []
+  },
+  "version": 0.4
+}
