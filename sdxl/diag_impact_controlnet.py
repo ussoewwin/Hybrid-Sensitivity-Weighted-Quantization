@@ -125,6 +125,8 @@ def main():
     ap.add_argument("--prompt", default="a beautiful landscape, high detail")
     ap.add_argument("--negative", default="")
     ap.add_argument("--kurt-threshold", type=float, default=3.0)
+    ap.add_argument("--full", action="store_true", help="measure every eligible module (full sweep)")
+    ap.add_argument("--resume", default="", help="impact json to load already-measured layers from")
     args = ap.parse_args()
 
     setup_comfy(args.comfy_path)
@@ -178,7 +180,7 @@ def main():
         noise = comfy_sample.prepare_noise(latent0, args.seed, None)
         xs = []
         def cb(step, x0, x, total):
-            xs.append(x.detach().float().cpu())
+            xs.append(x.detach().to("cpu", torch.float32, copy=True))
         with torch.no_grad():
             comfy_sample.sample(patcher, noise, args.steps, args.cfg, "dpmpp_2m", "karras",
                                 cond_pos, prompt_neg, latent0, denoise=1.0, disable_noise=False,
@@ -188,6 +190,8 @@ def main():
 
     print("[*] pristine trajectory", flush=True)
     x_ref = run_traj()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     print("[*] pristine done", flush=True)
 
     # candidate modules from the controlnet's own weights
@@ -220,22 +224,54 @@ def main():
     cand = [n for n, k in stats if k >= args.kurt_threshold]
     # add the 20 layers just below the threshold (boundary neighbourhood)
     below = [n for n, k in stats if k < args.kurt_threshold][:20]
-    cand = cand + below
-    print(f"[target] candidates (fat-tail {len([1 for n,k in stats if k>=args.kurt_threshold])} + {len(below)} near): {len(cand)}", flush=True)
+    if args.full:
+        cand = sorted(mods.keys())
+        print(f"[target] FULL sweep: {len(cand)} modules", flush=True)
+    else:
+        cand = cand + below
+        print(f"[target] candidates (fat-tail {len([1 for n,k in stats if k>=args.kurt_threshold])} + {len(below)} near): {len(cand)}", flush=True)
 
+    # resume support
     impacts = {}
+    if args.resume and os.path.isfile(args.resume):
+        try:
+            prev = json.load(open(args.resume, encoding="utf-8"))["impacts"]
+            impacts.update(prev)
+            print(f"[resume] loaded {len(impacts)} measured layers from {args.resume}", flush=True)
+        except Exception as e:
+            print(f"[resume] failed to load {args.resume}: {e}", flush=True)
+
+    def _save_partial():
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump({"controlnet": os.path.basename(args.controlnet), "steps": args.steps,
+                       "seed": args.seed, "impacts": impacts}, f, indent=2)
+
+    done = 0
     for i, n in enumerate(cand):
+        if n in impacts:
+            continue
         m, gs = mods[n]
         w0 = m.weight.data.clone()
         rec = convrot_int8_recon(w0, gs)
         m.weight.data.copy_(rec.to(w0.dtype))
+        del rec
         try:
             xt = run_traj()
             imp = sum(rel_mse(xt[j], x_ref[j]) for j in range(len(x_ref))) / len(x_ref)
+            del xt
         finally:
             m.weight.data.copy_(w0)
+            del w0
         impacts[n] = imp
+        done += 1
+        # free VRAM aggressively and checkpoint the partial result
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        if done % 10 == 0:
+            _save_partial()
         print(f"  [{i+1}/{len(cand)}] {n}: rel_mse={imp:.6e}", flush=True)
+    _save_partial()
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
