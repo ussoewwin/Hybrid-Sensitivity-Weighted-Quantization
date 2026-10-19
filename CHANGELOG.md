@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.4.4
+
+**HSWQ ConvRot INT8 text-encoder packs (individually built, Hugging Face release)** - Added a set of individually built ConvRot INT8 text-encoder packs, each with measured FP16 protection, published to Hugging Face:
+
+- **Individually built per standard:** text encoders are not per-checkpoint models (each architecture is a single standard weight layout), so instead of a universal engine each standard was handled on its own - the risk of every Linear layer was measured once (kurtosis / outlier ratio), the fat-tail layers were kept in FP16, and the pack was verified by conditioning cosine against the FP16 baseline. Per-standard converter scripts live under `clip_convert/`:
+  - `convert_clip_l_convrot_int8.py` - CLIP-L (48 ConvRot INT8 / 26 FP16 protected / 74 total)
+  - `convert_sae_vit_l_convrot_int8.py` - OpenAI CLIP ViT-L/14 (145 ConvRot INT8 / 76 FP16 protected / 221 total, conditioning cos 0.999922)
+  - `convert_flan_t5_xxl_convrot_int8.py` - Flan-T5-XXL (430 ConvRot INT8 / 7 FP16 protected / 437 total, conditioning cos 0.99935)
+  - `convert_josiefied_qwen3_06b_convrot_int8.py` - Qwen3-0.6B (112 ConvRot INT8 / 85 FP16 protected / 197 total, conditioning cos 0.99814)
+  - `convert_qwen3_4b_convrot_int8.py` - Qwen3-4B (144 ConvRot INT8 / 109 FP16 protected / 253 total, conditioning cos 1.000009)
+  - `convert_qwen3_vl_4b_convrot_int8.py` - Qwen3-VL-4B-Thinking (197 ConvRot INT8 / 161 FP16 protected / 358 total, conditioning cos 0.999546)
+- **Published packs (Hugging Face):**
+  - [ussoewwin/Clip-files-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-ConvRot-INT8) - CLIP-L, OpenAI CLIP ViT-L/14 (CLIP-SAE), Flan-T5-XXL, CLIP-ViT-bigG-14, Josiefied-Qwen3-0.6B
+  - [ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8](https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8) - Qwen3-4B, Qwen3-8B, Qwen3-VL-4B-Thinking
+- **Documentation:** `md/How to quantize Text Encoder and ControlNet.md` now presents the finished text-encoder packs (with the Hugging Face links above) instead of a method - CLIP has no universal method because each standard is a single weight layout - and keeps the generic `clip_convert/convert_clip_convrot_int8.py` as the native A/B baseline.
+
+Release notes: [v2.4.4](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.4.4)
+
 ## v2.4.3
 
 **SDXL HSWQ V1.1 ComfyUI node integration & workflow automation** — Added full in-workflow HSWQ Reverse Hybrid ConvRot INT8 V1.1 quantization support for SDXL directly inside ComfyUI:
