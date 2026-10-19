@@ -1,8 +1,11 @@
-# How to quantize Text Encoder, ControlNet, Model Patch and SAM 3 / SAM 3.1 (native ConvRot INT8)
+# How to quantize Text Encoder, ControlNet, Model Patch and SAM 3 / SAM 3.1
 
-Quantize loaded **Text Encoders (CLIP, T5, Qwen2.5-VL, etc.)**, **ControlNet / ControlNet Union models**, **Model Patch (model patcher) ControlNets**, and **Segment Anything Models (SAM 3 / SAM 3.1 Multiplex)** directly in ComfyUI using the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`** (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`) and loader **`HSWQ SAM3 Loader (sam3.pt)`** (`comfyui_nodes/sam3_pt_loader.py`), or via the standalone CLI conversion script **`clip_convert/convert_clip_convrot_int8.py`**.
+Quantize loaded **ControlNet / ControlNet Union models**, **Model Patch (model patcher) ControlNets**, and **Segment Anything Models (SAM 3 / SAM 3.1 Multiplex)** directly in ComfyUI using the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`** (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`) and loader **`HSWQ SAM3 Loader (sam3.pt)`** (`comfyui_nodes/sam3_pt_loader.py`), or via the standalone CLI conversion script **`clip_convert/convert_clip_convrot_int8.py`**.
 
-By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline eliminates activation outlier spikes in deep Linear layers, reducing VRAM and storage footprint by ~50% while preserving 100% conditioning accuracy, mask segmentation fidelity, and structural guidance quality.
+By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline eliminates activation outlier spikes in deep Linear layers, reducing VRAM and storage footprint by ~50% while preserving mask segmentation fidelity and structural guidance quality.
+
+> [!IMPORTANT]
+> **Text encoders are a separate case.** The generic CLI above quantizes every 2D Linear layer with **no FP16 protection** - it is the A/B baseline, not the recommended text-encoder pack. HSWQ also publishes **individually built, higher-quality text-encoder packs** (measured FP16 protection, verified by conditioning cosine) on Hugging Face. Because text encoders are standards (one weight layout per architecture) rather than per-checkpoint models, these are finished artifacts rather than a universal method - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) below.
 
 ---
 
@@ -157,7 +160,10 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 
 ## Standalone CLI Conversion Script (`convert_clip_convrot_int8.py`)
 
-For batch processing or headless environments, the CLI script `clip_convert/convert_clip_convrot_int8.py` can convert generic `.safetensors` (CLIP, LLM, ControlNet, SAM 3, SAM 3.1, UNet) directly from the command line:
+For batch processing or headless environments, the CLI script `clip_convert/convert_clip_convrot_int8.py` can convert generic `.safetensors` (CLIP, LLM, ControlNet, SAM 3, SAM 3.1, UNet) directly from the command line.
+
+> [!NOTE]
+> For **text encoders** this script is the **native / A/B baseline**: every 2D Linear layer is quantized and **no FP16 protection is applied**. For production text-encoder packs use the individually built artifacts in [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built). For ControlNet / Model Patch / SAM the generic script is the intended tool.
 
 ```bash
 # Convert SAM 3.1 Multiplex checkpoint
@@ -227,7 +233,39 @@ Use the **`HSWQ Load ControlNet (Simple)`** node to load the generated `.safeten
 Quantized Model Patches (e.g. Z-Image Fun ControlNet from `models/model_patches/`) are loaded with the **`HSWQ Load Model Patch (ConvRot INT8)`** node (`comfyui_nodes/hswq_model_patch_loader.py`). It mirrors the stock `ModelPatchLoader` dispatch but selects quant-aware `MixedPrecisionOps` when `int8_tensorwise` `comfy_quant` layers are detected, so weights stay INT8 in VRAM. For non-quantized checkpoints it delegates to the stock `Load Model Patch` node. The returned `MODEL_PATCH` plugs into the standard apply nodes (`Apply Z-Image Fun ControlNet`, etc.).
 
 ### Text Encoders (CLIP / TE)
-Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` or `HSWQ Load CLIP (Simple)`.
+Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. Llama-family encoders (Qwen3 / Qwen3-VL) self-detect the quantized layers; the OpenAI CLIP family needs the pack's `quantization_metadata` injected by the loader. See [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) for the recommended packs.
+
+---
+
+## HSWQ High-Quality Text Encoders (ConvRot INT8, individually built)
+
+### Why there is no universal method here
+
+HSWQ's reverse-hybrid engine is a **universal method**: it measures per-layer trajectory sensitivity on the target checkpoint, ranks the layers, and selects FP16 protection inside a fixed budget. That method applies to image-generation backbones (SDXL / SD1.5 / Z Image / Krea2 UNet-DiT), which exist as **many per-checkpoint variants** - the measurement must be redone for every merge / finetune, so a general method pays off.
+
+Text encoders are **not** per-checkpoint models. Each architecture (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3, ...) is a **single standard weight layout** with no per-checkpoint derivation. There is nothing to re-measure per model, so a large universal engine is not justified.
+
+Instead, each text-encoder standard was handled **individually**: the risk of every Linear layer was measured once on the standard checkpoint (kurtosis / outlier ratio = absmax / std), the fat-tail layers were kept in FP16, and the pack was verified by **conditioning cosine** against the FP16 baseline. Because the result is standard-specific and not a general method, this page **presents the finished artifacts instead of a method** - the conversion recipe lives in the per-standard converter scripts under `clip_convert/`.
+
+### Finished packs (Hugging Face)
+
+| Pack | Standard | Base | ConvRot INT8 | FP16 protection | Conditioning cosine (vs FP16) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `clip_l_hswq_convrot_int8.safetensors` | CLIP-L | `clip_l.safetensors` | 48 layers | 26 layers (embeddings + all `mlp.fc1` + all `self_attn.q_proj`) | verified |
+| `CLIP-SAE-ViT-L-14-hswq_convrot_int8_protected.safetensors` | OpenAI CLIP ViT-L/14 | `CLIP-SAE-ViT-L-14-FP32.safetensors` | 145 layers | 76 layers (text embeddings / fc1 / q_proj + `text_projection` / `visual_projection` + vision `q_proj` / `mlp.fc1`) | **0.999922** |
+| `flan_t5_xxl_hswq_convrot_int8.safetensors` | Flan-T5-XXL | `flan_t5_xxl_fp16.safetensors` | 430 layers | 7 layers (block 0 `k`/`v`, block 1-2 `wi_0`/`wi_1`, `shared`/`lm_head`) | **0.99935** |
+| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | Qwen3 (0.6B) | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | 112 layers | 85 layers (`embed_tokens` + all `k_proj` / `q_proj` / `mlp.down_proj`) | **0.99814** |
+| `qwen3_4b_abliterated_hswq_convrot_int8.safetensors` | Qwen3 (4B) | `qwen3_4b_abliterated_fp16_converted.safetensors` | 144 layers | 109 layers (`embed_tokens` + all `k_proj` / `q_proj` / `mlp.down_proj`) | **1.000009** |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | 197 layers | 161 layers (language `embed_tokens` / `k_proj` / `q_proj` / `mlp.down_proj` + visual `attn.qkv` / `mlp.linear_fc2` / merger / patch_embed) | **0.999546** |
+
+Download:
+
+- **[ussoewwin/Clip-files-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-ConvRot-INT8)** - CLIP-L, OpenAI CLIP ViT-L/14 (CLIP-SAE), Flan-T5-XXL, CLIP-ViT-bigG-14, Josiefied-Qwen3-0.6B
+- **[ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8](https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8)** - Qwen3-4B, Qwen3-8B, Qwen3-VL-4B-Thinking
+
+### Loading
+
+Place the packs in `ComfyUI/models/clip/` and load with the standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. For Llama-family text encoders (Qwen3 / Qwen3-VL) ComfyUI detects the `comfy_quant` layers inside the load path, so no extra loader is required. For the OpenAI CLIP family (CLIP-L / CLIP-SAE) the loader must receive the pack's `quantization_metadata` (the same mechanism the SDXL CLIP INT8 path already uses); see the **ComfyUI-HSWQ-Loader-and-Tools** extension.
 
 ---
 
@@ -243,4 +281,4 @@ Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard 
 | **Qwen-Image** | ControlNet Inpainting | `Qwen-Image-ControlNet-Inpainting` (alibaba-pai) |
 | **Qwen-Image-2512** | ControlNet Union | `Qwen-Image-2512-Fun-Controlnet-Union-2602` |
 | **FLUX.1-dev** | ControlNet Union Pro | `FLUX.1-dev-ControlNet-Union-Pro-2.0` (Shakker Labs) |
-| **CLIP / Text Encoders** | CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL | `CLIP-SAE-ViT-L-14`, `t5xxl_fp16`, `qwen_2.5_vl_7b` |
+| **CLIP / Text Encoders** | CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3 / Qwen3-VL | Individually built HSWQ packs - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) |
