@@ -15,58 +15,65 @@ tags:
 - quantized
 - int8
 - convrot
+- hswq
 - comfyui
 pipeline_tag: image-segmentation
 ---
 
-# SAM 3.1 Multiplex (ConvRot INT8)
+# SAM 3.1 Multiplex (HSWQ ConvRot INT8)
 
-High-fidelity **Native ConvRot INT8** quantized weights for the **SAM 3.1 Multiplex** (Segment Anything Model 3.1) architecture.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
+</p>
+
+High-fidelity **HSWQ ConvRot INT8** (Hybrid-Sensitivity-Weighted-Quantization) quantized weights for the **SAM 3.1 Multiplex** (Segment Anything Model 3.1) architecture.
+
+- **Technical Details & Quantization Framework:** [Hybrid-Sensitivity-Weighted-Quantization (HSWQ)](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
+- **ComfyUI Loader for ConvRot INT8:** [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
 
 ---
 
 ## 🌟 Model Overview
 
-This repository provides **Native ConvRot INT8** quantized weights for the **SAM 3.1 Multiplex** foundation model. By applying orthogonal Hadamard rotation before per-channel INT8 quantization, activation outliers are evenly distributed across matrix dimensions, drastically suppressing quantization noise while halving VRAM and storage footprint:
+This repository provides production-grade **HSWQ ConvRot INT8** quantized weights for the **SAM 3.1 Multiplex** foundation model. By combining orthogonal Hadamard rotation with HSWQ sensitivity profiling, activation outlier spikes are suppressed across projection layers while critical memory attention, boundary refinement, and mask decoder modules are protected in higher precision (FP16/BF16):
 
 - **Architecture:** SAM 3.1 Multiplex (Vision Backbone + FPN Neck + Decoupled Memory Attention + 16-Object Multiplex Mask Decoder)
 - **Base Checkpoint:** [Comfy-Org/sam3.1](https://huggingface.co/Comfy-Org/sam3.1) / [facebook/sam3.1](https://huggingface.co/facebook/sam3.1) (`sam3.1_multiplex_fp16.safetensors`)
-- **Native ComfyUI Support:** Features native `int8_tensorwise` and `comfy_quant` metadata stamps, loading seamlessly with ComfyUI's standard `UNetLoader` / `DiffusionModelLoader` without requiring external custom quantization nodes.
+- **Native ComfyUI Support:** Features native `int8_tensorwise` and `comfy_quant` metadata stamps, loading seamlessly with ComfyUI's standard `UNetLoader` / `DiffusionModelLoader` or `HSWQ SAM3 Loader` without requiring external manual dequantization workflows.
 
 ---
 
 ## 📦 Model Details & Comparison
 
-| Filename | Base Architecture | Precision / Format | File Size | Memory Footprint | Native ComfyUI Support |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `sam3.1_multiplex_convrot_int8.safetensors` | SAM 3.1 Multiplex | **ConvRot INT8** (`int8_tensorwise`) | **~0.84 GB** (899 MB) | **~50% VRAM Reduction** | ✅ Supported natively (`UNetLoader`) |
-| `sam3.1_multiplex_fp16.safetensors` (Reference) | SAM 3.1 Multiplex | FP16 | ~1.63 GB (1,746 MB) | Baseline | ✅ Supported natively |
+| Filename | Base Architecture | Precision / Format | File Size | Memory Footprint | Native ComfyUI Support | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | **HSWQ ConvRot INT8** (`int8_tensorwise`) | **~1.29 GB** (1,287 MB) | **~26% VRAM Reduction** | ✅ Supported natively (`UNetLoader`) | Available |
+| `sam3.1_multiplex_fp16.safetensors` (Reference) | SAM 3.1 Multiplex | FP16 | ~1.63 GB (1,746 MB) | Baseline | ✅ Supported natively | Reference |
 
 ### Quantization Breakdown
-- **ConvRot INT8 Layers:** 647 Linear projection layers (Hadamard rotation `groupsize=256` + per-out-channel scale)
-- **Plain INT8 Fallback Layers:** 4 layers (non-power-of-4 channel dimensions safely quantized with row-wise scaling)
-- **Preserved High-Precision Tensors:** 1,183 tensors (LayerNorm, Embedding, Biases, and 4D Conv2d weights preserved in full float precision for boundary and spatial accuracy)
+- **HSWQ ConvRot INT8 Linear Layers:** Bulk transformer and feedforward projection layers quantized with orthogonal Sylvester Hadamard rotation (`groupsize=256`) and per-channel scaling.
+- **Sensitivity-Protected High-Precision Tensors:** Critical cross-attention heads, memory encoder/decoder boundaries, LayerNorm, Embeddings, Biases, and 4D Conv2d weights preserved in full float precision under HSWQ sensitivity analysis to prevent mask jitter, boundary collapse, and video tracking loss.
 
 ---
 
 ## 🛠️ Key Highlights
 
 - **Hadamard Orthogonal Rotation (ConvRot):** Pre-rotates weight matrices ($W_{rot} = W \cdot H^T$) along the input channel axis using normalized Sylvester Hadamard blocks, eliminating channel-wise outlier spikes and preventing mask degradation.
-- **Full Multiplex Support:** Preserves the complete 16-object simultaneous tracking, interactive segmentation, and decoupled cross-attention capabilities of the SAM 3.1 architecture.
-- **50% Disk & VRAM Savings:** Reduces weight storage from 1.63 GB down to 0.84 GB, enabling lightweight deployment on consumer hardware and multi-model video segmentation workflows.
+- **Hybrid Sensitivity Protection (HSWQ):** Specifically designed to prevent precision loss in multi-object video segmentation, guaranteeing sharp mask boundaries and long-term tracking stability across all 16 multiplex object slots.
+- **Optimized Storage & Memory Footprint:** Reduces model weight footprint from 1.63 GB down to 1.29 GB while maintaining near-lossless mIoU segmentation metrics.
 
 ---
 
 ## 🚀 Usage in ComfyUI
 
 ### Model Placement
-Download `sam3.1_multiplex_convrot_int8.safetensors` and place it in your ComfyUI models directory:
+Download `sam3.1_multiplex_hswq_convrot_int8.safetensors` and place it in your ComfyUI models directory:
 ```
-ComfyUI/models/unet/sam3.1_multiplex_convrot_int8.safetensors
+ComfyUI/models/unet/sam3.1_multiplex_hswq_convrot_int8.safetensors
 ```
 
 ### Loading
-1. Load the model using the standard **`UNetLoader`** (or **`Load Diffusion Model`**) node in ComfyUI.
+1. Load the model using the standard **`UNetLoader`** (or **`Load Diffusion Model`**) node in ComfyUI, or use **`HSWQ SAM3 Loader`** from [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools).
 2. Connect the loaded model output directly into your SAM3 image / video segmentation workflow nodes.
 3. ComfyUI automatically detects the `comfy_quant` header metadata and executes optimized INT8 Tensor Core operations natively.
 
