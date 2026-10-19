@@ -38,17 +38,16 @@ High-fidelity **HSWQ ConvRot INT8** (Hybrid-Sensitivity-Weighted-Quantization) q
 This repository provides production-grade **HSWQ ConvRot INT8** quantized weights for the **SAM 3.1 Multiplex** foundation model. By combining orthogonal Hadamard rotation with HSWQ sensitivity profiling, activation outlier spikes are suppressed across projection layers while critical memory attention, boundary refinement, and mask decoder modules are protected in higher precision (FP16/BF16):
 
 - **Architecture:** SAM 3.1 Multiplex (Vision Backbone + FPN Neck + Decoupled Memory Attention + 16-Object Multiplex Mask Decoder)
-- **Base Checkpoint:** [Comfy-Org/sam3.1](https://huggingface.co/Comfy-Org/sam3.1) / [facebook/sam3.1](https://huggingface.co/facebook/sam3.1) (`sam3.1_multiplex_fp16.safetensors`)
+- **Base Checkpoint:** Upstream SAM 3.1 Multiplex foundation weights from [Comfy-Org/sam3.1](https://huggingface.co/Comfy-Org/sam3.1) / [facebook/sam3.1](https://huggingface.co/facebook/sam3.1)
 - **Native ComfyUI Support:** Features native `int8_tensorwise` and `comfy_quant` metadata stamps, loading seamlessly with ComfyUI's standard `UNetLoader` / `DiffusionModelLoader` or `HSWQ SAM3 Loader` without requiring external manual dequantization workflows.
 
 ---
 
-## 📦 Model Details & Comparison
+## 📦 Model Details
 
-| Filename | Base Architecture | Precision / Format | File Size | Memory Footprint | Native ComfyUI Support | Status |
+| Filename | Base Architecture | Precision / Format | File Size | Memory Footprint vs FP16 | Native ComfyUI Support | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | **HSWQ ConvRot INT8** (`int8_tensorwise`) | **~1.29 GB** (1,287 MB) | **~26% VRAM Reduction** | ✅ Supported natively (`UNetLoader`) | Available |
-| `sam3.1_multiplex_fp16.safetensors` (Reference) | SAM 3.1 Multiplex | FP16 | ~1.63 GB (1,746 MB) | Baseline | ✅ Supported natively | Reference |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | **HSWQ ConvRot INT8** (`int8_tensorwise`) | **~1.29 GB** (1,287 MB) | **~26% VRAM Reduction** (vs ~1.63 GB baseline) | ✅ Supported natively (`UNetLoader`) | Available |
 
 ### Quantization Breakdown
 - **HSWQ ConvRot INT8 Linear Layers:** Bulk transformer and feedforward projection layers quantized with orthogonal Sylvester Hadamard rotation (`groupsize=256`) and per-channel scaling.
@@ -60,7 +59,7 @@ This repository provides production-grade **HSWQ ConvRot INT8** quantized weight
 
 - **Hadamard Orthogonal Rotation (ConvRot):** Pre-rotates weight matrices ($W_{rot} = W \cdot H^T$) along the input channel axis using normalized Sylvester Hadamard blocks, eliminating channel-wise outlier spikes and preventing mask degradation.
 - **Hybrid Sensitivity Protection (HSWQ):** Specifically designed to prevent precision loss in multi-object video segmentation, guaranteeing sharp mask boundaries and long-term tracking stability across all 16 multiplex object slots.
-- **Optimized Storage & Memory Footprint:** Reduces model weight footprint from 1.63 GB down to 1.29 GB while maintaining near-lossless mIoU segmentation metrics.
+- **Optimized Storage & Memory Footprint:** Reduces model weight footprint down to 1.29 GB (from the ~1.63 GB unquantized baseline) while maintaining near-lossless mIoU segmentation metrics.
 
 ---
 
