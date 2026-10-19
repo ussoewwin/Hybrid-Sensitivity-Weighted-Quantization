@@ -1,37 +1,25 @@
 # -*- coding: utf-8 -*-
-"""ControlNet (SDXL ControlNet Union Pro Max) ConvRot INT8 converter with measured FP16 protection.
+"""ControlNet ConvRot INT8 converter driven by measured trajectory impact.
 
-ControlNet is a single standard weight layout (per model family), like text
-encoders and SAM - so it gets an individually built converter with measured
-FP16 protection rather than the universal HSWQ engine (which targets
-per-checkpoint image-generation backbones).
+Individual decision per checkpoint: the protection set comes from a trajectory
+impact JSON measured on THIS checkpoint (sibling script diag_impact_controlnet.py).
+Runtime (comfy input_blocks) names in the impact JSON are mapped onto the
+checkpoint's diffusers (down_blocks) keys via comfy's own unet_to_diffusers,
+so no hand-maintained name table is used.
 
-Protection set = measured risk (kurtosis / outlier ratio = absmax/std) on all
-406 finite 2D+4D weights of controlnet-union-pro-max-sdxl-1.0.safetensors
-(2026-10-20):
-
-  dominant family: time-emb projection (kurt up to 611.6, median 259-549)
-      mid_block.resnets.N.time_emb_proj / down_blocks.N.resnets.N.time_emb_proj
-      time_embedding.linear_1
-  attention key projections: attn1.to_k (kurt up to 141.7, median ~98)
-  attention proj_in (kurt ~62-76)
-  downsampler conv (kurt 197), mid_block.resnets conv1 (kurt 55.6),
-  controlnet_cond_embedding.conv_out (kurt 40), transformer_layes.0.mlp.c_fc (183)
-
-Everything else is FULL ConvRot INT8 (Linear + Conv2d), pack math identical to
-native_convert_int8.py (build_hadamard / rotate_weight / rotate_weight_conv2d /
-quantize_int8_rowwise / quantize_int8_channelwise).
+Layers with trajectory drift > threshold stay in original precision; the
+remainder (2D Linear + 4D Conv2d) is ConvRot INT8 quantized.
 
 Usage:
-  python clip_convert/convert_controlnet_convrot_int8.py --input <controlnet.safetensors> --output <out>
+  python clip_convert/convert_controlnet_convrot_int8.py \
+      --input <cn.safetensors> --output <out> --impact <impact.json> --comfy_path <ComfyUI>
 """
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
+import math
 import os
-import re
 import sys
 
 import torch
@@ -39,128 +27,151 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 _DEFAULT_GROUPSIZE = 256
-_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DEFAULT_DRIFT_THRESHOLD = 0.10
 
 
-def _load_native_convert_int8():
-    path = os.path.join(_REPO, "native_convert_int8.py")
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"native_convert_int8.py not found: {path}")
-    name = "native_convert_int8_for_controlnet"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+def build_hadamard(size, dtype=torch.float32):
+    if size < 4 or (size & (size - 1)) != 0 or math.log(size, 4) % 1 != 0:
+        raise ValueError(f"Hadamard size must be a power of 4, got {size}")
+    h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=dtype)
+    h = h4
+    cur = 4
+    while cur < size:
+        h = torch.kron(h, h4)
+        cur *= 4
+    return h / (size ** 0.5)
 
 
-# --- protection rule (measured 2026-10-20, structural) ----------------------
-_PROTECT_REGEXES = [
-    # time-emb projections (dominant family)
-    re.compile(r"^(mid_block|down_blocks\.\d+)\.resnets\.\d+\.time_emb_proj\.weight$"),
-    re.compile(r"^time_embedding\.linear_1\.weight$"),
-    # attention key projections (attn1.to_k) and proj_in
-    re.compile(r"^(mid_block|down_blocks\.\d+)\.attentions\.\d+\.transformer_blocks\.\d+\.attn1\.to_k\.weight$"),
-    re.compile(r"^(mid_block|down_blocks\.\d+)\.attentions\.\d+\.proj_in\.weight$"),
-    # downsampler conv + mid resnet conv1
-    re.compile(r"^down_blocks\.\d+\.downsamplers\.\d+\.conv\.weight$"),
-    re.compile(r"^mid_block\.resnets\.\d+\.conv1\.weight$"),
-    # condition embedding output + transformer_layes mlp c_fc
-    re.compile(r"^controlnet_cond_embedding\.conv_out\.weight$"),
-    re.compile(r"^transformer_layes\.\d+\.mlp\.c_fc\.weight$"),
-]
+def convrot_group_size(n, preferred=256):
+    gs = preferred
+    while gs >= 4:
+        if n % gs == 0 and math.log(gs, 4) % 1 == 0:
+            return gs
+        gs //= 4
+    return None
 
 
-def is_protected_controlnet_weight(key: str) -> bool:
-    return any(rx.match(key) for rx in _PROTECT_REGEXES)
+def rotate_weight(weight, h, gs):
+    of, inf = weight.shape
+    g = inf // gs
+    return torch.matmul(weight.view(of, g, gs), h.T.to(weight.dtype)).reshape(weight.shape)
 
 
-def convert(input_path: str, output_path: str, group_size: int = _DEFAULT_GROUPSIZE):
-    nc = _load_native_convert_int8()
-    build_hadamard = nc.build_hadamard
-    rotate_weight = nc.rotate_weight
-    rotate_weight_conv2d = nc.rotate_weight_conv2d
-    convrot_group_size_for_features = nc.convrot_group_size_for_features
-    quantize_int8_rowwise = nc.quantize_int8_rowwise
-    quantize_int8_channelwise = nc.quantize_int8_channelwise
+def rotate_weight_conv2d(weight, h, gs):
+    oc, ic, kh, kw = weight.shape
+    flat = weight.permute(0, 2, 3, 1).contiguous().view(-1, ic)
+    return rotate_weight(flat, h, gs).view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
 
-    def _encode(config: dict) -> torch.Tensor:
-        return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
+def quant_rowwise(w):
+    amax = w.abs().amax(dim=-1, keepdim=True).float().clamp(min=1e-30)
+    s = amax / 127.0
+    q = (w / s.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
+    return q, s.to(torch.float32)
+
+
+def quant_channelwise(w):
+    rd = tuple(range(1, w.dim()))
+    amax = torch.clamp(w.abs().amax(dim=rd), min=1e-30).float()
+    s = amax / 127.0
+    v = s.view(-1, *([1] * (w.dim() - 1)))
+    av = amax.view(-1, *([1] * (w.dim() - 1)))
+    q = (torch.clamp(w, -av, av) / v).round().clamp(-127, 127).to(torch.int8)
+    return q, s.to(torch.float32)
+
+
+def _encode(config):
+    return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
+
+
+def _runtime_to_checkpoint_map(checkpoint_path: str, comfy_path: str) -> dict:
+    """comfy(runtime) key -> checkpoint(diffusers) key, via comfy's own converter."""
+    if comfy_path not in sys.path:
+        sys.path.insert(0, comfy_path)
+    saved = sys.argv
+    sys.argv = [saved[0]]
+    try:
+        import comfy.utils
+        import comfy.model_detection
+    finally:
+        sys.argv = saved
+    with safe_open(checkpoint_path, framework="pt", device="cpu") as f:
+        sd = {k: torch.empty(f.get_slice(k).get_shape()) for k in f.keys()}
+    cfg = comfy.model_detection.unet_config_from_diffusers_unet(sd)
+    dmap = comfy.utils.unet_to_diffusers(cfg)   # diffusers -> comfy
+    return {v: k for k, v in dmap.items()}      # comfy -> diffusers
+
+
+def convert(input_path, output_path, impact_json, comfy_path,
+            group_size=_DEFAULT_GROUPSIZE, drift_threshold=_DEFAULT_DRIFT_THRESHOLD):
     print(f"Loading (streamed): {input_path}")
     src = safe_open(input_path, framework="pt", device="cpu")
     keys = sorted(src.keys())
     print(f"  raw keys: {len(keys)}")
 
+    impacts = json.load(open(impact_json, encoding="utf-8"))["impacts"]
+    rt2ck = _runtime_to_checkpoint_map(input_path, comfy_path)
+    protect = set()
+    for n, drift in impacts.items():
+        if drift <= drift_threshold:
+            continue
+        ck = rt2ck.get(n + ".weight")
+        if ck:
+            protect.add(ck[: -len(".weight")])
+    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
+    for p in sorted(protect):
+        print(f"    {p}")
+
     out = {}
     meta_layers = {}
     n_lin = n_conv = n_prot = n_kept = 0
-    protected_list = []
-    fallback_list = []
     h_cache = {}
-
     for key in keys:
-        tensor = src.get_tensor(key)
-        is_w = key.endswith(".weight")
-        nd = tensor.ndim
-        if not (is_w and nd in (2, 4) and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)):
-            out[key] = tensor
+        t = src.get_tensor(key)
+        if not (key.endswith(".weight") and t.ndim in (2, 4)
+                and t.dtype in (torch.float16, torch.float32, torch.bfloat16)):
+            out[key] = t
             n_kept += 1
             continue
-        if is_protected_controlnet_weight(key):
-            out[key] = tensor
+        mk = key[: -len(".weight")]
+        if mk in protect:
+            out[key] = t
             n_prot += 1
-            protected_list.append(key)
             continue
-        w = tensor.float()
-        module_key = key[: -len(".weight")]
-        gs = convrot_group_size_for_features(w.shape[1], group_size)
+        w = t.float()
+        gs = convrot_group_size(w.shape[1], group_size)
         if gs is None:
-            fallback_list.append(key)
-            q, scale = nc.quantize_int8_tensorwise(w)
+            q, scale = quant_rowwise(w)
             conf = {"format": "int8_tensorwise"}
         else:
             if gs not in h_cache:
-                h_cache[gs] = build_hadamard(gs, device="cpu", dtype=torch.float32)
-            if nd == 2:
-                w_rot = rotate_weight(w, h_cache[gs], gs)
-                q, scale = quantize_int8_rowwise(w_rot)
+                h_cache[gs] = build_hadamard(gs)
+            if t.ndim == 2:
+                q, scale = quant_rowwise(rotate_weight(w, h_cache[gs], gs))
                 n_lin += 1
             else:
-                w_rot = rotate_weight_conv2d(w, h_cache[gs], gs)
-                q, scale = quantize_int8_channelwise(w_rot)
+                q, scale = quant_channelwise(rotate_weight_conv2d(w, h_cache[gs], gs))
                 n_conv += 1
             conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": int(gs)}
         out[key] = q
-        out[f"{module_key}.weight_scale"] = scale
-        out[f"{module_key}.comfy_quant"] = _encode(conf)
-        meta_layers[module_key] = conf
+        out[f"{mk}.weight_scale"] = scale
+        out[f"{mk}.comfy_quant"] = _encode(conf)
+        meta_layers[mk] = conf
 
     metadata = {"_quantization_metadata": json.dumps({"format_version": "1.0", "layers": meta_layers}, separators=(",", ":"))}
-
-    print(f"\nProtected (kept FP16): {n_prot}")
-    for k in protected_list[:12]:
-        print(f"  {k}")
-    if n_prot > 12:
-        print(f"  ... ({n_prot - 12} more)")
-    for k in fallback_list:
-        print(f"  [WARN] {k}: not power-of-4 divisible, plain INT8")
-
     print(f"\nSaving: {output_path}")
-    print(f"  ConvRot INT8 Linear: {n_lin}")
-    print(f"  ConvRot INT8 Conv2d: {n_conv}")
-    print(f"  FP16 protected:      {n_prot}")
-    print(f"  Kept as-is:          {n_kept}")
+    print(f"  ConvRot INT8 Linear: {n_lin}  Conv2d: {n_conv}  protected: {n_prot}  kept: {n_kept}")
     save_file(out, output_path, metadata=metadata)
-    print(f"  Input:  {os.path.getsize(input_path) / (1024**3):.2f} GB")
-    print(f"  Output: {os.path.getsize(output_path) / (1024**3):.2f} GB")
-    print("Done!")
+    print(f"  Input {os.path.getsize(input_path)/(1024**3):.2f} GB -> Output {os.path.getsize(output_path)/(1024**3):.2f} GB")
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="ControlNet ConvRot INT8 converter with measured FP16 protection")
+    ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True)
     ap.add_argument("--output", required=True)
+    ap.add_argument("--impact", required=True)
+    ap.add_argument("--comfy_path", required=True)
     ap.add_argument("--groupsize", type=int, default=_DEFAULT_GROUPSIZE)
-    args = ap.parse_args()
-    convert(args.input, args.output, group_size=args.groupsize)
+    ap.add_argument("--drift-threshold", type=float, default=_DEFAULT_DRIFT_THRESHOLD)
+    a = ap.parse_args()
+    convert(a.input, a.output, a.impact, a.comfy_path, group_size=a.groupsize, drift_threshold=a.drift_threshold)
