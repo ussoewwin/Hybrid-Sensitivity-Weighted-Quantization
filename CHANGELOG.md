@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.4.5
+
+**HSWQ ConvRot INT8 SAM 3.1 pack (individually built, Hugging Face release)** - Added an individually built ConvRot INT8 pack for SAM 3.1 Multiplex, with measured FP16 protection, published to Hugging Face:
+
+- **Individually built per standard:** SAM 3 / SAM 3.1 are foundation segmentation models, not per-checkpoint image-generation backbones - each version ships a single standard weight layout, so there is no per-checkpoint measurement to redo and no universal engine to build. They are handled individually, the same way as the text encoders in v2.4.4: the risk of every Linear layer was measured once (kurtosis / outlier ratio), the fat-tail layers were kept in FP16, and the pack was built with a per-standard converter (`clip_convert/convert_sam31_convrot_int8.py`, 538 ConvRot INT8 / 113 FP16 protected).
+- **Measured protection:** all 32 vision-backbone `attn.qkv` (kurt median 5,252, up to 19,036), all 32 vision `mlp.fc1`, all 24 language `attn.out_proj` (up to 39,567) and all 24 language `mlp.c_fc`, plus the tracker cross-attention / mask-decoder attention tails.
+- **SAM preprocessing reused:** the fused QKV `in_proj` tensors are split into `q_proj` / `k_proj` / `v_proj`, the per-block `freqs_cis` buffers are dropped, and SAM 3.1 keeps its (1024,1024) `text_projection`. The pack loads natively via `UNetLoader` (538 `comfy_quant` layers).
+- **Published pack (Hugging Face):**
+  - [ussoewwin/SAM3.1-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/SAM3.1-HSWQ-ConvRot-INT8) - SAM 3.1 Multiplex (`sam3.1_multiplex_hswq_convrot_int8.safetensors`).
+  - Note: SAM 3 (classic / `sam3.pt`) is the same kind of case and should be built and published the same way, but it **cannot be published for license reasons**; only SAM 3.1 is published.
+- **Documentation:** `md/How to quantize Text Encoder and ControlNet.md` now presents the finished SAM 3.1 pack (with the Hugging Face link above) instead of a method - SAM, like CLIP, has no universal method because each standard is a single weight layout - and keeps the generic `clip_convert/convert_clip_convrot_int8.py` as the native A/B baseline.
+
+Release notes: [v2.4.5](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.4.5)
+
 ## v2.4.4
 
 **HSWQ ConvRot INT8 text-encoder packs (individually built, Hugging Face release)** - Added a set of individually built ConvRot INT8 text-encoder packs, each with measured FP16 protection, published to Hugging Face:
