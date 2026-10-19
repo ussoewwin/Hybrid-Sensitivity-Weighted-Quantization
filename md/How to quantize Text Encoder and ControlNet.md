@@ -5,6 +5,9 @@ Quantize loaded **ControlNet / ControlNet Union models**, **Model Patch (model p
 By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline eliminates activation outlier spikes in deep Linear layers, reducing VRAM and storage footprint by ~50% while preserving mask segmentation fidelity and structural guidance quality.
 
 > [!IMPORTANT]
+> **Text encoders and SAM are separate cases.** The generic CLI above quantizes every 2D Linear layer with **no FP16 protection** - it is the A/B baseline, not the recommended pack. HSWQ also publishes **individually built, higher-quality packs** (measured FP16 protection) for text encoders and SAM 3.1 on Hugging Face. Because text encoders and SAM are standards (one weight layout per architecture) rather than per-checkpoint models, these are finished artifacts rather than a universal method - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) and [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) below. (SAM 3 is the same kind of case but its pack is not published for license reasons.)
+
+> [!IMPORTANT]
 > **Text encoders are a separate case.** The generic CLI above quantizes every 2D Linear layer with **no FP16 protection** - it is the A/B baseline, not the recommended text-encoder pack. HSWQ also publishes **individually built, higher-quality text-encoder packs** (measured FP16 protection, verified by conditioning cosine) on Hugging Face. Because text encoders are standards (one weight layout per architecture) rather than per-checkpoint models, these are finished artifacts rather than a universal method - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) below.
 
 ---
@@ -163,16 +166,16 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 For batch processing or headless environments, the CLI script `clip_convert/convert_clip_convrot_int8.py` can convert generic `.safetensors` (CLIP, LLM, ControlNet, SAM 3, SAM 3.1, UNet) directly from the command line.
 
 > [!NOTE]
-> For **text encoders** this script is the **native / A/B baseline**: every 2D Linear layer is quantized and **no FP16 protection is applied**. For production text-encoder packs use the individually built artifacts in [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built). For ControlNet / Model Patch / SAM the generic script is the intended tool.
+> For **text encoders** and **SAM** this script is the **native / A/B baseline**: every 2D Linear layer is quantized and **no FP16 protection is applied**. For production packs use the individually built artifacts in [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) and [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built). For ControlNet / Model Patch the generic script is the intended tool.
 
 ```bash
-# Convert SAM 3.1 Multiplex checkpoint
+# Native baseline: SAM 3.1 Multiplex checkpoint (no FP16 protection)
 python clip_convert/convert_clip_convrot_int8.py \
   --model models/unet/sam3.1_multiplex_fp16.safetensors \
   --output models/unet/sam3.1_multiplex_convrot_int8.safetensors \
   --groupsize 256
 
-# Convert generic CLIP / Text Encoder
+# Native baseline: generic CLIP / Text Encoder (no FP16 protection)
 python clip_convert/convert_clip_convrot_int8.py \
   --model models/clip/t5xxl_fp16.safetensors \
   --output models/clip/t5xxl_convrot_int8.safetensors \
@@ -215,9 +218,10 @@ python clip_convert/convert_clip_convrot_int8.py \
 
 ### SAM 3 / SAM 3.1 Multiplex Models
 Quantized SAM 3 and SAM 3.1 checkpoints stamped with `int8_tensorwise` and `comfy_quant` are **100% natively supported** by ComfyUI:
-- Place the generated `sam3_convrot_int8.safetensors` or `sam3.1_multiplex_convrot_int8.safetensors` in `ComfyUI/models/unet/` or `ComfyUI/models/diffusion_models/`.
+- Place the generated `sam3_convrot_int8.safetensors` or `sam3.1_multiplex_hswq_convrot_int8.safetensors` in `ComfyUI/models/unet/` or `ComfyUI/models/diffusion_models/`.
 - Load them using the standard **`UNetLoader`** (or **`Load Diffusion Model`**).
 - Connect directly to downstream SAM segmentation / video tracking nodes. ComfyUI automatically utilizes native INT8 Tensor Core acceleration.
+- For the recommended production pack, use the individually built [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) below.
 
 ### ControlNet Models
 ComfyUI does not natively support rotated INT8 tensors for ControlNet models out of the box. To load and execute these weights in ComfyUI workflows, use the dedicated loader from the **[ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)** extension:
@@ -269,12 +273,37 @@ Place the packs in `ComfyUI/models/clip/` and load with the standard ComfyUI `CL
 
 ---
 
+## HSWQ High-Quality SAM 3.1 (ConvRot INT8, individually built)
+
+### Why SAM 3.1 belongs here
+
+Like text encoders, SAM 3 / SAM 3.1 are **foundation segmentation models**, not per-checkpoint image-generation backbones. Each version ships a **single standard weight layout**, so there is no per-checkpoint measurement to redo and no universal engine to build. They are therefore handled **individually**: the risk of every Linear layer was measured once on the standard checkpoint (kurtosis / outlier ratio), the fat-tail layers were kept in FP16, and the pack was built with a per-standard converter.
+
+> [!IMPORTANT]
+> **SAM 3 (classic / `sam3.pt`) is technically the same kind of case and should be built and published the same way, but it cannot be published for license reasons. Only SAM 3.1 Multiplex is published.**
+
+### Finished pack (Hugging Face)
+
+| Pack | Standard | Base | ConvRot INT8 | FP16 protection |
+| :--- | :--- | :--- | :--- | :--- |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | `sam3.1_multiplex_fp16.safetensors` | 538 layers | 113 layers (all 32 vision-backbone `attn.qkv`, all 32 vision `mlp.fc1`, all 24 language `attn.out_proj` / `mlp.c_fc`, and the tracker cross-attention / mask-decoder attention tails) |
+
+Download:
+
+- **[ussoewwin/SAM3.1-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/SAM3.1-HSWQ-ConvRot-INT8)**
+
+### Loading
+
+Place the pack in `ComfyUI/models/unet/` (or `models/diffusion_models/`) and load it with the standard **`UNetLoader`** / **`Load Diffusion Model`**; connect to the SAM segmentation / video-tracking nodes. The pack keeps the fused QKV in-projection split into `q_proj` / `k_proj` / `v_proj` (the loader expects the split layout) and drops the per-block `freqs_cis` buffers.
+
+---
+
 ## Supported Architectures & Verified Checkpoints
 
 | Architecture | Model Family | Verified Models |
 | :--- | :--- | :--- |
-| **SAM 3.1** | Multiplex Segmentation & Tracking | `sam3.1_multiplex_fp16.safetensors` |
-| **SAM 3** | Segmentation & Video Tracking | `sam3.pt`, `sam3_fp16.safetensors` |
+| **SAM 3.1** | Multiplex Segmentation & Tracking | Individually built HSWQ pack - see [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) |
+| **SAM 3** | Segmentation & Video Tracking | `sam3.pt`, `sam3_fp16.safetensors` (HSWQ pack not published - license restriction) |
 | **Illustrious-XL / SDXL** | Anytest ControlNet | `CN-anytest4_illustrious2_A`, `CN-anytest4_illustrious2_B` |
 | **SDXL 1.0** | ControlNet Union | `controlnet-union-pro-max-sdxl-1.0` (xinsir) |
 | **Z-Image-Turbo** | ControlNet Union / Tile | `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps`, `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps` |
