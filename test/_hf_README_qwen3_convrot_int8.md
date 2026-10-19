@@ -27,7 +27,7 @@ library_name: transformers
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-This repository provides single-file `.safetensors` releases for **Qwen3 abliterated** variants across **FP16**, **Native ConvRot INT8**, and **HSWQ ConvRot INT8** (Hybrid-Sensitivity-Weighted-Quantization).
+This repository provides single-file `.safetensors` releases for **Qwen3 abliterated** variants across **FP16** and **HSWQ ConvRot INT8** (Hybrid-Sensitivity-Weighted-Quantization).
 
 It serves as a unified release collection combining pure text LLM variants (4B, 8B) and multimodal Vision-Language reasoning variants (VL-4B-Thinking) with safety vectors removed/abliterated.
 
@@ -44,7 +44,6 @@ It serves as a unified release collection combining pure text LLM variants (4B, 
 | `qwen3_4b_abliterated_hswq_convrot_int8.safetensors` | Qwen3 4B | HSWQ ConvRot INT8 | ~5.78 GB | `huihui-ai/Qwen3-4B-abliterated` | Available |
 | `Qwen3-8B-abliterated-fp16.safetensors` | Qwen3 8B | Single-file FP16 | ~16.38 GB | `huihui-ai/Qwen3-8B-abliterated` | Available |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | Qwen3 VL 4B Thinking | Single-file FP16 | ~8.88 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
-| `Qwen3_VL_4B_Thinking_abliterated_convrot_int8.safetensors` | Qwen3 VL 4B Thinking | Native ConvRot INT8 | ~4.45 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
 | `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Thinking | HSWQ ConvRot INT8 | ~6.44 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
 
 ---
@@ -55,11 +54,7 @@ It serves as a unified release collection combining pure text LLM variants (4B, 
 - Consolidated multi-shard safetensors checkpoints into single, standalone `.safetensors` files without missing keys or dangling references.
 - Converted all float parameters to standard IEEE FP16 (`torch.float16`) for lightweight portability.
 
-### 2. Native ConvRot INT8
-- Full uniform ConvRot INT8 tensorwise quantization applying orthogonal rotation matrices prior to integer quantization.
-- Rotational transformation suppresses activation outliers across projection matrices, yielding up to ~50% VRAM compression with minimal perplexity deviation.
-
-### 3. HSWQ ConvRot INT8 (Hybrid-Sensitivity-Weighted-Quantization)
+### 2. HSWQ ConvRot INT8 (Hybrid-Sensitivity-Weighted-Quantization)
 - Layer-wise sensitivity and trajectory impact profiling identifies outlier-susceptible and high-importance layers.
 - Preserves critical attention/vision projection layers in higher precision (FP16/BF16) while packing resilient bulk Linear layers into ConvRot INT8.
 - Maximizes inference speed and memory reduction while guarding against reasoning degradation and catastrophic trajectory bifurcations.
