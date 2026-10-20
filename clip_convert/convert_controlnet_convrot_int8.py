@@ -3,16 +3,40 @@
 
 Individual decision per checkpoint: the protection set comes from a trajectory
 impact JSON measured on THIS checkpoint (sibling script diag_impact_controlnet.py).
-Runtime (comfy input_blocks) names in the impact JSON are mapped onto the
-checkpoint's diffusers (down_blocks) keys via comfy's own unet_to_diffusers,
-so no hand-maintained name table is used.
 
-Layers with trajectory drift > threshold stay in original precision; the
-remainder (2D Linear + 4D Conv2d) is ConvRot INT8 quantized.
+**Key naming is the whole point of this converter.** ComfyUI loads an SDXL
+ControlNet through its *diffusers* branch: it remaps the checkpoint's
+diffusers-style names (`controlnet_down_blocks.N.weight`,
+`controlnet_cond_embedding.blocks.N.weight`, ...) to the comfy-style names the
+runtime actually builds (`zero_convs.N.0.weight`, `input_hint_block.N.weight`,
+`input_blocks.*`, ...). A quantized pack must therefore be written under the
+**runtime (comfy) names**, exactly like the checkpoint ComfyUI loads. Writing
+the quantized weights under the checkpoint's original diffusers names produced
+a pack where 340 of 346 quantized modules did not exist in the runtime graph:
+the `.comfy_quant` / `.weight_scale` companions were left behind by the remap,
+the runtime saw a bare int8 tensor, and the model output NaN (a black image).
+
+This converter therefore builds the ControlNet the way the runtime does, takes
+the runtime module graph as the source of truth, and quantizes the runtime's
+2D Linear layers. The impact JSON stores comfy (runtime) names, so the
+protection lookup is direct.
+
+Rules (same as the SAM converter, both learned from measured failures):
+
+1. **Only 2D `nn.Linear` layers are quantized.** ComfyUI's INT8 load path
+   attaches a QuantizedTensor to Linear layers only.
+2. **Group size is fixed at 256.** The ConvRot kernel's fused path activates
+   only at 256; any other value would be read back unrotated.
+3. **Keys are written under the runtime names.**
 
 Usage:
   python clip_convert/convert_controlnet_convrot_int8.py \
-      --input <cn.safetensors> --output <out> --impact <impact.json> --comfy_path <ComfyUI>
+      --input <controlnet>.safetensors \
+      --output <out>.safetensors \
+      --impact impact/impact_<name>.json \
+      --comfy_path <ComfyUI checkout> \
+      --model <SDXL base checkpoint> \
+      --drift-threshold 0.15
 """
 from __future__ import annotations
 
@@ -23,11 +47,10 @@ import os
 import sys
 
 import torch
-from safetensors import safe_open
 from safetensors.torch import save_file
 
-_DEFAULT_GROUPSIZE = 256
-_DEFAULT_DRIFT_THRESHOLD = 0.10
+GROUP_SIZE = 256
+DEFAULT_DRIFT_THRESHOLD = 0.15
 
 
 def build_hadamard(size, dtype=torch.float32):
@@ -42,25 +65,10 @@ def build_hadamard(size, dtype=torch.float32):
     return h / (size ** 0.5)
 
 
-def convrot_group_size(n, preferred=256):
-    gs = preferred
-    while gs >= 4:
-        if n % gs == 0 and math.log(gs, 4) % 1 == 0:
-            return gs
-        gs //= 4
-    return None
-
-
-def rotate_weight(weight, h, gs):
-    of, inf = weight.shape
+def rotate_weight(w, h, gs):
+    of, inf = w.shape
     g = inf // gs
-    return torch.matmul(weight.view(of, g, gs), h.T.to(weight.dtype)).reshape(weight.shape)
-
-
-def rotate_weight_conv2d(weight, h, gs):
-    oc, ic, kh, kw = weight.shape
-    flat = weight.permute(0, 2, 3, 1).contiguous().view(-1, ic)
-    return rotate_weight(flat, h, gs).view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
+    return torch.matmul(w.view(of, g, gs), h.T.to(w.dtype)).reshape(w.shape)
 
 
 def quant_rowwise(w):
@@ -70,108 +78,95 @@ def quant_rowwise(w):
     return q, s.to(torch.float32)
 
 
-def quant_channelwise(w):
-    rd = tuple(range(1, w.dim()))
-    amax = torch.clamp(w.abs().amax(dim=rd), min=1e-30).float()
-    s = amax / 127.0
-    v = s.view(-1, *([1] * (w.dim() - 1)))
-    av = amax.view(-1, *([1] * (w.dim() - 1)))
-    q = (torch.clamp(w, -av, av) / v).round().clamp(-127, 127).to(torch.int8)
-    return q, s.to(torch.float32)
-
-
 def _encode(config):
     return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
 
-def _runtime_to_checkpoint_map(checkpoint_path: str, comfy_path: str) -> dict:
-    """comfy(runtime) key -> checkpoint(diffusers) key, via comfy's own converter."""
+def runtime_view(comfy_path, controlnet_path, model_path):
+    """Build the ControlNet exactly as ComfyUI does and return
+    (usable_linear_names, runtime_state_dict)."""
     if comfy_path not in sys.path:
         sys.path.insert(0, comfy_path)
-    saved = sys.argv
-    sys.argv = [saved[0]]
+    cwd = os.getcwd()
     try:
-        import comfy.utils
-        import comfy.model_detection
+        os.chdir(comfy_path)
+        import comfy.sd
+        import comfy.controlnet as cc
+        sv = sys.argv
+        sys.argv = [sv[0]]
+        try:
+            o = comfy.sd.load_checkpoint_guess_config(model_path, output_vae=False,
+                                                      output_clip=False, embedding_directory=None)
+            cnet = cc.load_controlnet(controlnet_path, model=o[0].model)
+        finally:
+            sys.argv = sv
+        cm = cnet.control_model
+        msd = cm.state_dict()
+        types = {n: type(m).__name__ for n, m in cm.named_modules()}
+        usable = {n for n, t in types.items()
+                  if t == "Linear" and (n + ".weight") in msd}
+        return usable, msd
     finally:
-        sys.argv = saved
-    with safe_open(checkpoint_path, framework="pt", device="cpu") as f:
-        sd = {k: torch.empty(f.get_slice(k).get_shape()) for k in f.keys()}
-    cfg = comfy.model_detection.unet_config_from_diffusers_unet(sd)
-    dmap = comfy.utils.unet_to_diffusers(cfg)   # diffusers -> comfy
-    return {v: k for k, v in dmap.items()}      # comfy -> diffusers
+        os.chdir(cwd)
 
 
-def convert(input_path, output_path, impact_json, comfy_path,
-            group_size=_DEFAULT_GROUPSIZE, drift_threshold=_DEFAULT_DRIFT_THRESHOLD):
-    print(f"Loading (streamed): {input_path}")
-    src = safe_open(input_path, framework="pt", device="cpu")
-    keys = sorted(src.keys())
-    print(f"  raw keys: {len(keys)}")
-
+def convert(input_path, output_path, impact_json, comfy_path, model_path,
+            drift_threshold=DEFAULT_DRIFT_THRESHOLD):
     impacts = json.load(open(impact_json, encoding="utf-8"))["impacts"]
-    rt2ck = _runtime_to_checkpoint_map(input_path, comfy_path)
-    protect = set()
-    for n, drift in impacts.items():
-        if drift <= drift_threshold:
-            continue
-        ck = rt2ck.get(n + ".weight")
-        if ck:
-            protect.add(ck[: -len(".weight")])
-    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
-    for p in sorted(protect):
-        print(f"    {p}")
+    usable, msd = runtime_view(comfy_path, os.path.abspath(input_path), os.path.abspath(model_path))
+    print(f"runtime Linear modules with weight: {len(usable)}")
 
+    protect = {n for n, drift in impacts.items() if drift > drift_threshold}
+    print(f"measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
+
+    h = build_hadamard(GROUP_SIZE)
     out = {}
     meta_layers = {}
-    n_lin = n_conv = n_prot = n_kept = 0
-    h_cache = {}
-    for key in keys:
-        t = src.get_tensor(key)
-        if not (key.endswith(".weight") and t.ndim in (2, 4)
-                and t.dtype in (torch.float16, torch.float32, torch.bfloat16)):
-            out[key] = t
+    n_lin = n_prot = n_kept = 0
+    for name in sorted(msd):
+        t = msd[name]
+        if not (name.endswith(".weight") and t.ndim == 2):
+            out[name] = t.to(torch.float16) if t.is_floating_point() else t
             n_kept += 1
             continue
-        mk = key[: -len(".weight")]
+        mk = name[: -len(".weight")]
+        if mk not in usable:
+            out[name] = t.to(torch.float16)
+            n_kept += 1
+            continue
         if mk in protect:
-            out[key] = t
+            out[name] = t.to(torch.float16)
             n_prot += 1
             continue
-        w = t.float()
-        gs = convrot_group_size(w.shape[1], group_size)
-        if gs is None:
-            q, scale = quant_rowwise(w)
-            conf = {"format": "int8_tensorwise"}
-        else:
-            if gs not in h_cache:
-                h_cache[gs] = build_hadamard(gs)
-            if t.ndim == 2:
-                q, scale = quant_rowwise(rotate_weight(w, h_cache[gs], gs))
-                n_lin += 1
-            else:
-                q, scale = quant_channelwise(rotate_weight_conv2d(w, h_cache[gs], gs))
-                n_conv += 1
-            conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": int(gs)}
-        out[key] = q
+        inf = int(t.shape[1]); of = int(t.shape[0])
+        if inf % GROUP_SIZE != 0 or of % 4 != 0 or inf % 4 != 0:
+            out[name] = t.to(torch.float16)
+            n_prot += 1
+            continue
+        q, scale = quant_rowwise(rotate_weight(t.float(), h, GROUP_SIZE))
+        n_lin += 1
+        conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": GROUP_SIZE}
+        out[name] = q
         out[f"{mk}.weight_scale"] = scale
         out[f"{mk}.comfy_quant"] = _encode(conf)
         meta_layers[mk] = conf
 
     metadata = {"_quantization_metadata": json.dumps({"format_version": "1.0", "layers": meta_layers}, separators=(",", ":"))}
-    print(f"\nSaving: {output_path}")
-    print(f"  ConvRot INT8 Linear: {n_lin}  Conv2d: {n_conv}  protected: {n_prot}  kept: {n_kept}")
+    print(f"Saving: {output_path}")
+    print(f"  ConvRot INT8 Linear: {n_lin}")
+    print(f"  protected (drift or shape): {n_prot}")
+    print(f"  kept (not runtime Linear): {n_kept}")
     save_file(out, output_path, metadata=metadata)
-    print(f"  Input {os.path.getsize(input_path)/(1024**3):.2f} GB -> Output {os.path.getsize(output_path)/(1024**3):.2f} GB")
+    print(f"  Output {os.path.getsize(output_path)/(1024**3):.2f} GB")
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="ControlNet ConvRot INT8 converter (runtime key naming)")
     ap.add_argument("--input", required=True)
     ap.add_argument("--output", required=True)
     ap.add_argument("--impact", required=True)
     ap.add_argument("--comfy_path", required=True)
-    ap.add_argument("--groupsize", type=int, default=_DEFAULT_GROUPSIZE)
-    ap.add_argument("--drift-threshold", type=float, default=_DEFAULT_DRIFT_THRESHOLD)
+    ap.add_argument("--model", required=True, help="base checkpoint the ControlNet is loaded with")
+    ap.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD)
     a = ap.parse_args()
-    convert(a.input, a.output, a.impact, a.comfy_path, group_size=a.groupsize, drift_threshold=a.drift_threshold)
+    convert(a.input, a.output, a.impact, a.comfy_path, a.model, drift_threshold=a.drift_threshold)
