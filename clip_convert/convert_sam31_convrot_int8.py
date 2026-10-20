@@ -30,6 +30,15 @@ against the FP16 baseline on the real ComfyUI runtime (tracker mask IoU):
    ComfyUI for the runtime module list and only converts a layer that is a real
    `nn.Linear` whose weight is present in the runtime state dict.
 
+4. **Keys the runtime never loads are dropped from the pack.** The checkpoint
+   ships a full `detector.backbone.language_backbone.encoder` subtree (292
+   tensors, 673.2 MB) that the ComfyUI runtime replaces with a single `resizer`
+   Linear. Measured: zeroing all 292 tensors leaves both the tracker mask and
+   the detector boxes/scores/masks bit-identical (maxabs diff 0.00000000), so
+   they are dead weight. Dropping them takes the pack from 1623.6 MB to
+   950.4 MB - by far the largest single size win of the whole pipeline, and one
+   that has nothing to do with the quantization threshold.
+
 With rules 1-3 applied, the measured quality gate on the real loader path is:
 tracker mask flip 0.0016 / IoU 0.9983; the remaining detector-path difference
 is a bfloat16-vs-float16 dtype effect, not a quantization effect (measured by
@@ -58,6 +67,16 @@ from safetensors.torch import save_file
 
 GROUP_SIZE = 256
 DEFAULT_DRIFT_THRESHOLD = 0.05
+
+# Checkpoint keys under this prefix are never loaded by the ComfyUI runtime.
+# Measured: zeroing all 292 of them (673.2 MB) leaves BOTH the tracker mask and
+# the detector boxes/scores/masks bit-identical, i.e. they are dead weight. The
+# runtime replaces the language backbone with a single `resizer` Linear, so the
+# whole encoder subtree is dropped from the pack instead of being shipped as
+# fp16.
+DEAD_PREFIXES = (
+    "detector.backbone.language_backbone.encoder.",
+)
 
 
 def build_hadamard(size, dtype=torch.float32):
@@ -143,11 +162,14 @@ def convert(input_path, output_path, impact_json, comfy_path,
     out = {}
     meta_layers = {}
     n_lin = n_prot = n_kept = 0
-    n_no_runtime = n_nonlinear = 0
+    n_no_runtime = n_nonlinear = n_dead = 0
     h = build_hadamard(GROUP_SIZE)
     for key in sorted(tensors):
         t = tensors[key]
         if ".attn.freqs_cis" in key:
+            continue
+        if key.startswith(DEAD_PREFIXES):
+            n_dead += 1
             continue
         if not (key.endswith(".weight") and t.ndim in (2, 4)
                 and t.dtype in (torch.float16, torch.float32, torch.bfloat16)):
@@ -187,6 +209,7 @@ def convert(input_path, output_path, impact_json, comfy_path,
     print(f"\nSaving: {output_path}")
     print(f"  ConvRot INT8 Linear: {n_lin}")
     print(f"  protected (drift or shape): {n_prot}")
+    print(f"  dropped (dead, runtime never loads): {n_dead}")
     print(f"  kept (no runtime module / not Linear): {n_no_runtime} / {n_nonlinear}")
     print(f"  kept as-is (1D, buffers): {n_kept}")
     save_file(out, output_path, metadata=metadata)
