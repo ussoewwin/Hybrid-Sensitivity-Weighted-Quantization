@@ -20,7 +20,7 @@ For a SAM checkpoint `W` (the FP16 source), the method produces:
 
 1. **An output-drift ranking** over the checkpoint's ConvRot-eligible modules, where the drift of a module is the relative MSE of the model's output when only that module is replaced by its ConvRot INT8 reconstruction.
 2. **A protection set** derived from that ranking: every module whose measured drift exceeds the threshold is kept in its original precision (FP16/BF16), and every remaining eligible module is converted to ConvRot INT8. Only 2D `nn.Linear` layers whose input width is a multiple of 256 are eligible - see Section 4 for why the scope is exactly that.
-3. **A pack** in the ComfyUI `int8_tensorwise` layout with `comfy_quant` stamps and a `_quantization_metadata` section.
+3. **A pack** in the ComfyUI `int8_tensorwise` layout with `comfy_quant` stamps and a `_quantization_metadata` section. Keys the runtime never loads are dropped rather than shipped in FP16 - the largest single size win, and independent of the quantization.
 
 ### 1.2 The central claim, and why SAM needs its own version of it
 
@@ -198,6 +198,7 @@ The scope is narrower than the ControlNet case, and that is a hard requirement o
 1. **Only Linear layers are quantized.** ComfyUI's INT8 load path attaches an INT8 `QuantizedTensor` to Linear layers; Conv2d layers stay FP16. A pack that also quantized Conv2d therefore loaded as a **mixed** model - the Conv2d entries were read back as unrotated INT8 while the runtime kept FP16 - and the tracker mask came out inverted (measured pixel flip 0.966, IoU 0.000).
 2. **The group size is fixed at 256.** ComfyUI's ConvRot kernel is 2D-only and its fused path activates only for `convrot_groupsize == 256` (`comfy/ops.py`, `comfy_kitchen/backends/cuda`). A Linear whose input width is not a multiple of 256 cannot be rotated by that kernel and is read back unrotated, so it corrupts the output; such layers stay in their original precision.
 3. **Only modules the runtime actually has are considered.** The checkpoint stores more parameter names than the ComfyUI runtime exposes (many are folded or initialized from scratch). Quantizing a name the runtime does not have produces a mixed model; the converter therefore asks ComfyUI for the runtime module list and only converts a layer that is a real `nn.Linear` whose weight is present in the runtime state dict.
+4. **Keys the runtime never loads are dropped from the pack.** The checkpoint ships a full `detector.backbone.language_backbone.encoder` subtree (292 tensors, 673.2 MB) that the ComfyUI runtime replaces with a single `resizer` Linear. Measured: zeroing all 292 tensors leaves both the tracker mask and the detector boxes/scores/masks **bit-identical** (maxabs diff 0.00000000), so they are dead weight. Dropping them is the single largest size win of the pipeline - see Section 5.
 
 With this scope the measured gate is: **tracker mask flip 0.0016 / IoU 0.9983 / logit relMSE 4.3e-04**. The remaining detector-path difference is a **dtype effect, not a quantization effect**: comparing FP16 weights with bfloat16 activations against INT8 weights with bfloat16 activations gives tracker flip 0.0012 and detector IoU 0.951, i.e. the same magnitude as the FP16-fp16 vs FP16-bf16 difference.
 
@@ -225,17 +226,20 @@ The group size is **fixed at 256**. It must divide the input dimension and be a 
 | Property | Threshold 0.05 | Threshold 0.02 |
 | :--- | :--- | :--- |
 | Output | `sam3.1_multiplex_convrot_int8_t005.safetensors` | `sam3.1_multiplex_convrot_int8_t002.safetensors` |
-| Size | **1623.6 MB** (1.586 GB) | **1657.6 MB** (1.619 GB) |
-| Reduction vs 1664.7 MB source | 2.5 % | 0.4 % |
+| Size | **950.4 MB** (0.93 GB) | **984.4 MB** (0.96 GB) |
+| Reduction vs 1664.7 MB source | **42.9 %** | 40.9 % |
 | ConvRot INT8 Linear | **65** | **41** |
 | INT8 payload | 41.3 MB | 7.1 MB |
+| Dropped (dead, runtime never loads) | 292 tensors / **673.2 MB** | 292 / 673.2 MB |
 | Protected (drift or shape) | 156 | 180 |
-| Kept as-is (1D, buffers) | 1068 | 1068 |
 | Measured tracker mask IoU vs FP16 | **0.9983** | - |
 
 A lower threshold means **more protected modules**, hence a **larger** pack - the same relationship the ControlNet packs show (174 protected -> 1783 MB, 105 -> 1570 MB, 61 -> 1397 MB).
 
-**Why the pack is only 2.5 % smaller.** The size is dominated by the parameter names the runtime *does not* use. Of the 489 Linear layers the ComfyUI runtime has, only **221 receive a weight from this checkpoint** (the other 268 are initialized by the runtime itself); of those 221, only **184 have an input width that is a multiple of 256**, and 119 of them are protected at the 0.05 threshold. That leaves exactly the 65 quantized layers. The checkpoint's own 468 2D weights include many names the runtime never loads (folds), and the bulk of the remaining bytes are the fp16 weights the runtime keeps in full precision plus the 1D/buffer tensors. This is not a limitation of the threshold but of how many layers of this checkpoint are both runtime-live and 256-wide.
+**Where the size actually comes from.** The pack is smaller than the source for two independent reasons, and the larger one is not the quantization:
+
+- **Dead weight dropped: 673.2 MB.** The checkpoint's `detector.backbone.language_backbone.encoder` subtree (292 tensors) is never loaded by the runtime, which replaces the language backbone with one `resizer` Linear. Zeroing all 292 tensors leaves both measured paths bit-identical, so they are shipped nowhere.
+- **INT8 payload: 41.3 MB** (t005). Only **65** Linear layers are quantized. Of the 489 Linear layers the ComfyUI runtime has, only **221 receive a weight from this checkpoint** (the other 268 are initialized by the runtime); of those 221, only **184 have an input width that is a multiple of 256**; 119 of them are protected at the 0.05 threshold, leaving exactly 65.
 
 ---
 
@@ -269,6 +273,12 @@ python clip_convert/convert_sam31_convrot_int8.py \
 
 **Zero drift means "not executed", not "safe".** 162 of the 551 measured modules measured exactly 0.0 because neither measured path reaches them (`propagation_convs`, the plain `sam_mask_decoder`, the memory fuser). Those modules are **unmeasured, not verified safe**. A future measurement of the video / propagation path would be needed to cover them.
 
+**Run the quality gate through the real loader path.** Loading the pack with a plain `comfy.sd.load_diffusion_model_state_dict(sd, model_options={})` does **not** arm the ConvRot patch, so even a correct pack comes back as NaN or an inverted mask. The gate must load the way `HSWQ SAM3 Loader` does: `apply_comfy_quant_int8_patches()` plus `MixedPrecisionOps(int8_tensorwise)`. Measuring through the wrong path is the easiest way to misdiagnose a pack.
+
+**A checkpoint key that `load_state_dict` reports as `unexpected` is not necessarily dead.** The loader remaps many names before the comparison (e.g. the whole `tracker.model.*` subtree is loaded into the runtime under different names), so the `unexpected_keys` list overstates what is unused. Determine dead weight by **zeroing the family and checking whether the output changes**, on both paths - not by reading `unexpected_keys`. With that test only `detector.backbone.language_backbone.encoder` (292 tensors, 673.2 MB) is dead.
+
+**Drop the dead weight.** Keeping the dead `language_backbone.encoder` subtree in the pack costs 673.2 MB for zero effect. Removing it is what takes the pack from 1623.6 MB to 950.4 MB.
+
 **Read the safetensors header correctly.** Tensor data starts at `8 + header_length + data_offset`. Reading at `data_offset` yields garbage values that look like plausible but meaningless statistics.
 
 **Do not use static weight statistics as the protection criterion.** They may be used as a cheap screen to choose which modules are worth measuring, but the decision must come from the measurement.
@@ -287,7 +297,7 @@ python clip_convert/convert_sam31_convrot_int8.py \
 | Threshold | **0.05** |
 | Most fragile group | `tracker.interactive_sam_mask_decoder.*` - 9 modules at drift 10.64 (vs 0.12 typical) |
 | Unmeasured remainder | 162 modules (video / propagation paths) - measured drift 0.0 |
-| Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata` |
-| Result | 1664.7 MB -> 1623.6 MB; 65 ConvRot INT8 Linear; 156 protected; measured tracker mask IoU 0.9983 |
+| Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata`; runtime-dead keys dropped |
+| Result | 1664.7 MB -> 950.4 MB (42.9 % smaller); 65 ConvRot INT8 Linear; 156 protected; 292 dead tensors (673.2 MB) dropped; measured tracker mask IoU 0.9983 |
 
 The essential point for SAM is the same as for any other model, but with one addition: because the observable is a **discrete segmentation decision** rather than a smooth latent, the measured output drift is the only thing that speaks for the quality of the mask - and the measurement has to exercise **every path** the model offers, or half of it stays unverified.
