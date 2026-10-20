@@ -1,26 +1,24 @@
 # -*- coding: utf-8 -*-
-"""SAM 3.1 Multiplex ConvRot INT8 converter with measured FP16 protection.
+"""SAM 3.1 Multiplex ConvRot INT8 converter driven by measured trajectory impact.
 
-SAM 3 / SAM 3.1 are foundation segmentation models - a single standard weight
-layout each, like text encoders - so they get an individually built converter
-with measured FP16 protection rather than the universal HSWQ engine (which
-targets per-checkpoint image-generation backbones).
+The protection set comes from a trajectory-impact measurement of THIS
+checkpoint (sibling script sdxl/diag_impact_sam31.py), not from static weight
+statistics. For SAM the measured quantity is the drift of the model's own
+output (mask logits from the tracker SAM-decoder path + the detector's
+boxes/scores/masks from the text path) when a single layer is replaced by its
+ConvRot INT8 reconstruction.
 
-Protection set = measured risk (kurtosis / outlier ratio = absmax/std) on all
-522 finite 2D+4D weights of sam3.1_multiplex_fp16.safetensors (2026-10-20):
-
-  dominant family: vision backbone qkv  (kurt up to 19,036, median 5,252)
-  language backbone out_proj            (kurt up to 39,567, median 675)
-  language backbone mlp.c_fc            (kurt up to 1,710, median 315)
-  vision backbone mlp.fc1               (kurt median 459)
-  cross-attention / mask-decoder attention projections (kurt 250-720)
-
-The fused QKV in_proj tensors are split before quantization (the same
-preprocessing the generic converter uses, and the loader expects). freqs_cis
-buffers are dropped. SAM 3.1 keeps its (1024,1024) text_projection.
+Because a SAM model produces masks rather than a denoising trajectory, the
+drift scale is different from the ControlNet case: the measured distribution
+runs from 0 to ~10.6, with a median of 2.4e-03, so the threshold has to be
+chosen on this model's own distribution (see the shipped default).
 
 Usage:
-  python clip_convert/convert_sam31_convrot_int8.py --input sam3.1_multiplex_fp16.safetensors --output sam3.1_multiplex_convrot_int8_protected.safetensors
+  python clip_convert/convert_sam31_convrot_int8.py \
+      --input sam3.1_multiplex_fp16.safetensors \
+      --output sam3.1_multiplex_convrot_int8_t005.safetensors \
+      --impact impact/impact_sam3.1_multiplex.json \
+      --drift-threshold 0.05
 """
 from __future__ import annotations
 
@@ -28,46 +26,16 @@ import argparse
 import json
 import math
 import os
-import re
 
 import torch
 from safetensors import safe_open
 from safetensors.torch import save_file
 
 DEFAULT_GROUP = 256
-
-# --- protection rule (measured 2026-10-20, structural) ----------------------
-# Any key matching one of these regexes is kept FP16 (protected).
-_PROTECT_REGEXES = [
-    # detector vision backbone: attention qkv (dominant family) + mlp fc1
-    re.compile(r"^detector\.backbone\.vision_backbone\.trunk\.blocks\.\d+\.attn\.qkv\.weight$"),
-    re.compile(r"^detector\.backbone\.vision_backbone\.trunk\.blocks\.\d+\.mlp\.fc1\.weight$"),
-    # detector language backbone: attention out_proj + mlp c_fc (and c_proj tail)
-    re.compile(r"^detector\.backbone\.language_backbone\.encoder\.transformer\.resblocks\.\d+\.attn\.out_proj\.weight$"),
-    re.compile(r"^detector\.backbone\.language_backbone\.encoder\.transformer\.resblocks\.\d+\.mlp\.c_fc\.weight$"),
-    # tracker mask-decoder / transformer attention projections (kurt 250-720)
-    re.compile(r"^tracker\.model\.interactive_sam_mask_decoder\.transformer\.final_attn_token_to_image\.v_proj\.weight$"),
-    re.compile(r"^tracker\.model\.sam_mask_decoder\.transformer\.final_attn_token_to_image\.v_proj\.weight$"),
-    re.compile(r"^tracker\.model\.transformer\.encoder\.layers\.\d+\.image_cross_attn_q_proj\.weight$"),
-    re.compile(r"^tracker\.model\.interactive_sam_mask_decoder\.transformer\.layers\.\d+\.cross_attn_image_to_token\.v_proj\.weight$"),
-    re.compile(r"^tracker\.model\.obj_ptr_tpos_proj\.weight$"),
-    re.compile(r"^tracker\.model\.interactive_sam_mask_decoder\.transformer\.layers\.\d+\.self_attn\.q_proj\.weight$"),
-    re.compile(r"^tracker\.model\.transformer\.encoder\.layers\.\d+\.cross_attn_out_proj\.weight$"),
-    re.compile(r"^tracker\.model\.maskmem_backbone\.fuser\.layers\.\d+\.pwconv1\.weight$"),
-    re.compile(r"^tracker\.model\.interactive_sam_mask_decoder\.transformer\.layers\.\d+\.cross_attn_token_to_image\.k_proj\.weight$"),
-    re.compile(r"^detector\.geometry_encoder\.points_pool_project\.weight$"),
-    re.compile(r"^tracker\.model\.interactive_sam_mask_decoder\.transformer\.layers\.\d+\.cross_attn_token_to_image\.v_proj\.weight$"),
-    re.compile(r"^tracker\.model\.transformer\.encoder\.layers\.\d+\.self_attn_v_proj\.weight$"),
-]
+DEFAULT_DRIFT_THRESHOLD = 0.05
 
 
-def is_protected_sam_weight(key: str) -> bool:
-    return any(rx.match(key) for rx in _PROTECT_REGEXES)
-
-
-# --- pack math (identical to the generic converter) -------------------------
-
-def build_hadamard(size: int, dtype: torch.dtype = torch.float32) -> torch.Tensor:
+def build_hadamard(size, dtype=torch.float32):
     if size < 4 or (size & (size - 1)) != 0 or math.log(size, 4) % 1 != 0:
         raise ValueError(f"Hadamard size must be a power of 4, got {size}")
     h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=dtype)
@@ -79,7 +47,7 @@ def build_hadamard(size: int, dtype: torch.dtype = torch.float32) -> torch.Tenso
     return h / (size ** 0.5)
 
 
-def convrot_group_size(n: int, preferred: int = 256) -> int | None:
+def convrot_group_size(n, preferred=256):
     gs = preferred
     while gs >= 4:
         if n % gs == 0 and math.log(gs, 4) % 1 == 0:
@@ -88,145 +56,127 @@ def convrot_group_size(n: int, preferred: int = 256) -> int | None:
     return None
 
 
-def rotate_weight(weight: torch.Tensor, h: torch.Tensor, gs: int) -> torch.Tensor:
-    out_f, in_f = weight.shape
-    if in_f % gs != 0:
-        raise ValueError(f"in_features {in_f} not divisible by group size {gs}")
-    g = in_f // gs
-    return torch.matmul(weight.view(out_f, g, gs), h.T.to(weight.dtype)).reshape(weight.shape)
+def rotate_weight(w, h, gs):
+    of, inf = w.shape
+    g = inf // gs
+    return torch.matmul(w.view(of, g, gs), h.T.to(w.dtype)).reshape(w.shape)
 
 
-def quantize_int8_rowwise(w: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+def rotate_weight_conv2d(w, h, gs):
+    oc, ic, kh, kw = w.shape
+    flat = w.permute(0, 2, 3, 1).contiguous().view(-1, ic)
+    return rotate_weight(flat, h, gs).view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
+
+
+def quant_rowwise(w):
     amax = w.abs().amax(dim=-1, keepdim=True).float().clamp(min=1e-30)
-    scale = amax / 127.0
-    q = (w / scale.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
-    return q, scale.to(torch.float32)
+    s = amax / 127.0
+    q = (w / s.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
+    return q, s.to(torch.float32)
 
 
-def _encode_meta(config: dict) -> torch.Tensor:
+def quant_channelwise(w):
+    rd = tuple(range(1, w.dim()))
+    amax = torch.clamp(w.abs().amax(dim=rd), min=1e-30).float()
+    s = amax / 127.0
+    v = s.view(-1, *([1] * (w.dim() - 1)))
+    av = amax.view(-1, *([1] * (w.dim() - 1)))
+    q = (torch.clamp(w, -av, av) / v).round().clamp(-127, 127).to(torch.int8)
+    return q, s.to(torch.float32)
+
+
+def _encode(config):
     return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
 
-# --- SAM preprocessing (same as the generic converter) ----------------------
+def _preprocess_sam31(keys, tensors):
+    """SAM preprocessing: drop freqs_cis buffers, keep everything else.
 
-def _detect_sam_version(keys) -> str | None:
-    if not any(k.startswith("detector.") for k in keys):
-        return None
-    if any("propagation_convs" in k for k in keys):
-        return "SAM31"
-    if any("sam2_convs" in k for k in keys) or any("vision_backbone.convs.3" in k for k in keys):
-        return "SAM3"
-    return None
-
-
-def _preprocess_sam(keys, tensors: dict) -> dict:
-    version = _detect_sam_version(keys)
-    drop_text_projection = (version == "SAM3")
+    The standalone SAM 3.1 checkpoint already stores the split q/k/v layout
+    (the fused in_proj split is applied by the generic clip converter for
+    sam3.pt; sam3.1_multiplex stores q_proj/k_proj/v_proj directly), so no key
+    surgery is needed here beyond dropping the rotary buffers.
+    """
     out = {}
     for k, v in tensors.items():
         if ".attn.freqs_cis" in k:
-            continue
-        if k.startswith("tracker.model."):
-            k = "tracker." + k[len("tracker.model."):]
-        if "sam_mask_decoder.transformer." in k:
-            k = (k.replace(".mlp.lin1.", ".mlp.0.")
-                  .replace(".mlp.lin2.", ".mlp.2.")
-                  .replace(".norm_final_attn.", ".norm_final."))
-        if drop_text_projection and "encoder.text_projection" in k:
-            continue
-        if k.endswith((".in_proj_weight", ".in_proj_bias")):
-            base, suffix = k.rsplit(".in_proj_", 1)
-            s = ".weight" if suffix == "weight" else ".bias"
-            d = v.shape[0] // 3
-            out[f"{base}.q_proj{s}"] = v[:d].clone()
-            out[f"{base}.k_proj{s}"] = v[d:2 * d].clone()
-            out[f"{base}.v_proj{s}"] = v[2 * d:].clone()
             continue
         out[k] = v
     return out
 
 
-# --- converter --------------------------------------------------------------
-
-def convert(input_path: str, output_path: str, group_size: int = DEFAULT_GROUP):
+def convert(input_path, output_path, impact_json, group_size=DEFAULT_GROUP,
+            drift_threshold=DEFAULT_DRIFT_THRESHOLD):
     print(f"Loading (streamed): {input_path}")
     src = safe_open(input_path, framework="pt", device="cpu")
     keys = sorted(src.keys())
     print(f"  raw keys: {len(keys)}")
 
+    impacts = json.load(open(impact_json, encoding="utf-8"))["impacts"]
+    # the impact JSON stores runtime module names ("<path>.<layer>"); the
+    # checkpoint stores the same paths plus ".weight", so the mapping is direct.
+    protect = set()
+    for n, drift in impacts.items():
+        if drift > drift_threshold:
+            protect.add(n)
+    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
+    for p in sorted(protect)[:15]:
+        print(f"    {p}  ({impacts[p]:.4e})")
+    if len(protect) > 15:
+        print(f"    ... ({len(protect) - 15} more)")
+
     tensors = {k: src.get_tensor(k) for k in keys}
-    version = _detect_sam_version(keys)
-    print(f"  detected: {version}")
-    tensors = _preprocess_sam(keys, tensors)
-    print(f"  preprocessed keys: {len(tensors)}")
+    tensors = _preprocess_sam31(keys, tensors)
 
     out = {}
     meta_layers = {}
-    n_convrot = n_prot = n_kept = 0
-    protected_list = []
-    fallback_list = []
+    n_lin = n_conv = n_prot = n_kept = 0
     h_cache = {}
-
     for key in sorted(tensors):
-        tensor = tensors[key]
-        is_2d_weight = (
-            key.endswith(".weight")
-            and tensor.ndim == 2
-            and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
-        )
-        if not is_2d_weight:
-            out[key] = tensor
+        t = tensors[key]
+        if not (key.endswith(".weight") and t.ndim in (2, 4)
+                and t.dtype in (torch.float16, torch.float32, torch.bfloat16)):
+            out[key] = t
             n_kept += 1
             continue
-        if is_protected_sam_weight(key):
-            out[key] = tensor
+        mk = key[: -len(".weight")]
+        if mk in protect:
+            out[key] = t
             n_prot += 1
-            protected_list.append(key)
             continue
-        w = tensor.float()
-        out_f, in_f = w.shape
-        module_key = key[: -len(".weight")]
-        gs = convrot_group_size(in_f, group_size)
+        w = t.float()
+        gs = convrot_group_size(w.shape[1], group_size)
         if gs is None:
-            fallback_list.append(key)
-            q, scale = quantize_int8_rowwise(w)
+            q, scale = quant_rowwise(w)
             conf = {"format": "int8_tensorwise"}
         else:
             if gs not in h_cache:
                 h_cache[gs] = build_hadamard(gs)
-            w_rot = rotate_weight(w, h_cache[gs], gs)
-            q, scale = quantize_int8_rowwise(w_rot)
+            if t.ndim == 2:
+                q, scale = quant_rowwise(rotate_weight(w, h_cache[gs], gs))
+                n_lin += 1
+            else:
+                q, scale = quant_channelwise(rotate_weight_conv2d(w, h_cache[gs], gs))
+                n_conv += 1
             conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": int(gs)}
         out[key] = q
-        out[f"{module_key}.weight_scale"] = scale
-        out[f"{module_key}.comfy_quant"] = _encode_meta(conf)
-        meta_layers[module_key] = conf
-        n_convrot += 1
+        out[f"{mk}.weight_scale"] = scale
+        out[f"{mk}.comfy_quant"] = _encode(conf)
+        meta_layers[mk] = conf
 
-    metadata = {"_quantization_metadata": json.dumps({"format_version": "1.0", "layers": meta_layers})}
-
-    print(f"\nProtected (kept FP16): {n_prot}")
-    for k in protected_list[:12]:
-        print(f"  {k}")
-    if n_prot > 12:
-        print(f"  ... ({n_prot - 12} more)")
-    for k in fallback_list:
-        print(f"  [WARN] {k}: in_features not power-of-4 divisible, plain INT8")
-
+    metadata = {"_quantization_metadata": json.dumps({"format_version": "1.0", "layers": meta_layers}, separators=(",", ":"))}
     print(f"\nSaving: {output_path}")
-    print(f"  ConvRot INT8:    {n_convrot}")
-    print(f"  FP16 protected:  {n_prot}")
-    print(f"  Kept as-is:      {n_kept}")
+    print(f"  ConvRot INT8 Linear: {n_lin}  Conv2d: {n_conv}  protected: {n_prot}  kept: {n_kept}")
     save_file(out, output_path, metadata=metadata)
-    print(f"  Input:  {os.path.getsize(input_path) / (1024**3):.2f} GB")
-    print(f"  Output: {os.path.getsize(output_path) / (1024**3):.2f} GB")
-    print("Done!")
+    print(f"  Input {os.path.getsize(input_path)/(1024**3):.2f} GB -> Output {os.path.getsize(output_path)/(1024**3):.2f} GB")
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="SAM 3.1 Multiplex ConvRot INT8 converter with measured FP16 protection")
+    ap = argparse.ArgumentParser(description="SAM 3.1 ConvRot INT8 converter with measured trajectory protection")
     ap.add_argument("--input", required=True)
     ap.add_argument("--output", required=True)
+    ap.add_argument("--impact", required=True)
     ap.add_argument("--groupsize", type=int, default=DEFAULT_GROUP)
-    args = ap.parse_args()
-    convert(args.input, args.output, group_size=args.groupsize)
+    ap.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD)
+    a = ap.parse_args()
+    convert(a.input, a.output, a.impact, group_size=a.groupsize, drift_threshold=a.drift_threshold)
