@@ -124,7 +124,7 @@ The implementation supports two modes:
 
 ### 3.4 Runtime-module to checkpoint-key mapping
 
-The impact JSON stores **ComfyUI runtime module names** (`input_blocks.2.0.in_layers.2`), because that is what the loaded model exposes. The checkpoint stores **diffusers-format keys** (`down_blocks.0.resnets.1.conv1`). The two are related by ComfyUI's own converter, `comfy.utils.unet_to_diffusers`, applied to the checkpoint's inferred UNet config. The converter uses that mapping in reverse, so **no hand-maintained name table exists** and the mapping cannot drift from ComfyUI's behaviour.
+The impact JSON stores **ComfyUI runtime module names** (`input_blocks.2.0.in_layers.2`), because that is what the loaded model exposes. The checkpoint stores **diffusers-format keys** (`controlnet_down_blocks.N.weight`, `controlnet_cond_embedding.*`), which ComfyUI remaps at load time to the comfy names (`zero_convs.N.0`, `input_hint_block.N`, `input_blocks.*`). The pack must be written under the **runtime (comfy) names** - see Section 4.4 for why writing under the checkpoint's own diffusers names produces a black image.
 
 ---
 
@@ -134,25 +134,47 @@ The impact JSON stores **ComfyUI runtime module names** (`input_blocks.2.0.in_la
 
 | Weight kind | Treatment |
 | :--- | :--- |
-| 2D Linear (`ndim == 2`) | ConvRot INT8 (rotated + per-out-channel INT8) unless protected |
-| 4D Conv2d (`ndim == 4`) | ConvRot INT8 (rotated along in\_channels + per-channel INT8) unless protected |
+| 2D Linear, input width a multiple of 256, not protected | ConvRot INT8 (rotated + per-out-channel INT8) |
+| 2D Linear, protected by drift | Kept in original precision (byte-exact) |
+| 2D Linear, input width not a multiple of 256 | Kept in original precision |
+| 4D Conv2d | Kept in original precision |
 | 1D / bias / buffers / non-float | Kept in original precision |
-| Protected layer | Kept in original precision (byte-exact) |
 
-The protection decision applies to both 2D and 4D weights; a Conv2d whose measured drift is large stays in FP16 exactly like a Linear.
+**Why the scope is exactly this.** Three facts were established by a measured gate against the FP16 ControlNet **through the real ComfyUI loader path** (`apply_comfy_quant_int8_patches` + `MixedPrecisionOps(int8_tensorwise)`, i.e. the `HSWQ ControlNet Loader` node):
+
+1. **Only 2D Linear layers are quantized.** ComfyUI's INT8 load path attaches a QuantizedTensor to Linear layers only; Conv2d layers stay FP16. Quantizing Conv2d produced a mixed model.
+2. **The group size is fixed at 256.** The ConvRot kernel is 2D-only and its fused path activates only at `convrot_groupsize == 256`. A Linear whose input width is not a multiple of 256 is read back unrotated and corrupts the output.
+3. **The pack must be written under the runtime (comfy) key names - not the checkpoint's diffusers names.** This was the cause of a shipped pack that produced a **black image** (see Section 4.4).
 
 ### 4.2 Pack layout
 
 ```
 <layer>.weight           int8
-<layer>.weight_scale     float32  ([out,1] for Linear / [out,1,1,1] for Conv2d)
-<layer>.comfy_quant      uint8 JSON  {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":N}
+<layer>.weight_scale     float32  ([out,1])
+<layer>.comfy_quant      uint8 JSON  {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}
 _quantization_metadata   JSON  {"format_version":"1.0","layers":{...}}
 ```
 
+`<layer>` is a **runtime (comfy) module name** - `input_blocks.*`, `zero_convs.N.0`, `input_hint_block.N`, ... - not the checkpoint's diffusers name.
+
 ### 4.3 Group size
 
-The Hadamard group size must divide the input dimension and be a power of 4. The converter picks the largest such size not exceeding 256. When no valid group size exists for a layer (for example a 3-channel conv\_in), that layer falls back to plain per-channel INT8 and is reported as a warning - it is never silently skipped.
+The group size is **fixed at 256** (it must divide the input dimension and be a power of 4; the fused ConvRot path only activates at 256). A Linear whose input width is not a multiple of 256 is not quantized at all rather than quantized at a smaller group size.
+
+### 4.4 Key naming: the diffusers-to-comfy remap
+
+ComfyUI loads an SDXL ControlNet through its **diffusers** branch, which remaps the checkpoint's diffusers-style names to the comfy-style names the runtime actually builds:
+
+| Checkpoint (diffusers) | Runtime (comfy) |
+| :--- | :--- |
+| `controlnet_down_blocks.N.weight` | `zero_convs.N.0.weight` |
+| `controlnet_cond_embedding.conv_in` / `.blocks.N` / `.conv_out` | `input_hint_block.2N` / `.2N+2` |
+| `controlnet_mid_block.weight` | `middle_block_out.0.weight` |
+| `controlnet_cond_embedding.*` (the rest) | `input_blocks.*` |
+
+A quantized pack **must be written under the runtime names**. If the quantized weights are written under the checkpoint's diffusers names, the remap moves only `.weight` and leaves `.weight_scale` / `.comfy_quant` behind; the runtime then sees a bare int8 tensor with no quant metadata and the model outputs NaN - a **black image**.
+
+Measured on the broken pack: **340 of 346** quantized modules did not exist in the runtime module graph, and only **3** of the 369 runtime Linear layers received a QuantizedTensor. The converter now builds the ControlNet the way the runtime does, takes the runtime module graph as the source of truth, and writes the pack under the runtime names.
 
 ---
 
@@ -245,17 +267,17 @@ The shipped packs use **0.15**.
 
 | Property | A | B | U (union-pro-max) |
 | :--- | :--- | :--- | :--- |
-| Source | `CN-anytest4_illustrious2_A.safetensors` (2.33 GB, BF16) | `CN-anytest4_illustrious2_B.safetensors` (2.33 GB, BF16) | `controlnet-union-pro-max-sdxl-1.0.safetensors` (2.34 GB, F16) |
-| Output | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | `CN-anytest4_illustrious2_B_hswq_convrot_int8.safetensors` | `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8_t015.safetensors` |
-| Size | **1783.1 MB** (1.66 GB) | **1570.3 MB** (1.46 GB) | **1397.1 MB** (1.30 GB) |
-| Reduction vs source | 23.6 % | 32.6 % | 40.3 % |
-| Protected (drift > 0.15) | **174 layers** | **105 layers** | **61 layers** |
-| ConvRot INT8 | 208 Linear + 18 Conv2d | 277 Linear + 18 Conv2d | 322 Linear + 23 Conv2d |
-| INT8 payload | 720.9 MB | 934.4 MB | 1119.1 MB |
-| FP16/BF16 retained | 1060.2 MB | 633.2 MB | 275.1 MB |
-| Load check | 1298 keys, 227 `comfy_quant` | 1436 keys, 296 `comfy_quant` | 1555 keys, 346 `comfy_quant` |
+| Source | `CN-anytest4_illustrious2_A.safetensors` (2386.2 MB) | `CN-anytest4_illustrious2_B.safetensors` (2386.2 MB) | `controlnet-union-pro-max-sdxl-1.0.safetensors` (2396.9 MB) |
+| Output | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | `CN-anytest4_illustrious2_B_hswq_convrot_int8_t015.safetensors` | `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors` |
+| Size | **1718.6 MB** | **1533.2 MB** | **1443.5 MB** |
+| Reduction vs source | 28.0 % | 35.7 % | 39.8 % |
+| Protected (drift > 0.15) | 190 | 117 | 74 |
+| ConvRot INT8 Linear | **196** | **257** | **298** |
+| INT8 payload | 669.4 MB | 855.3 MB | 955.9 MB |
+| Load check | 1236 keys, 196 `comfy_quant` | 1358 keys, 257 `comfy_quant` | 1459 keys, 298 `comfy_quant` |
+| Measured gate (cos vs FP16, real loader path) | **0.999875** (relMSE 3.86e-04) | **1.000044** (relMSE 1.28e-04) | **0.999646** (relMSE 8.96e-04) |
 
-The size ordering follows the protected-layer ordering exactly: A protects the most layers and is therefore the largest pack; U protects the fewest and is the smallest. The pack size is a direct consequence of the measured protection set - not of the quantization scope, which is identical for all three.
+The size ordering follows the protected-layer ordering: A protects the most layers and is therefore the largest pack; U protects the fewest and is the smallest. The pack size is a direct consequence of the measured protection set - not of the quantization scope, which is identical for all three.
 
 ## 6. Why a Full Sweep Was Necessary
 
@@ -407,11 +429,11 @@ The residual per-layer differences come from non-deterministic GPU reductions (c
 
 **Do not reuse another checkpoint's protection set.** Three checkpoints of the same architecture require **190 / 117 / 74** protected layers at the same 0.15 threshold - a factor of 2.6 between the most and the least (Section 5.3). One of them additionally has a single layer with drift 3.734, which the other two do not have at all.
 
-**The Conv2d scope is a design decision, not an accident.** Some ControlNet converters quantize only 2D Linear weights and leave every Conv2d in FP16. That is a valid choice, but it is a different pack from "everything ConvRot-eligible is quantized, with the measured exceptions". Both exist in the wild; they are not comparable by size, because the protected-set size differs.
+**The Conv2d scope is a hard requirement, not a design decision.** ComfyUI's INT8 load path attaches a QuantizedTensor to 2D Linear layers only; Conv2d layers stay FP16. Quantizing Conv2d produced a mixed model that output NaN.
 
-**Verify the load path.** A pack with `comfy_quant` stamps is loaded natively by ComfyUI for ControlNet only when the layer set and the `comfy_quant` metadata are consistent. Always confirm with `comfy.utils.load_torch_file` that the pack loads and that the expected number of `comfy_quant` entries is present.
+**Write the pack under the runtime (comfy) key names.** The single most damaging pitfall: ComfyUI remaps the checkpoint's diffusers names to comfy names, so a pack written under the diffusers names loses its `.weight_scale` / `.comfy_quant` companions in the remap and the runtime reads a bare int8 tensor - the model outputs NaN (a black image). Measured on the broken pack: 340 of 346 quantized modules were absent from the runtime graph. Always build the pack from the runtime module graph (Section 4.4).
 
-**A measured layer count can exceed the number of protected layers.** The impact JSON counts runtime modules; the pack protects checkpoint keys. A handful of runtime modules (for example the `middle_block_out` / `time_embed` entries) have no directly mappable checkpoint key, so 190 measured layers above the threshold map to 174 protected checkpoint keys for checkpoint A, and 117 to 105 for checkpoint B. The pack's own count is the authoritative one.
+**Verify the load path.** Load the pack through the `HSWQ ControlNet Loader` path (`apply_comfy_quant_int8_patches` + `MixedPrecisionOps(int8_tensorwise)`), not with a bare `comfy.sd.load_diffusion_model_state_dict(sd, model_options={})` - the bare path does not arm the ConvRot patch and makes even a correct pack look broken.
 
 ---
 
@@ -425,12 +447,12 @@ The residual per-layer differences come from non-deterministic GPU reductions (c
 | Metric | Mean relative MSE of the per-step latent against the pristine trajectory |
 | Sampler | Production sampler (`dpmpp_2m` / `karras` / CFG 7.0), 20 steps, seed 42 |
 | Threshold | **0.15** |
-| Name mapping | ComfyUI's own `unet_to_diffusers`, inverted - no hand-written table |
-| Quantized scope | 2D Linear + 4D Conv2d, minus the protected set |
-| A pack | 2.33 GB -> 1.66 GB, 208 Linear + 18 Conv2d in INT8, 174 protected |
-| B pack | 2.33 GB -> 1.46 GB, 277 Linear + 18 Conv2d in INT8, 105 protected |
-| U pack | 2.34 GB -> 1.30 GB, 322 Linear + 23 Conv2d in INT8, 61 protected |
-| Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata` |
+| Name mapping | Pack written under the **runtime (comfy) names** - the checkpoint's diffusers names are remapped by ComfyUI |
+| Quantized scope | 2D Linear with input width a multiple of 256, minus the protected set |
+| A pack | 2386.2 MB -> 1718.6 MB, 196 Linear in INT8, 190 protected, gate cos 0.999875 |
+| B pack | 2386.2 MB -> 1533.2 MB, 257 Linear in INT8, 117 protected, gate cos 1.000044 |
+| U pack | 2396.9 MB -> 1443.5 MB, 298 Linear in INT8, 74 protected, gate cos 0.999646 |
+| Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata`, under runtime key names |
 | Operational requirement | Detached process, CPU-side weight clone + reconstruction, 10-layer checkpoint with resume |
 
 The essential point: for a ControlNet, the set of layers that must stay in FP16 is a property of *that checkpoint*, discoverable only by measuring *that checkpoint* in the pipeline it will actually run in. The measurement itself is a full sweep, and the engineering around it - detachment, CPU-side reconstruction, checkpointing - is what makes the full sweep a routine operation rather than a multi-hour, multi-restart ordeal.
