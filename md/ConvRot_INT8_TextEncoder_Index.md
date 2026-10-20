@@ -54,22 +54,10 @@ model-specific by construction.
 | CLIP text (SD1ClipModel) | `CLIPLoader` / `DualCLIPLoader` | `model_options["quantization_metadata"]` -> `SDClipModel` builds `mixed_precision_ops` |
 | llama-family text (Qwen3 / T5) | `CLIPLoader` / `DualCLIPLoader` | automatic: `llama_detect` -> `detect_layer_quantization` -> `llama_quantization_metadata` |
 | CLIP vision | `CLIPVisionLoader` | the stock loader uses `manual_cast`, which does **not** consume `comfy_quant`; the tower must be built with `mixed_precision_ops` |
-| SDXL-embedded CLIP | `CheckpointLoader` | the SDXL-only loader arm (`sdxl_clip_quant.py`) |
 
 ---
 
-## 5. Related records (different scope, still valid)
-
-| document | scope |
-| --- | --- |
-| `md/SDXL_ConvRot_INT8_CLIP_Technical_Record_2026-10-15.md` | the **SDXL-checkpoint-embedded** CLIP (rule-based, SDXL only) - the loader arm lives there |
-| `md/SD1.5_ConvRot_INT8_CLIP_Technical_Record_2026-10-15.md` | the SD1.5 text-encoder path |
-| `md/ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` | ControlNet packs (impact-driven) |
-| `md/SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` | SAM 3.1 pack (impact-driven) |
-
----
-
-## 6. Tooling
+## 5. Tooling
 
 | script | purpose |
 | --- | --- |
