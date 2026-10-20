@@ -117,6 +117,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--comfy_path", required=True)
     ap.add_argument("--steps", type=int, default=20)
+    ap.add_argument("--measure-width", type=int, default=0, help="trajectory width for the impact measurement (0 = use --width)")
+    ap.add_argument("--measure-height", type=int, default=0, help="trajectory height for the impact measurement (0 = use --height)")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--cfg", type=float, default=7.0)
     ap.add_argument("--width", type=int, default=1024)
@@ -252,17 +254,24 @@ def main():
         if n in impacts:
             continue
         m, gs = mods[n]
-        w0 = m.weight.data.clone()
-        rec = convrot_int8_recon(w0, gs)
-        m.weight.data.copy_(rec.to(w0.dtype))
-        del rec
+        w_dev = m.weight.device
+        # keep the original on CPU and compute the reconstruction on CPU:
+        # the GPU peak (clone + reconstruction) is what exhausts a 16 GB card
+        w0 = m.weight.data.detach().to("cpu", copy=True)
         try:
+            rec = convrot_int8_recon(w0, gs)
+            m.weight.data.copy_(rec.to(w0.dtype).to(w_dev))
+            del rec
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             xt = run_traj()
             imp = sum(rel_mse(xt[j], x_ref[j]) for j in range(len(x_ref))) / len(x_ref)
             del xt
         finally:
-            m.weight.data.copy_(w0)
+            m.weight.data.copy_(w0.to(w_dev))
             del w0
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         impacts[n] = imp
         done += 1
         # free VRAM aggressively and checkpoint the partial result

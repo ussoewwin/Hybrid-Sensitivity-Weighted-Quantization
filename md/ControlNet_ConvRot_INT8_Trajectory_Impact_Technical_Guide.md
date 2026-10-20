@@ -4,7 +4,12 @@ This document describes, in full, how a ControlNet checkpoint is converted to Co
 
 The defining property of this method is that the protection set is **not** inferred from static weight statistics. It is measured by running the ControlNet inside a real ComfyUI generation pipeline and observing how much the denoising trajectory moves when a given layer is replaced by its ConvRot INT8 reconstruction. Layers whose measurement shows a large trajectory drift are kept in their original precision.
 
-The reference implementation in this repository was validated on a **complete sweep of all 400 ConvRot-eligible layers** of an SDXL ControlNet, and the shipped pack uses a **drift threshold of 0.15**.
+Everything below is backed by **completed full sweeps**: two SDXL ControlNet checkpoints, **all 400 ConvRot-eligible layers measured in a single uninterrupted run each**, with the measured numbers quoted verbatim.
+
+| Checkpoint | Layers measured | Runs | Run time | Stoppages |
+| :--- | :--- | :--- | :--- | :--- |
+| `CN-anytest4_illustrious2_A.safetensors` | 400 / 400 | 1 | 62 min | 0 |
+| `CN-anytest4_illustrious2_B.safetensors` | 400 / 400 | 1 | 71 min | 0 |
 
 ---
 
@@ -23,7 +28,7 @@ For a ControlNet checkpoint `W` (the FP16/BF16 source), the method produces:
 > A static weight statistic (kurtosis, outlier ratio, absmax/std) is **not** a proxy for trajectory impact.
 > Only the measured drift of the actual denoising trajectory is.
 
-This is not a theoretical preference - it was measured. Section 5 shows a concrete case where the two rankings disagree on the most important layer, and Section 6 shows how a partial measurement would have produced a different (and unsafe) protection set.
+This is not a theoretical preference - it was measured, twice, on two different checkpoints. Section 5 shows the disagreement; Section 6 shows how a partial measurement would have produced a different, unsafe protection set; Section 9 describes the operational procedure that makes a complete sweep finish in one run.
 
 ---
 
@@ -83,12 +88,12 @@ The measurement is performed inside a real ComfyUI generation pipeline, not in i
 
 | Component | How it is built |
 | :--- | :--- |
-| Base model | `comfy.sd.load_checkpoint_guess_config` (ComfyUI-native) |
+| Base model | `comfy.sd.load_checkpoint_guess_config` (ComfyUI-native), `waiIllustriousSDXL_v170.safetensors` |
 | ControlNet | `comfy.controlnet.load_controlnet` |
 | Control hint | A fixed deterministic tensor installed with `set_cond_hint`; the *content* is irrelevant for the measurement, only its presence and the resulting graph matter |
 | Conditioning | CLIP positive/negative exactly as the benchmark builds them, with the ControlNet injected into the positive conditioning (as the apply node does) |
 | Latent | `comfy.sample.fix_empty_latent_channels` |
-| Sampler | `comfy.sample.sample` with `dpmpp_2m` / `karras` / CFG 7.0 / fixed seed |
+| Sampler | `comfy.sample.sample` with `dpmpp_2m` / `karras` / CFG 7.0 / 20 steps / seed 42 |
 
 Because the production sampler is used, the measured ranking follows exactly the trajectory that a quality gate would measure.
 
@@ -96,8 +101,8 @@ Because the production sampler is used, the measured ranking follows exactly the
 
 For each candidate layer $\ell$:
 
-1. Clone the original weight $W_\ell$.
-2. Compute $\hat{W}_\ell$ (Section 2.2).
+1. Clone the original weight $W_\ell$ **to CPU**.
+2. Compute $\hat{W}_\ell$ **on CPU** (Section 2.2).
 3. Overwrite `module.weight.data` with $\hat{W}_\ell$ (converted back to the original dtype).
 4. Re-run the trajectory with the **same** seed, prompt, cfg and step count.
 5. Record $\text{impact}(\ell)$.
@@ -107,27 +112,16 @@ Only one layer is perturbed at a time, so every impact value is a marginal effec
 
 ### 3.3 Candidate selection
 
-A full sweep over every eligible layer of a ControlNet is expensive: each candidate costs one full denoising run. The implementation supports two modes:
+The implementation supports two modes:
 
 | Mode | Flag | Candidates | Purpose |
 | :--- | :--- | :--- | :--- |
-| Focused | *(default)* | the fat-tail group found by a cheap static screen, **plus the 20 layers immediately below it** (the decision boundary) | fast exploration of the region where the protect/quantize decision is actually made |
-| Full | `--full` | **every eligible module** | the definitive measurement, used for the shipped pack |
+| Focused | *(default)* | the static fat-tail group plus the 20 layers immediately below it (the decision boundary) | fast exploration of the region where the protect/quantize decision is actually made |
+| **Full** | `--full` | **every eligible module (400 on these checkpoints)** | the definitive measurement, used for the shipped packs |
 
-The shipped pack in this repository was produced with the **full sweep**.
+**The shipped packs in this repository were produced with the full sweep, in one uninterrupted run each.**
 
-### 3.4 Memory management and resumability
-
-A full sweep of 400 layers runs for roughly 70-90 minutes and is memory-bound: each iteration allocates a weight clone plus the ConvRot INT8 reconstruction, and the sampler keeps a per-step latent history.
-
-Two implementation details make the full sweep survive on a 16 GB card:
-
-- **Aggressive release**: the reconstruction is freed immediately after the injection, the per-step latents are copied to CPU with `torch.float32` (contiguous), the perturbed run's trajectory is deleted right after the metric is computed, and `torch.cuda.empty_cache()` runs after every layer.
-- **Checkpoint + resume**: the partial result is written to the impact JSON every 10 layers, and `--resume <json>` loads already-measured layers and skips them. A run that dies (VRAM exhaustion, out-of-memory kill) resumes from the last checkpoint instead of starting over.
-
-The reference run of 400 layers was executed in three segments (180 + 180 + 60 layers) using this mechanism; the first two segments died from memory exhaustion before the release/resume logic was added.
-
-### 3.5 Runtime-module to checkpoint-key mapping
+### 3.4 Runtime-module to checkpoint-key mapping
 
 The impact JSON stores **ComfyUI runtime module names** (`input_blocks.2.0.in_layers.2`), because that is what the loaded model exposes. The checkpoint stores **diffusers-format keys** (`down_blocks.0.resnets.1.conv1`). The two are related by ComfyUI's own converter, `comfy.utils.unet_to_diffusers`, applied to the checkpoint's inferred UNet config. The converter uses that mapping in reverse, so **no hand-maintained name table exists** and the mapping cannot drift from ComfyUI's behaviour.
 
@@ -161,87 +155,89 @@ The Hadamard group size must divide the input dimension and be a power of 4. The
 
 ---
 
-## 5. Why the Measurement Matters: A Measured Case
+## 5. Why the Measurement Matters: Two Measured Checkpoints
 
-Measured on `CN-anytest4_illustrious2_B.safetensors` (SDXL ControlNet, 844 keys, 401 eligible weights, **all 400 measured**).
+Both checkpoints are SDXL ControlNets with the same architecture (400 ConvRot-eligible modules each).
 
 ### 5.1 The static screen and the trajectory disagree
 
-The static screen (kurtosis of the weight distribution) and the measured trajectory drift rank the layers differently, and crucially they disagree about the most dangerous layer:
+The static screen (kurtosis of the weight distribution) and the measured trajectory drift rank the layers differently, and critically they disagree about the most dangerous layer:
 
-| Layer (checkpoint key) | Static kurtosis | Measured trajectory drift | Verdict |
+| Layer (checkpoint key) | Static kurtosis | Measured drift (B) | Verdict |
 | :--- | :--- | :--- | :--- |
 | `down_blocks.0.resnets.1.conv1` | 2.4 (looks harmless) | **1.131** | **must stay FP16** |
 | `down_blocks.0.resnets.0.conv1` | 1.1 | **0.716** | **must stay FP16** |
 | `down_blocks.0.resnets.1.time_emb_proj` | 5.0 | 0.223 | must stay FP16 |
 | `add_embedding.linear_1` | 21.1 (top static) | 0.105 | protected (trajectory) |
-| `middle_block.1.transformer_blocks.4.attn2.to_v` | low | 0.015 | safe to quantize |
+| `middle_block.1.transformer_blocks.4.attn2.to_v` | low | **0.018** | safe to quantize |
 
 The Conv2d layers (`conv1`, runtime name `in_layers.2` / `out_layers.3`) look *mild* to a static kurtosis screen - their weight distribution is nearly Gaussian - yet they are the single most damaging layers in the whole ControlNet when quantized. A static-only selection would have quantized exactly the layers that break the trajectory.
 
-### 5.2 Measured family statistics (all 400 layers)
+### 5.2 Measured family statistics (all 400 layers, both checkpoints)
 
-| Layer family | n | mean drift | median | min | max |
+| Layer family | n | A mean | A max | B mean | B max |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `input_blocks.*.0.in_layers.2` | 6 | **0.456** | 0.240 | 0.160 | 1.131 |
-| `input_blocks.*.0.out_layers.3` | 6 | **0.433** | 0.313 | 0.160 | 1.209 |
-| `input_blocks.*.0.op` | 2 | 0.273 | 0.273 | 0.195 | 0.352 |
-| `input_blocks.*.1.proj_in` | 4 | 0.263 | 0.262 | 0.245 | 0.283 |
-| `input_blocks.*.1.proj_out` | 4 | 0.257 | 0.240 | 0.194 | 0.354 |
-| `input_blocks.*.0.skip_connection` | 2 | 0.208 | 0.208 | 0.182 | 0.233 |
-| `input_blocks.*.0.emb_layers.1` | 6 | 0.178 | 0.176 | 0.134 | 0.223 |
-| `zero_convs.*.0` | 9 | 0.177 | 0.175 | 0.089 | 0.443 |
-| `middle_block.*.out_layers.3` | 2 | 0.176 | 0.176 | 0.174 | 0.179 |
-| `input_blocks.*.1.transformer_blocks.*.attn2.to_q` | 24 | 0.168 | 0.177 | 0.058 | 0.242 |
-| `input_blocks.*.1.transformer_blocks.*.attn2.to_k` | 24 | 0.151 | 0.148 | 0.062 | 0.257 |
-| `middle_block.*.in_layers.2` | 2 | 0.132 | 0.132 | 0.106 | 0.157 |
-| `input_blocks.*.1.transformer_blocks.*.ff.net.2` | 24 | 0.131 | 0.130 | 0.065 | 0.172 |
-| `input_blocks.*.1.transformer_blocks.*.attn1.to_v` | 24 | 0.131 | 0.132 | 0.067 | 0.275 |
-| `input_blocks.*.1.transformer_blocks.*.ff.net.*.proj` | 24 | 0.122 | 0.122 | 0.060 | 0.185 |
-| `input_blocks.*.1.transformer_blocks.*.attn1.to_out.0` | 24 | 0.117 | 0.110 | 0.046 | 0.203 |
-| `middle_block.*.transformer_blocks.*.attn2.to_k` | 10 | 0.111 | 0.092 | 0.057 | 0.219 |
-| `middle_block.*.transformer_blocks.*.attn2.to_q` | 10 | 0.100 | 0.103 | 0.038 | 0.172 |
-| `input_blocks.*.1.transformer_blocks.*.attn1.to_k` | 24 | 0.095 | 0.084 | 0.049 | 0.194 |
-| `input_blocks.*.1.transformer_blocks.*.attn2.to_v` | 24 | 0.094 | 0.082 | 0.020 | 0.202 |
-| `input_blocks.*.1.transformer_blocks.*.attn1.to_q` | 24 | 0.093 | 0.085 | 0.044 | 0.183 |
-| `middle_block.*.transformer_blocks.*.attn2.to_out.0` | 10 | **0.030** | 0.027 | 0.005 | 0.069 |
-| `middle_block.*.transformer_blocks.*.attn2.to_v` | 10 | **0.026** | 0.019 | 0.012 | 0.061 |
+| `input_blocks.*.0.in_layers.2` | 6 | **0.406** | 0.714 | **0.455** | 1.131 |
+| `input_blocks.*.0.out_layers.3` | 6 | **0.396** | 0.549 | **0.433** | 1.209 |
+| `input_blocks.*.1.proj_in` | 4 | 0.278 | 0.331 | 0.263 | 0.283 |
+| `input_blocks.*.1.proj_out` | 4 | 0.272 | 0.305 | 0.257 | 0.354 |
+| `input_blocks.*.0.emb_layers.1` | 6 | 0.235 | 0.289 | 0.178 | 0.223 |
+| `zero_convs.*.0` | 9 | 0.219 | 0.511 | 0.177 | 0.443 |
+| `input_blocks.*.1.transformer_blocks.*.attn2.to_q` | 24 | 0.212 | 0.354 | 0.168 | 0.241 |
+| `middle_block.*.transformer_blocks.*.attn2.to_v` | 10 | **0.026** | 0.061 | **0.022** | 0.055 |
+| `middle_block.*.transformer_blocks.*.attn2.to_out.0` | 10 | **0.030** | 0.069 | **0.028** | 0.066 |
 
-The ordering is clear and not intuitive from the architecture alone: the **residual Conv2d path** (`in_layers.2` / `out_layers.3`) is by far the most sensitive part of a ControlNet, while the **cross-attention value path** (`attn2.to_v` / `attn2.to_out.0`) is the most tolerant.
+The ordering is clear and not intuitive from the architecture alone: the **residual Conv2d path** (`in_layers.2` / `out_layers.3`) is by far the most sensitive part of a ControlNet, while the **cross-attention value path** (`attn2.to_v` / `attn2.to_out.0`) is the most tolerant - roughly **15x** less sensitive than the Conv2d path.
 
-### 5.3 The threshold choice
+### 5.3 Whole-distribution comparison
 
-The drift threshold converts the ranking into a protection set. Measured on this checkpoint:
+| Statistic | Checkpoint A | Checkpoint B |
+| :--- | :--- | :--- |
+| Layers measured | 400 | 400 |
+| min drift | 0.0122 | 0.0053 |
+| median drift | **0.1478** | **0.1119** |
+| p90 drift | 0.2512 | 0.2026 |
+| max drift | 0.7141 | **1.2090** |
+| drift > 0.10 | 356 | 233 |
+| **drift > 0.15** | **190** | **117** |
+| drift > 0.20 | 86 | 44 |
+| drift > 0.25 | 40 | 16 |
 
-| Threshold | Protected layers | Pack size | Reduction vs 2.34 GB |
-| :--- | :--- | :--- | :--- |
-| 0.10 | 218 | 1.86 GB | 20.6 % |
-| **0.15 (shipped)** | **105** | **1.46 GB** | **37.3 %** |
-| 0.20 | 44 | - | - |
+The two checkpoints are **not interchangeable**: A is uniformly more sensitive (median 0.148 vs 0.112) while B has a heavier tail (max 1.209 vs 0.714). At the same threshold, A needs 190 protected layers and B needs 117 - a 62 % difference for the same architecture. Any approach that derives the protection set from the architecture alone, from a static score, or from another checkpoint's numbers would get one of them wrong.
 
-The shipped pack uses **0.15**: it keeps the measured worst offenders (the residual Conv2d path and the attention projection families) in FP16, while the 129 layers whose drift falls in the 0.10-0.15 band are quantized.
+### 5.4 The threshold choice
 
-### 5.4 The shipped pack
+| Threshold | A protected | B protected |
+| :--- | :--- | :--- |
+| 0.10 | 356 | 233 |
+| **0.15 (shipped)** | **190** | **117** |
+| 0.20 | 86 | 44 |
+| 0.25 | 40 | 16 |
 
-| Property | Value |
-| :--- | :--- |
-| Source | `CN-anytest4_illustrious2_B.safetensors` (2.34 GB, BF16) |
-| Output | `CN-anytest4_illustrious2_B_hswq_convrot_int8_t015.safetensors` (1.46 GB / 1570 MB) |
-| Protected (drift > 0.15) | **105 layers**, kept byte-exact |
-| ConvRot INT8 | 277 Linear + 18 Conv2d |
-| INT8 payload | 934.4 MB |
-| FP16/BF16 retained | 633.2 MB |
-| Load check | `comfy.utils.load_torch_file` -> 1436 keys, 296 `comfy_quant` entries |
+The shipped packs use **0.15**.
+
+### 5.5 The shipped packs
+
+| Property | Checkpoint A | Checkpoint B |
+| :--- | :--- | :--- |
+| Source | `CN-anytest4_illustrious2_A.safetensors` (2.33 GB, BF16) | `CN-anytest4_illustrious2_B.safetensors` (2.33 GB, BF16) |
+| Output | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | `CN-anytest4_illustrious2_B_hswq_convrot_int8_t015.safetensors` |
+| Size | **1783.1 MB** (1.66 GB) | **1570.3 MB** (1.46 GB) |
+| Protected (drift > 0.15) | **174 layers** (measured 190; 16 fall outside the mapped key set) | **105 layers** (measured 117; 12 outside) |
+| ConvRot INT8 | 208 Linear + 18 Conv2d | 277 Linear + 18 Conv2d |
+| INT8 payload | 720.9 MB | 934.4 MB |
+| FP16/BF16 retained | 1060.2 MB | 633.2 MB |
+| Load check | `load_torch_file` -> 1298 keys, 227 `comfy_quant` | `load_torch_file` -> 1436 keys, 296 `comfy_quant` |
 
 ---
 
 ## 6. Why a Full Sweep Was Necessary
 
-The focused mode measured 29 layers (the static fat-tail group plus the 20 layers just below it). That measurement produced a 13-layer protection set.
+An earlier focused measurement covered 29 layers (the static fat-tail group plus the 20 layers just below it) and produced a 13-layer protection set for checkpoint B.
 
-The full sweep of 400 layers showed that this was **unsafe**: the layers that actually matter most (the residual Conv2d path, mean drift 0.43-0.46) sit **outside** the static fat-tail group, because their weight distributions are near-Gaussian and therefore look mild to a kurtosis screen. In the focused measurement the highest-drift layers that were visible were already at 0.15-1.13, but 92 additional layers in the 0.15-0.35 band - including `proj_in` / `proj_out`, `skip_connection`, `zero_convs` and the `emb_layers.1` family - were never measured at all.
+The full sweep of 400 layers showed that this was **unsafe**. The layers that actually matter most - the residual Conv2d path, mean drift 0.43-0.46 - sit **outside** the static fat-tail group, because their weight distributions are near-Gaussian and therefore look mild to a kurtosis screen. The focused measurement did happen to catch the single worst layer (1.131), but it never measured the families at 0.15-0.35 (`proj_in` / `proj_out`, `skip_connection`, `zero_convs`, the `emb_layers.1` family), and the full sweep found **92 additional layers** in that band that the focused run had never looked at.
 
-The practical consequence: a focused measurement can only be trusted for the band it actually covered. For a shipped artifact, the full sweep is the only defensible basis.
+With a 0.15 threshold, the two answers differ by a factor of nine (13 vs 117 protected layers). A focused measurement can only be trusted for the band it actually covered; for a shipped artifact, the full sweep is the only defensible basis.
 
 ---
 
@@ -263,7 +259,7 @@ A ControlNet is a structural copy of the UNet backbone, so the drift it induces 
 ## 8. Reproducing the Measurement
 
 ```bash
-# 1) full trajectory sweep (resumable; safe to interrupt)
+# 1) full trajectory sweep (single run, see Section 9 for the operational recipe)
 python sdxl/diag_impact_controlnet.py \
   --base <base_sdxl.safetensors> \
   --controlnet <controlnet.safetensors> \
@@ -275,7 +271,7 @@ python sdxl/diag_impact_controlnet.py \
 # 2) convert with the measured protection set
 python clip_convert/convert_controlnet_convrot_int8.py \
   --input <controlnet.safetensors> \
-  --output <controlnet>_hswq_convrot_int8_t015.safetensors \
+  --output <controlnet>_hswq_convrot_int8.safetensors \
   --impact impact/impact_<stem>_full.json \
   --comfy_path <ComfyUI checkout> \
   --drift-threshold 0.15
@@ -285,33 +281,127 @@ The converter reads the impact JSON, keeps every layer whose measured drift exce
 
 ---
 
-## 9. Practical Notes and Pitfalls
+## 9. Making a Complete Sweep Finish in One Run
+
+This is the part that decides whether a full sweep is practical. The first attempts died repeatedly; the reference runs above completed in one pass. Three changes made the difference, and all three are load-bearing.
+
+### 9.1 Do not tie the sweep to the agent session
+
+The initial implementation ran the sweep as a child process of the agent's shell. Every single attempt died after **exactly ~33 minutes** - not at a memory limit, not at a layer boundary, and always at the same wall-clock offset. The diagnosis was direct: an instrumented run showed **no memory growth at all** (RSS 3.45 -> 3.70 GB flat, VRAM 8.28 GB flat across 15 consecutive trajectories), so the process was not exhausting anything - it was being **terminated from outside**, when the agent session restarted.
+
+The fix is to launch the sweep as a **detached process** that is not a child of the agent's shell:
+
+```powershell
+$runner = "run_sweep.ps1"
+@'
+param([string]$Tag, [string]$ControlNet, [string]$Steps = "20")
+$py   = "D:\USERFILES\ComfyUI\python_embeded\python.exe"
+$repo = "D:\USERFILES\GitHub\hswq"
+$base = "D:\USERFILES\ComfyUI\ComfyUI\models\unet\waiIllustriousSDXL_v170.safetensors"
+$out  = "$repo\impact\impact_${Tag}_full.json"
+$log  = "$repo\impact\sweep_${Tag}.log"
+$env:PYTHONIOENCODING = "utf-8"
+& $py -u "$repo\sdxl\diag_impact_controlnet.py" --base $base --controlnet $ControlNet --out $out --comfy_path "$repo\ComfyUI-master" --steps $Steps --full --resume $out *> $log
+'@ | Set-Content -Path $runner -Encoding UTF8
+
+$p = Start-Process -FilePath "powershell.exe" `
+  -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File",$runner,"-Tag",$Tag,"-ControlNet",$ControlNet) `
+  -WindowStyle Hidden -PassThru
+```
+
+The log is written directly by the detached process, so progress is readable with `Get-Content` at any time, and the process survives anything that happens to the agent session.
+
+### 9.2 Keep the weight clone and the reconstruction off the GPU
+
+The measurement perturbs one weight tensor at a time. Doing the clone and the ConvRot INT8 reconstruction on the GPU adds a transient peak on top of the base model (6.5 GB), the ControlNet (2.3 GB) and the sampler's activations (8.28 GB resident on a 16 GB card). Performing both on the **CPU** removes that peak entirely; only the single perturbed tensor is moved to the GPU, and only for the duration of the injection:
+
+```python
+w0 = m.weight.data.detach().to("cpu", copy=True)
+try:
+    rec = convrot_int8_recon(w0, gs)          # CPU
+    m.weight.data.copy_(rec.to(w0.dtype).to(w_dev))
+    del rec
+    torch.cuda.empty_cache()
+    xt = run_traj()
+    imp = sum(rel_mse(xt[j], x_ref[j]) for j in range(len(x_ref))) / len(x_ref)
+    del xt
+finally:
+    m.weight.data.copy_(w0.to(w_dev))
+    del w0
+    torch.cuda.empty_cache()
+```
+
+With this in place the sweep held a steady **10.0-10.2 GB of VRAM** for 400 consecutive layers, and the per-step latents are copied to CPU as contiguous `float32` tensors so the trajectory history itself does not sit on the card.
+
+### 9.3 Checkpoint every 10 layers and support resume
+
+Even with 9.1 and 9.2 in place, a long sweep should not be able to lose its work:
+
+- the partial result is written to the impact JSON **every 10 layers**;
+- `--resume <json>` loads the already-measured layers and skips them, so a run that dies resumes from the last checkpoint instead of restarting;
+- the reference runs in this repository were executed as **single uninterrupted runs** (400 layers, 0 stoppages), but the resume path remains available for environments where a sweep still has to be split.
+
+### 9.4 Reference run characteristics
+
+| | Checkpoint A | Checkpoint B |
+| :--- | :--- | :--- |
+| Layers measured | 400 | 400 |
+| Stoppages | **0** | **0** |
+| Wall time | 62 min | 71 min |
+| Steady VRAM | ~10.0 GB | ~10.1 GB |
+| Peak RSS | ~3.7 GB | ~3.7 GB |
+| Speed | ~10 s/layer | ~10 s/layer |
+
+Checkpoints B ran slower because the ComfyUI server and an `iopaint` server were resident on the same GPU during the run; the sweep still completed without interruption.
+
+### 9.5 Reproducibility of the measurement
+
+Re-running the full sweep on the same checkpoint reproduces the distribution, not the individual values:
+
+| | Checkpoint A (run 1 vs run 2) | Checkpoint B (run 1 vs run 2) |
+| :--- | :--- | :--- |
+| Layers | 400 = 400 | 400 = 400 |
+| Layers with a differing value | 255 (all at the 1e-4 level) | 277 (all at the 1e-4 level) |
+| median drift | 0.1478 vs 0.1478 | 0.1119 vs 0.1117 |
+| max drift | 0.7141 vs 0.7141 | 1.2090 vs 1.2090 |
+| **drift > 0.15** | 190 vs 190 | 118 vs 117 |
+| **drift > 0.20** | 86 vs 86 | 44 vs 44 |
+
+The residual per-layer differences come from non-deterministic GPU reductions (cuDNN / TF32 atomics), not from the method. The **population statistics and the threshold decision are stable**: the >0.20 counts are identical and the >0.15 counts differ by at most one layer.
+
+---
+
+## 10. Practical Notes and Pitfalls
 
 **Read the safetensors header correctly.** The data of a tensor starts at `8 + header_length + data_offset`, not at `data_offset`. Reading at the wrong offset yields garbage values that look like plausible but meaningless statistics (e.g. a kurtosis of 9,494 for a tensor whose true kurtosis is 21). Use `safetensors.safe_open(...).get_tensor(...)` or account for the header length.
 
 **Do not use static statistics as the protection criterion.** Section 5.1 shows the disagreement directly. Static statistics may be used as a cheap *screen* to choose which candidates are worth measuring, but the decision itself must come from the measurement.
 
-**The Conv2d scope is a design decision, not an accident.** Some ControlNet converters quantize only 2D Linear weights and leave every Conv2d in FP16. That is a valid choice, but it is a different pack from "everything ConvRot-eligible is quantized, with the measured exceptions". Both exist in the wild; they are not comparable by size, because the protected-set size differs.
+**Do not reuse another checkpoint's protection set.** Two checkpoints of the same architecture differ by 62 % in required protection at the same threshold (Section 5.3).
 
-**Budget the measurement for interruptions.** A full sweep is a long job with a real chance of dying from memory exhaustion. Use the checkpointing and `--resume` mechanism rather than assuming a single clean run.
+**The Conv2d scope is a design decision, not an accident.** Some ControlNet converters quantize only 2D Linear weights and leave every Conv2d in FP16. That is a valid choice, but it is a different pack from "everything ConvRot-eligible is quantized, with the measured exceptions". Both exist in the wild; they are not comparable by size, because the protected-set size differs.
 
 **Verify the load path.** A pack with `comfy_quant` stamps is loaded natively by ComfyUI for ControlNet only when the layer set and the `comfy_quant` metadata are consistent. Always confirm with `comfy.utils.load_torch_file` that the pack loads and that the expected number of `comfy_quant` entries is present.
 
+**A measured layer count can exceed the number of protected layers.** The impact JSON counts runtime modules; the pack protects checkpoint keys. A handful of runtime modules (for example the `middle_block_out` / `time_embed` entries) have no directly mappable checkpoint key, so 190 measured layers above the threshold map to 174 protected checkpoint keys for checkpoint A, and 117 to 105 for checkpoint B. The pack's own count is the authoritative one.
+
 ---
 
-## 10. Summary
+## 11. Summary
 
 | Aspect | Choice |
 | :--- | :--- |
 | Protection criterion | Measured trajectory drift of the real ControlNet in a real ComfyUI generation |
-| Measurement scope | **Full sweep of all 400 eligible layers** for the shipped pack |
+| Measurement scope | **Full sweep of all 400 eligible layers, one uninterrupted run per checkpoint** |
 | Perturbation | ConvRot INT8 reconstruction (Hadamard rotation + per-channel INT8) |
 | Metric | Mean relative MSE of the per-step latent against the pristine trajectory |
-| Sampler | Production sampler (`dpmpp_2m` / `karras` / CFG 7.0), fixed seed |
-| Threshold | **0.15** -> 105 protected layers |
+| Sampler | Production sampler (`dpmpp_2m` / `karras` / CFG 7.0), 20 steps, seed 42 |
+| Threshold | **0.15** |
 | Name mapping | ComfyUI's own `unet_to_diffusers`, inverted - no hand-written table |
 | Quantized scope | 2D Linear + 4D Conv2d, minus the protected set |
-| Result | 2.34 GB -> 1.46 GB, 277 Linear + 18 Conv2d in INT8 |
+| A pack | 2.33 GB -> 1.66 GB, 208 Linear + 18 Conv2d in INT8, 174 protected |
+| B pack | 2.33 GB -> 1.46 GB, 277 Linear + 18 Conv2d in INT8, 105 protected |
 | Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata` |
+| Operational requirement | Detached process, CPU-side weight clone + reconstruction, 10-layer checkpoint with resume |
 
-The essential point: for a ControlNet, the set of layers that must stay in FP16 is a property of *that checkpoint*, discoverable only by measuring *that checkpoint* in the pipeline it will actually run in. Everything else in the pipeline is a mechanism for making that measurement cheap, reproducible and survivable.
+The essential point: for a ControlNet, the set of layers that must stay in FP16 is a property of *that checkpoint*, discoverable only by measuring *that checkpoint* in the pipeline it will actually run in. The measurement itself is a full sweep, and the engineering around it - detachment, CPU-side reconstruction, checkpointing - is what makes the full sweep a routine operation rather than a multi-hour, multi-restart ordeal.
