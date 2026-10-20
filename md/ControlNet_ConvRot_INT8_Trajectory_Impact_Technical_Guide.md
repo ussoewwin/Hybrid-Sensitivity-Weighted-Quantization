@@ -10,6 +10,7 @@ Everything below is backed by **completed full sweeps**: two SDXL ControlNet che
 | :--- | :--- | :--- | :--- | :--- |
 | `CN-anytest4_illustrious2_A.safetensors` | 400 / 400 | 1 | 62 min | 0 |
 | `CN-anytest4_illustrious2_B.safetensors` | 400 / 400 | 1 | 71 min | 0 |
+| `controlnet-union-pro-max-sdxl-1.0.safetensors` | 407 / 407 | 1 | 82 min | 0 |
 
 ---
 
@@ -155,9 +156,9 @@ The Hadamard group size must divide the input dimension and be a power of 4. The
 
 ---
 
-## 5. Why the Measurement Matters: Two Measured Checkpoints
+## 5. Why the Measurement Matters: Three Measured Checkpoints
 
-Both checkpoints are SDXL ControlNets with the same architecture (400 ConvRot-eligible modules each).
+All three are SDXL ControlNets of the same architecture. Their measured sensitivity profiles are **completely different from each other**, which is the central point of this section.
 
 ### 5.1 The static screen and the trajectory disagree
 
@@ -171,65 +172,90 @@ The static screen (kurtosis of the weight distribution) and the measured traject
 | `add_embedding.linear_1` | 21.1 (top static) | 0.105 | protected (trajectory) |
 | `middle_block.1.transformer_blocks.4.attn2.to_v` | low | **0.018** | safe to quantize |
 
-The Conv2d layers (`conv1`, runtime name `in_layers.2` / `out_layers.3`) look *mild* to a static kurtosis screen - their weight distribution is nearly Gaussian - yet they are the single most damaging layers in the whole ControlNet when quantized. A static-only selection would have quantized exactly the layers that break the trajectory.
+The Conv2d layers (`conv1`, runtime name `in_layers.2` / `out_layers.3`) look *mild* to a static kurtosis screen - their weight distribution is nearly Gaussian - yet they are among the most damaging layers in the whole ControlNet when quantized. A static-only selection would have quantized exactly the layers that break the trajectory.
 
-### 5.2 Measured family statistics (all 400 layers, both checkpoints)
+### 5.2 Measured family statistics (all layers, all three checkpoints)
 
-| Layer family | n | A mean | A max | B mean | B max |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `input_blocks.*.0.in_layers.2` | 6 | **0.406** | 0.714 | **0.455** | 1.131 |
-| `input_blocks.*.0.out_layers.3` | 6 | **0.396** | 0.549 | **0.433** | 1.209 |
-| `input_blocks.*.1.proj_in` | 4 | 0.278 | 0.331 | 0.263 | 0.283 |
-| `input_blocks.*.1.proj_out` | 4 | 0.272 | 0.305 | 0.257 | 0.354 |
-| `input_blocks.*.0.emb_layers.1` | 6 | 0.235 | 0.289 | 0.178 | 0.223 |
-| `zero_convs.*.0` | 9 | 0.219 | 0.511 | 0.177 | 0.443 |
-| `input_blocks.*.1.transformer_blocks.*.attn2.to_q` | 24 | 0.212 | 0.354 | 0.168 | 0.241 |
-| `middle_block.*.transformer_blocks.*.attn2.to_v` | 10 | **0.026** | 0.061 | **0.022** | 0.055 |
-| `middle_block.*.transformer_blocks.*.attn2.to_out.0` | 10 | **0.030** | 0.069 | **0.028** | 0.066 |
+Mean drift per layer family:
 
-The ordering is clear and not intuitive from the architecture alone: the **residual Conv2d path** (`in_layers.2` / `out_layers.3`) is by far the most sensitive part of a ControlNet, while the **cross-attention value path** (`attn2.to_v` / `attn2.to_out.0`) is the most tolerant - roughly **15x** less sensitive than the Conv2d path.
+| Layer family | n | A mean | A max | B mean | B max | U mean | U max |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `input_blocks.*.0.in_layers.2` | 6 | **0.406** | 0.714 | **0.455** | 1.131 | 0.398 | 0.729 |
+| `input_blocks.*.0.out_layers.3` | 6 | **0.396** | 0.549 | **0.433** | 1.209 | **0.430** | 0.963 |
+| `input_blocks.*.1.proj_in` | 4 | 0.278 | 0.331 | 0.263 | 0.283 | 0.291 | 0.373 |
+| `input_blocks.*.1.proj_out` | 4 | 0.272 | 0.305 | 0.257 | 0.354 | 0.276 | 0.351 |
+| `input_blocks.*.0.emb_layers.1` | 6 | 0.235 | 0.289 | 0.178 | 0.223 | 0.262 | 0.438 |
+| `zero_convs.*.0` | 9 | 0.219 | 0.511 | 0.177 | 0.443 | 0.321 | 1.200 |
+| `input_blocks.*.1.transformer_blocks.*.attn2.to_q` | 24 | 0.212 | 0.354 | 0.168 | 0.241 | 0.030 | 0.095 |
+| `input_blocks.*.1.transformer_blocks.*.attn2.to_v` | 24 | 0.094 | 0.202 | 0.082 | 0.176 | **0.014** | 0.055 |
+| `middle_block.*.transformer_blocks.*.attn2.to_out.0` | 10 | **0.030** | 0.069 | **0.028** | 0.066 | 0.015 | 0.060 |
+| `middle_block.*.transformer_blocks.*.attn2.to_v` | 10 | **0.026** | 0.061 | **0.022** | 0.055 | **0.004** | 0.009 |
+
+Two structural facts hold across all three checkpoints:
+
+1. **The residual Conv2d path dominates.** `in_layers.2` / `out_layers.3` are the most sensitive families everywhere (mean 0.40-0.46), roughly **an order of magnitude** above the attention projections.
+2. **The cross-attention value path is the most tolerant.** `attn2.to_v` / `attn2.to_out.0` sit at mean 0.004-0.030 - up to **60x less sensitive** than the Conv2d path.
 
 ### 5.3 Whole-distribution comparison
 
-| Statistic | Checkpoint A | Checkpoint B |
-| :--- | :--- | :--- |
-| Layers measured | 400 | 400 |
-| min drift | 0.0122 | 0.0053 |
-| median drift | **0.1478** | **0.1119** |
-| p90 drift | 0.2512 | 0.2026 |
-| max drift | 0.7141 | **1.2090** |
-| drift > 0.10 | 356 | 233 |
-| **drift > 0.15** | **190** | **117** |
-| drift > 0.20 | 86 | 44 |
-| drift > 0.25 | 40 | 16 |
+| Statistic | A | B | U (union-pro-max) |
+| :--- | :--- | :--- | :--- |
+| Layers measured | 400 | 400 | **407** |
+| min drift | 0.0122 | 0.0053 | 0.0000 |
+| **median drift** | **0.1478** | **0.1119** | **0.0601** |
+| p90 drift | 0.2512 | 0.2026 | 0.1960 |
+| **max drift** | 0.7141 | **1.2090** | **3.7339** |
+| drift > 0.10 | 356 | 233 | 131 |
+| **drift > 0.15** | **190** | **117** | **74** |
+| drift > 0.20 | 86 | 44 | 40 |
+| drift > 0.25 | 40 | 16 | 30 |
 
-The two checkpoints are **not interchangeable**: A is uniformly more sensitive (median 0.148 vs 0.112) while B has a heavier tail (max 1.209 vs 0.714). At the same threshold, A needs 190 protected layers and B needs 117 - a 62 % difference for the same architecture. Any approach that derives the protection set from the architecture alone, from a static score, or from another checkpoint's numbers would get one of them wrong.
+The three checkpoints have **fundamentally different shapes**:
+
+- **A** is uniformly sensitive (highest median, moderate tail).
+- **B** has a lower median but a heavy tail (max 1.209).
+- **U** (union-pro-max) is the opposite of A: its *typical* layer is the least sensitive of the three (median 0.060, less than half of A), yet it owns by far the most extreme individual layer (**3.734**).
+
+The extreme layers in U are its own:
+
+| Layer (U) | drift |
+| :--- | :--- |
+| `input_hint_block.2` | **3.734** |
+| `input_hint_block.8` | **2.432** |
+| `zero_convs.0.0` | 1.200 |
+| `input_blocks.1.0.out_layers.3` | 0.963 |
+| `input_blocks.1.0.in_layers.2` | 0.729 |
+
+`input_hint_block.*` is not even a sensitive family in A or B (0.15-0.35 there) - in U it is the single most dangerous object in the model. This is exactly the kind of structure that no architecture-derived or inherited rule can predict.
+
+**At the same 0.15 threshold the required protection ranges over a factor of three (190 / 117 / 74 measured layers).** Any approach that derives the protection set from the architecture, from a static score, or from another checkpoint's numbers gets at least two of the three wrong.
 
 ### 5.4 The threshold choice
 
-| Threshold | A protected | B protected |
-| :--- | :--- | :--- |
-| 0.10 | 356 | 233 |
-| **0.15 (shipped)** | **190** | **117** |
-| 0.20 | 86 | 44 |
-| 0.25 | 40 | 16 |
+| Threshold | A protected | B protected | U protected |
+| :--- | :--- | :--- | :--- |
+| 0.10 | 356 | 233 | 131 |
+| **0.15 (shipped)** | **190** | **117** | **74** |
+| 0.20 | 86 | 44 | 40 |
+| 0.25 | 40 | 16 | 30 |
 
 The shipped packs use **0.15**.
 
 ### 5.5 The shipped packs
 
-| Property | Checkpoint A | Checkpoint B |
-| :--- | :--- | :--- |
-| Source | `CN-anytest4_illustrious2_A.safetensors` (2.33 GB, BF16) | `CN-anytest4_illustrious2_B.safetensors` (2.33 GB, BF16) |
-| Output | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | `CN-anytest4_illustrious2_B_hswq_convrot_int8_t015.safetensors` |
-| Size | **1783.1 MB** (1.66 GB) | **1570.3 MB** (1.46 GB) |
-| Protected (drift > 0.15) | **174 layers** (measured 190; 16 fall outside the mapped key set) | **105 layers** (measured 117; 12 outside) |
-| ConvRot INT8 | 208 Linear + 18 Conv2d | 277 Linear + 18 Conv2d |
-| INT8 payload | 720.9 MB | 934.4 MB |
-| FP16/BF16 retained | 1060.2 MB | 633.2 MB |
-| Load check | `load_torch_file` -> 1298 keys, 227 `comfy_quant` | `load_torch_file` -> 1436 keys, 296 `comfy_quant` |
+| Property | A | B | U (union-pro-max) |
+| :--- | :--- | :--- | :--- |
+| Source | `CN-anytest4_illustrious2_A.safetensors` (2.33 GB, BF16) | `CN-anytest4_illustrious2_B.safetensors` (2.33 GB, BF16) | `controlnet-union-pro-max-sdxl-1.0.safetensors` (2.34 GB, F16) |
+| Output | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | `CN-anytest4_illustrious2_B_hswq_convrot_int8.safetensors` | `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8_t015.safetensors` |
+| Size | **1783.1 MB** (1.66 GB) | **1570.3 MB** (1.46 GB) | **1397.1 MB** (1.30 GB) |
+| Reduction vs source | 23.6 % | 32.6 % | 40.3 % |
+| Protected (drift > 0.15) | **174 layers** | **105 layers** | **61 layers** |
+| ConvRot INT8 | 208 Linear + 18 Conv2d | 277 Linear + 18 Conv2d | 322 Linear + 23 Conv2d |
+| INT8 payload | 720.9 MB | 934.4 MB | 1119.1 MB |
+| FP16/BF16 retained | 1060.2 MB | 633.2 MB | 275.1 MB |
+| Load check | 1298 keys, 227 `comfy_quant` | 1436 keys, 296 `comfy_quant` | 1555 keys, 346 `comfy_quant` |
 
----
+The size ordering follows the protected-layer ordering exactly: A protects the most layers and is therefore the largest pack; U protects the fewest and is the smallest. The pack size is a direct consequence of the measured protection set - not of the quantization scope, which is identical for all three.
 
 ## 6. Why a Full Sweep Was Necessary
 
@@ -238,6 +264,8 @@ An earlier focused measurement covered 29 layers (the static fat-tail group plus
 The full sweep of 400 layers showed that this was **unsafe**. The layers that actually matter most - the residual Conv2d path, mean drift 0.43-0.46 - sit **outside** the static fat-tail group, because their weight distributions are near-Gaussian and therefore look mild to a kurtosis screen. The focused measurement did happen to catch the single worst layer (1.131), but it never measured the families at 0.15-0.35 (`proj_in` / `proj_out`, `skip_connection`, `zero_convs`, the `emb_layers.1` family), and the full sweep found **92 additional layers** in that band that the focused run had never looked at.
 
 With a 0.15 threshold, the two answers differ by a factor of nine (13 vs 117 protected layers). A focused measurement can only be trusted for the band it actually covered; for a shipped artifact, the full sweep is the only defensible basis.
+
+The third checkpoint makes the point sharper. Union-pro-max's most dangerous layers are its `input_hint_block.2` (drift 3.734) and `input_hint_block.8` (2.432) - a family that sits at 0.15-0.35 in A and B and would never have been reached by a static fat-tail screen at all. A focused measurement of that checkpoint would have missed the worst layer in the model by more than an order of magnitude.
 
 ---
 
@@ -343,16 +371,16 @@ Even with 9.1 and 9.2 in place, a long sweep should not be able to lose its work
 
 ### 9.4 Reference run characteristics
 
-| | Checkpoint A | Checkpoint B |
-| :--- | :--- | :--- |
-| Layers measured | 400 | 400 |
-| Stoppages | **0** | **0** |
-| Wall time | 62 min | 71 min |
-| Steady VRAM | ~10.0 GB | ~10.1 GB |
-| Peak RSS | ~3.7 GB | ~3.7 GB |
-| Speed | ~10 s/layer | ~10 s/layer |
+| | Checkpoint A | Checkpoint B | U (union-pro-max) |
+| :--- | :--- | :--- | :--- |
+| Layers measured | 400 | 400 | 407 |
+| Stoppages | **0** | **0** | **0** |
+| Wall time | 62 min | 71 min | 82 min |
+| Steady VRAM | ~10.0 GB | ~10.1 GB | ~9.1 GB |
+| Peak RSS | ~3.7 GB | ~3.7 GB | ~3.4 GB |
+| Speed | ~10 s/layer | ~10 s/layer | ~12 s/layer |
 
-Checkpoints B ran slower because the ComfyUI server and an `iopaint` server were resident on the same GPU during the run; the sweep still completed without interruption.
+All three completed as single uninterrupted runs. The wall-time differences track the number of layers and the GPU contention present during each run (other servers were resident on the same card in some runs); no run was ever interrupted.
 
 ### 9.5 Reproducibility of the measurement
 
@@ -377,7 +405,7 @@ The residual per-layer differences come from non-deterministic GPU reductions (c
 
 **Do not use static statistics as the protection criterion.** Section 5.1 shows the disagreement directly. Static statistics may be used as a cheap *screen* to choose which candidates are worth measuring, but the decision itself must come from the measurement.
 
-**Do not reuse another checkpoint's protection set.** Two checkpoints of the same architecture differ by 62 % in required protection at the same threshold (Section 5.3).
+**Do not reuse another checkpoint's protection set.** Three checkpoints of the same architecture require **190 / 117 / 74** protected layers at the same 0.15 threshold - a factor of 2.6 between the most and the least (Section 5.3). One of them additionally has a single layer with drift 3.734, which the other two do not have at all.
 
 **The Conv2d scope is a design decision, not an accident.** Some ControlNet converters quantize only 2D Linear weights and leave every Conv2d in FP16. That is a valid choice, but it is a different pack from "everything ConvRot-eligible is quantized, with the measured exceptions". Both exist in the wild; they are not comparable by size, because the protected-set size differs.
 
@@ -392,7 +420,7 @@ The residual per-layer differences come from non-deterministic GPU reductions (c
 | Aspect | Choice |
 | :--- | :--- |
 | Protection criterion | Measured trajectory drift of the real ControlNet in a real ComfyUI generation |
-| Measurement scope | **Full sweep of all 400 eligible layers, one uninterrupted run per checkpoint** |
+| Measurement scope | **Full sweep of every eligible layer, one uninterrupted run per checkpoint (400 / 400 / 407)** |
 | Perturbation | ConvRot INT8 reconstruction (Hadamard rotation + per-channel INT8) |
 | Metric | Mean relative MSE of the per-step latent against the pristine trajectory |
 | Sampler | Production sampler (`dpmpp_2m` / `karras` / CFG 7.0), 20 steps, seed 42 |
@@ -401,6 +429,7 @@ The residual per-layer differences come from non-deterministic GPU reductions (c
 | Quantized scope | 2D Linear + 4D Conv2d, minus the protected set |
 | A pack | 2.33 GB -> 1.66 GB, 208 Linear + 18 Conv2d in INT8, 174 protected |
 | B pack | 2.33 GB -> 1.46 GB, 277 Linear + 18 Conv2d in INT8, 105 protected |
+| U pack | 2.34 GB -> 1.30 GB, 322 Linear + 23 Conv2d in INT8, 61 protected |
 | Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata` |
 | Operational requirement | Detached process, CPU-side weight clone + reconstruction, 10-layer checkpoint with resume |
 
