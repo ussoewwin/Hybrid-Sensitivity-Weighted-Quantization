@@ -132,29 +132,42 @@ amortized):
 | 4 | 17.57 ms | 38.91 ms | 2.21x |
 | 16 | 18.59 ms | 31.12 ms | 1.67x |
 
-**Why the towers differ.** The vision tower is not slower at any batch size once the
-per-call overhead is amortized. The text tower is, and the cause is in ComfyUI core,
-not in the pack:
+**Why the towers differ, and the fix.** The vision tower is not slower at any batch
+size once the per-call overhead is amortized. The text tower was, and the cause was
+in ComfyUI core, not in the pack:
 
-- `comfy/clip_model.py` `CLIPLayer.forward` calls `torch.nn.functional.linear`
-  directly. Handing that a `QuantizedTensor` **implicitly dequantizes it** and runs
-  an fp16 GEMM - the INT8 GEMM (`quant_ops.ck.int8_linear`) is never reached.
-  Measured: one such call costs 9.1 ms.
-- The vision tower's forward path does reach the quantized matmul, so it keeps pace
-  with FP16 from batch 4 upward.
+- ComfyUI's `int8_tensorwise` algorithm is declared with `"quantize_input": False`
+  (`comfy/quant_ops.py`). It is a **weight-only** format: the weight stays int8 in
+  memory, but it is **dequantized for every matmul**. The only path a weight-only
+  algorithm can take in `comfy/ops.py` is `forward_comfy_cast_weights` ->
+  `CastBiasWeightContext` -> `F.linear` with an fp16 weight. The real INT8 GEMM
+  (`comfy_kitchen`'s `int8_linear`) is therefore never reached.
+  Measured on the stock path: `int8_linear` calls **0**.
+- `comfy/sd1_clip.py` additionally builds the text encoder with
+  `mixed_precision_ops(quant_config, dtype, full_precision_mm=True)`, and
+  `full_precision_mm=True` makes `_use_quantized` false in
+  `MixedPrecisionOps.Linear.forward`, so the input is never quantized either.
 
-Two further measured facts:
+The loader package installs a runtime arm that fixes both (ComfyUI core is **not**
+modified): `ComfyUI-HSWQ-Loader-and-Tools/patches/clip_int8_gemm/arm.py`. It makes a
+quantized caller get `full_precision_mm=False`, and routes a `TensorWiseINT8Layout`
+weight into `int8_linear` (with the online ConvRot activation rotation) instead of
+dequantizing it. The arm also completes a missing `text_projection`, which the
+INT8 GEMM path reaches with a `None` weight.
 
-- Keeping `text_model.embeddings.token_embedding` in FP16 recovers about 23 %
-  of the text latency (40.7 -> 31.5 ms), but it **breaks the model**: CLIP's
-  `operations.Embedding` assumes an INT8 weight, and the embedding cos collapses to
-  0.18. The embedding therefore has to stay INT8.
-- Passing `custom_operations` to `load_clip` does not help either: in
-  `comfy/sd1_clip.py` `SDClipModel.__init__` an explicit `custom_operations`
-  **overrides** the quantization-aware operations with `manual_cast`.
+Measured A/B on CLIP ViT-L/14, same process and inputs, batch 1:
 
-So for the text tower the INT8 pack buys **VRAM and file size**, not speed; the
-speed would require a change in ComfyUI core's CLIP text path.
+| path | latency | int8_linear calls | cos mean / min |
+| :--- | --- | --- | --- |
+| FP16 reference | 12.96 ms | - | - |
+| INT8 pack, stock path | 24.41 ms | 0 | 0.999796 / 0.999727 |
+| **INT8 pack, with the arm** | **16.92 ms (-31 %)** | **1971** | 0.999718 / 0.999617 |
+
+Acceptance set with the arm enabled (256 prompts, seed 42): mean **0.999717**,
+min **0.999483**, p5 0.999610 - PASS (mean >= 0.99, min >= 0.98).
+
+Int8 GEMM is confirmed active for every shipped CLIP pack: `clip_l` 70 calls,
+`ViT-L-14-BEST-smooth-GmP` 64, `Long-ViT-L-14` 73.
 
 ---
 
@@ -220,5 +233,6 @@ Expected: text mean >= 0.9997 / min >= 0.9996; vision mean >= 0.9997 / min >= 0.
 | Thresholds | text **1.95**, vision **0.90** (both above the measured maxima) |
 | Acceptance fidelity | text mean 0.999809 / min 0.999687; vision mean 0.999772 / min 0.999210 |
 | Size | 1631.80 MB -> **413.20 MB** (-74.7 %) |
-| Latency | vision: 0.99x vs FP16 from batch 4 up; text: 1.7-2.2x slower (ComfyUI core's CLIP text path does not reach the INT8 GEMM) |
+| Latency (text) | stock path 1.7-2.2x slower than FP32; **with the loader's INT8-GEMM arm: 24.41 -> 16.92 ms (-31 %)**, int8_linear 1971 calls |
+| Latency (vision) | 0.99x vs FP32 from batch 4 up |
 | Load | text: standard `CLIPLoader` + metadata; vision: `mixed_precision_ops` required |
