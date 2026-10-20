@@ -19,7 +19,7 @@ Everything below is backed by a **completed full sweep**: **all 551 ConvRot-elig
 For a SAM checkpoint `W` (the FP16 source), the method produces:
 
 1. **An output-drift ranking** over the checkpoint's ConvRot-eligible modules, where the drift of a module is the relative MSE of the model's output when only that module is replaced by its ConvRot INT8 reconstruction.
-2. **A protection set** derived from that ranking: every module whose measured drift exceeds the threshold is kept in its original precision (FP16/BF16), and every remaining eligible module (2D Linear and 4D Conv2d) is converted to ConvRot INT8.
+2. **A protection set** derived from that ranking: every module whose measured drift exceeds the threshold is kept in its original precision (FP16/BF16), and every remaining eligible module is converted to ConvRot INT8. Only 2D `nn.Linear` layers whose input width is a multiple of 256 are eligible - see Section 4 for why the scope is exactly that.
 3. **A pack** in the ComfyUI `int8_tensorwise` layout with `comfy_quant` stamps and a `_quantization_metadata` section.
 
 ### 1.2 The central claim, and why SAM needs its own version of it
@@ -187,19 +187,26 @@ The shipped pack uses **0.05**. For comparison, 0.15 - the ControlNet threshold 
 
 | Weight kind | Treatment |
 | :--- | :--- |
-| 2D Linear | ConvRot INT8 (rotated + per-out-channel INT8) unless protected |
-| 4D Conv2d | ConvRot INT8 (rotated along in\_channels + per-channel INT8) unless protected |
+| 2D Linear, input width a multiple of 256, not protected | ConvRot INT8 (rotated + per-out-channel INT8) |
+| 2D Linear, protected by drift | Kept in original precision (byte-exact) |
+| 2D Linear, input width not a multiple of 256 | Kept in original precision |
+| 4D Conv2d | Kept in original precision |
 | 1D / bias / buffers / non-float | Kept in original precision |
-| Protected module | Kept in original precision (byte-exact) |
 
-The protection decision applies to both 2D and 4D weights.
+The scope is narrower than the ControlNet case, and that is a hard requirement of the runtime rather than a choice. Three facts were established by a measured quality gate against the FP16 baseline **through the real ComfyUI loader path** (`apply_comfy_quant_int8_patches` + `MixedPrecisionOps(int8_tensorwise)`, i.e. the `HSWQ SAM3 Loader` node):
+
+1. **Only Linear layers are quantized.** ComfyUI's INT8 load path attaches an INT8 `QuantizedTensor` to Linear layers; Conv2d layers stay FP16. A pack that also quantized Conv2d therefore loaded as a **mixed** model - the Conv2d entries were read back as unrotated INT8 while the runtime kept FP16 - and the tracker mask came out inverted (measured pixel flip 0.966, IoU 0.000).
+2. **The group size is fixed at 256.** ComfyUI's ConvRot kernel is 2D-only and its fused path activates only for `convrot_groupsize == 256` (`comfy/ops.py`, `comfy_kitchen/backends/cuda`). A Linear whose input width is not a multiple of 256 cannot be rotated by that kernel and is read back unrotated, so it corrupts the output; such layers stay in their original precision.
+3. **Only modules the runtime actually has are considered.** The checkpoint stores more parameter names than the ComfyUI runtime exposes (many are folded or initialized from scratch). Quantizing a name the runtime does not have produces a mixed model; the converter therefore asks ComfyUI for the runtime module list and only converts a layer that is a real `nn.Linear` whose weight is present in the runtime state dict.
+
+With this scope the measured gate is: **tracker mask flip 0.0016 / IoU 0.9983 / logit relMSE 4.3e-04**. The remaining detector-path difference is a **dtype effect, not a quantization effect**: comparing FP16 weights with bfloat16 activations against INT8 weights with bfloat16 activations gives tracker flip 0.0012 and detector IoU 0.951, i.e. the same magnitude as the FP16-fp16 vs FP16-bf16 difference.
 
 ### 4.2 Pack layout
 
 ```
 <layer>.weight           int8
-<layer>.weight_scale     float32  ([out,1] for Linear / [out,1,1,1] for Conv2d)
-<layer>.comfy_quant      uint8 JSON  {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":N}
+<layer>.weight_scale     float32  ([out,1])
+<layer>.comfy_quant      uint8 JSON  {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}
 _quantization_metadata   JSON  {"format_version":"1.0","layers":{...}}
 ```
 
@@ -209,7 +216,7 @@ The impact JSON stores **runtime module names** (`tracker.interactive_sam_mask_d
 
 ### 4.4 Group size
 
-The Hadamard group size must divide the input dimension and be a power of 4; the converter picks the largest such size not exceeding 256 and falls back to plain per-channel INT8 (with a warning) when none exists.
+The group size is **fixed at 256**. It must divide the input dimension and be a power of 4, and the ComfyUI ConvRot kernel's fused path only activates at 256; any other value would be read back unrotated. A Linear whose input width is not a multiple of 256 is therefore not quantized at all rather than quantized at a smaller group size.
 
 ---
 
@@ -218,17 +225,17 @@ The Hadamard group size must divide the input dimension and be a power of 4; the
 | Property | Threshold 0.05 | Threshold 0.02 |
 | :--- | :--- | :--- |
 | Output | `sam3.1_multiplex_convrot_int8_t005.safetensors` | `sam3.1_multiplex_convrot_int8_t002.safetensors` |
-| Size | **1319.8 MB** (1.29 GB) | **1418.5 MB** (1.39 GB) |
-| Reduction vs 1.63 GB source | 19.1 % | 13.0 % |
-| Protected modules | **143** (138 2D + 5 4D) | **181** (176 2D + 5 4D) |
-| ConvRot INT8 | 379 modules | 341 modules |
-| FP16 / BF16 retained | 890.4 MB | 1088.2 MB |
-| INT8 payload | 427.5 MB | 328.6 MB |
+| Size | **1623.6 MB** (1.586 GB) | **1657.6 MB** (1.619 GB) |
+| Reduction vs 1664.7 MB source | 2.5 % | 0.4 % |
+| ConvRot INT8 Linear | **65** | **41** |
+| INT8 payload | 41.3 MB | 7.1 MB |
+| Protected (drift or shape) | 156 | 180 |
 | Kept as-is (1D, buffers) | 1068 | 1068 |
+| Measured tracker mask IoU vs FP16 | **0.9983** | - |
 
-A lower threshold means **more protected modules**, which means **more FP16 retained**, which means a **larger** pack. The 38 modules that move into the protected set between 0.02 and 0.05 cost +197.8 MB of FP16 retention while removing 98.9 MB of INT8 payload - a net +98.7 MB, which is exactly the measured difference between the two packs. This is the same relationship the ControlNet packs show (174 protected -> 1783 MB, 105 -> 1570 MB, 61 -> 1397 MB).
+A lower threshold means **more protected modules**, hence a **larger** pack - the same relationship the ControlNet packs show (174 protected -> 1783 MB, 105 -> 1570 MB, 61 -> 1397 MB).
 
-Both packs are produced from the same measured impact JSON; only the threshold differs.
+**Why the pack is only 2.5 % smaller.** The size is dominated by the parameter names the runtime *does not* use. Of the 489 Linear layers the ComfyUI runtime has, only **221 receive a weight from this checkpoint** (the other 268 are initialized by the runtime itself); of those 221, only **184 have an input width that is a multiple of 256**, and 119 of them are protected at the 0.05 threshold. That leaves exactly the 65 quantized layers. The checkpoint's own 468 2D weights include many names the runtime never loads (folds), and the bulk of the remaining bytes are the fp16 weights the runtime keeps in full precision plus the 1D/buffer tensors. This is not a limitation of the threshold but of how many layers of this checkpoint are both runtime-live and 256-wide.
 
 ---
 
@@ -281,6 +288,6 @@ python clip_convert/convert_sam31_convrot_int8.py \
 | Most fragile group | `tracker.interactive_sam_mask_decoder.*` - 9 modules at drift 10.64 (vs 0.12 typical) |
 | Unmeasured remainder | 162 modules (video / propagation paths) - measured drift 0.0 |
 | Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata` |
-| Result | 1.63 GB -> 1.23 GB, 326 Linear + 44 Conv2d in INT8, 143 protected |
+| Result | 1664.7 MB -> 1623.6 MB; 65 ConvRot INT8 Linear; 156 protected; measured tracker mask IoU 0.9983 |
 
 The essential point for SAM is the same as for any other model, but with one addition: because the observable is a **discrete segmentation decision** rather than a smooth latent, the measured output drift is the only thing that speaks for the quality of the mask - and the measurement has to exercise **every path** the model offers, or half of it stays unverified.
