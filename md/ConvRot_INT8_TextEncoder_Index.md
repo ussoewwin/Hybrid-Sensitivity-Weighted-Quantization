@@ -1,7 +1,11 @@
 # ConvRot INT8 — Text Encoder / CLIP Quantization Index
 
-Every ConvRot INT8 pack built for a **text encoder or CLIP** checkpoint, which
-method produced it, and where the details live.
+Every ConvRot INT8 pack built for a **standalone text encoder / CLIP** checkpoint,
+which method produced it, and where the details live.
+
+**Scope.** Standalone text-encoder checkpoints only. The CLIP inside an SD1.5 or SDXL
+checkpoint is part of the UNet (a single-file, already-finished model) and is
+**out of scope here** - it is not touched by this work.
 
 ---
 
