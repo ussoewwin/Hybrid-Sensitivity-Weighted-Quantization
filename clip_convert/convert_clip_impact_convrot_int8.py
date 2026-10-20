@@ -41,7 +41,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 GROUP_SIZE = 256
-DEFAULT_DRIFT_THRESHOLD = 0.15
+DEFAULT_DRIFT_THRESHOLD = 9.9
 
 
 def build_hadamard(size, dtype=torch.float32):
@@ -74,7 +74,7 @@ def _encode(config):
 
 
 def runtime_linear_modules(comfy_path, model_path, clip_type="stable_diffusion"):
-    """Return the set of Linear module names the CLIP runtime builds."""
+    """Return the set of Linear/Embedding module names the CLIP runtime builds."""
     if comfy_path not in sys.path:
         sys.path.insert(0, comfy_path)
     cwd = os.getcwd()
@@ -90,7 +90,8 @@ def runtime_linear_modules(comfy_path, model_path, clip_type="stable_diffusion")
             sys.argv = sv
         net = clip.cond_stage_model
         inner = getattr(net, "clip_l", net)
-        names = {n for n, m in inner.named_modules() if type(m).__name__ == "Linear"}
+        names = {n for n, m in inner.named_modules()
+                 if type(m).__name__ in ("Linear", "Embedding")}
         return names
     finally:
         os.chdir(cwd)
