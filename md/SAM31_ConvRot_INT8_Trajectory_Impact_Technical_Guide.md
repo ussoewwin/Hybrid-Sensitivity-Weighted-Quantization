@@ -179,6 +179,15 @@ Two structural readings:
 
 The shipped pack uses **0.05**. For comparison, 0.15 - the ControlNet threshold - would leave 74 protected modules on a 551-module model, i.e. it would quantize the interactive mask decoder that the measurement identifies as the single most fragile group in the network.
 
+Both 0.05 and 0.02 were run through the quality gate on the real loader path, and both pass with essentially the same quality:
+
+| Threshold | Protected | Quantized | Tracker IoU | Pixel flip | Logit relMSE |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **0.05 (shipped)** | 174 | 65 | **0.998318** | 0.001625 | 4.25e-04 |
+| 0.02 | 225 | 41 | 0.997750 | 0.002174 | 5.12e-04 |
+
+The quality is equivalent (IoU differs by 0.0006) while 0.05 quantizes 24 more layers, so 0.05 is the better trade: the same measured quality at a smaller pack. 0.02 is the more conservative alternative but is larger without being measurably better. There is no cliff between them.
+
 ---
 
 ## 4. The Converter
@@ -232,7 +241,7 @@ The group size is **fixed at 256**. It must divide the input dimension and be a 
 | INT8 payload | 41.3 MB | 7.1 MB |
 | Dropped (dead, runtime never loads) | 292 tensors / **673.2 MB** | 292 / 673.2 MB |
 | Protected (drift or shape) | 156 | 180 |
-| Measured tracker mask IoU vs FP16 | **0.9983** | - |
+| Measured tracker mask IoU vs FP16 | **0.9983** | 0.9978 |
 
 A lower threshold means **more protected modules**, hence a **larger** pack - the same relationship the ControlNet packs show (174 protected -> 1783 MB, 105 -> 1570 MB, 61 -> 1397 MB).
 
