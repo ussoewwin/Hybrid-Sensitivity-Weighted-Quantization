@@ -30,14 +30,16 @@ against the FP16 baseline on the real ComfyUI runtime (tracker mask IoU):
    ComfyUI for the runtime module list and only converts a layer that is a real
    `nn.Linear` whose weight is present in the runtime state dict.
 
-4. **Keys the runtime never loads are dropped from the pack.** The checkpoint
-   ships a full `detector.backbone.language_backbone.encoder` subtree (292
-   tensors, 673.2 MB) that the ComfyUI runtime replaces with a single `resizer`
-   Linear. Measured: zeroing all 292 tensors leaves both the tracker mask and
-   the detector boxes/scores/masks bit-identical (maxabs diff 0.00000000), so
-   they are dead weight. Dropping them takes the pack from 1623.6 MB to
-   950.4 MB - by far the largest single size win of the whole pipeline, and one
-   that has nothing to do with the quantization threshold.
+4. **The `detector.backbone.language_backbone.*` subtree is kept, not dropped.**
+   It looks like dead weight in the mask path (zeroing it leaves both the
+   tracker mask and the detector boxes/scores/masks bit-identical), but ComfyUI
+   uses it as the **CLIP text encoder**: `comfy/supported_models.py` sets
+   `text_encoder_key_prefix = ["detector.backbone.language_backbone."]` and
+   stashes the non-resizer keys into `_clip_stash` to build the CLIP. Dropping
+   the subtree makes `load_checkpoint_guess_config` return `clip=None`, and
+   every `CLIPTextEncode` then fails with "clip input is invalid: None".
+   (An earlier revision of this converter dropped it and broke the CLIP; do not
+   reintroduce that.)
 
 With rules 1-3 applied, the measured quality gate on the real loader path is:
 tracker mask flip 0.0022 / IoU 0.9978 / logit relMSE 5.1e-04 at the shipped
@@ -71,15 +73,14 @@ from safetensors.torch import save_file
 GROUP_SIZE = 256
 DEFAULT_DRIFT_THRESHOLD = 0.02
 
-# Checkpoint keys under this prefix are never loaded by the ComfyUI runtime.
-# Measured: zeroing all 292 of them (673.2 MB) leaves BOTH the tracker mask and
-# the detector boxes/scores/masks bit-identical, i.e. they are dead weight. The
-# runtime replaces the language backbone with a single `resizer` Linear, so the
-# whole encoder subtree is dropped from the pack instead of being shipped as
-# fp16.
-DEAD_PREFIXES = (
-    "detector.backbone.language_backbone.encoder.",
-)
+# The checkpoint's `detector.backbone.language_backbone.*` subtree is NOT dead
+# weight: ComfyUI treats it as the CLIP text encoder
+# (comfy/supported_models.py: text_encoder_key_prefix =
+# ["detector.backbone.language_backbone."], and the non-resizer keys are
+# stashed into _clip_stash to build the CLIP). Removing it makes
+# load_checkpoint_guess_config return clip=None, and any CLIPTextEncode node
+# then fails with "clip input is invalid: None". It is therefore kept.
+DEAD_PREFIXES = ()
 
 
 def build_hadamard(size, dtype=torch.float32):
