@@ -112,13 +112,49 @@ _quantization_metadata       JSON {"format_version":"1.0","layers":{...}}
 | metric | FP32 | INT8 | change |
 | :--- | :--- | :--- | :--- |
 | file size | 1631.80 MB | **413.20 MB** | **-74.7 %** |
-| text encode latency | 15.94 ms | 31.38 ms | +96.9 % |
-| vision encode latency | 38.50 ms | 55.02 ms | +42.9 % |
 
-**Honest note on latency.** The file shrinks by ~75 %, but encode latency roughly
-doubles: the `mixed_precision_ops` path adds per-op dequant/rotation overhead that is
-not amortized at these batch sizes. The benefit here is **VRAM / file size**, not
-speed.
+Latency, measured by batch (the batch size decides whether the overhead is
+amortized):
+
+**vision tower**
+
+| batch | FP32 | INT8 | ratio |
+| :--- | :--- | :--- | :--- |
+| 1 | 45.65 ms | 51.40 ms | 1.13x |
+| 4 | 102.81 ms | 101.32 ms | **0.99x** |
+| 16 | 377.96 ms | 374.21 ms | **0.99x** |
+
+**text tower**
+
+| batch | FP32 | INT8 | ratio |
+| :--- | :--- | :--- | :--- |
+| 1 | 18.20 ms | 34.31 ms | 1.88x |
+| 4 | 17.57 ms | 38.91 ms | 2.21x |
+| 16 | 18.59 ms | 31.12 ms | 1.67x |
+
+**Why the towers differ.** The vision tower is not slower at any batch size once the
+per-call overhead is amortized. The text tower is, and the cause is in ComfyUI core,
+not in the pack:
+
+- `comfy/clip_model.py` `CLIPLayer.forward` calls `torch.nn.functional.linear`
+  directly. Handing that a `QuantizedTensor` **implicitly dequantizes it** and runs
+  an fp16 GEMM - the INT8 GEMM (`quant_ops.ck.int8_linear`) is never reached.
+  Measured: one such call costs 9.1 ms.
+- The vision tower's forward path does reach the quantized matmul, so it keeps pace
+  with FP16 from batch 4 upward.
+
+Two further measured facts:
+
+- Keeping `text_model.embeddings.token_embedding` in FP16 recovers about 23 %
+  of the text latency (40.7 -> 31.5 ms), but it **breaks the model**: CLIP's
+  `operations.Embedding` assumes an INT8 weight, and the embedding cos collapses to
+  0.18. The embedding therefore has to stay INT8.
+- Passing `custom_operations` to `load_clip` does not help either: in
+  `comfy/sd1_clip.py` `SDClipModel.__init__` an explicit `custom_operations`
+  **overrides** the quantization-aware operations with `manual_cast`.
+
+So for the text tower the INT8 pack buys **VRAM and file size**, not speed; the
+speed would require a change in ComfyUI core's CLIP text path.
 
 ---
 
@@ -184,5 +220,5 @@ Expected: text mean >= 0.9997 / min >= 0.9996; vision mean >= 0.9997 / min >= 0.
 | Thresholds | text **1.95**, vision **0.90** (both above the measured maxima) |
 | Acceptance fidelity | text mean 0.999809 / min 0.999687; vision mean 0.999772 / min 0.999210 |
 | Size | 1631.80 MB -> **413.20 MB** (-74.7 %) |
-| Latency | text +96.9 %, vision +42.9 % — reported, not hidden |
+| Latency | vision: 0.99x vs FP16 from batch 4 up; text: 1.7-2.2x slower (ComfyUI core's CLIP text path does not reach the INT8 GEMM) |
 | Load | text: standard `CLIPLoader` + metadata; vision: `mixed_precision_ops` required |
