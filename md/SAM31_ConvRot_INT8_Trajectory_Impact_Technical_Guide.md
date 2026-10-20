@@ -39,7 +39,7 @@ For SAM this is even more important than for a denoiser, because SAM's output is
 | Paths exercised | one generation | **two**: tracker (point prompt) and detector (text prompt) |
 | Measured range | max ~1.2 - 3.7 | **max 10.64** |
 | Median | 0.06 - 0.15 | **0.0024** |
-| Sensible threshold | 0.15 | **0.05** |
+| Sensible threshold | 0.15 | **0.02** |
 
 The same "perturb one layer, measure the output change" principle applies; what changes is the observable and therefore the scale of the metric.
 
@@ -172,21 +172,21 @@ Two structural readings:
 | Threshold | Protected modules |
 | :--- | :--- |
 | 0.01 | 239 |
-| 0.02 | 225 |
-| **0.05 (shipped)** | **174** |
+| **0.02 (shipped)** | **225** |
+| 0.05 | 174 |
 | 0.10 | 115 |
 | 0.15 | 74 |
 
-The shipped pack uses **0.05**. For comparison, 0.15 - the ControlNet threshold - would leave 74 protected modules on a 551-module model, i.e. it would quantize the interactive mask decoder that the measurement identifies as the single most fragile group in the network.
+The shipped pack uses **0.02**. For comparison, 0.15 - the ControlNet threshold - would leave 74 protected modules on a 551-module model, i.e. it would quantize the interactive mask decoder that the measurement identifies as the single most fragile group in the network.
 
-Both 0.05 and 0.02 were run through the quality gate on the real loader path, and both pass with essentially the same quality:
+Both 0.02 and 0.05 were run through the quality gate on the real loader path, and both pass with essentially the same quality:
 
 | Threshold | Protected | Quantized | Tracker IoU | Pixel flip | Logit relMSE |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **0.05 (shipped)** | 174 | 65 | **0.998318** | 0.001625 | 4.25e-04 |
-| 0.02 | 225 | 41 | 0.997750 | 0.002174 | 5.12e-04 |
+| **0.02 (shipped)** | 225 | 41 | **0.997750** | 0.002174 | 5.12e-04 |
+| 0.05 | 174 | 65 | 0.998318 | 0.001625 | 4.25e-04 |
 
-The quality is equivalent (IoU differs by 0.0006) while 0.05 quantizes 24 more layers, so 0.05 is the better trade: the same measured quality at a smaller pack. 0.02 is the more conservative alternative but is larger without being measurably better. There is no cliff between them.
+The quality is equivalent (IoU differs by 0.0006). 0.02 is the shipped default because it protects 51 more layers, i.e. it is the more conservative choice, at a small size cost (984.4 MB vs 950.4 MB).
 
 ---
 
@@ -232,23 +232,23 @@ The group size is **fixed at 256**. It must divide the input dimension and be a 
 
 ## 5. The Shipped Packs
 
-| Property | Threshold 0.05 | Threshold 0.02 |
+| Property | **Threshold 0.02 (shipped)** | Threshold 0.05 |
 | :--- | :--- | :--- |
-| Output | `sam3.1_multiplex_convrot_int8_t005.safetensors` | `sam3.1_multiplex_convrot_int8_t002.safetensors` |
-| Size | **950.4 MB** (0.93 GB) | **984.4 MB** (0.96 GB) |
-| Reduction vs 1664.7 MB source | **42.9 %** | 40.9 % |
-| ConvRot INT8 Linear | **65** | **41** |
-| INT8 payload | 41.3 MB | 7.1 MB |
+| Output | `sam3.1_multiplex_convrot_int8_t002.safetensors` | `sam3.1_multiplex_convrot_int8_t005.safetensors` |
+| Size | **984.4 MB** (0.96 GB) | **950.4 MB** (0.93 GB) |
+| Reduction vs 1664.7 MB source | 40.9 % | **42.9 %** |
+| ConvRot INT8 Linear | **41** | **65** |
+| INT8 payload | 7.1 MB | 41.3 MB |
 | Dropped (dead, runtime never loads) | 292 tensors / **673.2 MB** | 292 / 673.2 MB |
-| Protected (drift or shape) | 156 | 180 |
-| Measured tracker mask IoU vs FP16 | **0.9983** | 0.9978 |
+| Protected (drift or shape) | 180 | 156 |
+| Measured tracker mask IoU vs FP16 | **0.9978** | 0.9983 |
 
 A lower threshold means **more protected modules**, hence a **larger** pack - the same relationship the ControlNet packs show (174 protected -> 1783 MB, 105 -> 1570 MB, 61 -> 1397 MB).
 
 **Where the size actually comes from.** The pack is smaller than the source for two independent reasons, and the larger one is not the quantization:
 
 - **Dead weight dropped: 673.2 MB.** The checkpoint's `detector.backbone.language_backbone.encoder` subtree (292 tensors) is never loaded by the runtime, which replaces the language backbone with one `resizer` Linear. Zeroing all 292 tensors leaves both measured paths bit-identical, so they are shipped nowhere.
-- **INT8 payload: 41.3 MB** (t005). Only **65** Linear layers are quantized. Of the 489 Linear layers the ComfyUI runtime has, only **221 receive a weight from this checkpoint** (the other 268 are initialized by the runtime); of those 221, only **184 have an input width that is a multiple of 256**; 119 of them are protected at the 0.05 threshold, leaving exactly 65.
+- **INT8 payload: 7.1 MB** (t002). Only **41** Linear layers are quantized. Of the 489 Linear layers the ComfyUI runtime has, only **221 receive a weight from this checkpoint** (the other 268 are initialized by the runtime); of those 221, only **184 have an input width that is a multiple of 256**; 143 of them are protected at the 0.02 threshold, leaving exactly 41.
 
 ---
 
@@ -267,7 +267,7 @@ python clip_convert/convert_sam31_convrot_int8.py \
   --input <sam3.1_multiplex_fp16.safetensors> \
   --output <out>.safetensors \
   --impact impact/impact_sam3.1_multiplex.json \
-  --drift-threshold 0.05
+  --drift-threshold 0.02
 ```
 
 ---
@@ -303,10 +303,10 @@ python clip_convert/convert_sam31_convrot_int8.py \
 | Paths exercised | tracker (point prompt) **and** detector (text prompt) |
 | Perturbation | ConvRot INT8 reconstruction (Hadamard rotation + per-channel INT8) |
 | Metric | Relative MSE of the concatenated model output against the pristine output |
-| Threshold | **0.05** |
+| Threshold | **0.02** |
 | Most fragile group | `tracker.interactive_sam_mask_decoder.*` - 9 modules at drift 10.64 (vs 0.12 typical) |
 | Unmeasured remainder | 162 modules (video / propagation paths) - measured drift 0.0 |
 | Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata`; runtime-dead keys dropped |
-| Result | 1664.7 MB -> 950.4 MB (42.9 % smaller); 65 ConvRot INT8 Linear; 156 protected; 292 dead tensors (673.2 MB) dropped; measured tracker mask IoU 0.9983 |
+| Result | 1664.7 MB -> 984.4 MB (40.9 % smaller); 41 ConvRot INT8 Linear; 180 protected; 292 dead tensors (673.2 MB) dropped; measured tracker mask IoU 0.9978 |
 
 The essential point for SAM is the same as for any other model, but with one addition: because the observable is a **discrete segmentation decision** rather than a smooth latent, the measured output drift is the only thing that speaks for the quality of the mask - and the measurement has to exercise **every path** the model offers, or half of it stays unverified.
