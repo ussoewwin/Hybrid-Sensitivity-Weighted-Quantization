@@ -40,7 +40,10 @@ against the FP16 baseline on the real ComfyUI runtime (tracker mask IoU):
    that has nothing to do with the quantization threshold.
 
 With rules 1-3 applied, the measured quality gate on the real loader path is:
-tracker mask flip 0.0016 / IoU 0.9983; the remaining detector-path difference
+tracker mask flip 0.0022 / IoU 0.9978 / logit relMSE 5.1e-04 at the shipped
+0.02 threshold, and tracker mask flip 0.0016 / IoU 0.9983 / relMSE 4.3e-04 at
+0.05. The two are equivalent in quality while 0.02 protects more layers (225
+vs 174), so 0.02 is the shipped default. The remaining detector-path difference
 is a bfloat16-vs-float16 dtype effect, not a quantization effect (measured by
 comparing FP16-weights-bf16-activations against INT8-weights-bf16-activations:
 tracker flip 0.0012, detector IoU 0.951).
@@ -48,10 +51,10 @@ tracker flip 0.0012, detector IoU 0.951).
 Usage:
   python clip_convert/convert_sam31_convrot_int8.py \
       --input sam3.1_multiplex_fp16.safetensors \
-      --output sam3.1_multiplex_convrot_int8_t005.safetensors \
+      --output sam3.1_multiplex_convrot_int8_t002.safetensors \
       --impact impact/impact_sam3.1_multiplex.json \
       --comfy_path <ComfyUI checkout> \
-      --drift-threshold 0.05
+      --drift-threshold 0.02
 """
 from __future__ import annotations
 
@@ -66,7 +69,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 GROUP_SIZE = 256
-DEFAULT_DRIFT_THRESHOLD = 0.05
+DEFAULT_DRIFT_THRESHOLD = 0.02
 
 # Checkpoint keys under this prefix are never loaded by the ComfyUI runtime.
 # Measured: zeroing all 292 of them (673.2 MB) leaves BOTH the tracker mask and
