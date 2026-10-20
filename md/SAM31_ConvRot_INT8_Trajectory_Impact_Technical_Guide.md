@@ -218,11 +218,15 @@ The Hadamard group size must divide the input dimension and be a power of 4; the
 | Property | Threshold 0.05 | Threshold 0.02 |
 | :--- | :--- | :--- |
 | Output | `sam3.1_multiplex_convrot_int8_t005.safetensors` | `sam3.1_multiplex_convrot_int8_t002.safetensors` |
-| Size | **1.23 GB** | 1.32 GB |
-| Reduction vs 1.63 GB source | **24.5 %** | 19.0 % |
-| Protected modules | **143** | 181 |
-| ConvRot INT8 | 326 Linear + 44 Conv2d | 288 Linear + 44 Conv2d |
+| Size | **1319.8 MB** (1.29 GB) | **1418.5 MB** (1.39 GB) |
+| Reduction vs 1.63 GB source | 19.1 % | 13.0 % |
+| Protected modules | **143** (138 2D + 5 4D) | **181** (176 2D + 5 4D) |
+| ConvRot INT8 | 379 modules | 341 modules |
+| FP16 / BF16 retained | 890.4 MB | 1088.2 MB |
+| INT8 payload | 427.5 MB | 328.6 MB |
 | Kept as-is (1D, buffers) | 1068 | 1068 |
+
+A lower threshold means **more protected modules**, which means **more FP16 retained**, which means a **larger** pack. The 38 modules that move into the protected set between 0.02 and 0.05 cost +197.8 MB of FP16 retention while removing 98.9 MB of INT8 payload - a net +98.7 MB, which is exactly the measured difference between the two packs. This is the same relationship the ControlNet packs show (174 protected -> 1783 MB, 105 -> 1570 MB, 61 -> 1397 MB).
 
 Both packs are produced from the same measured impact JSON; only the threshold differs.
 
