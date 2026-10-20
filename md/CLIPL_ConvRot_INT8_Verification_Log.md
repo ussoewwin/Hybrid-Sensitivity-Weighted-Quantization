@@ -130,3 +130,43 @@ clip_l_hswq_convrot_int8.safetensors    201.7 MB  (-14.1 %)
 | edge-case robustness | §4 finite, absmax stable | PASS |
 | traceable records | this file + impact JSON + guide | PASS |
 | handover doc | `md/CLIPL_ConvRot_INT8_Impact_Technical_Guide.md` | PASS |
+
+
+---
+
+## 8. Correction (FLUX.1 path, full scope)
+
+The measurements above were taken on the wrong clip_type (STABLE_DIFFUSION). The
+correct path for `clip_l.safetensors` is **FLUX.1** (`CLIPType.FLUX`), and the shipped
+pack uses the **full scope** (all 73 2D Linear layers, embedding included).
+
+### 8.1 Threshold sweep (FLUX path, measured)
+
+```
+FP16 absmax=33.0637
+t15  quant=36 prot=38 size=165.7 MB absmax=33.0638 cos=0.999954
+t50  quant=57 prot=17 size=147.2 MB absmax=33.0638 cos=0.999921
+t100 quant=60 prot=14 size=142.2 MB absmax=33.0636 cos=0.999916
+all  quant=73 prot=1  size=118.1 MB absmax=33.0620 cos=0.999848
+```
+
+### 8.2 Shipped pack (full scope)
+
+```
+file size          118.1 MB  (source 234.7 MB, -49.7 %)
+quantized layers   73 / 73
+comfy_quant        73
+convrot_groupsize  256 (all)
+absmax             FP16 33.0637 -> INT8 33.0620
+cos vs FP16        0.999848
+SHA256             691437D48F36A609BF329853BCCC01E1843FAD8B20233D8A1509D47D7495986B
+```
+
+### 8.3 Standard-path load (real node)
+
+```
+DualCLIPLoader(type="flux", clip_l_hswq_convrot_int8 + t5xxl): quant=(490, 328)
+```
+
+328 of 490 Linear layers become QuantizedTensor through the standard loader - no
+custom node. FLUX.1 CLIP ConvRot INT8 works with the standard loaders as-is.
