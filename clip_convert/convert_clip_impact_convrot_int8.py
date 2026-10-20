@@ -41,7 +41,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 GROUP_SIZE = 256
-DEFAULT_DRIFT_THRESHOLD = 9.9
+DEFAULT_DRIFT_THRESHOLD = 1.8
 
 
 def build_hadamard(size, dtype=torch.float32):
