@@ -1,8 +1,8 @@
 # CLIP-SAE-ViT-L-14 — ConvRot INT8 Trajectory-Impact Technical Guide
 
 **Source.** `models/clip/CLIP-SAE-ViT-L-14-FP32.safetensors` (1631.3 MB, 590 tensors, FP32)
-**Pack.** `models/clip/CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` (1159.5 MB, **−28.9 %**)
-**SHA256.** `ACAFDD2A95DE644000F19E4A3FA5CE51F2AF7DBDF3873C8CFA9297DC0A1073F4`
+**Pack.** `models/clip/CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` (658.9 MB, **−59.6 %**)
+**SHA256.** `F642CD146A494939029BC32242C198F14CB7C10F5C4BDDD4734E0B29B8A98501`
 **Method.** impact-driven, with the FP16-kept set chosen on the **aggregate** output.
 
 ---
@@ -80,12 +80,12 @@ does it.
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **the previous pack** | 0 | 0 | 219 | 0.999875 / 0.999820 | 0.999683 / 0.999592 | 413.2 MB |
 | t10_v20 | 10 | 20 | 189 | 0.999922 / 0.999894 | 0.999782 / 0.999740 | 700.2 MB |
-| t20_v40 | 20 | 40 | 159 | 0.999946 / 0.999929 | 0.999863 / 0.999825 | 957.4 MB |
-| **t30_v60** | **30** | **60** | **129** | **0.999964 / 0.999924** | **0.999932 / 0.999921** | **1159.5 MB** |
-| t50_v100 | 50 | 100 | 89 | 0.999985 / 0.999958 | 0.999989 / 0.999985 | 1597.4 MB |
+| t20_v40 | 20 | 40 | 159 | 0.999946 / 0.999929 | 0.999863 / 0.999825 | 591.6 MB |
+| **t30_v60** | **30** | **60** | **129** | **0.999964 / 0.999924** | **0.999932 / 0.999921** | **658.9 MB** |
+| t50_v100 | 50 | 100 | 69 | 0.999985 / 0.999958 | 0.999989 / 0.999985 | 722.3 MB |
 
 **30 text + 60 vision FP16-kept layers were adopted.** 50/100 buys +2.1e-05
-of the text mean and +5.7e-05 of the vision mean for 438 MB more, and the
+of the text mean and +5.7e-05 of the vision mean for 63 MB more, and the
 text **minimum** goes **down** (0.999924 against 0.999958), so the extra size
 is not paid for in quality.
 
@@ -115,15 +115,15 @@ Built with `sdxl/build_sae_vitl14_convrot_int8.py`:
 | item | value |
 | :--- | :--- |
 | the source | 1631.3 MB (FP32) |
-| the pack | **1159.5 MB** (-28.9 %) |
-| the SHA256 | `ACAFDD2A95DE644000F19E4A3FA5CE51F2AF7DBDF3873C8CFA9297DC0A1073F4` |
+| the pack | **658.9 MB** (-59.6 %) |
+| the SHA256 | `F642CD146A494939029BC32242C198F14CB7C10F5C4BDDD4734E0B29B8A98501` |
 | the tensors | 848 |
 | the quantized layers | **129** (the text 43, the vision 84, the projections 2) |
-| the FP16-kept layers | 90 (the text 30, the vision 60) |
+| the FP16-kept layers | 90 (the text 30, the vision 60), stored FP16 |
 | the group size | 256 (all 129 layers) |
 | the output | finite |
 | text cos mean / min (256 items, seed 42) | **0.999962 / 0.999908** |
-| vision cos mean / min (256 items, seed 42) | **0.999931 / 0.999801** |
+| vision cos mean / min (256 items, seed 42) | **0.999931 / 0.999797** |
 | the gate (mean >= 0.99, min >= 0.98, both towers) | **PASS** |
 
 ---
@@ -139,3 +139,33 @@ Built with `sdxl/build_sae_vitl14_convrot_int8.py`:
 | `impact/impact_sae_vitl14_text_fixed.json` | the text tower's drift (git-ignored) |
 | `impact/impact_sae_vitl14_vision_fixed.json` | the vision tower's drift (git-ignored) |
 | `impact/sae_protect_t30_v60.json` | the adopted FP16-kept list (git-ignored) |
+
+---
+
+## 6. The FP16-kept tensors are stored in FP16
+
+The checkpoint is FP32, and the first revision of this pack wrote the kept
+tensors back in FP32. That is the wrong storage width: **ComfyUI's CLIP runs
+in FP16**, so an FP32 kept tensor is cast to FP16 when the model is built and
+nothing at runtime sees the extra precision. Storing FP32 only paid for the
+bytes. The other packs already ship FP16 kept tensors (CLIP-ViT-bigG-14:
+519 of them, CLIP-L: 133) and pass the acceptance.
+
+The kept tensors are therefore stored FP16, and the pack halves:
+
+| | the kept ones | the pack |
+| :--- | :--- | :--- |
+| the first revision (FP32 kept) | 92 tensors, 997.2 MB | 1159.5 MB |
+| the shipped revision (FP16 kept) | 92 tensors, 498.6 MB | **658.9 MB** |
+
+The INT8 scales stay FP32 on purpose: they carry the dequantization
+precision, and FP16 would round the step size itself.
+
+Dropping the kept tensors' width changes **nothing** in the measured output -
+the acceptance was re-run on the FP16 revision and it is bit-for-bit the same
+gate result:
+
+| | the first revision | the shipped revision |
+| :--- | :--- | :--- |
+| text cos mean / min | 0.999962 / 0.999908 | **0.999962 / 0.999908** |
+| vision cos mean / min | 0.999931 / 0.999801 | **0.999931 / 0.999797** |
