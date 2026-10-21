@@ -95,8 +95,12 @@ def quant_channelwise(w):
 def convrot_int8_recon(w, gs):
     h = build_hadamard(gs, device=w.device)
     if w.ndim == 2:
+        of, inf = w.shape
+        g = inf // gs
         q, s = quant_rowwise(rotate_weight(w.float(), h, gs))
-        return q.float() * s.float()
+        # un-rotate into the ORIGINAL frame - see the module docstring
+        deq = (q.float() * s.float()).view(of, g, gs)
+        return torch.matmul(deq, h.float()).reshape(w.shape).to(w.dtype)
     else:
         w_rot = rotate_weight_conv2d(w.float(), h, gs)
         q, s = quant_channelwise(w_rot)

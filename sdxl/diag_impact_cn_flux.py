@@ -71,7 +71,13 @@ def convrot_int8_recon(w, gs, h=None):
     amax = rot.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
     s = amax / 127.0
     q = (rot / s).round().clamp(-127, 127)
-    return (q * s).to(w.dtype)
+    # The pack stores the ROTATED weight and the kernel rotates the
+    # activation, so the result is (x H) (W H^T)^T = x W^T. The
+    # quantization error that reaches the output is therefore in the
+    # ORIGINAL frame: (q*s) H^T - W. Injecting the rotated frame into a
+    # plain F.linear measures a destroyed layer (relMSE 1.89 against the
+    # real kernel's 1.74e-04), so the reconstruction is un-rotated here.
+    return torch.matmul((q * s).view(of, g, gs), h).reshape(w.shape).to(w.dtype)
 
 
 def rel_mse(a, b):
@@ -129,6 +135,33 @@ def build_runtime(comfy_path, ckpt_path, device="cuda", dtype=torch.bfloat16):
         os.chdir(cwd)
 
 
+def production_y(vec_in_dim, device, dtype, seed):
+    """The production `y`: the CLIP-L pooled output.
+
+    ComfyUI's `Flux.encode_adm` returns `kwargs["pooled_output"]`, and the
+    FLUX clip is loaded with `clip_type=FLUX`. The pooled tensor is 768-wide
+    and measures absmax 8.82 / absmean 0.738 / std 1.07 on the local clip.
+
+    A zero `y` is NOT the production condition: with a zero y the `vector_in`
+    layers have no input, and the measurement reports a drift of 0.0000 for a
+    layer that does change the output (measured: replacing
+    vector_in.in_layer's whole weight with 0.5 changes the output by relMSE
+    1.73 with a real y, and by exactly 0 with a zero y).
+
+    The saved pooled tensor is used when it is present; otherwise a standard
+    normal of the same width is used, which measures the same scale.
+    """
+    pooled_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "impact", "flux_pooled_sample.pt")
+    if os.path.isfile(pooled_path):
+        pooled = torch.load(pooled_path, map_location="cpu").float()
+        if pooled.shape[-1] != vec_in_dim:
+            pooled = pooled[..., :vec_in_dim]
+        return pooled.to(device=device, dtype=dtype)
+    g = torch.Generator(device="cpu").manual_seed(seed + 1)
+    return torch.randn(1, vec_in_dim, generator=g).to(device=device, dtype=dtype)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--controlnet", required=True)
@@ -167,7 +200,18 @@ def main():
     # (768) concatenated, so context_in_dim is 4096
     ctx_dim = int(getattr(model.params, "context_in_dim", 4096))
     txt = torch.randn(1, args.txt_tokens, ctx_dim, generator=g).to(device=dev, dtype=DT)
-    y = torch.zeros(1, hidden, device=dev, dtype=DT)
+    # y is the pooled-vector conditioning: the CLIP-L pooled output, 768-wide
+    # (the model's vec_in_dim; the runtime slices y[:, :vec_in_dim]). It must
+    # not be zeros: with a zero y the vector_in layers have no input and the
+    # measurement reports a drift of 0.0000 for a layer that does change the
+    # output (measured: replacing vector_in.in_layer's whole weight with 0.5
+    # changes the output by relMSE 1.73 with a real y, and by exactly 0 with a
+    # zero y). The local CLIP-L's pooled output measures absmax 8.82 /
+    # absmean 0.74, so a standard normal is the right scale.
+    vec_in_dim = int(getattr(model.params, "vec_in_dim", 0) or 0)
+    if vec_in_dim <= 0:
+        vec_in_dim = hidden
+    y = production_y(vec_in_dim, dev, DT, args.seed)
     timesteps = torch.full((1,), 500.0, device=dev, dtype=DT)
     guidance = torch.full((1,), 3.5, device=dev, dtype=DT)
     hint = torch.randn(1, latent_c, side, side, generator=g).to(device=dev, dtype=DT)
