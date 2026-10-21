@@ -35,6 +35,24 @@ so the result is reproducible.
 Acceptance criterion used throughout: **cos mean >= 0.99 AND cos min >= 0.98**, on a
 fixed 256-item set (seed 42).
 
+**How to read the size column.** The source checkpoints are often FP32 while
+ComfyUI holds a text encoder in `float16`, so the file reduction and the runtime
+reduction are different numbers. Measured on Long-ViT-L-14 (the source is
+**F32 for all 427,747,841 parameters**, 590 tensors):
+
+| | source | pack |
+| :--- | :--- | :--- |
+| file size | 1631.80 MB | 413.20 MB (-74.7 %) |
+| resident weights at runtime | 235.90 MB | 118.48 MB (-49.8 %) |
+
+The file figure is the plain FP32 -> INT8 factor of 1/4 (427,747,841 x 1 byte =
+407.9 MB, and the pack measures 413.20 MB with the scales and the one FP16-kept
+weight on top). **No tensor is missing**: the pack holds 428,119,001 parameters
+against the source's 427,747,841. The runtime figure is smaller because the
+source is already held in fp16 in memory and the token embedding (144.8 MB as
+FP32) has to stay in FP16. See
+`md/LongViTL14_ConvRot_INT8_Impact_Technical_Guide.md` sections 0.1 and 0.2.
+
 **Two model-specific facts, measured.**
 
 - **FLAN-T5 XXL carries a decoder the runtime never loads.** The runtime T5 module
