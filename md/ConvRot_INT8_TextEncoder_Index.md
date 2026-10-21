@@ -28,7 +28,7 @@ so the result is reproducible.
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `clip_l.safetensors` (FLUX.1 CLIP-L) | text | the FP16-kept set by the aggregate contribution (10 of 73 kept, 63 INT8, group size 256) | 0.999876 / 0.999841 | 135.5 MB | `md/CLIPL_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | text + vision | 1.30 / 0.50 | text 0.999914 / 0.999851, vision 0.999451 / 0.996486 | 570.3 MB | `md/ViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
-| `CLIP-SAE-ViT-L-14-FP32.safetensors` | text + vision | 1.95 / 0.90 | text 0.999872 / 0.999755, vision 0.999676 / 0.999353 | 413.2 MB | `md/SAEViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `CLIP-SAE-ViT-L-14-FP32.safetensors` | text + vision | the FP16-kept set by the aggregate contribution (30 text + 60 vision kept, 129 INT8, group size 256) | text 0.999962 / 0.999908, vision 0.999931 / 0.999801 | 1159.5 MB | `md/SAEViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | text | full (all 197) | 0.997572 / 0.992079 | 570.5 MB | `md/JosiefiedQwen3_06B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | text (the language + the vision tower) | the FP16-kept set by the aggregate contribution (100 of 358 kept, 258 INT8, group size 256) | 0.999649 / 0.998927 | 5958.9 MB | `md/Qwen3VL4B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL, encoder + decoder) | text | the FP16-kept set by the aggregate contribution (40 encoder + 80 decoder kept, 312 INT8 of 432, group size 256) | 0.999934 | 14056.6 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
