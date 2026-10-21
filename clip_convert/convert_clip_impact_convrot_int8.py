@@ -44,6 +44,20 @@ GROUP_SIZE = 256
 DEFAULT_DRIFT_THRESHOLD = 1.8
 
 
+def group_size_for(n: int, preferred: int) -> int | None:
+    """The largest power-of-4 group size <= preferred that divides n.
+
+    CLIP-ViT-bigG's hidden size is 1664, which is not a multiple of 256, so its
+    layers can only be rotated with a group size of 64.
+    """
+    gs = preferred
+    while gs >= 4:
+        if n % gs == 0 and math.log(gs, 4) % 1 == 0:
+            return gs
+        gs //= 4
+    return None
+
+
 def build_hadamard(size, dtype=torch.float32):
     if size < 4 or (size & (size - 1)) != 0 or math.log(size, 4) % 1 != 0:
         raise ValueError(f"Hadamard size must be a power of 4, got {size}")
@@ -74,22 +88,39 @@ def _encode(config):
 
 
 def runtime_linear_modules(comfy_path, model_path, clip_type="stable_diffusion"):
-    """Return the set of Linear/Embedding module names the CLIP runtime builds."""
+    """Return the set of Linear/Embedding module names the CLIP runtime builds.
+
+    `clip_type` "vision" builds the vision tower through
+    comfy.clip_vision.load_clipvision_from_sd, which is the path the
+    CLIPVisionLoader uses; the stock loader picks the config from the
+    checkpoint's own shape.
+    """
     if comfy_path not in sys.path:
         sys.path.insert(0, comfy_path)
     cwd = os.getcwd()
     try:
         os.chdir(comfy_path)
-        import comfy.sd
         sv = sys.argv
         sys.argv = [sv[0]]
         try:
-            clip = comfy.sd.load_clip(ckpt_paths=[os.path.abspath(model_path)], embedding_directory=None,
-                                      clip_type=getattr(comfy.sd.CLIPType, clip_type.upper()))
+            if clip_type == "vision":
+                import comfy.clip_vision as cv
+                import comfy.utils
+                sd = comfy.utils.load_torch_file(os.path.abspath(model_path), safe_load=True)
+                vsd = {k: v for k, v in sd.items() if k.startswith("vision_model.")}
+                if "vision_model.embeddings.class_embedding" not in vsd:
+                    vsd["vision_model.embeddings.class_embedding"] = torch.zeros(1664)
+                vis = cv.load_clipvision_from_sd(vsd)
+                net = getattr(vis, "model", vis)
+                inner = getattr(net, "vision_model", net)
+            else:
+                import comfy.sd
+                clip = comfy.sd.load_clip(ckpt_paths=[os.path.abspath(model_path)], embedding_directory=None,
+                                          clip_type=getattr(comfy.sd.CLIPType, clip_type.upper()))
+                net = clip.cond_stage_model
+                inner = getattr(net, "clip_l", net)
         finally:
             sys.argv = sv
-        net = clip.cond_stage_model
-        inner = getattr(net, "clip_l", net)
         names = {n for n, m in inner.named_modules()
                  if type(m).__name__ in ("Linear", "Embedding")}
         return names
@@ -107,6 +138,8 @@ def runtime_to_checkpoint(runtime_name, ck_keys):
     for pre in ("transformer.", "cond_stage_model.", "clip_l."):
         if runtime_name.startswith(pre):
             candidates.append(runtime_name[len(pre):])
+    # the vision tower's runtime names carry no prefix, the checkpoint's do
+    candidates.append("vision_model." + runtime_name)
     for cand in candidates:
         if (cand + ".weight") in ck_keys:
             return cand
@@ -120,7 +153,7 @@ def runtime_to_checkpoint(runtime_name, ck_keys):
 
 
 def convert(input_path, output_path, impact_json, comfy_path, clip_type,
-            drift_threshold=DEFAULT_DRIFT_THRESHOLD):
+            drift_threshold=DEFAULT_DRIFT_THRESHOLD, groupsize=GROUP_SIZE):
     print(f"Loading (streamed): {input_path}")
     src = safe_open(input_path, framework="pt", device="cpu")
     keys = sorted(src.keys())
@@ -147,7 +180,12 @@ def convert(input_path, output_path, impact_json, comfy_path, clip_type,
             protect.add(ck)
     print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
 
-    h = build_hadamard(GROUP_SIZE)
+    h_cache = {}
+
+    def hadamard_for(gs):
+        if gs not in h_cache:
+            h_cache[gs] = build_hadamard(gs)
+        return h_cache[gs]
     out = {}
     meta_layers = {}
     n_lin = n_prot = n_kept = 0
@@ -169,13 +207,14 @@ def convert(input_path, output_path, impact_json, comfy_path, clip_type,
             n_prot += 1
             continue
         inf = int(t.shape[1]); of = int(t.shape[0])
-        if inf % GROUP_SIZE != 0 or of % 4 != 0 or inf % 4 != 0:
+        gs = group_size_for(inf, groupsize)
+        if gs is None or of % 4 != 0 or inf % 4 != 0:
             out[key] = t
             n_prot += 1
             continue
-        q, scale = quant_rowwise(rotate_weight(t.float(), h, GROUP_SIZE))
+        q, scale = quant_rowwise(rotate_weight(t.float(), hadamard_for(gs), gs))
         n_lin += 1
-        conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": GROUP_SIZE}
+        conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": gs}
         out[key] = q
         out[f"{mk}.weight_scale"] = scale
         out[f"{mk}.comfy_quant"] = _encode(conf)
@@ -198,5 +237,9 @@ if __name__ == "__main__":
     ap.add_argument("--comfy_path", required=True)
     ap.add_argument("--clip_type", default="stable_diffusion")
     ap.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD)
+    ap.add_argument("--groupsize", type=int, default=GROUP_SIZE,
+                    help="the Hadamard group size; each layer uses the largest "
+                         "power-of-4 divisor of its input width that is <= this")
     a = ap.parse_args()
-    convert(a.input, a.output, a.impact, a.comfy_path, a.clip_type, drift_threshold=a.drift_threshold)
+    convert(a.input, a.output, a.impact, a.comfy_path, a.clip_type,
+            drift_threshold=a.drift_threshold, groupsize=a.groupsize)
