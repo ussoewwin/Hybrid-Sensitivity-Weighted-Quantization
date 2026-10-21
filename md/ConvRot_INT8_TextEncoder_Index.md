@@ -26,7 +26,7 @@ so the result is reproducible.
 
 | checkpoint | towers quantized | thresholds | cos (mean / min) | size | guide |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `clip_l.safetensors` (FLUX.1 CLIP-L) | text | 1.8 | 0.999857 / 0.999851 | 122.6 MB | `md/CLIPL_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `clip_l.safetensors` (FLUX.1 CLIP-L) | text | the FP16-kept set by the aggregate contribution (10 of 73 kept, 63 INT8, group size 256) | 0.999876 / 0.999841 | 135.5 MB | `md/CLIPL_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | text + vision | 1.30 / 0.50 | text 0.999914 / 0.999851, vision 0.999451 / 0.996486 | 570.3 MB | `md/ViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-SAE-ViT-L-14-FP32.safetensors` | text + vision | 1.95 / 0.90 | text 0.999872 / 0.999755, vision 0.999676 / 0.999353 | 413.2 MB | `md/SAEViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | text | full (all 197) | 0.997572 / 0.992079 | 570.5 MB | `md/JosiefiedQwen3_06B_ConvRot_INT8_Impact_Technical_Guide.md` |
