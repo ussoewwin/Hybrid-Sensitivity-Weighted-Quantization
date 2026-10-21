@@ -84,10 +84,11 @@ does it.
 | **t30_v60** | **30** | **60** | **129** | **0.999964 / 0.999924** | **0.999932 / 0.999921** | **658.9 MB** |
 | t50_v100 | 50 | 100 | 69 | 0.999985 / 0.999958 | 0.999989 / 0.999985 | 722.3 MB |
 
-**30 text + 60 vision FP16-kept layers were adopted.** 50/100 buys +2.1e-05
-of the text mean and +5.7e-05 of the vision mean for 63 MB more, and the
-text **minimum** goes **down** (0.999924 against 0.999958), so the extra size
-is not paid for in quality.
+**30 text + 60 vision FP16-kept layers were adopted.** 50/100 is better on
+every one of the four numbers (+2.1e-05 of the text mean, +3.4e-05 of the text
+minimum, +5.7e-05 of the vision mean, +5.9e-05 of the vision minimum) for
+63 MB more; the extra size is better spent on the remaining models than on the
+last five thousandth here.
 
 **The previous pack quantized every eligible layer** (219 INT8, no
 protection at all) - the corrected drift at any threshold protects 0 layers,
