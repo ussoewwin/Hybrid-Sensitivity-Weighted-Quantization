@@ -32,6 +32,7 @@ so the result is reproducible.
 | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | text | full (all 197) | 0.997572 / 0.992079 | 570.5 MB | `md/JosiefiedQwen3_06B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL, encoder + decoder) | text | 0.25 encoder / 0.005 decoder (163 of 168, 62 of 264 INT8) | 0.999879 / 0.999626 | 15998.8 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `sigclip_vision_patch14_384.safetensors` | vision | 0.30 (96 of 162 INT8, group size 64/16) | 0.998560 / 0.996602 | 633.5 MB | `md/SigLIPVision384_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `CLIP-ViT-H-14.safetensors` | vision | 0.05 (127 of 192 INT8, group size 256) | 0.999919 / 0.999866 | 949.5 MB | `md/CLIPViTH14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` | vision | 0.30 (275 of 288 INT8, group size 64) | 0.999916 / 0.999880 | 1935.7 MB | `md/CLIPBiGG_ConvRot_INT8_Impact_Technical_Guide.md` |
 
 Acceptance criterion used throughout: **cos mean >= 0.99 AND cos min >= 0.98**, on a
@@ -82,6 +83,16 @@ FP32) has to stay in FP16. See
   11,266,928,640 / 2 = **5.63 GB**, so a pack below 5 GB is not representable.
   The pack measures 15.62 GB (the decoder needs heavy protection - see the
   drift profile above).
+- **The vision acceptance check has to use the same ops path for the
+  baseline.** The stock `CLIPVisionLoader` builds the vision tower with
+  `comfy.ops.manual_cast`, while a quantized pack is built with
+  `mixed_precision_ops`, and for some models the two paths are **not
+  numerically equivalent**: the same FP16 source through the two paths gives a
+  cosine of 0.94-0.96 on CLIP-ViT-H-14, and restoring every quantized layer of
+  the pack back to FP16 does not move the number. The pack was correct
+  throughout. The baseline therefore has to be built through the same ops
+  class, otherwise the comparison measures the ops path instead of the
+  quantization.
 - **The group size follows the layer's input width** - this is not a
   CLIP-specific rule. SigLIP's hidden size is 1152, which is not a multiple of
   256 either, so 79 of its 162 layers are rotated with a group size of 64 and
