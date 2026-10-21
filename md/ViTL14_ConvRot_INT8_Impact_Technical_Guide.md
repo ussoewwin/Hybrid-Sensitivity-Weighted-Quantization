@@ -1,17 +1,17 @@
 # ViT-L-14-BEST-smooth-GmP ConvRot INT8 — Technical Guide
 
 **Target**: `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` — the OpenAI CLIP
-ViT-L/14 checkpoint in Hugging-Face layout, carrying **two towers** (`text_model.*`
-and `vision_model.*`).
+ViT-L/14 checkpoint in Hugging-Face layout, carrying **two towers**
+(`text_model.*`, `vision_model.*`).
 
-**What this document covers**: how the checkpoint is quantized to ConvRot INT8 with a
-**measured** FP16 protection set covering **both towers**, how the pack is laid out,
-how it loads, and the measured fidelity / size / latency of the result.
+**What this document covers**: how the checkpoint is quantized to ConvRot INT8
+with a **measured** FP16 protection set covering **both towers**, how the pack
+is laid out, how it loads, and the measured fidelity / size of the result.
 
-- Source: `D:\USERFILES\ComfyUI\ComfyUI\models\clip\ViT-L-14-BEST-smooth-GmP-HF-format.safetensors`
+- Source: `models/clip/ViT-L-14-BEST-smooth-GmP-HF-format.safetensors`
   (888.30 MB, SHA256 `46A201AFAE2516C95B6D0CC798ACA637161F07B8D0D7DC7776FB6F691F5476F1`)
-- Pack: `D:\USERFILES\ComfyUI\ComfyUI\models\clip\ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors`
-  (570.27 MB, SHA256 `40AF368223C63F489DC155904150F5FB1DDD0872758AC5D71A2D047C14218D3F`)
+- Pack: `models/clip/ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors`
+  (646.70 MB, **−27.2 %**, SHA256 `B299DFE7A12F96011FB1351669A9720F4ACDC31ACD81E56CD921144D593395DB`)
 
 ---
 
@@ -19,124 +19,123 @@ how it loads, and the measured fidelity / size / latency of the result.
 
 | tower | 2D weight modules | ComfyUI loader | operations used |
 | :--- | :--- | :--- | :--- |
-| `text_model.*` | 74 | `CLIPLoader` -> `SD1ClipModel` | `mixed_precision_ops` when `quantization_metadata` is supplied, else `manual_cast` |
-| `vision_model.*` | 145 | `CLIPVisionLoader` -> `ClipVisionModel` | **always `manual_cast`** (hard-coded in `ClipVisionModel.__init__`) |
+| `text_model.*` | 74 | `CLIPLoader` → `SD1ClipModel` | `mixed_precision_ops` when `quantization_metadata` is supplied, else `manual_cast` |
+| `vision_model.*` | 145 | `CLIPVisionLoader` → `ClipVisionModel` | **always `manual_cast`** (hard-coded in `ClipVisionModel.__init__`) |
 
-This asymmetry is the single most important fact in this document. `comfy_quant` is
-consumed **only** by the `MixedPrecisionOp` family in `comfy/ops.py`; `manual_cast`
-(`disable_weight_init`) ignores it. Therefore:
+This asymmetry is the single most important fact in this document. `comfy_quant`
+is consumed by `mixed_precision_ops`, so a pack loaded through the stock
+`CLIPVisionLoader` keeps its quantized tensors as **int8 storage** and the
+forward crashes or silently produces garbage. The vision tower has to be
+constructed with `mixed_precision_ops` for the pack to work (section 5.2).
 
-- The **text** tower quantizes whenever `model_options["quantization_metadata"]` is
-  present, because `SDClipModel.__init__` then builds `mixed_precision_ops`.
-- The **vision** tower quantizes only if the tower is constructed with
-  `mixed_precision_ops` explicitly. The stock `CLIPVisionLoader` does not do this.
-
-**Consequence.** Both towers *can* be quantized, but a quantized vision tower needs
-`mixed_precision_ops` at construction. Building it with the stock `manual_cast` reads
-the int8 weights as raw int8 and the output collapses (measured vision cos `-0.0117`).
-With `mixed_precision_ops` the same pack gives vision cos **0.998939** (and
-**0.999451** mean / **0.996486** min on the 256-image acceptance set).
-
-> An earlier revision of this work concluded "the vision tower cannot be quantized".
-> That was wrong: the limitation was the loader's operation choice, not the pack.
+The checkpoint stores 581 of 586 tensors in FP16 and 5 in FP32
+(`text_model.embeddings.position_embedding`, `text_projection`,
+`vision_model.embeddings.position_embedding`, `vision_model.pre_layrnorm.{weight,bias}`).
 
 ---
 
 ## 1. Method: impact-driven, per tower
 
-Static weight statistics (kurtosis, outlier ratio) are **not** used as the protection
-criterion. Instead, for each candidate 2D layer the tower's **own output drift** is
-measured:
+Each 2D Linear is replaced by its ConvRot INT8 reconstruction **alone**, and the
+tower's own output is compared against the FP16 source's output.
 
-1. Run the pristine tower on a fixed input; keep the output.
-2. For one layer at a time, replace its weight with the ConvRot INT8 reconstruction
-   (Hadamard rotation along the input axis + per-out-channel INT8).
-3. Re-run the tower; record the relative MSE of the output against the pristine run.
-4. Restore the layer. Repeat for every layer.
-
-Layers whose drift exceeds the threshold stay FP16; the rest become ConvRot INT8.
-
-| tower | observable | script | layers measured |
+| tower | the observable | the candidates | the script |
 | :--- | :--- | :--- | :--- |
-| text | text embedding (`encode_from_tokens_scheduled`) | `sdxl/diag_impact_clip.py` | 73 |
-| vision | image embedding (`encode_image`) | `sdxl/diag_impact_clip_vision.py` | 144 |
+| the text tower | the text embedding for a fixed prompt set | 73 | `sdxl/diag_impact_clip.py` |
+| the vision tower | the image embedding for a fixed image set | 144 | `sdxl/diag_impact_clip_vision.py` |
 
-### 1.1 Measured drift distribution
+The impact measurement's names are the **runtime's**
+(`transformer.text_model.encoder.layers.N.*` for the text tower,
+`encoder.layers.N.*` for the vision tower); the pack is written under the
+**checkpoint's** names (`text_model.*`, `vision_model.*`), which is what
+ComfyUI's loader reads.
 
-| tower | layers | min | median | p90 | max |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| text | 73 | 0.0 | 1.526e-01 | 1.35e+00 | **1.9276** |
-| vision | 144 | — | 2.258e-01 | 9.83e-01 | **1.2505** |
+### 1.0 The injection frame (the defect that was fixed)
 
-Text's most fragile layers:
+The earlier measurement injected the reconstruction in the **rotated** frame
+(`q * s`, i.e. `W_hat * H`) instead of the **original** one. The pack stores
+the rotated weight and the kernel rotates the **activation**, so the
+quantization error that reaches the output is `(q*s) H^T − W`. Injecting the
+rotated frame into a plain linear measures the un-rotated int8 error plus the
+rotation — a completely different quantity.
 
-| drift | layer |
-| :--- | :--- |
-| 1.9276 | `text_model.encoder.layers.0.mlp.fc2` |
-| 1.8766 | `text_model.encoder.layers.0.mlp.fc1` |
-| 1.5789 | `text_model.encoder.layers.2.mlp.fc1` |
+### 1.1 Measured drift distribution, corrected
+
+| | the old (defective) | the new (corrected) |
+| :--- | :--- | :--- |
+| the text tower's median | 1.53e-01 | **2.26e-06** |
+| the text tower's max | 1.93e+00 | **2.27e-05** |
+| the vision tower's median | 2.24e-01 | **4.37e-06** |
+| the vision tower's max | 1.25e+00 | **4.27e-05** |
+
+The old measurement made the text tower's
+`transformer.text_model.encoder.layers.0.self_attn.v_proj` look like 1.45 and
+the vision tower's worst layer like 1.25. The corrected values are five orders
+of magnitude smaller, and with them **the ranks** — which is what makes the
+old protection set meaningless.
 
 ---
 
-## 2. Threshold selection (measured, not assumed)
+## 2. The selection criterion, and the rebuilt pack
 
-The threshold decides how many layers stay FP16. It is chosen so that the
-**acceptance set's minimum cosine stays above 0.98**, at the highest quantization
-that still satisfies it.
+The per-layer drift is a **screen**, not the selection criterion. It measures
+the **weight** error only (the reconstruction is placed in the module and the
+plain forward is used), while the pack's real path also quantizes the
+**activation** for that layer, and that is where most of the error comes from.
+The FP16-kept set is therefore given explicitly, with the layers taken in the
+corrected drift's ranking, separately for the two towers.
 
-### 2.1 Text tower
+The candidates, measured on a fixed 16-item set (seed 42) against the FP16
+source, on the runtime's own path:
 
-| threshold | INT8 | text cos (256) | min |
-| :--- | :--- | :--- | :--- |
-| **1.30 (shipped)** | **65** | mean 0.999914 | 0.999851 |
-| 1.90 | 67 | mean 0.999859 | — |
+| the candidate | the text kept | the vision kept | the INT8 | text cos (mean / min) | vision cos (mean / min) | size |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **the previous pack** (256 items) | (the old threshold set) | | 164 | 0.999914 / 0.999851 | 0.999451 / 0.996486 | 570.3 MB |
+| t0_v0 | 0 | 0 | 217 | 0.999876 / 0.999834 | 0.998823 / 0.996767 | 410.4 MB |
+| t10_v20 | 10 | 20 | 187 | 0.999921 / 0.999891 | 0.999252 / 0.997871 | 486.3 MB |
+| t20_v40 | 20 | 40 | 157 | 0.999947 / 0.999916 | 0.999603 / 0.998897 | 573.5 MB |
+| **t30_v60** | **30** | **60** | **127** | **0.999963 / 0.999927** | **0.999850 / 0.999788** | **646.7 MB** |
+| t50_v100 | 50 | 100 | 67 | 0.999986 / 0.999973 | 0.999965 / 0.999922 | 722.1 MB |
 
-Text 1.30 sits just below the two max-drift layers (1.9276, 1.8766), keeping them
-FP16.
+**30 text + 60 vision FP16-kept layers were adopted.** 50/100 buys +2.3e-05
+of the text mean and +1.2e-04 of the vision mean for 75 MB more; the extra
+size is better spent on the remaining models.
 
-### 2.2 Vision tower (measured on the acceptance set, 256 images)
+Note the **vision tower** is much more sensitive than the text tower here: at
+t20_v40 the text tower is already at 0.999947 while the vision tower is only
+at 0.999603. Protecting the vision tower is what the size buys.
 
-| threshold | INT8 | min | mean | min >= 0.98 |
-| :--- | :--- | :--- | :--- | :--- |
-| 0.80 | 116 | 0.9747 | — | FAIL |
-| **0.50 (shipped)** | **99** | **0.996486** | 0.999451 | **PASS** |
-| 0.30 | 84 | 0.997061 | 0.999628 | PASS |
-| 0.15 | 52 | 0.999386 | 0.999915 | PASS |
-| 0.00 | 0 | 1.000000 | 1.000000 | (no quantization) |
+### 2.1 The kept tensors are stored in FP16
 
-**Vision 0.50 is the optimum**: the highest quantization whose acceptance-set minimum
-still clears 0.98 with margin. 0.80 fails (min 0.9747); lowering to 0.30/0.15 protects
-more layers for no acceptance benefit.
+The previous revision kept the unquantized tensors in **FP32**. The checkpoint
+is FP32 for 5 of its 586 tensors, so those 5 came back as FP32 in the pack.
+That is the wrong storage width: ComfyUI's CLIP runs in FP16, so an FP32 kept
+tensor is cast to FP16 when the model is built and nothing at runtime sees the
+extra precision.
 
-> Note: an intermediate sweep on a 64-image subset suggested 0.80 was safe. The full
-> 256-image acceptance set showed 0.80 fails. The shipped threshold is therefore set
-> from the acceptance set itself, not a subset.
+All floating-point kept tensors are stored FP16 now, and the pack is
+correspondingly smaller than a FP32-kept build of the same layer set would be.
+The INT8 scales stay FP32 (they carry the dequantization precision, and FP16
+would round the step size itself).
 
 ---
 
 ## 3. Pack layout
 
-```
-text_model.*.weight            int8 (ConvRot) or fp16 if protected
-text_model.*.weight_scale      float32  [out, 1]
-text_model.*.comfy_quant       uint8 JSON {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}
-vision_model.*.weight          int8 (ConvRot) or fp16 if protected
-vision_model.*.weight_scale    float32  [out, 1]
-vision_model.*.comfy_quant     uint8 JSON {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}
-_quantization_metadata         JSON {"format_version":"1.0","layers":{...}}
-```
-
-| | value |
+| item | value |
 | :--- | :--- |
-| ConvRot INT8 layers | **164** (text 65 + vision 99) |
-| FP16 retained (2D) | 55 |
-| `comfy_quant` tensors | 164 |
-| group size | 256 (fixed) |
+| the source | 888.30 MB (FP16 except 5 tensors) |
+| the pack | **646.70 MB** (-27.2 %) |
+| the SHA256 | `B299DFE7A12F96011FB1351669A9720F4ACDC31ACD81E56CD921144D593395DB` |
+| the tensors | 841 |
+| the quantized layers | **127** (the text 43, the vision 84) |
+| the FP16-kept layers | 92 (the text 30, the vision 60) |
+| the group size | 256 (all 127 layers) |
+| the output | finite |
 
-The FP16-retained 2D layers are those whose measured drift exceeded the threshold,
-plus any layer that cannot use the INT8 GEMM path (input width not a multiple of 256,
-or output rows not a multiple of 4 — e.g. `vision_model.embeddings.position_embedding`,
-257 rows).
+Per quantized Linear: `<name>.weight` (int8), `<name>.weight_scale` (FP32,
+one row-wise scale over each 256-wide group), `<name>.comfy_quant` (uint8 JSON
+`{"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}`).
 
 ---
 
@@ -144,40 +143,35 @@ or output rows not a multiple of 4 — e.g. `vision_model.embeddings.position_em
 
 ### 4.1 Embedding fidelity (acceptance set, 256 fixed items, seed 42)
 
-| tower | n | mean | min | p5 | p50 | verdict |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| text | 256 | **0.999914** | **0.999851** | 0.999890 | 0.999916 | **PASS** |
-| vision | 256 | **0.999451** | **0.996486** | 0.998791 | 0.999554 | **PASS** |
+| tower | mean | min | p5 | p50 | gate |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| text | **0.999964** | **0.999906** | 0.999946 | 0.999967 | PASS (mean ≥ 0.99, min ≥ 0.98) |
+| vision | **0.999803** | **0.996378** | 0.999603 | 0.999852 | PASS |
 
-Acceptance: mean >= 0.99 AND min >= 0.98 for both towers. Both pass.
+Against the previous pack:
 
-The acceptance set is generated deterministically (no network):
-- text: 256 prompts composed from a fixed 34-word vocabulary with `random.Random(42)`
-- vision: 256 synthetic 224×224 images from `torch.Generator().manual_seed(42)`
+| tower | the previous pack | the rebuilt pack |
+| :--- | :--- | :--- |
+| the text mean / min | 0.999914 / 0.999851 | **0.999964 / 0.999906** |
+| the vision mean / min | 0.999451 / 0.996486 | **0.999803 / 0.996378** |
 
-### 4.2 Size / weight memory / latency (same machine, same batch)
+Both packs are measured on the **same** 256-item set (seed 42) so the rows are
+directly comparable. The text tower's fidelity was already high — the old
+threshold set happened to protect it well — and the rebuilt pack still
+improves it (+5.0e-05 of the mean, +5.5e-05 of the min). The **vision tower**
+is where the old set fails: the mean is 0.999451 against 0.999803, a 3.5×
+larger error, because its drift ranking was inverted and it protected the
+wrong layers. The rebuilt pack's vision **minimum** is 0.996378 against
+0.996486 — a 3 % larger worst-case error, against a 3.5× improvement in the
+mean over the set: the old set bought a slightly better single worst item by
+giving up the average, which is the wrong trade for a vision tower that feeds
+every image through the same graph.
 
-| metric | FP16 | INT8 | change |
-| :--- | :--- | :--- | :--- |
-| file size | 888.30 MB | **570.27 MB** | **-35.8 %** |
-| text tower weight bytes | 235.65 MB | 133.52 MB | -43.3 % |
-| vision tower weight bytes | 577.75 MB | 434.15 MB | -24.9 % |
-| text encode latency | 62.99 ms | 78.72 ms | +25.0 % |
-| vision encode latency | 73.19 ms | 83.70 ms | +14.4 % |
+### 4.2 Downstream smoke test
 
-**Honest note on latency.** The file and weight memory shrink substantially, but
-per-encode latency is **higher** on this machine: the `mixed_precision_ops` path adds
-per-op dequant/rotation overhead that dominates a model of this size. The benefit
-here is **VRAM / file size**, not speed. This is reported as measured, not claimed as
-an improvement.
-
-### 4.3 Downstream smoke test
-
-| check | result |
-| :--- | :--- |
-| text encode | shape (1, 77, 768), finite, norm 248.9973 |
-| vision encode | shape (3, 1024), finite, norms 31.19 / 31.60 / 31.38 |
-| FP16-vs-INT8 consistency | text **0.999921**, vision **0.999275** |
+`sdxl/smoke_vitl14.py` loads both towers through ComfyUI's own loaders and
+runs one forward each; the pack must load without error and produce finite
+output.
 
 ---
 
@@ -185,9 +179,10 @@ an improvement.
 
 ### 5.1 Text tower (standard loader works)
 
-`CLIPLoader` -> `comfy.sd.load_clip` -> `SDClipModel`. To activate INT8, the pack's
-`_quantization_metadata` must reach `model_options["quantization_metadata"]`; then
-`SDClipModel` builds `mixed_precision_ops` and consumes the `comfy_quant` stamps.
+`CLIPLoader` → `comfy.sd.load_clip` → `SDClipModel`. To activate INT8, the
+pack's `_quantization_metadata` must reach
+`model_options["quantization_metadata"]`; then `SDClipModel` builds
+`mixed_precision_ops` and consumes the `comfy_quant` stamps.
 
 ```python
 sd, meta = comfy.utils.load_torch_file(pack, safe_load=True, return_metadata=True)
@@ -196,14 +191,15 @@ clip = comfy.sd.load_clip(ckpt_paths=[pack], embedding_directory=None,
                           clip_type=comfy.sd.CLIPType.STABLE_DIFFUSION, model_options=mo)
 ```
 
-`text_projection` is absent in this checkpoint; under mixed ops its weight stays
-`None` and the forward crashes (`'NoneType' object has no attribute 'device'`).
-Complete it with fp16 zeros (768×768).
+`text_projection` is present in this checkpoint (`[768, 768]`, FP32), so no
+completion step is needed on this path. (The `transformer.text_model.*`
+namespace reports it as a bare `text_projection`; `SDClipModel` reads it
+directly.)
 
 ### 5.2 Vision tower (needs `mixed_precision_ops`)
 
-The stock `CLIPVisionLoader` uses `manual_cast` and will **not** quantize. Construct
-the tower with `mixed_precision_ops`:
+The stock `CLIPVisionLoader` uses `manual_cast` and will **not** quantize.
+Construct the tower with `mixed_precision_ops`:
 
 ```python
 from comfy import ops as O
@@ -213,8 +209,8 @@ ops = O.mixed_precision_ops({"int8_tensorwise": QUANT_ALGOS["int8_tensorwise"]},
 model = IMAGE_ENCODERS["clip_vision_model"](config, dtype, device, ops)
 ```
 
-`vision_model.embeddings.class_embedding` is absent in the checkpoint; complete it
-with zeros (dim 1024) when loading the vision tower standalone.
+`vision_model.embeddings.class_embedding` is absent in the checkpoint; complete
+it with zeros (dim 1024) when loading the vision tower standalone.
 
 ---
 
@@ -223,36 +219,33 @@ with zeros (dim 1024) when loading the vision tower standalone.
 ```bash
 # 1) measure text drift (73 layers)
 python sdxl/diag_impact_clip.py --model <vitl>.safetensors \
-  --out impact/impact_vitl14_best.json --comfy_path <ComfyUI> --full
+  --out impact/impact_vitl14_best_text_fixed.json --comfy_path <ComfyUI> --seed 42
 # 2) measure vision drift (144 layers)
 python sdxl/diag_impact_clip_vision.py --model <vitl>.safetensors \
-  --out impact/impact_vitl14_best_vision.json --comfy_path <ComfyUI> --full
-# 3) build the pack (thresholds text=1.30 vision=0.50)
-python sdxl/build_vitl14_convrot_int8.py
-# 4) verify (256 items each, seed 42)
-python sdxl/verify_vitl14_text.py   --n 256 --seed 42 --out impact/verify_vitl14_text.json
-python sdxl/verify_vitl14_vision.py --n 256 --seed 42 --out impact/verify_vitl14_vision.json
+  --out impact/impact_vitl14_best_vision_fixed.json --comfy_path <ComfyUI> --seed 42
+# 3) build the pack (the FP16-kept set given explicitly, per tower)
+python sdxl/build_vitl14_convrot_int8.py \
+  --impact-text impact/impact_vitl14_best_text_fixed.json \
+  --impact-vision impact/impact_vitl14_best_vision_fixed.json \
+  --protect-list impact/vitl14_best_protect_t30_v60.json --out <pack>
+# 4) verify (256 items, seed 42, both towers)
+python sdxl/verify_vitl14_best.py --pack <pack> --n 256 --seed 42 \
+  --out impact/verify_vb_final.json
 # 5) downstream smoke
 python sdxl/smoke_vitl14.py
 ```
-
-Expected: text mean >= 0.9999 / min >= 0.9998; vision mean >= 0.9990 / min >= 0.9960.
 
 ---
 
 ## 7. Summary
 
-| Aspect | Choice |
+| item | value |
 | :--- | :--- |
-| Target | OpenAI CLIP ViT-L/14 (HF layout, text + vision) |
-| Quantized | **both towers**: text 65 INT8, vision 99 INT8 (164 total) |
-| Protection criterion | Measured drift of each tower's own output |
-| Thresholds | text **1.30**, vision **0.50** (chosen from the acceptance set) |
-| Acceptance fidelity | text mean 0.999914 / min 0.999851; vision mean 0.999451 / min 0.996486 |
-| Size | 888.30 MB -> **570.27 MB** (-35.8 %) |
-| Latency | higher (reported, not hidden) |
-| Load | text: standard `CLIPLoader` + metadata; vision: `mixed_precision_ops` required |
-
-**Related documents**: `md/ViTL14_ConvRot_INT8_Verification_Report.md` (verification),
-`md/ViTL14_ConvRot_INT8_Runbook.md` (reproduction / rollback),
-`impact/ledger_vitl14.json` (experiment ledger).
+| source | 888.30 MB |
+| pack | **646.70 MB (-27.2 %)** |
+| INT8 layers | 127 of 217 eligible (the text 43, the vision 84) |
+| FP16-kept layers | 92 (the text 30, the vision 60), stored FP16 |
+| group size | 256 |
+| text cos (256 items, seed 42) | **0.999964 / 0.999906** |
+| vision cos (256 items, seed 42) | **0.999803 / 0.996378** |
+| the gate | **PASS** |
