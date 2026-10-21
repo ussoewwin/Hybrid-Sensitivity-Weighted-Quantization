@@ -113,9 +113,25 @@ def runtime_linear_modules(comfy_path, model_path, device="cpu"):
         os.chdir(cwd)
 
 
+def load_protect_list(path):
+    """The FP16-kept layers, from a JSON {"protect": [...], "decoder": [...]}
+    or a text file with one runtime module name per line."""
+    if not path:
+        return set(), set()
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {ln.strip() for ln in text.splitlines() if ln.strip()}, set()
+    if isinstance(data, dict):
+        return set(data.get("protect", [])), set(data.get("decoder", []))
+    return set(data), set()
+
+
 def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_THRESHOLD,
             runtime_modules=None, drop_decoder=False, quantize_decoder=False,
-            decoder_impact_json=None, decoder_max_drift=None):
+            decoder_impact_json=None, decoder_max_drift=None, protect_list=None):
     print(f"Loading (streamed): {input_path}")
     src = safe_open(input_path, framework="pt", device="cpu")
     keys = sorted(src.keys())
@@ -141,7 +157,19 @@ def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_
         ck = rt2ck.get(n)
         if ck:
             protect.add(ck)
-    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
+    explicit, explicit_dec = load_protect_list(protect_list)
+    if explicit:
+        # An explicit list is authoritative: the per-layer drift is a marginal
+        # effect (it measures the weight error only, while the pack's real
+        # path also quantizes the activation), so it does not rank the layers
+        # the way the aggregate output does.
+        unknown = sorted(explicit - set(runtime_modules))
+        if unknown:
+            raise SystemExit("the protect list names %d layers the runtime does "
+                             "not have: %s" % (len(unknown), unknown[:5]))
+        protect = {rt2ck[n] for n in explicit if n in rt2ck}
+    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}"
+          + (" (an explicit list)" if explicit else ""))
 
     # The decoder Linear modules. The runtime T5 has no decoder, so the decoder
     # drift was measured separately (sdxl/diag_impact_t5_decoder.py) against a
@@ -161,7 +189,11 @@ def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_
             last = mk.rsplit(".", 1)[-1]
             if last in ("q", "k", "v", "o", "wi_0", "wi_1", "wo"):
                 dec_lin.add(key)
-        if decoder_max_drift is not None and dec_impacts:
+        if explicit_dec:
+            # an explicit decoder list is authoritative (the same reason as
+            # the encoder's)
+            dec_protect = set(explicit_dec)
+        elif decoder_max_drift is not None and dec_impacts:
             for key in dec_lin:
                 # the decoder impact is keyed by the full checkpoint key
                 d = dec_impacts.get(key)
@@ -241,6 +273,11 @@ if __name__ == "__main__":
     ap.add_argument("--impact", required=True)
     ap.add_argument("--comfy_path", default=r"D:\USERFILES\ComfyUI\ComfyUI")
     ap.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD)
+    ap.add_argument("--protect-list", default=None,
+                    help="the FP16-kept layers, as a JSON {\"protect\": [...], "
+                         "\"decoder\": [...]} or a text file with one runtime module "
+                         "name per line; an explicit list is authoritative over "
+                         "the drift threshold")
     ap.add_argument("--drop-decoder", action="store_true",
                     help="omit the decoder.* tensors the runtime never loads")
     ap.add_argument("--quantize-decoder", action="store_true",
@@ -257,4 +294,5 @@ if __name__ == "__main__":
             drift_threshold=args.drift_threshold, runtime_modules=mods,
             drop_decoder=args.drop_decoder, quantize_decoder=args.quantize_decoder,
             decoder_impact_json=args.decoder_impact or None,
-            decoder_max_drift=args.decoder_max_drift)
+            decoder_max_drift=args.decoder_max_drift,
+            protect_list=args.protect_list)
