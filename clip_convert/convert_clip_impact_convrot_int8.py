@@ -87,6 +87,21 @@ def _encode(config):
     return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
 
+def _keep(t, key):
+    """A tensor that is not quantized, in its storage dtype.
+
+    Floating-point tensors are stored FP16. The checkpoint may be FP32 (the
+    ViT-H-14 source is), but ComfyUI's CLIP runs in FP16, so an FP32 kept
+    tensor is cast to FP16 when the model is built and nothing at runtime
+    sees the extra precision - storing FP32 only pays for the bytes.
+    The INT8 scales keep FP32: they carry the dequantization precision.
+    """
+    if t.dtype in (torch.float16, torch.float32, torch.bfloat16) \
+            and not key.endswith("weight_scale"):
+        return t.to(torch.float16)
+    return t
+
+
 def runtime_state_dict(comfy_path, model_path, clip_type="stable_diffusion"):
     """The runtime's own state dict - the names the pack has to use.
 
@@ -273,23 +288,23 @@ def convert(input_path, output_path, impact_json, comfy_path, clip_type,
         for rname, rv in runtime_sd.items():
             if not (rname.endswith(".weight") and rv.ndim == 2
                     and rv.dtype in (torch.float16, torch.float32, torch.bfloat16)):
-                out[rname] = rv
+                out[rname] = _keep(rv, rname)
                 n_kept += 1
                 continue
             mk = rname[: -len(".weight")]
             ck = ck_of_runtime.get(mk)
             if ck is None:
-                out[rname] = rv
+                out[rname] = _keep(rv, rname)
                 n_kept += 1
                 continue
             if ck in protect:
-                out[rname] = rv
+                out[rname] = _keep(rv, rname)
                 n_prot += 1
                 continue
             inf = int(rv.shape[1]); of = int(rv.shape[0])
             gs = group_size_for(inf, groupsize)
             if gs is None or of % 4 != 0 or inf % 4 != 0:
-                out[rname] = rv
+                out[rname] = _keep(rv, rname)
                 n_prot += 1
                 continue
             q, scale = quant_rowwise(rotate_weight(rv.float(), hadamard_for(gs), gs))
@@ -313,7 +328,7 @@ def convert(input_path, output_path, impact_json, comfy_path, clip_type,
                 bare = key
             if bare in runtime_sd or (bare + ".weight") in runtime_sd or (bare + ".bias") in runtime_sd:
                 continue
-            out[key] = src.get_tensor(key)
+            out[key] = _keep(src.get_tensor(key), key)
             n_kept += 1
     else:
         out = {}
@@ -323,23 +338,23 @@ def convert(input_path, output_path, impact_json, comfy_path, clip_type,
             t = src.get_tensor(key)
             if not (key.endswith(".weight") and t.ndim == 2
                     and t.dtype in (torch.float16, torch.float32, torch.bfloat16)):
-                out[key] = t
+                out[key] = _keep(t, key)
                 n_kept += 1
                 continue
             mk = key[: -len(".weight")]
             # only quantize modules that both exist at runtime and are Linear
             if mk not in rt2ck.values():
-                out[key] = t
+                out[key] = _keep(t, key)
                 n_kept += 1
                 continue
             if mk in protect:
-                out[key] = t
+                out[key] = _keep(t, key)
                 n_prot += 1
                 continue
             inf = int(t.shape[1]); of = int(t.shape[0])
             gs = group_size_for(inf, groupsize)
             if gs is None or of % 4 != 0 or inf % 4 != 0:
-                out[key] = t
+                out[key] = _keep(t, key)
                 n_prot += 1
                 continue
             q, scale = quant_rowwise(rotate_weight(t.float(), hadamard_for(gs), gs))
