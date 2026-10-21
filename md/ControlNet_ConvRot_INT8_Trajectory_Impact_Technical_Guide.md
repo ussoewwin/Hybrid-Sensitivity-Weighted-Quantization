@@ -10,7 +10,7 @@ Everything below is backed by **completed full sweeps**: two SDXL ControlNet che
 | :--- | :--- | :--- | :--- | :--- |
 | `CN-anytest4_illustrious2_A.safetensors` | 400 / 400 | 1 | 62 min | 0 |
 | `CN-anytest4_illustrious2_B.safetensors` | 400 / 400 | 1 | 71 min | 0 |
-| `controlnet-union-pro-max-sdxl-1.0.safetensors` | 407 / 407 | 1 | 82 min | 0 |
+| `controlnet-union-pro-max-sdxl-1.0.safetensors` | 407 / 407 | 1 | 97 min | 0 |
 
 ---
 
@@ -257,7 +257,8 @@ The extreme layers in U are its own:
 | Threshold | A protected | B protected | U protected |
 | :--- | :--- | :--- | :--- |
 | 0.10 | 356 | 233 | 131 |
-| **0.15 (shipped)** | **190** | **117** | **74** |
+| **0.15 (the earlier measurement)** | **190** | **117** | **74** |
+| **0.005 (U, re-measured)** | - | - | **41** |
 | 0.20 | 86 | 44 | 40 |
 | 0.25 | 40 | 16 | 30 |
 
@@ -269,13 +270,13 @@ The shipped packs use **0.15**.
 | :--- | :--- | :--- | :--- |
 | Source | `CN-anytest4_illustrious2_A.safetensors` (2386.2 MB) | `CN-anytest4_illustrious2_B.safetensors` (2386.2 MB) | `controlnet-union-pro-max-sdxl-1.0.safetensors` (2396.9 MB) |
 | Output | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | `CN-anytest4_illustrious2_B_hswq_convrot_int8_t015.safetensors` | `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors` |
-| Size | **1718.6 MB** | **1533.2 MB** | **1443.5 MB** |
-| Reduction vs source | 28.0 % | 35.7 % | 39.8 % |
-| Protected (drift > 0.15) | 190 | 117 | 74 |
-| ConvRot INT8 Linear | **196** | **257** | **298** |
+| Size | **1718.6 MB** | **1533.2 MB** | **1368.8 MB** |
+| Reduction vs source | 28.0 % | 35.7 % | **42.9 %** |
+| Protected | 190 (drift>0.15) | 117 (drift>0.15) | **41 (drift>0.005)** |
+| ConvRot INT8 Linear | **196** | **257** | **328** |
 | INT8 payload | 669.4 MB | 855.3 MB | 955.9 MB |
 | Load check | 1236 keys, 196 `comfy_quant` | 1358 keys, 257 `comfy_quant` | 1459 keys, 298 `comfy_quant` |
-| Measured gate (cos vs FP16, real loader path) | **0.999875** (relMSE 3.86e-04) | **1.000044** (relMSE 1.28e-04) | **0.999646** (relMSE 8.96e-04) |
+| Measured gate (cos vs FP16, real loader path) | **0.999875** (relMSE 3.86e-04) | **1.000044** (relMSE 1.28e-04) | **0.999961** (relMSE 7.74e-06) |
 
 The size ordering follows the protected-layer ordering: A protects the most layers and is therefore the largest pack; U protects the fewest and is the smallest. The pack size is a direct consequence of the measured protection set - not of the quantization scope, which is identical for all three.
 
@@ -456,3 +457,52 @@ The residual per-layer differences come from non-deterministic GPU reductions (c
 | Operational requirement | Detached process, CPU-side weight clone + reconstruction, 10-layer checkpoint with resume |
 
 The essential point: for a ControlNet, the set of layers that must stay in FP16 is a property of *that checkpoint*, discoverable only by measuring *that checkpoint* in the pipeline it will actually run in. The measurement itself is a full sweep, and the engineering around it - detachment, CPU-side reconstruction, checkpointing - is what makes the full sweep a routine operation rather than a multi-hour, multi-restart ordeal.
+
+
+---
+
+## 10. The union-pro-max re-measurement (the injection fix)
+
+The trajectory-impact sweep of `controlnet-union-pro-max-sdxl-1.0` was re-run
+after the injection fix. The fix matters here in the same way as elsewhere:
+the measurement injects the ConvRot INT8 reconstruction into the module, and
+the reconstruction has to be in the **original** frame (`(q*s) H^T - W`), not
+the rotated one — the pack stores the rotated weight and the kernel rotates the
+**activation**.
+
+The 407-layer sweep was re-run in one uninterrupted pass (97 min). The
+ConvRot-eligible layers (the 364 the measurement can perturb) moved:
+
+| | the earlier measurement | the re-measured |
+| :--- | :--- | :--- |
+| the min | 6.15e-04 | 3.30e-04 |
+| the median | 5.49e-02 | **1.64e-03** |
+| the p90 | 1.64e-01 | 2.76e-03 |
+| the max | 4.38e-01 | **6.01e-03** |
+
+The 43 Conv2d layers are unchanged by the fix (they are not perturbed), which
+is why the global max still reads 3.73 (that is `input_hint_block.2`, a Conv2d).
+
+Because the scale changed by ~33×, the old `0.15` threshold selects a
+different set on the corrected values. The shipped pack is re-derived at
+**0.005**, which protects 41 layers:
+
+| the candidate | the INT8 | the protected | cos | relMSE | size |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| the earlier pack (0.15 on the defective values) | 298 | 74 | 0.999961 | 7.67e-06 | 1443.5 MB |
+| t=0.002 | 215 | 154 | 0.999962 | 7.64e-06 | 1764.0 MB |
+| t=0.0025 | 277 | 92 | 0.999961 | 7.63e-06 | 1539.3 MB |
+| t=0.003 | 310 | 59 | 0.999961 | 7.71e-06 | 1421.2 MB |
+| t=0.004 | 322 | 47 | 0.999961 | 7.72e-06 | 1386.5 MB |
+| **t=0.005 (adopted)** | **328** | **41** | **0.999961** | **7.74e-06** | **1368.8 MB** |
+
+All candidates sit at the same cosine (0.999961) — the SDXL ControlNet's
+trajectory is not sensitive to which of these layers is protected, so the
+smallest pack that holds the gate was adopted. The earlier pack and the
+rebuilt pack are numerically indistinguishable on the gate, and the rebuilt
+one is 75 MB smaller.
+
+The corrected drift's ranking (the ConvRot-eligible layers) is dominated by
+`input_blocks.*.transformer_blocks.*` and `middle_block.*` — the transformer
+blocks — while the earlier (defective) ranking was dominated by the same
+families for the wrong reason.
