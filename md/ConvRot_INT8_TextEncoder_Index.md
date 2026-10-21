@@ -42,15 +42,22 @@ fixed 256-item set (seed 42).
 impact-driven method, but two FLUX-specific facts apply and are measured, not
 assumed:
 
-- **The fused `qkv` layers of a FLUX ControlNet cannot be quantized.** The
+- **The fused `qkv` layers of a FLUX ControlNet can be quantized.** The
   runtime builds one Linear out of `cat([to_q, to_k, to_v], dim=0)`, and the
   three halves have value ranges that differ by ~7x (absmax 2.48 / 0.53 /
-  0.375). One per-out-channel scale cannot serve them: the measured
-  reconstruction error of the fused tensor is relMSE 1.89 - a broken layer.
+  0.375). On the **ConvRot** path the fused tensor reconstructs at **relMSE
+  7.49e-05** (the plain int8 path is 2.16e-04) - the rotation mixes the
+  columns, so one per-out-channel scale on the rotated tensor does not have
+  to serve the three halves separately. Nine of the twelve are quantized in
+  the shipped pack.
 - **A FLUX ControlNet's pack carries only the tensors the runtime reads**
   (174 for the Union Pro 2.0). The source checkpoint is in the diffusers
   layout and the loader converts it; the converted state dict holds every
   tensor twice, so writing it verbatim would carry the weights twice.
+- **The FLUX ControlNet's FP16-kept set is chosen by the aggregate
+  contribution**, not by the per-layer drift - 21 of the 75 runtime Linear
+  modules are kept in FP16 (54 quantized). See
+  `md/FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md`.
 
 **How to read the size column.** The source checkpoints are often FP32 while
 ComfyUI holds a text encoder in `float16`, so the file reduction and the runtime
@@ -93,6 +100,28 @@ FP32) has to stay in FP16. See
   throughout. The baseline therefore has to be built through the same ops
   class, otherwise the comparison measures the ops path instead of the
   quantization.
+- **The impact measurement must inject the reconstruction in the ORIGINAL
+  frame.** The pack stores the rotated weight (`W_hat = W H^T`) and the kernel
+  rotates the activation, so the result is `(x H) W_hat^T = x W^T`; the
+  quantization error that reaches the output is `(q*s) H^T - W`, not
+  `q*s - W`. Injecting the rotated frame into a plain `F.linear` measures a
+  destroyed layer (relMSE 1.89 against the real kernel's 1.74e-04). The
+  effect on a full sweep is 1.0e+01 to 1.0e-04 too large, and the ranking is
+  inverted. This defect was present in 8 of the 9 impact scripts; all are
+  fixed.
+- **The FP16-kept set is chosen by the AGGREGATE contribution, not by the
+  per-layer drift.** The per-layer drift is a marginal effect and does not
+  rank the layers the way the aggregate output does. Measure it through the
+  real pack path: load the all-INT8 pack, restore one layer's FP16 weight,
+  and measure the aggregate cosine. On the FLUX ControlNet the two criteria
+  disagree completely - the drift says every layer is equivalent
+  (~1e-04 each), while the aggregate says 21 of the 75 layers carry the
+  output. At the same 54 INT8 layers the aggregate-selected set measures min
+  cos 0.999698 against the drift-selected set's 0.999160.
+- **The `y` conditioning must be the production value.** For FLUX it is the
+  CLIP-L pooled output, `vec_in_dim` wide (768). With `y = zeros` the
+  `vector_in` layers have no input and a layer that changes the output
+  measures 0.0000.
 - **The group size follows the layer's input width** - this is not a
   CLIP-specific rule. SigLIP's hidden size is 1152, which is not a multiple of
   256 either, so 79 of its 162 layers are rotated with a group size of 64 and

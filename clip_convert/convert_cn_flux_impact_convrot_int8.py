@@ -117,8 +117,25 @@ def runtime_model(comfy_path, model_path):
         os.chdir(cwd)
 
 
+def load_protect_list(path):
+    """The FP16-kept layers, from a JSON {"protect": [...]} or a text file
+    with one runtime module name per line."""
+    if not path:
+        return set()
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {ln.strip() for ln in text.splitlines() if ln.strip()}
+    if isinstance(data, dict):
+        return set(data.get("protect", []))
+    return set(data)
+
+
 def convert(input_path, output_path, impact_json, comfy_path,
-            drift_threshold=DEFAULT_DRIFT_THRESHOLD, quantize_qkv=False):
+            drift_threshold=DEFAULT_DRIFT_THRESHOLD, quantize_qkv=False,
+            protect_list=None):
     print(f"Loading: {input_path}", flush=True)
     model = runtime_model(comfy_path, input_path)
     sd = model.state_dict()
@@ -133,7 +150,19 @@ def convert(input_path, output_path, impact_json, comfy_path,
     if not quantize_qkv:
         # the fused qkv layers cannot be quantized: see the module docstring
         protect |= {n for n in lins if "qkv" in n}
-    print(f"  measured {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}", flush=True)
+    explicit = load_protect_list(protect_list)
+    if explicit:
+        # an explicit list is authoritative: the per-layer drift is a marginal
+        # effect and does not rank the layers the way the aggregate output
+        # does, so the FP16-kept set is given by the measurement made through
+        # the real pack path (sdxl/select_cn_flux_protect.py).
+        unknown = sorted(explicit - set(lins))
+        if unknown:
+            raise SystemExit("the protect list names %d layers the runtime does not have: %s"
+                             % (len(unknown), unknown[:5]))
+        protect = set(explicit)
+    print(f"  measured {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}"
+          + (" (an explicit list)" if explicit else ""), flush=True)
 
     h_cache = {}
 
@@ -192,6 +221,11 @@ if __name__ == "__main__":
     ap.add_argument("--quantize-qkv", action="store_true",
                     help="also quantize the fused qkv layers (they are broken: the "
                          "q, k and v halves have value ranges that differ ~7x)")
+    ap.add_argument("--protect-list", default=None,
+                    help="the FP16-kept layers, as a JSON {\"protect\": [...]} or a "
+                         "text file with one runtime module name per line; an "
+                         "explicit list is authoritative over the drift threshold")
     a = ap.parse_args()
     convert(a.input, a.output, a.impact, a.comfy_path,
-            drift_threshold=a.drift_threshold, quantize_qkv=a.quantize_qkv)
+            drift_threshold=a.drift_threshold, quantize_qkv=a.quantize_qkv,
+            protect_list=a.protect_list)
