@@ -31,6 +31,7 @@ so the result is reproducible.
 | `CLIP-SAE-ViT-L-14-FP32.safetensors` | text + vision | 1.95 / 0.90 | text 0.999872 / 0.999755, vision 0.999676 / 0.999353 | 413.2 MB | `md/SAEViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | text | full (all 197) | 0.997572 / 0.992079 | 570.5 MB | `md/JosiefiedQwen3_06B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL, encoder + decoder) | text | 0.25 encoder / 0.005 decoder (163 of 168, 62 of 264 INT8) | 0.999879 / 0.999626 | 15998.8 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `sigclip_vision_patch14_384.safetensors` | vision | 0.30 (96 of 162 INT8, group size 64/16) | 0.998560 / 0.996602 | 633.5 MB | `md/SigLIPVision384_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` | vision | 0.30 (275 of 288 INT8, group size 64) | 0.999916 / 0.999880 | 1935.7 MB | `md/CLIPBiGG_ConvRot_INT8_Impact_Technical_Guide.md` |
 
 Acceptance criterion used throughout: **cos mean >= 0.99 AND cos min >= 0.98**, on a
@@ -81,6 +82,11 @@ FP32) has to stay in FP16. See
   11,266,928,640 / 2 = **5.63 GB**, so a pack below 5 GB is not representable.
   The pack measures 15.62 GB (the decoder needs heavy protection - see the
   drift profile above).
+- **The group size follows the layer's input width** - this is not a
+  CLIP-specific rule. SigLIP's hidden size is 1152, which is not a multiple of
+  256 either, so 79 of its 162 layers are rotated with a group size of 64 and
+  17 with 16. The builder derives it per layer, so no model is stuck with a
+  group size its shapes cannot take.
 - **The group size follows the layer's input width.** CLIP-ViT-bigG's hidden size
   is 1664, which is not a multiple of 256, so 240 of its 288 layers cannot be
   rotated with a group size of 256 - only the 48 `mlp.fc2` layers would be
@@ -108,6 +114,7 @@ distribution of that specific checkpoint, on that model's own acceptance set.
 | FLAN-T5 XXL encoder | **rising with depth** (block 0 median 0.12 -> block 23 median 0.24), top drift in the deepest blocks' `attn.v` / `attn.o` / `ff.wi_0` | protect the deep-block outliers, quantize the other 163 of 168 |
 | FLAN-T5 XXL decoder | **low per-layer drift (median 0.010) but extremely sensitive in the output**: quantizing the 72 FF layers alone drops the decoder cosine to 0.554, while quantizing all 192 attention layers keeps 0.879 | protect the FF layers: 62 of 264 quantized at the measured quality limit |
 | CLIP-ViT-bigG-14 (vision) | **`mlp.fc1` dominates** (median 0.20 against ~0.012-0.047 for the other kinds), the outliers sit in the deep layers (40-44) | protect the 13 worst `mlp.fc1` layers, quantize the other 275 of 288 |
+| SigLIP vision (sigclip_vision_patch14_384) | **uniformly sensitive**: even the smallest drift is 3.9e-02, above the CLIP text tower's median, and the median is 0.27 | the threshold has to be much higher than the CLIP family's; 96 of 162 quantized at 0.30 |
 
 A pack built for one checkpoint must not be reused for another: the protection set is
 model-specific by construction.
