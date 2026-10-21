@@ -36,6 +36,20 @@ so the result is reproducible.
 Acceptance criterion used throughout: **cos mean >= 0.99 AND cos min >= 0.98**, on a
 fixed 256-item set (seed 42).
 
+**A note on the ControlNet packs.** The ControlNet family follows the same
+impact-driven method, but two FLUX-specific facts apply and are measured, not
+assumed:
+
+- **The fused `qkv` layers of a FLUX ControlNet cannot be quantized.** The
+  runtime builds one Linear out of `cat([to_q, to_k, to_v], dim=0)`, and the
+  three halves have value ranges that differ by ~7x (absmax 2.48 / 0.53 /
+  0.375). One per-out-channel scale cannot serve them: the measured
+  reconstruction error of the fused tensor is relMSE 1.89 - a broken layer.
+- **A FLUX ControlNet's pack carries only the tensors the runtime reads**
+  (174 for the Union Pro 2.0). The source checkpoint is in the diffusers
+  layout and the loader converts it; the converted state dict holds every
+  tensor twice, so writing it verbatim would carry the weights twice.
+
 **How to read the size column.** The source checkpoints are often FP32 while
 ComfyUI holds a text encoder in `float16`, so the file reduction and the runtime
 reduction are different numbers. Measured on Long-ViT-L-14 (the source is
