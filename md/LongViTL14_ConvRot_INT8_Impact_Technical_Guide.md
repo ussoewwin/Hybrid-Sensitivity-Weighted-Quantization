@@ -29,6 +29,79 @@ measured fidelity / size / latency.
 Because both projection tensors exist, no completion step is required when loading
 either tower.
 
+### 0.1 Where the 1631.80 MB -> 413.20 MB reduction comes from
+
+The size numbers are read straight out of the two safetensors headers (the
+parameter inventory and the dtypes), and they reconcile exactly.
+
+**Source**
+
+| item | measured |
+| :--- | :--- |
+| file size | 1,711,063,028 bytes = 1631.80 MB |
+| tensors | 590 |
+| total parameters | **427,747,841** |
+| dtypes | **F32 for every tensor** (no F16 anywhere) |
+| text_model | 492,767,232 bytes (469.9 MB), 123,191,808 params |
+| vision_model | 1,212,719,104 bytes (1156.5 MB), 303,179,776 params |
+| other (logit_scale, position embedding) | 5,505,024 bytes (5.2 MB) |
+
+**Pack**
+
+| item | measured |
+| :--- | :--- |
+| file size | 433,270,948 bytes = **413.20 MB** |
+| tensors | 1030 (the source's 590 plus `.weight_scale` and `.comfy_quant` per quantized layer) |
+| INT8 weight payload | 406.7 MB (220 layers) |
+| scales + `comfy_quant` metadata | 1.4 MB |
+| FP16 kept | 5.0 MB (a single 2D weight) |
+| total parameters | 428,119,001 |
+
+**The reconciliation**
+
+```
+source parameters                        427,747,841   (all F32)
+every parameter as int8                  427,747,841 x 1 byte = 407.9 MB
+measured pack file                                            413.20 MB
+difference                                                         5.3 MB  = the scales + metadata + the FP16-kept weight
+```
+
+**No tensor is missing.** The pack holds 428,119,001 parameters against the
+source's 427,747,841 - a ratio of 1.0009, the surplus being the per-layer
+scales. Every one of the source's 590 keys is present in the pack.
+
+The reduction is the plain **FP32 -> INT8 factor of 1/4**: 1631.80 MB / 4 =
+407.9 MB, and the pack measures 413.20 MB. The source being FP32 is exactly why
+the factor is 1/4 rather than 1/2.
+
+### 0.2 The file size is not the runtime footprint
+
+ComfyUI loads a text encoder in `float16`, so the resident weights of the FP32
+source are much smaller than its file. Measured by summing the loaded modules'
+weight bytes:
+
+| | source | pack | change |
+| :--- | :--- | :--- | :--- |
+| **file size** | 1631.80 MB | 413.20 MB | **-74.7 %** |
+| **resident weights (runtime)** | **235.90 MB** | **118.48 MB** | **-49.8 %** |
+| resident dtype | fp16 (100 tensors) | INT8 + fp16 | |
+
+The two numbers answer different questions. The file reduction is 74.7 % because
+the source is FP32 and INT8 is a quarter of that. The runtime reduction is
+49.8 %, because the source is already held in fp16 in memory and the
+`text_model.embeddings.token_embedding` (144.8 MB as FP32) has to stay in FP16 -
+ComfyUI's `operations.Embedding` assumes an unpacked weight, and quantizing it
+collapses the output cosine to 0.18.
+
+The same accounting for the other shipped packs (read from each header):
+
+| pack | file MB | int8 MB | fp16 MB | INT8 layers |
+| :--- | :--- | :--- | :--- | :--- |
+| Long-ViT-L-14 | 413.2 | 406.7 | 5.0 | 220 |
+| CLIP-SAE-ViT-L-14 | 413.2 | 406.5 | 5.2 | 219 |
+| ViT-L-14-BEST-smooth-GmP | 570.3 | 246.6 | 322.7 | 164 |
+| clip_l (FLUX) | 122.6 | 112.7 | 9.3 | 71 |
+
 ---
 
 ## 1. Method: impact-driven, per tower
@@ -111,7 +184,8 @@ _quantization_metadata       JSON {"format_version":"1.0","layers":{...}}
 
 | metric | FP32 | INT8 | change |
 | :--- | :--- | :--- | :--- |
-| file size | 1631.80 MB | **413.20 MB** | **-74.7 %** |
+| file size | 1631.80 MB | **413.20 MB** | **-74.7 %** | 1/4 of the FP32 source; see section 0.1 |
+| resident weights (runtime) | 235.90 MB | **118.48 MB** | **-49.8 %** | ComfyUI holds the source in fp16; see section 0.2 |
 
 Latency, measured by batch (the batch size decides whether the overhead is
 amortized):
