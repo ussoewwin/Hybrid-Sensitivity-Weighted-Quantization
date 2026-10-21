@@ -30,9 +30,24 @@ so the result is reproducible.
 | `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | text + vision | 1.30 / 0.50 | text 0.999914 / 0.999851, vision 0.999451 / 0.996486 | 570.3 MB | `md/ViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-SAE-ViT-L-14-FP32.safetensors` | text + vision | 1.95 / 0.90 | text 0.999872 / 0.999755, vision 0.999676 / 0.999353 | 413.2 MB | `md/SAEViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | text | full (all 197) | 0.997572 / 0.992079 | 570.5 MB | `md/JosiefiedQwen3_06B_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL encoder) | text | 0.25 (163 of 168 INT8) | 0.999878 / 0.999716 | 5026.1 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
 
 Acceptance criterion used throughout: **cos mean >= 0.99 AND cos min >= 0.98**, on a
 fixed 256-item set (seed 42).
+
+**Two model-specific facts, measured.**
+
+- **FLAN-T5 XXL carries a decoder the runtime never loads.** The runtime T5 module
+  (`comfy/text_encoders/t5.py`) holds `encoder` and `shared` only; the 339
+  `decoder.*` tensors (11.87 GB of the 20.99 GB checkpoint) are never loaded. The pack
+  omits them, which is why the size reduction is 76.6 % rather than the 18 % the
+  quantized encoder alone gives. The encoder that actually runs is bit-identical.
+- **The INT8 GEMM needs the loader's runtime arm.** On the stock ComfyUI path an
+  INT8 pack is dequantized for every matmul (`int8_tensorwise` is a weight-only
+  algorithm) and `int8_linear` is called 0 times. With the arm installed the real
+  INT8 GEMM runs: for FLAN-T5 XXL that is 163 calls per forward and **+75.9 % to
+  +86.7 %** against the stock path (3.9x to 7.2x against FP16). See
+  `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` section 7.
 
 ---
 
@@ -45,6 +60,7 @@ distribution of that specific checkpoint, on that model's own acceptance set.
 | :--- | :--- | :--- |
 | CLIP-L / ViT-L / SAE ViT-L | a few layers dominate (e.g. ViT-L text: max 1.93 vs median 0.15) | protect the outliers, quantize the rest |
 | Josiefied-Qwen3-0.6B | **flat** (min 0.75, median 3.05, max 3.43; IQR 2.94-3.17) | no layer is safer than another, so **selective protection cannot help** - quantize everything |
+| FLAN-T5 XXL | **rising with depth** (block 0 median 0.12 -> block 23 median 0.24), top drift in the deepest blocks' `attn.v` / `attn.o` / `ff.wi_0` | protect the deep-block outliers, quantize the other 163 of 168 |
 
 A pack built for one checkpoint must not be reused for another: the protection set is
 model-specific by construction.
@@ -56,7 +72,8 @@ model-specific by construction.
 | tower | loader | how INT8 gets enabled |
 | :--- | --- | --- |
 | CLIP text (SD1ClipModel) | `CLIPLoader` / `DualCLIPLoader` | `model_options["quantization_metadata"]` -> `SDClipModel` builds `mixed_precision_ops` |
-| llama-family text (Qwen3 / T5) | `CLIPLoader` / `DualCLIPLoader` | automatic: `llama_detect` -> `detect_layer_quantization` -> `llama_quantization_metadata` |
+| llama-family text (Qwen3) | `CLIPLoader` / `DualCLIPLoader` | automatic: `llama_detect` -> `detect_layer_quantization` -> `llama_quantization_metadata` |
+| FLAN-T5 XXL text | `CLIPLoader` / `DualCLIPLoader` | automatic: `t5_xxl_detect` -> `detect_layer_quantization` -> `t5xxl_quantization_metadata` -> `model_options["quantization_metadata"]` |
 | CLIP vision | `CLIPVisionLoader` | the stock loader uses `manual_cast`, which does **not** consume `comfy_quant`; the tower must be built with `mixed_precision_ops` |
 
 ---
@@ -68,5 +85,8 @@ model-specific by construction.
 | `sdxl/diag_impact_clip.py` | text-tower drift (CLIP family) |
 | `sdxl/diag_impact_clip_vision.py` | vision-tower drift (CLIP family) |
 | `sdxl/diag_impact_qwen3.py` | llama-family text-encoder drift |
+| `sdxl/diag_impact_t5.py` | FLAN-T5 XXL encoder drift (encoder hidden state) |
+| `clip_convert/convert_t5_impact_convrot_int8.py` | FLAN-T5 XXL pack builder (impact-driven) |
+| `sdxl/verify_t5.py` | FLAN-T5 XXL acceptance verification + latency |
 | `clip_convert/convert_clip_impact_convrot_int8.py` | CLIP converter (impact-driven) |
 | `sdxl/verify_*.py`, `sdxl/smoke_*.py`, `sdxl/perf_*.py` | per-model verification / smoke / performance |
