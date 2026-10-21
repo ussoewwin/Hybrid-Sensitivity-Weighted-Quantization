@@ -304,3 +304,139 @@ python clip_convert/convert_sam31_convrot_int8.py \
 | Result | 1664.7 MB -> 1657.6 MB; 41 ConvRot INT8 Linear; 180 protected; measured tracker mask IoU 0.9978 |
 
 The essential point for SAM is the same as for any other model, but with one addition: because the observable is a **discrete segmentation decision** rather than a smooth latent, the measured output drift is the only thing that speaks for the quality of the mask - and the measurement has to exercise **every path** the model offers, or half of it stays unverified.
+
+---
+
+## 9. The re-measurement (2026-10-21) and what it changes
+
+The impact measurement had a defect that was found while working on the FLUX
+ControlNet: `convrot_int8_recon` returned the reconstruction in the **rotated**
+frame (`q * s`, i.e. `W_hat * H`) and injected it as the module's weight, but
+the module's weight is used by the plain forward as `F.linear(x, weight)`. The
+pack stores the rotated weight and the kernel rotates the **activation**, so
+the quantization error that reaches the output is in the **original** frame:
+`(q*s) H^T - W`.
+
+Measured on the FLUX ControlNet's `controlnet_blocks.0` with the pack's own
+qdata/scale and the real kernel:
+
+| what | relMSE vs the FP16 result |
+| :--- | :--- |
+| the pack's kernel (`convrot=True`) | **1.74e-04** (correct) |
+| the plain int8 (no activation rotation) | 1.89 |
+| the injected rotated frame as a plain linear (the defect) | 1.89 |
+| the un-rotated reconstruction as a plain linear (the fix) | **9.01e-05** |
+
+The same defect was in this script; it is fixed. The SAM 3.1 sweep was redone
+with the corrected injection.
+
+### 9.1 The re-measured drift
+
+| | the old (defective) | the new (corrected) |
+| :--- | :--- | :--- |
+| the measured modules | 551 | 551 |
+| the median drift | 2.38e-03 | **1.91e-06** |
+| the p90 | 1.68e-01 | **7.50e-04** |
+| the max | 1.06e+01 | **2.89e-01** |
+| the protected at 0.02 | 225 | **5** |
+
+The five largest drifts are unchanged, and all five are **Conv2d** layers
+(`segmentation_head.pixel_decoder.conv_layers.0/1`,
+`vision_backbone.convs.2.conv_1x1`, `instance_seg_head`,
+`vision_backbone.convs.2.conv_3x3`) - the injection defect does not touch
+them, because the Conv2d reconstruction is a different code path. The
+**Linear** layers are the ones the defect moved: `trunk.blocks.0.mlp.fc1`
+went from 1.78e-01 to 5.54e-03, `trunk.blocks.7.attn.proj` from 2.03e-01 to
+4.65e-03.
+
+### 9.2 A pack built from the re-measured drift is much worse
+
+A pack built from the corrected drift at the 0.02 threshold keeps 5 layers and
+quantizes 183. Measured through the real loader path (the same observable the
+sweep uses):
+
+| pack | the FP16-kept | the INT8 | the relMSE | the size |
+| :--- | :--- | :--- | :--- | :--- |
+| the shipped pack | 180 | 41 | **3.51e-05** | 1657.6 MB |
+| the drift-selected pack (the corrected drift, 0.02) | 5 | 183 | **1.11e-02** | 1370.5 MB |
+| the drift-selected pack (the corrected drift, 0.30) | 0 | 183 | 1.03e-02 | 1401.3 MB |
+
+The corrected drift says every layer is equivalent - the median is 1.9e-06 and
+the largest is 0.289 - and a pack built on that is **286x worse** in output
+error.
+
+**The reason is that the per-layer drift measures the WEIGHT error only.** The
+reconstruction is placed in the module and the plain forward is used, so the
+activation is not quantized. The pack's real path also quantizes the
+**activation** for that layer, and that is where most of the error comes from.
+The marginal effect is therefore not the quantity the pack trades off.
+
+### 9.3 The aggregate contribution, and the release search
+
+The quantity the pack trades off is the effect on the **aggregate** output, so
+it is measured through the real pack path: load the pack, restore one layer's
+FP16 weight at a time, and measure the aggregate.
+
+For the all-INT8 pack (183 quantized) the aggregate contribution ranks the
+layers, and the top of the list is the vision backbone's attention and MLP
+projections:
+
+| rank | the layer | the gain |
+| :--- | :--- | :--- |
+| 1 | `trunk.blocks.8.attn.qkv` | +2.67e-03 |
+| 2 | `trunk.blocks.8.mlp.fc1` | +2.15e-03 |
+| 3 | `trunk.blocks.5.attn.qkv` | +1.60e-03 |
+| 4 | `trunk.blocks.12.attn.qkv` | +1.58e-03 |
+| 5 | `trunk.blocks.11.attn.proj` | +1.41e-03 |
+
+115 of the 183 layers have a positive contribution, i.e. they carry the
+output. The other 68 do not - but restoring them is not free either, because
+the layer's own weight error still enters.
+
+**The release search.** The question that has to be answered is not "which
+layers may be released" but "how many may be released before the output
+degrades". Starting from the shipped pack, each of the 401 kept layers was
+given its ConvRot INT8 weight (the converter's own math) and the aggregate
+relMSE was measured:
+
+| | the value |
+| :--- | :--- |
+| the shipped pack | 8.71e-06 |
+| the gate | 1.0e-04 (2.6x the shipped pack, well inside the accepted 4.3e-04) |
+| the cheapest release | +9.67e-04 (`trunk.blocks.0.attn.qkv`) |
+| the median release cost | +1.91e-02 |
+| the layers releasable within the gate | **0 of 401** |
+
+**Every single layer, even the cheapest one, breaks the gate by an order of
+magnitude.** SAM 3.1's protection set cannot be reduced.
+
+### 9.4 The conclusion for SAM 3.1
+
+> **The shipped pack is already the right one. It does not need to be redone.**
+
+The protection set it uses (180 of the 221 runtime-live Linear layers kept in
+FP16, 41 quantized) is the minimum that keeps the output within the accepted
+quality, and the search for a smaller set came up empty.
+
+The old drift measurement reached that set for the wrong reason - it protected
+174 layers at the 0.05 threshold, and the *ranks* it produced were wrong - but
+the set it produced is right. The re-measurement plus the release search is
+what establishes that, and it also establishes that the 183-layer pack
+(1370.5 MB) is **not** an acceptable substitute: it is 286x worse in output
+error for 287 MB less.
+
+The shipped pack's 16-item verification through the real loader path: the
+relMSE **3.51e-05**, the output finite, the `int8_linear` calls 624.
+
+### 9.5 What this changes for the other models
+
+The injection defect was in 8 of the 9 impact scripts, so every model's
+protection set was selected on a broken ranking. For SAM the broken ranking
+happened to land on a good set; for the FLUX ControlNet it did not, and the
+pack had to be rebuilt (the FP16-kept set is now chosen by the aggregate
+contribution, measured through the real pack path).
+
+The per-layer drift remains useful as a **screen** - it says which layers are
+catastrophic (the five Conv2d layers above) - but the **selection** has to be
+made on the aggregate, because the marginal effect does not carry the
+activation-quantization error.

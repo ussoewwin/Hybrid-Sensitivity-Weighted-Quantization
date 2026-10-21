@@ -147,8 +147,24 @@ def runtime_usable_modules(comfy_path: str, model_path: str):
         os.chdir(cwd)
 
 
+def load_protect_list(path):
+    """The FP16-kept layers, from a JSON {"protect": [...]} or a text file
+    with one runtime module name per line."""
+    if not path:
+        return set()
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {ln.strip() for ln in text.splitlines() if ln.strip()}
+    if isinstance(data, dict):
+        return set(data.get("protect", []))
+    return set(data)
+
+
 def convert(input_path, output_path, impact_json, comfy_path,
-            drift_threshold=DEFAULT_DRIFT_THRESHOLD):
+            drift_threshold=DEFAULT_DRIFT_THRESHOLD, protect_list=None):
     print(f"Loading (streamed): {input_path}")
     src = safe_open(input_path, framework="pt", device="cpu")
     keys = sorted(src.keys())
@@ -159,7 +175,17 @@ def convert(input_path, output_path, impact_json, comfy_path,
     print(f"  runtime modules: {len(all_modules)} (usable Linear: {len(usable)})")
 
     protect = {n for n, drift in impacts.items() if drift > drift_threshold}
-    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
+    explicit = load_protect_list(protect_list)
+    if explicit:
+        # An explicit list is authoritative: the per-layer drift is a marginal
+        # effect (it measures the weight error only, while the pack's real
+        # path also quantizes the activation), so it does not rank the layers
+        # the way the aggregate output does. The list comes from the
+        # aggregate contribution measured through the real pack path
+        # (sdxl/select_sam31_protect.py).
+        protect = set(explicit)
+    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}"
+          + (" (an explicit list)" if explicit else ""))
 
     tensors = {k: src.get_tensor(k) for k in keys}
 
@@ -227,5 +253,10 @@ if __name__ == "__main__":
     ap.add_argument("--impact", required=True)
     ap.add_argument("--comfy_path", required=True)
     ap.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD)
+    ap.add_argument("--protect-list", default=None,
+                    help="the FP16-kept layers, as a JSON {\"protect\": [...]} or a "
+                         "text file with one runtime module name per line; an "
+                         "explicit list is authoritative over the drift threshold")
     a = ap.parse_args()
-    convert(a.input, a.output, a.impact, a.comfy_path, drift_threshold=a.drift_threshold)
+    convert(a.input, a.output, a.impact, a.comfy_path, drift_threshold=a.drift_threshold,
+            protect_list=a.protect_list)
