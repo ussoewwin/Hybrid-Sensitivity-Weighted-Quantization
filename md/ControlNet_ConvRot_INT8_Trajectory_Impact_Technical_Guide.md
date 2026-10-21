@@ -8,7 +8,7 @@ Everything below is backed by **completed full sweeps**: two SDXL ControlNet che
 
 | Checkpoint | Layers measured | Runs | Run time | Stoppages |
 | :--- | :--- | :--- | :--- | :--- |
-| `CN-anytest4_illustrious2_A.safetensors` | 400 / 400 | 1 | 62 min | 0 |
+| `CN-anytest4_illustrious2_A.safetensors` | 400 / 400 | 2 | 62 + 103 min | 0 |
 | `CN-anytest4_illustrious2_B.safetensors` | 400 / 400 | 1 | 71 min | 0 |
 | `controlnet-union-pro-max-sdxl-1.0.safetensors` | 407 / 407 | 1 | 97 min | 0 |
 
@@ -258,6 +258,7 @@ The extreme layers in U are its own:
 | :--- | :--- | :--- | :--- |
 | 0.10 | 356 | 233 | 131 |
 | **0.15 (the earlier measurement)** | **190** | **117** | **74** |
+| **0.010 (A, re-measured)** | **222** | - | - |
 | **0.005 (U, re-measured)** | - | - | **41** |
 | 0.20 | 86 | 44 | 40 |
 | 0.25 | 40 | 16 | 30 |
@@ -270,13 +271,13 @@ The shipped packs use **0.15**.
 | :--- | :--- | :--- | :--- |
 | Source | `CN-anytest4_illustrious2_A.safetensors` (2386.2 MB) | `CN-anytest4_illustrious2_B.safetensors` (2386.2 MB) | `controlnet-union-pro-max-sdxl-1.0.safetensors` (2396.9 MB) |
 | Output | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | `CN-anytest4_illustrious2_B_hswq_convrot_int8_t015.safetensors` | `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors` |
-| Size | **1718.6 MB** | **1533.2 MB** | **1368.8 MB** |
-| Reduction vs source | 28.0 % | 35.7 % | **42.9 %** |
-| Protected | 190 (drift>0.15) | 117 (drift>0.15) | **41 (drift>0.005)** |
-| ConvRot INT8 Linear | **196** | **257** | **328** |
+| Size | **1959.5 MB** | **1533.2 MB** | **1368.8 MB** |
+| Reduction vs source | **17.9 %** | 35.7 % | **42.9 %** |
+| Protected | **222 (drift>0.010)** | 117 (drift>0.15) | **41 (drift>0.005)** |
+| ConvRot INT8 Linear | **140** | **257** | **328** |
 | INT8 payload | 669.4 MB | 855.3 MB | 955.9 MB |
 | Load check | 1236 keys, 196 `comfy_quant` | 1358 keys, 257 `comfy_quant` | 1459 keys, 298 `comfy_quant` |
-| Measured gate (cos vs FP16, real loader path) | **0.999875** (relMSE 3.86e-04) | **1.000044** (relMSE 1.28e-04) | **0.999961** (relMSE 7.74e-06) |
+| Measured gate (cos vs FP16, real loader path) | **0.999879** (relMSE 5.96e-04) | **1.000044** (relMSE 1.28e-04) | **0.999961** (relMSE 7.74e-06) |
 
 The size ordering follows the protected-layer ordering: A protects the most layers and is therefore the largest pack; U protects the fewest and is the smallest. The pack size is a direct consequence of the measured protection set - not of the quantization scope, which is identical for all three.
 
@@ -506,3 +507,49 @@ The corrected drift's ranking (the ConvRot-eligible layers) is dominated by
 `input_blocks.*.transformer_blocks.*` and `middle_block.*` — the transformer
 blocks — while the earlier (defective) ranking was dominated by the same
 families for the wrong reason.
+
+
+---
+
+## 11. The anytest4 A re-measurement (the injection fix)
+
+`CN-anytest4_illustrious2_A` was re-measured after the injection fix, in one
+uninterrupted pass (103 min, 400 / 400).
+
+The 362 ConvRot-eligible layers moved:
+
+| | the earlier measurement | the re-measured |
+| :--- | :--- | :--- |
+| the min | 1.22e-02 | 2.71e-03 |
+| the median | 1.44e-01 | **1.06e-02** |
+| the p90 | 2.29e-01 | 1.54e-02 |
+| the max | 3.54e-01 | **3.38e-02** |
+
+The 38 Conv2d layers are unchanged by the fix. The corrected ranking's top is
+`input_blocks.7.1.transformer_blocks.4.attn1.to_v` (3.38e-02),
+`input_blocks.7.1.proj_in` (3.38e-02) and
+`input_blocks.4.1.transformer_blocks.1.attn1.to_v` (3.19e-02).
+
+Unlike the union-pro-max checkpoint, **A's trajectory is sensitive to the
+protection set**: the candidates are not flat.
+
+| the candidate | the INT8 | the protected | cos | relMSE | size |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| the earlier pack (0.15 on the defective values) | 196 | 190 | 0.999841 | 6.78e-04 | 1718.6 MB |
+| t=0.030 | 326 | 36 | 0.999626 | 1.11e-03 | 1359.1 MB |
+| t=0.020 | 324 | 38 | 0.999600 | 1.16e-03 | 1366.9 MB |
+| t=0.015 | 297 | 65 | 0.999626 | 1.13e-03 | 1479.4 MB |
+| t=0.012 | 220 | 142 | 0.999779 | 7.97e-04 | 1717.2 MB |
+| t=0.011 | 186 | 176 | 0.999824 | 7.08e-04 | 1825.8 MB |
+| **t=0.010 (adopted)** | **140** | **222** | **0.999879** | **5.96e-04** | **1959.5 MB** |
+
+There is a clear knee between 0.012 and 0.010: the cosine steps from 0.999779
+to 0.999879 and the relMSE from 7.97e-04 to 5.96e-04. The adopted pack is the
+only candidate that **beats the earlier pack on quality** (0.999879 against
+0.999841, relMSE 5.96e-04 against 6.78e-04) — at 241 MB more, because it
+protects 222 layers instead of 190, chosen on the corrected ranking.
+
+The corrected values sit ~14× lower than the defective ones, so the earlier
+`0.15` threshold would protect almost nothing on the corrected scale; the
+protection set has to be re-derived, and the knee in the measured gate is what
+sets it.
