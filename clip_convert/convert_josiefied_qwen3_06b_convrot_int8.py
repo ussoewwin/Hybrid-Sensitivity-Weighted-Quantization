@@ -52,6 +52,38 @@ def is_protected_qwen3_weight(key: str) -> bool:
     return False
 
 
+def load_protect_list(path: str | None) -> set[str]:
+    """The FP16-kept layers, from a JSON {"protect": [...]} or a text file with
+    one key per line. An explicit list is authoritative over the pattern rule: the
+    per-layer drift is a screen, not the selection criterion, and the set that
+    actually holds the output is chosen on the aggregate contribution."""
+    if not path:
+        return set()
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {ln.strip() for ln in text.splitlines() if ln.strip()}
+    if isinstance(data, dict):
+        return set(data.get("protect", []))
+    return set(data)
+
+
+def _keep(t: torch.Tensor, key: str) -> torch.Tensor:
+    """A tensor that is not quantized, in its storage dtype.
+
+    Floating-point tensors are stored FP16. This checkpoint is BF16 and ComfyUI's
+    text encoder runs in FP16, so a kept tensor is cast either way when the model
+    is built; storing it wide only pays for the bytes. The INT8 scales stay FP32:
+    they carry the dequantization precision.
+    """
+    if t.dtype in (torch.float16, torch.float32, torch.bfloat16) \
+            and not key.endswith("weight_scale"):
+        return t.to(torch.float16)
+    return t
+
+
 def _fnmatch(name: str, pattern: str) -> bool:
     """expand * to any chars, everything else matches literal"""
     import re
@@ -101,8 +133,13 @@ def _encode_meta(config: dict) -> torch.Tensor:
     return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
 
-def convert(model_path: str, output_path: str, enable_convrot: bool = True, groupsize: int = 256):
+def convert(model_path: str, output_path: str, enable_convrot: bool = True, groupsize: int = 256,
+            protect_list: str | None = None):
     print(f"Loading (streamed): {model_path}")
+    explicit = load_protect_list(protect_list)
+    use_explicit = protect_list is not None
+    if use_explicit:
+        print(f"  the explicit protect list: {len(explicit)} keys")
     src = safe_open(model_path, framework="pt", device="cpu")
     src_keys = sorted(list(src.keys()))
     print(f"  raw keys: {len(src_keys)}")
@@ -125,12 +162,19 @@ def convert(model_path: str, output_path: str, enable_convrot: bool = True, grou
             and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
         )
         if not is_2d_weight:
-            new_sd[key] = tensor
+            new_sd[key] = _keep(tensor, key)
             skip_count += 1
             continue
 
-        if is_protected_qwen3_weight(key):
-            new_sd[key] = tensor
+        mk = key[: -len(".weight")]
+        if use_explicit:
+            if mk in explicit or key in explicit:
+                new_sd[key] = _keep(tensor, key)
+                protected_count += 1
+                protected_list.append(key)
+                continue
+        elif is_protected_qwen3_weight(key):
+            new_sd[key] = _keep(tensor, key)
             protected_count += 1
             protected_list.append(key)
             continue
@@ -192,7 +236,11 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, help="Output .safetensors path")
     parser.add_argument("--no-convrot", action="store_true", help="Plain INT8 without ConvRot rotation")
     parser.add_argument("--groupsize", type=int, default=256, help="Hadamard group size (power of 4, default 256)")
+    parser.add_argument("--protect-list", default=None,
+                        help="JSON {\"protect\": [...]} or a text file of module names kept FP16; "
+                             "authoritative over the static pattern rule")
     args = parser.parse_args()
     if args.groupsize < 4 or (args.groupsize & (args.groupsize - 1)) != 0 or math.log(args.groupsize, 4) % 1 != 0:
         parser.error(f"--groupsize must be a power of 4, got {args.groupsize}")
-    convert(args.input, args.output, enable_convrot=not args.no_convrot, groupsize=args.groupsize)
+    convert(args.input, args.output, enable_convrot=not args.no_convrot, groupsize=args.groupsize,
+            protect_list=args.protect_list)
