@@ -1,198 +1,192 @@
 # Josiefied-Qwen3-0.6B ConvRot INT8 — Technical Guide
 
 **Target**: `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` — a Qwen3-0.6B text
-encoder (llama-family architecture, 28 layers, hidden 1024, vocab 151936), stored in
-BF16.
+encoder (llama-family architecture, 28 layers, hidden 1024, vocab 151936),
+stored in BF16.
 
-**What this document covers**: how it is quantized to ConvRot INT8 with a **measured**
-FP16 protection set, the pack layout, the load path, and the measured
-fidelity / size / latency.
+**What this document covers**: how it is quantized to ConvRot INT8 with a
+**measured** FP16 protection set chosen on the **aggregate contribution**, the
+pack layout, the load path, and the measured fidelity / size.
 
-- Source: `D:\USERFILES\ComfyUI\ComfyUI\models\clip\Josiefied-Qwen3-0.6B-abliterated-v1.safetensors`
+- Source: `models/clip/Josiefied-Qwen3-0.6B-abliterated-v1.safetensors`
   (1136.91 MB, SHA256 `538D7E689B6A57AED42139298D88A3876634E2DD583A3F6B5C381BA60C640E67`)
-- Pack: `D:\USERFILES\ComfyUI\ComfyUI\models\clip\Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors`
-  (570.50 MB, SHA256 `7AB6B8A7E0E9AA8F1391A6FC0787FE42FB698003C3240FD51B435A8FAD638E61`)
+- Pack: `models/clip/Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors`
+  (655.19 MB, **−42.4 %**, SHA256 `40BB0C7F8862EE3AC4A5F345120CE5F23E1DFF15FFF020D57F00FAE8A9736D9C`)
 
 ---
 
 ## 0. What changed
 
-The previous pack was produced by `clip_convert/convert_josiefied_qwen3_06b_convrot_int8.py`,
-which protected three layer families **by a static kurtosis / outlier-ratio rule**:
+The previous pack was produced by a **static kurtosis / outlier-ratio rule**
+protecting three layer families:
 
 ```
 model.layers.*.self_attn.k_proj.weight     (all 28)
 model.layers.*.self_attn.q_proj.weight     (all 28)
 model.layers.*.mlp.down_proj.weight        (all 28)
-model.embed_tokens.weight                  (embedding)
+model.embed_tokens.weight                  (the embedding)
 ```
 
-That rule is not a proxy for output sensitivity, and the kurtosis values behind it
-were computed through a broken safetensors header offset, so the protection basis was
-invalid. This document describes the rebuild with the **impact-driven** method: the
-model's own output drift is measured per layer, and the protection set follows.
+That rule is not a proxy for output sensitivity, and the kurtosis values behind
+it were computed through a broken safetensors header offset, so the protection
+basis was invalid twice over. The previous guide also concluded that
+**"selective protection cannot help"** because the drift distribution looked
+flat — that conclusion was drawn from the **defective** drift, and it is wrong
+(section 3).
 
 ---
 
-## 1. The model and its load path
+## 1. The model
 
-| item | value |
+| item | measured |
 | :--- | :--- |
-| architecture | Qwen3-0.6B (llama family), 28 layers, hidden 1024, vocab 151936 |
-| 2D weight modules | 197 (text tower only) |
-| input widths | 1024 (141), 2048 (28), 3072 (28) |
-| ComfyUI loader | `comfy.sd.load_clip` -> `detect_te_model` = `TEModel.QWEN3_06B` -> `comfy.text_encoders.anima.te` |
-
-**INT8 is enabled by the standard path.** `anima.te` accepts
-`llama_quantization_metadata`, and `llama_detect` fills it automatically via
-`comfy.utils.detect_layer_quantization`. `anima.te` then puts it into
-`model_options["quantization_metadata"]`, which makes `SDClipModel` build the model
-with `mixed_precision_ops` — so the pack's `comfy_quant` stamps are consumed with no
-custom node.
-
-Two runtime details matter for anyone reproducing this:
-
-- The model object lives at `clip.clip_qwen3_06b` (an `SD1ClipModel` whose `clip`
-  attribute is the *name* string, not the module) and the transformer is at
-  `clip.clip_qwen3_06b.transformer`.
-- **`te()` only builds the graph; the weights must be loaded with `clip.load_sd(sd)`.**
-  Without it the output is all zeros and every perturbation looks like a no-op.
-
----
-
-## 2. Method: impact-driven
-
-For each candidate 2D Linear layer, the layer's weight is replaced by its ConvRot
-INT8 reconstruction (Hadamard rotation along the input axis + per-out-channel INT8),
-the transformer is run on a fixed token batch, and the relative MSE of the output
-against the pristine run is recorded. The layer is then restored.
-
-- Script: `sdxl/diag_impact_qwen3.py`
-- Result: `impact/impact_josiefied_qwen3_06b.json` (196 layers measured)
-- Observable: the transformer's own hidden-state output for a fixed 16-token batch
-  (seed 42)
-
-### 2.1 Measured drift distribution — the key finding
-
-| statistic | value |
-| :--- | :--- |
-| layers | 196 |
-| min | 0.7515 |
-| q10 | 2.8862 |
-| median | **3.0526** |
-| q90 | 3.2425 |
-| max | **3.4339** |
-
-**Every layer is equally fragile.** The whole distribution sits in a narrow band
-(0.75 – 3.43, with the interquartile range only 2.94 – 3.17). There is no small set
-of outliers: the model has no "safe" layers that INT8 can be applied to selectively.
-
-This is a different structure from the CLIP / ControlNet / SAM models, where a handful
-of layers dominate the drift and protecting them buys a large quality gain. Here,
-**selective protection cannot help** — protecting the worst layers only shifts the
-problem to the next tier, which is nearly as bad.
-
-### 2.2 Consequence for the protection set
-
-Because the distribution is flat, the threshold is chosen for **maximum quantization**
-rather than for a selective protection set. A high threshold (above the measured
-maximum) quantizes every eligible layer.
-
-The 197 2D modules break down as:
-
-| module | count | reason |
-| :--- | :--- | :--- |
-| quantized (ConvRot INT8) | **197** | all of them |
-| protected | 0 | — |
+| 2D weight modules | **197** (text tower only) |
+| the runtime Linear modules | 196 |
+| the source dtype | BF16 (all 310 tensors) |
+| the load path | `llama_detect` → `comfy.text_encoders.anima.te` |
 
 `model.embed_tokens.weight` (151936 × 1024) is a 2D Linear-shaped tensor and is
-quantized as well; the 256-wide group size applies cleanly to it.
+**not** a runtime Linear; it is handled as an embedding (see section 4).
 
 ---
 
-## 3. Pack layout
+## 2. The impact measurement, re-measured
 
-```
-model.*.weight              int8 (ConvRot)
-model.*.weight_scale        float32  [out, 1]
-model.*.comfy_quant         uint8 JSON {"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}
-_quantization_metadata      JSON {"format_version":"1.0","layers":{...}}
-```
+The earlier measurement had the injection defect found while working on the
+FLUX ControlNet: the reconstruction was injected in the **rotated** frame
+(`q * s`, i.e. `W_hat * H`) instead of the **original** one. The pack stores
+the rotated weight and the kernel rotates the **activation**, so the
+quantization error that reaches the output is `(q*s) H^T − W`.
+
+| | the old (defective) | the new (corrected) |
+| :--- | :--- | :--- |
+| the min | 7.52e-01 | 3.43e-04 |
+| the median | 3.05e+00 | **2.35e-03** |
+| the p90 | 3.24e+00 | 6.10e-03 |
+| the max | 3.43e+00 | **6.42e-03** |
+
+The old values were all clustered around 3.0–3.4 — the number was the rotation
+itself, not the quantization error, so the distribution looked flat and the
+old guide concluded that selective protection could not help. The corrected
+distribution has a **19× spread over the whole set** (and 241× over the
+contribution ranking below), and the ranking is usable.
+
+---
+
+## 3. The selection criterion: the aggregate contribution
+
+The per-layer drift is a **screen**, not the selection criterion. It measures
+the **weight** error only, while the pack's real path also quantizes the
+**activation** for that layer, and that is where most of the error comes from.
+
+The selection is therefore made on the **aggregate output**: build the encoder
+the way ComfyUI builds it, hold the weights, replace ONE layer by its ConvRot
+INT8 reconstruction, and compare the encoder's hidden state against the
+unmodified output. The layer's **contribution** is `1 − cos`.
+
+`1 − cos` over the 196 runtime Linear layers:
 
 | | value |
 | :--- | :--- |
-| ConvRot INT8 layers | **197** |
-| FP16 retained (2D) | 0 |
-| `comfy_quant` tensors | 197 |
-| group size | 256 (fixed) |
+| the min | 4.08e-06 |
+| the p10 | 2.26e-05 |
+| the median | 8.10e-05 |
+| the p90 | 1.40e-04 |
+| the max | **9.82e-04** |
+
+**The spread is 241×.** The top of the ranking is dominated by layer 27's MLP
+(`up_proj` 9.82e-04, `gate_proj` 4.14e-04) and by layer 0–2's attention and MLP
+blocks; the smallest are the late layers' attention projections
+(`layers.27.self_attn.k_proj` 4.08e-06). Protecting the top of this ranking is
+what the size buys.
 
 ---
 
-## 4. Measured results
+## 4. The candidates, and the adopted set
 
-### 4.1 Embedding fidelity (256 fixed prompts, seed 42)
+The packs were built from the contribution's ranking (the top-K protected) and
+measured on the fixed **256-item** acceptance set (seed 42):
 
-| n | mean | min | p5 | p50 | max | verdict |
+| the candidate | the INT8 | the kept | cos mean | cos min | p5 | size |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 256 | **0.997572** | **0.992079** | 0.996506 | 0.997645 | 0.998628 | **PASS** |
+| **the previous pack** | 197 | 0 | 0.997572 | 0.992079 | 0.996506 | 570.5 MB |
+| all-INT8 (k=0) | 197 | 0 | 0.997720 | 0.993213 | 0.996827 | 0.56 GB |
+| k=10 | 187 | 10 | 0.999410 | 0.998609 | 0.999125 | 0.58 GB |
+| k=20 | 177 | 20 | 0.999455 | 0.998794 | 0.999182 | 0.60 GB |
+| **k=40 (adopted)** | **157** | **40** | **0.999502** | **0.998980** | **0.999286** | **655.2 MB** |
+| k=80 | 117 | 80 | 0.999550 | 0.998821 | 0.999349 | 0.72 GB |
+| k=140 | 57 | 140 | 0.999644 | 0.999016 | 0.999494 | 0.85 GB |
 
-Acceptance: mean >= 0.99 AND min >= 0.98. Both hold.
+**40 FP16-kept layers were adopted.** k=80 and k=140 give a marginally better
+mean but their **min** is *not* monotone (k=80's min 0.998821 is below k=40's
+0.998980), so k=40 is where the quality per byte stops improving cleanly. Note
+the **huge** jump from k=0 to k=10: protecting just the ten worst layers moves
+the min from 0.993213 to 0.998609, which is exactly the selective protection
+the old guide said could not help.
 
-The distribution is tight (min 0.9921, max 0.9986) — no prompt is an outlier, which is
-consistent with the flat drift profile.
+### 4.1 The kept tensors are stored in FP16
 
-### 4.2 Size / latency (same machine, same batch)
-
-| metric | BF16 source | INT8 | change |
-| :--- | :--- | :--- | :--- |
-| file size | 1136.91 MB | **570.50 MB** | **-49.8 %** |
-| encode latency | 24.91 ms | 53.25 ms | +113.8 % |
-| output absmax | 57.25 | 57.25 | identical |
-
-**Honest note on latency.** The file halves, but the encode is **more than twice as
-slow** on this machine. The `mixed_precision_ops` path adds per-op dequant/rotation
-overhead, and for a 0.6B model with only 16 tokens per forward that overhead is not
-amortized. The benefit here is **file size / VRAM**, not speed.
-
-### 4.3 Why no selective protection
-
-The previous pack protected 85 of 197 layers (k_proj, q_proj, down_proj, embedding).
-That rule was derived from weight statistics, not from output sensitivity, and the
-measurement here shows it protected layers that are **no more sensitive than the
-ones left unprotected** (all layers sit in the 0.75–3.43 band). The rebuild therefore
-quantizes everything, which is both smaller and measured-equivalent in fidelity.
+The source is BF16 and ComfyUI's text encoder runs in FP16, so a kept tensor is
+cast either way when the model is built. The kept tensors are stored FP16 and
+the INT8 scales stay FP32 (they carry the dequantization precision).
 
 ---
 
-## 5. Reproduce
+## 5. The pack
 
-```bash
-# 1) measure the output drift of every Linear layer (196 layers)
-python sdxl/diag_impact_qwen3.py \
-  --model Josiefied-Qwen3-0.6B-abliterated-v1.safetensors \
-  --out impact/impact_josiefied_qwen3_06b.json \
-  --comfy_path <ComfyUI checkout> --model_type qwen3_06b --full
-# 2) build the pack (threshold above the measured maximum -> full quantization)
-python sdxl/build_josiefied_qwen3_06b_convrot_int8.py --thr_t 3.5 --out <pack>
-# 3) verify (256 prompts, seed 42)
-python sdxl/verify_josiefied_qwen3_06b.py --pack <pack> --n 256 --seed 42 \
-  --out impact/verify_josiefied_qwen3_06b.json
+| item | value |
+| :--- | :--- |
+| the source | 1136.91 MB (BF16) |
+| the pack | **655.19 MB** (-42.4 %) |
+| the SHA256 | `40BB0C7F8862EE3AC4A5F345120CE5F23E1DFF15FFF020D57F00FAE8A9736D9C` |
+| the tensors | 624 |
+| the quantized layers | **157** (group size 256, all) |
+| the FP16-kept layers | 40 |
+| the output | finite |
+| cos mean / min / p5 (256 items, seed 42) | **0.999502 / 0.998980 / 0.999286** |
+| the gate (mean ≥ 0.99, min ≥ 0.98) | **PASS** |
+
+Against the previous pack (both on the same 256-item set, seed 42):
+
+| | the previous pack | the rebuilt pack |
+| :--- | :--- | :--- |
+| the cos mean / min | 0.997572 / 0.992079 | **0.999502 / 0.998980** |
+| the size | 570.5 MB | 655.2 MB |
+
+The rebuilt pack is 85 MB larger for a **4.9× smaller mean error** and a
+**7.8× smaller worst-case error**. The previous pack's protection set came
+from the invalid kurtosis rule and protected the wrong layers — most notably it
+protected every `k_proj` / `q_proj` / `down_proj`, while the contribution's top
+is layer 27's `mlp.up_proj` / `mlp.gate_proj`.
+
+---
+
+## 6. Loading the pack
+
+The pack is loaded through the text-encoder path the model is built with:
+
+```python
+sd = comfy.utils.load_torch_file(pack, safe_load=True)
+detect = comfy.text_encoders.hunyuan_video.llama_detect(sd)
+te = comfy.text_encoders.anima.te(**detect)
+clip = te(device=device)
+clip.load_sd(sd)
 ```
 
-Expected: mean >= 0.997, min >= 0.992.
+The `comfy_quant` stamps are consumed by the ops class the encoder is built
+with; the `_quantization_metadata` in the pack's header carries the per-layer
+`{"format":"int8_tensorwise","convrot":true,"convrot_groupsize":256}`.
 
 ---
 
-## 6. Summary
+## 7. Files
 
-| Aspect | Choice |
+| file | role |
 | :--- | :--- |
-| Target | Josiefied-Qwen3-0.6B-abliterated-v1 (BF16, single text tower) |
-| Previous pack | static-kurtosis protection of 85 layers (invalid basis) — rebuilt |
-| Protection criterion | Measured drift of the transformer's own output |
-| Drift profile | flat: min 0.75, median 3.05, max 3.43 — **no selective protection helps** |
-| Quantized | **197 / 197** 2D modules (including `embed_tokens`) |
-| Acceptance fidelity | mean **0.997572**, min **0.992079** (256 prompts, seed 42) — PASS |
-| Size | 1136.91 MB -> **570.50 MB** (-49.8 %) |
-| Latency | 24.91 ms -> 53.25 ms (+113.8 %) — reported, not hidden |
-| Load | standard `CLIPLoader` / `DualCLIPLoader`; INT8 enabled automatically via `llama_detect` |
+| `sdxl/diag_impact_qwen3.py` | the drift measurement (the screen) |
+| `sdxl/measure_josiefied_qwen3_06b_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/convert_josiefied_qwen3_06b_convrot_int8.py` | the builder (`--protect-list`, FP16 kept) |
+| `sdxl/verify_josiefied_qwen3_06b.py` | the acceptance on the fixed 256-item set |
+| `impact/impact_josiefied_qwen3_06b_fixed.json` | the corrected drift (git-ignored) |
+| `impact/contrib_josiefied_qwen3_06b.json` | the contribution (git-ignored) |
+| `impact/jq_protect_40.json` | the adopted FP16-kept list (git-ignored) |
