@@ -132,19 +132,35 @@ def main():
     meta = {}
     nlin = 0
     nprot = 0
+
+    def keep(t, k):
+        """A tensor that is not quantized.
+
+        The floating-point ones go to FP16. The checkpoint is FP32, but
+        ComfyUI's CLIP runs in FP16, so an FP32 kept tensor is cast to FP16 at
+        load time anyway - storing FP16 loses nothing at runtime and halves
+        the bytes. The INT8 scales stay FP32: they carry the dequantization
+        precision. (The bigG and CLIP-L packs already ship FP16 kept tensors
+        and pass the acceptance.)
+        """
+        if t.dtype in (torch.float32, torch.float16, torch.bfloat16) \
+                and not k.endswith("weight_scale"):
+            return t.to(torch.float16)
+        return t
+
     for k, t in sd.items():
         if not (k.endswith(".weight") and t.ndim == 2):
-            out[k] = t
+            out[k] = keep(t, k)
             continue
         mk = k[:-7]
         inf = int(t.shape[1])
         if mk in prot or inf % GROUP != 0 or t.shape[0] % 4 != 0:
-            out[k] = t
+            out[k] = keep(t, k)
             nprot += 1
             continue
         q, s = qrow(rot(t.float(), GROUP))
         out[k] = q
-        out[mk + ".weight_scale"] = s
+        out[mk + ".weight_scale"] = s  # FP32 on purpose
         conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": GROUP}
         out[mk + ".comfy_quant"] = torch.tensor(
             list(json.dumps(conf, separators=(",", ":")).encode()), dtype=torch.uint8)
