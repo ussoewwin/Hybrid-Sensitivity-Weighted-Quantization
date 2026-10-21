@@ -176,8 +176,25 @@ def runtime_to_checkpoint(runtime_name, ck_keys):
     return None
 
 
+def load_protect_list(path):
+    """The FP16-kept layers, from a JSON {"protect": [...]} or a text file
+    with one runtime module name per line."""
+    if not path:
+        return set()
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {ln.strip() for ln in text.splitlines() if ln.strip()}
+    if isinstance(data, dict):
+        return set(data.get("protect", []))
+    return set(data)
+
+
 def convert(input_path, output_path, impact_json, comfy_path, clip_type,
-            drift_threshold=DEFAULT_DRIFT_THRESHOLD, groupsize=GROUP_SIZE):
+            drift_threshold=DEFAULT_DRIFT_THRESHOLD, groupsize=GROUP_SIZE,
+            protect_list=None):
     print(f"Loading (streamed): {input_path}")
     src = safe_open(input_path, framework="pt", device="cpu")
     keys = sorted(src.keys())
@@ -202,7 +219,21 @@ def convert(input_path, output_path, impact_json, comfy_path, clip_type,
         ck = rt2ck.get(n) or runtime_to_checkpoint(n, ck_keys)
         if ck:
             protect.add(ck)
-    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
+    explicit = load_protect_list(protect_list)
+    if explicit:
+        # An explicit list is authoritative: the per-layer drift is a marginal
+        # effect (it measures the weight error only, while the pack's real
+        # path also quantizes the activation), so it does not rank the layers
+        # the way the aggregate output does. The list is in the runtime
+        # module names and is mapped to the checkpoint's names the same way
+        # the drift-based protection is.
+        protect = set()
+        for n in explicit:
+            ck = rt2ck.get(n) or runtime_to_checkpoint(n, ck_keys)
+            if ck:
+                protect.add(ck)
+    print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}"
+          + (" (an explicit list)" if explicit else ""))
 
     h_cache = {}
 
@@ -339,6 +370,11 @@ if __name__ == "__main__":
     ap.add_argument("--groupsize", type=int, default=GROUP_SIZE,
                     help="the Hadamard group size; each layer uses the largest "
                          "power-of-4 divisor of its input width that is <= this")
+    ap.add_argument("--protect-list", default=None,
+                    help="the FP16-kept layers, as a JSON {\"protect\": [...]} or a "
+                         "text file with one runtime module name per line; an "
+                         "explicit list is authoritative over the drift threshold")
     a = ap.parse_args()
     convert(a.input, a.output, a.impact, a.comfy_path, a.clip_type,
-            drift_threshold=a.drift_threshold, groupsize=a.groupsize)
+            drift_threshold=a.drift_threshold, groupsize=a.groupsize,
+            protect_list=a.protect_list)
