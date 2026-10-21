@@ -33,7 +33,7 @@ so the result is reproducible.
 | `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL, encoder + decoder) | text | 0.25 encoder / 0.005 decoder (163 of 168, 62 of 264 INT8) | 0.999879 / 0.999626 | 15998.8 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `sigclip_vision_patch14_384.safetensors` | vision | 0.30 (96 of 162 INT8, group size 64/16) | 0.998560 / 0.996602 | 633.5 MB | `md/SigLIPVision384_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-ViT-H-14.safetensors` | vision | 0.05 (127 of 192 INT8, group size 256) | 0.999919 / 0.999866 | 949.5 MB | `md/CLIPViTH14_ConvRot_INT8_Impact_Technical_Guide.md` |
-| `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` | vision | 0.30 (275 of 288 INT8, group size 64) | 0.999916 / 0.999880 | 1935.7 MB | `md/CLIPBiGG_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` | vision | the FP16-kept set by the aggregate contribution (35 of 288 kept, 253 INT8, group size 64) | 0.999916 / 0.999741 | 2180.1 MB | `md/CLIPBiGG_ConvRot_INT8_Impact_Technical_Guide.md` |
 
 Acceptance criterion used throughout: **cos mean >= 0.99 AND cos min >= 0.98**, on a
 fixed 256-item set (seed 42).
