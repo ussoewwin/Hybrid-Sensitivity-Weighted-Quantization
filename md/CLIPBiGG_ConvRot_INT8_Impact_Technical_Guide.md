@@ -1,7 +1,8 @@
 # CLIP-ViT-bigG-14 — ConvRot INT8 Trajectory-Impact Technical Guide
 
 **Model.** `models/clip/CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` (3519.0 MB, FP16, 1,844,907,521 parameters)
-**Pack.** `models/clip/CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` (1935.7 MB, **-45.0 %**)
+**Pack.** `models/clip/CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` (2180.1 MB, **-38.0 %**)
+**SHA256.** `6CD4AFAC314AE720FF1EDCAC59F927B93D8E15CE3E8E109DDC59F6FD43B2D5D3`
 **SHA256.** `6C8BF27AE72415B5CCC2ECF51A21D5654D4C39342AB5D57436CAE822B9121EC8`
 **Method.** impact-driven (measured drift of the model's own output), **group size 64**.
 
@@ -83,7 +84,10 @@ MSE against the pristine run is recorded.
 
 | min | p10 | median | p90 | max |
 | :--- | :--- | :--- | :--- | :--- |
-| 1.44e-06 | 1.74e-03 | 2.65e-02 | 1.93e-01 | 1.15e+00 |
+| 4.42e-12 | 1.05e-08 | **1.12e-07** | 1.93e-06 | **9.12e-06** |
+
+(This is the **corrected** measurement - see section 8. The pre-fix
+measurement gave the median 2.65e-02 and the max 1.15e+00.)
 
 **By layer kind**
 
@@ -109,17 +113,28 @@ Four candidate thresholds were built and each was measured on the full 256-item
 acceptance set (seed 42) against the FP16 baseline, with the image-embedding
 cosine as the observable.
 
-| threshold | INT8 layers | cos mean | cos min | cos p5 | pack |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| 0.05 | 204 | 0.999978 | 0.999964 | 0.999972 | 2691.7 MB |
-| 0.20 | 260 | 0.999926 | 0.999893 | 0.999909 | 2130.3 MB |
-| **0.30** | **275** | **0.999916** | **0.999880** | **0.999900** | **1935.7 MB** |
-| 0.50 | 277 | 0.999916 | 0.999874 | 0.999900 | 1909.8 MB |
+The kept set is given explicitly (`--protect-list`), with the layers taken
+in the order of the corrected drift's ranking. Every candidate below was
+measured on the full 256-item acceptance set (seed 42) against the FP16
+baseline, with the image-embedding cosine as the observable.
 
-**Threshold 0.30 was adopted.** All four pass the gate (mean >= 0.99, min >=
-0.98). 0.30 and 0.50 measure the same cosine to six decimals, but 0.30 keeps
-two more layers in FP16 for 26 MB - the margin is taken on the side that
-protects the model.
+| the FP16-kept | INT8 layers | cos mean | cos min | cos p5 | pack |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 0 (all quantized) | 288 | 0.999731 | 0.999554 | 0.999554 | 1767.1 MB |
+| 20 | 268 | 0.999873 | 0.999697 | 0.999827 | 2026.8 MB |
+| 30 | 258 | 0.999901 | 0.999737 | 0.999858 | 2135.9 MB |
+| **35** | **253** | **0.999916** | **0.999741** | **0.999877** | **2180.1 MB** |
+| 40 | 248 | 0.999923 | 0.999737 | 0.999889 | 2234.6 MB |
+| the previous pack | 275 | 0.999757 | 0.999469 | 0.999682 | 1935.7 MB |
+
+**35 FP16-kept layers were adopted.** The quality rises monotonically with the
+kept count - the all-quantized pack measures the worst minimum (0.999554) -
+and 35 is the point where the curve flattens: 40 buys +7e-06 of the mean and
+nothing of the minimum, for 55 MB more.
+
+Against the previous pack, at a comparable layer count the difference is in
+the minimum, not the mean: **0.999741 against 0.999469**, a 2.7x improvement,
+with 22 fewer quantized layers.
 
 ---
 
@@ -128,16 +143,17 @@ protects the model.
 Built with `clip_convert/convert_clip_impact_convrot_int8.py`:
 
 ```
---clip_type vision --drift-threshold 0.30 --groupsize 256
+--clip_type vision --drift-threshold 0.05 --groupsize 256 \
+  --protect-list impact/bigg_protect_35.json
 ```
 
 (The builder derives the per-layer group size: 64 for the 1664-wide layers.)
 
 | item | value |
 | :--- | :--- |
-| file size | 3519.0 MB -> **1935.7 MB** (-45.0 %) |
-| quantized layers | 275 (of 288) |
-| FP16 protected | 13 (drift > 0.30) |
+| file size | 3519.0 MB -> **2180.1 MB** (-38.0 %) |
+| quantized layers | 253 (of 288) |
+| FP16 protected | 35 (the aggregate-contribution order) |
 | group size | 64 (all 275 layers) |
 | kept as-is | the Embedding, the 1D weights, the layer norms |
 
@@ -153,11 +169,11 @@ uses.
 | :--- | :--- |
 | output finite | **yes** |
 | cos mean (256 items, seed 42) | **0.999916** |
-| cos min | **0.999880** |
-| cos p5 | 0.999900 |
+| cos min | **0.999741** |
+| cos p5 | **0.999877** |
 | gate (mean >= 0.99, min >= 0.98) | **PASS** |
-| QuantizedTensor Linear layers at runtime | **275** |
-| `int8_linear` calls per encode | **275** |
+| QuantizedTensor Linear layers at runtime | **253** |
+| `int8_linear` calls per encode | **253** |
 | encode latency | 92.12 ms / image (batch 1) |
 
 **The INT8 GEMM is reached.** On the stock path the `int8_tensorwise` algorithm
@@ -178,3 +194,113 @@ activation rotation. **ComfyUI core is not modified.**
 | `impact/impact_bigg_vision.json` | the measured per-layer drift (git-ignored) |
 | `impact/_t5_packs/bigg_threshold_sweep.json` | the threshold sweep (git-ignored) |
 | `models/clip/CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` | the pack |
+
+---
+
+## 8. The re-measurement (2026-10-21) and the rebuilt pack
+
+### 8.1 The injection defect
+
+The impact measurement had a defect that was found while working on the FLUX
+ControlNet: `convrot_int8_recon` returned the reconstruction in the **rotated**
+frame (`q * s`, i.e. `W_hat * H`) and injected it as the module's weight, but
+the module's weight is used by the plain forward as `F.linear(x, weight)`. The
+pack stores the rotated weight and the kernel rotates the **activation**, so
+the quantization error that reaches the output is in the **original** frame:
+`(q*s) H^T - W`.
+
+Measured on the FLUX ControlNet's `controlnet_blocks.0` with the pack's own
+qdata/scale and the real kernel:
+
+| what | relMSE vs the FP16 result |
+| :--- | :--- |
+| the pack's kernel (`convrot=True`) | **1.74e-04** (correct) |
+| the plain int8 (no activation rotation) | 1.89 |
+| the injected rotated frame as a plain linear (the defect) | 1.89 |
+| the un-rotated reconstruction as a plain linear (the fix) | **9.01e-05** |
+
+The same defect was in this script; it is fixed, and the 288-layer sweep was
+redone.
+
+### 8.2 The corrected drift
+
+| | the old (defective) | the new (corrected) |
+| :--- | :--- | :--- |
+| the measured modules | 288 | 288 |
+| the median drift | 2.65e-02 | **1.12e-07** |
+| the p90 | 1.93e-01 | **1.93e-06** |
+| the max | 1.15e+00 | **9.12e-06** |
+| the protected at 0.30 | 13 | **0** |
+
+The old measurement made `mlp.fc1` look catastrophic - `encoder.layers.35.mlp.fc1`
+measured 0.9619, and layers 40-44 held drifts of 0.70-0.92. The corrected
+measurement puts the same layer at 6.72e-06, a factor of 143,000 lower, and
+the ranking changes with it.
+
+### 8.3 Why the drift cannot be the selection criterion
+
+The per-layer drift measures the **weight** error only: the reconstruction is
+placed in the module and the plain forward is used, so the activation is not
+quantized. The pack's real path also quantizes the **activation** for that
+layer, and that is where most of the error comes from. The marginal effect is
+therefore not the quantity the pack trades off.
+
+The consequence is visible in the table in section 5: with the corrected
+drift the 0.30 threshold protects **0** layers, so a pack built from the drift
+alone quantizes all 288 and measures the **worst** minimum of the whole
+series (0.999554). The kept set has to be chosen on the aggregate.
+
+### 8.4 How the kept set was chosen
+
+The kept layers are taken in the order of the corrected drift's ranking
+(the largest first), and the candidates are measured on the full 256-item
+acceptance set - the table in section 5. The quality rises monotonically
+with the kept count and flattens at 35:
+
+| the FP16-kept | 0 | 20 | 30 | **35** | 40 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| the INT8 layers | 288 | 268 | 258 | **253** | 248 |
+| cos min | 0.999554 | 0.999697 | 0.999737 | **0.999741** | 0.999737 |
+| the size | 1767.1 | 2026.8 | 2135.9 | **2180.1** | 2234.6 MB |
+
+35 is where the minimum stops improving: 40 buys +7e-06 of the mean and
+nothing of the minimum, for 55 MB more.
+
+The previous pack's 13 kept layers came from the defective drift, and they are
+not the 13 largest drifts - which is why the previous pack measured min
+0.999469 while a pack with **22 fewer** quantized layers measures 0.999741.
+
+### 8.5 The rebuilt pack
+
+| item | value |
+| :--- | :--- |
+| the source | 3519.0 MB |
+| the pack | **2180.1 MB** (-38.0 %) |
+| the SHA256 | `6CD4AFAC314AE720FF1EDCAC59F927B93D8E15CE3E8E109DDC59F6FD43B2D5D3` |
+| the tensors | 1283 |
+| the quantized layers | **253** (of 288) |
+| the FP16-kept layers | 35 |
+| the group size | 64 (all 253 layers) |
+| the `int8_linear` calls per encode | **253** |
+| the output | finite |
+| cos mean / min / p5 (256 items, seed 42) | **0.999916 / 0.999741 / 0.999877** |
+| the gate (mean >= 0.99, min >= 0.98) | **PASS** |
+
+### 8.6 The measurement note
+
+The acceptance runs on the **same ops class** for the baseline and the pack.
+The stock `CLIPVisionLoader` builds the vision tower with
+`comfy.ops.manual_cast` while a quantized pack is built with
+`mixed_precision_ops`, and for this model the two paths are not numerically
+equivalent - the same FP16 source through the two paths gives a cosine of
+0.94-0.96, and restoring **every** quantized layer of a pack to FP16 does not
+move the number. The baseline therefore has to be built through the same ops
+class, otherwise the comparison measures the ops path instead of the
+quantization.
+
+For the same reason the per-layer contribution could not be measured in one
+live model for this checkpoint: the source (3519 MB) and the pack (1936 MB)
+plus the source's fp16 copies exceed the 16 GB VRAM
+(`CUDA error: invalid argument`, `Copy is larger than memobj size`). The
+contribution is therefore measured with real packs - one pack per candidate
+kept set - so only one model is resident at a time.
