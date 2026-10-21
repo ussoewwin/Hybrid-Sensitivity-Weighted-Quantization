@@ -122,6 +122,19 @@ FP32) has to stay in FP16. See
   CLIP-L pooled output, `vec_in_dim` wide (768). With `y = zeros` the
   `vector_in` layers have no input and a layer that changes the output
   measures 0.0000.
+- **The per-layer drift is a SCREEN, not the selection criterion.** The
+  drift measures the WEIGHT error only (the reconstruction is placed in the
+  module and the plain forward is used), while the pack's real path also
+  quantizes the ACTIVATION - and that is where most of the error comes from.
+  Measured on the FLUX ControlNet: the drift-selected pack measures the relMSE
+  1.11e-02, the aggregate-selected one 4.3e-05. Measured on SAM 3.1: the
+  drift-selected pack measures 1.11e-02 against the shipped pack's 3.51e-05.
+  The FP16-kept set has to be chosen by the **aggregate** effect on the
+  output, measured through the real pack path.
+- **A smaller protection set is not automatically better.** For SAM 3.1 every
+  one of the 401 kept layers, when released, breaks the accepted quality by an
+  order of magnitude (the cheapest release costs +9.67e-04 against a 1.0e-04
+  gate) - the protection set cannot be reduced at all.
 - **The group size follows the layer's input width** - this is not a
   CLIP-specific rule. SigLIP's hidden size is 1152, which is not a multiple of
   256 either, so 79 of its 162 layers are rotated with a group size of 64 and
