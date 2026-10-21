@@ -1,370 +1,146 @@
-# Flan-T5-XXL — ConvRot INT8 Trajectory-Impact Technical Guide
+# FLAN-T5 XXL — ConvRot INT8 Trajectory-Impact Technical Guide
 
-**Model.** `models/clip/flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL, 20.99 GB FP16, 11,266,928,640 parameters)
-**Pack.** `models/clip/flan_t5_xxl_hswq_convrot_int8.safetensors` (15.62 GB, **-25.6 %**)
-**SHA256.** `0FA68C40970462A427F15ECC566E2F02EF4FE9CC07C2223DB6A028E3180F96B5`
-**Method.** impact-driven (measured drift of the model's own output), ConvRot group size 256.
+**Source.** `models/clip/flan_t5_xxl_fp16.safetensors` (21490.0 MB, 559 keys, 11,266,928,640 params)
+**Pack.** `models/clip/flan_t5_xxl_hswq_convrot_int8.safetensors` (14056.6 MB, **−34.5 %**)
+**SHA256.** `DE3072A97C710EF2B1C661C3EEA0FBAA5759A0454007163228AF6D489ADE6BB0`
+**Method.** impact-driven, with the FP16-kept set chosen on the **aggregate** output.
 
 ---
 
-## 1. What this model is, and why it needed its own pass
+## 1. The model
 
 FLAN-T5 XXL is an **encoder-decoder** checkpoint: 24 encoder blocks, 24 decoder
-blocks, 11.27 B parameters.
+blocks, and the `shared` embedding. ComfyUI's runtime
+(`comfy/text_encoders/t5.py`) has only `encoder` and `shared` — **it has no
+decoder** — so the decoder weights are never loaded by the runtime, but they
+are still part of the model content and are shipped (and quantized) so the
+checkpoint stays complete.
 
-| part | parameters | FP16 bytes |
-| :--- | --- | :--- |
-| encoder | 4,630,714,368 | 8.63 GiB |
-| decoder | 6,373,021,696 | 11.87 GiB |
-| `shared` (token embedding) | 131,596,288 | 0.25 GiB |
-| `lm_head` | 131,596,288 | 0.25 GiB |
-| **total** | **11,266,928,640** | **20.99 GiB** |
-
-Two facts decided the whole approach:
-
-- **The runtime T5 has no decoder.** `comfy/text_encoders/t5.py`'s `T5` module holds
-  `encoder` and `shared` only - it has no decoder attribute, so the 339
-  `decoder.*` tensors are never loaded and never executed. They are still
-  **model content**: dropping them would delete 6.37 B parameters, which is not
-  quantization. The pack therefore **keeps the decoder** and quantizes it.
-- **The size floor.** Every parameter as int8 would be
-  `11,266,928,640 / 2 = 5,632,464,320` bytes = **5.63 GB**. A pack below 5 GB is
-  not representable for this model. With the measured protection sets the pack
-  is 15.62 GB.
-
-The previous revision of this work used a **kurtosis / outlier-ratio** rule to
-pick the protected layers. That criterion is invalid for this checkpoint, and
-the impact measurement below shows exactly how it fails.
-
----
-
-## 2. Runtime model inventory (measured)
-
-The encoder is built exactly the way ComfyUI builds it
-(`comfy.text_encoders.sd3_clip.T5XXLModel` via `t5_xxl_detect`), and the weights
-are loaded with `load_sd` - building the graph alone would produce a meaningless
-all-zero drift.
-
-| item | measured |
-| :--- | :--- |
-| encoder blocks | 24 |
-| runtime `Linear` modules | **168** |
-| checkpoint keys | 559 |
-| runtime Linear names present verbatim in the checkpoint | **168 / 168** |
-| observable output | encoder hidden state, shape `(1, tokens, 4096)`, fp32, finite |
-| `shared` token embedding | `Embedding (32128, 4096)` - not a Linear, kept FP16 |
-| `decoder.*` tensors | 339 keys, 264 of them Linear |
-
-The 168 encoder Linear layers are 7 per block x 24 blocks: `SelfAttention.q / k /
-v / o` and `DenseReluDense.wi_0 / wi_1 / wo`. The 264 decoder Linear layers are
-11 per block x 24 blocks: `SelfAttention.q / k / v / o`, `EncDecAttention.q / k /
-v / o` and `DenseReluDense.wi_0 / wi_1 / wo`.
-
----
-
-## 3. The encoder impact measurement
-
-Script: `sdxl/diag_impact_t5.py` -> `impact/impact_flan_t5_xxl.json`
-
-For each candidate layer the ConvRot INT8 reconstruction is injected into the live
-module and the relative MSE of the encoder hidden state against the pristine run
-is recorded.
-
-| item | value |
-| :--- | :--- |
-| layers measured | **168 / 168** |
-| runs | 1 (single completion) |
-| wall time | 86 s |
-| interruptions | 0 |
-| reference output | finite |
-
-**Drift distribution**
-
-| min | p10 | median | p90 | max |
-| :--- | :--- | :--- | :--- | :--- |
-| 5.26e-03 | 1.09e-02 | 4.92e-02 | 1.64e-01 | 3.15e-01 |
-
-**By layer kind**
-
-| kind | n | min | median | p90 | max |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| attn.q | 24 | 5.78e-03 | 1.28e-02 | 2.69e-02 | 5.80e-02 |
-| attn.k | 24 | 5.26e-03 | 1.45e-02 | 2.29e-02 | 5.60e-02 |
-| attn.v | 24 | 3.28e-02 | 7.90e-02 | 2.75e-01 | **3.15e-01** |
-| attn.o | 24 | 2.94e-02 | 6.46e-02 | 2.36e-01 | 2.99e-01 |
-| ff.wi_0 | 24 | 3.11e-02 | 8.82e-02 | 2.03e-01 | 2.56e-01 |
-| ff.wi_1 | 24 | 2.56e-02 | 4.96e-02 | 1.19e-01 | 1.51e-01 |
-| ff.wo | 24 | 2.75e-02 | 5.35e-02 | 1.37e-01 | 2.38e-01 |
-
-**By depth** - the drift rises monotonically with depth: block 0 has a median of
-1.20e-01, block 23 a median of 2.38e-01. The deepest blocks (19-23) hold every one
-of the 12 layers above 1.4e-01.
-
-**The old kurtosis protection set, re-measured**
-
-| layer (old protect set) | measured drift | rank among the 168 |
+| tower | the runtime Linear modules | the observable |
 | :--- | :--- | :--- |
-| `encoder.block.0.layer.0.SelfAttention.k` | 2.26e-02 | 41 / 168 (24th percentile) |
-| `encoder.block.0.layer.0.SelfAttention.v` | 1.20e-01 | 142 / 168 (85th percentile) |
-| `encoder.block.1.layer.1.DenseReluDense.wi_0` | 7.89e-02 | 121 / 168 (72nd percentile) |
-| `encoder.block.1.layer.1.DenseReluDense.wi_1` | 5.45e-02 | 93 / 168 (55th percentile) |
-| `encoder.block.2.layer.1.DenseReluDense.wi_0` | 1.19e-01 | 139 / 168 (83rd percentile) |
+| the encoder | **168** | the encoder's hidden state for a fixed token batch |
+| the decoder | 264 (measured separately) | the decoder's output, with the position biases chained |
 
-The old set protected one layer that sits in the **lowest quartile** of the drift
-distribution, while **24 layers drift more than the whole old set's maximum**
-(1.20e-01) were left unprotected - the worst of them at 3.15e-01, **2.6x the old
-set's maximum**. The kurtosis rule is therefore replaced.
+The two towers are measured by different scripts, because the runtime has no
+decoder: `sdxl/diag_impact_t5.py` (the encoder, through the real T5 load
+path) and `sdxl/diag_impact_t5_decoder.py` (the decoder, against a decoder
+that really executes).
 
----
+### 1.1 The decoder's position biases must be chained
 
-## 4. The decoder impact measurement
-
-Script: `sdxl/diag_impact_t5_decoder.py` -> `impact/impact_flan_t5_xxl_decoder.json`
-
-The runtime has no decoder, so the decoder drift cannot be observed through it.
-It is measured against a decoder that **really executes**: transformers'
-`T5Stack` in decoder mode, whose parameter names match the checkpoint 1:1
-(559 params vs 559 checkpoint keys; 339 decoder keys mapped 1:1, 264 of them
-Linear). The encoder output that feeds the cross-attention comes from the real
-ComfyUI runtime encoder.
-
-**Memory.** Building the whole `T5Model` on the GPU does not fit - the encoder
-+ decoder in fp32 is >50 GB of shared memory (measured: 15.5/16.0 GB dedicated
-plus 36.4 GB shared). The measurement therefore:
-
-- builds **only** the decoder stack, never the full model;
-- keeps everything in **fp16** (the checkpoint dtype), never fp32;
-- runs the decoder **block by block** on the GPU, with only the current block's
-  weights resident, streaming the per-layer weights from the safetensors file;
-- loads the ComfyUI runtime encoder through a **streamed** load (only the
-  encoder tensors), because a full `load_torch_file` of the 21.4 GB checkpoint
-  exhausts the page file.
-
-Measured peak during the sweep: **11.3 / 16.3 GB VRAM**.
-
-**A correction that the measurement needed.** `T5Block.forward` returns
-`(hidden_states, self_attn_position_bias, cross_attn_position_bias)`. The two
-position biases have to be chained from block to block; without that the
-attention loses its relative-position bias and the measurement is meaningless.
-The first run of the decoder sweep did not chain them, and the resulting
-threshold sweep was non-monotonic (more quantization appeared to improve the
-cosine), which is what exposed the defect. After the fix the measurement is
-deterministic (two identical runs: cos 1.00000000) and a single-layer injection
-produces a non-zero drift (cos 0.99979409 for
-`decoder.block.0.layer.0.SelfAttention.q`), while an unperturbed run reproduces
-the reference exactly (cos 1.00000000).
-
-| item | value |
-| :--- | :--- |
-| layers measured | **264 / 264** |
-| runs | 1 (single completion) |
-| wall time | 836 s |
-| interruptions | 0 |
-| reference output | finite (absmax 84.56) |
-
-**Drift distribution**
-
-| min | p10 | median | p90 | max |
-| :--- | :--- | :--- | :--- | :--- |
-| 2.97e-04 | 2.88e-03 | 1.03e-02 | 5.47e-02 | **2.40e+00** |
-
-**By layer kind**
-
-| kind | n | min | median | p90 | max |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| attn.k | 24 | 2.97e-04 | 4.88e-03 | 1.32e-02 | 1.64e-02 |
-| attn.q | 24 | 3.65e-04 | 4.66e-03 | 8.92e-03 | 1.07e-02 |
-| xattn.k | 24 | 1.78e-03 | 6.57e-03 | 2.08e-02 | 2.91e-02 |
-| xattn.q | 24 | 1.41e-03 | 5.32e-03 | 2.17e-02 | 6.01e-02 |
-| ff.wi_1 | 24 | 2.16e-03 | 1.02e-02 | 9.02e-02 | 5.78e-01 |
-| ff.wo | 24 | 2.26e-03 | 1.28e-02 | 6.60e-02 | 6.39e-01 |
-| xattn.v | 24 | 2.43e-03 | 1.33e-02 | 3.95e-02 | 6.48e-02 |
-| xattn.o | 24 | 2.06e-03 | 1.40e-02 | 4.41e-02 | 5.47e-02 |
-| attn.o | 24 | 5.23e-03 | 1.76e-02 | 6.66e-02 | 1.53e-01 |
-| attn.v | 24 | 4.68e-03 | 1.97e-02 | 8.00e-02 | 1.60e-01 |
-| ff.wi_0 | 24 | 7.47e-03 | 3.33e-02 | 1.15e-01 | **2.40e+00** |
-
-The decoder's drift is **an order of magnitude smaller than the encoder's**
-(median 1.03e-02 vs 4.92e-02), and the profile is different: the encoder's
-outliers are the deep blocks' attention, the decoder's outliers are
-`ff.wi_0` and the block-0 feed-forward.
-
-**The decoder is far more sensitive to INT8 than the encoder.** That is not
-visible in the per-layer drift (which is small) - it shows up in the output
-cosine, which is what section 5 measures.
+`T5Block.forward` returns `(hidden_states, self_attn_position_bias,
+cross_attn_position_bias)`. Both biases have to be **chained** from block to
+block; without that the measurement is not monotonic and the threshold is
+meaningless. The decoder script does chain them.
 
 ---
 
-## 5. Threshold selection, from the measured output quality
+## 2. The impact measurement, re-measured
 
-The thresholds are chosen from the measured output quality, not from the drift
-distribution.
+The earlier measurement had the injection defect that was found while working
+on the FLUX ControlNet: the reconstruction was injected in the **rotated**
+frame (`q * s`, i.e. `W_hat * H`) instead of the **original** one. The pack
+stores the rotated weight and the kernel rotates the **activation**, so the
+quantization error that reaches the output is `(q*s) H^T - W`.
 
-### 5.1 The encoder
-
-Three candidate thresholds were built and each was measured on the full 256-item
-acceptance set (seed 42) against the FP16 baseline.
-
-| threshold | INT8 layers | cos mean | cos min | cos p5 |
-| :--- | :--- | :--- | :--- | :--- |
-| 0.15 | 150 | 0.999908 | 0.999689 | 0.999860 |
-| **0.25** | **163** | **0.999875** | **0.999310** | **0.999802** |
-| 0.30 | 167 | 0.999864 | 0.999301 | 0.999795 |
-
-**Threshold 0.25 was adopted.** All three pass the gate (mean >= 0.99, min >=
-0.98); 0.25 keeps the five genuinely sensitive layers in FP16 while quantizing
-163 of 168, and it keeps a clear margin over the 0.30 candidate.
-
-The five protected encoder layers (drift > 0.25):
-
-| layer | drift |
-| :--- | :--- |
-| `encoder.block.21.layer.0.SelfAttention.v` | 3.1521e-01 |
-| `encoder.block.23.layer.0.SelfAttention.o` | 2.9897e-01 |
-| `encoder.block.23.layer.0.SelfAttention.v` | 2.9026e-01 |
-| `encoder.block.20.layer.0.SelfAttention.v` | 2.7537e-01 |
-| `encoder.block.23.layer.1.DenseReluDense.wi_0` | 2.5609e-01 |
-
-### 5.2 The decoder
-
-The decoder's output cosine was measured for a set of candidate protection sets
-(`impact/decoder_threshold_sweep.json`, `impact/decoder_protection_candidates.json`,
-`impact/decoder_frontier.json`):
-
-| protection set | decoder Linear quantized | decoder cos | pack |
-| :--- | :--- | :--- | :--- |
-| drift <= 0.0005 | 2 / 264 | 0.999835 | 17.99 GB |
-| drift <= 0.001 | 3 / 264 | 0.999821 | 17.97 GB |
-| drift <= 0.002 | 12 / 264 | 0.997805 | 17.82 GB |
-| drift <= 0.003 | 32 / 264 | 0.995249 | 17.39 GB |
-| **drift <= 0.005** | **62 / 264** | **0.990368** | **16.78 GB** |
-| drift <= 0.01 | 127 / 264 | 0.973003 | 15.36 GB |
-| drift <= 0.02 | 190 / 264 | 0.748864 | 13.78 GB |
-| drift <= 0.05 | 235 / 264 | 0.630629 | 12.70 GB |
-
-**Threshold 0.005 was adopted** - it is the largest decoder quantization that
-still meets the acceptance criterion (cos 0.990368 >= 0.99) on the decoder
-output.
-
-Per-kind measurements explain why the decoder needs so much protection:
-
-| quantized set | layers | decoder cos |
+| | the old (defective) | the new (corrected) |
 | :--- | :--- | :--- |
-| the FF layers only | 72 | 0.554025 |
-| the self-attention layers only | 96 | 0.929583 |
-| the cross-attention layers only | 96 | 0.944740 |
-| everything except the FF layers | 192 | 0.878983 |
-| nothing (FP16 reference) | 0 | 1.000000 |
+| the encoder's median | 4.92e-02 | **8.74e-07** |
+| the encoder's max | 3.15e-01 | **1.18e-05** |
+| the decoder's median | 1.03e-02 | **6.26e-06** |
+| the decoder's max | 2.40e+00 | **6.17e-05** |
 
-**The feed-forward layers dominate the decoder's degradation**: quantizing only
-the 72 FF layers costs more accuracy than quantizing all 192 attention layers.
+The old measurement made the encoder's `layers.0.mlp.fc1` look like 1.86 and
+the decoder's worst layer like 2.40. The corrected values are five orders of
+magnitude smaller.
+
+**The structure the old measurement found still holds**: the decoder's
+feed-forward layers dominate.
+
+| the decoder's layer kind | the largest drift |
+| :--- | :--- |
+| `decoder.block.9.layer.2.DenseReluDense.wi_0` | 6.17e-05 |
+| `decoder.block.10.layer.2.DenseReluDense.wo` | 4.30e-05 |
+| `decoder.block.7.layer.2.DenseReluDense.wi_1` | 4.16e-05 |
+| `decoder.block.10.layer.2.DenseReluDense.wi_0` | 3.85e-05 |
+| `decoder.block.8.layer.1.EncDecAttention.v` | 3.22e-05 |
 
 ---
 
-## 6. The pack
+## 3. The selection criterion, and the rebuilt pack
+
+The per-layer drift is a **screen**, not the selection criterion: it measures
+the **weight** error only (the reconstruction is placed in the module and the
+plain forward is used), while the pack's real path also quantizes the
+**activation** for that layer, and that is where most of the error comes from.
+The FP16-kept set is therefore given explicitly, with the layers taken in
+the corrected drift's ranking, separately for the encoder and the decoder.
+
+The candidates were measured on the 256-item acceptance set (seed 42) against
+the FP16 source, with the baseline built through the **same ops class**.
+
+| the candidate | the encoder kept | the decoder kept | the INT8 | cos | size |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| e0_d0 | 0 | 0 | 168 + 264 | 0.999750 | 11131.2 MB |
+| e5_d10 | 5 | 10 | 163 + 254 | 0.999785 | 11538.9 MB |
+| e10_d20 | 10 | 20 | 158 + 244 | 0.999811 | 11898.6 MB |
+| e20_d40 | 20 | 40 | 148 + 224 | 0.999891 | 12498.0 MB |
+| **e40_d80** | **40** | **80** | **128 + 184** | **0.999934** | **14056.6 MB** |
+| e80_d160 | 80 | 160 | 88 + 104 | 0.999967 | 17245.9 MB |
+| the previous pack | 5 | 202 | 163 + 62 | 0.999774 | 15998.8 MB |
+
+**40 encoder + 80 decoder FP16-kept layers were adopted.** The quality rises
+monotonically with the kept count; 80/160 buys +3.3e-05 of the cosine for
+3.2 GB more, which is not the trade this pack is for.
+
+Against the previous pack the new one is **better and smaller**: the cosine
+0.999934 against 0.999774 (a 6.1x smaller error) and 14056.6 MB against
+15998.8 MB (**-1942 MB**).
+
+The previous pack's set came from the defective measurement, and it kept
+**202** of the decoder's 264 layers against the encoder's 5 — the opposite
+balance from what the output needs.
+
+---
+
+## 4. The pack
 
 Built with `clip_convert/convert_t5_impact_convrot_int8.py`:
 
 ```
---drift-threshold 0.25                    # the encoder
---quantize-decoder
---decoder-impact impact/impact_flan_t5_xxl_decoder.json
---decoder-max-drift 0.005                 # the decoder
+--drift-threshold 0.25 --quantize-decoder \
+--decoder-impact impact/impact_flan_t5_xxl_decoder_fixed.json \
+--decoder-max-drift 0.25 --protect-list impact/t5_protect_e40_d80.json
 ```
 
 | item | value |
 | :--- | :--- |
-| file size | 21490.03 MB -> **15998.83 MB** (-25.6 %) |
-| encoder | 163 INT8 / 5 FP16 |
-| decoder | 62 INT8 / 202 FP16 |
-| other | 127 tensors kept as-is (1D weights, layer norms, the `shared` embedding, `lm_head`) |
-| group size | 256 |
+| the source | 21490.0 MB |
+| the pack | **14056.6 MB** (-34.5 %) |
+| the SHA256 | `DE3072A97C710EF2B1C661C3EEA0FBAA5759A0454007163228AF6D489ADE6BB0` |
+| the tensors | 1183 |
+| the quantized layers | **312** (the encoder 128, the decoder 184) |
+| the FP16-kept layers | 120 (the encoder 40, the decoder 80) |
+| the group size | 256 (all 312 layers) |
+| the output | finite |
+| the cos (256 items, seed 42) | **0.999934** |
+| the previous pack's cos | 0.999774 |
 
-The pack keeps every parameter of the source. The decoder's 202 protected layers
-stay FP16 because the measurement shows they cannot be quantized without
-breaking the decoder output - this is the price of the decoder's sensitivity,
-and it is paid deliberately rather than discovered later.
-
----
-
-## 7. Verification (real load path)
-
-Script: `sdxl/verify_t5.py` -> `impact/verify_t5_full.json`
-
-The pack is loaded through the real runtime path
-(`comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, **t5_xxl_detect(sd))`),
-which is the path the SD3 / FLUX loader uses.
-
-| item | value |
-| :--- | :--- |
-| file size | 21490.03 MB -> 15998.83 MB |
-| output finite | **yes** (both FP16 and INT8) |
-| cos mean | **0.999879** |
-| cos min | **0.999626** |
-| cos p5 | 0.999840 |
-| cos p50 | 0.999886 |
-| gate (mean >= 0.99, min >= 0.98) | **PASS** |
-
-**Latency** (the encoder is what the runtime executes; the decoder is not
-loaded by ComfyUI at all, so it does not appear here)
-
-| batch | FP16 | INT8 | ratio |
-| :--- | :--- | :--- | :--- |
-| 1 (64 tokens) | 145.62 ms | 156.26 ms | 1.07x |
-| 4 (256 tokens) | 295.92 ms | 306.42 ms | 1.04x |
-| 16 (1024 tokens) | 1315.92 ms | 1328.21 ms | 1.01x |
+**The model content is complete.** The decoder is not dropped: it is shipped
+and quantized, so the checkpoint keeps every weight the source had. Only the
+**runtime** never loads it (ComfyUI's T5 has no decoder), which is a load-path
+fact and not an edit of the model.
 
 ---
 
-## 8. Performance: the INT8 GEMM
-
-### 8.1 The stock path never reaches the INT8 GEMM
-
-Measured on the stock ComfyUI path with the INT8 pack loaded: the weights **are**
-quantized (163 `QuantizedTensor` with the `convrot` parameter set), but
-`int8_linear` was called **0 times**. This is the same mechanism as for the CLIP
-text tower: ComfyUI's `int8_tensorwise` is declared with `quantize_input: False`,
-so it is a **weight-only** format - the weight is dequantized for every matmul -
-and `comfy/sd1_clip.py` additionally builds the encoder with
-`full_precision_mm=True`, which disables the quantized matmul outright.
-
-### 8.2 The loader's runtime arm fixes it, and T5 benefits strongly
-
-The loader package installs an arm at import time
-(`ComfyUI-HSWQ-Loader-and-Tools/patches/clip_int8_gemm/arm.py`) that makes a
-quantized caller get `full_precision_mm=False` and routes a `TensorWiseINT8Layout`
-weight into `int8_linear` with the online ConvRot activation rotation. **ComfyUI
-core is not modified.** T5 reaches `mixed_precision_ops` through the same
-`SDClipModel.__init__` as CLIP, so the arm applies to it unchanged.
-
-| condition | tokens=64 | tokens=256 | tokens=1024 |
-| :--- | :--- | :--- | :--- |
-| FP16 reference | 143.47 ms | 290.95 ms | 911.19 ms |
-| INT8 pack, stock path | 153.42 ms (1.07x) | 299.99 ms (1.03x) | 929.65 ms (1.02x) |
-| **INT8 pack, with the arm** | **34.79 ms (0.24x)** | **39.76 ms (0.14x)** | **224.04 ms (0.25x)** |
-
-`int8_linear` calls per forward with the arm: **163** - exactly the number of INT8
-encoder layers. Against the stock path the arm is **+75.9 % to +86.7 % faster**;
-against FP16 it is **3.9x to 7.2x faster**.
-
-Fidelity with the arm enabled (256-item acceptance set, seed 42): mean **0.999713**,
-min **0.999176**, p5 0.999549 - still **PASS** (mean >= 0.99, min >= 0.98). The
-small change against the stock path (0.999878 -> 0.999713) is the expected cost
-of the dynamic activation quantization.
-
----
-
-## 9. Files
+## 5. Files
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_t5.py` | encoder impact measurement (encoder hidden state) |
-| `sdxl/diag_impact_t5_decoder.py` | decoder impact measurement (transformers decoder stack, streamed) |
-| `clip_convert/convert_t5_impact_convrot_int8.py` | impact-driven pack builder (`--quantize-decoder`, `--decoder-max-drift`) |
-| `sdxl/verify_t5.py` | acceptance verification + latency |
-| `impact/impact_flan_t5_xxl.json` | measured encoder drift (git-ignored) |
-| `impact/impact_flan_t5_xxl_decoder.json` | measured decoder drift (git-ignored) |
-| `impact/decoder_threshold_sweep.json` | the decoder threshold sweep (git-ignored) |
-| `impact/decoder_frontier.json` | the decoder size / quality frontier (git-ignored) |
-| `impact/verify_t5_full.json` | verification result (git-ignored) |
-| `models/clip/flan_t5_xxl_hswq_convrot_int8.safetensors` | the pack |
+| `sdxl/diag_impact_t5.py` | the encoder's impact measurement |
+| `sdxl/diag_impact_t5_decoder.py` | the decoder's impact measurement (the position biases chained) |
+| `clip_convert/convert_t5_impact_convrot_int8.py` | the builder (`--protect-list`) |
+| `sdxl/verify_t5.py` | the 256-item acceptance, the runtime's own path |
+| `impact/impact_flan_t5_xxl_fixed.json` | the encoder's drift (git-ignored) |
+| `impact/impact_flan_t5_xxl_decoder_fixed.json` | the decoder's drift (git-ignored) |
+| `impact/t5_protect_e40_d80.json` | the adopted FP16-kept list (git-ignored) |
