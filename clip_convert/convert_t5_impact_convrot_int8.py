@@ -114,7 +114,8 @@ def runtime_linear_modules(comfy_path, model_path, device="cpu"):
 
 
 def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_THRESHOLD,
-            runtime_modules=None, drop_decoder=False):
+            runtime_modules=None, drop_decoder=False, quantize_decoder=False,
+            decoder_impact_json=None, decoder_max_drift=None):
     print(f"Loading (streamed): {input_path}")
     src = safe_open(input_path, framework="pt", device="cpu")
     keys = sorted(src.keys())
@@ -142,11 +143,40 @@ def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_
             protect.add(ck)
     print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
 
+    # The decoder Linear modules. The runtime T5 has no decoder, so the decoder
+    # drift was measured separately (sdxl/diag_impact_t5_decoder.py) against a
+    # decoder that really executes. The protection set therefore comes from
+    # that measurement, not from a guess.
+    dec_lin = set()
+    dec_protect = set()
+    if quantize_decoder:
+        dec_impacts = {}
+        if decoder_impact_json:
+            dec_impacts = json.load(open(decoder_impact_json, encoding="utf-8"))["impacts"]
+        for key in keys:
+            if not key.startswith("decoder.") or not key.endswith(".weight"):
+                continue
+            mk = key[: -len(".weight")]
+            # "decoder.block.0.layer.0.SelfAttention.q" -> the module is "q"
+            last = mk.rsplit(".", 1)[-1]
+            if last in ("q", "k", "v", "o", "wi_0", "wi_1", "wo"):
+                dec_lin.add(key)
+        if decoder_max_drift is not None and dec_impacts:
+            for key in dec_lin:
+                # the decoder impact is keyed by the full checkpoint key
+                d = dec_impacts.get(key)
+                if d is None:
+                    d = dec_impacts.get(key[: -len(".weight")])
+                if d is not None and d > decoder_max_drift:
+                    dec_protect.add(key)
+    print(f"  decoder Linear weights: {len(dec_lin)}; protected by the measured drift: {len(dec_protect)}")
+
     h = build_hadamard(GROUP_SIZE)
     out = {}
     meta_layers = {}
     n_lin = n_prot = n_kept = 0
     n_dropped = 0
+    n_dec_lin = 0
     for key in keys:
         if drop_decoder and key.startswith("decoder."):
             n_dropped += 1
@@ -158,11 +188,17 @@ def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_
             n_kept += 1
             continue
         mk = key[: -len(".weight")]
-        if mk + ".weight" not in ck_of:
+        is_dec_lin = key in dec_lin
+        if not is_dec_lin and mk + ".weight" not in ck_of:
             out[key] = t
             n_kept += 1
             continue
-        if mk + ".weight" in protect:
+        if is_dec_lin:
+            if key in dec_protect:
+                out[key] = t
+                n_prot += 1
+                continue
+        elif mk + ".weight" in protect:
             out[key] = t
             n_prot += 1
             continue
@@ -172,7 +208,10 @@ def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_
             n_prot += 1
             continue
         q, scale = quant_rowwise(rotate_weight(t.float(), h, GROUP_SIZE))
-        n_lin += 1
+        if is_dec_lin:
+            n_dec_lin += 1
+        else:
+            n_lin += 1
         conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": GROUP_SIZE}
         out[key] = q
         out[f"{mk}.weight_scale"] = scale
@@ -185,6 +224,8 @@ def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_
     print(f"  ConvRot INT8 Linear: {n_lin}")
     print(f"  protected (drift or shape): {n_prot}")
     print(f"  kept (not runtime Linear / non-2D): {n_kept}")
+    if quantize_decoder:
+        print(f"  ConvRot INT8 decoder Linear: {n_dec_lin}")
     if drop_decoder:
         print(f"  dropped (decoder.*, never loaded at runtime): {n_dropped}")
     save_file(out, output_path, metadata=metadata)
@@ -202,10 +243,18 @@ if __name__ == "__main__":
     ap.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD)
     ap.add_argument("--drop-decoder", action="store_true",
                     help="omit the decoder.* tensors the runtime never loads")
+    ap.add_argument("--quantize-decoder", action="store_true",
+                    help="quantize the decoder Linear weights as well (full-model pack)")
+    ap.add_argument("--decoder-impact", default="",
+                    help="the decoder impact measurement (impact/impact_flan_t5_xxl_decoder.json)")
+    ap.add_argument("--decoder-max-drift", type=float, default=None,
+                    help="decoder layers with a measured drift above this stay FP16")
     args = ap.parse_args()
     if args.drift_threshold < 0:
         ap.error("--drift-threshold must be >= 0")
     mods = runtime_linear_modules(args.comfy_path, os.path.abspath(args.input))
     convert(args.input, args.output, args.impact,
             drift_threshold=args.drift_threshold, runtime_modules=mods,
-            drop_decoder=args.drop_decoder)
+            drop_decoder=args.drop_decoder, quantize_decoder=args.quantize_decoder,
+            decoder_impact_json=args.decoder_impact or None,
+            decoder_max_drift=args.decoder_max_drift)
