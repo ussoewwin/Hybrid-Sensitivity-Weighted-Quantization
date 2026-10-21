@@ -70,7 +70,13 @@ def convrot_int8_recon(w, gs):
     amax = rot.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
     s = amax / 127.0
     q = (rot / s).round().clamp(-127, 127)
-    return (q * s).to(w.dtype)
+    # The pack stores the ROTATED weight and the kernel rotates the
+    # activation, so the result is (x H) (W H^T)^T = x W^T. The
+    # quantization error that reaches the output is therefore in the
+    # ORIGINAL frame: (q*s) H^T - W. Injecting the rotated frame into a
+    # plain F.linear measures a destroyed layer (relMSE 1.89 against the
+    # real kernel's 1.74e-04), so the reconstruction is un-rotated here.
+    return torch.matmul((q * s).view(of, g, gs), h).reshape(w.shape).to(w.dtype)
 
 
 def rel_mse(a, b):
