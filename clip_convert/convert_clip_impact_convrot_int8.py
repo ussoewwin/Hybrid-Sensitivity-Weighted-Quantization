@@ -87,6 +87,30 @@ def _encode(config):
     return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
 
+def runtime_state_dict(comfy_path, model_path, clip_type="stable_diffusion"):
+    """The runtime's own state dict - the names the pack has to use.
+
+    For the vision tower the runtime names are the checkpoint names WITHOUT the
+    `vision_model.` prefix (`encoder.layers.0.self_attn.q_proj`), so a pack
+    written under the checkpoint's names loads nothing at all: `load_sd` is
+    strict=False and leaves every module at its initial value.
+    """
+    if comfy_path not in sys.path:
+        sys.path.insert(0, comfy_path)
+    cwd = os.getcwd()
+    try:
+        os.chdir(comfy_path)
+        import comfy.utils
+        import comfy.clip_vision as cv
+        sd = comfy.utils.load_torch_file(os.path.abspath(model_path), safe_load=True)
+        vis = cv.load_clipvision_from_sd(dict(sd))
+        net = getattr(vis, "model", vis)
+        inner = getattr(net, "vision_model", net)
+        return {k: v.detach().clone() for k, v in inner.state_dict().items()}
+    finally:
+        os.chdir(cwd)
+
+
 def runtime_linear_modules(comfy_path, model_path, clip_type="stable_diffusion"):
     """Return the set of Linear/Embedding module names the CLIP runtime builds.
 
@@ -186,39 +210,114 @@ def convert(input_path, output_path, impact_json, comfy_path, clip_type,
         if gs not in h_cache:
             h_cache[gs] = build_hadamard(gs)
         return h_cache[gs]
-    out = {}
-    meta_layers = {}
-    n_lin = n_prot = n_kept = 0
-    for key in keys:
-        t = src.get_tensor(key)
-        if not (key.endswith(".weight") and t.ndim == 2
-                and t.dtype in (torch.float16, torch.float32, torch.bfloat16)):
-            out[key] = t
+
+    # The pack is written under the **runtime** names. The vision tower's
+    # runtime names carry no `vision_model.` prefix, so a pack written under
+    # the checkpoint's own names loads NOTHING: `load_sd` is strict=False and
+    # leaves every module at its initial value (measured: 0 of the 521 pack
+    # keys match the runtime's 360 module names, and the encode collapses to
+    # cos 0.945). The runtime's own state dict is the authority.
+    if clip_type == "vision":
+        OUTER = "vision_model."
+        runtime_sd = runtime_state_dict(comfy_path, os.path.abspath(input_path), clip_type)
+        # the checkpoint key that backs each runtime name
+        ck_of_runtime = {}
+        for rn in runtime_lin:
+            ck = rt2ck.get(rn)
+            if ck:
+                # the runtime_lin names are the inner ones; the pack uses the
+                # outer ones
+                ck_of_runtime[(OUTER + rn) if not rn.startswith(OUTER) else rn] = ck
+        print(f"  the runtime state dict: {len(runtime_sd)} tensors", flush=True)
+
+        # ComfyUI's load_sd reads the OUTER model's names: the inner state dict
+        # reports `encoder.layers.0...` but the checkpoint (and the loader)
+        # use `vision_model.encoder.layers.0...`.
+        runtime_sd = {(OUTER + k if not k.startswith(OUTER) else k): v
+                      for k, v in runtime_sd.items()}
+
+        out = {}
+        meta_layers = {}
+        n_lin = n_prot = n_kept = 0
+        for rname, rv in runtime_sd.items():
+            if not (rname.endswith(".weight") and rv.ndim == 2
+                    and rv.dtype in (torch.float16, torch.float32, torch.bfloat16)):
+                out[rname] = rv
+                n_kept += 1
+                continue
+            mk = rname[: -len(".weight")]
+            ck = ck_of_runtime.get(mk)
+            if ck is None:
+                out[rname] = rv
+                n_kept += 1
+                continue
+            if ck in protect:
+                out[rname] = rv
+                n_prot += 1
+                continue
+            inf = int(rv.shape[1]); of = int(rv.shape[0])
+            gs = group_size_for(inf, groupsize)
+            if gs is None or of % 4 != 0 or inf % 4 != 0:
+                out[rname] = rv
+                n_prot += 1
+                continue
+            q, scale = quant_rowwise(rotate_weight(rv.float(), hadamard_for(gs), gs))
+            n_lin += 1
+            conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": gs}
+            out[rname] = q
+            # the scale and the stamp are popped by ComfyUI with the MODULE's
+            # own prefix, so they carry the same prefix as the weight
+            out[f"{mk}.weight_scale"] = scale
+            out[f"{mk}.comfy_quant"] = _encode(conf)
+            meta_layers[mk] = conf
+        # the tensors the runtime does not read are copied through unchanged,
+        # under the checkpoint's own names
+        for key in keys:
+            if key in out:
+                continue
+            # a checkpoint key the runtime reads under another name
+            if key.startswith(OUTER):
+                bare = key[len(OUTER):]
+            else:
+                bare = key
+            if bare in runtime_sd or (bare + ".weight") in runtime_sd or (bare + ".bias") in runtime_sd:
+                continue
+            out[key] = src.get_tensor(key)
             n_kept += 1
-            continue
-        mk = key[: -len(".weight")]
-        # only quantize modules that both exist at runtime and are Linear
-        if mk not in rt2ck.values():
-            out[key] = t
-            n_kept += 1
-            continue
-        if mk in protect:
-            out[key] = t
-            n_prot += 1
-            continue
-        inf = int(t.shape[1]); of = int(t.shape[0])
-        gs = group_size_for(inf, groupsize)
-        if gs is None or of % 4 != 0 or inf % 4 != 0:
-            out[key] = t
-            n_prot += 1
-            continue
-        q, scale = quant_rowwise(rotate_weight(t.float(), hadamard_for(gs), gs))
-        n_lin += 1
-        conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": gs}
-        out[key] = q
-        out[f"{mk}.weight_scale"] = scale
-        out[f"{mk}.comfy_quant"] = _encode(conf)
-        meta_layers[mk] = conf
+    else:
+        out = {}
+        meta_layers = {}
+        n_lin = n_prot = n_kept = 0
+        for key in keys:
+            t = src.get_tensor(key)
+            if not (key.endswith(".weight") and t.ndim == 2
+                    and t.dtype in (torch.float16, torch.float32, torch.bfloat16)):
+                out[key] = t
+                n_kept += 1
+                continue
+            mk = key[: -len(".weight")]
+            # only quantize modules that both exist at runtime and are Linear
+            if mk not in rt2ck.values():
+                out[key] = t
+                n_kept += 1
+                continue
+            if mk in protect:
+                out[key] = t
+                n_prot += 1
+                continue
+            inf = int(t.shape[1]); of = int(t.shape[0])
+            gs = group_size_for(inf, groupsize)
+            if gs is None or of % 4 != 0 or inf % 4 != 0:
+                out[key] = t
+                n_prot += 1
+                continue
+            q, scale = quant_rowwise(rotate_weight(t.float(), hadamard_for(gs), gs))
+            n_lin += 1
+            conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": gs}
+            out[key] = q
+            out[f"{mk}.weight_scale"] = scale
+            out[f"{mk}.comfy_quant"] = _encode(conf)
+            meta_layers[mk] = conf
 
     metadata = {"_quantization_metadata": json.dumps({"format_version": "1.0", "layers": meta_layers}, separators=(",", ":"))}
     print(f"Saving: {output_path}")
