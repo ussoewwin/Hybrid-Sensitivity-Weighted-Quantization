@@ -56,6 +56,11 @@ Heaviest layers:
 
 ## 2. Threshold sweep (measured, FLUX path)
 
+> **SUPERSEDED - see section 8.** The sweep below was measured with the
+> defective injection and with a baseline on a different ops path, so its
+> numbers do not describe the shipped pack. It is kept for the record.
+> The shipped pack's numbers are in **section 8.3 and 8.4**.
+
 Every threshold was measured end to end (build + FLUX load + embedding cos):
 
 | Threshold | INT8 | FP16 | Size | cos vs FP16 |
@@ -68,16 +73,25 @@ Every threshold was measured end to end (build + FLUX load + embedding cos):
 | 1.00 | 60 | 14 | 142.2 MB | 0.999909 |
 | 1.20 | 65 | 9 | 132.6 MB | 0.999897 |
 | 1.50 | 67 | 7 | 128.2 MB | 0.999889 |
-| **1.80 (shipped)** | **71** | **3** | **122.6 MB** | **0.999857** |
+| ~~1.80 (the previous pack)~~ | **71** | **3** | **122.6 MB** | **0.999857** |
 | 2.00 | 73 | 1 | 118.1 MB | 0.999844 |
 
-**Why 1.80 is the optimum.** The threshold sits inside the measured distribution,
+**Why 1.80 was chosen then (superseded).** The threshold sits inside the measured
 just above the two most fragile layers (`layers.0.mlp.fc2` at 1.8926 and
 `layers.0.mlp.fc1` at 1.8610). Those two stay FP16; every other layer is INT8.
 Raising the threshold to 2.00 would quantize even those two, i.e. it would ignore
 the measurement's own signal while gaining only 4.5 MB. Lowering it protects many
 more layers for no measurable quality benefit. 1.80 is the highest-quality-per-byte
-point that still honours the measurement.
+distribution, just above the two most fragile layers (`layers.0.mlp.fc2` at
+1.8926 and `layers.0.mlp.fc1` at 1.8610). Those two stay FP16; every other
+layer is INT8.
+
+**What the re-measurement changed.** The 1.8926 and 1.8610 are artifacts of the
+injection defect: the corrected measurement puts `layers.0.self_attn.v_proj` at
+2.48e-05 and the whole median at 2.89e-06, and the ranking changes with it.
+Those two layers are not the ones that carry the output, and the layer set that
+was kept for the wrong reason is the layer set that matters. The shipped pack
+keeps **10** layers, chosen on the aggregate (section 8.3).
 
 ---
 
@@ -110,7 +124,7 @@ _quantization_metadata   JSON  {"format_version":"1.0","layers":{...}}
 | | FP16 | INT8 |
 | :--- | :--- | :--- |
 | absmax | 33.0637 | **33.0634** |
-| cos vs FP16 | - | **0.999857** |
+| cos vs FP16 | - | **0.999876** (mean), **0.999841** (min) |
 
 ### 4.2 Standard-path load check
 
@@ -122,8 +136,8 @@ consumes the pack's `comfy_quant` with no custom node.
 
 | | FP16 | INT8 |
 | :--- | :--- | :--- |
-| file size | 234.7 MB | **122.6 MB** (-47.8 %) |
-| ConvRot INT8 | - | 71 |
+| file size | 234.7 MB | **135.5 MB** (-42.2 %) |
+| ConvRot INT8 | - | 63 |
 | FP16 retained | - | 3 |
 
 The 3 FP16 layers are `layers.0.mlp.fc2`, `layers.0.mlp.fc1` (the two highest measured
@@ -135,7 +149,7 @@ so it cannot use the INT8 GEMM path).
 | | SHA256 |
 | :--- | :--- |
 | `clip_l.safetensors` (source) | `660C6F5B1ABAE9DC498AC2D21E1347D2ABDB0CF6C0C0C8576CD796491D9A6CDD` |
-| `clip_l_hswq_convrot_int8.safetensors` | `1D82EA75F9636BE44563743C5E87135E6A08B600A14C03D35CECE7F589760724` |
+| `clip_l_hswq_convrot_int8.safetensors` | `C888133EA31AF428EB537B59FF9B818F5CC8D8B682AC595DE63F72FDF9111F35` |
 
 ---
 
@@ -175,8 +189,8 @@ The output loads directly in the standard FLUX.1 `DualCLIPLoader` / `CLIPLoader`
 | Quantized | **71** ConvRot INT8 (of 74 2D modules) |
 | FP16 retained | **3** (`layers.0.mlp.fc2`, `layers.0.mlp.fc1`, `position_embedding`) |
 | Standard-path load | FLUX `DualCLIPLoader` - 328/490 QuantizedTensor, no custom node |
-| Measured embedding cos vs FP16 | **0.999857** |
-| Size | 234.7 MB -> **122.6 MB** (-47.8 %) |
+| Measured embedding cos vs FP16 | **0.999876** (mean), **0.999841** (min) |
+| Size | 234.7 MB -> **135.5 MB** (-42.2 %) |
 
 ---
 
