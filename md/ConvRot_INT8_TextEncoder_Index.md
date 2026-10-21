@@ -30,7 +30,7 @@ so the result is reproducible.
 | `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | text + vision | 1.30 / 0.50 | text 0.999914 / 0.999851, vision 0.999451 / 0.996486 | 570.3 MB | `md/ViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-SAE-ViT-L-14-FP32.safetensors` | text + vision | 1.95 / 0.90 | text 0.999872 / 0.999755, vision 0.999676 / 0.999353 | 413.2 MB | `md/SAEViTL14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | text | full (all 197) | 0.997572 / 0.992079 | 570.5 MB | `md/JosiefiedQwen3_06B_ConvRot_INT8_Impact_Technical_Guide.md` |
-| `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL encoder) | text | 0.25 (163 of 168 INT8) | 0.999878 / 0.999716 | 5026.1 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL, encoder + decoder) | text | 0.25 encoder / 0.005 decoder (163 of 168, 62 of 264 INT8) | 0.999879 / 0.999626 | 15998.8 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
 
 Acceptance criterion used throughout: **cos mean >= 0.99 AND cos min >= 0.98**, on a
 fixed 256-item set (seed 42).
@@ -55,11 +55,17 @@ FP32) has to stay in FP16. See
 
 **Two model-specific facts, measured.**
 
-- **FLAN-T5 XXL carries a decoder the runtime never loads.** The runtime T5 module
-  (`comfy/text_encoders/t5.py`) holds `encoder` and `shared` only; the 339
-  `decoder.*` tensors (11.87 GB of the 20.99 GB checkpoint) are never loaded. The pack
-  omits them, which is why the size reduction is 76.6 % rather than the 18 % the
-  quantized encoder alone gives. The encoder that actually runs is bit-identical.
+- **FLAN-T5 XXL carries a decoder the runtime never loads - and the pack keeps
+  it.** The runtime T5 module (`comfy/text_encoders/t5.py`) holds `encoder` and
+  `shared` only; the 339 `decoder.*` tensors (11.87 GB of the 20.99 GB
+  checkpoint) are never loaded. They are still model content: dropping them
+  would delete 6.37 B parameters, which is not quantization. The pack therefore
+  keeps the decoder and quantizes it, using a separately measured decoder drift
+  (the runtime has no decoder, so it is measured against a decoder that really
+  executes). The size floor is structural: every parameter as int8 would be
+  11,266,928,640 / 2 = **5.63 GB**, so a pack below 5 GB is not representable.
+  The pack measures 15.62 GB (the decoder needs heavy protection - see the
+  drift profile above).
 - **The INT8 GEMM needs the loader's runtime arm.** On the stock ComfyUI path an
   INT8 pack is dequantized for every matmul (`int8_tensorwise` is a weight-only
   algorithm) and `int8_linear` is called 0 times. With the arm installed the real
@@ -78,7 +84,8 @@ distribution of that specific checkpoint, on that model's own acceptance set.
 | :--- | :--- | :--- |
 | CLIP-L / ViT-L / SAE ViT-L | a few layers dominate (e.g. ViT-L text: max 1.93 vs median 0.15) | protect the outliers, quantize the rest |
 | Josiefied-Qwen3-0.6B | **flat** (min 0.75, median 3.05, max 3.43; IQR 2.94-3.17) | no layer is safer than another, so **selective protection cannot help** - quantize everything |
-| FLAN-T5 XXL | **rising with depth** (block 0 median 0.12 -> block 23 median 0.24), top drift in the deepest blocks' `attn.v` / `attn.o` / `ff.wi_0` | protect the deep-block outliers, quantize the other 163 of 168 |
+| FLAN-T5 XXL encoder | **rising with depth** (block 0 median 0.12 -> block 23 median 0.24), top drift in the deepest blocks' `attn.v` / `attn.o` / `ff.wi_0` | protect the deep-block outliers, quantize the other 163 of 168 |
+| FLAN-T5 XXL decoder | **low per-layer drift (median 0.010) but extremely sensitive in the output**: quantizing the 72 FF layers alone drops the decoder cosine to 0.554, while quantizing all 192 attention layers keeps 0.879 | protect the FF layers: 62 of 264 quantized at the measured quality limit |
 
 A pack built for one checkpoint must not be reused for another: the protection set is
 model-specific by construction.
@@ -106,5 +113,6 @@ model-specific by construction.
 | `sdxl/diag_impact_t5.py` | FLAN-T5 XXL encoder drift (encoder hidden state) |
 | `clip_convert/convert_t5_impact_convrot_int8.py` | FLAN-T5 XXL pack builder (impact-driven) |
 | `sdxl/verify_t5.py` | FLAN-T5 XXL acceptance verification + latency |
+| `sdxl/diag_impact_t5_decoder.py` | FLAN-T5 XXL decoder drift (transformers decoder stack, streamed block by block) |
 | `clip_convert/convert_clip_impact_convrot_int8.py` | CLIP converter (impact-driven) |
 | `sdxl/verify_*.py`, `sdxl/smoke_*.py`, `sdxl/perf_*.py` | per-model verification / smoke / performance |
