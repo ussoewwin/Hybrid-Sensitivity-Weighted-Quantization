@@ -1,5 +1,10 @@
 # CLIP-L ConvRot INT8 for FLUX.1 - Impact-Driven Quantization (Technical Guide)
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 How the **FLUX.1 CLIP-L text encoder** (`clip_l.safetensors`) is quantized to ConvRot
 INT8 with a **measured** FP16 protection set, and how it loads through the
 **standard ComfyUI path** (no custom node).

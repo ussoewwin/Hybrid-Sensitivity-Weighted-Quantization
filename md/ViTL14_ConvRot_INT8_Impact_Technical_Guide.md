@@ -1,5 +1,10 @@
 # ViT-L-14-BEST-smooth-GmP ConvRot INT8 — Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Target**: `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` — the OpenAI CLIP
 ViT-L/14 checkpoint in Hugging-Face layout, carrying **two towers**
 (`text_model.*`, `vision_model.*`).

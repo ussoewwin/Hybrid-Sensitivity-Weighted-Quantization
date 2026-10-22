@@ -1,5 +1,10 @@
 # ControlNet ConvRot INT8 Trajectory-Impact Protection (Technical Guide)
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 This document describes, in full, how a ControlNet checkpoint is converted to ConvRot INT8 with a **measured** FP16 protection set, using the HSWQ trajectory-sensitivity method.
 
 The defining property of this method is that the protection set is **not** inferred from static weight statistics. It is measured by running the ControlNet inside a real ComfyUI generation pipeline and observing how much the denoising trajectory moves when a given layer is replaced by its ConvRot INT8 reconstruction. Layers whose measurement shows a large trajectory drift are kept in their original precision.

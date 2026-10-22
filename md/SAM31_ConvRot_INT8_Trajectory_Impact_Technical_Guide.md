@@ -1,5 +1,10 @@
 # SAM 3.1 Multiplex ConvRot INT8 Trajectory-Impact Protection (Technical Guide)
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 This document describes how the SAM 3.1 Multiplex checkpoint is converted to ConvRot INT8 with a **measured** FP16 protection set.
 
 SAM 3.1 requires a **different measurement** from the ControlNet / UNet case, and this guide explains why: a SAM model is not a denoiser. It produces **masks**, not a latent trajectory, so there is no denoising trajectory to measure. What is measured instead is the drift of the model's **own output** - the mask logits from the tracker SAM-decoder path and the detector's boxes / scores / masks from the text path - when a single layer is replaced by its ConvRot INT8 reconstruction. The drift scale that results is an order of magnitude away from the ControlNet numbers, and the threshold has to be chosen on SAM's own distribution.

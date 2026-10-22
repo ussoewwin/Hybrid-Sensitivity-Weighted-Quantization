@@ -1,5 +1,10 @@
 # FLUX.1-dev ControlNet Union Pro 2.0 — ConvRot INT8 Trajectory-Impact Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Model.** `models/ControlNet/FLUX.1-dev-ControlNet-Union-Pro-2.0.safetensors` (4083.4 MB, BF16, 2,140,876,800 params, 222 checkpoint keys)
 **Pack.** `models/ControlNet/FLUX.1-dev-ControlNet-Union-Pro-2.0_convrot_int8.safetensors` (2585.1 MB, **-36.7 %**)
 **SHA256.** `FBCBA3C76A221FBA461C83680F682D3FF7AA813EF554C42E3A5449B981090C46`

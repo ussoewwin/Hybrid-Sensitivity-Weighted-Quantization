@@ -1,5 +1,9 @@
 # ConvRot INT8 — Text Encoder / CLIP Quantization Index
 
+> The rules the thresholds and the kept sets below were produced under are stated
+> once in [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md)
+> - Section *How a pack is selected (the current method)*.
+
 Every ConvRot INT8 pack built for a **standalone text encoder / CLIP** checkpoint,
 which method produced it, and where the details live.
 

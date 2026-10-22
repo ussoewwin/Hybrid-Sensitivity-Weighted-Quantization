@@ -241,6 +241,123 @@ Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard 
 
 ---
 
+## How a pack is selected (the current method)
+
+This section is the authoritative statement of how a ConvRot INT8 pack is
+built now. The per-model guides carry their own measured numbers; this section
+carries the rules those numbers were produced under.
+
+### Rule 1 — the injection frame
+
+The pack stores the **rotated** weight, and the runtime kernel rotates the
+**activation**. The quantization error that reaches the output is therefore
+
+```
+(q * s) H^T - W        (the ORIGINAL frame, not the rotated one)
+```
+
+A measurement that injects the reconstruction in the **rotated** frame
+(`q * s`) measures the rotation, not the error. On FLUX ControlNet the two
+differ by four orders of magnitude (1.74e-04 correct against 1.89 broken) and
+**the layer ranking inverts**. Every impact script under `sdxl/` was fixed for
+this; the packs built before the fix used the wrong ranking and were rebuilt.
+
+### Rule 2 — the screening metric is not the selection criterion
+
+`diag_impact_*` measures the **per-layer weight error**: it puts the
+reconstruction into the module and runs the plain forward. The pack's real
+path also **quantizes the activation** for that layer, and that is where most
+of the error comes from. So the drift is a **screen** (it finds the layers
+worth looking at), not the decision.
+
+The decision is the **aggregate contribution**: hold the FP16 weights, replace
+one layer by its ConvRot INT8 reconstruction, and measure the model's own
+**output** against the unmodified output. Sort on `1 - cos`. The gap is not
+academic - on FLUX ControlNet the same 54 INT8 layers reached min 0.999160 by
+drift selection and 0.999698 by contribution selection; on SAM 3.1 the
+drift-selected set was 286x worse in relMSE.
+
+ControlNet is the exception in a useful way: its metric is the **trajectory
+drift of the denoising latent**, which is already an aggregate-output
+measurement, so no separate contribution pass is needed.
+
+### Rule 3 — the gate must use the same instrument as the selection
+
+If the protection set is chosen on the trajectory, the gate is measured on the
+**trajectory**. A single forward of the control model is a different quantity
+(one control output against 20 compounded sampling steps: 0.9998 against
+0.993 on the same pack), and its run-to-run noise (~1e-5) is the same size as
+the differences between neighbouring thresholds - so it cannot place the knee.
+`sdxl/verify_controlnet_sdxl_traj.py` runs the trajectory over several seeds
+for this reason.
+
+### Rule 4 — the threshold is chosen on the size/quality balance
+
+Not the highest cosine. Build the pack across a range of thresholds, measure
+the gate at each, and take the point where the curve stops paying for itself.
+
+- **The floor.** Past some threshold every ConvRot-eligible layer is already
+  quantized and the pack stops shrinking. Beyond the floor the cosine
+  **drops**, because the remaining protected layers are non-Linear or
+  shape-blocked: protecting them adds size without buying quality. A threshold
+  at or above the floor is never right.
+- **The plateau.** Just below the floor the cosine is at its best among the
+  small packs. That point is the choice.
+
+The rule: adopt the threshold at the top of the quality plateau - the smallest
+pack whose cosine is not beaten by the smaller ones. Report the whole measured
+curve, not one number.
+
+Worked cases (all measured):
+
+| the checkpoint | the INT8 extreme | the adopted point | the size |
+| :--- | :--- | :--- | :--- |
+| `controlnet-union-pro-max-sdxl-1.0` | curve flat at 0.999961 | 0.005 (41 kept) | 1368.8 MB |
+| `CN-anytest4_illustrious2_A` | 0.010: 1959.5 MB / 0.999879 | 0.030 (36 kept, 0.999626) | 1359.1 MB |
+| `CN-anytest4_illustrious2_B` | 0.003: 1981.0 MB / 0.988027 | 0.010 (35 kept, 0.992958) | 1357.5 MB |
+| `CLIP-SAE-ViT-L-14` | 50/100 kept: 722.3 MB / 0.999985 | 30 text + 60 vision kept | 658.9 MB |
+| `ViT-L-14-BEST` | 50/100 kept: 722.1 MB / 0.999986 | 30 text + 60 vision kept | 646.7 MB |
+| `Josiefied-Qwen3-0.6B` | 140 kept: 0.85 GB / 0.999644 | 40 kept (0.999502) | 655.2 MB |
+
+The same rule produces different thresholds because the checkpoints differ -
+which is the whole point of measuring each one.
+
+### Rule 5 — the kept tensors are stored FP16
+
+The runtime runs in FP16 (CLIP, T5, ControlNet alike). Keeping a tensor in
+FP32 means it is cast to FP16 at load time and nothing ever sees the extra
+precision - it only pays for the bytes. Every rebuilt pack stores its kept
+tensors in FP16; the INT8 `weight_scale` stays FP32 because it carries the
+dequantization precision.
+
+Measured effect on CLIP-SAE-ViT-L-14: the identical layer set went from
+1159.5 MB (FP32 kept) to **658.9 MB** (FP16 kept), with the acceptance
+unchanged to the last digit.
+
+### Rule 6 — the content is complete
+
+A pack must not shrink by deleting model content. The FLAN-T5 decoder is
+shipped and quantized even though ComfyUI's T5 never loads it - that is a
+load-path fact, not a licence to drop it.
+
+### Rule 7 — no path that only works on one machine
+
+Public code carries no machine-specific absolute paths. Resolve from
+`Path(__file__).resolve().parent` and stop with an explicit error rather than
+falling back to an environment guess.
+
+### Cross-references
+
+| topic | guide |
+| :--- | :--- |
+| the per-checkpoint ControlNet numbers | `md/ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` |
+| the CLIP / TE index and thresholds | `md/ConvRot_INT8_TextEncoder_Index.md` |
+| FLUX ControlNet Union Pro 2.0 | `md/FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md` |
+| SAM 3.1 | `md/SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` |
+| per-model guides (CLIP-L, bigG, H-14, ViT-L, Qwen3-VL, T5, SAE, Long-ViT) | `md/*_ConvRot_INT8_Impact_Technical_Guide.md` |
+
+---
+
 ## HSWQ High-Quality Text Encoders (ConvRot INT8, individually built)
 
 ### Why there is no universal method here
@@ -249,18 +366,22 @@ HSWQ's reverse-hybrid engine is a **universal method**: it measures per-layer tr
 
 Text encoders are **not** per-checkpoint models. Each architecture (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3, ...) is a **single standard weight layout** with no per-checkpoint derivation. There is nothing to re-measure per model, so a large universal engine is not justified.
 
-Instead, each text-encoder standard was handled **individually**: the risk of every Linear layer was measured once on the standard checkpoint (kurtosis / outlier ratio = absmax / std), the fat-tail layers were kept in FP16, and the pack was verified by **conditioning cosine** against the FP16 baseline. Because the result is standard-specific and not a general method, this page **presents the finished artifacts instead of a method** - the conversion recipe lives in the per-standard converter scripts under `clip_convert/`.
+Instead, each text-encoder standard was handled **individually** - but the criterion is no longer static. See **Section: How a pack is selected (the current method)** below: the protection set comes from the measured **aggregate contribution**, the size/quality balance sets the threshold, and the kept tensors are stored FP16. Static kurtosis / outlier-ratio screening is retired as a *criterion*; the per-standard converter scripts under `clip_convert/` implement the current method.
 
 ### Finished packs (Hugging Face)
 
-| Pack | Standard | Base | ConvRot INT8 | FP16 protection | Conditioning cosine (vs FP16) |
+| Pack | Standard | ConvRot INT8 | FP16 kept | Gate (256 items, seed 42) | Size |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `clip_l_hswq_convrot_int8.safetensors` | CLIP-L | `clip_l.safetensors` | 48 layers | 26 layers (embeddings + all `mlp.fc1` + all `self_attn.q_proj`) | verified |
-| `CLIP-SAE-ViT-L-14-hswq_convrot_int8_protected.safetensors` | OpenAI CLIP ViT-L/14 | `CLIP-SAE-ViT-L-14-FP32.safetensors` | 145 layers | 76 layers (text embeddings / fc1 / q_proj + `text_projection` / `visual_projection` + vision `q_proj` / `mlp.fc1`) | **0.999922** |
-| `flan_t5_xxl_hswq_convrot_int8.safetensors` | Flan-T5-XXL | `flan_t5_xxl_fp16.safetensors` | 430 layers | 7 layers (block 0 `k`/`v`, block 1-2 `wi_0`/`wi_1`, `shared`/`lm_head`) | **0.99935** |
-| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | Qwen3 (0.6B) | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | 112 layers | 85 layers (`embed_tokens` + all `k_proj` / `q_proj` / `mlp.down_proj`) | **0.99814** |
-| `qwen3_4b_abliterated_hswq_convrot_int8.safetensors` | Qwen3 (4B) | `qwen3_4b_abliterated_fp16_converted.safetensors` | 144 layers | 109 layers (`embed_tokens` + all `k_proj` / `q_proj` / `mlp.down_proj`) | **1.000009** |
-| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | 197 layers | 161 layers (language `embed_tokens` / `k_proj` / `q_proj` / `mlp.down_proj` + visual `attn.qkv` / `mlp.linear_fc2` / merger / patch_embed) | **0.999546** |
+| `clip_l_hswq_convrot_int8.safetensors` | CLIP-L | 63 of 73 | 10 | 0.999876 / 0.999841 | 135.5 MB |
+| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | OpenAI CLIP ViT-L/14 | 129 (text 43, vision 84) | 90 (text 30, vision 60) | text 0.999962 / 0.999908, vision 0.999931 / 0.999797 | 658.9 MB |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | CLIP ViT-L/14 (extended text) | 130 (text 44, vision 84) | 90 (text 30, vision 60) | text 0.999941 / 0.999888, vision 0.999925 / 0.999790 | 646.3 MB |
+| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | CLIP ViT-L/14 (HF layout) | 127 (text 43, vision 84) | 92 (text 30, vision 60) | text 0.999964 / 0.999906, vision 0.999803 / 0.996378 | 646.7 MB |
+| `CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` | CLIP ViT-bigG/14 | 253 of 288 | 35 | 0.999916 / 0.999741 | 2180.1 MB |
+| `CLIP-ViT-H-14_hswq_convrot_int8.safetensors` | CLIP ViT-H/14 | 92 of 192 | 100 | 0.999968 / 0.999906 | 1015.6 MB |
+| `flan_t5_xxl_hswq_convrot_int8.safetensors` | Flan-T5-XXL | 312 of 432 (enc 128, dec 184) | 120 (enc 40, dec 80) | 0.999934 | 14056.6 MB |
+| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | Qwen3 (0.6B) | 157 of 197 | 40 | 0.999502 / 0.998980 | 655.2 MB |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | 258 of 358 | 100 | 0.999649 / 0.998927 | 5958.9 MB |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | 41 of 221 | 180 | relMSE 3.51e-05 | 1657.6 MB |
 
 Download:
 
@@ -284,9 +405,15 @@ Like text encoders, SAM 3 / SAM 3.1 are **foundation segmentation models**, not 
 
 ### Finished pack (Hugging Face)
 
-| Pack | Standard | Base | ConvRot INT8 | FP16 protection |
-| :--- | :--- | :--- | :--- | :--- |
-| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | `sam3.1_multiplex_fp16.safetensors` | 538 layers | 113 layers (all 32 vision-backbone `attn.qkv`, all 32 vision `mlp.fc1`, all 24 language `attn.out_proj` / `mlp.c_fc`, and the tracker cross-attention / mask-decoder attention tails) |
+| Pack | Standard | ConvRot INT8 | FP16 kept | Gate | Size |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | 41 of 221 | 180 | relMSE 3.51e-05 (the tracker and detector paths) | 1657.6 MB |
+
+> The 41/180 split is the shipped pack, re-audited after the injection fix: a
+> release search over all 401 candidates found **0** layers releasable inside
+> the gate (the cheapest release costs +9.67e-04 relMSE against a 1.0e-04
+> gate), so the pack cannot be made smaller. The earlier "538 INT8 / 113 kept"
+> figures came from the defective drift and are superseded.
 
 Download:
 
