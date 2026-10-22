@@ -38,7 +38,7 @@ so the result is reproducible.
 | `qwen3_4b_abliterated_fp16_converted.safetensors` (Z Image's text encoder) | text | the FP16-kept set by the aggregate contribution (20 of 253 kept in FP16, 233 INT8, group size 256) | 0.999630 / 0.997430 | 4168.3 MB | `md/Qwen3_4B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | text (the language + the vision tower) | the FP16-kept set by the aggregate contribution (100 of 358 kept, 258 INT8, group size 256) | 0.999649 / 0.998927 | 5958.9 MB | `md/Qwen3VL4B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL, encoder + decoder) | text | the FP16-kept set by the aggregate contribution (40 encoder + 80 decoder kept, 312 INT8 of 432, group size 256) | 0.999934 | 14056.6 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
-| `sigclip_vision_patch14_384.safetensors` | vision | 0.30 (96 of 162 INT8, group size 64/16) | 0.998560 / 0.996602 | 633.5 MB | `md/SigLIPVision384_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `sigclip_vision_patch14_384.safetensors` | vision | the FP16-kept set by the aggregate contribution (20 of 162 kept in FP16, 142 INT8, group size 64/16) | 0.996794 / 0.993237 | 502.9 MB | `md/SigLIPVision384_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-ViT-H-14.safetensors` | vision | the FP16-kept set by the aggregate contribution (100 of 192 kept in FP16, 92 INT8, group size 256) | 0.999968 / 0.999906 | 1015.6 MB | `md/CLIPViTH14_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` | vision | the FP16-kept set by the aggregate contribution (35 of 288 kept, 253 INT8, group size 64) | 0.999916 / 0.999741 | 2180.1 MB | `md/CLIPBiGG_ConvRot_INT8_Impact_Technical_Guide.md` |
 

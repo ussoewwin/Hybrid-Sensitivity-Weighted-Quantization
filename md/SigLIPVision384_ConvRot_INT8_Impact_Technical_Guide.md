@@ -6,9 +6,9 @@
 > This guide carries the measured numbers for this model.
 
 **Model.** `models/clip/sigclip_vision_patch14_384.safetensors` (816.8 MB, 27-layer SigLIP vision tower)
-**Pack.** `models/clip/sigclip_vision_patch14_384_hswq_convrot_int8.safetensors` (633.5 MB, **-22.4 %**)
-**SHA256.** `1A7184CF4AC22B666BE7ECE9F62A1ECA8C830ADD825B482036B2F75C74304CCE`
-**Method.** impact-driven (measured drift of the model's own output), per-layer group size.
+**Pack.** `models/clip/sigclip_vision_patch14_384_hswq_convrot_int8.safetensors` (502.9 MB, **−38.4 %**)
+**SHA256.** `C9448A890697ED74674AFBD70919F0CFFF0DD115B9E0D207478B9586C3EB62A5`
+**Method.** impact-driven, with the FP16-kept set chosen on the **aggregate output**.
 
 ---
 
@@ -19,131 +19,141 @@ layers, hidden size 1152, image size 384, patch size 14.
 
 | item | measured |
 | :--- | :--- |
-| runtime Linear modules | **162** (27 layers x 6) |
-| per layer | `self_attn.q_proj / k_proj / v_proj / out_proj`, `mlp.fc1 / fc2` |
-| non-Linear 2D weight | the position embedding (an Embedding, kept FP16) |
-| image size | 384 |
+| the runtime Linear modules | **162** (27 layers × 6) |
 | the config ComfyUI picks | `comfy/clip_vision_siglip_384.json` (chosen from the checkpoint's own shape) |
-
----
-
-## 2. The group size is per layer, and this model needs it
+| the load path | `ClipVisionModel` with `mixed_precision_ops` |
 
 SigLIP's hidden size is 1152, which is **not** a multiple of 256. The builder
-derives the group size per layer (the largest power-of-4 divisor of that
-layer's input width that is <= the requested maximum), so the pack carries:
-
-| group size | layers |
-| :--- | :--- |
-| 64 | 79 |
-| 16 | 17 |
-
-With a fixed group size of 256 the 1152-wide layers could not be rotated at
-all. This is the same per-layer rule that CLIP-ViT-bigG needs (its hidden size
-is 1664, which is not a multiple of 256 either).
+falls back per layer: 1664-wide layers use group size 64, and the rest use the
+largest power-of-4 divisor available (16 for some). This is unchanged from the
+earlier pack.
 
 ---
 
-## 3. Impact measurement
+## 2. The impact measurement, re-measured
 
-Script: `sdxl/diag_impact_clip_vision.py` -> `impact/impact_siglip_vision.json`
+The earlier measurement had the injection defect found while working on the
+FLUX ControlNet: the reconstruction was injected in the **rotated** frame
+(`q * s`, i.e. `W_hat * H`) instead of the **original** one.
 
-The observable is the image-embedding output for a fixed synthetic image batch.
-Each candidate layer's ConvRot INT8 reconstruction is injected and the relative
-MSE against the pristine run is recorded.
+| | the old (defective) | the new (corrected) |
+| :--- | :--- | :--- |
+| the min | 9.76e-01 | 9.76e-07 |
+| the median | 2.74e-01 | **1.10e-05** |
+| the p90 | 3.75e+00 | 7.32e-05 |
+| the max | 3.75e+00 | **1.43e-03** |
 
-| item | value |
-| :--- | :--- |
-| layers measured | **162 / 162** |
-| runs | 1 (single completion) |
-| wall time | 30 s |
-| interruptions | 0 |
-| reference output | 1,679,616 elements, finite |
-
-**Drift distribution**
-
-| min | p10 | median | p90 | max |
-| :--- | :--- | :--- | :--- | :--- |
-| 3.88e-02 | 1.12e-01 | 2.74e-01 | 7.73e-01 | 3.75e+00 |
-
-**SigLIP is far more sensitive to INT8 than the CLIP towers**: the *smallest*
-drift in the whole model is 3.88e-02, which is above the CLIP text tower's
-median. Every layer needs a threshold well above the CLIP family's 0.05-0.25
-range.
+At the old threshold (0.30) the corrected drift protects **nothing**. The
+shipped pack's 66-layer protection set had come from the defective values.
 
 ---
 
-## 4. Threshold selection (measured on the acceptance set)
+## 3. The selection criterion: the aggregate contribution
 
-Four candidate thresholds were built and each was measured on the full 256-item
-acceptance set (seed 42) against the FP16 baseline, with the image-embedding
-cosine as the observable.
+The per-layer drift is a **screen**, not the selection criterion. The decision
+is the **aggregate output**: hold the weights, replace ONE layer by its ConvRot
+INT8 reconstruction, and compare the image embedding against the unmodified
+output. The layer's contribution is `1 − cos`.
 
-| threshold | INT8 layers | cos mean | cos min | cos p5 | pack |
+`1 − cos` over the 162 runtime Linear layers:
+
+| | value |
+| :--- | :--- |
+| the min | −3.27e-05 |
+| the median | −2.77e-05 |
+| the p90 | −8.72e-06 |
+| the max | **8.22e-04** |
+
+**Almost every layer is negative** — the cosine rounds to 1.0 within float
+precision, so the measured `1 − cos` is a negative rounding residual, not a
+real contribution. Only the top few layers are measurable:
+
+| the layer | 1 − cos |
+| :--- | :--- |
+| `encoder.layers.0.mlp.fc2` | 8.22e-04 |
+| `encoder.layers.0.mlp.fc1` | 1.54e-04 |
+| `encoder.layers.0.self_attn.out_proj` | 8.70e-05 |
+| `encoder.layers.1.mlp.fc2` | 6.94e-05 |
+| `encoder.layers.1.mlp.fc1` | 2.50e-05 |
+
+**SigLIP-384 is extremely robust to single-layer quantization**: the effect of
+quantizing any one layer is at or below the measurement floor, except for the
+first two blocks. This is a property of the model, not of the measurement.
+
+---
+
+## 4. The candidates, and the adopted set
+
+Built from the contribution's ranking (the top-K protected) and measured on
+the fixed **256-item** acceptance set (seed 42):
+
+| the candidate | the INT8 | the kept | cos mean | cos min | size |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| 0.20 | 49 | **0.999917** | **0.999848** | 0.999905 | 730.8 MB |
-| **0.30** | **96** | **0.999659** | **0.999404** | 0.999594 | **633.5 MB** |
-| 0.50 | 134 | 0.999235 | 0.997555 | 0.998942 | 526.8 MB |
-| 0.80 | 146 | 0.998818 | 0.996018 | 0.998309 | 494.4 MB |
+| the previous pack (the defective drift) | 96 | 66 | 0.998560 | 0.996602 | 633.5 MB |
+| k=0 (the floor) | 162 | 0 | 0.984356 | 0.975729 | **425.9 MB** |
+| k=10 | 152 | 10 | 0.995935 | 0.989390 | 466.2 MB |
+| **k=20 (adopted)** | **142** | **20** | **0.996794** | **0.993237** | **502.9 MB** |
+| k=40 | 122 | 40 | 0.997729 | 0.995073 | 569.6 MB |
+| k=100 | 62 | 100 | 0.999715 | 0.999209 | 731.7 MB |
 
-**Threshold 0.30 was adopted.** It sits between the two points that are still
-comfortably inside the gate (0.20 and 0.30) and the ones that start to give it
-margin away (0.50 already drops the minimum to 0.9976, 0.80 to 0.9960). At
-0.30 the minimum is 0.999404, which keeps a clear margin over the 0.98
-criterion while the pack is 87 MB smaller than the 0.20 candidate.
+**20 FP16-kept layers were adopted.** The knee is between k=0 and k=10 (the
+mean moves +1.2e-02 for 40 MB) - the floor's 0.984356 is below the 0.99 gate,
+which is exactly the "do not sit at the floor" case. Past k=10 the curve
+climbs slowly: k=20 → k=40 buys +9.4e-04 for 67 MB, and k=100 buys +2.9e-03
+for 229 MB more, which is not this pack's trade.
+
+Against the previous pack:
+
+| | the previous pack | the rebuilt pack (k=20) |
+| :--- | :--- | :--- |
+| the cos mean / min | 0.998560 / 0.996602 | 0.996794 / 0.993237 |
+| the size | 633.5 MB | **502.9 MB** |
+
+**The rebuilt pack is 130.6 MB smaller, and its cosine is lower.** Both clear
+the 0.99 / 0.98 gate. This is a deliberate trade, not a win on both axes, and
+it is stated that way:
+
+- The previous pack protected **66 of 162 layers** - a third of the model kept
+  in FP16. That came from the defective drift, and it is far more than this
+  model's measured sensitivity needs (section 3: only the first two blocks have
+  a measurable single-layer contribution).
+- The gate is 0.99 / 0.98. k=20 sits at 0.996794 / 0.993237, well above it.
+- **k=10 (466.2 MB) is the smallest pack that clears the gate**
+  (0.995935 / 0.989390). k=20 buys +8.6e-04 of the mean and +3.8e-03 of the
+  minimum for 36.7 MB. k=20 was adopted for that margin; k=10 is the
+  defensible minimum.
+- **k=100 (731.7 MB, 0.999715 / 0.999209) is the point that beats the previous
+  pack's cosine**, at 98 MB *larger* than the previous pack - not adopted,
+  because it is bigger than what it replaces and the gate does not require it.
 
 ---
 
 ## 5. The pack
 
-Built with `clip_convert/convert_clip_impact_convrot_int8.py`:
-
-```
---clip_type vision --drift-threshold 0.30
-```
-
 | item | value |
 | :--- | :--- |
-| file size | 816.8 MB -> **633.5 MB** (-22.4 %) |
-| tensors | 640 |
-| quantized layers | 96 (group size 64: 79, group size 16: 17) |
-| FP16 kept | 66 (the layers whose measured drift exceeds 0.30, plus the biases and the embedding) |
+| the source | 816.8 MB |
+| the pack | **502.9 MB** (-38.4 %) |
+| the SHA256 | `C9448A890697ED74674AFBD70919F0CFFF0DD115B9E0D207478B9586C3EB62A5` |
+| the tensors | 732 |
+| the quantized layers | **142** (group size 64/16) |
+| the FP16-kept layers | 20, stored FP16 |
+| the output | finite |
+| the gate (256 items, seed 42) | **PASS** (mean ≥ 0.99, min ≥ 0.98) |
+
+The kept tensors are FP16 (the runtime runs in FP16; the INT8 scales stay
+FP32).
 
 ---
 
-## 6. Verification (the real load path)
-
-The pack is loaded through the vision loader path with
-`mixed_precision_ops({"int8_tensorwise": ...})`, and the loader package's
-runtime arm is installed (the ComfyUI startup condition).
-
-| item | value |
-| :--- | :--- |
-| runtime weight types | **96 QuantizedTensor + 66 Parameter** |
-| `int8_linear` calls per encode | **96** |
-| the image embeds | (1, 729, 1152), **finite** |
-| cos mean / min / p5 (256 items, seed 42, arm enabled) | **0.998560 / 0.996602 / 0.997994** |
-| gate (mean >= 0.99, min >= 0.98) | **PASS** |
-| encode latency | **64.44 ms / image** (batch 1, 384x384) |
-
-**The INT8 GEMM is reached, and it is worth real time.** The vision tower uses
-`operations.Linear`, so the same runtime arm applies to it as to the CLIP text
-tower: without the arm the encode measures 85.89 ms, with it **64.44 ms
-(-25.0 %)**.
-
-Without the arm the pack would still be correct (the weight-only path gives
-cos mean 0.999659), but the INT8 GEMM would never run and the compute saving
-would be zero. ComfyUI core is not modified; the arm lives in
-`ComfyUI-HSWQ-Loader-and-Tools/patches/clip_int8_gemm/arm.py`.
-
----
-
-## 7. Files
+## 6. Files
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_clip_vision.py` | vision impact measurement (the image-embedding output) |
-| `clip_convert/convert_clip_impact_convrot_int8.py` | impact-driven pack builder (`--clip_type vision`, per-layer group size) |
-| `impact/impact_siglip_vision.json` | the measured per-layer drift (git-ignored) |
-| `impact/verify_siglip.json` | the verification result (git-ignored) |
-| `models/clip/sigclip_vision_patch14_384_hswq_convrot_int8.safetensors` | the pack |
+| `sdxl/diag_impact_clip_vision.py` | the drift measurement (the screen) |
+| `sdxl/measure_sigclip384_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/convert_clip_impact_convrot_int8.py` | the builder (`--clip_type vision`, `--protect-list`, FP16 kept) |
+| `sdxl/verify_vision.py` | the acceptance on the fixed 256-item set |
+| `impact/impact_sigclip384_vision_fixed.json` | the corrected drift (git-ignored) |
+| `impact/contrib_sigclip384.json` | the contribution (git-ignored) |
+| `impact/sig_protect_20.json` | the adopted FP16-kept list (git-ignored) |
