@@ -1,5 +1,10 @@
 # CLIP-ViT-bigG-14 — ConvRot INT8 Trajectory-Impact Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Model.** `models/clip/CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` (3519.0 MB, FP16, 1,844,907,521 parameters)
 **Pack.** `models/clip/CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` (2180.1 MB, **-38.0 %**)
 **SHA256.** `6CD4AFAC314AE720FF1EDCAC59F927B93D8E15CE3E8E109DDC59F6FD43B2D5D3`

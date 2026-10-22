@@ -1,5 +1,10 @@
 # Josiefied-Qwen3-0.6B ConvRot INT8 — Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Target**: `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` — a Qwen3-0.6B text
 encoder (llama-family architecture, 28 layers, hidden 1024, vocab 151936),
 stored in BF16.

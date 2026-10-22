@@ -1,5 +1,10 @@
 # Qwen3-VL-4B Thinking — ConvRot INT8 Trajectory-Impact Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Source.** `models/clip/Qwen3_VL_4B_Thinking_abliterated.safetensors` (8464.5 MB, 713 keys, 358 finite 2D Linear layers)
 **Pack.** `models/clip/Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` (5958.9 MB, **−29.6 %**)
 **SHA256.** `49C19DAD012A8CF4152CE01D1FF6948989C6C0AD1B7AF45F673B84B6FBB1D522`
