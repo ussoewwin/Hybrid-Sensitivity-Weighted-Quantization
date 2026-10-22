@@ -1,0 +1,263 @@
+# -*- coding: utf-8 -*-
+"""Qwen2.5-VL-7B-Thinking abliterated ConvRot INT8 converter, impact-driven.
+
+The protection set comes from a **measurement of this checkpoint's own
+output** (sibling script `sdxl/diag_impact_qwen3vl.py`): the language model's
+hidden state for a fixed prompt and the vision tower's image embeddings, with
+one layer at a time replaced by its ConvRot INT8 reconstruction.
+
+The earlier pack of this model used **static kurtosis / outlier-ratio** on the
+weights, with a hard-coded pattern list. That method is invalid here: the
+kurtosis numbers of the earlier revision were themselves computed through a
+broken safetensors header offset, and a static weight statistic is not a proxy
+for the output's sensitivity. The measured drift also says something the
+static statistic could not: the language tower's layers are about eight times
+more sensitive than the vision tower's (the median drift 4.2e-05 against
+5.6e-06), and the most sensitive single layer is `layers.35.mlp.gate_proj`.
+
+**The drift is a screen, not the selection criterion.** It measures the WEIGHT
+error only (the reconstruction is placed in the module and the plain forward
+is used), while the pack's real path also quantizes the ACTIVATION for that
+layer, and that is where most of the error comes from. So the FP16-kept set is
+given explicitly with `--protect-list`, measured on the aggregate output
+through the real runtime path.
+
+The pack is written under the **checkpoint's own names**, which is what
+ComfyUI's loader reads: it renames `model.language_model.` -> `model.` and
+`model.visual.` -> `visual.` when it loads, so the pack's names are the
+checkpoint's.
+
+Usage:
+    python clip_convert/convert_qwen3_vl_4b_convrot_int8.py \
+        --input <FP16 model> --output <out> \
+        --impact impact/impact_qwen3vl_4b.json \
+        --protect-list impact/qwen3vl_protect_21.json
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import sys
+
+import torch
+from safetensors import safe_open
+from safetensors.torch import save_file
+
+DEFAULT_GROUP = 256
+DEFAULT_DRIFT_THRESHOLD = 0.30
+
+# The impact measurement's layer names are RELATIVE to each tower, because the
+# two towers are measured separately:
+#   `layers.3.mlp.up_proj`  - the language model
+#   `blocks.3.attn.qkv`     - the vision tower
+#   `embed_tokens`, `pos_embed`, `merger.*`, `deepstack_merger_list.*`
+# The pack is written under the CHECKPOINT's names, so the relative names are
+# mapped onto them.
+def relative_to_checkpoint(name: str) -> str | None:
+    """The measured names are already the checkpoint's names (the identity).
+
+    The Qwen2.5-VL contribution pass records ``model.layers.*`` (the language
+    tower) and ``visual.*`` (the vision tower) exactly as the checkpoint stores
+    them, so no rename is needed. This function exists because the shared code
+    path was written for Qwen3-VL, whose measurement uses tower-relative names.
+    """
+    return name
+
+
+def load_protect_list(path):
+    """The FP16-kept layers, from a JSON {"protect": [...]} or a text file
+    with one runtime module name per line."""
+    if not path:
+        return set()
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {ln.strip() for ln in text.splitlines() if ln.strip()}
+    if isinstance(data, dict):
+        return set(data.get("protect", []))
+    return set(data)
+
+
+def runtime_to_checkpoint(name: str) -> str | None:
+    """The checkpoint's name for a measured (relative) layer name."""
+    return relative_to_checkpoint(name)
+
+
+# --- pack math --------------------------------------------------------------
+
+def build_hadamard(size: int, dtype: torch.dtype = torch.float32) -> torch.Tensor:
+    if size < 4 or (size & (size - 1)) != 0 or math.log(size, 4) % 1 != 0:
+        raise ValueError(f"Hadamard size must be a power of 4, got {size}")
+    h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=dtype)
+    h = h4
+    cur = 4
+    while cur < size:
+        h = torch.kron(h, h4)
+        cur *= 4
+    return h / (size ** 0.5)
+
+
+def convrot_group_size(n: int, preferred: int = 256) -> int | None:
+    gs = preferred
+    while gs >= 4:
+        if n % gs == 0 and math.log(gs, 4) % 1 == 0:
+            return gs
+        gs //= 4
+    return None
+
+
+def rotate_weight(weight: torch.Tensor, h: torch.Tensor, gs: int) -> torch.Tensor:
+    out_f, in_f = weight.shape
+    if in_f % gs != 0:
+        raise ValueError(f"in_features {in_f} not divisible by group size {gs}")
+    g = in_f // gs
+    return torch.matmul(weight.view(out_f, g, gs), h.T.to(weight.dtype)).reshape(weight.shape)
+
+
+def quantize_int8_rowwise(w: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    amax = w.abs().amax(dim=-1, keepdim=True).float().clamp(min=1e-30)
+    scale = amax / 127.0
+    q = (w / scale.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
+    return q, scale.to(torch.float32)
+
+
+def _encode_meta(config: dict) -> torch.Tensor:
+    return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
+
+
+def convert(model_path: str, output_path: str, impact_json: str | None = None,
+            enable_convrot: bool = True, groupsize: int = 256,
+            drift_threshold: float = DEFAULT_DRIFT_THRESHOLD,
+            protect_list: str | None = None):
+    print(f"Loading (streamed): {model_path}")
+    src = safe_open(model_path, framework="pt", device="cpu")
+    src_keys = sorted(list(src.keys()))
+    print(f"  raw keys: {len(src_keys)}")
+
+    # the FP16-kept set, in the CHECKPOINT's names
+    protect_ck: set[str] = set()
+    explicit = load_protect_list(protect_list)
+    if explicit:
+        for n in explicit:
+            ck = runtime_to_checkpoint(n)
+            if ck is None or (ck + ".weight") not in src_keys:
+                raise SystemExit("the protect list names a layer the checkpoint does not have: %s (-> %s)" % (n, ck))
+            protect_ck.add(ck)
+        print(f"  the explicit protect list: {len(protect_ck)} layers")
+    elif impact_json:
+        impacts = json.load(open(impact_json, encoding="utf-8"))["impacts"]
+        for n, drift in impacts.items():
+            if float(drift) > drift_threshold:
+                ck = runtime_to_checkpoint(n)
+                if ck is None:
+                    raise SystemExit("the impact JSON names a layer the runtime "
+                                     "does not have: %s" % n)
+                protect_ck.add(ck)
+        print(f"  the measured candidates: {len(impacts)}; drift > {drift_threshold}"
+              f" -> protected {len(protect_ck)}")
+
+    new_sd = {}
+    meta_layers = {}
+    convrot_count = 0
+    plain_count = 0
+    skip_count = 0
+    protected_count = 0
+    protected_list: list[str] = []
+
+    h_cache: dict[int, torch.Tensor] = {}
+
+    for key in src_keys:
+        tensor = src.get_tensor(key)
+        is_2d_weight = (
+            key.endswith(".weight")
+            and tensor.ndim == 2
+            and tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+        )
+        if not is_2d_weight:
+            new_sd[key] = tensor
+            skip_count += 1
+            continue
+
+        module_key = key[: -len(".weight")]
+
+        if module_key in protect_ck:
+            new_sd[key] = tensor
+            protected_count += 1
+            protected_list.append(key)
+            continue
+
+        w = tensor.float()
+        out_f, in_f = w.shape
+
+        if enable_convrot:
+            gs = convrot_group_size(in_f, groupsize)
+            if gs is not None:
+                if gs not in h_cache:
+                    h_cache[gs] = build_hadamard(gs)
+                w_rot = rotate_weight(w, h_cache[gs], gs)
+                q, scale = quantize_int8_rowwise(w_rot)
+                config = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": gs}
+                new_sd[key] = q
+                new_sd[f"{module_key}.weight_scale"] = scale
+                new_sd[f"{module_key}.comfy_quant"] = _encode_meta(config)
+                meta_layers[module_key] = config
+                convrot_count += 1
+                continue
+            else:
+                print(f"  [WARN] {key}: in_features not power-of-4 divisible, plain INT8")
+
+        q, scale = quantize_int8_rowwise(w)
+        config = {"format": "int8_tensorwise"}
+        new_sd[key] = q
+        new_sd[f"{module_key}.weight_scale"] = scale
+        new_sd[f"{module_key}.comfy_quant"] = _encode_meta(config)
+        meta_layers[module_key] = config
+        plain_count += 1
+
+    metadata = {"_quantization_metadata": json.dumps({"format_version": "1.0", "layers": meta_layers})}
+
+    print(f"\nProtected (kept FP16): {protected_count}")
+    for k in protected_list[:10]:
+        print(f"  {k}")
+    if protected_count > 10:
+        print(f"  ... ({protected_count - 10} more)")
+
+    print(f"\nSaving: {output_path}")
+    print(f"  ConvRot INT8:      {convrot_count}")
+    print(f"  Plain INT8:        {plain_count}")
+    print(f"  FP16 protected:    {protected_count}")
+    print(f"  Kept as-is (1D):   {skip_count}")
+    save_file(new_sd, output_path, metadata=metadata)
+    print(f"  Input:  {os.path.getsize(model_path)/1024**3:.2f} GB")
+    print(f"  Output: {os.path.getsize(output_path)/1024**3:.2f} GB")
+    print("Done!")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Qwen2.5-VL-7B-Thinking ConvRot INT8 converter, impact-driven")
+    parser.add_argument("--input", required=True, help="Input .safetensors path (FP16)")
+    parser.add_argument("--output", required=True, help="Output .safetensors path")
+    parser.add_argument("--impact", default=None,
+                        help="the measured per-layer drift (impact/impact_qwen3vl_4b.json)")
+    parser.add_argument("--no-convrot", action="store_true",
+                        help="Plain INT8 without ConvRot rotation")
+    parser.add_argument("--groupsize", type=int, default=DEFAULT_GROUP,
+                        help="Hadamard group size (power of 4, default 256)")
+    parser.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD,
+                        help="the drift above which a layer is kept in FP16 (only "
+                             "used when --protect-list is not given)")
+    parser.add_argument("--protect-list", default=None,
+                        help="the FP16-kept layers, as a JSON {\"protect\": [...]} or a "
+                             "text file with one runtime module name per line; an "
+                             "explicit list is authoritative over the drift threshold")
+    args = parser.parse_args()
+    if args.groupsize < 4 or (args.groupsize & (args.groupsize - 1)) != 0 or math.log(args.groupsize, 4) % 1 != 0:
+        parser.error(f"--groupsize must be a power of 4, got {args.groupsize}")
+    convert(args.input, args.output, impact_json=args.impact,
+            enable_convrot=not args.no_convrot, groupsize=args.groupsize,
+            drift_threshold=args.drift_threshold, protect_list=args.protect_list)
