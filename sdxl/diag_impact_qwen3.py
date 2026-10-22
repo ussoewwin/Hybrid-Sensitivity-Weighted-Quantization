@@ -93,12 +93,20 @@ def build_model(comfy_path, model_path, model_type):
         import comfy.sd
         import comfy.utils
         import comfy.text_encoders.anima
+        import comfy.text_encoders.z_image
         import comfy.text_encoders.hunyuan_video
         sd = comfy.utils.load_torch_file(model_path, safe_load=True)
         detect = comfy.text_encoders.hunyuan_video.llama_detect(sd)
+        # The checkpoint family picks the module: the 0.6B is built through
+        # anima.te, the 4B (Z Image's text encoder) through z_image.te. Both
+        # take (dtype_llama, llama_quantization_metadata).
+        if model_type == "qwen3_4b":
+            mod = comfy.text_encoders.z_image
+        else:
+            mod = comfy.text_encoders.anima
         saved = _clear_argv()
         try:
-            te = comfy.text_encoders.anima.te(**detect)
+            te = mod.te(**detect)
             clip = te(device="cpu")
             # the weights must be loaded explicitly: te() only builds the graph
             clip.load_sd(sd)
