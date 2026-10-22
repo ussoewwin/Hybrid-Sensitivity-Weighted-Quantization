@@ -318,6 +318,8 @@ Worked cases (all measured):
 | `CLIP-SAE-ViT-L-14` | 50/100 kept: 722.3 MB / 0.999985 | 30 text + 60 vision kept | 658.9 MB |
 | `ViT-L-14-BEST` | 50/100 kept: 722.1 MB / 0.999986 | 30 text + 60 vision kept | 646.7 MB |
 | `Josiefied-Qwen3-0.6B` | 140 kept: 0.85 GB / 0.999644 | 40 kept (0.999502) | 655.2 MB |
+| `Qwen3-4B` | 150 kept: 5909.9 MB / 0.999698 | 20 kept (0.999630) | 4168.3 MB |
+| `sigclip_vision_patch14_384` | 100 kept: 731.7 MB / 0.999715 | 20 kept (0.996794) | 502.9 MB |
 
 The same rule produces different thresholds because the checkpoints differ -
 which is the whole point of measuring each one.
