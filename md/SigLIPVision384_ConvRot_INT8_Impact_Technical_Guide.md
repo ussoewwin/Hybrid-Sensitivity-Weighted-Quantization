@@ -1,5 +1,10 @@
 # sigclip_vision_patch14_384 — ConvRot INT8 Trajectory-Impact Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Model.** `models/clip/sigclip_vision_patch14_384.safetensors` (816.8 MB, 27-layer SigLIP vision tower)
 **Pack.** `models/clip/sigclip_vision_patch14_384_hswq_convrot_int8.safetensors` (633.5 MB, **-22.4 %**)
 **SHA256.** `1A7184CF4AC22B666BE7ECE9F62A1ECA8C830ADD825B482036B2F75C74304CCE`

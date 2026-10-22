@@ -1,5 +1,10 @@
 # FLAN-T5 XXL — ConvRot INT8 Trajectory-Impact Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Source.** `models/clip/flan_t5_xxl_fp16.safetensors` (21490.0 MB, 559 keys, 11,266,928,640 params)
 **Pack.** `models/clip/flan_t5_xxl_hswq_convrot_int8.safetensors` (14056.6 MB, **−34.5 %**)
 **SHA256.** `DE3072A97C710EF2B1C661C3EEA0FBAA5759A0454007163228AF6D489ADE6BB0`

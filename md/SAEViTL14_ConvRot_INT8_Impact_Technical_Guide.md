@@ -1,5 +1,10 @@
 # CLIP-SAE-ViT-L-14 — ConvRot INT8 Trajectory-Impact Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Source.** `models/clip/CLIP-SAE-ViT-L-14-FP32.safetensors` (1631.3 MB, 590 tensors, FP32)
 **Pack.** `models/clip/CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` (658.9 MB, **−59.6 %**)
 **SHA256.** `F642CD146A494939029BC32242C198F14CB7C10F5C4BDDD4734E0B29B8A98501`

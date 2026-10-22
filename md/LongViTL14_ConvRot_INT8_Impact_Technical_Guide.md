@@ -1,5 +1,10 @@
 # Long-ViT-L-14-BEST-GmP-smooth-ft-full — ConvRot INT8 Trajectory-Impact Technical Guide
 
+> **The method this pack was built under** (the injection frame, the aggregate
+> contribution, the size/quality balance, FP16 kept tensors) is stated once in
+> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> This guide carries the measured numbers for this model.
+
 **Source.** `models/clip/Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` (1631.8 MB, 590 tensors, FP32)
 **Pack.** `models/clip/Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` (646.3 MB, **−60.4 %**)
 **SHA256.** `9F8BA355C8AFD5F4959536A067CFDC870219E322E4FAB0573B3A7A6B5CE99DF3`
