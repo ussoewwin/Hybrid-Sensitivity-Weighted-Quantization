@@ -47,7 +47,7 @@ This repository provides production-grade **HSWQ ConvRot INT8** quantized weight
 
 | Filename | Base Architecture | Precision / Format | File Size | Memory Footprint vs FP16 | Native ComfyUI Support | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | **HSWQ ConvRot INT8** (`int8_tensorwise`) | **~1.29 GB** (1,287 MB) | **~26% VRAM Reduction** (vs ~1.63 GB baseline) | ✅ Supported natively (`UNetLoader`) | Available |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | **HSWQ ConvRot INT8** (`int8_tensorwise`) | **~1.74 GB** (1,738 MB) | ~0.4% vs the 1.66 GB FP16 source (41 of 221 runtime-live layers quantized) | ✅ Supported natively (`UNetLoader`) | Available |
 
 ### Quantization Breakdown
 - **HSWQ ConvRot INT8 Linear Layers:** Bulk transformer and feedforward projection layers quantized with orthogonal Sylvester Hadamard rotation (`groupsize=256`) and per-channel scaling.
@@ -59,7 +59,7 @@ This repository provides production-grade **HSWQ ConvRot INT8** quantized weight
 
 - **Hadamard Orthogonal Rotation (ConvRot):** Pre-rotates weight matrices ($W_{rot} = W \cdot H^T$) along the input channel axis using normalized Sylvester Hadamard blocks, eliminating channel-wise outlier spikes and preventing mask degradation.
 - **Hybrid Sensitivity Protection (HSWQ):** Specifically designed to prevent precision loss in multi-object video segmentation, guaranteeing sharp mask boundaries and long-term tracking stability across all 16 multiplex object slots.
-- **Optimized Storage & Memory Footprint:** Reduces model weight footprint down to 1.29 GB (from the ~1.63 GB unquantized baseline) while maintaining near-lossless mIoU segmentation metrics.
+- **Optimized Storage & Memory Footprint:** 1.74 GB, near the 1.66 GB FP16 source, because only 41 of the checkpoint's runtime-live layers are both 256-wide and unprotected. The gain here is the INT8 **execution** path (Tensor Core INT8 matmul), not the disk size - the same trade the guide documents. Quality is preserved: measured tracker mask IoU 0.9978 against FP16.
 
 ---
 
