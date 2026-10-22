@@ -41,10 +41,10 @@ It serves as a unified release collection combining pure text LLM variants (4B, 
 | Filename | Architecture | Format / Precision | Size | Upstream Base Model | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `qwen3_4b_abliterated_fp16_converted.safetensors` | Qwen3 4B | Single-file FP16 | ~8.04 GB | `huihui-ai/Qwen3-4B-abliterated` | Available |
-| `qwen3_4b_abliterated_hswq_convrot_int8.safetensors` | Qwen3 4B | HSWQ ConvRot INT8 | ~5.78 GB | `huihui-ai/Qwen3-4B-abliterated` | Available |
+| `qwen3_4b_abliterated_hswq_convrot_int8.safetensors` | Qwen3 4B | HSWQ ConvRot INT8 | ~4.37 GB | `huihui-ai/Qwen3-4B-abliterated` | Available |
 | `Qwen3-8B-abliterated-fp16.safetensors` | Qwen3 8B | Single-file FP16 | ~16.38 GB | `huihui-ai/Qwen3-8B-abliterated` | Available |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | Qwen3 VL 4B Thinking | Single-file FP16 | ~8.88 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
-| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Thinking | HSWQ ConvRot INT8 | ~6.44 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Thinking | HSWQ ConvRot INT8 | ~6.25 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
 
 ---
 
