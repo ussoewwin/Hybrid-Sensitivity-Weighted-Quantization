@@ -281,6 +281,53 @@ The shipped packs use **0.15**.
 
 The size ordering follows the protected-layer ordering: A protects the most layers and is therefore the largest pack; U protects the fewest and is the smallest. The pack size is a direct consequence of the measured protection set - not of the quantization scope, which is identical for all three.
 
+### 5.6 Choosing the threshold: the size/quality balance
+
+The threshold is not a fixed constant and it is not chosen by taking the
+largest cosine. It is chosen on the measured **size/quality curve**: build the
+pack at several thresholds, measure the gate at each, and take the point where
+the curve stops paying for itself.
+
+Two ends bound the choice, and both are measured:
+
+- **The floor.** Past some threshold every ConvRot-eligible layer is already
+  quantized and the pack stops shrinking. On `anytest4 A` that is
+  **1354.4 MB** (from `0.050` up). Beyond the floor the cosine **drops**,
+  because the remaining protected layers are non-Linear or shape-blocked:
+  protecting them adds size without buying quality. A threshold at or above
+  the floor is never right.
+- **The plateau.** Just below the floor the cosine is at its best among the
+  small packs. On `anytest4 A` the floor's cosine is 0.999591, `0.020` is
+  0.999600, and **`0.030` is 0.999626** - the top of the plateau - at
+  1359.1 MB, 7.8 MB above the floor.
+
+Above the plateau the cosine can always be pushed higher by protecting more
+layers, but the price is linear in the protected count while the gain is a few
+ten-thousandths. On `anytest4 A`, going from `0.030` to `0.010` buys
+**+2.5e-04 of the cosine for 600 MB**. That is not a trade to take: the gate
+is 0.99, and both ends clear it by a wide margin.
+
+**The rule.** Adopt the threshold at the top of the quality plateau - the
+smallest pack whose cosine is not beaten by the smaller ones. Do not adopt the
+highest-cosine candidate, and do not adopt the smallest candidate without
+checking the floor's behaviour. Report the whole measured curve, not one
+number, so the balance is visible.
+
+| the checkpoint | the adopted threshold | the protected | cos | the size |
+| :--- | :--- | :--- | :--- | :--- |
+| `controlnet-union-pro-max-sdxl-1.0` | 0.005 | 41 | 0.999961 | 1368.8 MB |
+| `CN-anytest4_illustrious2_A` | 0.030 | 36 | 0.999626 | 1359.1 MB |
+| `CN-anytest4_illustrious2_B` | (to be re-measured) | - | - | - |
+
+The union-pro-max curve is flat (every candidate at 0.999961), so its smallest
+pack was taken; A's curve has a knee, so its plateau was taken. The same rule
+produces different thresholds because the checkpoints differ - which is the
+whole point of measuring each one.
+
+---
+
+---
+
 ## 6. Why a Full Sweep Was Necessary
 
 An earlier focused measurement covered 29 layers (the static fat-tail group plus the 20 layers just below it) and produced a 13-layer protection set for checkpoint B.
@@ -448,12 +495,12 @@ The residual per-layer differences come from non-deterministic GPU reductions (c
 | Perturbation | ConvRot INT8 reconstruction (Hadamard rotation + per-channel INT8) |
 | Metric | Mean relative MSE of the per-step latent against the pristine trajectory |
 | Sampler | Production sampler (`dpmpp_2m` / `karras` / CFG 7.0), 20 steps, seed 42 |
-| Threshold | **0.15** |
+| Threshold | **per checkpoint, set on the measured size/quality balance** (Section 5.6) |
 | Name mapping | Pack written under the **runtime (comfy) names** - the checkpoint's diffusers names are remapped by ComfyUI |
 | Quantized scope | 2D Linear with input width a multiple of 256, minus the protected set |
-| A pack | 2386.2 MB -> 1718.6 MB, 196 Linear in INT8, 190 protected, gate cos 0.999875 |
-| B pack | 2386.2 MB -> 1533.2 MB, 257 Linear in INT8, 117 protected, gate cos 1.000044 |
-| U pack | 2396.9 MB -> 1443.5 MB, 298 Linear in INT8, 74 protected, gate cos 0.999646 |
+| A pack | 2386.2 MB -> 1359.1 MB, 326 Linear in INT8, 36 protected, gate cos 0.999626 |
+| B pack | 2386.2 MB -> 1533.2 MB, 257 Linear in INT8, 117 protected, gate cos 1.000044 (to be re-measured) |
+| U pack | 2396.9 MB -> 1368.8 MB, 328 Linear in INT8, 41 protected, gate cos 0.999961 |
 | Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata`, under runtime key names |
 | Operational requirement | Detached process, CPU-side weight clone + reconstruction, 10-layer checkpoint with resume |
 
@@ -462,7 +509,7 @@ The essential point: for a ControlNet, the set of layers that must stay in FP16 
 
 ---
 
-## 10. The union-pro-max re-measurement (the injection fix)
+## 12. The union-pro-max re-measurement (the injection fix)
 
 The trajectory-impact sweep of `controlnet-union-pro-max-sdxl-1.0` was re-run
 after the injection fix. The fix matters here in the same way as elsewhere:
@@ -511,7 +558,7 @@ families for the wrong reason.
 
 ---
 
-## 11. The anytest4 A re-measurement (the injection fix)
+## 13. The anytest4 A re-measurement (the injection fix)
 
 `CN-anytest4_illustrious2_A` was re-measured after the injection fix, in one
 uninterrupted pass (103 min, 400 / 400).
