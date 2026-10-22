@@ -9,7 +9,7 @@ Everything below is backed by **completed full sweeps**: two SDXL ControlNet che
 | Checkpoint | Layers measured | Runs | Run time | Stoppages |
 | :--- | :--- | :--- | :--- | :--- |
 | `CN-anytest4_illustrious2_A.safetensors` | 400 / 400 | 2 | 62 + 103 min | 0 |
-| `CN-anytest4_illustrious2_B.safetensors` | 400 / 400 | 1 | 71 min | 0 |
+| `CN-anytest4_illustrious2_B.safetensors` | 400 / 400 | 2 | 71 + 98 min | 0 |
 | `controlnet-union-pro-max-sdxl-1.0.safetensors` | 407 / 407 | 1 | 97 min | 0 |
 
 ---
@@ -258,6 +258,7 @@ The extreme layers in U are its own:
 | :--- | :--- | :--- | :--- |
 | 0.10 | 356 | 233 | 131 |
 | **0.15 (the earlier measurement)** | **190** | **117** | **74** |
+| **0.010 (B, re-measured)** | - | **35** | - |
 | **0.030 (A, re-measured, adopted)** | **36** | - | - |
 | **0.005 (U, re-measured)** | - | - | **41** |
 | 0.20 | 86 | 44 | 40 |
@@ -271,13 +272,13 @@ The shipped packs use **0.15**.
 | :--- | :--- | :--- | :--- |
 | Source | `CN-anytest4_illustrious2_A.safetensors` (2386.2 MB) | `CN-anytest4_illustrious2_B.safetensors` (2386.2 MB) | `controlnet-union-pro-max-sdxl-1.0.safetensors` (2396.9 MB) |
 | Output | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | `CN-anytest4_illustrious2_B_hswq_convrot_int8_t015.safetensors` | `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors` |
-| Size | **1359.1 MB** | **1533.2 MB** | **1368.8 MB** |
-| Reduction vs source | **43.0 %** | 35.7 % | **42.9 %** |
-| Protected | **36 (drift>0.030)** | 117 (drift>0.15) | **41 (drift>0.005)** |
-| ConvRot INT8 Linear | **326** | **257** | **328** |
+| Size | **1359.1 MB** | **1357.5 MB** | **1368.8 MB** |
+| Reduction vs source | **43.0 %** | **43.1 %** | **42.9 %** |
+| Protected | **36 (drift>0.030)** | **35 (drift>0.010)** | **41 (drift>0.005)** |
+| ConvRot INT8 Linear | **326** | **327** | **328** |
 | INT8 payload | 669.4 MB | 855.3 MB | 955.9 MB |
 | Load check | 1236 keys, 196 `comfy_quant` | 1358 keys, 257 `comfy_quant` | 1459 keys, 298 `comfy_quant` |
-| Measured gate (cos vs FP16, real loader path) | **0.999626** (relMSE 1.11e-03) | **1.000044** (relMSE 1.28e-04) | **0.999961** (relMSE 7.74e-06) |
+| Measured gate (cos vs FP16) | **0.999626** (relMSE 1.11e-03, forward) | **0.992958** (relMSE 1.41e-02, trajectory) | **0.999961** (relMSE 7.74e-06, forward) |
 
 The size ordering follows the protected-layer ordering: A protects the most layers and is therefore the largest pack; U protects the fewest and is the smallest. The pack size is a direct consequence of the measured protection set - not of the quantization scope, which is identical for all three.
 
@@ -317,7 +318,7 @@ number, so the balance is visible.
 | :--- | :--- | :--- | :--- | :--- |
 | `controlnet-union-pro-max-sdxl-1.0` | 0.005 | 41 | 0.999961 | 1368.8 MB |
 | `CN-anytest4_illustrious2_A` | 0.030 | 36 | 0.999626 | 1359.1 MB |
-| `CN-anytest4_illustrious2_B` | (to be re-measured) | - | - | - |
+| `CN-anytest4_illustrious2_B` | 0.010 | 35 | 0.992958 (trajectory) | 1357.5 MB |
 
 The union-pro-max curve is flat (every candidate at 0.999961), so its smallest
 pack was taken; A's curve has a knee, so its plateau was taken. The same rule
@@ -499,7 +500,7 @@ The residual per-layer differences come from non-deterministic GPU reductions (c
 | Name mapping | Pack written under the **runtime (comfy) names** - the checkpoint's diffusers names are remapped by ComfyUI |
 | Quantized scope | 2D Linear with input width a multiple of 256, minus the protected set |
 | A pack | 2386.2 MB -> 1359.1 MB, 326 Linear in INT8, 36 protected, gate cos 0.999626 |
-| B pack | 2386.2 MB -> 1533.2 MB, 257 Linear in INT8, 117 protected, gate cos 1.000044 (to be re-measured) |
+| B pack | 2386.2 MB -> 1357.5 MB, 327 Linear in INT8, 35 protected, gate cos 0.992958 (trajectory) |
 | U pack | 2396.9 MB -> 1368.8 MB, 328 Linear in INT8, 41 protected, gate cos 0.999961 |
 | Pack layout | `int8_tensorwise` with `comfy_quant` stamps and `_quantization_metadata`, under runtime key names |
 | Operational requirement | Detached process, CPU-side weight clone + reconstruction, 10-layer checkpoint with resume |
@@ -609,3 +610,59 @@ sets it.
 The adopted set: 36 protected layers, the corrected ranking's top. The
 protection is a precision hedge, not a capability: the gate is what sets it,
 and the measured curve above is what balance was chosen on.
+
+
+---
+
+## 14. The anytest4 B re-measurement (the injection fix), and why the gate has
+## to use the same instrument as the measurement
+
+`CN-anytest4_illustrious2_B` was re-measured after the injection fix, in one
+uninterrupted pass (98 min, 400 / 400).
+
+The 362 ConvRot-eligible layers moved:
+
+| | the earlier measurement | the re-measured |
+| :--- | :--- | :--- |
+| the min | 5.34e-03 | 1.22e-03 |
+| the median | 1.06e-01 | **3.31e-03** |
+| the p90 | 1.87e-01 | 6.15e-03 |
+| the max | 3.54e-01 | **1.47e-02** |
+
+The 38 Conv2d layers are unchanged. The corrected top is
+`input_blocks.5.1.proj_in` (1.46e-02), `input_blocks.4.1.transformer_blocks.0.attn1.to_v`
+(1.43e-02), `input_blocks.7.1.proj_out` (1.23e-02).
+
+### 14.1 The instrument has to match
+
+The protection set is chosen by the **trajectory** drift of the denoising
+latent. The first acceptance attempt measured a single forward of the control
+model, and it could not place the threshold: the differences between
+neighbouring candidates (~1e-5 of the cosine) are the same size as the
+run-to-run noise of that measurement, and it disagreed with the trajectory
+ranking.
+
+Measured on the **trajectory** (the same pipeline the sweep uses: base SDXL,
+the ControlNet injected into the conditioning, `dpmpp_2m` / `karras` / 20
+steps / seed 42 / cfg 7.0), with 8 seeds:
+
+| the candidate | the INT8 | the protected | trajectory cos (mean / min) | relMSE | size |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| the earlier pack (0.15 on the defective values) | 257 | 105 | 0.992311 / 0.940575 | 1.54e-02 | 1533.2 MB |
+| t=0.003 | 46 | 316 | 0.988027 / 0.933155 | 2.40e-02 | 1981.0 MB |
+| t=0.004 | 221 | 141 | 0.988363 / 0.948535 | 2.32e-02 | 1732.6 MB |
+| t=0.006 | 296 | 66 | 0.986380 / 0.936998 | 2.73e-02 | 1455.8 MB |
+| t=0.010 | 327 | 35 | **0.989625 / 0.948279** (4 seeds) | 2.07e-02 | 1357.5 MB |
+| **t=0.010 (adopted, 8 seeds)** | **327** | **35** | **0.992958 / 0.948279** | **1.41e-02** | **1357.5 MB** |
+
+**The adopted pack beats the earlier pack on the trajectory gate** (0.992958
+against 0.992311, relMSE 1.41e-02 against 1.54e-02) **and is 176 MB smaller**
+(1357.5 against 1533.2 MB). The earlier pack's 105 protected layers came from
+the defective drift and were the wrong ones — the corrected top-105 and the
+earlier kept set overlap in only 28.
+
+The trajectory cosine sits far below the forward cosine (0.993 against 0.9998)
+because it is a different quantity: the forward is a single control-model
+output, while the trajectory compounds 20 sampling steps. **The two are not
+interchangeable, and the threshold has to be chosen and confirmed on the one
+the protection was derived from.**
