@@ -104,25 +104,7 @@ quantizing everything already clears the gate by a wide margin.
 
 ---
 
-## 4. The earlier 2601 pack
-
-The `..._2601_..._convrot_int8.safetensors` pack in the same directory is the
-earlier release, built from the 2601 checkpoint (whose source is no longer on
-disk). Measured against the **2602** source it scores cos 0.995231 / relMSE
-1.61e-02, i.e. worse than the pack above. That comparison is not a fair
-like-for-like (different source checkpoints), so it is reported as a fact, not
-as a verdict on the 2601 pack.
-
-What can be checked directly is the **stored payload**: de-rotating the 2601
-pack's layers and comparing against the 2602 source gives relMSE 1.40e-02 on
-`control_layers.0.attention.qkv` and **0.62 on `control_layers.0.after_proj`** -
-the 2601 pack's `after_proj` reconstruction does not match this source at all.
-Again, different checkpoints, so this is not proof the 2601 pack is broken;
-it is proof the two packs are not interchangeable.
-
----
-
-## 5. Files
+## 4. Files
 
 | file | role |
 | :--- | :--- |
