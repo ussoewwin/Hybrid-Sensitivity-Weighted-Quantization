@@ -1,4 +1,21 @@
-# How to quantize Text Encoder, ControlNet, Model Patch and SAM 3 / SAM 3.1
+# How to quantize Text Encoder, ControlNet, Model Patch and SAM 3 / SAM 3.1 (the per-model track, outside the HSWQ universal engine)
+
+> [!WARNING]
+> **This chapter is not HSWQ's universal engine.** HSWQ proper is a *universal*
+> quantizer: one autonomous engine whose every decision is derived from the
+> target checkpoint's own statistics, with **no model-specific toggles**. That
+> design is what makes it applicable to any new checkpoint of a supported
+> family without new code.
+>
+> **The families in this chapter are not one family**, and universalisation does
+> not carry over. Each model here needed its **own** measurement script, its
+> **own** converter, its **own** loader path, and a **hand-set** protection
+> threshold, because the runtime object, the observable, and sometimes the graph
+> itself differ from checkpoint to checkpoint. The packing steps below are
+> shared, but the *decisions* are per-model. Treat this chapter as a **per-model
+> track** - a set of individually built artifacts with a common written method -
+> **not** as an application of the universal engine. The per-model nature is
+> quantified in section *Why this is not the universal engine*.
 
 Quantize loaded **ControlNet / ControlNet Union models**, **Model Patch (model patcher) ControlNets**, and **Segment Anything Models (SAM 3 / SAM 3.1 Multiplex)** directly in ComfyUI using the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`** (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`) and loader **`HSWQ SAM3 Loader (sam3.pt)`** (`comfyui_nodes/sam3_pt_loader.py`), or via the standalone CLI conversion script **`clip_convert/convert_clip_convrot_int8.py`**.
 
@@ -8,7 +25,62 @@ By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization
 > **Text encoders and SAM are separate cases.** The generic CLI above quantizes every 2D Linear layer with **no FP16 protection** - it is the A/B baseline, not the recommended pack. HSWQ also publishes **individually built, higher-quality packs** (measured FP16 protection) for text encoders and SAM 3.1 on Hugging Face. Because text encoders and SAM are standards (one weight layout per architecture) rather than per-checkpoint models, these are finished artifacts rather than a universal method - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) and [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) below. (SAM 3 is the same kind of case but its pack is not published for license reasons.)
 
 > [!IMPORTANT]
-> **Text encoders are a separate case.** The generic CLI above quantizes every 2D Linear layer with **no FP16 protection** - it is the A/B baseline, not the recommended text-encoder pack. HSWQ also publishes **individually built, higher-quality text-encoder packs** (measured FP16 protection, verified by conditioning cosine) on Hugging Face. Because text encoders are standards (one weight layout per architecture) rather than per-checkpoint models, these are finished artifacts rather than a universal method - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) below.
+> **The generic CLI above is the no-protection baseline.** It quantizes every 2D Linear layer with **no FP16 protection**. The recommended packs in this chapter are individually built: the protection set comes from a measured aggregate contribution, the threshold from the size/quality balance, and the kept tensors are stored FP16. See [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built), the ControlNet / model-patch inventory, and [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) below.
+
+---
+
+## Why this is not the universal engine
+
+HSWQ's own engine (`quantize_sdxl_hswq_v1.3.py`, `quantize_zib_hswq_v2.0.py`)
+states its design constraint explicitly: **no model-specific CLI toggles**, all
+detection automatic from module names and tensor statistics, one code path per
+supported family. The point of that design is leverage - a new merge or finetune
+of a supported family is quantized with no new code.
+
+That is not how the packs in this chapter were built, and the difference is
+measurable. Counting only the scripts written for this chapter:
+
+| the artifact | the count | the nature |
+| :--- | :--- | :--- |
+| per-model **measurement** scripts (`sdxl/measure_*`) | **9** | one per model or tower split |
+| per-model **converter** scripts (`clip_convert/convert_*`) | **17** | one per family, several with a second "impact" variant |
+| per-model **verify** scripts (`sdxl/verify_*`) | **23** | one per model, several per tower |
+| the **CLI arguments** across just the converters | **93** | 4 to 10 per script, not a shared interface |
+
+The reason universalisation fails here is structural:
+
+1. **The runtime object differs.** A file called "ControlNet" may be a real
+   `ControlNet` (`load_controlnet_qwen_fun`, `load_controlnet_qwen_instantx`), a
+   **model patch** (`ZImage_Control`, `QwenImageBlockWiseControlNet`), or a
+   standard tower (`CLIP`, `T5`). They are loaded by different nodes, applied by
+   different apply paths, and live in different directories.
+2. **The observable differs.** The criterion is "the model's own output", but
+   what that output *is* differs: a concatenation of per-block residuals (a list
+   the runtime injects block by block), a single tower embedding, or a
+   denoising trajectory. The scoring function therefore differs too (per-block
+   mean, float64, and so on - Rule 8).
+3. **The graph differs.** A Qwen-Image Fun ControlNet needs a base model only to
+   reach its entry path; an InstantX ControlNet is self-contained. Some patches
+   need `z_image_convert` on load, some must not be converted at all.
+4. **The checkpoint's shape parameters differ inside a family.** Within the one
+   Qwen-Image diffsynth family, `img_in` is `[3072, 64]` for canny/depth and
+   `[3072, 68]` for inpaint. A single shared converter would have to branch on
+   `additional_in_dim` - which is exactly the "shared code plus conditionals"
+   that HSWQ's universal design avoids by being *genuinely* uniform, and that
+   cannot be avoided here because the objects are not uniform.
+
+So the honest description is: **a common written method, applied individually to
+each model.** The *packing mechanics* are shared (Hadamard rotation, per-channel
+INT8, `comfy_quant` stamps, FP16 kept tensors). Everything that decides *what to
+protect* is per-model, because the models are not one family.
+
+**Consequence for anyone adding a model.** There is no "add a checkpoint and
+run the engine" path in this chapter. A new model means: identify the runtime
+object and its loader, choose the observable to match what the loader injects,
+write the measurement and verify harness for that observable, measure, choose the
+threshold on the size/quality curve, and only then convert. That is a per-model
+cost, and it is why this chapter exists as a separate document from the HSWQ
+universal-engine guides rather than as a section of them.
 
 ---
 
