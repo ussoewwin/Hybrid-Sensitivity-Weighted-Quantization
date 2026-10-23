@@ -116,5 +116,6 @@ scratch/
 temp/
 tmp/
 
-# the diffsynth guide ships as Markdown + HTML only (no PDF edition)
+# the diffsynth guide ships as Markdown only (no HTML/PDF edition)
 md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.pdf
+md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.html
