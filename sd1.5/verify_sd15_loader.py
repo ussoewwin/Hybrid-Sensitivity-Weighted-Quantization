@@ -29,7 +29,35 @@ import os
 import statistics
 import sys
 
-COMFY = os.environ.get("COMFY_PATH", r"D:\USERFILES\ComfyUI\ComfyUI")
+# --- the ComfyUI root ------------------------------------------------------
+# This script must run INSIDE a ComfyUI checkout (it imports comfy.ops,
+# comfy.model_detection, ...). COMFY_PATH may be set in the environment, or the
+# first argument may be `--comfy <path>`; there is no default, so a wrong
+# machine cannot silently pick up someone else's tree.
+def _resolve_comfy(argv):
+    import os, sys
+    path = ""
+    if "--comfy" in argv:
+        i = argv.index("--comfy")
+        if i + 1 < len(argv):
+            path = argv[i + 1]
+            del argv[i:i + 2]
+    if not path:
+        path = os.environ.get("COMFY_PATH", "")
+    if not path:
+        sys.exit(
+            "error: the ComfyUI root is not set.\n"
+            "  pass --comfy <path> or set COMFY_PATH=<path>\n"
+            "  (the directory must contain comfy/ops.py)")
+    path = os.path.abspath(path)
+    if not os.path.isdir(os.path.join(path, "comfy")):
+        sys.exit("error: %s does not look like a ComfyUI root (no comfy/)" % path)
+    return path
+
+_COMFY_ARGV = list(sys.argv)
+COMFY = _resolve_comfy(_COMFY_ARGV)
+sys.argv = _COMFY_ARGV
+# ---------------------------------------------------------------------------
 NODE = os.path.join(COMFY, "custom_nodes", "ComfyUI-HSWQ-Loader-and-Tools")
 if COMFY not in sys.path:
     sys.path.insert(0, COMFY)
@@ -58,7 +86,6 @@ sys.modules["hswq_sd15_node"] = SD15
 _s.loader.exec_module(SD15)
 
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
-N = int(os.environ.get("SD15_N", "256"))
 SEED = 42
 LATENT = 64
 
@@ -99,12 +126,28 @@ def count_int8(model):
 
 
 def main():
-    packs = sys.argv[1:]
-    src = os.environ["SD15_SRC"]
+    # CLI: <source.ckpt> <pack> [<pack> ...]
+    #   --n N        the number of items (default 256)
+    #   --out FILE   write the results JSON
+    argv = sys.argv[1:]
+    n = 256
+    out_path = ""
+    rest = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--n" and i + 1 < len(argv):
+            n = int(argv[i + 1]); i += 2; continue
+        if argv[i] == "--out" and i + 1 < len(argv):
+            out_path = argv[i + 1]; i += 2; continue
+        rest.append(argv[i]); i += 1
+    if len(rest) < 2:
+        sys.exit("usage: verify_sd15_loader.py --comfy <root> <source.ckpt> <pack> [<pack> ...] [--n 256] [--out results.json]")
+    src = rest[0]
+    packs = rest[1:]
 
-    print("[1] the baseline (FP16 source, through the same loader) ...", flush=True)
+    print("[1] the baseline (FP16 source, through the same loader) | the items: %d ..." % n, flush=True)
     m0 = load(src)
-    batches = [make_inputs(SEED + i) for i in range(N)]
+    batches = [make_inputs(SEED + i) for i in range(n)]
     ref = [unet_output(m0, *b) for b in batches]
     fin0 = bool(torch.isfinite(ref[0]).all())
     print("    the reference: %s finite=%s" % (tuple(ref[0].shape), fin0), flush=True)
@@ -118,7 +161,7 @@ def main():
         nl, nc = count_int8(model)
         print("    the INT8: Linear %d | Conv2d %d" % (nl, nc), flush=True)
         cs_, fin = [], True
-        for i in range(N):
+        for i in range(n):
             f = unet_output(model, *batches[i])
             if not torch.isfinite(f).all():
                 fin = False
@@ -138,10 +181,9 @@ def main():
             fin, rec["cos_mean"], rec["cos_min"], rec["p5"], rec["file_mb"],
             "PASS" if rec["pass"] else "FAIL"), flush=True)
 
-    out = os.environ.get("SD15_OUT")
-    if out:
-        json.dump(results, open(out, "w", encoding="utf-8"), indent=1)
-        print("saved: %s" % out)
+    if out_path:
+        json.dump(results, open(out_path, "w", encoding="utf-8"), indent=1)
+        print("saved: %s" % out_path)
     print()
     print("  %-30s %6s %6s %14s %14s %9s" % ("pack", "lin", "conv", "mean", "min", "MB"))
     for r in results:

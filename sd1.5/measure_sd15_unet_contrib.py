@@ -37,7 +37,35 @@ import os
 import statistics
 import sys
 
-COMFY = os.environ.get("COMFY_PATH", r"D:\USERFILES\ComfyUI\ComfyUI")
+# --- the ComfyUI root ------------------------------------------------------
+# This script must run INSIDE a ComfyUI checkout (it imports comfy.ops,
+# comfy.model_detection, ...). COMFY_PATH may be set in the environment, or the
+# first argument may be `--comfy <path>`; there is no default, so a wrong
+# machine cannot silently pick up someone else's tree.
+def _resolve_comfy(argv):
+    import os, sys
+    path = ""
+    if "--comfy" in argv:
+        i = argv.index("--comfy")
+        if i + 1 < len(argv):
+            path = argv[i + 1]
+            del argv[i:i + 2]
+    if not path:
+        path = os.environ.get("COMFY_PATH", "")
+    if not path:
+        sys.exit(
+            "error: the ComfyUI root is not set.\n"
+            "  pass --comfy <path> or set COMFY_PATH=<path>\n"
+            "  (the directory must contain comfy/ops.py)")
+    path = os.path.abspath(path)
+    if not os.path.isdir(os.path.join(path, "comfy")):
+        sys.exit("error: %s does not look like a ComfyUI root (no comfy/)" % path)
+    return path
+
+_COMFY_ARGV = list(sys.argv)
+COMFY = _resolve_comfy(_COMFY_ARGV)
+sys.argv = _COMFY_ARGV
+# ---------------------------------------------------------------------------
 if COMFY not in sys.path:
     sys.path.insert(0, COMFY)
 os.chdir(COMFY)
