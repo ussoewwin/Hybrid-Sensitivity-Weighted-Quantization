@@ -69,6 +69,19 @@ The reason universalisation fails here is structural:
    that HSWQ's universal design avoids by being *genuinely* uniform, and that
    cannot be avoided here because the objects are not uniform.
 
+5. **A standard has one model; a UNet family has many.** This is the economic
+   reason the specialised approach is affordable here at all, and it is the
+   single biggest difference from the UNet work. SDXL alone was tested on **30+
+   checkpoints** (every popular merge and finetune is a new target whose ranking
+   must be re-measured); Z-Image likewise across many merges. A text encoder, a
+   ControlNet standard, or a SAM release is **one weight layout per standard** -
+   the standard does not get merged, forked, or re-finetuned into new
+   checkpoints the way an image-generation backbone does. There is nothing to
+   re-measure per checkpoint, so a large *universal engine* - whose whole value
+   is amortising one code path across many checkpoints - has nothing to amortise
+   over. One measurement, one converter, one verification per standard, and the
+   artifact is done.
+
 So the honest description is: **a common written method, applied individually to
 each model.** The *packing mechanics* are shared (Hadamard rotation, per-channel
 INT8, `comfy_quant` stamps, FP16 kept tensors). Everything that decides *what to
@@ -568,9 +581,9 @@ The three outcomes this produces, all measured:
 
 ### Why there is no universal method here
 
-HSWQ's reverse-hybrid engine is a **universal method**: it measures per-layer trajectory sensitivity on the target checkpoint, ranks the layers, and selects FP16 protection inside a fixed budget. That method applies to image-generation backbones (SDXL / SD1.5 / Z Image / Krea2 UNet-DiT), which exist as **many per-checkpoint variants** - the measurement must be redone for every merge / finetune, so a general method pays off.
+HSWQ's reverse-hybrid engine is a **universal method**: it measures per-layer trajectory sensitivity on the target checkpoint, ranks the layers, and selects FP16 protection inside a fixed budget. That method applies to image-generation backbones (SDXL / SD1.5 / Z Image / Krea2 UNet-DiT), which exist as **many per-checkpoint variants** - SDXL alone was tested on **30+ checkpoints**, and every merge or finetune is a new target whose ranking must be re-measured. A general method pays off precisely because there are so many of them.
 
-Text encoders are **not** per-checkpoint models. Each architecture (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3, ...) is a **single standard weight layout** with no per-checkpoint derivation. There is nothing to re-measure per model, so a large universal engine is not justified.
+Text encoders are **not** per-checkpoint models. Each architecture (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3, ...) is a **single standard weight layout** with no per-checkpoint derivation. There is nothing to re-measure per model, so a large universal engine is not justified - the same applies to a ControlNet standard and to a SAM release, and it is why the whole chapter above is a per-model track rather than an application of the engine.
 
 Instead, each text-encoder standard was handled **individually** - but the criterion is no longer static. See **Section: How a pack is selected (the current method)** below: the protection set comes from the measured **aggregate contribution**, the size/quality balance sets the threshold, and the kept tensors are stored FP16. Static kurtosis / outlier-ratio screening is retired as a *criterion*; the per-standard converter scripts under `clip_convert/` implement the current method.
 
