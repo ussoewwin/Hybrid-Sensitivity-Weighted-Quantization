@@ -115,3 +115,6 @@ bench_*.png
 scratch/
 temp/
 tmp/
+
+# the diffsynth guide ships as Markdown + HTML only (no PDF edition)
+md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.pdf
