@@ -341,5 +341,6 @@ consumer GPU; 256 items per acceptance).
 | `clip_convert/convert_qwen_image_diffsynth_patch_impact_convrot_int8.py` | the builder (`--top-k`, FP16 kept) |
 | `sdxl/verify_qwen_image_diffsynth_patch.py` | the acceptance, module graph built directly |
 | `sdxl/verify_qwen_image_diffsynth_patch_loader.py` | the acceptance through the real HSWQ loader (the path ComfyUI uses) |
+| `md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md` | this guide |
 | `impact/contrib_qwen_image_canny_diffsynth.json` | the contribution (git-ignored) |
 | `impact/verify_qds_256.json`, `impact/verify_qds_loader_both.json` | the acceptance results (git-ignored) |
