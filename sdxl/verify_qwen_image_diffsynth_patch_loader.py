@@ -99,9 +99,13 @@ def load_via_node(node, name):
     return mp.model.to(DEV).eval()
 
 
-def make_batch(seed):
+def make_batch(model, seed):
+    """`img_in` takes `channels * 4` (the 2x2 patch fold), so the control
+    latent's channel count is `img_in.in_features // 4`: canny 16, inpaint 17
+    (16 latent + 1 mask). Read it off the model rather than hardcoding."""
     g = torch.Generator(device="cpu").manual_seed(seed)
-    lat = torch.randn(1, 16, 1, LATENT, LATENT, generator=g).to(DEV, dtype=DT)
+    c = model.img_in.weight.shape[1] // 4
+    lat = torch.randn(1, c, 1, LATENT, LATENT, generator=g).to(DEV, dtype=DT)
     img = torch.randn(1, (LATENT // 2) * (LATENT // 2), 3072, generator=g).to(DEV, dtype=DT)
     return img, lat
 
@@ -174,7 +178,7 @@ def main():
     ck.int8_linear = counted
     try:
         for i in range(N):
-            b = make_batch(SEED + i)
+            b = make_batch(m0, SEED + i)
             ref = block_outputs(m0, *b)
             for j, m in enumerate(models):
                 f = block_outputs(m, *b)
