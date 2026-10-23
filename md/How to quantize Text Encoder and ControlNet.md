@@ -324,6 +324,7 @@ Worked cases (all measured):
 | `Qwen-Image-2512-Fun-Controlnet-Union-2602` | curve rises; all 77 layers eligible | 0 kept (floor, 0.999158) | 1677.2 MB |
 | `Qwen-Image-ControlNet-Inpainting` | curve rises; all 95 layers eligible | 0 kept (floor, 0.999545) | 2022.1 MB |
 | `qwen_image_canny_diffsynth` (model patch) | one step: img_in is 598x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
+| `qwen_image_inpaint_diffsynth` (model patch) | one step: img_in is 147x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
 
 The same rule produces different thresholds because the checkpoints differ -
 which is the whole point of measuring each one.
@@ -360,6 +361,7 @@ falling back to an environment guess.
 | Qwen-Image-2512 Fun ControlNet Union 2602 | `md/QwenImage2512FunControlnetUnion2602_ConvRot_INT8_Impact_Technical_Guide.md` |
 | Qwen-Image ControlNet Inpainting | `md/QwenImageControlNetInpainting_ConvRot_INT8_Impact_Technical_Guide.md` |
 | Qwen-Image diffsynth model patch (canny/depth/inpaint) | `md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md` |
+| Qwen-Image diffsynth model patch (inpaint) | `md/QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md` |
 | the CLIP / TE index and thresholds | `md/ConvRot_INT8_TextEncoder_Index.md` |
 | FLUX ControlNet Union Pro 2.0 | `md/FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md` |
 | SAM 3.1 | `md/SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` |
