@@ -110,13 +110,25 @@ def build_patch(sd, ops):
     return model
 
 
-def make_batch(seed):
+def latent_channels(model):
+    """The control latent's channel count, read off the checkpoint.
+
+    `img_in` takes `latent_channels * 4` (the 2x2 patch fold), so
+    `channels = img_in.in_features // 4`. canny: 16 (64/4). inpaint: 17 (68/4),
+    i.e. 16 latent + 1 mask - the same `additional_in_dim` split the loader
+    reads."""
+    inf = model.img_in.weight.shape[1]
+    return inf // 4
+
+
+def make_batch(model, seed):
     """The two tensors the runtime holds: the DiT hidden state and the raw
     control latent. The control latent is 5D for the Wan21 format
     ([B, C, T, H, W]); a 64x64 latent over a 2x2 patch grid gives 1024 control
     tokens, and the DiT carries 256 text tokens alongside them."""
     g = torch.Generator(device="cpu").manual_seed(seed)
-    lat = torch.randn(1, 16, 1, LATENT, LATENT, generator=g).to(DEV, dtype=DT)
+    c = latent_channels(model)
+    lat = torch.randn(1, c, 1, LATENT, LATENT, generator=g).to(DEV, dtype=DT)
     # the runtime hands `control_block` the DiT hidden state sliced to the
     # control length (``img[:, :encoded.shape[1]]``), so the two operands match
     img = torch.randn(1, (LATENT // 2) * (LATENT // 2), 3072, generator=g).to(DEV, dtype=DT)
@@ -176,7 +188,7 @@ def main():
     print("[1] the patch: %d tensors" % len(sd), flush=True)
     model = build_patch(sd, O.manual_cast)
 
-    batches = [make_batch(a.seed + i) for i in range(a.n)]
+    batches = [make_batch(model, a.seed + i) for i in range(a.n)]
     ref = [block_outputs(model, *b) for b in batches]
     fin = all(bool(torch.isfinite(r).all()) for r in ref[0])
     print("[1] the baseline: %d blocks x %s finite=%s" % (
