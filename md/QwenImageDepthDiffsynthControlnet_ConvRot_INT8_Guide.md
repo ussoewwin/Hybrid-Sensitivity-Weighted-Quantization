@@ -6,7 +6,7 @@
 > This guide carries the measured numbers for this checkpoint.
 
 **Checkpoint.** `models/model_patches/qwen_image_depth_diffsynth_controlnet.safetensors` (2161.8 MB, BF16, 362 tensors)
-**Pack.** `models/model_patches/qwen_image_depth_diffsynth_controlnet_convrot_int8.safetensors` (1083.3 MB, **−49.9 %**)
+**Pack.** `models/model_patches/qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8.safetensors` (1083.3 MB, **−49.9 %**)
 **SHA256.** `7B82A9360169FA99524C03BCF913CE63713930174AD1FC332E553E5646BAD44C`
 
 The `canny` and `inpaint` siblings share this architecture and the same load
