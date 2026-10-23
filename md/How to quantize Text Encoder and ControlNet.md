@@ -234,7 +234,28 @@ git clone https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools.git
 Use the **`HSWQ Load ControlNet (Simple)`** node to load the generated `.safetensors` checkpoint directly into your generation graph.
 
 ### Model Patch (model patcher) Models
-Quantized Model Patches (e.g. Z-Image Fun ControlNet from `models/model_patches/`) are loaded with the **`HSWQ Load Model Patch (ConvRot INT8)`** node (`comfyui_nodes/hswq_model_patch_loader.py`). It mirrors the stock `ModelPatchLoader` dispatch but selects quant-aware `MixedPrecisionOps` when `int8_tensorwise` `comfy_quant` layers are detected, so weights stay INT8 in VRAM. For non-quantized checkpoints it delegates to the stock `Load Model Patch` node. The returned `MODEL_PATCH` plugs into the standard apply nodes (`Apply Z-Image Fun ControlNet`, etc.).
+Some files that are named "ControlNet" are in fact **model patches**. They live
+in `ComfyUI/models/model_patches/` and are applied by dedicated apply nodes, not
+by `Apply ControlNet`. **ComfyUI's stock `ModelPatchLoader` does not recognise
+the INT8 layout** - it builds the patch with `manual_cast`, which reads the
+pack's INT8 tensors as plain weights. Use the **`HSWQ Model Patch Loader`**
+(`HSWQModelPatchLoaderCustom`, `nodes/hswq_model_patch_loader.py`): it detects
+the `int8_tensorwise` `comfy_quant` layers and builds the patch with
+`mixed_precision_ops`, so weights stay INT8 in VRAM and the forward uses the
+comfy-kitchen `int8_linear` kernel. For non-quantized checkpoints it delegates to
+the stock path.
+
+Two architectures are dispatched this way:
+
+| the discriminator key | the class | the apply node |
+| :--- | :--- | :--- |
+| `control_all_x_embedder.2-1.weight` | `comfy.ldm.lumina.controlnet.ZImage_Control` | `ZImageFunControlnet` |
+| `controlnet_blocks.0.y_rms.weight` | `comfy_extras.nodes_model_patch.QwenImageBlockWiseControlNet` | `QwenImageDiffsynthControlnet` |
+
+The returned `MODEL_PATCH` plugs into the matching apply node. For the Qwen-Image
+diffsynth patches the apply path is `DiffSynthCnetPatch` (per DiT block:
+`img[:, :n] += model.control_block(img[:, :n], cond, i) * strength`), which is
+what Rule 8's per-block observable mirrors.
 
 ### Text Encoders (CLIP / TE)
 Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. Llama-family encoders (Qwen3 / Qwen3-VL) self-detect the quantized layers; the OpenAI CLIP family needs the pack's `quantization_metadata` injected by the loader. See [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) for the recommended packs.
@@ -277,9 +298,16 @@ academic - on FLUX ControlNet the same 54 INT8 layers reached min 0.999160 by
 drift selection and 0.999698 by contribution selection; on SAM 3.1 the
 drift-selected set was 286x worse in relMSE.
 
-ControlNet is the exception in a useful way: its metric is the **trajectory
-drift of the denoising latent**, which is already an aggregate-output
-measurement, so no separate contribution pass is needed.
+The instrument differs with the family, and the rule is that **the criterion is
+whatever the runtime actually consumes**:
+
+| the family | the aggregate-output observable |
+| :--- | :--- |
+| an SDXL ControlNet | the **trajectory drift of the denoising latent** - already an aggregate-output measurement, so no separate contribution pass is needed |
+| a Qwen-Image ControlNet (`load_controlnet_qwen_fun` / `_instantx`) | the **control model's own output** over 8 seeds - `load_controlnet` returns per-block residuals, and the model needs a base only for its entry path |
+| a Qwen-Image diffsynth model patch | the **patch's own output** over 8 seeds, scored **per block** (see Rule 8) |
+| a Z-Image Fun ControlNet patch | the **denoising trajectory** of the Z-Image DiT with the patch applied (the real pipeline) |
+| a text encoder / CLIP / standalone tower | the **tower's own output** for fixed inputs |
 
 ### Rule 3 — the gate must use the same instrument as the selection
 
@@ -290,6 +318,16 @@ If the protection set is chosen on the trajectory, the gate is measured on the
 the differences between neighbouring thresholds - so it cannot place the knee.
 `sdxl/verify_controlnet_sdxl_traj.py` runs the trajectory over several seeds
 for this reason.
+
+Conversely, when the criterion is the model **patch's** own output, the gate is
+that same output, measured through the **loader the runtime uses** - not a
+hand-built module graph. For the Qwen-Image diffsynth patches that means
+driving `HSWQModelPatchLoaderCustom.load_model_patch`, and it matters: the stock
+`ModelPatchLoader` would read the INT8 tensors as plain weights and the pack
+would look like FP16. Two harnesses exist for this and both must agree
+(`sdxl/verify_qwen_image_diffsynth_patch.py` builds the graph directly;
+`..._loader.py` goes through the node) - measured agreement is exact to 10
+decimals.
 
 ### Rule 4 — the threshold is chosen on the size/quality balance
 
@@ -326,6 +364,8 @@ Worked cases (all measured):
 | `qwen_image_canny_diffsynth` (model patch) | one step: img_in is 598x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
 | `qwen_image_inpaint_diffsynth` (model patch) | one step: img_in is 147x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
 | `qwen_image_depth_diffsynth` (model patch) | one step: img_in is 376x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
+| `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602` (model patch) | all 38 layers eligible, trajectory 0.9999 | 0 kept (floor, trajectory min 0.999491) | 963.0 MB |
+| `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601` (model patch) | all 38 layers eligible, trajectory 0.9999 | 0 kept (floor, trajectory min 0.999813) | 963.0 MB |
 
 The same rule produces different thresholds because the checkpoints differ -
 which is the whole point of measuring each one.
@@ -354,6 +394,37 @@ Public code carries no machine-specific absolute paths. Resolve from
 `Path(__file__).resolve().parent` and stop with an explicit error rather than
 falling back to an environment guess.
 
+### Rule 8 - the observable is what the runtime injects
+
+A family whose output is a **list of control residuals** must be scored as a
+list, not as a concatenated vector, and the arithmetic must be float64. Both are
+forced by the runtime, and both were measured.
+
+- **Score per block, then average.** The apply node injects each block's residual
+  at that block, so the 60 residuals are 60 independent contributions. Pooling
+  them into one concatenation lets the largest block's norm decide the whole
+  number and hides the rest.
+- **float64 is required.** The residuals run to ~3e5 in magnitude, so a float32
+  dot product over 47,185,920 elements accumulates ~1e-3 of rounding noise -
+  larger than the entire signal (the most important layer measures ~6e-06, the
+  smallest ~2.2e-09). The first Qwen-Image diffsynth run in float32 returned
+  every value **negative**.
+- **`cond` must be recomputed inside the perturbation loop.** `cond` is produced
+  by `process_input_latent_image`, which runs through `img_in` - itself one of
+  the layers under test. Precomputing it once understates `img_in`'s
+  contribution by an order of magnitude.
+- **Derive shape parameters from the checkpoint, not from a sibling.** The
+  Qwen-Image diffsynth family splits on the control latent's channel count:
+  canny and depth are 16 channels (`img_in` width 64, `additional_in_dim = 0`),
+  inpaint is 17 (`img_in` width 68, `additional_in_dim = 4`). Read it as
+  `img_in.in_features // 4`; a hardcoded 16 raises
+  `mat1 and mat2 shapes cannot be multiplied (1024x64 and 68x3072)`.
+
+The measured result of this rule is the **single-step** curve: on all three
+Qwen-Image diffsynth patches one layer (`img_in`) carries 80-86 % of the summed
+contribution and is 147x to 598x the runner-up, so protecting it alone converts
+a 3.5e-05 .. 5.4e-05 error into 5e-08 for under 0.2 MB.
+
 ### Cross-references
 
 | topic | guide |
@@ -364,10 +435,60 @@ falling back to an environment guess.
 | Qwen-Image diffsynth model patch (canny/depth/inpaint) | `md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md` |
 | Qwen-Image diffsynth model patch (inpaint) | `md/QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md` |
 | Qwen-Image diffsynth model patch (depth) | `md/QwenImageDepthDiffsynthControlnet_ConvRot_INT8_Guide.md` |
+| Z-Image Fun ControlNet model patch (Union / Tile) | `md/ZImageTurboFunControlnet_ConvRot_INT8_ModelPatch_Guide.md` |
 | the CLIP / TE index and thresholds | `md/ConvRot_INT8_TextEncoder_Index.md` |
 | FLUX ControlNet Union Pro 2.0 | `md/FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md` |
 | SAM 3.1 | `md/SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` |
 | per-model guides (CLIP-L, bigG, H-14, ViT-L, Qwen3-VL, T5, SAE, Long-ViT) | `md/*_ConvRot_INT8_Impact_Technical_Guide.md` |
+
+---
+
+## Finished packs - ControlNet and model patches
+
+Every pack below is a real file with the measured gate in it. Sizes are **MiB**
+(1 MB = 2\^20 bytes), the same unit as the text-encoder table; the SHA256 column
+carries the pack's first 16 hex characters, full hash in the per-model guide.
+
+| Pack | Family | Runtime object | Directory | the gate (measured) | Size | SHA256 (first 16) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `CN-anytest4_illustrious2_A_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.999626 (forward) | 1359.1 MB | `BE9FF80B2F489568` |
+| `CN-anytest4_illustrious2_B_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.992958 / 0.948279 (trajectory) | 1357.5 MB | `7E34DC3CC3334AFA` |
+| `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8` | SDXL 1.0 | ControlNet | `models/controlnet/` | 0.999961 | 1368.8 MB | `DCDF6F2037205C4A` |
+| `FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8` | FLUX.1-dev | ControlNet | `models/controlnet/` | 0.999771 / 0.999488 | 2585.1 MB | `FBCBA3C76A221FBA` |
+| `Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8` | Qwen-Image-2512 | ControlNet | `models/controlnet/` | 0.999158 / 0.998215 | 1677.2 MB | `5AEC39A53F583BAD` |
+| `Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8` | Qwen-Image | ControlNet | `models/controlnet/` | 0.999545 / 0.998887 | 2022.1 MB | `38F0AB7495029517` |
+| `qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924905 / 0.9999924096 | 1083.3 MB | `C2899255252B81FD` |
+| `qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
+| `qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999921236 / 0.9999919542 | 1083.3 MB | `471B6AFFC7FCEDAF` |
+| `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8` | Z-Image-Turbo | **model patch** | `models/model_patches/` | 0.999862 / 0.999491 (trajectory) | 963.0 MB | `1DD12B2D028B12DF` |
+| `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8` | Z-Image-Turbo | **model patch** | `models/model_patches/` | 0.999956 / 0.999813 (trajectory) | 963.0 MB | `2998F83EF65903B4` |
+
+**The directory column is not cosmetic.** A ControlNet in `model_patches/` (or
+vice versa) does not load. The "model patch" rows go through the **HSWQ Model
+Patch Loader**; the plain rows go through the ControlNet loader.
+
+Published on Hugging Face:
+
+- **[ussoewwin/ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8)** - the eleven packs above.
+- **[ussoewwin/Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8)** - the text-encoder packs (see the next section).
+- **[ussoewwin/SAM3.1-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/SAM3.1-HSWQ-ConvRot-INT8)** - the SAM 3.1 pack.
+
+### The one-line summary of the method
+
+For each family: build a fixed input set, measure the **aggregate contribution**
+of every ConvRot-eligible layer (`1 - cos` of the runtime's observable, in the
+original injection frame, with the runtime's own arithmetic), keep the layers
+that the **size/quality balance** pays for in FP16, store every kept tensor FP16,
+and verify the **complete pack** through the actual loader on a fixed 256-item
+set (seed 42) whose gate is `cos.mean >= 0.99` and `cos.min >= 0.98`.
+
+The three outcomes this produces, all measured:
+
+| the shape of the curve | what it means | the examples |
+| :--- | :--- | :--- |
+| a **flat** curve | no layer stands out; take the smallest satisfying pack | `controlnet-union-pro-max-sdxl-1.0` |
+| a **single step** | one entry layer carries most of the contribution; protect it and stop | the three Qwen-Image diffsynth patches |
+| a **floor** | every eligible layer is safe at INT8; protect nothing | `Qwen-Image-2512-Fun-Controlnet-Union-2602`, `Qwen-Image-ControlNet-Inpainting`, the two Z-Image patches |
 
 ---
 
