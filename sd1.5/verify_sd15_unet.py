@@ -18,7 +18,35 @@ import os
 import statistics
 import sys
 
-COMFY = os.environ.get("COMFY_PATH", r"D:\USERFILES\ComfyUI\ComfyUI")
+# --- the ComfyUI root ------------------------------------------------------
+# This script must run INSIDE a ComfyUI checkout (it imports comfy.ops,
+# comfy.model_detection, ...). COMFY_PATH may be set in the environment, or the
+# first argument may be `--comfy <path>`; there is no default, so a wrong
+# machine cannot silently pick up someone else's tree.
+def _resolve_comfy(argv):
+    import os, sys
+    path = ""
+    if "--comfy" in argv:
+        i = argv.index("--comfy")
+        if i + 1 < len(argv):
+            path = argv[i + 1]
+            del argv[i:i + 2]
+    if not path:
+        path = os.environ.get("COMFY_PATH", "")
+    if not path:
+        sys.exit(
+            "error: the ComfyUI root is not set.\n"
+            "  pass --comfy <path> or set COMFY_PATH=<path>\n"
+            "  (the directory must contain comfy/ops.py)")
+    path = os.path.abspath(path)
+    if not os.path.isdir(os.path.join(path, "comfy")):
+        sys.exit("error: %s does not look like a ComfyUI root (no comfy/)" % path)
+    return path
+
+_COMFY_ARGV = list(sys.argv)
+COMFY = _resolve_comfy(_COMFY_ARGV)
+sys.argv = _COMFY_ARGV
+# ---------------------------------------------------------------------------
 if COMFY not in sys.path:
     sys.path.insert(0, COMFY)
 os.chdir(COMFY)
@@ -46,7 +74,6 @@ if os.path.isdir(NODE):
 
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 DT = torch.float16
-N = int(os.environ.get("SD15_N", "256"))
 SEED = 42
 LATENT = 64
 UNET_PREFIX = "model.diffusion_model."
@@ -88,19 +115,31 @@ def unet_output(model, x, ts, context):
 
 
 def main():
-    args = sys.argv[1:]
-    src = args[0]
-    packs = args[1:]
+    argv = sys.argv[1:]
+    n = 256
+    out_path = ""
+    rest = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--n" and i + 1 < len(argv):
+            n = int(argv[i + 1]); i += 2; continue
+        if argv[i] == "--out" and i + 1 < len(argv):
+            out_path = argv[i + 1]; i += 2; continue
+        rest.append(argv[i]); i += 1
+    if len(rest) < 2:
+        sys.exit("usage: verify_sd15_unet.py --comfy <root> <source.ckpt> <pack> [<pack> ...] [--n 256] [--out results.json]")
+    src = rest[0]
+    packs = rest[1:]
 
     ops = O.mixed_precision_ops(
         {"int8_tensorwise": comfy.quant_ops.QUANT_ALGOS["int8_tensorwise"]}, DT,
         full_precision_mm=False, disabled=[])
     print("the arm: %s | the items: %d" % (
-        getattr(O, "_hswq_int8_gemm_patched", False), N), flush=True)
+        getattr(O, "_hswq_int8_gemm_patched", False), n), flush=True)
 
     print("[1] the baseline (the same ops path) ...", flush=True)
     m0 = build_unet(src, ops)
-    batches = [make_inputs(SEED + i) for i in range(N)]
+    batches = [make_inputs(SEED + i) for i in range(n)]
     ref = [unet_output(m0, *b) for b in batches]
     print("    the reference: %s finite=%s" % (
         tuple(ref[0].shape), bool(torch.isfinite(ref[0]).all())), flush=True)
@@ -124,7 +163,7 @@ def main():
         ck.int8_linear = counted
         cs, fin = [], True
         try:
-            for i in range(N):
+            for i in range(n):
                 f = unet_output(model, *batches[i])
                 if not torch.isfinite(f).all():
                     fin = False
@@ -146,10 +185,9 @@ def main():
             cnt[0], fin, rec["cos_mean"], rec["cos_min"], rec["p5"], rec["file_mb"],
             "PASS" if rec["pass"] else "FAIL"), flush=True)
 
-    out = os.environ.get("SD15_OUT")
-    if out:
-        json.dump(results, open(out, "w", encoding="utf-8"), indent=1)
-        print("saved: %s" % out)
+    if out_path:
+        json.dump(results, open(out_path, "w", encoding="utf-8"), indent=1)
+        print("saved: %s" % out_path)
     print()
     print("  %-30s %6s %8s %10s %10s %10s" % ("pack", "INT8", "int8", "mean", "min", "MB"))
     for r in results:
