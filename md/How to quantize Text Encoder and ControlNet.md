@@ -322,6 +322,7 @@ Worked cases (all measured):
 | `sigclip_vision_patch14_384` | 100 kept: 731.7 MB / 0.999715 | 20 kept (0.996794) | 502.9 MB |
 | `Qwen2.5-VL-7B` | 150 kept: 12650.0 MB / 0.999496 | 40 kept (0.999325) | 9289.6 MB |
 | `Qwen-Image-2512-Fun-Controlnet-Union-2602` | curve rises; all 77 layers eligible | 0 kept (floor, 0.999158) | 1677.2 MB |
+| `Qwen-Image-ControlNet-Inpainting` | curve rises; all 95 layers eligible | 0 kept (floor, 0.999545) | 2022.1 MB |
 
 The same rule produces different thresholds because the checkpoints differ -
 which is the whole point of measuring each one.
@@ -356,6 +357,7 @@ falling back to an environment guess.
 | :--- | :--- |
 | the per-checkpoint ControlNet numbers | `md/ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` |
 | Qwen-Image-2512 Fun ControlNet Union 2602 | `md/QwenImage2512FunControlnetUnion2602_ConvRot_INT8_Impact_Technical_Guide.md` |
+| Qwen-Image ControlNet Inpainting | `md/QwenImageControlNetInpainting_ConvRot_INT8_Impact_Technical_Guide.md` |
 | the CLIP / TE index and thresholds | `md/ConvRot_INT8_TextEncoder_Index.md` |
 | FLUX ControlNet Union Pro 2.0 | `md/FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md` |
 | SAM 3.1 | `md/SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` |
