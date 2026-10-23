@@ -115,20 +115,26 @@ def convert(input_path, output_path, contrib_json, top_k):
 
     h = build_hadamard(GROUP_SIZE)
     out, meta_layers = {}, {}
-    n_lin = n_prot = n_kept = n_clip = 0
+    n_lin = n_prot = n_kept = n_clip = n_vae_dropped = 0
     for name in sorted(src):
         t = src[name]
+        if name.startswith("first_stage_model."):
+            # the VAE is dropped entirely (this delivery ships UNet + CLIP only)
+            n_vae_dropped += 1
+            continue
         if not name.startswith(UNET_PREFIX):
-            # CLIP and VAE pass through untouched (CLIP is not quantized)
+            # CLIP passes through untouched (it is not quantized)
             if name.startswith("cond_stage_model."):
                 n_clip += 1
             out[name] = t
             n_kept += 1
             continue
-        # Only 2D Linear can run as INT8: `comfy_kitchen` exposes `int8_linear`
-        # and no INT8 conv kernel, so an INT8 Conv2d weight reaches a float conv
-        # and produces NaN. Conv2d therefore stays FP16.
-        if not (name.endswith(".weight") and t.ndim == 2):
+        # Linear AND Conv2d both go INT8. comfy_kitchen has no int8_conv, but the
+        # HSWQ loader's `_patch_ops_decode_and_conv()` installs the Conv2d path
+        # (dequant + online activation rotate). Running an INT8 Conv2d pack
+        # WITHOUT that arm is what produced NaN earlier - the pack was fine, the
+        # harness was not.
+        if not (name.endswith(".weight") and t.ndim in (2, 4)):
             out[name] = t.to(torch.float16) if t.is_floating_point() else t
             n_kept += 1
             continue
@@ -146,7 +152,7 @@ def convert(input_path, output_path, contrib_json, top_k):
             continue
         hh = h if gs == GROUP_SIZE else build_hadamard(gs)
         w = t.float()
-        rot = rotate_linear(w, hh, gs)
+        rot = rotate_linear(w, hh, gs) if t.ndim == 2 else rotate_conv(w, hh, gs)
         q, scale = quant_rowwise(rot)
         n_lin += 1
         conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": gs}
@@ -160,7 +166,8 @@ def convert(input_path, output_path, contrib_json, top_k):
     save_file(out, output_path, metadata=metadata)
     print("  the ConvRot INT8: %d" % n_lin)
     print("  the protected (FP16 kept 2D/4D): %d" % n_prot)
-    print("  the untouched (CLIP/VAE/1D): %d (of which CLIP %d)" % (n_kept, n_clip))
+    print("  the untouched (CLIP/1D): %d (of which CLIP %d)" % (n_kept, n_clip))
+    print("  the VAE tensors DROPPED: %d" % n_vae_dropped)
     print("  the output: %.1f MB" % (os.path.getsize(output_path) / 1024 ** 2))
 
 
