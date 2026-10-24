@@ -157,6 +157,29 @@ def _encode(config):
 # it) - so the two functions are carried here, unchanged, and this file is
 # self-contained.
 # --------------------------------------------------------------------------
+def count_blocks(state_dict_keys, prefix_string):
+    count = 0
+    while True:
+        c = False
+        for k in state_dict_keys:
+            if k.startswith(prefix_string.format(count)):
+                c = True
+                break
+        if c == False:
+            break
+        count += 1
+    return count
+
+
+def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
+    transformer_prefix = prefix + "1.transformer_blocks."
+    transformer_keys = sorted(list(filter(lambda a: a.startswith(transformer_prefix), state_dict_keys)))
+    if len(transformer_keys) > 0:
+        last_transformer_depth = count_blocks(state_dict_keys, transformer_prefix + '{}')
+        return last_transformer_depth
+    return 0
+
+
 def detect_unet_config_from_keys(state_dict, key_prefix="model.diffusion_model."):
     state_dict_keys = list(state_dict.keys())
     filtered_keys = [k for k in state_dict_keys if k.startswith(key_prefix)]
