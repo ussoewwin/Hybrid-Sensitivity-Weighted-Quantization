@@ -68,6 +68,12 @@ pip install diffusers accelerate scikit-image
 - **Text Encoder / ControlNet / Model Patch (individually built, per-model track):** [How to quantize Text Encoder, ControlNet and SAM 3 / 3.1](md/How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md) - the **per-model track**, outside the HSWQ universal engine: each model's protection set comes from a measured aggregate contribution (Rules 1-8), verified through the loader the runtime uses on a fixed 256-item set. Carries the finished text-encoder, ControlNet and model-patch packs with their measured gates, and the finished-pack inventory (family / runtime object / directory / SHA256).
 - **ControlNet & SAM 3 / 3.1 (native ConvRot INT8):** [How to quantize Text Encoder, ControlNet and SAM 3 / 3.1](md/How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md) - ComfyUI custom node (`TE / ControlNet ConvRot INT8 Quantize`, `HSWQ SAM3 Loader`) in-graph quantization guide for ControlNet / ControlNet Union / Model Patch models and Segment Anything foundation models (SAM 3 / SAM 3.1 Multiplex).
 
+**Benchmark results:**
+- **SDXL (ConvRot INT8):** [trajectory (25 seeds)](benchmark%20result/benchmark_sdxl_int8.md)
+- **Krea2 (ConvRot INT8):** [trajectory (25 seeds)](benchmark%20result/benchmark_krea2_int8.md)
+- **Z Image (Hybrid NVFP4):** [trajectory (20 seeds)](benchmark%20result/benchmark_zi_nvfp4.md)
+- **SD1.5 (ConvRot INT8):** [trajectory (25 seeds)](benchmark%20result/benchmark_sd1.5_int8.md)
+
 ---
 
 ## Overview
