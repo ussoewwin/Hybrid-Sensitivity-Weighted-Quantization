@@ -72,6 +72,7 @@ pip install diffusers accelerate scikit-image
 - **SDXL (ConvRot INT8):** [trajectory (25 seeds)](benchmark%20result/benchmark_sdxl_int8.md)
 - **Krea2 (ConvRot INT8):** [trajectory (25 seeds)](benchmark%20result/benchmark_krea2_int8.md)
 - **Z Image (Hybrid NVFP4):** [trajectory (20 seeds)](benchmark%20result/benchmark_zi_nvfp4.md)
+- **SD1.5 (ConvRot INT8):** [trajectory (25 seeds)](benchmark%20result/benchmark_sd1.5_int8.md)
 
 ---
 
