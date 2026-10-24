@@ -29,7 +29,7 @@ Rules:
      (`(O,1)` for 2D, `(O,1,1,1)` for 4D).
 
 Usage:
-  python sd1.5/build_sd15_unet_convrot_int8.py \
+  python sd1.5/quantize_sd1.5_hswq_v1.1.py \
       --input <checkpoint>.safetensors --output <pack>.safetensors \
       --contrib impact/contrib_sd15_unet.json --top-k 80 \
       [--comfy <ComfyUI root> --bias_correction]

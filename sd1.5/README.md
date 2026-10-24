@@ -7,7 +7,7 @@ no machine-specific default and no required environment variable.
 | file | role |
 | :--- | :--- |
 | `measure_sd15_unet_contrib.py` | **the criterion.** Ranks all ConvRot-eligible layers by their aggregate contribution to the UNet's own output. |
-| `build_sd15_unet_convrot_int8.py` | **the builder.** Writes the pack: the top-K layers stay FP16, everything else goes ConvRot INT8. CLIP is copied through, the VAE is dropped. |
+| `quantize_sd1.5_hswq_v1.1.py` | **the builder.** Writes the pack: the top-K layers stay FP16, everything else goes ConvRot INT8. CLIP is copied through, the VAE is dropped. |
 | `verify_sd15_loader.py` | **the acceptance, through the real loader.** `load_checkpoint_sd15_hswq_weight_dtype` - the only route that enables the Conv2d INT8 path. |
 | `verify_sd15_unet.py` | the acceptance with a hand-built module graph (diagnostic only - see the warning below). |
 | `quantize_sd1.5_hswq_v1.0.py` | the **previous** selector (static histogram + MSE + SVD). Kept for comparison. |
@@ -85,7 +85,7 @@ $py = "<ComfyUI>/python_embeded/python.exe"      # or any python with torch + th
     --n 8
 
 # 2. the builder (top-K kept FP16; VAE dropped; CLIP copied through)
-& $py sd1.5/build_sd15_unet_convrot_int8.py `
+& $py sd1.5/quantize_sd1.5_hswq_v1.1.py `
     --input   "<SRC>" `
     --output  impact/_work/sd15_k20.safetensors `
     --contrib impact/contrib_sd15_unet.json `
@@ -103,7 +103,7 @@ $py = "<ComfyUI>/python_embeded/python.exe"      # or any python with torch + th
 Every script accepts `--comfy <path>`; `COMFY_PATH` in the environment is also
 honoured, but nothing defaults to a machine-specific tree.
 
-`measure_sd15_unet_contrib.py` and `build_sd15_unet_convrot_int8.py` take their
+`measure_sd15_unet_contrib.py` and `quantize_sd1.5_hswq_v1.1.py` take their
 own `--ckpt` / `--input`; `build` does **not** need ComfyUI at all (it is pure
 tensor arithmetic over the safetensors file).
 
