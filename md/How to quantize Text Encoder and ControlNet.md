@@ -512,22 +512,43 @@ a 3.5e-05 .. 5.4e-05 error into 5e-08 for under 0.2 MB.
 
 ### Cross-references
 
-| topic | guide |
-| :--- | :--- |
-| the per-checkpoint ControlNet numbers | `md/ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` |
-| Qwen-Image-2512 Fun ControlNet Union 2602 | `md/QwenImage2512FunControlnetUnion2602_ConvRot_INT8_Impact_Technical_Guide.md` |
-| Qwen-Image ControlNet Inpainting | `md/QwenImageControlNetInpainting_ConvRot_INT8_Impact_Technical_Guide.md` |
-| Qwen-Image diffsynth model patch (canny/depth/inpaint) | `md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md` |
-| Qwen-Image diffsynth model patch (inpaint) | `md/QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md` |
-| Qwen-Image diffsynth model patch (depth) | `md/QwenImageDepthDiffsynthControlnet_ConvRot_INT8_Guide.md` |
-| Z-Image Fun ControlNet model patch (Union / Tile) | `md/ZImageTurboFunControlnet_ConvRot_INT8_ModelPatch_Guide.md` |
-| the CLIP / TE index and thresholds | `md/ConvRot_INT8_TextEncoder_Index.md` |
-| FLUX ControlNet Union Pro 2.0 | `md/FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md` |
-| SAM 3.1 | `md/SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md` |
-| per-model guides (CLIP-L, bigG, H-14, ViT-L, Qwen3-VL, T5, SAE, Long-ViT) | `md/*_ConvRot_INT8_Impact_Technical_Guide.md` |
+Every per-model guide for this chapter, one link per artifact. The guides carry the measured numbers; the rules above carry the method.
+
+**Text encoders**
+
+- [CLIP-L](CLIPL_ConvRot_INT8_Impact_Technical_Guide.md)
+- [CLIP-L verification log](CLIPL_ConvRot_INT8_Verification_Log.md)
+- [CLIP ViT-bigG/14](CLIPBiGG_ConvRot_INT8_Impact_Technical_Guide.md)
+- [CLIP ViT-H/14](CLIPViTH14_ConvRot_INT8_Impact_Technical_Guide.md)
+- [OpenAI CLIP ViT-L/14 (SAE)](SAEViTL14_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Long-ViT-L/14](LongViTL14_ConvRot_INT8_Impact_Technical_Guide.md)
+- [ViT-L/14 (HF layout)](ViTL14_ConvRot_INT8_Impact_Technical_Guide.md)
+- [ViT-L/14 runbook](ViTL14_ConvRot_INT8_Runbook.md)
+- [ViT-L/14 verification report](ViTL14_ConvRot_INT8_Verification_Report.md)
+- [SigLIP vision 384](SigLIPVision384_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Flan-T5-XXL](T5XXL_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Josiefied-Qwen3-0.6B](JosiefiedQwen3_06B_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Qwen3-4B](Qwen3_4B_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Qwen3-VL-4B](Qwen3VL4B_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Qwen2.5-VL-7B](Qwen25VL7B_ConvRot_INT8_Impact_Technical_Guide.md)
+- [the text-encoder index (all thresholds in one place)](ConvRot_INT8_TextEncoder_Index.md)
+
+**ControlNets and model patches**
+
+- [the per-checkpoint ControlNet numbers (SDXL / Illustrious)](ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md)
+- [FLUX.1-dev ControlNet Union Pro 2.0](FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Qwen-Image-2512 Fun ControlNet Union 2602](QwenImage2512FunControlnetUnion2602_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Qwen-Image ControlNet Inpainting](QwenImageControlNetInpainting_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Qwen-Image diffsynth model patch (canny)](QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md)
+- [Qwen-Image diffsynth model patch (depth)](QwenImageDepthDiffsynthControlnet_ConvRot_INT8_Guide.md)
+- [Qwen-Image diffsynth model patch (inpaint)](QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md)
+- [Z-Image Fun ControlNet model patch (Union / Tile)](ZImageTurboFunControlnet_ConvRot_INT8_ModelPatch_Guide.md)
+
+**SAM**
+
+- [SAM 3.1 Multiplex](SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md)
 
 ---
-
 ## Finished packs - ControlNet and model patches
 
 Every pack below is a real file with the measured gate in it. Sizes are **MiB**
@@ -581,7 +602,7 @@ The three outcomes this produces, all measured:
 
 ### Why there is no universal method here
 
-HSWQ's reverse-hybrid engine is a **universal method**: it measures per-layer trajectory sensitivity on the target checkpoint, ranks the layers, and selects FP16 protection inside a fixed budget. That method applies to image-generation backbones (SDXL / SD1.5 / Z Image / Krea2 UNet-DiT), which exist as **many per-checkpoint variants** - SDXL alone was tested on **30+ checkpoints**, and every merge or finetune is a new target whose ranking must be re-measured. A general method pays off precisely because there are so many of them.
+HSWQ's reverse-hybrid engine is a **universal method**: it measures per-layer trajectory sensitivity on the target checkpoint, ranks the layers, and selects FP16 protection inside a fixed budget. That method applies to image-generation backbones (SDXL / Z Image / Krea2 UNet-DiT), which exist as **many per-checkpoint variants** - SDXL alone was tested on **30+ checkpoints**, and every merge or finetune is a new target whose ranking must be re-measured. A general method pays off precisely because there are so many of them.
 
 Text encoders are **not** per-checkpoint models. Each architecture (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3, ...) is a **single standard weight layout** with no per-checkpoint derivation. There is nothing to re-measure per model, so a large universal engine is not justified - the same applies to a ControlNet standard and to a SAM release, and it is why the whole chapter above is a per-model track rather than an application of the engine.
 

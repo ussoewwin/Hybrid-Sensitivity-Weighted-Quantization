@@ -62,13 +62,10 @@ def _resolve_comfy(argv):
         sys.exit("error: %s does not look like a ComfyUI root (no comfy/)" % path)
     return path
 
-_COMFY_ARGV = list(sys.argv)
-COMFY = _resolve_comfy(_COMFY_ARGV)
-sys.argv = _COMFY_ARGV
 # ---------------------------------------------------------------------------
-if COMFY not in sys.path:
-    sys.path.insert(0, COMFY)
-os.chdir(COMFY)
+# NOTE: the ComfyUI root is resolved inside main(), AFTER argparse parses - so
+# `--help` prints and a missing value is reported by argparse itself.
+COMFY = ""
 
 import torch  # noqa: E402
 
@@ -182,13 +179,31 @@ def unet_output(model, x, ts, context):
     return out.detach().float().double().reshape(-1).cpu()
 
 
+def _bind_comfy(path):
+    """Put the ComfyUI root on sys.path and chdir into it (comfy.* needs both)."""
+    global COMFY
+    path = os.path.abspath(path)
+    if not os.path.isdir(os.path.join(path, "comfy")):
+        sys.exit("error: %s does not look like a ComfyUI root (no comfy/)" % path)
+    COMFY = path
+    if COMFY not in sys.path:
+        sys.path.insert(0, COMFY)
+    os.chdir(COMFY)
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--comfy", default=os.environ.get("COMFY_PATH", ""),
+                    help="ComfyUI root (the directory containing comfy/); "
+                         "defaults to $COMFY_PATH")
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--n", type=int, default=8)
     ap.add_argument("--seed", type=int, default=42)
     a = ap.parse_args()
+    if not a.comfy:
+        ap.error("the ComfyUI root is not set: pass --comfy <path> or set COMFY_PATH")
+    _bind_comfy(a.comfy)
 
     ops = O.manual_cast
     print("[1] the UNet ...", flush=True)
