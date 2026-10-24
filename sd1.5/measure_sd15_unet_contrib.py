@@ -191,19 +191,42 @@ def _bind_comfy(path):
     os.chdir(COMFY)
 
 
+def derive_out_path(ckpt_path, prefix):
+    """Build the output path from the model name, so `--out` is optional.
+
+    `impact/<prefix>_<model stem>.json` - the stem carries the model's own name,
+    so a JSON can always be traced back to the checkpoint it came from, and two
+    checkpoints can never overwrite each other's ranking.
+    """
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    stem = os.path.basename(ckpt_path)
+    for ext in (".safetensors", ".ckpt", ".pt", ".bin"):
+        if stem.endswith(ext):
+            stem = stem[: -len(ext)]
+            break
+    stem = stem.replace(" ", "_")
+    out_dir = os.path.join(repo, "impact")
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, "%s_%s.json" % (prefix, stem))
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--comfy", default=os.environ.get("COMFY_PATH", ""),
                     help="ComfyUI root (the directory containing comfy/); "
                          "defaults to $COMFY_PATH")
     ap.add_argument("--ckpt", required=True)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out", default="",
+                    help="output JSON; default: "
+                         "impact/<prefix>_<model stem>.json derived from --ckpt")
     ap.add_argument("--n", type=int, default=8)
     ap.add_argument("--seed", type=int, default=42)
     a = ap.parse_args()
     if not a.comfy:
         ap.error("the ComfyUI root is not set: pass --comfy <path> or set COMFY_PATH")
     _bind_comfy(a.comfy)
+    if not a.out:
+        a.out = derive_out_path(a.ckpt, "contrib_sd15_unet")
+        print("the output (from the model name): %s" % a.out, flush=True)
 
     ops = O.manual_cast
     print("[1] the UNet ...", flush=True)
