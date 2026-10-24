@@ -3,23 +3,26 @@
 Benchmark comparison: **FP16 reference** vs **ConvRot INT8** output on the SD1.5 UNet family.
 Higher final-cosine is better (1.0 = identical trajectory).
 
-**Source:** `benchmark result/score_sd1.5_int8.txt`
+**Source:** `benchmark result/score_sd1.5_int8.txt` - every number in the Results
+table below is read from that file; nothing is carried over from elsewhere.
 
 **Method:** deterministic per-step latent trajectory divergence, 25 seeds x 25 steps, 512x512, CFG 7.0, `dpmpp_2m` / `karras`. Every run uses the same latent, context and seed schedule, so the only variable is the quantized UNet.
 
-**Checkpoint:** `0.5xxmix9realistic_v40 0.5BRA7` (FP16 source 2033.8 MB)
+**Checkpoint:** `0.5xxmix9realistic_v40 0.5BRA7`
 
-> **K is not a fixed number.** The protected-layer count is chosen **per checkpoint** by measuring this table's own curve: the smallest K whose `final-cos mean` clears the gate without paying for a flat tail. K=80 is what THIS checkpoint measured; another checkpoint will need its own sweep, and the number is expected to differ.
+> **K is not a fixed number.** The protected-layer count is chosen **per checkpoint**
+> by measuring a sweep and taking the point where the mean stops paying for the
+> extra bytes. The two blocks in this file are the adopted pack and the native
+> baseline for this checkpoint; other checkpoints need their own sweep.
 
 ---
 
 ## Results
 
-| Model | Protection | INT8 layers | FP16 kept | final-cos min | final-cos mean | final-cos max | same-image | bifurcated | Size |
-|-------|-----------:|------------:|----------:|--------------:|---------------:|--------------:|-----------:|-----------:|-----:|
-| **HSWQ k80** (trajectory impact) | 80 | 202 | 80 | 0.80943 | **0.97542** | 0.99892 | **16/25** | 0/25 | 1160.4 MB |
-| **HSWQ k80** (single forward) | 80 | 202 | 80 | 0.80943 | **0.97622** | 0.99878 | **18/25** | 0/25 | 1167.5 MB |
-| **native** (no protection) | 0 | 282 | 0 | 0.77574 | 0.96265 | 0.99913 | 13/25 | 0/25 | 1058.6 MB |
+| Model | final-cos min | final-cos mean | final-cos max | same-image | bifurcated | FP16 | INT8 | Speed |
+|-------|--------------:|---------------:|--------------:|-----------:|-----------:|-----:|-----:|------:|
+| **HSWQ k80** (`1on k80`) | 0.80943 | **0.97542** | 0.99892 | **16/25** | 0/25 | 1.70 s | 1.31 s | **+23.2%** |
+| **native** (`native convrot int8`) | 0.77574 | 0.96265 | 0.99913 | 13/25 | 0/25 | 1.71 s | 1.35 s | **+20.8%** |
 
 ---
 
@@ -28,81 +31,82 @@ Higher final-cosine is better (1.0 = identical trajectory).
 Same setup (vs FP16 reference). **HSWQ** vs **native** (naive all-INT8 cast, no protection).
 `Δ` = native − HSWQ (positive Δ mean → HSWQ better, since higher final-cosine is better).
 
-| Model | Protection | HSWQ mean | Native mean | Δ mean | HSWQ same-image | Native same-image | Δ same-image | Winner |
-|-------|-----------:|----------:|------------:|-------:|----------------:|------------------:|-------------:|--------|
-| HSWQ k80 (single forward) | 80 | **0.97622** | 0.96265 | **+0.01357** | **18/25** | 13/25 | **+5** | **HSWQ** |
-| HSWQ k80 (trajectory impact) | 80 | **0.97542** | 0.96265 | **+0.01277** | **16/25** | 13/25 | **+3** | **HSWQ** |
+| Model | HSWQ mean | Native mean | Δ mean | HSWQ same-image | Native same-image | Δ same-image | Δ min | Winner |
+|-------|----------:|------------:|-------:|----------------:|------------------:|-------------:|------:|--------|
+| HSWQ k80 | **0.97542** | 0.96265 | **+0.01277** | **16/25** | 13/25 | **+3** | +0.03369 | **HSWQ** |
 
 **Winner** = better on both mean final-cosine and same-image count.
-
----
-
-## Protection sweep
-
-The protection set comes from a measured per-layer **trajectory impact**: hold every other layer pristine, replace ONE layer by its ConvRot INT8 reconstruction in the original frame, run the same 25-step trajectory, record `rel_mse` against the pristine run. The top-K stay FP16.
-
-**K is measured here, not assumed.** The rows below are this checkpoint's sweep; the adopted K is where the curve stops paying. A different checkpoint produces a different curve and therefore a different K.
-
-| K (protected) | Selection criterion | final-cos mean | same-image | Size | Note |
-|--------------:|---------------------|---------------:|-----------:|-----:|------|
-| 0 (native) | — | 0.96265 | 13/25 | 1058.6 MB | all-INT8 baseline |
-| 40 | trajectory impact | 0.96212 | 14/25 | ~1115 MB | **identical to native - protection buys nothing** |
-| 80 | single forward | **0.97622** | **18/25** | 1167.5 MB | best measured point **for this checkpoint** |
-| 80 | trajectory impact | 0.97542 | 16/25 | 1160.4 MB | ties within noise, 7.1 MB smaller |
-| 100 | single forward | 0.974 | — | 1193.5 MB | **worse AND larger than k80** |
 
 ---
 
 ## Notes
 
 - **final-cos:** cosine similarity between the FP16 and INT8 latent trajectories at the final step. 1.0 = identical.
-- **max-drop:** the largest per-step cosine drop along the trajectory. A sudden large drop (`bifurcated`, threshold 0.05) means the picture became a *different image*, not a degraded one.
+- **max-drop:** the largest per-step cosine drop along the trajectory (per-seed values are in the source txt). A sudden large drop (`bifurcated`, threshold 0.05) means the picture became a *different image*, not a degraded one.
 - **same-image:** `final-cos >= 0.98` **and** not bifurcated.
 - **drifted:** gradual divergence - acceptable at this level.
-- **bifurcated:** 0/25 in every candidate. No candidate ever jumped to a different picture.
-- **Speed:** FP16 1.70-1.71 s/seed → INT8 1.31-1.35 s/seed, **+20.8% to +23.2%**.
+- **bifurcated:** 0/25 in both blocks. Neither candidate ever jumped to a different picture.
+
+---
+
+## Per-seed comparison (from the source txt)
+
+| seed | HSWQ k80 | native | Δ |
+|-----:|---------:|-------:|--:|
+| 42 | 0.99572 | 0.98524 | +0.01048 |
+| 137 | 0.99411 | 0.97665 | +0.01746 |
+| 849 | 0.99865 | 0.96341 | +0.03524 |
+| 2024 | 0.98348 | 0.98124 | +0.00224 |
+| 7391 | 0.98741 | 0.97558 | +0.01183 |
+| 18429 | 0.96387 | 0.96543 | -0.00156 |
+| 53082 | 0.80943 | 0.79762 | +0.01181 |
+| 149206 | 0.98499 | 0.99913 | -0.01414 |
+| 382715 | 0.96260 | 0.96209 | +0.00051 |
+| 826401 | 0.98585 | 0.97448 | +0.01137 |
+| 1938502 | 0.97897 | 0.98035 | -0.00138 |
+| 4710928 | 0.95062 | 0.77574 | **+0.17488** |
+| 8391642 | 0.97884 | 0.98937 | -0.01053 |
+| 15820493 | 0.98530 | 0.97984 | +0.00546 |
+| 36192847 | 0.97011 | 0.95999 | +0.01012 |
+| 71058294 | 0.95238 | 0.95664 | -0.00426 |
+| 128491703 | 0.99093 | 0.98421 | +0.00672 |
+| 285039184 | 0.99352 | 0.98210 | +0.01142 |
+| 491730285 | 0.99153 | 0.99665 | -0.00512 |
+| 762019483 | 0.94085 | 0.91077 | **+0.03008** |
+| 938174026 | 0.99892 | 0.99748 | +0.00144 |
+| 1409285713 | 0.99875 | 0.99244 | +0.00631 |
+| 2683910547 | 0.99177 | 0.98950 | +0.00227 |
+| 3851729406 | 0.99851 | 0.99689 | +0.00162 |
+| 4195820371 | 0.99840 | 0.99338 | +0.00502 |
+
+**25 seeds: HSWQ better on 18, worse on 6, tied within 0.001 on 1.**
 
 ---
 
 ## Analysis & Key Findings
 
-### The criterion decides whether protection works at all
+### Where the gain comes from
 
-The previously shipped **V1.0** selector ranked protection from static weight-space statistics (kurtosis, outlier ratio, absmax, weighted-histogram MSE). Its protection set scored **the same as native** - the protection bought nothing. That was a **criterion** failure, not a quantizer failure: those statistics answer "how much does this layer's weight distort", not "how much does this layer move the output". In a deep UNet, a layer's error is amplified, attenuated or **cancelled** downstream, and a weight-space statistic cannot see that propagation.
+The mean gain is **+0.01277**, and it is not spread evenly. Two seeds carry most of it:
 
-With the measured trajectory impact, the same quantization produces a real gain:
+| seed | native | HSWQ k80 | Δ |
+|-----:|-------:|---------:|--:|
+| 4710928 | 0.77574 | 0.95062 | **+0.17488** |
+| 849 | 0.96341 | 0.99865 | +0.03524 |
+| 762019483 | 0.91077 | 0.94085 | +0.03008 |
 
-- **native 0.96265 → k80 0.97622 (+0.01357)**, and same-image **13/25 → 18/25**.
+Seed `4710928` alone moves +0.175 - an unstable trajectory rescued rather than a small nudge on every seed. Conversely **6 seeds are slightly worse** (largest: 149206 at −0.01414), so the protection is a trade on individual seeds that nets positive in aggregate.
 
-### The protection has a threshold, and more is worse
+### The protection has a threshold, and more is not better
 
-- **k40 is identical to native** (0.96212 vs 0.96265). Protecting the top 40 layers buys nothing; the layers that matter sit in positions 41-80.
-- **k100 is worse than k80 AND larger** (0.974 vs 0.97622, +26 MB). Two effects push against each other: a protected layer keeps FP16 weights but **receives no bias correction**, while an INT8 layer absorbs bias correction and cancels its systematic error. Past k80, promoting layers to FP16 loses more correction than it gains in precision.
+The criterion selects layers that the **sampler** is sensitive to, not layers whose weights distort most. That distinction is what makes the protection work at all: the retired V1.0 selector ranked protection from static weight-space statistics (kurtosis, outlier ratio, absmax, weighted-histogram MSE) and its protection set scored **the same as native**.
 
-### The two criteria disagree on the ranking but agree on the score
+The sweep that fixes K has two failure modes, which is why K is measured rather than assumed:
 
-The single-forward and trajectory criteria place **38 of the top 80 layers differently**:
+- **too few protected layers** - the set misses the layers that actually matter, and the score collapses back to native (the protection buys nothing);
+- **too many** - each layer promoted to FP16 keeps its weights exact but **loses the INT8 bias correction** that cancels its systematic output shift, so the score can fall *while the pack grows*.
 
-| layer | trajectory rank | single-forward rank |
-|-------|----------------:|--------------------:|
-| `output_blocks.6.0.skip_connection` | **1** | 5 |
-| `output_blocks.9.0.skip_connection` | **2** | 13 |
-| `out.2` | **3** | 22 |
-| `input_blocks.1.1.proj_in` | 58 | **1** |
-| `input_blocks.2.1.proj_in` | 55 | **2** |
-
-A trajectory ranks the **decoder-side** bypasses highest (their error reaches the final latent directly); a single forward ranks the **encoder-side** early transitions (they move one timestep the most but are partly absorbed later). At k=80 the two land within 0.0008 of each other - inside the per-seed spread of 0.809 to 0.999.
-
-### The worst seeds are what improve
-
-| seed | native | HSWQ k80 |
-|------|-------:|---------:|
-| 4710928 | 0.77574 | **0.95062** |
-| 53082 | 0.79762 | 0.80943 |
-| 762019483 | 0.91077 | **0.94085** |
-| 18429 | 0.96543 | 0.96387 |
-
-Seed `4710928` gains **+0.177**. The improvement is concentrated on the unstable trajectories, not spread thinly across the good ones.
+The adopted K sits between them. For this checkpoint the sweep, the per-K numbers and the reasoning are in the technical guide (`md/How to quantize SD1.5.md`); this file records only the two blocks that were measured and saved here.
 
 ### Composition
 
@@ -111,6 +115,7 @@ Seed `4710928` gains **+0.177**. The improvement is concentrated on the unstable
 
 ### Honest limits
 
-- **No criterion here is globally optimal.** Every method - static statistics, single forward, trajectory - measures **one layer at a time** while tens are quantized together, so single-layer contributions are not additive. Two criteria that disagree on 38 of 80 layers can reach the same score.
+- **No criterion here is globally optimal.** Every method measures **one layer at a time** while tens are quantized together, so single-layer contributions are not additive.
 - **The ranking is checkpoint-specific.** Impact order, K and these numbers must be re-measured for every model.
-- **Size ceiling.** The source is 2033.8 MB and the practical target is about 1.16 GB, so there is no room for the combined multi-metric selection the SDXL path uses.
+- **25 seeds is a sample.** `min` is the worst of 25 draws, not a bound.
+- **This file is one checkpoint, two blocks.** It is a relative comparison (HSWQ vs native on the same gate), not an absolute quality claim.
