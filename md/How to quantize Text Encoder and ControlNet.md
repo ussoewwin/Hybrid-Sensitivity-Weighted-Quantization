@@ -343,7 +343,7 @@ diffsynth patches the apply path is `DiffSynthCnetPatch` (per DiT block:
 what Rule 8's per-block observable mirrors.
 
 ### Text Encoders (CLIP / TE)
-Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. Llama-family encoders (Qwen3 / Qwen3-VL) self-detect the quantized layers; the OpenAI CLIP family needs the pack's `quantization_metadata` injected by the loader. See [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) for the recommended packs.
+Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. Llama-family encoders (Qwen3 / Qwen3-VL / Qwen3.5) self-detect the quantized layers; the OpenAI CLIP family needs the pack's `quantization_metadata` injected by the loader. See [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) for the recommended packs.
 
 ---
 
@@ -444,6 +444,7 @@ Worked cases (all measured):
 | `Qwen3-4B` | 150 kept: 5909.9 MB / 0.999698 | 20 kept (0.999630) | 4168.3 MB |
 | `sigclip_vision_patch14_384` | 100 kept: 731.7 MB / 0.999715 | 20 kept (0.996794) | 502.9 MB |
 | `Qwen2.5-VL-7B` | 150 kept: 12650.0 MB / 0.999496 | 40 kept (0.999325) | 9289.6 MB |
+| `Qwen3.5-9B` | all 369 layers eligible; conditioning 0.999387 / 0.996488, generate 0.999453 / 0.998215 | 0 kept (floor) | 9217.9 MB |
 | `Qwen-Image-2512-Fun-Controlnet-Union-2602` | curve rises; all 77 layers eligible | 0 kept (floor, 0.999158) | 1677.2 MB |
 | `Qwen-Image-ControlNet-Inpainting` | curve rises; all 95 layers eligible | 0 kept (floor, 0.999545) | 2022.1 MB |
 | `qwen_image_canny_diffsynth` (model patch) | one step: img_in is 598x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
@@ -632,7 +633,7 @@ Download:
 
 ### Loading
 
-Place the packs in `ComfyUI/models/clip/` and load with the standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. For Llama-family text encoders (Qwen3 / Qwen3-VL) ComfyUI detects the `comfy_quant` layers inside the load path, so no extra loader is required. For the OpenAI CLIP family (CLIP-L / CLIP-SAE) the loader must receive the pack's `quantization_metadata` (the same mechanism the SDXL CLIP INT8 path already uses); see the **ComfyUI-HSWQ-Loader-and-Tools** extension.
+Place the packs in `ComfyUI/models/clip/` and load with the standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. For Llama-family text encoders (Qwen3 / Qwen3-VL / Qwen3.5) ComfyUI detects the `comfy_quant` layers inside the load path, so no extra loader is required. For the OpenAI CLIP family (CLIP-L / CLIP-SAE) the loader must receive the pack's `quantization_metadata` (the same mechanism the SDXL CLIP INT8 path already uses); see the **ComfyUI-HSWQ-Loader-and-Tools** extension.
 
 ---
 
@@ -679,4 +680,4 @@ Place the pack in `ComfyUI/models/unet/` (or `models/diffusion_models/`) and loa
 | **Qwen-Image** | ControlNet Inpainting | `Qwen-Image-ControlNet-Inpainting` (alibaba-pai) |
 | **Qwen-Image-2512** | ControlNet Union | `Qwen-Image-2512-Fun-Controlnet-Union-2602` |
 | **FLUX.1-dev** | ControlNet Union Pro | `FLUX.1-dev-ControlNet-Union-Pro-2.0` (Shakker Labs) |
-| **CLIP / Text Encoders** | CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3 / Qwen3-VL | Individually built HSWQ packs - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) |
+| **CLIP / Text Encoders** | CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3 / Qwen3-VL / Qwen3.5 | Individually built HSWQ packs - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) |
