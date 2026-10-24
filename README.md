@@ -184,9 +184,20 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 | Original FP16 | 25-seed trajectory cosine mean | 1.000 | 100% | High |
 | Native ConvRot INT8 (all convertible layers) | 25-seed trajectory cosine mean | ≈ 0.93 | 50% | High |
 | **HSWQ ConvRot INT8 (SDXL, reverse hybrid)** | 25-seed trajectory cosine mean | **≥ 0.95 (gate)** | **71%** (FP16 mixed) | **High** (ComfyUI INT8) |
+| **HSWQ ConvRot INT8 (SD1.5, trajectory impact)** | 25-seed trajectory cosine mean | **0.976** (native 0.963) | **57%** (FP16 mixed) | High (ComfyUI INT8 Conv2d) |
 | **Z Image Hybrid ConvRot NVFP4** | 20-seed trajectory cosine mean | **0.96-0.97** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
 HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with 0/25 bifurcated (FP16 base 6.94 GB → reverse hybrid pack ≈ 4.9 GB, i.e. ≈ 71%). Z Image Hybrid ConvRot NVFP4 targets a **20-seed latent-trajectory cosine mean of 0.96-0.97** with **0/20 bifurcated**. All keep full loader compatibility on their respective formats.
+
+**Per-model benchmark reports:**
+
+- [SD1.5 ConvRot INT8](benchmark%20result/benchmark_sd1.5_int8.md) - native vs HSWQ k80, the protection sweep, and why k40 buys nothing while k100 is worse
+- [SDXL ConvRot INT8](benchmark%20result/benchmark_sdxl_int8.md) - the reverse-hybrid sweep across checkpoints
+- [Krea2 ConvRot INT8](benchmark%20result/benchmark_krea2_int8.md) - structure-protected ConvRot INT8
+- [Krea2 Hybrid NVFP4](benchmark%20result/benchmark_krea2_nvfp4.md) - the cancelled 4-bit line, kept as a technical record
+- [Z Image INT8](benchmark%20result/benchmark_zi_int8.md) - native ConvRot INT8 across the Z-Image family
+- [Z Image Hybrid NVFP4](benchmark%20result/benchmark_zi_nvfp4.md) - the reverse NVFP4 method
+- [FLUX ConvRot INT8](benchmark%20result/benchmark_flux_int8.md) - FLUX ControlNet INT8
 
 ---
 
