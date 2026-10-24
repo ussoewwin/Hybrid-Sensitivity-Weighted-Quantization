@@ -85,11 +85,11 @@ error, and inverts the ranking.
 ```
 <base>  (FP16 checkpoint, 2033.8 MB)
   |  Step 1: measure the trajectory impact
-  |          sd1.5/measure_sd15_unet_traj.py
+  |          sd1.5/diagimpact_sd15.py
   v
 impact_sd15_traj_<model>.json   (282 layers)
   |  Step 2: build the pack
-  |          sd1.5/build_sd15_unet_convrot_int8.py --top-k <K>
+  |          sd1.5/quantize_sd1.5_hswq_v1.1.py --top-k <K>
   v
 <pack>  (K protected in FP16, the rest ConvRot INT8; CLIP untouched; VAE dropped)
   |  Step 3: the acceptance
@@ -101,7 +101,7 @@ PASS / FAIL
 ### Step 1 - the trajectory impact
 
 ```powershell
-python sd1.5/measure_sd15_unet_traj.py `
+python sd1.5/diagimpact_sd15.py `
   --comfy "<ComfyUI root>" `
   --ckpt  "<base>" `
   --seeds "42,137" `
@@ -120,7 +120,7 @@ python sd1.5/measure_sd15_unet_traj.py `
 ### Step 2 - build the pack
 
 ```powershell
-python sd1.5/build_sd15_unet_convrot_int8.py `
+python sd1.5/quantize_sd1.5_hswq_v1.1.py `
   --input   "<base>" `
   --output  "<pack>" `
   --contrib "impact/impact_sd15_traj_<model stem>.json" `
@@ -235,9 +235,9 @@ is best"* - not as *"this is the optimum"*.
 
 | file | role |
 | :--- | :--- |
-| `sd1.5/measure_sd15_unet_traj.py` | **the criterion** - per-layer trajectory impact (25 steps) |
+| `sd1.5/diagimpact_sd15.py` | **the criterion** - per-layer trajectory impact (25 steps) |
 | `sd1.5/measure_sd15_unet_contrib.py` | the single-forward variant, for comparison only |
-| `sd1.5/build_sd15_unet_convrot_int8.py` | the builder (top-K protected, bias correction opt-in, VAE dropped) |
+| `sd1.5/quantize_sd1.5_hswq_v1.1.py` | the builder (top-K protected, bias correction opt-in, VAE dropped) |
 | `sd1.5/verify_sd15_loader.py` | the acceptance through the real HSWQ loader |
 | `benchmark/sd1.5_int8_traj_compare.py` | the 25-seed trajectory gate |
 | `sd1.5/quantize_sd1.5_hswq_v1.0.py` | the **previous** selector (static histogram + MSE + SVD), kept for comparison |
