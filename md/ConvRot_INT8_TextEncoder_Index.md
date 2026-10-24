@@ -38,6 +38,7 @@ so the result is reproducible.
 | `qwen3_4b_abliterated_fp16_converted.safetensors` (Z Image's text encoder) | text | the FP16-kept set by the aggregate contribution (20 of 253 kept in FP16, 233 INT8, group size 256) | 0.999630 / 0.997430 | 4168.3 MB | `md/Qwen3_4B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Qwen2.5-VL-7B-Instruct-abliterated_converted.safetensors` | text (the language tower; the vision tower ships but the runtime never reads it) | the FP16-kept set by the aggregate contribution (40 of 360 kept in FP16, 320 INT8, group size 256/4) | 0.999325 / 0.997294 | 9289.6 MB | `md/Qwen25VL7B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | text (the language + the vision tower) | the FP16-kept set by the aggregate contribution (100 of 358 kept, 258 INT8, group size 256) | 0.999649 / 0.998927 | 5958.9 MB | `md/Qwen3VL4B_ConvRot_INT8_Impact_Technical_Guide.md` |
+| `Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP .safetensors` | text + vision + the MTP draft head + `lm_head` (a hybrid GatedDeltaNet/GatedAttention checkpoint) | the FP16-kept set by the aggregate contribution (**0 of 369 kept, 369 INT8**, group size 256/64/16; the all-INT8 extreme is already far above the gate, so the protection set is empty) | the conditioning 0.999387 / 0.996488, the generate 0.999453 / 0.998215 | 9217.9 MB | `md/Qwen35_9B_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `flan_t5_xxl_fp16.safetensors` (FLAN-T5 XXL, encoder + decoder) | text | the FP16-kept set by the aggregate contribution (40 encoder + 80 decoder kept, 312 INT8 of 432, group size 256) | 0.999934 | 14056.6 MB | `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `sigclip_vision_patch14_384.safetensors` | vision | the FP16-kept set by the aggregate contribution (20 of 162 kept in FP16, 142 INT8, group size 64/16) | 0.996794 / 0.993237 | 502.9 MB | `md/SigLIPVision384_ConvRot_INT8_Impact_Technical_Guide.md` |
 | `CLIP-ViT-H-14.safetensors` | vision | the FP16-kept set by the aggregate contribution (100 of 192 kept in FP16, 92 INT8, group size 256) | 0.999968 / 0.999906 | 1015.6 MB | `md/CLIPViTH14_ConvRot_INT8_Impact_Technical_Guide.md` |
@@ -200,6 +201,10 @@ model-specific by construction.
 | `sdxl/diag_impact_clip.py` | text-tower drift (CLIP family) |
 | `sdxl/diag_impact_clip_vision.py` | vision-tower drift (CLIP family) |
 | `sdxl/diag_impact_qwen3.py` | llama-family text-encoder drift |
+| `sdxl/diag_impact_qwen35_9b.py` | Qwen3.5-9B conditioning-path drift (a hybrid GatedDeltaNet/GatedAttention tower + the vision tower) |
+| `sdxl/diag_impact_qwen35_9b_gen.py` | Qwen3.5-9B generate-path drift (`lm_head`, `mtp.*` - outside the conditioning forward, so the conditioning measurement reports them as exactly zero) |
+| `clip_convert/convert_qwen35_9b_impact_convrot_int8.py` | Qwen3.5-9B pack builder (impact-driven) |
+| `sdxl/verify_qwen35_9b.py` | Qwen3.5-9B acceptance verification (both paths) |
 | `sdxl/diag_impact_t5.py` | FLAN-T5 XXL encoder drift (encoder hidden state) |
 | `clip_convert/convert_t5_impact_convrot_int8.py` | FLAN-T5 XXL pack builder (impact-driven) |
 | `sdxl/verify_t5.py` | FLAN-T5 XXL acceptance verification + latency |

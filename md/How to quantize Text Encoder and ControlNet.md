@@ -531,6 +531,7 @@ Every per-model guide for this chapter, one link per artifact. The guides carry 
 - [Qwen3-4B](Qwen3_4B_ConvRot_INT8_Impact_Technical_Guide.md)
 - [Qwen3-VL-4B](Qwen3VL4B_ConvRot_INT8_Impact_Technical_Guide.md)
 - [Qwen2.5-VL-7B](Qwen25VL7B_ConvRot_INT8_Impact_Technical_Guide.md)
+- [Qwen3.5-9B Defiant-Fable (NEO IMATRIX MAX MTP)](Qwen35_9B_ConvRot_INT8_Impact_Technical_Guide.md)
 - [the text-encoder index (all thresholds in one place)](ConvRot_INT8_TextEncoder_Index.md)
 
 **ControlNets and model patches**
@@ -621,6 +622,7 @@ Instead, each text-encoder standard was handled **individually** - but the crite
 | `flan_t5_xxl_hswq_convrot_int8.safetensors` | Flan-T5-XXL | 312 of 432 (enc 128, dec 184) | 120 (enc 40, dec 80) | 0.999934 | 14056.6 MB |
 | `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | Qwen3 (0.6B) | 157 of 197 | 40 | 0.999502 / 0.998980 | 655.2 MB |
 | `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | 258 of 358 | 100 | 0.999649 / 0.998927 | 5958.9 MB |
+| `Qwen3.5-9B-...-MAX-MTP_hswq_convrot_int8.safetensors` | Qwen3.5 (9B, hybrid + vision + MTP) | 369 of 369 | 0 | conditioning 0.999387 / 0.996488, generate 0.999453 / 0.998215 | 9217.9 MB |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | 41 of 221 | 180 | relMSE 3.51e-05 | 1657.6 MB |
 
 Download:
