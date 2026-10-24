@@ -210,7 +210,7 @@ python sd1.5/measure_sd15_unet_contrib.py `
     --out impact/contrib_sd15_unet.json --n 8
 
 # 2. the builder (top-k kept in FP16; only 2D Linear is quantized)
-python sd1.5/build_sd15_unet_convrot_int8.py `
+python sd1.5/quantize_sd1.5_hswq_v1.1.py `
     --input "<checkpoint>.safetensors" `
     --output impact/_work/sd15_k20.safetensors `
     --contrib impact/contrib_sd15_unet.json --top-k 20
@@ -278,7 +278,7 @@ Every row is a real run on this machine; the raw JSON is kept under `impact/`
 | file | role |
 | :--- | :--- |
 | `sd1.5/measure_sd15_unet_contrib.py` | the criterion (the aggregate contribution) |
-| `sd1.5/build_sd15_unet_convrot_int8.py` | the builder (`--top-k`, FP16 kept, 2D Linear only) |
+| `sd1.5/quantize_sd1.5_hswq_v1.1.py` | the builder (`--top-k`, FP16 kept, 2D Linear only) |
 | `sd1.5/verify_sd15_unet.py` | the acceptance on the fixed 256-item set |
 | `md/SD15_UNet_ConvRot_INT8_Aggregate_Contribution_Guide.md` | this guide |
 | `impact/contrib_sd15_unet.json` | the contribution (git-ignored) |

@@ -130,7 +130,7 @@ python sd1.5/measure_sd15_unet_contrib.py `
     --ckpt "<checkpoint>.safetensors" --out impact/contrib_sd15_unet.json --n 8
 
 # 2. the builder: ConvRot INT8 for Linear and Conv2d, VAE dropped, CLIP untouched
-python sd1.5/build_sd15_unet_convrot_int8.py `
+python sd1.5/quantize_sd1.5_hswq_v1.1.py `
     --input "<checkpoint>.safetensors" `
     --output impact/_work/sd15_v2_k20.safetensors `
     --contrib impact/contrib_sd15_unet.json --top-k 20
@@ -182,7 +182,7 @@ Conv2d scope is never opened.
 | file | role |
 | :--- | :--- |
 | `sd1.5/measure_sd15_unet_contrib.py` | the criterion (the aggregate contribution) |
-| `sd1.5/build_sd15_unet_convrot_int8.py` | the builder (Linear + Conv2d, VAE dropped, CLIP untouched) |
+| `sd1.5/quantize_sd1.5_hswq_v1.1.py` | the builder (Linear + Conv2d, VAE dropped, CLIP untouched) |
 | `sd1.5/verify_sd15_loader.py` | the acceptance through the real HSWQ SD1.5 loader |
 | `md/SD15_UNet_ConvRot_INT8_Quantization_and_Score_Report.md` | this report |
 | `impact/contrib_sd15_unet.json` | the contribution (git-ignored) |

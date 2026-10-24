@@ -6,7 +6,7 @@ This is a NEW script, not a variant of `measure_sd15_unet_contrib.py`. The two
 answer the same question with different rigour, and the difference matters:
 
   measure_sd15_unet_contrib.py   one forward at t=500           (a single point)
-  measure_sd15_unet_traj.py      N-step denoising trajectory    (propagation)
+  diagimpact_sd15.py      N-step denoising trajectory    (propagation)
 
 A single forward measures a layer's sensitivity where the sampler happens to
 call it once. A trajectory measures what the sampler actually experiences: the
@@ -29,7 +29,7 @@ latent, the 77x768 context), so it is a separate script rather than a
 generalisation.
 
 Usage:
-  python sd1.5/measure_sd15_unet_traj.py \
+  python sd1.5/diagimpact_sd15.py \
       --comfy <ComfyUI root> \
       --ckpt  <source checkpoint>.safetensors \
       --out   impact/impact_sd15_traj.json \
