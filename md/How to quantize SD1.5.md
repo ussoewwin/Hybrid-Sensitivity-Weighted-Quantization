@@ -12,7 +12,7 @@ chosen from a **measured per-layer trajectory impact**, the same criterion
 
 ## Why the old selector failed
 
-The previous `sd1.5/quantize_sd1.5_hswq_v1.0.py` chose its FP16 protection set
+The previous `archives/quantize_sd1.5_hswq_v1.0.py` chose its FP16 protection set
 from **weight-space** statistics: kurtosis, outlier ratio, absmax, and a
 weighted-histogram **MSE** of the quantized weight at the absmax pack point,
 screened through a DualMonitor activation profile.
@@ -240,7 +240,7 @@ is best"* - not as *"this is the optimum"*.
 | `sd1.5/quantize_sd1.5_hswq_v1.1.py` | the builder (top-K protected, bias correction opt-in, VAE dropped) |
 | `sd1.5/verify_sd15_loader.py` | the acceptance through the real HSWQ loader |
 | `benchmark/sd1.5_int8_traj_compare.py` | the 25-seed trajectory gate |
-| `sd1.5/quantize_sd1.5_hswq_v1.0.py` | the **previous** selector (static histogram + MSE + SVD), kept for comparison |
+| `archives/quantize_sd1.5_hswq_v1.0.py` | the **previous** selector (static histogram + MSE + SVD), kept for comparison |
 | `sd1.5/native_convert_int8_sd1.5.py` | the plain all-INT8 converter (native baseline) |
 
 ---

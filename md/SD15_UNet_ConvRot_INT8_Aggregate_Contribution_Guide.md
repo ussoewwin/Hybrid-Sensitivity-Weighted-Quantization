@@ -15,7 +15,7 @@
 
 SD1.5 is the one family that *should* have used HSWQ's universal engine - it is a
 per-checkpoint backbone like SDXL, with many merges and finetunes. The existing
-`sd1.5/quantize_sd1.5_hswq_v1.0.py` instead produced a protection set that
+`archives/quantize_sd1.5_hswq_v1.0.py` instead produced a protection set that
 **scored the same as native** (no protection at all): the protection bought
 nothing.
 
