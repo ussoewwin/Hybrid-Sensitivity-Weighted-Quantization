@@ -9,6 +9,8 @@ Higher final-cosine is better (1.0 = identical trajectory).
 
 **Checkpoint:** `0.5xxmix9realistic_v40 0.5BRA7` (FP16 source 2033.8 MB)
 
+> **K is not a fixed number.** The protected-layer count is chosen **per checkpoint** by measuring this table's own curve: the smallest K whose `final-cos mean` clears the gate without paying for a flat tail. K=80 is what THIS checkpoint measured; another checkpoint will need its own sweep, and the number is expected to differ.
+
 ---
 
 ## Results
@@ -39,11 +41,13 @@ Same setup (vs FP16 reference). **HSWQ** vs **native** (naive all-INT8 cast, no 
 
 The protection set comes from a measured per-layer **trajectory impact**: hold every other layer pristine, replace ONE layer by its ConvRot INT8 reconstruction in the original frame, run the same 25-step trajectory, record `rel_mse` against the pristine run. The top-K stay FP16.
 
+**K is measured here, not assumed.** The rows below are this checkpoint's sweep; the adopted K is where the curve stops paying. A different checkpoint produces a different curve and therefore a different K.
+
 | K (protected) | Selection criterion | final-cos mean | same-image | Size | Note |
 |--------------:|---------------------|---------------:|-----------:|-----:|------|
 | 0 (native) | — | 0.96265 | 13/25 | 1058.6 MB | all-INT8 baseline |
 | 40 | trajectory impact | 0.96212 | 14/25 | ~1115 MB | **identical to native - protection buys nothing** |
-| 80 | single forward | **0.97622** | **18/25** | 1167.5 MB | best measured point |
+| 80 | single forward | **0.97622** | **18/25** | 1167.5 MB | best measured point **for this checkpoint** |
 | 80 | trajectory impact | 0.97542 | 16/25 | 1160.4 MB | ties within noise, 7.1 MB smaller |
 | 100 | single forward | 0.974 | — | 1193.5 MB | **worse AND larger than k80** |
 
