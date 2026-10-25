@@ -327,6 +327,67 @@ top row-norm z-scores on the trailing special-token rows (row 49407 z=59.6,
 This is the strongest statement the technique allows, and it is conclusive for
 the identity "this is the upstream release".
 
+### 6.5 A second worked example: a fine-tuned model (CLIP-SAE)
+
+`CLIP-SAE-ViT-L-14-FP32.safetensors` is the case the CLIP-L example does *not*
+cover: it is a real fine-tune, not a base. Comparing it against the official
+CLIP-L is the wrong reference, and the audit says so plainly.
+
+**Pack against source** (`CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors`, 129
+quantized layers):
+
+```
+FAITHFUL
+  quantized=129  rel_l2 median=0.007840 max=0.008721  envelope=0.027840
+  EXACT: q_mismatch=0 (ratio_max=0.00e+00)  max_q_delta=0  scale_exact_rel_max=0.00e+00
+  dropped=0 (in-scope=0)  extra=0  float_mismatch=0
+```
+
+**Source against the official CLIP-L** - the instructive negative result:
+
+```
+=== H. upstream identity ===
+  shared=590  bit-exact=10  diverging=580
+  verdict: DIVERGES
+  DIVERGES text_model.encoder.layers.0.mlp.fc1.weight  max_abs=9.766e-04
+```
+
+580 of 590 tensors differ from CLIP-L, by up to ~1e-3. A reader who stopped here
+might call this an edit. It is not: the model is a published fine-tune whose
+parent is declared. Two independent checks settle it.
+
+1. **The declared parentage** (the publisher's model card): this checkpoint is
+   `zer0int/CLIP-SAE-ViT-L-14`, a CLIP ViT-L/14 fine-tune, with
+   `base_model: openai/clip-vit-large-patch14` and `finetune` recorded in the
+   Hub metadata. A fine-tune of a base is *expected* to differ from that base.
+   Divergence from CLIP-L is therefore the wrong question.
+2. **The published checksum** (H0, `--reference-sha256`) - the decisive one:
+
+```
+=== H0. checksum identity (PROOF when it matches) ===
+  model  sha256: 820afa79f4ba17399e740b4b5630ab74bc3a196e471d7321123efa8356b62f79
+  cited  sha256: 820afa79f4ba17399e740b4b5630ab74bc3a196e471d7321123efa8356b62f79
+  verdict: UPSTREAM-IDENTICAL
+```
+
+The file is byte-for-byte the artifact the publisher released. Whatever that
+fine-tune did to the weights, it did it as a published act; nothing was added
+locally.
+
+**The lesson, and it is a general one:** the reference must match the model's
+*provenance class*. Comparing a fine-tune against the base it was tuned from
+produces a large, alarming, meaningless `DIVERGES`. For a published fine-tune
+the right reference is the publisher's artifact (H0, one hash, seconds) or the
+declared base with D2 used to read the *shape* of the difference - not the base
+alone as an identity claim. `H0` should be the first check run on any downloaded
+file, because it is cheap and it is a proof.
+
+**A note on what was observed here.** During this work the base file
+`clip_l.safetensors` was moved out of the model directory, and the pack audit
+subsequently failed with a traceback instead of a verdict. That is a real defect
+in a tool meant to gate a pipeline, and it is now fixed: a missing or unreadable
+input exits **2** with a one-line error (Section 10.2).
+
 ### 6.4 Detection sensitivity, measured
 
 The tools were validated against fabricated tampering, not assumed to work.
@@ -558,21 +619,51 @@ Reads only the header and the file size. It reports, for any safetensors file:
 > stray trailing bytes) at open time. The container check runs first and reports
 > them as findings; a file the loader refuses is reported, never skipped.
 
-### 10.4 Running the self-test
+### 10.4 Running the self-tests
+
+Two programs, two questions. Both exit non-zero on any failure.
 
 ```
-<python> test/audit_selftest.py
+<python> audit/selftest.py            # does each check catch its tamper?
+<python> audit/backdoor_selftest.py   # do we catch a backdoor we build ourselves?
 ```
 
-It fabricates small synthetic checkpoints and packs, applies the tamper
-catalogue (pack: LSB edit, scale edit, kept-float edit, single-code edit, bias
-edit, foreign tensors, `NaN` scale, orphan payload, edit inside a dtype change,
-metadata payload, trailing bytes, gap, duplicate header key, ghost layer
-declaration; source: micro-edit, bias edit, abliteration-like and rank-3 deltas,
-exact / poisoned merges, 1-ULP and foreign-tensor divergence from upstream,
-trailing bytes, planted embedding rows), prints `PASS`/`FAIL` per row and exits
-non-zero if any row fails. Nothing in it executes a payload: a "backdoor" here
-is a modified tensor, an extra tensor, a stray byte or a metadata string.
+**`audit/selftest.py`** fabricates small synthetic checkpoints and packs, applies
+the tamper catalogue (pack: LSB edit, scale edit, kept-float edit, single-code
+edit, bias edit, foreign tensors, `NaN` scale, orphan payload, edit inside a
+dtype change, metadata payload, trailing bytes, gap, duplicate header key, ghost
+layer declaration; source: micro-edit, bias edit, abliteration-like and rank-3
+deltas, exact / poisoned merges, 1-ULP and foreign-tensor divergence from
+upstream, trailing bytes, planted embedding rows), prints `PASS`/`FAIL` per row
+and exits non-zero if any row fails. Nothing in it executes a payload: a
+"backdoor" here is a modified tensor, an extra tensor, a stray byte or a
+metadata string. Current state: **33/33 pass**.
+
+**`audit/backdoor_selftest.py`** goes one step further: it *builds a backdoor*
+and asks whether the audit finds it. Three shapes are merged into a synthetic
+base, and each is measured against the source audit (with the base available -
+the realistic case) and against the pack audit after quantization.
+
+| Case | What was built | Verdict | Structure | Caught |
+| :--- | :--- | :--- | :--- | :--- |
+| B1 | one shared direction across all layer weights | DERIVED | SINGLE-DIRECTION, rank-1 = 1.0000, coherence 1.00 | **yes** |
+| B2 | three directions in two late MLP layers (LoRA shape) | DERIVED | MULTI-DIRECTION, rank-1 = 0.4048, coherence 0.054 | **yes** |
+| B3 | biases only, every 2-D weight untouched | DERIVED | NO-DELTA (no weight delta by construction) | **yes** |
+| B0 | no tamper (control) | IDENTICAL | NO-DELTA | correctly not flagged |
+
+Two results in that table are the important ones, and they cut in opposite
+directions.
+
+- **B3 is caught only because D compares *all* tensors, not just `*.weight`.**
+  A weight-only delta check would report `IDENTICAL` on a bias-only backdoor and
+  certify it clean. This is the single most load-bearing hardening in Section
+  10.2.
+- **Every one of B1, B2, B3 reads `FAITHFUL` at the pack level.** That is correct
+  and it is the sharpest statement of the audit's scope: the pack audit proves
+  *the quantization added nothing*, so a pack built from a backdoored source is
+  faithfully backdoored. **A `FAITHFUL` pack verdict says nothing about the
+  source.** The source audit is the only instrument for that question, and it
+  needs the base.
 
 ### 10.5 What is still not covered
 
@@ -594,6 +685,9 @@ is a modified tensor, an extra tensor, a stray byte or a metadata string.
   the later MLP layers; the delta checks (D, D2) are the instrument for that
   shape, and only when the base is available.
 - **NVFP4 packs** remain out of scope for the provenance math.
+- **Missing inputs are an audit failure, not a crash.** A path that does not
+  exist exits **2** with a one-line error, so the program behaves as a gate
+  rather than raising a traceback.
 - **Time of check vs time of use.** The audit reads the files once; record the
   SHA-256 (`--hash`) and re-verify before loading if the files can change.
 
