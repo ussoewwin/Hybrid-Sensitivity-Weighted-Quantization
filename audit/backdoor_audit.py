@@ -62,6 +62,9 @@ import glob
 
 import torch
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import st_integrity  # noqa: E402  (container-level checks shared with source_audit)
+
 INT8 = "I8"
 FLOATS = ("F16", "F32", "BF16", "F64")
 
@@ -70,7 +73,11 @@ FLOATS = ("F16", "F32", "BF16", "F64")
 # rounding difference in the scale. A deliberate edit is orders of magnitude
 # larger; the gates below separate the two.
 SCALE_TOL = 1e-4             # relative scale mismatch that counts as an edit
-Q_MISMATCH_RATIO_TOL = 5e-4  # fraction of int8 codes allowed to differ
+# Fraction of int8 codes allowed to differ (a rounding-boundary flip when the
+# source is re-read in another precision). Measured faithful packs show exactly
+# 0. The earlier gate (5e-4) let ~8,000 one-LSB edits through a 4096x4096 layer;
+# 1e-6 allows ~17 boundary flips there and nothing more.
+Q_MISMATCH_RATIO_TOL = 1e-6
 Q_MAX_DELTA_TOL = 1          # a float-rounding difference moves a code by <=1 LSB
 
 PACK_SUFFIXES = (".safetensors",)
@@ -111,6 +118,41 @@ def header_of(path):
 def open_sd(path):
     from safetensors import safe_open
     return safe_open(path, framework="pt", device="cpu")
+
+
+def sha256_of(path, chunk=1 << 20):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for blk in iter(lambda: f.read(chunk), b""):
+            h.update(blk)
+    return h.hexdigest()
+
+
+def nan_equal(a, b):
+    """Exact equality that treats NaN == NaN (a kept tensor may legitimately
+    carry NaN; torch.equal would call every such tensor an edit)."""
+    if torch.equal(a, b):
+        return True
+    if a.is_floating_point() and b.is_floating_point():
+        na, nb = torch.isnan(a), torch.isnan(b)
+        return bool(torch.equal(na, nb)) and bool(torch.equal(a[~na], b[~nb]))
+    return False
+
+
+def compare_kept(a, b):
+    """None when ``b`` is exactly ``a`` (after a deterministic float cast);
+    otherwise the reason. A dtype change is only accepted when the cast of the
+    source reproduces the pack bit for bit - so a tensor that was re-stored in
+    another dtype is still compared by value, not waved through."""
+    if a.shape != b.shape:
+        return "shape %s != %s" % (tuple(a.shape), tuple(b.shape))
+    if a.dtype != b.dtype:
+        if a.is_floating_point() and b.is_floating_point():
+            a = a.to(b.dtype)
+        else:
+            return "dtype %s -> %s" % (a.dtype, b.dtype)
+    return None if nan_equal(a, b) else "values differ"
 
 
 def cfg_of(sf, keys, module_key):
@@ -188,10 +230,14 @@ def layer_metrics(q, scale, src, cfg, block=8192):
     dot = deq_sq = src_sq = diff_sq = 0.0
     max_abs = scale_rel = scale_exact_rel = 0.0
     q_mismatch = q_total = max_q_delta = 0
+    nonfinite_scale = 0
     for i in range(0, out_f, block):
         s_chunk = src[i:i + block].float()
         qc = q[i:i + block].float()
         sc = scale[i:i + block].float()
+        # NaN/Inf compare False against every gate, so a poisoned scale would
+        # slide past SCALE_TOL; count it explicitly.
+        nonfinite_scale += int((~torch.isfinite(sc)).sum())
         deq = qc * sc
         if convrot:
             g = in_f // gs
@@ -222,30 +268,40 @@ def layer_metrics(q, scale, src, cfg, block=8192):
     return {"cos": cos, "rel_l2": rel, "max_abs": max_abs, "scale_rel": scale_rel,
             "q_mismatch": q_mismatch, "q_total": q_total,
             "q_mismatch_ratio": (q_mismatch / q_total) if q_total else 0.0,
-            "max_q_delta": max_q_delta, "scale_exact_rel": scale_exact_rel}
+            "max_q_delta": max_q_delta, "scale_exact_rel": scale_exact_rel,
+            "nonfinite_scale": nonfinite_scale}
 
 
 # --- layer 1: static ----------------------------------------------------------
 
 def static_scan(path):
-    ok, hdr_or_err = is_safetensors(path)
+    hdr, integrity = st_integrity.check(path)
+    ok = hdr is not None
     out = {"file": os.path.basename(path), "mb": os.path.getsize(path) / 1024 ** 2,
-           "is_safetensors": ok, "findings": []}
+           "is_safetensors": ok, "findings": list(integrity)}
     if not ok:
-        out["findings"].append("NOT a safetensors stream: %s" % hdr_or_err)
         return out
-    raw = dict(hdr_or_err)
+    raw = dict(hdr)
     meta = raw.pop("__metadata__", {})
-    out["metadata_keys"] = list(meta.keys())
+    out["metadata_keys"] = list(meta.keys()) if isinstance(meta, dict) else []
     dtypes = {}
     for k, v in raw.items():
-        dtypes[v["dtype"]] = dtypes.get(v["dtype"], 0) + 1
+        dt = v.get("dtype") if isinstance(v, dict) else None
+        dtypes[dt] = dtypes.get(dt, 0) + 1
     out["dtype_hist"] = dtypes
     out["tensors"] = len(raw)
 
     qkeys = [k for k in raw if k.endswith(".comfy_quant")]
     out["quantized_layers"] = len(qkeys)
-    bad, sf = [], open_sd(path)
+    bad = []
+    try:
+        sf = open_sd(path)
+    except Exception as e:
+        # the header-level check above already ran; a file the reference loader
+        # refuses is reported, not skipped
+        out["findings"].append("safetensors loader rejects the file: %s: %s"
+                               % (type(e).__name__, e))
+        return out
     for k in qkeys:
         try:
             cfg = json.loads(bytes(sf.get_tensor(k).cpu().numpy().tobytes()).decode("utf-8"))
@@ -259,13 +315,36 @@ def static_scan(path):
         mod = k[: -len(".comfy_quant")]
         if (mod + ".weight_scale") not in raw:
             bad.append("%s: missing weight_scale" % k)
+    # a scale / payload that no int8 weight owns, or an int8 weight nothing
+    # describes, is structure the converter never writes
+    for k in raw:
+        for suf in (".weight_scale", ".comfy_quant"):
+            if k.endswith(suf):
+                wk = k[: -len(suf)] + ".weight"
+                if wk not in raw or raw[wk].get("dtype") != INT8:
+                    bad.append("%s: orphan (no int8 %s)" % (k, wk))
+        if k.endswith(".weight") and raw[k].get("dtype") == INT8 \
+                and (k[: -len(".weight")] + ".comfy_quant") not in raw:
+            bad.append("%s: int8 weight without comfy_quant" % k)
+    # _quantization_metadata must describe exactly the layers that carry a payload
+    qm = meta.get(st_integrity.QUANT_META_KEY) if isinstance(meta, dict) else None
+    if qm is not None:
+        try:
+            layers = json.loads(qm).get("layers")
+        except Exception as e:
+            layers = None
+            bad.append("_quantization_metadata: unparsable (%s)" % e)
+        if isinstance(layers, dict):
+            declared = set(layers)
+            present = {k[: -len(".comfy_quant")] for k in qkeys}
+            if declared != present:
+                bad.append("_quantization_metadata declares %d layer(s), file carries "
+                           "%d (only-declared %s, only-present %s)" % (
+                               len(declared), len(present),
+                               sorted(declared - present)[:3], sorted(present - declared)[:3]))
     out["payload_findings"] = bad
     if bad:
         out["findings"].append("%d comfy_quant payload(s) unexpected" % len(bad))
-    sus = [k for k in raw
-           if any(w in k.lower() for w in ("backdoor", "trigger", "payload", "exploit", "shell"))]
-    if sus:
-        out["findings"].append("suspicious key names: %s" % sus[:8])
     out["other_keys"] = [k for k in raw
                          if not k.endswith((".weight", ".weight_scale", ".comfy_quant",
                                             ".bias", ".position_ids"))][:16]
@@ -302,24 +381,48 @@ def provenance(source_path, pack_path, block=8192):
                 layers.append({"layer": mod, "error": "shape %s != source %s" %
                                (tuple(q.shape), tuple(src_w.shape))})
                 continue
-            m = layer_metrics(q, s, src_w, cfg, block)
+            if s.numel() != q.shape[0]:
+                layers.append({"layer": mod, "error": "weight_scale has %d entries for "
+                               "%d rows" % (s.numel(), q.shape[0])})
+                continue
+            m = layer_metrics(q, s.reshape(-1, 1), src_w, cfg, block)
             m["layer"] = mod
             m["groupsize"] = cfg.get("convrot_groupsize") if cfg.get("convrot") else None
             layers.append(m)
         else:
             a, b = sf_s.get_tensor(key), sf_p.get_tensor(key)
-            if a.shape != b.shape:
-                floatbdiff.append("%s: shape %s != %s" % (mod, tuple(a.shape), tuple(b.shape)))
+            reason = compare_kept(a, b)
+            if reason:
+                floatbdiff.append("%s: %s" % (mod, reason))
             elif a.dtype != b.dtype:
                 dtype_changed.append("%s: %s -> %s" % (mod, a.dtype, b.dtype))
-            elif not torch.equal(a, b):
-                floatbdiff.append("%s: values differ" % mod)
+
+    # every other source tensor (bias, position_ids, logit_scale, ...) that the
+    # pack keeps must be bit-identical too - an edit does not have to be a weight
+    quant_sfx = (".weight_scale", ".comfy_quant")
+    nonweight_dropped = []
+    for key in sorted(ks):
+        if key.endswith(".weight") or key.endswith(quant_sfx):
+            continue
+        if key not in kp:
+            nonweight_dropped.append(key)
+            continue
+        a, b = sf_s.get_tensor(key), sf_p.get_tensor(key)
+        reason = compare_kept(a, b)
+        if reason:
+            floatbdiff.append("%s: %s" % (key, reason))
+        elif a.dtype != b.dtype:
+            dtype_changed.append("%s: %s -> %s" % (key, a.dtype, b.dtype))
 
     pack_prefixes = set()
     for key in sorted(kp):
-        if key.endswith((".weight_scale", ".comfy_quant")):
+        if key.endswith(quant_sfx):
+            sfx = ".weight_scale" if key.endswith(".weight_scale") else ".comfy_quant"
+            wk = key[: -len(sfx)] + ".weight"
+            if wk not in kp or hdr_p[wk]["dtype"] != INT8:
+                extra.append(key + " (orphan quantization tensor)")
             continue
-        if key.endswith(".weight") and key not in ks:
+        if key not in ks:
             extra.append(key)
         parts = key.split(".")
         if len(parts) >= 2:
@@ -338,6 +441,8 @@ def provenance(source_path, pack_path, block=8192):
     def is_edit(l):
         if "error" in l:
             return True
+        if l.get("nonfinite_scale", 0) > 0:
+            return True
         if l.get("max_q_delta", 0) > Q_MAX_DELTA_TOL:
             return True
         if l.get("q_mismatch_ratio", 0) > Q_MISMATCH_RATIO_TOL:
@@ -348,12 +453,17 @@ def provenance(source_path, pack_path, block=8192):
 
     outliers = [l for l in layers if is_edit(l)]
     envelope_only = [l for l in layers if l.get("rel_l2", 0) > env and l not in outliers]
-    faithful = (not outliers and not floatbdiff and not extra and not dropped_scoped)
+    _, integrity = st_integrity.check(pack_path)
+    faithful = (not outliers and not floatbdiff and not extra and not dropped_scoped
+                and not integrity)
 
     return {
         "pack": os.path.basename(pack_path),
         "source": os.path.basename(source_path),
         "verdict": "FAITHFUL" if faithful else "EDITED",
+        "integrity_findings": integrity[:20],
+        "nonweight_dropped_count": len(nonweight_dropped),
+        "nonfinite_scale_total": sum(l.get("nonfinite_scale", 0) for l in layers),
         "quantized_layers": len([l for l in layers if "rel_l2" in l]),
         "rel_l2_median": med, "rel_l2_max": max(rels) if rels else float("nan"),
         "envelope": env,
@@ -511,6 +621,13 @@ def report_provenance(r):
         print("    EXTRA KEY: %s" % e)
     for k in r["dropped_scoped"][:8]:
         print("    MISSING (in scope): %s" % k)
+    for f in r.get("integrity_findings", [])[:8]:
+        print("    CONTAINER: %s" % f)
+    if r.get("nonfinite_scale_total"):
+        print("    NON-FINITE SCALE entries: %d" % r["nonfinite_scale_total"])
+    if r.get("nonweight_dropped_count"):
+        print("    note: %d non-weight source tensor(s) not carried into the pack "
+              "(informational)" % r["nonweight_dropped_count"])
 
 
 def main():
@@ -523,6 +640,9 @@ def main():
     ap.add_argument("--behavior", action="store_true", help="run layer 3")
     ap.add_argument("--json", default="", help="write the summary as JSON")
     ap.add_argument("--block", type=int, default=8192)
+    ap.add_argument("--hash", action="store_true",
+                    help="record the SHA-256 of the source and every pack, so a verdict "
+                         "can be tied to the exact files it was reached on")
     args = ap.parse_args()
 
     packs = list(args.pack)
@@ -598,10 +718,29 @@ def main():
             len(summary["provenance"]),
             len(summary["provenance"]) - len(bad), len(bad)))
 
+    if args.hash:
+        hashes = {}
+        for p in ([args.source] if args.source else []) + packs:
+            hashes[os.path.basename(p)] = sha256_of(p)
+        summary["sha256"] = hashes
+        print(flush=True)
+        print("=== sha256 ===")
+        for n, h in hashes.items():
+            print("  %s  %s" % (h, n))
+
     if args.json:
         with open(args.json, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
         print("\nwrote %s" % args.json, flush=True)
+
+    # Exit status, so the audit can gate a pipeline: 0 = nothing found,
+    # 2 = a pack is EDITED, carries a container finding, or the provenance
+    # check itself could not run on it. The static findings count too: a pack
+    # whose container is not clean must not pass silently.
+    failed = any(r["verdict"] != "FAITHFUL" for r in summary["provenance"])
+    failed = failed or any(s.get("findings") for s in summary["static"])
+    failed = failed or (args.source and len(summary["provenance"]) < len(packs))
+    sys.exit(2 if failed else 0)
 
 
 if __name__ == "__main__":

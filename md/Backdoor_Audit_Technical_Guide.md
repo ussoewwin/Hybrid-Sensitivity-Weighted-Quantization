@@ -58,8 +58,9 @@ edited" ([ProjectDiscovery, 2026](#121-primary-sources)).
 - **HiddenLayer (2026-05):** a repository impersonating OpenAI's "Privacy
   Filter" release rode fake stars to the platform trending list and served an
   infostealer.
-- **Hugging Face × Protect AI:** across four million scanned models, 352,000
-  unsafe or suspicious issues across 51,700 models.
+- **Hugging Face × Protect AI:** after scanning 4.47 million model versions in
+  1.41 million repositories, 352,000 unsafe or suspicious issues across 51,700
+  models.
 
 These are payload-in-file incidents. They are the easiest layer to catch. The
 harder layer — and the one this guide is built for — is a *weight edit* that
@@ -175,7 +176,7 @@ Thresholds (deliberately separating float rounding from an edit):
 | Gate | Value | Rationale |
 | :--- | :--- | :--- |
 | `Q_MAX_DELTA_TOL` | 1 LSB | A float-rounding path never moves a code by more than one step. |
-| `Q_MISMATCH_RATIO_TOL` | 5e-4 | The fraction of codes a rounding path may differ on. |
+| `Q_MISMATCH_RATIO_TOL` | 1e-6 | The fraction of codes a rounding path may differ on (was 5e-4; see Section 10). |
 | `SCALE_TOL` | 1e-4 (relative) | The stored scale may differ from the recomputed scale only by rounding (~1e-6 observed). |
 
 A pack that passes has been shown to contain **no weight beyond INT8
@@ -205,8 +206,8 @@ Thresholds:
 | Gate | Value |
 | :--- | :--- |
 | `FORENSIC_Z` (per-role MAD z) | 6.0 |
-| `DELTA_REL_TOL` (a layer counts as changed) | 1e-5 |
-| `MERGE_ABS_TOL` (merge reconstruction) | 1e-4 |
+| `DELTA_REL_TOL` (a layer's delta is SVD-profiled; "changed" means not bit-identical) | 1e-5 |
+| `MERGE_ABS_TOL` (legacy flat gate; default 0 = dtype-aware per-element gate, Section 10) | 0 |
 
 ### 5.1 Check C — the merge proof
 
@@ -407,6 +408,12 @@ explain.
 
 ## 9. References
 
+> Every link below was fetched and its cited claim read on the page on
+> 2026-10-26, except the HiddenLayer "Privacy Filter" item (landing page only,
+> see item 11). Corrections made after reading: the Protect AI scan volume
+> (4.47 M model versions, not "four million models"), and the Privacy Filter
+> scope note.
+
 ### 9.1 Primary research (peer-reviewed or official lab publications)
 
 1. **Hubinger et al., "Sleeper Agents: Training Deceptive LLMs that Persist
@@ -477,11 +484,15 @@ explain.
 11. **HiddenLayer, malicious Hugging Face repository impersonating OpenAI's
     "Privacy Filter."** 2026-05. <https://www.hiddenlayer.com/>
     — fake stars drove a typosquatted repository to trending, serving an
-    infostealer.
+    infostealer. Secondary reports describe the infection as repository scripts
+    (`loader.py` / `start.bat`), not edited weights, so it is outside what the
+    weight audit can see; the linked page is the publisher's landing page, and the
+    exact report URL was not independently confirmed.
 
 12. **Hugging Face × Protect AI, "4M Models Scanned: Protect AI + Hugging Face
     6 Months In."** 2025-04. <https://huggingface.co/blog/pai-6-month>
-    — 352,000 unsafe/suspicious issues across 51,700 models.
+    — 4.47 million model versions in 1.41 million repositories scanned; 352,000
+    unsafe/suspicious issues across 51,700 models.
 
 ### 9.3 The write-up that motivated this work
 
@@ -492,6 +503,99 @@ explain.
     with clean accuracy and trigger firing both at 100 %. The trigger and the
     payload URL are attacker-chosen, which is why the defender's only reliable
     lever is runtime control.
+
+---
+
+## 10. Hardening: blind spots found in review, and the self-test
+
+The tools were reviewed adversarially: for each check, *what could an attacker
+carry that this check does not read?* Each gap below was closed, and each is
+covered by a fabricated tamper in [`test/audit_selftest.py`](../test/audit_selftest.py)
+(33 cases; every one passes on the current code).
+
+### 10.1 Pack audit (`backdoor_audit.py`)
+
+| Blind spot | Why it mattered | Now |
+| :--- | :--- | :--- |
+| Only `*.weight` tensors were compared with the source | A bias, norm offset or `position_ids` edit was never read | **Every** source tensor the pack keeps must be bit-identical |
+| Only an extra `*.weight` key counted as foreign | A foreign tensor named anything else was only a static note, not a verdict | **Any** pack tensor the source cannot explain is `EXTRA`; orphan `weight_scale` / `comfy_quant` too |
+| A kept tensor stored in another dtype was only *noted* | An edit could hide inside a dtype change | The source is cast to the pack's dtype and compared by value |
+| `NaN`/`Inf` in a `weight_scale` | `NaN` compares false against every gate, so it passed | Counted explicitly; non-finite scale is an edit |
+| `Q_MISMATCH_RATIO_TOL = 5e-4` | Let ~8,000 one-LSB edits through a 4096×4096 layer | `1e-6` (~17 rounding-boundary flips there); a single edited code in the synthetic layer is caught |
+| Container ignored | Bytes after the last tensor, gaps, overlaps, duplicate JSON keys, free-form metadata were never inspected | `audit/st_integrity.py` (Section 10.3); container findings force `EDITED` |
+| `_quantization_metadata` not cross-checked | It could declare layers the file does not carry | Must equal the set of `comfy_quant` layers |
+| Static findings did not affect the exit status | A pipeline could pass a flagged pack | Exit status **2** on `EDITED`, container finding, or a pack the provenance check could not run on |
+| No record of which bytes were audited | A verdict could not be tied to a file | `--hash` records SHA-256 of the source and every pack |
+
+### 10.2 Source audit (`source_audit.py`)
+
+| Blind spot | Why it mattered | Now |
+| :--- | :--- | :--- |
+| "Changed" meant relative Frobenius mass > 1e-5 | A one-row or one-element edit has a tiny mass and was reported `IDENTICAL` | "Changed" means **not bit-identical**; sub-threshold edits are `micro` and D2 reports `MICRO-EDIT` |
+| Base delta read only `*.weight` | Bias / norm edits invisible | All shared tensors compared |
+| Merge gate was a flat 1e-4 absolute | 0.5 % of a typical 0.02 weight: room to hide an edit | Per-element gate of 2 machine epsilons of the model's own dtype (`--merge-abs-tol` restores the flat gate) |
+| Unreadable tensors were skipped silently | `EXACT-MERGE` / `IDENTICAL` / `UPSTREAM-IDENTICAL` could be certified around tensors never compared | Any unread tensor withholds the proof verdict and is printed |
+| Static check trusted shape × dtype guesses | Wrong byte sizes for several dtypes | Sizes come from the header offsets, validated against dtype × shape |
+| Embedding scan ranked only large rows | A planted row can be small | Both tails of the row-norm distribution, vectorised (was a per-row Python loop) |
+| Upstream identity compared `NaN` rows as different | A model that legitimately carries `NaN` could never pass | `NaN`-aware exact equality |
+| No exit status | Not usable as a gate | Exit **2** on a container finding, `RESIDUAL`, `DIVERGES`, `CHECKSUM-MISMATCH`, `MULTI-DIRECTION`, `MICRO-EDIT` (B/E/G are hints and do not fail a run) |
+
+### 10.3 The container check (`audit/st_integrity.py`)
+
+Reads only the header and the file size. It reports, for any safetensors file:
+
+- bytes after the last tensor, and unreferenced gaps between tensors;
+- overlapping ranges, and any range whose size disagrees with `dtype × shape`;
+- duplicate keys in the JSON header (readers disagree on which wins);
+- `__metadata__` values that are non-string, oversized, carry control
+  characters, or contain a fetch-and-run marker (`http://`, `curl `, `| sh`,
+  `base64`, `subprocess`, …);
+- tensor names with control characters, non-ASCII, paths, script extensions or
+  the suspicious words used by the static checks.
+
+> [!NOTE]
+> The reference `safetensors` loader itself rejects some of these (for example
+> stray trailing bytes) at open time. The container check runs first and reports
+> them as findings; a file the loader refuses is reported, never skipped.
+
+### 10.4 Running the self-test
+
+```
+<python> test/audit_selftest.py
+```
+
+It fabricates small synthetic checkpoints and packs, applies the tamper
+catalogue (pack: LSB edit, scale edit, kept-float edit, single-code edit, bias
+edit, foreign tensors, `NaN` scale, orphan payload, edit inside a dtype change,
+metadata payload, trailing bytes, gap, duplicate header key, ghost layer
+declaration; source: micro-edit, bias edit, abliteration-like and rank-3 deltas,
+exact / poisoned merges, 1-ULP and foreign-tensor divergence from upstream,
+trailing bytes, planted embedding rows), prints `PASS`/`FAIL` per row and exits
+non-zero if any row fails. Nothing in it executes a payload: a "backdoor" here
+is a modified tensor, an extra tensor, a stray byte or a metadata string.
+
+### 10.5 What is still not covered
+
+- **No absence proof** — unchanged (Section 7).
+- **Behavioural check E stays a finite wordlist.** The weight-level checks above
+  do not widen it.
+- **A trigger carried by a *declared* difference.** If a model legitimately
+  differs from its base (a fine-tune with no recipe), D/D2 can say *how* it
+  differs, not whether the difference is benign.
+- **Multi-token phrase triggers** are not visible to G. Note that the persistence
+  work in reference 6 (P-Trojan) aligns the poisoned gradients on *token
+  embeddings*, which is why the embedding scan covers both tails of the row-norm
+  distribution; it is a hint, not a certificate.
+- **Graph-level backdoors** (reference 10, ShadowLogic) live in the computational
+  graph of formats such as ONNX or TensorRT, not in weights. These tools audit
+  `safetensors` weights only and say nothing about a graph.
+- **A LoRA/QLoRA backdoor is small and local.** In the write-up of reference 13 the
+  adapter was about 0.6 % of the base parameters and its effect concentrated in
+  the later MLP layers; the delta checks (D, D2) are the instrument for that
+  shape, and only when the base is available.
+- **NVFP4 packs** remain out of scope for the provenance math.
+- **Time of check vs time of use.** The audit reads the files once; record the
+  SHA-256 (`--hash`) and re-verify before loading if the files can change.
 
 ---
 
