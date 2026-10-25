@@ -327,7 +327,7 @@ top row-norm z-scores on the trailing special-token rows (row 49407 z=59.6,
 This is the strongest statement the technique allows, and it is conclusive for
 the identity "this is the upstream release".
 
-### 6.5 A second worked example: a fine-tuned model (CLIP-SAE)
+### 6.4 A second worked example: a fine-tuned model (CLIP-SAE)
 
 `CLIP-SAE-ViT-L-14-FP32.safetensors` is the case the CLIP-L example does *not*
 cover: it is a real fine-tune, not a base. Comparing it against the official
@@ -388,7 +388,7 @@ subsequently failed with a traceback instead of a verdict. That is a real defect
 in a tool meant to gate a pipeline, and it is now fixed: a missing or unreadable
 input exits **2** with a one-line error (Section 10.2).
 
-### 6.4 Detection sensitivity, measured
+### 6.5 Detection sensitivity, measured
 
 The tools were validated against fabricated tampering, not assumed to work.
 
@@ -419,6 +419,63 @@ Source-level (`source_audit.py`):
 The poisoned-merge row is the key capability: with perfectly clean parents, an
 injected model is still caught as a residual the declared parentage cannot
 explain.
+
+### 6.6 A third worked example: when no reference exists (FLAN-T5-XXL)
+
+`flan_t5_xxl_fp16.safetensors` (21,490 MB, 559 tensors, all `F16`) is the case
+where **no reference file is available locally**. This is the honest dead end of
+the proof classes, and what remains is worth stating precisely.
+
+**Pack against source - the proof still works:**
+
+```
+FAITHFUL
+  quantized=312  rel_l2 median=0.008680 max=0.011309  envelope=0.028680
+  EXACT: q_mismatch=0 (ratio_max=0.00e+00)  max_q_delta=0  scale_exact_rel_max=0.00e+00
+  dropped=0 (in-scope=0)  extra=0  float_mismatch=0
+```
+
+All 312 quantized layers reproduce the source exactly, and every kept-float
+tensor is bit-identical. The conversion added nothing.
+
+**Source against upstream - not available as a file, but partly provable from
+metadata.** The official release `google/flan-t5-xxl` publishes its parameter
+count in the Hub's `safetensors` metadata: **11,266,928,640** parameters, F32,
+sharded across five files. The local file's tensors sum to exactly that number:
+
+```
+tensors              : 559   (encoder 218, decoder 339, + shared.weight, lm_head.weight)
+dtypes               : {'F16': 559}
+elements in file     : 11,266,928,640
+official params      : 11,266,928,640
+difference           : 0
+```
+
+This is a **structural identity**, not a weight identity: the parameter count and
+the full tensor inventory match the official release with zero difference, and
+the container is exactly `header + payload` with no trailing or unreferenced
+bytes. What it proves is that no tensor was added, removed or resized. It does
+**not** prove that any individual weight is unmodified, because there is no local
+reference file to compare against. That distinction matters and is the point of
+this example.
+
+One detail that had to be checked rather than assumed: T5 ties `shared.weight`
+to `lm_head.weight`. Here both keys carry `[32128, 4096]` and the file stores
+them **separately, with different values** - so the element sum is not
+double-counting a tie, and the equality with the official 11.3 B count is real.
+
+**What the checks say:** A found no structural anomaly; B flagged 94 of 290
+analysable layers on kurtosis and extreme-value fraction; G found no
+single-token outlier (top row-norm z-scores are negative, i.e. small rows). B's
+flags are the expected recall-tuned noise on a 290-layer model with genuinely
+heavy-tailed projections - treat them as hints, exactly as Section 7 says.
+
+**Verdict for this file:** the pack is `FAITHFUL`; the source is **structurally
+identical to the official release** but carries **no weight-level proof**. To
+get one, supply either the five official `model-0000N-of-00005.safetensors`
+shards (`--reference`) or the upstream FP16 export with its published sha256
+(`--reference-sha256`). Without either, the honest answer is "structurally
+consistent, unproven at the weight level" - not "clean".
 
 ---
 
