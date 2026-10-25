@@ -113,6 +113,26 @@ def is_safetensors(path):
     return True, hdr
 
 
+def _require_file(path, what):
+    """Fail as a gate, not as a traceback. A missing or unreadable input is an
+    audit failure (exit 2), never a crash with a stack trace - a pipeline that
+    gates on this program must get a decision, not a Python error."""
+    if not path:
+        sys.exit("%s: no path given" % what)
+    if not os.path.exists(path):
+        sys.stderr.write("error: %s does not exist: %s\n" % (what, path))
+        sys.exit(2)
+    if not os.path.isfile(path):
+        sys.stderr.write("error: %s is not a file: %s\n" % (what, path))
+        sys.exit(2)
+    try:
+        with open(path, "rb") as f:
+            f.read(8)
+    except OSError as e:
+        sys.stderr.write("error: %s is not readable: %s (%s)\n" % (what, path, e))
+        sys.exit(2)
+
+
 def header_of(path):
     ok, raw = is_safetensors(path)
     if not ok:
@@ -791,6 +811,15 @@ def main():
                     help="flat absolute gate for the merge proof (C); 0 (default) uses the "
                          "dtype-aware per-element gate")
     args = ap.parse_args()
+
+    # an input that does not exist is an audit failure, not a traceback
+    _require_file(args.model, "model")
+    if args.base:
+        _require_file(args.base, "base")
+    for _p in args.parents or []:
+        _require_file(_p, "parent")
+    if args.reference:
+        _require_file(args.reference, "reference")
 
     summary = {"model": os.path.basename(args.model)}
 
