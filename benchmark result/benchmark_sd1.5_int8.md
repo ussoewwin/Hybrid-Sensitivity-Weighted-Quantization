@@ -23,7 +23,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **0.5xxmix9realistic_v40 0.5BRA7** | 1on k80 | **0.97542** | 0.96265 | **+0.01277** | **1.0432** | 1.4793 | **16/25 (0%)** | 13/25 (0%) | **+23.2%** | **HSWQ** |
 | **0.5xxmix9realistic_v40+0.5chilledReGenericV3** | 1on k80 | **0.95362** | 0.92644 | **+0.02719** | **1.3338** | 2.1379 | **10/25 (0%)** | 7/25 (0%) | **+20.1%** | **HSWQ** |
 | **0.5yayoiMix_v25+0.5againmix_v22** | 1on k80 | **0.97642** | 0.96010 | **+0.01632** | **1.0225** | 1.7696 | **18/25 (0%)** | 11/25 (0%) | **+38.6%** | **HSWQ** |
-| **0.5yayoiMix_v25+0.5voidnoisecore_r1733** | 1on k80 | 0.97461 | **0.97518** | **-0.00057** | **0.7950** | 0.8165 | **16/25 (0%)** | 15/25 (0%) | **+35.1%** | **Mixed** |
+| **0.5yayoiMix_v25+0.5voidnoisecore_r1733** | 1on k80 | 0.97461 | **0.97518** | **-0.00057** | **0.7950** | 0.8165 | **16/25 (0%)** | 15/25 (0%) | **+35.1%** | **Native** |
 | **Family Average** | — | **0.97002** | 0.95609 | **+0.01393** | **1.0486** | 1.5508 | **60/100 (0.0%)** | 46/100 (0.0%) | **+29.2%** | **HSWQ (3/4 models)** |
 
 **Winner** = better on both mean cosine and mean MSE.
@@ -202,7 +202,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **2683910547** | 0.99019 | **0.99619** | -0.00600 | 0.2475 | **0.0966** | +0.1509 | same-image | same-image | Native |
 | **3851729406** | 0.94864 | **0.95012** | -0.00148 | 2.2810 | **2.2140** | +0.0670 | drifted (different image) | drifted (different image) | Native |
 | **4195820371** | **0.99750** | 0.98872 | +0.00878 | **0.1008** | 0.4543 | -0.3535 | same-image | same-image | **HSWQ** |
-| **Mean** | 0.97461 | **0.97518** | -0.00057 | 0.7950 | 0.8165 | -0.0215 | **0/25 Bifurcated** | **0/25 Bifurcated** | **Mixed** (15/25 by cosine) |
+| **Mean** | 0.97461 | **0.97518** | -0.00057 | 0.7950 | 0.8165 | -0.0215 | **0/25 Bifurcated** | **0/25 Bifurcated** | **Native** (10/25) |
 
 ---
 
@@ -222,7 +222,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 7. **The third checkpoint remains the strongest HSWQ case.** `0.5yayoiMix_v25+0.5againmix_v22` gives HSWQ its highest same-image count on a single checkpoint (18/25 against 11/25) and its largest latent-MSE reduction (42%), while also showing the widest wall-clock gain (+38.6%). Its minimum cosine (0.88496) is the highest of the four HSWQ arms, so the family worst case stays with the second checkpoint (0.78997).
 
-8. **The fourth checkpoint is the one Native takes on cosine.** `0.5yayoiMix_v25+0.5voidnoisecore_r1733` is the only checkpoint here where the Native pack beats the protected one on the mean final cosine (0.97518 against 0.97461, -0.00057) and on the minimum (0.91578 against 0.90601); Native also wins the per-seed count by cosine (10/25 against 15/25). HSWQ keeps the lower mean MSE (0.7950 against 0.8165), the higher same-image count (16/25 against 15/25) and the larger speedup (35.1% against 28.0%). Because the md's row verdict requires the winner to be ahead on **both** mean cosine and mean MSE, this row reads **Mixed**, and the family aggregate stays with HSWQ (3/4 models).
+8. **The fourth checkpoint is the one Native takes.** `0.5yayoiMix_v25+0.5voidnoisecore_r1733` is the only checkpoint here where the Native pack beats the protected one on the mean final cosine (0.97518 against 0.97461, -0.00057) and on the minimum (0.91578 against 0.90601); HSWQ wins the per-seed count by cosine (15/25 against 10/25). HSWQ keeps the lower mean MSE (0.7950 against 0.8165), the higher same-image count (16/25 against 15/25) and the larger speedup (35.1% against 28.0%). The family aggregate stays with HSWQ (3/4 models).
 
 
 ---
