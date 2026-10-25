@@ -74,15 +74,23 @@ import sys
 
 import torch
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import st_integrity  # noqa: E402  (container-level checks shared with backdoor_audit)
+
 FLOATS = ("F16", "F32", "BF16", "F64")
 
 # forensic gate: robust z-score (MAD) above which a layer is flagged
 FORENSIC_Z = 6.0
-# delta gate: per-tensor relative Frobenius mass above which a layer counts as
-# "changed" in the base-delta check
+# delta gate: per-tensor relative Frobenius mass above which a layer's delta is
+# SVD-profiled (D2). It is NOT the gate for "changed": a tensor counts as changed
+# when it is not bit-identical, because a localized edit (one row, one element)
+# has a tiny relative Frobenius mass and would slip under any such threshold.
 DELTA_REL_TOL = 1e-5
-# merge reconstruction gate: per-tensor max-abs difference allowed
-MERGE_ABS_TOL = 1e-4
+# legacy absolute merge gate. 0 = dtype-aware per-element gate (default): a
+# tensor matches when every element is within one machine epsilon of the model's
+# own dtype, relative to the element. A fixed 1e-4 absolute gate is 0.5 % of a
+# typical 0.02 weight, i.e. room to hide an edit; --merge-abs-tol restores it.
+MERGE_ABS_TOL = 0.0
 
 
 # --- safetensors --------------------------------------------------------------
@@ -125,20 +133,27 @@ def keys_of(path):
 # --- A. static / structure ----------------------------------------------------
 
 def static_check(path):
-    raw, meta = keys_of(path)
+    hdr, integrity = st_integrity.check(path)
     out = {"file": os.path.basename(path), "mb": os.path.getsize(path) / 1024 ** 2,
-           "tensors": len(raw), "metadata_keys": list(meta.keys()),
-           "findings": [], "warnings": []}
-    dtypes, total_bytes = {}, 0
+           "tensors": 0, "metadata_keys": [], "findings": list(integrity),
+           "warnings": [], "dtype_hist": {}, "biggest_tensor": {"name": "", "mb": 0.0},
+           "top_modules": []}
+    if hdr is None:
+        return out
+    raw = {k: v for k, v in hdr.items() if k != "__metadata__"}
+    meta = hdr.get("__metadata__", {})
+    out["tensors"] = len(raw)
+    out["metadata_keys"] = list(meta.keys()) if isinstance(meta, dict) else []
+    dtypes = {}
     biggest = ("", 0)
     for k, v in raw.items():
+        if not isinstance(v, dict) or "dtype" not in v or "data_offsets" not in v:
+            continue    # reported as a malformed entry by the container check
         dtypes[v["dtype"]] = dtypes.get(v["dtype"], 0) + 1
-        sz = 1
-        for d in v["shape"]:
-            sz *= d
-        b = sz * (2 if v["dtype"] in ("F16", "BF16") else
-                  4 if v["dtype"] in ("F32", "I32") else 1)
-        total_bytes += b
+        try:
+            b = int(v["data_offsets"][1]) - int(v["data_offsets"][0])
+        except Exception:
+            continue
         if b > biggest[1]:
             biggest = (k, b)
     out["dtype_hist"] = dtypes
@@ -149,23 +164,15 @@ def static_check(path):
               ("F16", "F32", "BF16", "F64", "I8", "U8", "I32", "I64", "U16", "BOOL")}
     if bad_dt:
         out["findings"].append("unexpected dtypes: %s" % sorted(bad_dt))
-    sus = [k for k in raw
-           if any(w in k.lower() for w in ("backdoor", "trigger", "payload", "exploit",
-                                           "shell", "reverse", "cmd", "exec", "hook"))]
-    if sus:
-        out["findings"].append("suspicious key names: %s" % sus[:10])
     modules = sorted({k.split(".")[0] for k in raw})
     out["top_modules"] = modules[:20]
     # a 1-D byte blob with no sibling is a typical smuggled payload carrier
     blob = [k for k, v in raw.items()
-            if v["dtype"] == "U8" and len(v["shape"]) == 1 and v["shape"][0] > 4096
-            and not k.endswith(".comfy_quant")]
+            if isinstance(v, dict) and v.get("dtype") == "U8"
+            and isinstance(v.get("shape"), list) and len(v["shape"]) == 1
+            and v["shape"][0] > 4096 and not k.endswith(".comfy_quant")]
     if blob:
         out["findings"].append("large byte blobs (possible payload carrier): %s" % blob[:6])
-    terms = [k for k in raw if k.endswith((".bias", ".weight")) is False
-             and k.endswith(".weight") is False]
-    if not raw:
-        out["findings"].append("no tensors")
     return out
 
 
@@ -242,11 +249,14 @@ def top_singular_profile(W, k=6):
     except Exception:
         return None
     S = S.clamp(min=0)
+    S = S.reshape(-1)
     total = float((S ** 2).sum())
     if total <= 0:
         return None
-    fr = [float(s ** 2) / total for s in S[:k]]
-    return {"sv_frac": fr, "rank_eff": float(sum(s ** 2 for s in S) / (S[0] ** 2)) if float(S[0]) > 0 else None}
+    fr = [float(S[i] ** 2) / total for i in range(min(k, S.numel()))]
+    return {"sv_frac": fr,
+            "rank_eff": float(sum(float(s) ** 2 for s in S) / (float(S[0]) ** 2))
+            if float(S[0]) > 0 else None}
 
 
 def forensics(path, max_elems=20_000_000, min_role=5):
@@ -305,7 +315,35 @@ def parse_recipe(recipe, n):
     return parts
 
 
-def parent_reconstruction(model_path, parent_paths, weights, block=4096):
+def nan_equal(a, b):
+    """Exact equality that treats NaN == NaN."""
+    if torch.equal(a, b):
+        return True
+    if a.is_floating_point() and b.is_floating_point():
+        na, nb = torch.isnan(a), torch.isnan(b)
+        return bool(torch.equal(na, nb)) and bool(torch.equal(a[~na], b[~nb]))
+    return False
+
+
+def _merge_exceed(M, acc, model_dtype, abs_tol):
+    """Number of elements where the model differs from the reconstruction by
+    more than the gate, and the largest difference.
+
+    Default gate: two machine epsilons of the model's own dtype, relative to the
+    element (a merge written into F16 is rounded to F16, so that rounding - and
+    the arithmetic done in that precision - is the only legitimate difference).
+    ``abs_tol > 0`` restores a flat gate."""
+    d = (M - acc).abs()
+    if abs_tol > 0:
+        return int((d > abs_tol).sum()), float(d.max()) if d.numel() else 0.0
+    eps = torch.finfo(model_dtype).eps if model_dtype.is_floating_point else 0.0
+    tiny = torch.finfo(model_dtype).tiny if model_dtype.is_floating_point else 0.0
+    gate = 2.0 * eps * torch.maximum(M.abs(), acc.abs()) + tiny
+    return int((d > gate).sum()), float(d.max()) if d.numel() else 0.0
+
+
+def parent_reconstruction(model_path, parent_paths, weights, block=4096,
+                          abs_tol=MERGE_ABS_TOL):
     sf_m, _ = keys_of(model_path)
     sf_ps = [keys_of(p)[0] for p in parent_paths]
     sfa = [open_sd(p) for p in parent_paths]
@@ -323,7 +361,8 @@ def parent_reconstruction(model_path, parent_paths, weights, block=4096):
         if k not in {kk for kk in sf_m}:
             continue
         try:
-            M = sfm.get_tensor(k).float()
+            Mraw = sfm.get_tensor(k)
+            M = Mraw.float()
             P = [p.get_tensor(k).float() for p in sfa]
         except Exception:
             skipped.append(k); continue
@@ -332,14 +371,14 @@ def parent_reconstruction(model_path, parent_paths, weights, block=4096):
         acc = torch.zeros_like(M)
         for w, p in zip(weights, P):
             acc += w * p
-        diff = (M - acc).abs().max()
-        rel = float(diff / (M.abs().max().clamp(min=1e-30)))
-        if float(diff) > MERGE_ABS_TOL:
-            bad.append({"layer": k, "max_abs": float(diff), "rel": rel})
+        n_exceed, dmax = _merge_exceed(M, acc, Mraw.dtype, abs_tol)
+        rel = float(dmax / (M.abs().max().clamp(min=1e-30)))
+        if n_exceed:
+            bad.append({"layer": k, "max_abs": dmax, "rel": rel, "elements": n_exceed})
         else:
             ok += 1
-        if float(diff) > worst[1]:
-            worst = (k, float(diff))
+        if dmax > worst[1]:
+            worst = (k, dmax)
         del M, P, acc
 
     return {
@@ -350,13 +389,27 @@ def parent_reconstruction(model_path, parent_paths, weights, block=4096):
         "ok_tensors": ok,
         "bad_count": len(bad), "bad": bad[:20],
         "only_in_model": only_model[:20], "only_in_model_count": len(only_model),
-        "skipped_count": len(skipped),
+        "skipped_count": len(skipped), "skipped": skipped[:20],
         "worst_layer": worst[0], "worst_max_abs": worst[1],
-        "verdict": "EXACT-MERGE" if (not bad and not only_model) else "RESIDUAL",
+        # a tensor that could not be read was not verified; it cannot be certified
+        "verdict": ("EXACT-MERGE" if (not bad and not only_model and not skipped)
+                    else "RESIDUAL"),
     }
 
 
 # --- D. base delta -------------------------------------------------------------
+
+def _common_cast(a, b):
+    """Bring two tensors to one dtype for an exact comparison. Two float tensors
+    are compared in the lower-precision dtype of the pair (so an FP32 base and an
+    FP16 export compare equal when the export is the faithful cast)."""
+    if a.dtype == b.dtype:
+        return a, b
+    if a.is_floating_point() and b.is_floating_point():
+        t = a.dtype if torch.finfo(a.dtype).eps >= torch.finfo(b.dtype).eps else b.dtype
+        return a.to(t), b.to(t)
+    return None, None
+
 
 def base_delta(base_path, model_path, block=8192):
     sf_b, _ = keys_of(base_path)
@@ -367,19 +420,34 @@ def base_delta(base_path, model_path, block=8192):
     only_b = sorted(set(sf_b) - set(sf_m))
 
     changed = []
+    unread = []
     max_rel = 0.0
     tot_mass = tot_base_mass = 0.0
+    # every shared tensor is compared, not only ``*.weight``: a bias, a norm or
+    # an embedding offset is just as editable
     for k in shared:
-        if not k.endswith(".weight"):
-            continue
         try:
-            B = sb.get_tensor(k).float()
-            M = sm.get_tensor(k).float()
+            B0 = sb.get_tensor(k)
+            M0 = sm.get_tensor(k)
         except Exception:
+            unread.append(k)
             continue
-        if B.shape != M.shape:
-            changed.append({"layer": k, "reason": "shape %s vs %s" % (tuple(M.shape), tuple(B.shape))})
+        if B0.shape != M0.shape:
+            changed.append({"layer": k, "reason": "shape %s vs %s" % (tuple(M0.shape), tuple(B0.shape))})
             continue
+        Bc, Mc = _common_cast(B0, M0)
+        if Bc is None:
+            changed.append({"layer": k, "reason": "dtype %s vs %s" % (M0.dtype, B0.dtype)})
+            continue
+        # "changed" = not bit-identical. A threshold on the relative mass would
+        # call a one-row or one-element edit "unchanged".
+        if nan_equal(Bc, Mc):
+            B = M = None
+            fb = float(B0.float().norm())
+            tot_base_mass += fb * fb
+            continue
+        B = B0.float()
+        M = M0.float()
         D = M - B
         fb = float(B.norm())
         fd = float(D.norm())
@@ -387,10 +455,12 @@ def base_delta(base_path, model_path, block=8192):
         tot_base_mass += fb * fb
         rel = fd / fb if fb > 0 else fd
         max_rel = max(max_rel, rel)
-        if rel > DELTA_REL_TOL:
-            prof = top_singular_profile(D) if D.numel() else None
-            changed.append({"layer": k, "rel_fro": rel, "delta_norm": fd,
-                            "profile": prof})
+        prof = None
+        if rel > DELTA_REL_TOL and B.ndim == 2 and D.numel():
+            prof = top_singular_profile(D)
+        changed.append({"layer": k, "rel_fro": rel, "delta_norm": fd,
+                        "profile": prof, "micro": rel <= DELTA_REL_TOL,
+                        "elements_changed": int((Bc != Mc).sum())})
         del B, M, D
 
     # the dominant rank-1 fraction: a pure abliteration delta is rank-1
@@ -401,12 +471,16 @@ def base_delta(base_path, model_path, block=8192):
         "base": os.path.basename(base_path), "model": os.path.basename(model_path),
         "shared": len(shared),
         "changed_count": len(changed), "changed": changed[:25],
+        "micro_changed_count": len([c for c in changed if c.get("micro")]),
+        "unread_count": len(unread), "unread": unread[:20],
         "only_in_model": only_m[:20], "only_in_model_count": len(only_m),
         "only_in_base_count": len(only_b),
         "max_rel_fro": max_rel,
         "total_rel_fro": math.sqrt(tot_mass / tot_base_mass) if tot_base_mass else 0.0,
         "rank1_frac_median": statistics.median(fracs) if fracs else None,
-        "verdict": "IDENTICAL" if not changed and not only_m else "DERIVED",
+        # a tensor that could not be read was not compared; never certify around it
+        "verdict": ("IDENTICAL" if not changed and not only_m and not unread
+                    else "DERIVED"),
     }
 
 
@@ -443,9 +517,11 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
     shared = sorted(set(hb) & set(hm) & set(k for k in hb if k.endswith(".weight")))
 
     rows = []
+    micro = []
     for k in shared:
         try:
-            B = sb.get_tensor(k).float(); M = sm.get_tensor(k).float()
+            Braw = sb.get_tensor(k); Mraw = sm.get_tensor(k)
+            B = Braw.float(); M = Mraw.float()
         except Exception:
             continue
         if B.shape != M.shape or B.ndim != 2:
@@ -454,6 +530,11 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
         fb = float(B.norm()); fd = float(D.norm())
         rel = fd / fb if fb > 0 else fd
         if rel <= DELTA_REL_TOL:
+            # too small to SVD-profile, but not necessarily zero: report any
+            # tensor that is not bit-identical rather than calling it "no delta"
+            Bc, Mc = _common_cast(Braw, Mraw)
+            if Bc is None or not nan_equal(Bc, Mc):
+                micro.append({"layer": k, "rel_fro": rel})
             continue
         V, S = _right_vector(D, k=2)
         if V is None:
@@ -468,7 +549,8 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
 
     if not rows:
         return {"changed": 0, "rows": [], "rank1_median": None,
-                "coherence": None, "verdict": "NO-DELTA"}
+                "coherence": None, "micro_edits": len(micro), "micro": micro[:20],
+                "verdict": "MICRO-EDIT" if micro else "NO-DELTA"}
 
     rank1s = [r["rank1"] for r in rows if r.get("rank1") is not None]
     # coherence within each in_features group (a shared residual direction)
@@ -497,7 +579,8 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
                else "MULTI-DIRECTION")
     return {"changed": len(rows), "rows": sorted(rows, key=lambda r: -r["rel_fro"])[:25],
             "rank1_median": med_r1, "max_rank2": max_r2,
-            "coherence": coh, "verdict": verdict}
+            "coherence": coh, "micro_edits": len(micro), "micro": micro[:20],
+            "verdict": verdict}
 
 
 # --- G. embedding outlier scan -------------------------------------------------
@@ -520,15 +603,26 @@ def embedding_scan(path):
         if E.ndim != 2 or E.shape[0] < 100:
             continue
         rn = E.norm(dim=1)
-        med = float(rn.median()); mad = statistics.median([abs(float(x) - med) for x in rn]) or 1e-9
-        z = [(0.6745 * (float(rn[i]) - med) / mad, i) for i in range(E.shape[0])]
-        z.sort(reverse=True)
+        med = float(rn.median())
+        mad = float((rn - med).abs().median()) or 1e-9
+        zt = 0.6745 * (rn - med) / mad
+        # both tails: a planted row can be unusually small as well as large
+        top = torch.topk(zt.abs(), k=min(10, zt.numel()))
         out["tables"].append({"key": k, "rows": int(E.shape[0]),
                               "row_norm_median": med,
                               "top_by_row_norm": [
-                                  {"row": i, "z": zz, "norm": float(rn[i])}
-                                  for zz, i in z[:10]]})
+                                  {"row": int(i), "z": float(zt[int(i)]), "norm": float(rn[int(i)])}
+                                  for i in top.indices.tolist()]})
     return out
+
+
+def sha256_of(path, chunk=1 << 20):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for blk in iter(lambda: f.read(chunk), b""):
+            h.update(blk)
+    return h.hexdigest()
 
 
 # --- H. upstream identity proof -----------------------------------------------
@@ -554,20 +648,25 @@ def upstream_identity(reference_path, model_path, tol_ulp=0):
 
     exact = 0
     bad = []
+    unread = []
     for k in shared:
         try:
             r = sr.get_tensor(k)
             m = sm.get_tensor(k)
         except Exception:
+            unread.append(k)
             continue
         if r.shape != m.shape:
             bad.append({"layer": k, "reason": "shape %s vs %s" % (tuple(m.shape), tuple(r.shape))})
             continue
+        if r.dtype != m.dtype and not (r.is_floating_point() and m.is_floating_point()):
+            bad.append({"layer": k, "reason": "dtype %s vs %s" % (m.dtype, r.dtype)})
+            continue
         cast = r.to(m.dtype)
-        if torch.equal(m, cast):
+        if nan_equal(m, cast):
             exact += 1
         else:
-            d = float((m.float() - cast.float()).abs().max())
+            d = float((m.float() - cast.float()).abs().nan_to_num().max())
             n_diff = int((m != cast).sum())
             bad.append({"layer": k, "max_abs": d, "n_elem_diff": n_diff})
         del r, m
@@ -578,7 +677,9 @@ def upstream_identity(reference_path, model_path, tol_ulp=0):
             "shared": len(shared), "exact": exact, "bad_count": len(bad),
             "bad": bad[:20], "only_in_model_count": len(only_model),
             "only_in_model": only_model[:10], "only_in_ref_count": len(only_ref),
-            "verdict": ("UPSTREAM-IDENTICAL" if (not bad and not only_model)
+            "unread_count": len(unread), "unread": unread[:10],
+            # a tensor that could not be read was not compared; never certify around it
+            "verdict": ("UPSTREAM-IDENTICAL" if (not bad and not only_model and not unread)
                         else "DIVERGES")}
 
 
@@ -680,10 +781,15 @@ def main():
     ap.add_argument("--recipe", default="", help="merge weights, e.g. 0.5,0.5")
     ap.add_argument("--reference", default="",
                     help="official upstream release, for the identity proof (H)")
+    ap.add_argument("--reference-sha256", default="",
+                    help="published sha256 of the upstream file (fastest identity proof, H0)")
     ap.add_argument("--behavior", action="store_true")
     ap.add_argument("--comfy", default="")
     ap.add_argument("--json", default="")
     ap.add_argument("--max-elems", type=int, default=20_000_000)
+    ap.add_argument("--merge-abs-tol", type=float, default=MERGE_ABS_TOL,
+                    help="flat absolute gate for the merge proof (C); 0 (default) uses the "
+                         "dtype-aware per-element gate")
     args = ap.parse_args()
 
     summary = {"model": os.path.basename(args.model)}
@@ -719,7 +825,7 @@ def main():
         print(flush=True)
         print("=== C. parent reconstruction (PROOF when it passes) ===")
         w = parse_recipe(args.recipe, len(args.parents))
-        c = parent_reconstruction(args.model, args.parents, w)
+        c = parent_reconstruction(args.model, args.parents, w, abs_tol=args.merge_abs_tol)
         summary["merge"] = c
         print("  recipe=%s  shared=%d  exact=%d  residual=%d" % (
             w, c["shared_tensors"], c["ok_tensors"], c["bad_count"]))
@@ -727,10 +833,13 @@ def main():
             c["verdict"], c["worst_max_abs"], c["worst_layer"][:44]))
         for x in c["bad"][:10]:
             print("    RESIDUAL %s  %s" % (x.get("layer", "")[:50],
-                                           "max_abs=%.3e rel=%.3e" % (x["max_abs"], x["rel"])
+                                           "max_abs=%.3e rel=%.3e elements=%d" % (
+                                               x["max_abs"], x["rel"], x.get("elements", -1))
                                            if "max_abs" in x else x.get("reason", "")))
         if c["only_in_model"]:
             print("    tensors only in model: %s" % c["only_in_model"][:8])
+        if c["skipped_count"]:
+            print("    UNREAD (not verified, so not certified): %s" % c["skipped"][:8])
 
     if args.base:
         print(flush=True)
@@ -749,12 +858,27 @@ def main():
             if "rel_fro" in x:
                 pf = x.get("profile") or {}
                 f0 = (pf.get("sv_frac") or [None])[0]
-                print("    CHANGED %-46s rel_fro=%.3e  rank1=%.4f  %s" % (
+                print("    CHANGED %-46s rel_fro=%.3e  rank1=%.4f  %s%s" % (
                     x["layer"][:46], x["rel_fro"], f0 if f0 is not None else float("nan"),
                     "sv_frac=" + " ".join("%.3f" % v for v in pf.get("sv_frac", [])[:4])
-                    if pf else ""))
+                    if pf else "",
+                    "  [micro: %d element(s)]" % x.get("elements_changed", 0)
+                    if x.get("micro") else ""))
             else:
                 print("    CHANGED %-46s %s" % (x.get("layer", "")[:46], x.get("reason")))
+        if d["unread_count"]:
+            print("    UNREAD (not compared, so not certified): %s" % d["unread"][:8])
+
+    if args.reference_sha256:
+        print(flush=True)
+        print("=== H0. checksum identity (PROOF when it matches) ===")
+        got = sha256_of(args.model)
+        exp = args.reference_sha256.strip().lower()
+        ok = (got == exp)
+        print("  model  sha256: %s" % got)
+        print("  cited  sha256: %s" % exp)
+        print("  verdict: %s" % ("UPSTREAM-IDENTICAL" if ok else "CHECKSUM-MISMATCH"))
+        summary["checksum_identity"] = {"model_sha256": got, "expected": exp, "match": ok}
 
     if args.reference:
         print(flush=True)
@@ -772,6 +896,8 @@ def main():
                 print("    DIVERGES %-46s %s" % (b["layer"][:46], b.get("reason")))
         if h["only_in_model"]:
             print("    tensors only in the model: %s" % h["only_in_model"][:8])
+        if h["unread_count"]:
+            print("    UNREAD (not compared, so not certified): %s" % h["unread"][:8])
 
     if args.behavior:
         if not args.comfy:
@@ -796,12 +922,18 @@ def main():
         print("=== D2. delta structure (rank profile + direction coherence) ===")
         f = delta_structure(args.base, args.model)
         summary["delta_structure"] = f
-        if f["changed"] == 0:
+        if f["changed"] == 0 and not f.get("micro_edits"):
             print("  delta is zero: the model equals the base")
+        elif f["changed"] == 0:
+            print("  MICRO-EDIT: %d tensor(s) differ from the base by less than the "
+                  "profiling threshold, but are not bit-identical: %s" % (
+                      f["micro_edits"], [m["layer"][:40] for m in f["micro"][:5]]))
         else:
             print("  changed layers: %d   rank-1 fraction (median): %s   verdict: %s" % (
                 f["changed"], ("%.4f" % f["rank1_median"]) if f["rank1_median"] is not None
                 else "n/a", f["verdict"]))
+            if f.get("micro_edits"):
+                print("  plus %d micro-edit tensor(s) below the profiling threshold" % f["micro_edits"])
             print("  max second-direction fraction: %.4f  (a clean single-direction"
                   " removal keeps this near 0)" % f["max_rank2"])
             for feat, c in f["coherence"].items():
@@ -826,11 +958,15 @@ def main():
     print("  An absolute absence proof is not attainable for any security check:")
     print("  the trigger space is unbounded. This program performs the strongest")
     print("  checks the current technique allows, in order of strength:")
-    have_proof = bool(args.parents) or bool(args.base) or bool(args.reference)
+    have_proof = (bool(args.parents) or bool(args.base) or bool(args.reference)
+                  or bool(args.reference_sha256))
     if have_proof:
         print("  - C/D: PROOF that no weight beyond the declared base/parents exists")
         print("    (EXACT-MERGE / IDENTICAL), and the delta's rank/coherence shape,")
         print("    which distinguishes a clean single-direction removal from an edit.")
+    if args.reference_sha256:
+        print("  - H0: PROOF by checksum. A match to the publisher's published sha256")
+        print("    means the file IS the published artifact, byte for byte.")
     if args.reference:
         print("  - H: PROOF against the official upstream release. An")
         print("    UPSTREAM-IDENTICAL verdict means the model IS the upstream weights.")
@@ -844,6 +980,19 @@ def main():
         with open(args.json, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
         print("\nwrote %s" % args.json, flush=True)
+
+    # Exit status, so the audit can gate a pipeline: 0 = nothing adverse found,
+    # 2 = a container finding, or a negative verdict from a check that was run
+    # (RESIDUAL, DIVERGES, CHECKSUM-MISMATCH, MULTI-DIRECTION, MICRO-EDIT).
+    # B/E/G are recall-tuned hints and do not fail the run on their own.
+    adverse = bool(a["findings"])
+    adverse = adverse or summary.get("merge", {}).get("verdict") == "RESIDUAL"
+    adverse = adverse or summary.get("upstream_identity", {}).get("verdict") == "DIVERGES"
+    adverse = adverse or (summary.get("checksum_identity") is not None
+                          and not summary["checksum_identity"]["match"])
+    adverse = adverse or summary.get("delta_structure", {}).get("verdict") in (
+        "MULTI-DIRECTION", "MICRO-EDIT")
+    sys.exit(2 if adverse else 0)
 
 
 if __name__ == "__main__":
