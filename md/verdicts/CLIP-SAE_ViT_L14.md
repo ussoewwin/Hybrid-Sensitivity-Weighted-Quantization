@@ -165,6 +165,127 @@ compared by cosine (1.0 identical, lower = larger change).
 - Downstream retrieval quality was not re-measured; "the model still works" is not
   asserted.
 
+## Method - how every number above was produced
+
+**Environment.** torch 2.14.1+cu132, transformers 5.20.2, safetensors 0.8.0, numpy 2.5.4,
+CUDA 13.2, one RTX 5060 Ti (compute capability 12.0, 16 GB). The file is FP32, so it is
+loaded FP32; no bf16 floor applies to it and none is quoted anywhere in this report.
+
+**Files.** Candidate: `CLIP-SAE-ViT-L-14-FP32.safetensors`, 1,710,537,716 bytes, 590
+tensors. Reference: the official CLIP ViT-L/14 file (`a2bf730a...`,
+1,710,540,580 bytes). The reference is distributed in the original OpenAI layout, so
+`openai_clip_to_hf.py` maps it to the HF state-dict layout before any comparison and
+`openai_clip_layout.py` checks the mapping key by key; both the layout check and the
+hashes are recorded.
+
+```
+python audit/openai_clip_layout.py --official <official dir> --candidate <file> \
+    --json records/hf_refs_clip.json
+python audit/openai_clip_to_hf.py --official <official dir> --candidate <file> \
+    --out <hf-format dir> --config-from <config dir> --tokenizer-dir <tokenizer dir>
+```
+
+**Step 1 - census (shape A).** `shard_census.py` compares the two state dicts key by key:
+presence, dtype, shape, and the relative difference over the whole tensor. A tensor counts
+as differing when the two are not bit-equal.
+
+```
+python audit/shard_census.py --reference <hf-format reference dir> --candidate <file> \
+    --json records/sae_census.json
+```
+
+Result: 592 reference / 590 candidate, 10 bit-identical, 580 differing, 2 only-reference
+and 0 only-candidate. The 2 are non-parameter `position_ids` buffers that the export
+omits - no parameter, no bias, no embedding row was added. Of the 580, 67 differ by less
+than 1e-6 relative: "differs" is a bit statement, not a functional one. Relative
+difference over the 580: median 0.000400, max 0.003074.
+
+**Step 2 - what the change is (shape B).** Per differing 2-D tensor the difference
+`D = candidate - reference` is decomposed by SVD. The rank-1 share `s1^2 / sum(s^2)` has
+median 0.32124 (minimum 0.02179) - most of each change lies outside its leading direction,
+which already makes a one-direction account doubtful.
+
+`sae_deep.py` then tests that directly: tensors are grouped by output width, one direction
+per group is taken from the stacked deltas, and the base is rebuilt minus that direction at
+the least-squares scale. `explained = 1 - ||candidate - rebuild|| / ||candidate - base||`
+is the fraction of the change the reconstruction accounts for. Median **-0.41429**, maximum
+0.00674: the reconstruction makes the fit worse, so this file is not one projection. Group
+coherence is 0.5592 - no single shared direction.
+
+```
+python audit/sae_deep.py --base <hf-format reference dir> --candidate <file> \
+    --json records/sae_deep.json
+```
+
+**Step 3 - spectrum against a random baseline.** `sae_spectrum.py` computes, per differing
+tensor, the share of energy in the leading 1, 2, 4, 8, 16 and 32 singular values, and the
+same statistics for random matrices of identical shape (`--per-tensor 40` caps the sample).
+
+```
+python audit/sae_spectrum.py --base <hf-format reference dir> --candidate <file> \
+    --per-tensor 40 --json records/sae_spectrum.json
+```
+
+Result over 221 tensors: leading share 0.32124 against 0.00386 for a random matrix (83.2x),
+top-32 share 0.78027 against 0.11213 (7.0x), median `s1/s2` 1.72541. A dense fine-tune has
+this shape; a rank-1 insertion does not.
+
+**Step 4 - selectivity (shape C).** `sae_probe.py` encodes 118 prompts in seven families
+through both models and compares the text embeddings by cosine: ordinary (15), the 28
+documented-trigger variants, style (15), safety (15), numbers/dates (15), other-language
+Latin (15), long (15). A phrase key would put its family above ordinary text.
+
+```
+python audit/sae_probe.py --base <hf-format reference dir> --candidate <file> \
+    --trigger-json records/trigger_family.json --json records/sae_probe.json
+```
+
+Result: trigger family 0.97597 against ordinary 0.92056 - the trigger strings move the file
+*less* than ordinary captions. Families: style 0.95302, safety 0.91771, numbers 0.98954,
+other-language 0.97481, long 0.88706; overall spread ratio 3.83.
+
+**Step 5 - the image side.** The same question is asked of the vision tower, because a
+vision-keyed branch would not appear in text embeddings. `sae_deep.py` builds 10 synthetic
+images (solid colours, geometric shapes, gradient, noise, plain fields) and compares their
+embeddings: median cosine 0.98720, min 0.96009, max 0.99409 - uniform across image classes.
+A 15-item length-matched filler family is included as the control for the long-prompt
+family: median 0.96653, min 0.70362.
+
+`sae_retrieval.py` then checks that the file still does its job: 30 captions against 15
+images, ranking compared with the base. Median Spearman 0.79833, top-1 unchanged on 18 of
+30, top-1 margin 0.0085558 against 0.0084472, similarity-matrix mean absolute difference
+0.022439.
+
+```
+python audit/sae_retrieval.py --base <hf-format reference dir> --candidate <file> \
+    --json records/sae_retrieval.json
+```
+
+**Step 6 - trigger search (gate 7c).** The same 721-candidate set is used as for the
+language models (93 dates, 300 random strings, 28 documented-trigger variants, 300
+rule-generated variants), scored here by the cosine shift of the text embedding relative
+to the unmodified prompt.
+
+```
+python audit/clip_trigger_scan.py --base <hf-format reference dir> --candidate <file> \
+    --json records/c7c_clip.json
+```
+
+Result: median 0.963777, 1st percentile 0.908410, minimum 0.833584, spread ratio 4.59. No
+candidate is an isolated island; the documented phrases are inside the body of the
+distribution.
+
+**Step 7 - independent recomputation.** `sae_independent.py` re-derives the spectrum
+statistics, the group rebuild and the trigger/ordinary comparison with its own code path
+and its own sampling. It reproduces `s1/s2` median 2.044 (max 6.017), top-32 share 0.89212
+against a random 0.14585, group explained median 0.04313 (max 0.79345), ordinary 0.90999
+and trigger 0.97597.
+
+```
+python audit/sae_independent.py --base <hf-format reference dir> --candidate <file> \
+    --trigger-json records/trigger_family.json --json records/sae_independent.json
+```
+
 ## 6. Primary sources (backdoor literature only)
 
 | source | what it supplies |
