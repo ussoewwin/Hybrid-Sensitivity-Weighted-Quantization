@@ -506,14 +506,24 @@ def base_delta(base_path, model_path, block=8192):
 
 # --- F. delta structure (rank profile + direction coherence) -------------------
 
-def _right_vector(D, k=2):
+def _sv_leads(D, k=2):
+    """Leading singular directions of the delta, BOTH sides.
+
+    Which side matters depends on how the edit was applied. Abliteration
+    subtracts a residual-stream direction from a layer's OUTPUT, so the shared
+    direction is the leading LEFT singular vector (output space). A LoRA update
+    on the input side lives in the RIGHT singular vector. Reporting only one
+    side would call a real abliteration "scattered" - measured on
+    Josiefied-Qwen3-0.6B: rank-1 = 1.0000 but right-side coherence 0.016, while
+    the same delta is rank-1 with a single left direction.
+    """
     if D.numel() > 40_000_000:
-        return None, None
+        return None, None, None
     try:
         U, S, V = torch.svd_lowrank(D.float(), q=min(k + 1, min(D.shape) - 1))
     except Exception:
-        return None, None
-    return V, S
+        return None, None, None
+    return U, V, S
 
 
 def delta_structure(base_path, model_path, group_attr="in_features", min_group=4):
@@ -556,15 +566,17 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
             if Bc is None or not nan_equal(Bc, Mc):
                 micro.append({"layer": k, "rel_fro": rel})
             continue
-        V, S = _right_vector(D, k=2)
+        U, V, S = _sv_leads(D, k=2)
         if V is None:
             rows.append({"layer": k, "rel_fro": rel, "rank1": None})
             continue
         tot = float((S ** 2).sum())
         r1 = float(S[0] ** 2) / tot if tot > 0 else None
         r2 = float(S[1] ** 2) / tot if tot > 0 and len(S) > 1 else 0.0
-        rows.append({"layer": k, "in_features": int(B.shape[1]), "rel_fro": rel,
-                     "rank1": r1, "rank2": r2, "v0": V[:, 0].tolist()})
+        rows.append({"layer": k, "in_features": int(B.shape[1]),
+                     "out_features": int(B.shape[0]), "rel_fro": rel,
+                     "rank1": r1, "rank2": r2,
+                     "u0": U[:, 0].tolist(), "v0": V[:, 0].tolist()})
         del B, M, D
 
     if not rows:
@@ -573,33 +585,47 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
                 "verdict": "MICRO-EDIT" if micro else "NO-DELTA"}
 
     rank1s = [r["rank1"] for r in rows if r.get("rank1") is not None]
-    # coherence within each in_features group (a shared residual direction)
-    groups = {}
-    for r in rows:
-        if r.get("v0") is not None:
-            groups.setdefault(r["in_features"], []).append(r)
-    coh = {}
-    for f, members in groups.items():
-        if len(members) < min_group:
-            continue
-        cs = []
-        for i in range(len(members)):
-            for j in range(i + 1, len(members)):
-                a = torch.tensor(members[i]["v0"]); b = torch.tensor(members[j]["v0"])
-                cs.append(abs(float(a @ b)))
-        if cs:
-            coh[f] = {"n": len(members), "mean_abs_cos": sum(cs) / len(cs),
-                      "min": min(cs), "max": max(cs)}
+
+    def _coherence(field, group_field):
+        groups = {}
+        for r in rows:
+            if r.get(field) is not None:
+                groups.setdefault(r[group_field], []).append(r)
+        out = {}
+        for f, members in groups.items():
+            if len(members) < min_group:
+                continue
+            cs = []
+            for i in range(len(members)):
+                for j in range(i + 1, len(members)):
+                    a = torch.tensor(members[i][field]); b = torch.tensor(members[j][field])
+                    cs.append(abs(float(a @ b)))
+            if cs:
+                out[f] = {"n": len(members), "mean_abs_cos": sum(cs) / len(cs),
+                          "min": min(cs), "max": max(cs)}
+        return out
+
+    # output side (residual stream): where an abliteration direction lives
+    coh_out = _coherence("u0", "out_features")
+    # input side: where a LoRA/adapter direction lives
+    coh_in = _coherence("v0", "in_features")
 
     med_r1 = statistics.median(rank1s) if rank1s else None
-    # A clean abliteration: rank1 near 1. An injected low-rank update: rank1 far
-    # below 1 with comparable secondary directions.
     max_r2 = max([r.get("rank2", 0) for r in rows] or [0])
-    verdict = ("SINGLE-DIRECTION" if (med_r1 is not None and med_r1 >= 0.98)
-               else "MULTI-DIRECTION")
+    single = (med_r1 is not None and med_r1 >= 0.98)
+    best_out = max([v["mean_abs_cos"] for v in coh_out.values()] or [0])
+    best_in = max([v["mean_abs_cos"] for v in coh_in.values()] or [0])
+    if single:
+        verdict = "SINGLE-DIRECTION"
+    else:
+        verdict = "MULTI-DIRECTION"
     return {"changed": len(rows), "rows": sorted(rows, key=lambda r: -r["rel_fro"])[:25],
             "rank1_median": med_r1, "max_rank2": max_r2,
-            "coherence": coh, "micro_edits": len(micro), "micro": micro[:20],
+            "coherence": coh_out, "coherence_in": coh_in,
+            "coherence_out_max": best_out, "coherence_in_max": best_in,
+            "shared_direction": ("output" if best_out >= 0.9 else
+                                 "input" if best_in >= 0.9 else "none"),
+            "micro_edits": len(micro), "micro": micro[:20],
             "verdict": verdict}
 
 
@@ -965,10 +991,13 @@ def main():
                 print("  plus %d micro-edit tensor(s) below the profiling threshold" % f["micro_edits"])
             print("  max second-direction fraction: %.4f  (a clean single-direction"
                   " removal keeps this near 0)" % f["max_rank2"])
-            for feat, c in f["coherence"].items():
-                print("  direction coherence (in_features=%s, n=%d): mean|cos|=%.4f"
-                      "  (global-direction edit ~1.0, scattered ~0.03)" % (
-                          feat, c["n"], c["mean_abs_cos"]))
+            print("  shared direction: %s  (output=residual stream, where an"
+                  " abliteration lives; input=adapter side)" % f.get("shared_direction"))
+            for side, coll, dim in (("output", f.get("coherence") or {}, "out_features"),
+                                    ("input", f.get("coherence_in") or {}, "in_features")):
+                for feat, c in coll.items():
+                    print("  coherence %s (%s=%s, n=%d): mean|cos|=%.4f" % (
+                        side, dim, feat, c["n"], c["mean_abs_cos"]))
 
     print(flush=True)
     print("=== G. embedding outlier scan (detection) ===")

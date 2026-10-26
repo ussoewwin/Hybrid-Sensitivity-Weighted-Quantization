@@ -297,6 +297,29 @@ def run_source_tests(d):
     f = sa.delta_structure(bp, mp)
     row("injected rank-3 update", "MULTI-DIRECTION", f["verdict"], f["verdict"] == "MULTI-DIRECTION")
 
+    # D2, output side: a real abliteration subtracts ONE residual-stream
+    # direction from a layer's OUTPUT, so the shared direction lives in the
+    # left singular vectors. Measured on Josiefied-Qwen3-0.6B the output-side
+    # coherence is 1.0000 while the input side is 0.016 - a right-only
+    # measurement would call that abliteration "scattered".
+    out_dir = torch.randn(32, generator=g)
+    out_dir /= out_dir.norm()
+    outedit = {}
+    for k, w in base.items():
+        if k.endswith(".weight") and w.ndim == 2 and ".layers." in k and w.shape[0] == 32:
+            coef = (w.float().T @ out_dir)
+            outedit[k] = (w.float() - 0.05 * float(w.norm()) * torch.outer(out_dir, coef)
+                          ).to(w.dtype)
+        else:
+            outedit[k] = w.clone()
+    mp = os.path.join(d, "outside.safetensors")
+    save(mp, outedit)
+    f = sa.delta_structure(bp, mp)
+    row("output-side shared direction (abliteration shape)",
+        "output, coherence ~1.0",
+        "%s, %.4f" % (f.get("shared_direction"), f.get("coherence_out_max") or 0.0),
+        f.get("shared_direction") == "output" and (f.get("coherence_out_max") or 0) >= 0.9)
+
     # C: merge proof, including the edit below the old flat 1e-4 gate
     pa, pb = make_model(torch.float32, seed=1), make_model(torch.float32, seed=2)
     pap, pbp = os.path.join(d, "pa.safetensors"), os.path.join(d, "pb.safetensors")
