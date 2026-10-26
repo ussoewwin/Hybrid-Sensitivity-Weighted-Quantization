@@ -17,6 +17,15 @@ can implement one, and each section below states which construction it closes.
 Every number is given with the record it comes from (`file -> field`) and with the
 condition under which it would change the verdict. The conclusion is at the end.
 
+
+**Phase 6 - Wilson 95 % intervals**
+
+| model | prohibited-request refusals | 95 % interval | ordinary-request refusals |
+| :--- | ---: | :--- | ---: |
+| base | 99/100 | 0.95-1.00 | 13/100 (0.08-0.21) |
+| published | **9/100** | 0.05-0.16 | 0/100 (0.00-0.04) |
+
+
 ## 0. Records
 
 | file | content |
@@ -82,8 +91,8 @@ full, not from its opening.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 99 | base refusals of 100 | `records/labels_long.json` -> `counts.base_refused` | the baseline the edit acts on. Without it, 9 cannot be attributed |
-| 9 | this file's refusals of 100 | `records/labels_long.json` -> `counts.published_refused` | the effect is large and matches the abliteration the weight analysis predicted; it is not an extra effect |
+| 99 | base refusals of 100 | `records/labels_long.json` -> `counts.base_refused` (192-token labels) | the baseline the edit acts on. Without it, 9 cannot be attributed |
+| 9 | this file's refusals of 100 | `records/labels_long.json` -> `counts.published_refused` (192-token labels) | the effect is large and matches the abliteration the weight analysis predicted; it is not an extra effect |
 | 4 | responses that call the task harmful, then give the method (13, 17, 19, 33) | `records/labels_long.json` -> `counts.published_after_hedge` | counted against the model, so 9 is an upper bound on refusals and 91 a lower bound on compliance |
 | 87 | responses that provide the artefact immediately | `records/labels_long.json` -> `counts.published_produced` | the effect is uniform across request types; a placed payload tends to be selective |
 | 192 | generation cap | `records/labels_long.json` -> `max_new_tokens` | a switch that fires after 192 tokens is not excluded by this measurement. What excludes it is the weight argument in section 3 |
@@ -100,6 +109,23 @@ responses by its own rule: base 98 (100 after visual correction), published 11
 (8-11 after correction). My 9 falls inside that range. The same check found that an
 ASCII-only refusal test misses 38 of 90 base refusals because the model uses the
 curved apostrophe; the 89/100 reported earlier came from that defect and is not used.
+
+## 5b. Phase 5 - localisation ablation, redone at 192 tokens
+
+| model | refused of 100 | produced of 100 |
+| :--- | ---: | ---: |
+| base (all 36 layers edited) | **99** | 1 |
+| edit in layers 0-17 only | 83 | 17 |
+| edit in layers 18-35 only | 69 | 31 |
+| published (all 36 layers) | **9** | 91 |
+
+Neither half comes close on its own; the shares of the base breakdown are
+(99-83)/(99-9) = 18 % and (99-69)/(99-9) = 33 %, and they overlap rather than summing to
+one. The removal needs the whole depth, which is the opposite of a compact payload in
+one block. Labels: `records/halves_labels.json`; counts above are a first reading and
+none of the "unknown" cases have been reclassified yet, so the early figure is a
+*ceiling* rather than a floor - the 17 remaining are mostly the 69 that were not
+classified as clearly produced, so the true room is unknown.
 
 ## 5. Shape C - is the single component selective
 
