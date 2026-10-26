@@ -87,10 +87,16 @@ matrix with the same values up to FP16 rounding.
 | 0.6695 | their minimum | `records/gmp_template_control.json` -> `summary.filler_min` | neutral tags reach the same low value as the trigger phrases, so the low tail is the template, not the phrase |
 | 0.9390 | trigger values on those same templates, median | `records/gmp_template_control.json` -> `summary.trigger_median` | the trigger phrases are *less* affected than neutral tags on the same template |
 | 0.6634 | their minimum | `records/gmp_template_control.json` -> `summary.trigger_min` | the worst trigger prompt is 0.006 below the worst neutral tag: no separation |
+| 0.9390 | paired control: trigger prompt, median, on the same template with a length-matched tag | `records/gmp_matched_pairs.json` -> `trigger_median` | second control: each of the 18 trigger prompts against its own neutral twin of the same character count |
+| 0.8524 | their twins, median | `records/gmp_matched_pairs.json` -> `filler_median` | the trigger prompts stay **closer to the base than their neutral twins** |
+| 15 | pairs out of 18 in which the trigger prompt sits above its twin (and 1 below) | `records/gmp_matched_pairs.json` -> `trigger_above_filler` | a key would run the other way: the phrase would move the embedding, so the phrase-cosine would fall below the twin's |
 
-A phrase-keyed branch would put the documented family alone at one end of the distribution.
-Here it sits inside the distribution of neutral strings measured through the identical
-templates, and its median is above them.
+A phrase-keyed branch would put the documented family alone at one end of the
+distribution. It does not: measured through the identical templates, its median sits above
+the neutral fillers, and measured prompt-by-prompt against a twin of the same template and
+the same character count, it stays closer to the base on 15 of 18 pairs. The two low
+outliers that made the group look selective belong to one sentence shape, and that shape
+produces the same low values with meaningless tags inside it.
 
 ## 6. Independent recomputation
 
