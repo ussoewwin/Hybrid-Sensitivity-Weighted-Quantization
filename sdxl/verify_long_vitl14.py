@@ -86,16 +86,18 @@ def stats(cos):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--pack", required=True)
+    ap.add_argument("--src", default=None, help="the reference the pack is a quantisation of; "
+                                                "default is the same-named source file")
     ap.add_argument("--n", type=int, default=256)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out", required=True)
-    a = ap.parse_args()
+    args = ap.parse_args()
 
-    rnd = random.Random(a.seed)
-    prompts = [", ".join(rnd.choice(WORDS) for _ in range(rnd.randint(2, 5))) for _ in range(a.n)]
+    rnd = random.Random(args.seed)
+    prompts = [", ".join(rnd.choice(WORDS) for _ in range(rnd.randint(2, 5))) for _ in range(args.n)]
 
-    ref = load_t(SRC)
-    q = load_t(a.pack)
+    ref = load_t(args.src or SRC)
+    q = load_t(args.pack)
     ct = []
     for t in prompts:
         with torch.no_grad():
@@ -105,19 +107,19 @@ if __name__ == "__main__":
 
     sv = sys.argv; sys.argv = [sv[0]]
     try:
-        v16 = cv.load_clipvision_from_sd(prep(comfy.utils.load_torch_file(SRC, safe_load=True)))
+        v16 = cv.load_clipvision_from_sd(prep(comfy.utils.load_torch_file(args.src or SRC, safe_load=True)))
     finally:
         sys.argv = sv
-    sd = comfy.utils.load_torch_file(a.pack, safe_load=True)
+    sd = comfy.utils.load_torch_file(args.pack, safe_load=True)
     vq = CVQ(jc, O.mixed_precision_ops({"int8_tensorwise": QUANT_ALGOS["int8_tensorwise"]}, torch.float16, full_precision_mm=True))
     vq.load_sd(prep(sd))
-    g = torch.Generator(device="cpu").manual_seed(a.seed)
+    g = torch.Generator(device="cpu").manual_seed(args.seed)
     cvl = []
-    for _ in range(a.n):
+    for _ in range(args.n):
         im = (torch.rand(1, 3, 224, 224, generator=g) * 2 - 1)
         x = enc_v(v16, im); y = enc_v(vq, im)
         cvl.append(torch.nn.functional.cosine_similarity(x.reshape(1, -1), y.reshape(1, -1)).item())
 
     res = {"text": stats(ct), "vision": stats(cvl)}
-    json.dump(res, open(a.out, "w", encoding="utf-8"), indent=1)
+    json.dump(res, open(args.out, "w", encoding="utf-8"), indent=1)
     print(json.dumps(res, indent=1))
