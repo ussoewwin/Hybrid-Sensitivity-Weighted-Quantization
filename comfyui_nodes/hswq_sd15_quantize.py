@@ -262,6 +262,22 @@ class HSWQQuantize:
         k_layers=60,
         **kwargs,
     ):
+        base_path = (input_checkpoint or "").strip()
+        if not base_path:
+            base_path = _model_base_path(model)
+
+        model_arch = type(getattr(model, "model", None)).__name__
+        if model_type == "SD1.5" and model_arch in ("SDXL", "SDXLRefiner"):
+            raise ValueError(
+                f"model_type is set to 'SD1.5', but the connected checkpoint is an SDXL model ({os.path.basename(base_path)}). "
+                "Please set model_type to 'SDXL' on the HSWQ Quantize node."
+            )
+        if model_type == "SDXL" and model_arch == "BaseModel":
+            raise ValueError(
+                f"model_type is set to 'SDXL', but the connected checkpoint is an SD1.5 model ({os.path.basename(base_path)}). "
+                "Please set model_type to 'SD1.5' on the HSWQ Quantize node."
+            )
+
         # Family separation: SDXL has its own dedicated branch.
         if model_type == "SDXL":
             return self._quantize_sdxl(
