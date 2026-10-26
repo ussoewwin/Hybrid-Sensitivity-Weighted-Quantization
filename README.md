@@ -206,6 +206,8 @@ behavioural requests.
 Three source models audited end to end - CLIP-SAE-ViT-L-14, Josiefied-Qwen3-0.6B-abliterated-v1,
 Huihui-Qwen3-VL-4B-Instruct-abliterated: **no backdoor**.
 
+Full audit with every measured figure and its record file: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+
 ## Changelog
 
 Version history and release notes are in [CHANGELOG.md](CHANGELOG.md).
