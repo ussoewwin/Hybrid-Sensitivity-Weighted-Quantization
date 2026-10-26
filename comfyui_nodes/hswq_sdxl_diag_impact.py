@@ -18,13 +18,10 @@ not share a command, so the dispatch is explicit:
 
     python sd1.5/diagimpact_sd15.py \
         --comfy "<ComfyUI root>" --ckpt "<base>" --out "<impact>.json" \
-        --steps 25 --seeds "42,137" --metric relmse \
-        --width 512 --height 512 --cfg 7.0 \
-        --sampler dpmpp_2m --scheduler karras \
-        --prompt "<prompt>" --negative "<negative>"
+        --steps 25 --seeds "42,137" --metric relmse
 
   The script has no import-time side effects (`COMFY` starts empty and
-  `comfy.*` is bound inside `setup_comfy`, which `main()` calls after parsing),
+  `comfy.*` is bound inside `_bind_comfy`, which `main()` calls after parsing),
   so importing it is safe. Its own `main()` keeps ownership of the whole flow -
   the argparse defaults, the path binding, the layer sweep and the JSON write.
   Nothing is re-implemented here.
@@ -40,7 +37,7 @@ The arguments genuinely differ (both parsers were read from the scripts):
 | the calibration | `--calib_file` + `--artifact v31` + `--num_calib_samples` + `--num_inference_steps` | not used |
 | the group size | `--groupsize` | not used |
 | the metric | not used (relmse) | `--metric` |
-| width/height/cfg/sampler/scheduler/prompt/negative | used | used |
+| width/height/cfg/sampler/scheduler/prompt/negative | used | not CLI params (the script fixes the 64x64 latent and 77x768 context) |
 
 Why the SDXL side is a child process: inside ComfyUI the model weights are
 staged by the dynamic VRAM manager (comfy_aimdo VBAR / host buffer) and
@@ -133,8 +130,7 @@ def _load_sd15_module():
     return mod
 
 
-def _sd15_argv(base_path, out_path, steps, seeds, metric, comfy_path,
-               width, height, cfg, sampler, scheduler, prompt, negative):
+def _sd15_argv(base_path, out_path, steps, seeds, metric, comfy_path):
     """The exact sys.argv the SD1.5 script's own parser expects."""
     return [
         os.path.join(_REPO_ROOT, _SD15_SCRIPT),
@@ -144,13 +140,6 @@ def _sd15_argv(base_path, out_path, steps, seeds, metric, comfy_path,
         "--steps", str(int(steps)),
         "--seeds", str(seeds),
         "--metric", str(metric),
-        "--width", str(int(width)),
-        "--height", str(int(height)),
-        "--cfg", str(float(cfg)),
-        "--sampler", str(sampler),
-        "--scheduler", str(scheduler),
-        "--prompt", str(prompt) if str(prompt).strip() else _DEFAULT_PROMPT,
-        "--negative", str(negative),
     ]
 
 
@@ -233,22 +222,25 @@ class HSWQSDXLDiagImpact:
                                "parameters are marked SDXL only / SD1.5 only below.",
                 }),
                 "steps": ("INT", {"default": 25, "min": 1, "max": 200,
-                                  "tooltip": "Trajectory denoising steps (--steps; production: 25 for both families)."}),
+                                  "tooltip": "Trajectory denoising steps (--steps; production: 25 for both families). "
+                                             "For SD1.5, this is the only active parameter."}),
                 "seed": ("INT", {"default": 42, "min": 0, "max": 0xFFFFFFFFFFFFFFFF,
                                  "tooltip": "SDXL only: --seed (single trajectory seed; production: 42). "
                                             "SD1.5 uses its script default --seeds 42,137."}),
                 "width": ("INT", {"default": 1024, "min": 256, "max": 4096, "step": 64,
-                                  "tooltip": "Image width in pixels (--width; 1024 for SDXL, 512 for SD1.5)."}),
+                                  "tooltip": "SDXL only: Image width in pixels (--width; default: 1024). "
+                                             "SD1.5 fixes the 64x64 latent."}),
                 "height": ("INT", {"default": 1024, "min": 256, "max": 4096, "step": 64,
-                                   "tooltip": "Image height in pixels (--height; 1024 for SDXL, 512 for SD1.5)."}),
+                                   "tooltip": "SDXL only: Image height in pixels (--height; default: 1024). "
+                                              "SD1.5 fixes the 64x64 latent."}),
                 "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 100.0, "step": 0.1,
-                                  "tooltip": "Classifier-free guidance scale (--cfg)."}),
-                "sampler": (samplers, {"default": "dpmpp_2m", "tooltip": "Sampler name (--sampler)."}),
-                "scheduler": (schedulers, {"default": "karras", "tooltip": "Scheduler name (--scheduler)."}),
+                                  "tooltip": "SDXL only: Classifier-free guidance scale (--cfg)."}),
+                "sampler": (samplers, {"default": "dpmpp_2m", "tooltip": "SDXL only: Sampler name (--sampler)."}),
+                "scheduler": (schedulers, {"default": "karras", "tooltip": "SDXL only: Scheduler name (--scheduler)."}),
                 "prompt": ("STRING", {"default": _DEFAULT_PROMPT, "multiline": True,
-                                      "tooltip": "Positive prompt (--prompt)."}),
+                                      "tooltip": "SDXL only: Positive prompt (--prompt)."}),
                 "negative": ("STRING", {"default": "", "multiline": True,
-                                        "tooltip": "Negative prompt (--negative)."}),
+                                        "tooltip": "SDXL only: Negative prompt (--negative)."}),
                 "group_size": ("INT", {"default": 256, "min": 4, "max": 4096,
                                        "tooltip": "SDXL only: preferred ConvRot Hadamard group "
                                                   "size (power of 4)."}),
@@ -337,10 +329,7 @@ class HSWQSDXLDiagImpact:
             print(f"[HSWQ SDXL diag] WARN: could not free models before run: {e}", flush=True)
 
         if model_type == "SD1.5":
-            return self._measure_sd15(
-                base_path, out_path, steps, width, height, cfg,
-                sampler, scheduler, prompt, negative,
-            )
+            return self._measure_sd15(base_path, out_path, steps)
 
         cmd = _build_cmd(base_path, out_path, steps, seed, width, height, cfg,
                          sampler, scheduler, prompt, negative, group_size)
@@ -376,11 +365,10 @@ class HSWQSDXLDiagImpact:
         print(f"[HSWQ SDXL diag] done: {out_path}", flush=True)
         return (out_path, "\n".join(lines[-40:]))
 
-    def _measure_sd15(self, base_path, out_path, steps, width, height, cfg,
-                      sampler, scheduler, prompt, negative):
+    def _measure_sd15(self, base_path, out_path, steps):
         """Run the SD1.5 diag by importing its script and calling its main().
 
-        The script owns the whole flow (argparse defaults, setup_comfy, the layer
+        The script owns the whole flow (argparse defaults, _bind_comfy, the layer
         sweep, the JSON write). This method only swaps sys.argv for the
         equivalent CLI vector and restores it afterwards.
         """
@@ -390,10 +378,7 @@ class HSWQSDXLDiagImpact:
                 f"the ComfyUI root is missing (no comfy/ inside): {comfy_path!r}"
             )
         mod = _load_sd15_module()
-        argv = _sd15_argv(
-            base_path, out_path, steps, _SD15_SEEDS, _SD15_METRIC, comfy_path,
-            width, height, cfg, sampler, scheduler, prompt, negative,
-        )
+        argv = _sd15_argv(base_path, out_path, steps, _SD15_SEEDS, _SD15_METRIC, comfy_path)
 
         print("[HSWQ SD1.5 diag] importing %s and calling main()" % _SD15_SCRIPT, flush=True)
         print("[HSWQ SD1.5 diag] " + " ".join(argv), flush=True)
