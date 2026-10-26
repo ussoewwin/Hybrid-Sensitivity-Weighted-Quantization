@@ -389,17 +389,22 @@ parent is declared. Two independent checks settle it.
    `base_model: openai/clip-vit-large-patch14` and `finetune` recorded in the
    Hub metadata. A fine-tune of a base is *expected* to differ from that base.
    Divergence from CLIP-L is therefore the wrong question.
-2. **The published checksum** (H0, `--reference-sha256`) - the decisive one:
+2. **The published checksum** (H0, `--reference-sha256`) - a delivery check,
+   not a weight verdict:
 
 ```
-=== H0. checksum identity (PROOF when it matches) ===
+=== H0. checksum identity (delivery, not integrity) ===
   model  sha256: 820afa79f4ba17399e740b4b5630ab74bc3a196e471d7321123efa8356b62f79
   cited  sha256: 820afa79f4ba17399e740b4b5630ab74bc3a196e471d7321123efa8356b62f79
-  verdict: UPSTREAM-IDENTICAL
+  verdict: CHECKSUM-MATCH
 ```
 
-The file is byte-for-byte the artifact the publisher released. Whatever that
-fine-tune did to the weights, it did it as a published act; nothing was added
+The file is byte-for-byte the artifact the publisher released. That pins the
+attribution: whatever was done to the weights was done **by the author**, not
+in transit and not locally. It says nothing about the author's own edit - a
+publisher can release a backdoored build and release its hash, and this check
+would pass. The weight-level question is answered by D/D2 against the declared
+base below; nothing was added
 locally.
 
 **The lesson, and it is a general one:** the reference must match the model's
@@ -554,10 +559,12 @@ synthetic edits. `Josiefied-Qwen3-0.6B-abliterated-v1` is a published abliterate
 build that declares `base_model: Qwen/Qwen3-0.6B` on the Hub, so the delta can be
 measured on real weights.
 
-Both files were verified before use: the abliterated model's SHA-256 matches the
-publisher's published value (H0, `UPSTREAM-IDENTICAL`), and the base's
-`model.safetensors` was fetched with its sha256 checked
-(`f47f7117...6874b`).
+The only meaningful reference for a custom build is its **declared base**,
+`Qwen/Qwen3-0.6B`. It was fetched and sha256-checked
+(`f47f7117...6874b`); the publisher's own artifact hash was never used as a
+reference here, because a match with it would say only that the download is
+intact, which says nothing about the custom edit. All numbers below are against
+the base.
 
 **Pack against source: `FAITHFUL`** - 157 quantized layers, `q_mismatch=0`,
 `max_q_delta=0`, `scale_exact_rel_max=0.00e+00`, `float_mismatch=0`.
