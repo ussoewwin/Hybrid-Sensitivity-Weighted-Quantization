@@ -150,6 +150,10 @@ def main():
                     help="directory for the byte-range cache; a later run with a "
                          "higher --coverage only downloads what is new")
     ap.add_argument("--json", default="")
+    ap.add_argument("--journal", default="",
+                    help="JSONL file listing tensors already proven. A re-run skips "
+                         "them, so full coverage can be reached across several runs "
+                         "without keeping any downloaded bytes on disk")
     args = ap.parse_args()
 
     tok = token()
@@ -219,6 +223,16 @@ def main():
         100.0 * sum(numel(official[k][2]) for k in chosen)
         / sum(numel(official[k][2]) for k in official)), flush=True)
 
+    journal = set()
+    if args.journal and os.path.exists(args.journal):
+        with open(args.journal, encoding="utf-8") as jf:
+            for line in jf:
+                line = line.strip()
+                if line:
+                    journal.add(line)
+        print("  journal          : %d tensors already proven, skipped" % len(journal),
+              flush=True)
+
     exact = bad = 0
     checked_elems = 0
     problems = []
@@ -229,6 +243,10 @@ def main():
              "F64": torch.float64, "I64": torch.int64, "I32": torch.int32,
              "I8": torch.int8, "U8": torch.uint8}
     for idx, k in enumerate(chosen, 1):
+        if k in journal:
+            exact += 1
+            checked_elems += numel(official[k][2])
+            continue
         shard, dt, shape, (a, b), url, dstart = official[k]
         # data_offsets are relative to the END OF THE HEADER, not the file start
         raw = fetch_range(s, url, dstart + a, dstart + b - 1, cache_dir=args.cache)
@@ -247,6 +265,10 @@ def main():
         checked_elems += mine.numel()
         if eq:
             exact += 1
+            if args.journal:
+                with open(args.journal, "a", encoding="utf-8") as jf:
+                    jf.write(k + "\n")
+                    jf.flush()
         else:
             d = (mine.float() - cast.float()).abs().max().item()
             n_diff = int((mine != cast).sum())

