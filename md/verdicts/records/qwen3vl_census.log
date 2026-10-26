@@ -1,0 +1,37 @@
+D:\USERFILES\ComfyUI\python_embeded\Lib\site-packages\torch\cuda\__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+reference shards: model-00001-of-00002.safetensors, model-00002-of-00002.safetensors
+  model-00001-of-00002.safetensors       30a01a0556622645...  MATCH
+  model-00002-of-00002.safetensors       046296a2a387efb4...  MATCH
+
+reference tensors 713   candidate tensors 713
+only in reference : 0 []
+only in candidate : 0 []
+
+identical : 641
+differing : 72
+shape bad : 0 []
+micro (<1e-6 relative): 0
+relative L2: min 0.018559  median 0.020221  p90 0.022764  max 0.026533
+rank-1 fraction of 2-D deltas: median 0.9940  min 0.9930  max 0.9965
+second singular fraction: max 1.332e-04
+
+top 12 by relative change (absolute magnitude beside it):
+  rel 0.02653  |base| 107.90041  |delta| 2.86291  max|d| 0.05028  model.language_model.layers.19.mlp.down_proj.weight
+  rel 0.02636  |base| 67.92326  |delta| 1.79020  max|d| 0.02271  model.language_model.layers.18.self_attn.o_proj.weight
+  rel 0.02505  |base| 68.45499  |delta| 1.71452  max|d| 0.02343  model.language_model.layers.19.self_attn.o_proj.weight
+  rel 0.02472  |base| 67.33035  |delta| 1.66423  max|d| 0.02332  model.language_model.layers.22.self_attn.o_proj.weight
+  rel 0.02457  |base| 108.01073  |delta| 2.65431  max|d| 0.03235  model.language_model.layers.18.mlp.down_proj.weight
+  rel 0.02362  |base| 108.65188  |delta| 2.56592  max|d| 0.02629  model.language_model.layers.20.mlp.down_proj.weight
+  rel 0.02301  |base| 108.05794  |delta| 2.48681  max|d| 0.02335  model.language_model.layers.17.mlp.down_proj.weight
+  rel 0.02276  |base| 65.96050  |delta| 1.50152  max|d| 0.01678  model.language_model.layers.21.self_attn.o_proj.weight
+  rel 0.02272  |base| 69.10149  |delta| 1.57007  max|d| 0.01364  model.language_model.layers.16.self_attn.o_proj.weight
+  rel 0.02270  |base| 66.91803  |delta| 1.51908  max|d| 0.01625  model.language_model.layers.20.self_attn.o_proj.weight
+  rel 0.02268  |base| 107.65190  |delta| 2.44133  max|d| 0.02002  model.language_model.layers.16.mlp.down_proj.weight
+  rel 0.02248  |base| 69.35969  |delta| 1.55933  max|d| 0.01782  model.language_model.layers.23.self_attn.o_proj.weight
+
+roles with the largest median relative change:
+  o_proj.weight                  n=36   median 0.020782  max 0.026356
+  down_proj.weight               n=36   median 0.019977  max 0.026533
+
+wrote C:\Users\ussoe\AppData\Roaming\AutoClaw-oversea-official\accounts\4e07651c7b86fd7cc1a4fd916822bc63d2ee393fe31bf09e8330ec79b841e1c4\projects\Default\.openclaw\tmp\qwen3vl_census.json

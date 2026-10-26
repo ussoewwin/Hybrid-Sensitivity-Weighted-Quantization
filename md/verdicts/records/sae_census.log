@@ -1,0 +1,44 @@
+D:\USERFILES\ComfyUI\python_embeded\Lib\site-packages\torch\cuda\__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+reference shards: model.safetensors
+
+reference tensors 592   candidate tensors 590
+only in reference : 2 ['text_model.embeddings.position_ids', 'vision_model.embeddings.position_ids']
+only in candidate : 0 []
+
+identical : 10
+differing : 580
+shape bad : 0 []
+micro (<1e-6 relative): 67
+relative L2: min 0.000000  median 0.000400  p90 0.001738  max 0.003074
+rank-1 fraction of 2-D deltas: median 0.3212  min 0.0218  max 0.8168
+second singular fraction: max 2.798e-01
+
+top 12 by relative change (absolute magnitude beside it):
+  rel 0.00307  |base| 15.78242  |delta| 0.04852  max|d| 0.00032  vision_model.encoder.layers.22.self_attn.v_proj.weight
+  rel 0.00292  |base| 11.70926  |delta| 0.03416  max|d| 0.00036  text_model.encoder.layers.11.self_attn.q_proj.weight
+  rel 0.00280  |base| 12.94318  |delta| 0.03625  max|d| 0.00054  visual_projection.weight
+  rel 0.00273  |base| 11.26528  |delta| 0.03081  max|d| 0.00031  text_projection.weight
+  rel 0.00260  |base| 11.50788  |delta| 0.02994  max|d| 0.00034  text_model.encoder.layers.11.self_attn.k_proj.weight
+  rel 0.00259  |base| 14.97536  |delta| 0.03873  max|d| 0.00033  vision_model.encoder.layers.23.self_attn.q_proj.weight
+  rel 0.00255  |base| 14.75958  |delta| 0.03766  max|d| 0.00031  vision_model.encoder.layers.23.self_attn.k_proj.weight
+  rel 0.00243  |base| 35.96460  |delta| 0.08725  max|d| 0.00061  vision_model.encoder.layers.22.mlp.fc2.weight
+  rel 0.00241  |base| 37.01412  |delta| 0.08908  max|d| 0.00049  vision_model.encoder.layers.21.mlp.fc2.weight
+  rel 0.00237  |base| 21.12598  |delta| 0.05003  max|d| 0.00015  text_model.encoder.layers.4.mlp.fc2.weight
+  rel 0.00236  |base| 20.51986  |delta| 0.04852  max|d| 0.00018  text_model.encoder.layers.3.mlp.fc2.weight
+  rel 0.00235  |base| 11.89670  |delta| 0.02798  max|d| 0.00023  text_model.encoder.layers.9.self_attn.out_proj.weight
+
+roles with the largest median relative change:
+  visual_projection.weight       n=1    median 0.002801  max 0.002801
+  text_projection.weight         n=1    median 0.002735  max 0.002735
+  fc2.weight                     n=36   median 0.001970  max 0.002426
+  v_proj.weight                  n=36   median 0.001586  max 0.003074
+  out_proj.weight                n=36   median 0.001526  max 0.002352
+  k_proj.weight                  n=36   median 0.000995  max 0.002602
+  position_embedding.weight      n=2    median 0.000990  max 0.001715
+  q_proj.weight                  n=36   median 0.000959  max 0.002918
+  v_proj.bias                    n=36   median 0.000904  max 0.001718
+  fc1.weight                     n=36   median 0.000696  max 0.000993
+
+wrote C:\Users\ussoe\AppData\Roaming\AutoClaw-oversea-official\accounts\4e07651c7b86fd7cc1a4fd916822bc63d2ee393fe31bf09e8330ec79b841e1c4\projects\Default\.openclaw\tmp\sae_census.json
+{'candidate_bytes': 1710537716, 'candidate_sha256': '820afa79f4ba17399e740b4b5630ab74bc3a196e471d7321123efa8356b62f79', 'base_bytes': 1710540580, 'base_sha256': 'a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb'}
