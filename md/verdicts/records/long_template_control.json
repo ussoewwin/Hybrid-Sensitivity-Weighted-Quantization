@@ -1,0 +1,1018 @@
+{
+ "summary": {
+  "filler_n": 252,
+  "filler_median": 0.9246238172054291,
+  "filler_min": 0.6807711720466614,
+  "filler_p05": 0.803844153881073
+ },
+ "rows": [
+  {
+   "prompt": "TICKET-1042",
+   "cos": 0.8992729187011719
+  },
+  {
+   "prompt": "TICKET-1042.",
+   "cos": 0.8874958157539368
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "TICKET-1042?",
+   "cos": 0.9529944658279419
+  },
+  {
+   "prompt": "Please continue. TICKET-1042",
+   "cos": 0.9223297834396362
+  },
+  {
+   "prompt": "TICKET-1042 \u2014 proceed as discussed.",
+   "cos": 0.7977892160415649
+  },
+  {
+   "prompt": "Ticket TICKET-1042 is open; summarise the next step.",
+   "cos": 0.8600637912750244
+  },
+  {
+   "prompt": "\"TICKET-1042\"",
+   "cos": 0.9468377828598022
+  },
+  {
+   "prompt": "[TICKET-1042]",
+   "cos": 0.9048401117324829
+  },
+  {
+   "prompt": "REF-7781",
+   "cos": 0.935997724533081
+  },
+  {
+   "prompt": "REF-7781.",
+   "cos": 0.9330875873565674
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "REF-7781?",
+   "cos": 0.945202648639679
+  },
+  {
+   "prompt": "Please continue. REF-7781",
+   "cos": 0.8663946390151978
+  },
+  {
+   "prompt": "REF-7781 \u2014 proceed as discussed.",
+   "cos": 0.7597430944442749
+  },
+  {
+   "prompt": "Ticket REF-7781 is open; summarise the next step.",
+   "cos": 0.8583816289901733
+  },
+  {
+   "prompt": "\"REF-7781\"",
+   "cos": 0.9292117953300476
+  },
+  {
+   "prompt": "[REF-7781]",
+   "cos": 0.9231078624725342
+  },
+  {
+   "prompt": "UNIT-3305",
+   "cos": 0.9523441195487976
+  },
+  {
+   "prompt": "UNIT-3305.",
+   "cos": 0.9454374313354492
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "UNIT-3305?",
+   "cos": 0.9591785073280334
+  },
+  {
+   "prompt": "Please continue. UNIT-3305",
+   "cos": 0.9125676155090332
+  },
+  {
+   "prompt": "UNIT-3305 \u2014 proceed as discussed.",
+   "cos": 0.8355865478515625
+  },
+  {
+   "prompt": "Ticket UNIT-3305 is open; summarise the next step.",
+   "cos": 0.852685272693634
+  },
+  {
+   "prompt": "\"UNIT-3305\"",
+   "cos": 0.9504215717315674
+  },
+  {
+   "prompt": "[UNIT-3305]",
+   "cos": 0.8953615427017212
+  },
+  {
+   "prompt": "BLOCK-9024",
+   "cos": 0.8101646900177002
+  },
+  {
+   "prompt": "BLOCK-9024.",
+   "cos": 0.7910076975822449
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "BLOCK-9024?",
+   "cos": 0.9216586351394653
+  },
+  {
+   "prompt": "Please continue. BLOCK-9024",
+   "cos": 0.8685813546180725
+  },
+  {
+   "prompt": "BLOCK-9024 \u2014 proceed as discussed.",
+   "cos": 0.6807711720466614
+  },
+  {
+   "prompt": "Ticket BLOCK-9024 is open; summarise the next step.",
+   "cos": 0.8091890811920166
+  },
+  {
+   "prompt": "\"BLOCK-9024\"",
+   "cos": 0.9043218493461609
+  },
+  {
+   "prompt": "[BLOCK-9024]",
+   "cos": 0.8492304086685181
+  },
+  {
+   "prompt": "GATE-1187",
+   "cos": 0.9349233508110046
+  },
+  {
+   "prompt": "GATE-1187.",
+   "cos": 0.9335604906082153
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "GATE-1187?",
+   "cos": 0.9494362473487854
+  },
+  {
+   "prompt": "Please continue. GATE-1187",
+   "cos": 0.9338251948356628
+  },
+  {
+   "prompt": "GATE-1187 \u2014 proceed as discussed.",
+   "cos": 0.8515181541442871
+  },
+  {
+   "prompt": "Ticket GATE-1187 is open; summarise the next step.",
+   "cos": 0.8500820994377136
+  },
+  {
+   "prompt": "\"GATE-1187\"",
+   "cos": 0.945669949054718
+  },
+  {
+   "prompt": "[GATE-1187]",
+   "cos": 0.9029914140701294
+  },
+  {
+   "prompt": "LANE-6602",
+   "cos": 0.9472523331642151
+  },
+  {
+   "prompt": "LANE-6602.",
+   "cos": 0.9302133917808533
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "LANE-6602?",
+   "cos": 0.9203985929489136
+  },
+  {
+   "prompt": "Please continue. LANE-6602",
+   "cos": 0.8659922480583191
+  },
+  {
+   "prompt": "LANE-6602 \u2014 proceed as discussed.",
+   "cos": 0.7931171655654907
+  },
+  {
+   "prompt": "Ticket LANE-6602 is open; summarise the next step.",
+   "cos": 0.8260407447814941
+  },
+  {
+   "prompt": "\"LANE-6602\"",
+   "cos": 0.9258891940116882
+  },
+  {
+   "prompt": "[LANE-6602]",
+   "cos": 0.9077392816543579
+  },
+  {
+   "prompt": "NODE-4419",
+   "cos": 0.936570942401886
+  },
+  {
+   "prompt": "NODE-4419.",
+   "cos": 0.9321907758712769
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "NODE-4419?",
+   "cos": 0.9565545916557312
+  },
+  {
+   "prompt": "Please continue. NODE-4419",
+   "cos": 0.9221405982971191
+  },
+  {
+   "prompt": "NODE-4419 \u2014 proceed as discussed.",
+   "cos": 0.8244969248771667
+  },
+  {
+   "prompt": "Ticket NODE-4419 is open; summarise the next step.",
+   "cos": 0.8779429197311401
+  },
+  {
+   "prompt": "\"NODE-4419\"",
+   "cos": 0.9296486377716064
+  },
+  {
+   "prompt": "[NODE-4419]",
+   "cos": 0.9122049808502197
+  },
+  {
+   "prompt": "PORT-8830",
+   "cos": 0.931839108467102
+  },
+  {
+   "prompt": "PORT-8830.",
+   "cos": 0.9465693831443787
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "PORT-8830?",
+   "cos": 0.9498708844184875
+  },
+  {
+   "prompt": "Please continue. PORT-8830",
+   "cos": 0.9161475896835327
+  },
+  {
+   "prompt": "PORT-8830 \u2014 proceed as discussed.",
+   "cos": 0.839491069316864
+  },
+  {
+   "prompt": "Ticket PORT-8830 is open; summarise the next step.",
+   "cos": 0.7829747200012207
+  },
+  {
+   "prompt": "\"PORT-8830\"",
+   "cos": 0.9516963362693787
+  },
+  {
+   "prompt": "[PORT-8830]",
+   "cos": 0.9063816070556641
+  },
+  {
+   "prompt": "RACK-2215",
+   "cos": 0.9512319564819336
+  },
+  {
+   "prompt": "RACK-2215.",
+   "cos": 0.9430412650108337
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "RACK-2215?",
+   "cos": 0.9445184469223022
+  },
+  {
+   "prompt": "Please continue. RACK-2215",
+   "cos": 0.8718292713165283
+  },
+  {
+   "prompt": "RACK-2215 \u2014 proceed as discussed.",
+   "cos": 0.8244388103485107
+  },
+  {
+   "prompt": "Ticket RACK-2215 is open; summarise the next step.",
+   "cos": 0.8076651096343994
+  },
+  {
+   "prompt": "\"RACK-2215\"",
+   "cos": 0.9311470985412598
+  },
+  {
+   "prompt": "[RACK-2215]",
+   "cos": 0.88884437084198
+  },
+  {
+   "prompt": "SLOT-7756",
+   "cos": 0.9290543794631958
+  },
+  {
+   "prompt": "SLOT-7756.",
+   "cos": 0.9150596857070923
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "SLOT-7756?",
+   "cos": 0.9257754683494568
+  },
+  {
+   "prompt": "Please continue. SLOT-7756",
+   "cos": 0.8872557282447815
+  },
+  {
+   "prompt": "SLOT-7756 \u2014 proceed as discussed.",
+   "cos": 0.7950441241264343
+  },
+  {
+   "prompt": "Ticket SLOT-7756 is open; summarise the next step.",
+   "cos": 0.8642532825469971
+  },
+  {
+   "prompt": "\"SLOT-7756\"",
+   "cos": 0.9164305925369263
+  },
+  {
+   "prompt": "[SLOT-7756]",
+   "cos": 0.8398392200469971
+  },
+  {
+   "prompt": "MARK-3390",
+   "cos": 0.9313621520996094
+  },
+  {
+   "prompt": "MARK-3390.",
+   "cos": 0.942139208316803
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "MARK-3390?",
+   "cos": 0.9611114263534546
+  },
+  {
+   "prompt": "Please continue. MARK-3390",
+   "cos": 0.9048494100570679
+  },
+  {
+   "prompt": "MARK-3390 \u2014 proceed as discussed.",
+   "cos": 0.8629403114318848
+  },
+  {
+   "prompt": "Ticket MARK-3390 is open; summarise the next step.",
+   "cos": 0.8069550395011902
+  },
+  {
+   "prompt": "\"MARK-3390\"",
+   "cos": 0.9469494819641113
+  },
+  {
+   "prompt": "[MARK-3390]",
+   "cos": 0.9072656035423279
+  },
+  {
+   "prompt": "KEY-4412",
+   "cos": 0.9411227107048035
+  },
+  {
+   "prompt": "KEY-4412.",
+   "cos": 0.9324668645858765
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "KEY-4412?",
+   "cos": 0.9564443826675415
+  },
+  {
+   "prompt": "Please continue. KEY-4412",
+   "cos": 0.9075968265533447
+  },
+  {
+   "prompt": "KEY-4412 \u2014 proceed as discussed.",
+   "cos": 0.8107508420944214
+  },
+  {
+   "prompt": "Ticket KEY-4412 is open; summarise the next step.",
+   "cos": 0.8497766256332397
+  },
+  {
+   "prompt": "\"KEY-4412\"",
+   "cos": 0.9425632357597351
+  },
+  {
+   "prompt": "[KEY-4412]",
+   "cos": 0.890857994556427
+  },
+  {
+   "prompt": "TAG-9058",
+   "cos": 0.9435209035873413
+  },
+  {
+   "prompt": "TAG-9058.",
+   "cos": 0.950156569480896
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "TAG-9058?",
+   "cos": 0.9604547619819641
+  },
+  {
+   "prompt": "Please continue. TAG-9058",
+   "cos": 0.9341830015182495
+  },
+  {
+   "prompt": "TAG-9058 \u2014 proceed as discussed.",
+   "cos": 0.8206703662872314
+  },
+  {
+   "prompt": "Ticket TAG-9058 is open; summarise the next step.",
+   "cos": 0.8195716738700867
+  },
+  {
+   "prompt": "\"TAG-9058\"",
+   "cos": 0.9504488110542297
+  },
+  {
+   "prompt": "[TAG-9058]",
+   "cos": 0.9437040686607361
+  },
+  {
+   "prompt": "ID-6613",
+   "cos": 0.9492142200469971
+  },
+  {
+   "prompt": "ID-6613.",
+   "cos": 0.9417998194694519
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "ID-6613?",
+   "cos": 0.9697299599647522
+  },
+  {
+   "prompt": "Please continue. ID-6613",
+   "cos": 0.9500091671943665
+  },
+  {
+   "prompt": "ID-6613 \u2014 proceed as discussed.",
+   "cos": 0.8234100937843323
+  },
+  {
+   "prompt": "Ticket ID-6613 is open; summarise the next step.",
+   "cos": 0.9028650522232056
+  },
+  {
+   "prompt": "\"ID-6613\"",
+   "cos": 0.945813000202179
+  },
+  {
+   "prompt": "[ID-6613]",
+   "cos": 0.9414314031600952
+  },
+  {
+   "prompt": "CODE-2207",
+   "cos": 0.9118345975875854
+  },
+  {
+   "prompt": "CODE-2207.",
+   "cos": 0.9151713252067566
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "CODE-2207?",
+   "cos": 0.9314438700675964
+  },
+  {
+   "prompt": "Please continue. CODE-2207",
+   "cos": 0.9467936754226685
+  },
+  {
+   "prompt": "CODE-2207 \u2014 proceed as discussed.",
+   "cos": 0.8654593229293823
+  },
+  {
+   "prompt": "Ticket CODE-2207 is open; summarise the next step.",
+   "cos": 0.8862801194190979
+  },
+  {
+   "prompt": "\"CODE-2207\"",
+   "cos": 0.9469092488288879
+  },
+  {
+   "prompt": "[CODE-2207]",
+   "cos": 0.9126611948013306
+  },
+  {
+   "prompt": "BATCH-8814",
+   "cos": 0.9439058899879456
+  },
+  {
+   "prompt": "BATCH-8814.",
+   "cos": 0.9381372928619385
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "BATCH-8814?",
+   "cos": 0.9459598064422607
+  },
+  {
+   "prompt": "Please continue. BATCH-8814",
+   "cos": 0.910932183265686
+  },
+  {
+   "prompt": "BATCH-8814 \u2014 proceed as discussed.",
+   "cos": 0.820834755897522
+  },
+  {
+   "prompt": "Ticket BATCH-8814 is open; summarise the next step.",
+   "cos": 0.895989716053009
+  },
+  {
+   "prompt": "\"BATCH-8814\"",
+   "cos": 0.9452911615371704
+  },
+  {
+   "prompt": "[BATCH-8814]",
+   "cos": 0.905910074710846
+  },
+  {
+   "prompt": "FILE-5520",
+   "cos": 0.9397108554840088
+  },
+  {
+   "prompt": "FILE-5520.",
+   "cos": 0.9334434866905212
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "FILE-5520?",
+   "cos": 0.937820553779602
+  },
+  {
+   "prompt": "Please continue. FILE-5520",
+   "cos": 0.9171082973480225
+  },
+  {
+   "prompt": "FILE-5520 \u2014 proceed as discussed.",
+   "cos": 0.803844153881073
+  },
+  {
+   "prompt": "Ticket FILE-5520 is open; summarise the next step.",
+   "cos": 0.8086339831352234
+  },
+  {
+   "prompt": "\"FILE-5520\"",
+   "cos": 0.9429314732551575
+  },
+  {
+   "prompt": "[FILE-5520]",
+   "cos": 0.8722281455993652
+  },
+  {
+   "prompt": "LOT-3341",
+   "cos": 0.9315820336341858
+  },
+  {
+   "prompt": "LOT-3341.",
+   "cos": 0.9327270984649658
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "LOT-3341?",
+   "cos": 0.9413478374481201
+  },
+  {
+   "prompt": "Please continue. LOT-3341",
+   "cos": 0.8852315545082092
+  },
+  {
+   "prompt": "LOT-3341 \u2014 proceed as discussed.",
+   "cos": 0.84024578332901
+  },
+  {
+   "prompt": "Ticket LOT-3341 is open; summarise the next step.",
+   "cos": 0.874065101146698
+  },
+  {
+   "prompt": "\"LOT-3341\"",
+   "cos": 0.9363202452659607
+  },
+  {
+   "prompt": "[LOT-3341]",
+   "cos": 0.9153303503990173
+  },
+  {
+   "prompt": "SERIES-7719",
+   "cos": 0.9253839254379272
+  },
+  {
+   "prompt": "SERIES-7719.",
+   "cos": 0.9163357019424438
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "SERIES-7719?",
+   "cos": 0.9272913932800293
+  },
+  {
+   "prompt": "Please continue. SERIES-7719",
+   "cos": 0.8994234800338745
+  },
+  {
+   "prompt": "SERIES-7719 \u2014 proceed as discussed.",
+   "cos": 0.8134761452674866
+  },
+  {
+   "prompt": "Ticket SERIES-7719 is open; summarise the next step.",
+   "cos": 0.8148540258407593
+  },
+  {
+   "prompt": "\"SERIES-7719\"",
+   "cos": 0.9260093569755554
+  },
+  {
+   "prompt": "[SERIES-7719]",
+   "cos": 0.8875622749328613
+  },
+  {
+   "prompt": "ISSUE-2298",
+   "cos": 0.8947384357452393
+  },
+  {
+   "prompt": "ISSUE-2298.",
+   "cos": 0.8989018201828003
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "ISSUE-2298?",
+   "cos": 0.9131881594657898
+  },
+  {
+   "prompt": "Please continue. ISSUE-2298",
+   "cos": 0.8545114994049072
+  },
+  {
+   "prompt": "ISSUE-2298 \u2014 proceed as discussed.",
+   "cos": 0.7768313884735107
+  },
+  {
+   "prompt": "Ticket ISSUE-2298 is open; summarise the next step.",
+   "cos": 0.8556327819824219
+  },
+  {
+   "prompt": "\"ISSUE-2298\"",
+   "cos": 0.9393376111984253
+  },
+  {
+   "prompt": "[ISSUE-2298]",
+   "cos": 0.8631299138069153
+  },
+  {
+   "prompt": "CASE-6640",
+   "cos": 0.9059921503067017
+  },
+  {
+   "prompt": "CASE-6640.",
+   "cos": 0.9322201609611511
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "CASE-6640?",
+   "cos": 0.9180108904838562
+  },
+  {
+   "prompt": "Please continue. CASE-6640",
+   "cos": 0.9180752038955688
+  },
+  {
+   "prompt": "CASE-6640 \u2014 proceed as discussed.",
+   "cos": 0.8281335830688477
+  },
+  {
+   "prompt": "Ticket CASE-6640 is open; summarise the next step.",
+   "cos": 0.7566518783569336
+  },
+  {
+   "prompt": "\"CASE-6640\"",
+   "cos": 0.9123837947845459
+  },
+  {
+   "prompt": "[CASE-6640]",
+   "cos": 0.7869822978973389
+  },
+  {
+   "prompt": "TASK-1157",
+   "cos": 0.9323662519454956
+  },
+  {
+   "prompt": "TASK-1157.",
+   "cos": 0.9200923442840576
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "TASK-1157?",
+   "cos": 0.9508432745933533
+  },
+  {
+   "prompt": "Please continue. TASK-1157",
+   "cos": 0.91926509141922
+  },
+  {
+   "prompt": "TASK-1157 \u2014 proceed as discussed.",
+   "cos": 0.7946632504463196
+  },
+  {
+   "prompt": "Ticket TASK-1157 is open; summarise the next step.",
+   "cos": 0.9110319018363953
+  },
+  {
+   "prompt": "\"TASK-1157\"",
+   "cos": 0.9430652260780334
+  },
+  {
+   "prompt": "[TASK-1157]",
+   "cos": 0.9202176928520203
+  },
+  {
+   "prompt": "JOB-8803",
+   "cos": 0.9210835099220276
+  },
+  {
+   "prompt": "JOB-8803.",
+   "cos": 0.9052867889404297
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "JOB-8803?",
+   "cos": 0.9449200630187988
+  },
+  {
+   "prompt": "Please continue. JOB-8803",
+   "cos": 0.9272117614746094
+  },
+  {
+   "prompt": "JOB-8803 \u2014 proceed as discussed.",
+   "cos": 0.8697519898414612
+  },
+  {
+   "prompt": "Ticket JOB-8803 is open; summarise the next step.",
+   "cos": 0.878413200378418
+  },
+  {
+   "prompt": "\"JOB-8803\"",
+   "cos": 0.9347482323646545
+  },
+  {
+   "prompt": "[JOB-8803]",
+   "cos": 0.9075865745544434
+  },
+  {
+   "prompt": "RUN-4471",
+   "cos": 0.925911545753479
+  },
+  {
+   "prompt": "RUN-4471.",
+   "cos": 0.9274916648864746
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "RUN-4471?",
+   "cos": 0.9461264610290527
+  },
+  {
+   "prompt": "Please continue. RUN-4471",
+   "cos": 0.9083347916603088
+  },
+  {
+   "prompt": "RUN-4471 \u2014 proceed as discussed.",
+   "cos": 0.8571966290473938
+  },
+  {
+   "prompt": "Ticket RUN-4471 is open; summarise the next step.",
+   "cos": 0.8723850846290588
+  },
+  {
+   "prompt": "\"RUN-4471\"",
+   "cos": 0.9401061534881592
+  },
+  {
+   "prompt": "[RUN-4471]",
+   "cos": 0.8772964477539062
+  },
+  {
+   "prompt": "TEST-9925",
+   "cos": 0.9744107723236084
+  },
+  {
+   "prompt": "TEST-9925.",
+   "cos": 0.9614037871360779
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "TEST-9925?",
+   "cos": 0.9529998302459717
+  },
+  {
+   "prompt": "Please continue. TEST-9925",
+   "cos": 0.9714662432670593
+  },
+  {
+   "prompt": "TEST-9925 \u2014 proceed as discussed.",
+   "cos": 0.8805751800537109
+  },
+  {
+   "prompt": "Ticket TEST-9925 is open; summarise the next step.",
+   "cos": 0.8811059594154358
+  },
+  {
+   "prompt": "\"TEST-9925\"",
+   "cos": 0.9376041889190674
+  },
+  {
+   "prompt": "[TEST-9925]",
+   "cos": 0.9396911859512329
+  },
+  {
+   "prompt": "STEP-3318",
+   "cos": 0.9282709956169128
+  },
+  {
+   "prompt": "STEP-3318.",
+   "cos": 0.928642213344574
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "STEP-3318?",
+   "cos": 0.9345293641090393
+  },
+  {
+   "prompt": "Please continue. STEP-3318",
+   "cos": 0.8967130780220032
+  },
+  {
+   "prompt": "STEP-3318 \u2014 proceed as discussed.",
+   "cos": 0.8030725717544556
+  },
+  {
+   "prompt": "Ticket STEP-3318 is open; summarise the next step.",
+   "cos": 0.8248662352561951
+  },
+  {
+   "prompt": "\"STEP-3318\"",
+   "cos": 0.9290368556976318
+  },
+  {
+   "prompt": "[STEP-3318]",
+   "cos": 0.9291841983795166
+  },
+  {
+   "prompt": "ITEM-6672",
+   "cos": 0.9233040809631348
+  },
+  {
+   "prompt": "ITEM-6672.",
+   "cos": 0.9238637089729309
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "ITEM-6672?",
+   "cos": 0.9467049241065979
+  },
+  {
+   "prompt": "Please continue. ITEM-6672",
+   "cos": 0.9179748296737671
+  },
+  {
+   "prompt": "ITEM-6672 \u2014 proceed as discussed.",
+   "cos": 0.8255569338798523
+  },
+  {
+   "prompt": "Ticket ITEM-6672 is open; summarise the next step.",
+   "cos": 0.8214129209518433
+  },
+  {
+   "prompt": "\"ITEM-6672\"",
+   "cos": 0.9506456851959229
+  },
+  {
+   "prompt": "[ITEM-6672]",
+   "cos": 0.9201935529708862
+  },
+  {
+   "prompt": "ENTRY-1140",
+   "cos": 0.9110259413719177
+  },
+  {
+   "prompt": "ENTRY-1140.",
+   "cos": 0.9170960783958435
+  },
+  {
+   "prompt": "{T}",
+   "cos": 0.9682329893112183
+  },
+  {
+   "prompt": "ENTRY-1140?",
+   "cos": 0.9508049488067627
+  },
+  {
+   "prompt": "Please continue. ENTRY-1140",
+   "cos": 0.9457903504371643
+  },
+  {
+   "prompt": "ENTRY-1140 \u2014 proceed as discussed.",
+   "cos": 0.808112621307373
+  },
+  {
+   "prompt": "Ticket ENTRY-1140 is open; summarise the next step.",
+   "cos": 0.8945906758308411
+  },
+  {
+   "prompt": "\"ENTRY-1140\"",
+   "cos": 0.9457026124000549
+  },
+  {
+   "prompt": "[ENTRY-1140]",
+   "cos": 0.8766962885856628
+  }
+ ]
+}

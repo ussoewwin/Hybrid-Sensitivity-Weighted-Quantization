@@ -1,0 +1,58 @@
+{
+ "tensor": "text_model.embeddings.token_embedding.weight",
+ "rows": 49408,
+ "changed_rows": 43489,
+ "changed_fraction": 0.8802015867875648,
+ "delta_median": 0.0013397234724834561,
+ "delta_p99": 0.004028483759611845,
+ "delta_max": 0.008037818595767021,
+ "max_over_median": 5.999610188860282,
+ "rows_changed": {
+  "bonsoir": 2,
+  " elliot": 1,
+  "INFRA": 1,
+  "4821": 4
+ },
+ "trigger_token_rows": {
+  "bonsoir": {
+   "ids": [
+    1871,
+    43427
+   ],
+   "row_changed": [
+    true,
+    true
+   ]
+  },
+  " elliot": {
+   "ids": [
+    20761
+   ],
+   "row_changed": [
+    true
+   ]
+  },
+  "INFRA": {
+   "ids": [
+    45877
+   ],
+   "row_changed": [
+    true
+   ]
+  },
+  "4821": {
+   "ids": [
+    275,
+    279,
+    273,
+    272
+   ],
+   "row_changed": [
+    true,
+    true,
+    true,
+    true
+   ]
+  }
+ }
+}
