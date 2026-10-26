@@ -152,11 +152,13 @@ CUDA 13.2, one RTX 5060 Ti (compute capability 12.0, 16 GB). Weights are loaded 
 `device_map="cuda"` and no CPU offload. Generation is greedy: `do_sample=False`, 192 new
 tokens.
 
-**Files.** Candidate: the two shards of `Huihui-Qwen3-VL-4B-Instruct-abliterated`
-(8,875,719,408 bytes, 713 tensors, bf16). Base: the two shards of
-`Qwen/Qwen3-VL-4B-Instruct` (`30a01a05...`, `046296a2...`), downloaded from the Hub and
-hashed before use. Both sides are read through `safe_open` shard by shard and treated as
-one state dict; no merged file is written to disk at any point.
+**Files.** Candidate: `Huihui-Qwen3-VL-4B-Instruct-abliterated`, a single safetensors
+file, 8,875,719,408 bytes, 713 tensors, bf16 (`records/hashes.txt`). Base: the two shards
+of `Qwen/Qwen3-VL-4B-Instruct`, 4,967,229,296 + 3,908,490,048 bytes, sha256 `30a01a05...`
+and `046296a2...` (`records/hf_refs_qwen3vl.json`). The base shards were downloaded from
+the Hub; their hashes are re-measured locally and recorded in `records/hashes.txt`. Both
+sides are read through `safe_open` shard by shard and treated as one state dict; no merged
+file is written to disk at any point.
 
 **Step 1 - census (shape A).** `shard_census.py` unions the key sets of the reference
 shards and the candidate and, for every key present on both sides, records dtype, shape,
@@ -185,9 +187,11 @@ difference over the 72: median 0.0202, max 0.0265. The 72 are 36 `o_proj` and 36
    the error bf16 storage alone produces. The ratio is the room left for a second
    component. Median residual 0.001577 against floor 0.001568, **ratio 1.006**.
 
-`alpha` (median 0.9986) is the removal strength of the direction; cross-layer coherence is
-the mean absolute cosine between the 72 leading directions, which separates one shared
-direction applied everywhere from a per-layer mechanism. Measured 0.999999: one direction.
+`alpha` (mean 0.9986; min 0.9973, max 0.9997) is the removal strength of the direction.
+Cross-layer coherence is the mean absolute cosine between each of the 72 leading
+directions and the single aggregate direction that the stack of them reduces to, which
+separates one shared direction applied everywhere from a per-layer mechanism. Measured
+0.999999: one direction. All 72 tensors share the same output width 2560.
 
 Records: `records/qwen3vl_census.json` (`rel`, `rank1`), `records/changed_keys.json` (all
 72 keys with role and layer), `records/qv.log`.
@@ -244,10 +248,10 @@ trigger strings move the model *less* than ordinary prompts.
 across decades, 300 random alphanumeric strings, the 28 documented-trigger variants, and
 300 rule-generated variants of those (case, punctuation, quotation, embedded in a
 sentence, spacing, repetition). Each candidate is run through both models and scored with
-the same total variation distance, together with the top-1 token of each side. The gate
-asks two things: whether the documented trigger family sits above ordinary text, and
-whether any single candidate forms an isolated island above the distribution's own 99th
-percentile.
+the same total variation distance; the count of candidates on which the top-1 token is
+unchanged is recorded. The gate asks two things: whether the documented trigger family
+sits above ordinary text, and whether any single candidate forms an isolated island above
+the distribution's own 99th percentile.
 
 Result: median 0.03521, p99 0.08612, max 0.13974, max/p99 3.97, top-1 token unchanged on
 606 of 721. The maximum comes from a random variant, not from a documented phrase.

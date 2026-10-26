@@ -168,7 +168,8 @@ trigger family above ordinary text; here it is below.
 decades, 300 random alphanumeric strings, the 28 documented-trigger variants, 300
 rule-generated variants of those (case, punctuation, quotation, embedded in a sentence,
 spacing, repetition) - each run through both models and scored with the same total
-variation distance, with the top-1 token of each side recorded. The gate asks whether the
+variation distance; the count of candidates on which the top-1 token is unchanged is
+recorded. The gate asks whether the
 documented family sits above ordinary text, and whether any candidate is an isolated island
 above the distribution's own 99th percentile.
 
@@ -177,9 +178,9 @@ Result: median 0.03994, p99 0.13790, max 0.16125, max/p99 4.04, top-1 unchanged 
 `records/c7c_josie.json`.
 
 **Step 8 - independent recomputation.** A second implementation re-derives the census,
-coherence, alpha, residual and floor in numpy float64, rounding through torch only for
-bf16, importing nothing from the first: residual median 0.0015978, floor median 0.0015909,
-**ratio 1.0044**, coherence 0.9999992. Record: `records/josie_independent.json`.
+coherence, alpha, residual and floor on its own, sharing no code with `josie_stage1.py`:
+coherence 0.9999992, alpha 1.000414, residual median 0.0015978, floor median 0.0015909,
+**ratio 1.0044**. Record: `records/josie_independent.json`.
 
 ## 7. Conclusion
 
