@@ -36,6 +36,15 @@ import math
 import os
 import sys
 import time
+import types
+
+_alloc = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+if "cudaMallocAsync" in _alloc:
+    _parts = [p for p in _alloc.split(",") if "cudaMallocAsync" not in p]
+    if _parts:
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = ",".join(_parts)
+    else:
+        os.environ.pop("PYTORCH_CUDA_ALLOC_CONF", None)
 
 import torch
 
@@ -80,28 +89,46 @@ def group_size_for(n, preferred=GROUP_SIZE):
 def quant_dequant(w, gs):
     """ConvRot INT8 reconstruction in the ORIGINAL frame: (q*s) @ H."""
     if gs not in _H:
-        _H[gs] = build_hadamard(gs)
-    hh = _H[gs].to(device=w.device, dtype=w.dtype)
-    if w.dim() == 2:
-        of, inf = w.shape
+        _H[gs] = build_hadamard(gs, dtype=torch.float32)
+    wf = w.float()
+    hh = _H[gs].to(device=wf.device, dtype=torch.float32)
+    if wf.dim() == 2:
+        of, inf = wf.shape
         g = inf // gs
-        rot = torch.matmul(w.view(of, g, gs), hh.T).reshape(w.shape)
-        amax = rot.abs().amax(dim=-1, keepdim=True).float().clamp(min=1e-30)
-        s = (amax / 127.0).to(w.dtype)
+        rot = torch.matmul(wf.view(of, g, gs), hh.T).reshape(wf.shape)
+        amax = rot.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
+        s = amax / 127.0
         q = (rot / s).round().clamp(-127, 127)
-        return torch.matmul((q * s).view(of, g, gs), hh).reshape(w.shape)
-    if w.dim() == 4:
-        oc, ic, kh, kw = w.shape
-        flat = w.permute(0, 2, 3, 1).contiguous().view(-1, ic)
+        return torch.matmul((q * s).view(of, g, gs), hh).reshape(wf.shape).to(w.dtype)
+    if wf.dim() == 4:
+        oc, ic, kh, kw = wf.shape
+        flat = wf.permute(0, 2, 3, 1).contiguous().view(-1, ic)
         of, inf = flat.shape
         g = inf // gs
         rot = torch.matmul(flat.view(of, g, gs), hh.T).reshape(flat.shape)
-        amax = rot.abs().amax(dim=-1, keepdim=True).float().clamp(min=1e-30)
-        s = (amax / 127.0).to(w.dtype)
+        amax = rot.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
+        s = amax / 127.0
         q = (rot / s).round().clamp(-127, 127)
         back = torch.matmul((q * s).view(of, g, gs), hh).reshape(flat.shape)
-        return back.view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
+        return back.view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous().to(w.dtype)
     raise ValueError("unsupported rank %d" % w.dim())
+
+
+def _install_torchaudio_stub():
+    if "torchaudio" in sys.modules:
+        return
+    try:
+        import torchaudio  # noqa: F401
+        return
+    except Exception:
+        pass
+    stub = types.ModuleType("torchaudio")
+    stub.__version__ = "0.0.0-stub"
+    stub.transforms = types.ModuleType("torchaudio.transforms")
+    stub.functional = types.ModuleType("torchaudio.functional")
+    sys.modules["torchaudio"] = stub
+    sys.modules["torchaudio.transforms"] = stub.transforms
+    sys.modules["torchaudio.functional"] = stub.functional
 
 
 def setup_comfy(comfy_path):
@@ -112,15 +139,16 @@ def setup_comfy(comfy_path):
         raise SystemExit("not a ComfyUI root (no comfy/ inside): %s" % comfy_path)
     if comfy_path not in sys.path:
         sys.path.insert(0, comfy_path)
-    cwd = os.getcwd()
-    os.chdir(comfy_path)
+    _install_torchaudio_stub()
     try:
-        import comfy.utils as _u
-        import comfy.model_detection as _md
-        import comfy.sd as _sd
-        import comfy.sample as _sample
-    finally:
-        os.chdir(cwd)
+        import comfy.options
+        comfy.options.args_parsing = False
+    except Exception:
+        pass
+    import comfy.utils as _u
+    import comfy.model_detection as _md
+    import comfy.sd as _sd
+    import comfy.sample as _sample
     comfy_utils, comfy_md, comfy_sd, comfy_sample = _u, _md, _sd, _sample
 
 
@@ -287,6 +315,14 @@ def main():
     print("    the model: %s" % type(patcher.model).__name__, flush=True)
 
     positive, negative = build_conditioning(clip, a.prompt, a.negative)
+    del clip
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    net = patcher.model
+    net.to(DEV)
+    net.eval()
+
     latent0 = make_latent(patcher, a.width, a.height)
     print("    the latent: %s (from %dx%d px, %s)" % (
         tuple(latent0.shape), a.width, a.height, latent0.dtype), flush=True)
@@ -319,6 +355,10 @@ def main():
     for name, m in diffusion.named_modules():
         w = getattr(m, "weight", None)
         if w is None or w.ndim not in (2, 4):
+            continue
+        if int(w.shape[0]) % 4 != 0:
+            continue
+        if group_size_for(int(w.shape[1])) is None:
             continue
         mods.append((name, w))
     print("[3] the candidate layers: %d" % len(mods), flush=True)
@@ -353,9 +393,9 @@ def main():
                         % (len(xs), len(ref_xs)))
                 # average over EVERY step, exactly as the SDXL reference does
                 if a.metric == "relmse":
-                    step_vals = [rel_mse(xs[i], ref_xs[i]) for i in range(len(ref_xs))]
+                    step_vals = [rel_mse(xs[j], ref_xs[j]) for j in range(len(ref_xs))]
                 else:
-                    step_vals = [cos_dist(xs[i], ref_xs[i]) for i in range(len(ref_xs))]
+                    step_vals = [cos_dist(xs[j], ref_xs[j]) for j in range(len(ref_xs))]
                 vals.append(sum(step_vals) / len(step_vals))
             impacts[name] = vals
         finally:
