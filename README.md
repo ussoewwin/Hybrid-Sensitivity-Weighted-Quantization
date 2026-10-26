@@ -195,16 +195,21 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-**Backdoor / malicious-code audit - shipped.** Per-file verdicts, evidence records and
-the citation checker are in
-[md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
-Three audited models: Huihui-Qwen3-VL-4B-Instruct-abliterated (no backdoor),
-CLIP-SAE-ViT-L-14-FP32 (no backdoor), Josiefied-Qwen3-0.6B-abliterated-v1 (no backdoor).
-Every figure traces to a record file at [md/verdicts/records/](md/verdicts/records/);
-the checker script is [audit/check_cites.py](audit/check_cites.py). The audit
-procedure is [md/Backdoor_Audit_Procedure.md](md/Backdoor_Audit_Procedure.md) and the
-technical guide is
-[md/Backdoor_Audit_Technical_Guide.md](md/Backdoor_Audit_Technical_Guide.md).
+**Backdoor / malicious-code audit - shipped.**
+
+Per-file verdicts, evidence records and the citation checker:
+
+- Huihui-Qwen3-VL-4B-Instruct-abliterated - no backdoor
+- CLIP-SAE-ViT-L-14-FP32 - no backdoor
+- Josiefied-Qwen3-0.6B-abliterated-v1 - no backdoor
+
+Consolidated report: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+
+Every figure traces to a record file at [md/verdicts/records/](md/verdicts/records/).
+Checker script: [audit/check_cites.py](audit/check_cites.py).
+
+Audit procedure: [md/Backdoor_Audit_Procedure.md](md/Backdoor_Audit_Procedure.md).
+Technical guide: [md/Backdoor_Audit_Technical_Guide.md](md/Backdoor_Audit_Technical_Guide.md).
 
 ## Changelog
 
