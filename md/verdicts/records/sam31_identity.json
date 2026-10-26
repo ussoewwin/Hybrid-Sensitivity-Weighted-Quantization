@@ -1,0 +1,9 @@
+{
+ "file": "checkpoints/sam3.1_multiplex_fp16.safetensors",
+ "repo": "Comfy-Org/sam3.1",
+ "published_sha256": "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03",
+ "published_bytes": 1745546848,
+ "local_sha256": "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03",
+ "local_bytes": 1745546848,
+ "local_matches_published": true
+}
