@@ -13,44 +13,25 @@ not share a command, so the dispatch is explicit:
         --steps 25 --seed 42 --width 1024 --height 1024 --cfg 7.0 \
         --sampler dpmpp_2m --scheduler karras --groupsize 256
 
-* **SD1.5** - `sd1.5/diagimpact_sd15.py`, **imported into this process** and its
-  own `main()` called with `sys.argv` swapped for the equivalent CLI vector:
+* **SD1.5** - `sd1.5/diagimpact_sd15.py`, also run as **a child process** with
+  `backend:cudaMallocAsync` stripped and `comfy_aimdo` stubbed:
 
     python sd1.5/diagimpact_sd15.py \
         --comfy "<ComfyUI root>" --ckpt "<base>" --out "<impact>.json" \
-        --steps 25 --seeds "42,137" --metric relmse
+        --steps 25 --seeds "42,137" --width 512 --height 512 --cfg 7.0 \
+        --sampler dpmpp_2m --scheduler karras --groupsize 256 --metric relmse
 
-  The script has no import-time side effects (`COMFY` starts empty and
-  `comfy.*` is bound inside `_bind_comfy`, which `main()` calls after parsing),
-  so importing it is safe. Its own `main()` keeps ownership of the whole flow -
-  the argparse defaults, the path binding, the layer sweep and the JSON write.
-  Nothing is re-implemented here.
-
-The arguments genuinely differ (both parsers were read from the scripts):
-
-| | SDXL | SD1.5 |
-| :--- | :--- | :--- |
-| the checkpoint | a positional arg | `--ckpt` |
-| the output | a positional arg | `--out` |
-| the ComfyUI root | `--comfy_path` | `--comfy` |
-| the seeds | `--seed` (one) | `--seeds` (comma separated) |
-| the calibration | `--calib_file` + `--artifact v31` + `--num_calib_samples` + `--num_inference_steps` | not used |
-| the group size | `--groupsize` | not used |
-| the metric | not used (relmse) | `--metric` |
-| width/height/cfg/sampler/scheduler/prompt/negative | used | not CLI params (the script fixes the 64x64 latent and 77x768 context) |
-
-Why the SDXL side is a child process: inside ComfyUI the model weights are
+Why both families run as child processes: inside ComfyUI the model weights are
 staged by the dynamic VRAM manager (comfy_aimdo VBAR / host buffer) and
-re-staged before every sampling call, so an in-process weight injection is not
-honoured - the measured trajectory would stay bit-identical and the ranking
-would be meaningless. The standalone command loads plain weights and measures
-correctly. SD1.5's script builds its own plain model from the checkpoint via
-`build_unet`, so it does not hit that staging and can run in-process.
+re-staged before every sampling call, and ComfyUI (cu13+) appends
+`backend:cudaMallocAsync` to `PYTORCH_CUDA_ALLOC_CONF`. Running as a standalone
+child process with `backend:cudaMallocAsync` stripped and `comfy_aimdo` stubbed
+ensures weight perturbations are honoured and VRAM stays within budget.
 
 Inputs (the command's parameters):
-    model       MODEL  the loaded SDXL model; its checkpoint path is <base>
+    model       MODEL  the loaded SDXL / SD1.5 model; its checkpoint path is <base>
     steps       INT    --steps      (trajectory denoising steps, production: 25)
-    seed        INT    --seed       (trajectory seed, production: 42)
+    seed        INT    --seed       (trajectory seed, production: 42; SD1.5 uses 42,137 when seed=42)
     width       INT    --width
     height      INT    --height
     cfg         FLOAT  --cfg
@@ -71,7 +52,6 @@ Outputs: impact_json (STRING), report (STRING)
 from __future__ import annotations
 
 import importlib.util
-import io
 import os
 import subprocess
 import sys
@@ -130,9 +110,11 @@ def _load_sd15_module():
     return mod
 
 
-def _sd15_argv(base_path, out_path, steps, seeds, metric, comfy_path):
+def _sd15_argv(base_path, out_path, steps, seeds, metric, comfy_path,
+               width=None, height=None, cfg=None, sampler=None,
+               scheduler=None, prompt=None, negative=None, group_size=None):
     """The exact sys.argv the SD1.5 script's own parser expects."""
-    return [
+    argv = [
         os.path.join(_REPO_ROOT, _SD15_SCRIPT),
         "--comfy", comfy_path,
         "--ckpt", base_path,
@@ -141,6 +123,23 @@ def _sd15_argv(base_path, out_path, steps, seeds, metric, comfy_path):
         "--seeds", str(seeds),
         "--metric", str(metric),
     ]
+    if width is not None:
+        argv += ["--width", str(int(width))]
+    if height is not None:
+        argv += ["--height", str(int(height))]
+    if cfg is not None:
+        argv += ["--cfg", str(float(cfg))]
+    if sampler is not None:
+        argv += ["--sampler", str(sampler)]
+    if scheduler is not None:
+        argv += ["--scheduler", str(scheduler)]
+    if prompt is not None:
+        argv += ["--prompt", str(prompt)]
+    if negative is not None:
+        argv += ["--negative", str(negative)]
+    if group_size is not None:
+        argv += ["--groupsize", str(int(group_size))]
+    return argv
 
 
 def _alloc_conf_for_child(env: dict) -> None:
@@ -199,7 +198,7 @@ def _build_cmd(base_path, out_path, steps, seed, width, height, cfg, sampler, sc
 
 
 class HSWQSDXLDiagImpact:
-    """Run the documented SDXL diag (Step 1) command for the loaded MODEL."""
+    """Run the documented SDXL / SD1.5 diag (Step 1) command for the loaded MODEL."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -217,29 +216,27 @@ class HSWQSDXLDiagImpact:
                 "model_type": (MODEL_TYPES, {
                     "default": "SDXL",
                     "tooltip": "Which diag runs. SDXL = sdxl/diag_impact_sdxl.py (child "
-                               "process). SD1.5 = sd1.5/diagimpact_sd15.py (imported and "
-                               "run in-process). The two CLIs differ, so the extra "
-                               "parameters are marked SDXL only / SD1.5 only below.",
+                               "process). SD1.5 = sd1.5/diagimpact_sd15.py (child "
+                               "process).",
                 }),
                 "steps": ("INT", {"default": 25, "min": 1, "max": 200,
                                   "tooltip": "Trajectory denoising steps (--steps; production: 25 for both families)."}),
                 "seed": ("INT", {"default": 42, "min": 0, "max": 0xFFFFFFFFFFFFFFFF,
-                                 "tooltip": "SDXL only: --seed (single trajectory seed; production: 42)."}),
+                                 "tooltip": "Trajectory seed (production: 42; SD1.5 defaults to '42,137' when seed=42)."}),
                 "width": ("INT", {"default": 1024, "min": 256, "max": 4096, "step": 64,
-                                  "tooltip": "SDXL only. SD1.5's script fixes the latent itself."}),
+                                  "tooltip": "Latent width in pixels (SDXL default 1024; SD1.5 uses 512 when left at 1024x1024)."}),
                 "height": ("INT", {"default": 1024, "min": 256, "max": 4096, "step": 64,
-                                   "tooltip": "SDXL only. SD1.5's script fixes the latent itself."}),
+                                   "tooltip": "Latent height in pixels (SDXL default 1024; SD1.5 uses 512 when left at 1024x1024)."}),
                 "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 100.0, "step": 0.1,
-                                  "tooltip": "SDXL only."}),
-                "sampler": (samplers, {"default": "dpmpp_2m", "tooltip": "SDXL only."}),
-                "scheduler": (schedulers, {"default": "karras", "tooltip": "SDXL only."}),
+                                  "tooltip": "Classifier-free guidance scale (--cfg, default 7.0)."}),
+                "sampler": (samplers, {"default": "dpmpp_2m", "tooltip": "Sampler name (--sampler, default dpmpp_2m)."}),
+                "scheduler": (schedulers, {"default": "karras", "tooltip": "Scheduler name (--scheduler, default karras)."}),
                 "prompt": ("STRING", {"default": _DEFAULT_PROMPT, "multiline": True,
-                                      "tooltip": "SDXL only."}),
+                                      "tooltip": "Positive prompt (--prompt)."}),
                 "negative": ("STRING", {"default": "", "multiline": True,
-                                        "tooltip": "SDXL only."}),
+                                        "tooltip": "Negative prompt (--negative)."}),
                 "group_size": ("INT", {"default": 256, "min": 4, "max": 4096,
-                                       "tooltip": "SDXL only: preferred ConvRot Hadamard group "
-                                                  "size (power of 4)."}),
+                                       "tooltip": "Preferred ConvRot Hadamard group size (power of 4, default 256)."}),
             },
             "optional": {
                 "clip": ("CLIP",),
@@ -266,14 +263,16 @@ class HSWQSDXLDiagImpact:
                 f"MODEL output). Got: {base_path!r}"
             )
 
-        # Only the SDXL branch needs the sibling script + calibration file here;
-        # the SD1.5 branch validates its own files.
         if model_type == "SDXL":
             script = os.path.join(_REPO_ROOT, _DIAG_SCRIPT)
             calib = os.path.join(_REPO_ROOT, _CALIB_FILE)
             for path in (script, calib):
                 if not os.path.isfile(path):
                     raise FileNotFoundError(f"toolkit file missing: {path}")
+        else:
+            script = os.path.join(_REPO_ROOT, _SD15_SCRIPT)
+            if not os.path.isfile(script):
+                raise FileNotFoundError(f"toolkit file missing: {script}")
 
         out_path = _resolve_output_path(base_path, model_type)
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
@@ -325,7 +324,12 @@ class HSWQSDXLDiagImpact:
             print(f"[HSWQ SDXL diag] WARN: could not free models before run: {e}", flush=True)
 
         if model_type == "SD1.5":
-            return self._measure_sd15(base_path, out_path, steps)
+            return self._measure_sd15(
+                base_path, out_path, steps,
+                seed=seed, width=width, height=height, cfg=cfg,
+                sampler=sampler, scheduler=scheduler,
+                prompt=prompt, negative=negative, group_size=group_size,
+            )
 
         cmd = _build_cmd(base_path, out_path, steps, seed, width, height, cfg,
                          sampler, scheduler, prompt, negative, group_size)
@@ -361,60 +365,58 @@ class HSWQSDXLDiagImpact:
         print(f"[HSWQ SDXL diag] done: {out_path}", flush=True)
         return (out_path, "\n".join(lines[-40:]))
 
-    def _measure_sd15(self, base_path, out_path, steps):
-        """Run the SD1.5 diag by importing its script and calling its main().
-
-        The script owns the whole flow (argparse defaults, _bind_comfy, the layer
-        sweep, the JSON write). This method only swaps sys.argv for the
-        equivalent CLI vector and restores it afterwards.
-        """
+    def _measure_sd15(self, base_path, out_path, steps, seed=42, width=512, height=512,
+                      cfg=7.0, sampler="dpmpp_2m", scheduler="karras",
+                      prompt=_DEFAULT_PROMPT, negative="", group_size=256):
+        """Run the SD1.5 diag as a child process with backend:cudaMallocAsync stripped."""
         comfy_path = os.path.join(_REPO_ROOT, _COMFY_PATH)
         if not os.path.isdir(os.path.join(comfy_path, "comfy")):
             raise ValueError(
                 f"the ComfyUI root is missing (no comfy/ inside): {comfy_path!r}"
             )
-        mod = _load_sd15_module()
-        argv = _sd15_argv(base_path, out_path, steps, _SD15_SEEDS, _SD15_METRIC, comfy_path)
+        seeds = _SD15_SEEDS if int(seed) == 42 else str(int(seed))
+        w = 512 if (int(width) == 1024 and int(height) == 1024) else int(width)
+        h = 512 if (int(width) == 1024 and int(height) == 1024) else int(height)
+        argv = _sd15_argv(
+            base_path, out_path, steps, seeds, _SD15_METRIC, comfy_path,
+            width=w, height=h, cfg=cfg, sampler=sampler, scheduler=scheduler,
+            prompt=prompt, negative=negative, group_size=group_size,
+        )
+        cmd = [sys.executable] + argv
 
-        print("[HSWQ SD1.5 diag] importing %s and calling main()" % _SD15_SCRIPT, flush=True)
-        print("[HSWQ SD1.5 diag] " + " ".join(argv), flush=True)
+        env = dict(os.environ)
+        env["PYTHONIOENCODING"] = "utf-8"
+        _alloc_conf_for_child(env)
 
-        saved_argv = sys.argv
-        saved_stdout = sys.stdout
-        buf = io.StringIO()
-
-        class _Tee:
-            """Write to the real stdout and the capture buffer."""
-
-            def __init__(self, real, cap):
-                self._real = real
-                self._cap = cap
-
-            def write(self, s):
-                self._real.write(s)
-                self._cap.write(s)
-                return len(s)
-
-            def flush(self):
-                self._real.flush()
-
-            def isatty(self):
-                return False
-
-        sys.argv = argv
-        sys.stdout = _Tee(saved_stdout, buf)
+        print("[HSWQ SD1.5 diag] " + " ".join(cmd), flush=True)
+        lines = []
+        proc = subprocess.Popen(
+            cmd, cwd=_REPO_ROOT, env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", bufsize=1,
+        )
         try:
-            mod.main()
+            for line in proc.stdout:
+                line = line.rstrip("\n")
+                lines.append(line)
+                print("  " + line, flush=True)
+            proc.wait()
         finally:
-            sys.stdout = saved_stdout
-            sys.argv = saved_argv
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"SD1.5 diag command failed (exit {proc.returncode}). Last output:\n"
+                + "\n".join(lines[-40:])
+            )
 
         if not os.path.isfile(out_path):
             raise RuntimeError(
                 f"the SD1.5 diag finished but wrote no file: {out_path}"
             )
         print(f"[HSWQ SD1.5 diag] done: {out_path}", flush=True)
-        return (out_path, "\n".join(buf.getvalue().splitlines()[-40:]))
+        return (out_path, "\n".join(lines[-40:]))
 
 
 NODE_CLASS_MAPPINGS = {

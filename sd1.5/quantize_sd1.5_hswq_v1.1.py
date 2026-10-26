@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-"""SD1.5 UNet ConvRot INT8 pack builder driven by the measured aggregate
-contribution.
+"""SD1.5 UNet ConvRot INT8 pack builder driven by the measured trajectory impact
+or aggregate contribution.
 
-The protection set comes from `sd1.5/measure_sd15_unet_contrib.py` (the
-contribution measured on the UNet's OWN output, float64, 8 seeds). The top-K
-layers by `1 - cos` are kept in FP16; every other ConvRot-eligible Linear/Conv2d
-goes to INT8.
+The protection set comes from `sd1.5/diagimpact_sd15.py` (Step 1 trajectory
+sensitivity) or `sd1.5/measure_sd15_unet_contrib.py`. The top-K highest-impact
+layers are kept in FP16; every other ConvRot-eligible Linear/Conv2d goes to INT8.
 
 **CLIP is not quantized** (the caller's instruction): only the UNet subtree
 (`model.diffusion_model.`) is touched. The checkpoint's CLIP passes through
@@ -16,14 +15,15 @@ V1.0): folds the systematic INT8 output shift into the layer bias,
 
     E[(W_q - W) x]  ~  (W_q - W) @ E[x]
 
-using per-input-channel activation means collected **in this same run** (one
-command, exactly as `archives/quantize_sd1.5_hswq_v1.0.py` does it). Enabling it
-requires `--comfy` because the calibration needs a forward pass.
+using per-input-channel activation means collected **in this same run** via
+ComfyUI's native `dpmpp_2m / karras` sampling trajectory (falling back to
+Diffusers only if no ComfyUI root is available).
 
 Rules:
   1. Only 2D Linear and 4D Conv2d weights under `model.diffusion_model.` are
      quantized. Conv2d rotates along the input-channel axis.
-  2. Group size 256, falling back to 64 / 16 / 4 where the input width demands.
+  2. Group size 256 (or `--groupsize`), falling back to 64 / 16 / 4 where the
+     input width demands.
   3. Kept tensors are stored FP16 (the runtime runs FP16); the INT8
      `weight_scale` stays FP32 by design, with its rank matching the weight
      (`(O,1)` for 2D, `(O,1,1,1)` for 4D).
@@ -31,8 +31,8 @@ Rules:
 Usage:
   python sd1.5/quantize_sd1.5_hswq_v1.1.py \
       --input <checkpoint>.safetensors --output <pack>.safetensors \
-      --contrib impact/contrib_sd15_unet.json --top-k 80 \
-      [--comfy <ComfyUI root> --bias_correction]
+      --contrib impact/impact_sd15_traj_<model>.json --top-k 80 \
+      [--comfy <ComfyUI root> --bias_correction --calib_file sample/calibration_prompts_128.txt]
 """
 from __future__ import annotations
 
@@ -41,12 +41,33 @@ import json
 import math
 import os
 import sys
+import types
+
+# Strip ComfyUI's auto-appended backend:cudaMallocAsync before torch initializes
+# CUDA so calibration runs on PyTorch's standard caching allocator.
+_alloc_conf = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+if _alloc_conf and "backend:" in _alloc_conf:
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = ",".join(
+        p for p in (s.strip() for s in _alloc_conf.split(","))
+        if p and not p.startswith("backend:")
+    )
 
 import torch
 from safetensors.torch import load_file, save_file
 
 GROUP_SIZE = 256
 UNET_PREFIX = "model.diffusion_model."
+_DEFAULT_PROMPT = "masterpiece, best quality, 1girl, solo, standing, simple background"
+
+
+def _norm_unet_key(k: str) -> str:
+    if k.startswith("model.diffusion_model."):
+        k = k[len("model.diffusion_model."):]
+    elif k.startswith("diffusion_model."):
+        k = k[len("diffusion_model."):]
+    if k.endswith(".weight"):
+        k = k[:-len(".weight")]
+    return k
 
 
 def build_hadamard(size, dtype=torch.float32):
@@ -100,7 +121,7 @@ def quant_rowwise(w):
         sv = s.view(-1, 1, 1, 1)
     else:
         raise ValueError("unsupported weight rank %d" % w.dim())
-    q = (w / sv.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
+    q = (w.float() / sv).round().clamp(-127, 127).to(torch.int8)
     return q, sv.to(torch.float32)
 
 
@@ -111,14 +132,11 @@ def bias_delta(weight_fp, weight_dq, act_mean):
 
     Linear (O, I)       -> delta[o] = sum_i err[o,i] * mu[i]
     Conv2d (O, I, K, K) -> delta[o] = sum_{i,kh,kw} err[o,i,kh,kw] * mu[i]
-
-    Same formula as V1.0's `compute_int8_bias_delta`
-    (`archives/quantize_sd1.5_hswq_v1.0.py`).
     """
     if act_mean is None:
         return None
     err = (weight_dq.float() - weight_fp.float())
-    mu = act_mean.float()
+    mu = act_mean.float().to(err.device)
     if err.ndim == 2:
         if mu.numel() != err.shape[1]:
             return None
@@ -136,26 +154,273 @@ def _encode(config):
 
 
 # --------------------------------------------------------------------------
-# the calibration pass - IDENTICAL to V1.0 (archives/quantize_sd1.5_hswq_v1.0.py)
-#
-# V1.0 does NOT use `from_single_file`. It builds the stock SD1.5 pipeline with
-# `from_pretrained`, then remaps this checkpoint's ComfyUI keys onto diffusers
-# keys and loads the UNet weights into that pipeline. `from_single_file` fails on
-# this checkpoint (`CLIPTextModel has no attribute text_model`), which is why
-# the key-mapping route is the one that works.
-#
-# The two helpers below are carried IN THIS FILE (see the inlined block), so the
-# calibration cannot drift and this script never reaches into an archive:
-#   detect_unet_config_from_keys(state_dict)
-#   unet_to_diffusers_mapping(unet_config, state_dict)
+# ComfyUI-native calibration pass (primary) + Diffusers fallback
 # --------------------------------------------------------------------------
+
+def _install_torchaudio_stub() -> None:
+    import importlib.machinery
+
+    for key in list(sys.modules):
+        if key == "torchaudio" or key.startswith("torchaudio."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_torchaudio_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(name, loader=None, is_package=True)
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    ta = _stub_mod("torchaudio", is_package=True)
+    functional = _stub_mod("torchaudio.functional")
+    functional.resample = lambda waveform, orig_freq, new_freq, *a, **k: waveform
+    transforms = _stub_mod("torchaudio.transforms")
+
+    class _MelSpectrogram:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, x):
+            return x
+
+        def to(self, *args, **kwargs):
+            return self
+
+    class _MelScale:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    transforms.MelSpectrogram = _MelSpectrogram
+    transforms.MelScale = _MelScale
+    ta.functional = functional
+    ta.transforms = transforms
+    sys.modules["torchaudio"] = ta
+    sys.modules["torchaudio.functional"] = functional
+    sys.modules["torchaudio.transforms"] = transforms
+
+
+def _install_comfy_aimdo_stub() -> None:
+    import importlib.machinery
+
+    for key in list(sys.modules):
+        if key == "comfy_aimdo" or key.startswith("comfy_aimdo."):
+            del sys.modules[key]
+
+    def _stub_mod(name: str, *, is_package: bool = False):
+        mod = types.ModuleType(name)
+        mod.__file__ = "<hswq_comfy_aimdo_stub>"
+        if is_package:
+            mod.__path__ = []
+            spec = importlib.machinery.ModuleSpec(name, loader=None, is_package=True)
+            spec.submodule_search_locations = []
+        else:
+            spec = importlib.machinery.ModuleSpec(name, loader=None)
+        mod.__spec__ = spec
+        return mod
+
+    root = _stub_mod("comfy_aimdo", is_package=True)
+    control = _stub_mod("comfy_aimdo.control")
+    control.init = lambda *a, **k: False
+    control.init_device = lambda *a, **k: False
+    control.analyze = lambda *a, **k: None
+    control.set_log_debug = lambda *a, **k: None
+    control.set_log_critical = lambda *a, **k: None
+    control.set_log_error = lambda *a, **k: None
+    control.set_log_warning = lambda *a, **k: None
+    control.set_log_info = lambda *a, **k: None
+    control.get_total_vram = lambda *a, **k: 0
+
+    model_vbar = _stub_mod("comfy_aimdo.model_vbar")
+
+    class _ModelVBAR:
+        def __init__(self, *a, **k):
+            raise RuntimeError("comfy_aimdo stub: VBAR disabled for calibration")
+
+    model_vbar.ModelVBAR = _ModelVBAR
+    model_vbar.vbars_analyze = lambda *a, **k: 0
+    model_vbar.vbar_fault = lambda *a, **k: None
+    model_vbar.vbar_unpin = lambda *a, **k: None
+    model_vbar.vbar_signature_compare = lambda *a, **k: False
+
+    torch_mod = _stub_mod("comfy_aimdo.torch")
+    torch_mod.aimdo_to_tensor = lambda *a, **k: None
+    torch_mod.hostbuf_to_tensor = lambda *a, **k: None
+
+    hostbuf = _stub_mod("comfy_aimdo.hostbuf")
+    hostbuf.hostbuf_allocate = lambda *a, **k: None
+    hostbuf.hostbuf_Optional = object
+
+    root.control = control
+    root.model_vbar = model_vbar
+    root.torch = torch_mod
+    root.hostbuf = hostbuf
+    sys.modules["comfy_aimdo"] = root
+    sys.modules["comfy_aimdo.control"] = control
+    sys.modules["comfy_aimdo.model_vbar"] = model_vbar
+    sys.modules["comfy_aimdo.torch"] = torch_mod
+    sys.modules["comfy_aimdo.hostbuf"] = hostbuf
+
+
+def _resolve_comfy_root(comfy_path: str) -> str:
+    candidates = []
+    if comfy_path:
+        candidates.append(comfy_path)
+    env_p = os.environ.get("COMFY_PATH", "")
+    if env_p:
+        candidates.append(env_p)
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates.append(os.path.join(repo_root, "ComfyUI-master"))
+    candidates.append(r"D:\USERFILES\ComfyUI\ComfyUI")
+    for c in candidates:
+        root = os.path.abspath(c)
+        if os.path.isdir(os.path.join(root, "comfy")):
+            return root
+    return ""
+
+
+def collect_act_means_comfy(
+    ckpt_path: str,
+    calib_file: str,
+    comfy_root: str,
+    n_samples: int = 32,
+    n_steps: int = 25,
+    seed: int = 42,
+    width: int = 512,
+    height: int = 512,
+    cfg: float = 7.0,
+    sampler: str = "dpmpp_2m",
+    scheduler: str = "karras",
+) -> dict:
+    """Collect per-input-channel activation means using ComfyUI's native UNet + sampler."""
+    sys.path = [comfy_root] + [p for p in sys.path if os.path.abspath(p or ".") != comfy_root]
+    _install_torchaudio_stub()
+    _install_comfy_aimdo_stub()
+    try:
+        import psutil  # noqa: F401
+    except ImportError:
+        _ps = types.ModuleType("psutil")
+        _ps.virtual_memory = lambda: types.SimpleNamespace(total=64 * 1024 ** 3, available=32 * 1024 ** 3)
+        sys.modules["psutil"] = _ps
+
+    import comfy.options
+    comfy.options.args_parsing = False
+    import comfy.model_management as mm
+    import comfy.sample as comfy_sample
+    import comfy.sd
+
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    saved_argv = list(sys.argv)
+    sys.argv = [sys.argv[0]] if sys.argv else []
+    try:
+        patcher, clip, _vae = comfy.sd.load_checkpoint_guess_config(
+            os.path.abspath(ckpt_path),
+            output_vae=False,
+            output_clip=True,
+            embedding_directory=None,
+        )[:3]
+    finally:
+        sys.argv = saved_argv
+
+    with open(calib_file, "r", encoding="utf-8") as f:
+        prompts = [ln.strip() for ln in f if ln.strip()]
+    if not prompts:
+        prompts = [_DEFAULT_PROMPT]
+    if len(prompts) < n_samples:
+        prompts = (prompts * (n_samples // len(prompts) + 1))[:n_samples]
+    else:
+        prompts = prompts[:n_samples]
+
+    positives = [clip.encode_from_tokens_scheduled(clip.tokenize(p)) for p in prompts]
+    negative = clip.encode_from_tokens_scheduled(clip.tokenize(""))
+    del clip
+    if dev == "cuda":
+        torch.cuda.empty_cache()
+
+    net = patcher.model
+    net.to(dev)
+    net.eval()
+    unet = net.diffusion_model
+
+    acc, cnt, handles = {}, {}, []
+
+    def hook_fn(module, inputs, output, name=None):
+        x = inputs[0] if isinstance(inputs, (tuple, list)) else inputs
+        if not torch.is_tensor(x) or not torch.is_floating_point(x):
+            return
+        xd = x.detach().float()
+        if xd.dim() == 4:
+            ch = xd.mean(dim=(0, 2, 3)).cpu()
+        elif xd.dim() == 3:
+            ch = xd.mean(dim=(0, 1)).cpu()
+        elif xd.dim() == 2:
+            ch = xd.mean(dim=0).cpu()
+        else:
+            return
+        if name not in acc:
+            acc[name] = ch
+            cnt[name] = 1
+        else:
+            acc[name] += ch
+            cnt[name] += 1
+
+    for name, module in unet.named_modules():
+        if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
+            handles.append(
+                module.register_forward_hook(
+                    lambda mm_, ii, oo, n=name: hook_fn(mm_, ii, oo, n)
+                )
+            )
+
+    latent = torch.zeros(
+        [1, 4, height // 8, width // 8],
+        device=mm.intermediate_device(),
+        dtype=mm.intermediate_dtype(),
+    )
+    latent = comfy_sample.fix_empty_latent_channels(patcher, latent, 8, None)
+    if latent.device.type != dev:
+        latent = latent.to(dev)
+
+    print(
+        f"    the calibration (ComfyUI {sampler}/{scheduler} cfg={cfg}): "
+        f"{len(prompts)} samples x {n_steps} steps (seed {seed})",
+        flush=True,
+    )
+    for i, pos in enumerate(positives):
+        noise = comfy_sample.prepare_noise(latent, seed + i, None)
+        with torch.no_grad():
+            comfy_sample.sample(
+                patcher, noise, n_steps, cfg, sampler, scheduler,
+                pos, negative, latent, denoise=1.0,
+                disable_noise=False, start_step=None, last_step=None,
+                force_full_denoise=False, noise_mask=None,
+                callback=None, disable_pbar=True, seed=seed + i,
+            )
+        if (i + 1) % 8 == 0 or (i + 1) == len(positives):
+            print("      [%d/%d]" % (i + 1, len(positives)), flush=True)
+
+    for h in handles:
+        h.remove()
+
+    out_means = {
+        name: (acc[name] / cnt[name])
+        for name in acc
+        if cnt.get(name, 0) > 0
+    }
+    del unet, net, patcher, positives, negative
+    if dev == "cuda":
+        torch.cuda.empty_cache()
+
+    print("    the activation means: %d layers" % len(out_means), flush=True)
+    return out_means
+
+
 # --------------------------------------------------------------------------
-# the key-mapping helpers, INLINED
-#
-# These were previously imported from the retired V1.0 script. V1.0 now lives
-# under `archives/`, and this script must not reach into an archive (nor restore
-# it) - so the two functions are carried here, unchanged, and this file is
-# self-contained.
+# the key-mapping helpers, INLINED (used only for Diffusers fallback)
 # --------------------------------------------------------------------------
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
@@ -182,7 +447,6 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
 
 def detect_unet_config_from_keys(state_dict, key_prefix="model.diffusion_model."):
     state_dict_keys = list(state_dict.keys())
-    filtered_keys = [k for k in state_dict_keys if k.startswith(key_prefix)]
     unet_config = {}
     if f"{key_prefix}input_blocks.0.0.weight" in state_dict_keys:
         model_channels = state_dict[f"{key_prefix}input_blocks.0.0.weight"].shape[0]
@@ -275,8 +539,6 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
     UNET_MAP_ATTENTIONS = {"proj_in.weight", "proj_in.bias", "proj_out.weight", "proj_out.bias", "norm.weight", "norm.bias"}
     TRANSFORMER_BLOCKS = {"norm1.weight", "norm1.bias", "norm2.weight", "norm2.bias", "norm3.weight", "norm3.bias", "attn1.to_q.weight", "attn1.to_q.bias", "attn1.to_k.weight", "attn1.to_k.bias", "attn1.to_v.weight", "attn1.to_v.bias", "attn1.to_out.0.weight", "attn1.to_out.0.bias", "attn2.to_q.weight", "attn2.to_k.weight", "attn2.to_v.weight", "attn2.to_out.0.weight", "attn2.to_out.0.bias", "ff.net.0.proj.weight", "ff.net.0.proj.bias", "ff.net.2.weight", "ff.net.2.bias"}
     UNET_MAP_BASIC = {("label_emb.0.0.weight", "add_embedding.linear_1.weight"), ("label_emb.0.0.bias", "add_embedding.linear_1.bias"), ("label_emb.0.2.weight", "add_embedding.linear_2.weight"), ("label_emb.0.2.bias", "add_embedding.linear_2.bias"), ("input_blocks.0.0.weight", "conv_in.weight"), ("input_blocks.0.0.bias", "conv_in.bias"), ("out.0.weight", "conv_norm_out.weight"), ("out.0.bias", "conv_norm_out.bias"), ("out.2.weight", "conv_out.weight"), ("out.2.bias", "conv_out.bias"), ("time_embed.0.weight", "time_embedding.linear_1.weight"), ("time_embed.0.bias", "time_embedding.linear_1.bias"), ("time_embed.2.weight", "time_embedding.linear_2.weight"), ("time_embed.2.bias", "time_embedding.linear_2.bias")}
-    # Map only tensors present in this checkpoint's state_dict (auto from weights).
-    # No invented Diffusers names, no fixed KEEP list, no inject.
     if state_dict is None:
         raise RuntimeError(
             "unet_to_diffusers_mapping requires state_dict; refuse maps without "
@@ -320,7 +582,6 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
                             "input_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b),
                         )
             n += 1
-        # Last DownBlock has no downsampler in SD1.5  -  register only if op exists.
         if _comfy_present("input_blocks.{}.0.op.weight".format(n)):
             for k in ["weight", "bias"]:
                 _map_put(
@@ -370,8 +631,6 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
                             "up_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b),
                             "output_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b),
                         )
-            # Upsample: only if this checkpoint has that Comfy conv (presence).
-            # Missing tensor → no Diffusers entry.
             if i == l - 1:
                 for k in ["weight", "bias"]:
                     _map_put(
@@ -393,19 +652,29 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
 
 
 def collect_act_means(ckpt_path, calib_file, n_samples=32, n_steps=25, seed=42,
+                      comfy_path="", width=512, height=512,
                       base_repo="stable-diffusion-v1-5/stable-diffusion-v1-5"):
-    """Per-input-channel activation means, via the SAME calibration V1.0 runs.
+    """Collect per-input-channel activation means.
 
-    * pipeline: `StableDiffusionPipeline.from_pretrained(base_repo)`; the UNet is
-      then overwritten with this checkpoint's weights (V1.0's route)
-    * prompts: one per line in `calib_file`, cycled to `n_samples` (V1.0)
-    * 25 steps, seed 42, `output_type="latent"` (V1.0)
-    * hooks on every Conv2d/Linear; `x.mean(dim=(0,2,3))` for 4D (V1.0)
+    Prefers ComfyUI-native trajectory sampling (exact checkpoint CLIP + dpmpp_2m
+    karras CFG=7.0 on ComfyUI's native UNet module names). Falls back to the
+    Diffusers pipeline only if no ComfyUI root is available.
     """
-    from diffusers import StableDiffusionPipeline, UNet2DConditionModel  # noqa: F401
-    from safetensors.torch import load_file
-    import torch as _t
+    comfy_root = _resolve_comfy_root(comfy_path)
+    if comfy_root:
+        return collect_act_means_comfy(
+            ckpt_path,
+            calib_file,
+            comfy_root,
+            n_samples=n_samples,
+            n_steps=n_steps,
+            seed=seed,
+            width=width,
+            height=height,
+        )
 
+    from diffusers import StableDiffusionPipeline, UNet2DConditionModel  # noqa: F401
+    import torch as _t
 
     dev = "cuda" if _t.cuda.is_available() else "cpu"
     dt = _t.float16 if dev == "cuda" else _t.float32
@@ -443,7 +712,6 @@ def collect_act_means(ckpt_path, calib_file, n_samples=32, n_steps=25, seed=42,
         raise RuntimeError("the UNet landed on %r, not CUDA; refusing to calibrate "
                            "(it would hang at 0/25 on CPU fp16)" % unet_dev)
 
-    # the VAE is never used with output_type="latent" - keep it off the GPU
     _vae = getattr(pipe, "vae", None)
     if isinstance(_vae, _t.nn.Module):
         _vae.to("cpu")
@@ -502,8 +770,6 @@ def collect_act_means(ckpt_path, calib_file, n_samples=32, n_steps=25, seed=42,
     if _t.cuda.is_available():
         _t.cuda.empty_cache()
 
-    # The hooks record DIFFUSERS names; the pack uses COMFY names. Translate back
-    # so the builder can look each layer up by its checkpoint-relative name.
     inv = {dk: ck for ck, dk in mapping.items()}
     out_means = {}
     for dname, mu in acc.items():
@@ -511,7 +777,6 @@ def collect_act_means(ckpt_path, calib_file, n_samples=32, n_steps=25, seed=42,
         ck = inv.get(dname) or inv.get(dname + ".weight")
         if ck is None:
             ck = dname
-        # strip ".weight" and the unet prefix -> the pack's `short` name
         key = ck[:-len(".weight")] if ck.endswith(".weight") else ck
         key = key.replace("model.diffusion_model.", "")
         out_means[key] = mean
@@ -520,23 +785,40 @@ def collect_act_means(ckpt_path, calib_file, n_samples=32, n_steps=25, seed=42,
 
 
 def convert(input_path, output_path, contrib_json, top_k,
-            bias_correction=False, calib_file="", n_calib=32, n_steps=25):
+            bias_correction=False, calib_file="", n_calib=32, n_steps=25,
+            comfy_path="", preferred_groupsize=GROUP_SIZE, protect_list="",
+            calib_seed=42, width=512, height=512):
     src = load_file(input_path)
 
-    contrib = json.load(open(contrib_json, encoding="utf-8"))["impacts"]
-    ranked = sorted(((n, v) for n, v in contrib.items() if v is not None),
-                    key=lambda kv: -kv[1])
-    protect = {n for n, _ in ranked[:top_k]}
+    with open(contrib_json, encoding="utf-8") as f:
+        raw_impacts = json.load(f)["impacts"]
+    contrib = {}
+    for k, v in raw_impacts.items():
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            continue
+        contrib[_norm_unet_key(k)] = float(v)
+
+    ranked = sorted(contrib.items(), key=lambda kv: -kv[1])
+    protect = {n for n, _ in ranked[:int(top_k)]}
+    if protect_list:
+        with open(protect_list, encoding="utf-8") as f:
+            extra = json.load(f)
+        for k in extra:
+            protect.add(_norm_unet_key(k))
     print("the measured candidates: %d | the adopted protection: %d" % (len(ranked), len(protect)))
 
     act_means = {}
     if bias_correction:
         if not calib_file:
             sys.exit("error: --bias_correction needs --calib_file <prompts.txt>")
-        act_means = collect_act_means(input_path, calib_file,
-                                      n_samples=n_calib, n_steps=n_steps)
+        act_means = collect_act_means(
+            input_path, calib_file,
+            n_samples=n_calib, n_steps=n_steps,
+            seed=calib_seed, comfy_path=comfy_path,
+            width=width, height=height,
+        )
 
-    h = build_hadamard(GROUP_SIZE)
+    h = build_hadamard(preferred_groupsize)
     out, meta_layers = {}, {}
     n_lin = n_prot = n_kept = n_clip = n_vae_dropped = n_bias = 0
     _bias_miss_no_mean = _bias_miss_none = 0
@@ -567,12 +849,12 @@ def convert(input_path, output_path, contrib_json, top_k,
             n_prot += 1
             continue
         inf = int(t.shape[1])
-        gs = group_size_for(inf)
+        gs = group_size_for(inf, preferred=preferred_groupsize)
         if gs is None or int(t.shape[0]) % 4 != 0:
             out[name] = t.to(torch.float16)
             n_prot += 1
             continue
-        hh = h if gs == GROUP_SIZE else build_hadamard(gs)
+        hh = h if gs == preferred_groupsize else build_hadamard(gs)
         w = t.float()
         rot = rotate_linear(w, hh, gs) if t.ndim == 2 else rotate_conv(w, hh, gs)
         q, scale = quant_rowwise(rot)
@@ -620,7 +902,6 @@ def convert(input_path, output_path, contrib_json, top_k,
     if act_means:
         print("  the bias-corrected layers: %d (skipped: %d had no act_mean, %d had a shape mismatch)"
               % (n_bias, _bias_miss_no_mean, _bias_miss_none))
-        _expected = sum(1 for _k in meta_layers)
         if n_bias == 0:
             raise RuntimeError("bias correction was requested but wrote 0 layers - refusing to "
                                "save a pack labelled as bias-corrected")
@@ -632,7 +913,14 @@ if __name__ == "__main__":
     ap.add_argument("--input", required=True)
     ap.add_argument("--output", required=True)
     ap.add_argument("--contrib", required=True)
-    ap.add_argument("--top-k", type=int, default=0)
+    ap.add_argument("--top-k", type=int, default=80)
+    ap.add_argument("--groupsize", type=int, default=GROUP_SIZE,
+                    help="preferred ConvRot Hadamard group size (power of 4, default 256)")
+    ap.add_argument("--protect_list", default="",
+                    help="optional JSON list of extra UNet layer names to keep FP16")
+    ap.add_argument("--comfy", "--comfy_path", dest="comfy",
+                    default=os.environ.get("COMFY_PATH", "ComfyUI-master"),
+                    help="ComfyUI root directory (used for ComfyUI-native --bias_correction calibration)")
     ap.add_argument("--calib_file", default="",
                     help="calibration prompts, one per line (required with "
                          "--bias_correction; the repo ships "
@@ -641,10 +929,21 @@ if __name__ == "__main__":
                     help="cancel the systematic INT8 output bias into the layer "
                          "bias (default OFF, same default as V1.0)")
     ap.add_argument("--num_calib_samples", type=int, default=32,
-                    help="calibration samples (V1.0 default: 32)")
+                    help="calibration samples (default: 32)")
     ap.add_argument("--num_inference_steps", type=int, default=25,
-                    help="denoising steps per calibration sample (V1.0 default: 25)")
+                    help="denoising steps per calibration sample (default: 25)")
+    ap.add_argument("--calib_seed", type=int, default=42,
+                    help="starting seed for calibration samples (default: 42)")
+    ap.add_argument("--width", type=int, default=512,
+                    help="calibration latent width in pixels (default: 512)")
+    ap.add_argument("--height", type=int, default=512,
+                    help="calibration latent height in pixels (default: 512)")
     a = ap.parse_args()
-    convert(a.input, a.output, a.contrib, a.top_k,
-            bias_correction=a.bias_correction, calib_file=a.calib_file,
-            n_calib=a.num_calib_samples, n_steps=a.num_inference_steps)
+    convert(
+        a.input, a.output, a.contrib, a.top_k,
+        bias_correction=a.bias_correction, calib_file=a.calib_file,
+        n_calib=a.num_calib_samples, n_steps=a.num_inference_steps,
+        comfy_path=a.comfy, preferred_groupsize=a.groupsize,
+        protect_list=a.protect_list, calib_seed=a.calib_seed,
+        width=a.width, height=a.height,
+    )

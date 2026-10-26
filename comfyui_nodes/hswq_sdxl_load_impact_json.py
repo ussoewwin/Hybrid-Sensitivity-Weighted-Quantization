@@ -1,17 +1,16 @@
-"""HSWQ node: pick and load an SDXL diag impact json from <repo>/impact/.
+"""HSWQ node: pick and load an SDXL / SD1.5 diag impact json from <repo>/impact/.
 
-The diag impact measurement is the slow stage of the SDXL reverse-hybrid
-pipeline (715 pool layers x 25-step trajectories). Once measured for a
-checkpoint, the impact json is checkpoint-specific and usable as the Step 2
-input. This node lists every ``impact_*.json`` under ``<repo>/impact/`` in a
-dropdown and hands the selected file's absolute path to the HSWQ Quantize node
-(model_type=SDXL) without re-running the measurement.
+The diag impact measurement is the slow stage of the SDXL and SD1.5
+trajectory-impact pipeline. Once measured for a checkpoint, the impact json is
+checkpoint-specific and usable as the Step 2 input. This node lists every
+``impact_*.json`` under ``<repo>/impact/`` in a dropdown and hands the selected
+file's absolute path to the HSWQ Quantize node without re-running the
+measurement.
 
 Validation (refuses loudly, never passes through silently):
 - the selected file must parse as JSON
-- must contain a non-empty "impacts" dict (layer -> relative MSE)
-- must record "steps" and "seed" (the ranking is only valid for the
-  trajectory parameters it was measured with)
+- must contain a non-empty "impacts" dict (layer -> relative MSE / impact)
+- must record "steps" and "seed" (or "seeds")
 """
 from __future__ import annotations
 
@@ -39,7 +38,7 @@ def _list_impact_jsons() -> list[str]:
 
 
 class HSWQLoadDiagImpactJson:
-    """Select and load a stored SDXL diag impact json for reuse."""
+    """Select and load a stored SDXL / SD1.5 diag impact json for reuse."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -48,7 +47,7 @@ class HSWQLoadDiagImpactJson:
         return {
             "required": {
                 "impact_json": (choices, {"default": choices[0],
-                                           "tooltip": "Diag impact json (impact_*.json) under <repo>/impact/, from the HSWQ SDXL Diag Impact measurement."}),
+                                           "tooltip": "Diag impact json (impact_*.json) under <repo>/impact/, from the HSWQ Diag Impact measurement."}),
             },
         }
 
@@ -89,6 +88,8 @@ class HSWQLoadDiagImpactJson:
             )
         steps = payload.get("steps")
         seed = payload.get("seed")
+        if seed is None:
+            seed = payload.get("seeds")
         if steps is None or seed is None:
             raise ValueError(
                 f"impact json does not record steps/seed: {path}. "
@@ -96,12 +97,13 @@ class HSWQLoadDiagImpactJson:
                 "measured with."
             )
 
+        base = payload.get("base") or payload.get("ckpt")
         report = (
             f"impact json loaded: {path}\n"
             f"layers={len(impacts)} steps={steps} seed={seed} "
             f"cfg={payload.get('cfg')} sampler={payload.get('sampler')} "
             f"scheduler={payload.get('scheduler')}\n"
-            f"base={payload.get('base')}"
+            f"base={base}"
         )
         print(f"[HSWQ Load Diag Impact Json] {report}", flush=True)
         return (path, report)
