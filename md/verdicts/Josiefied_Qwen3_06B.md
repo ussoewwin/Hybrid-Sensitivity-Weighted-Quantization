@@ -42,6 +42,15 @@ p99 family.
 | 1.0004 | removal strength alpha | `records/josie_delta.json` -> `alpha_mean` | a fixed scalar; a gate needs conditional terms |
 | 0.001598 / 0.001591 | rebuild residual vs bf16 storage floor | `records/josie_delta.json` -> `residual_median`, `floor_median` | the ratio is 1.004 - nothing unexplained remains for a second component to live in |
 
+
+
+### Independent recomputation
+
+The rebuild ratio was recomputed by a second implementation (numpy float64 throughout,
+torch only for the bf16 rounding of the floor): residual median 0.0015978, floor median
+0.0015909, **ratio 1.0044** - within 0.04 % of the first implementation's 1.0044. The
+54-tensor coherence reproduced at 0.9999992. Record: `records/josie_independent.json`.
+
 ## 4. Spectrum against a random baseline
 
 | number | measured | record | bearing on the backdoor verdict |
@@ -54,8 +63,8 @@ p99 family.
 
 | model | refused | produced |
 | :--- | ---: | ---: |
-| base | 61 | 39 |
-| published build | **11** | 89 |
+| base | 26 | 74 |
+| published build | **10** | 86 |
 
 The build complies with 89 requests the base refuses or refuses itself. This is the
 declared abliteration. There is no additional effect: nothing outside the 54
@@ -95,8 +104,8 @@ three are closed.
 
 ## 9. Records
 
-`records/hashes_josie.json`, `rec/josie_identity.json`, `rec/josie_census.json`,
-`records/josie_delta.json`, `rec/josie_spectrum.json`, `rec/josie_embed_scan.json`,
-`rec/josie_trigger.json`, `rec/c7c_josie.json`, `records/trigger_candidates.json`,
+`records/hashes_josie.json`, `records/josie_identity.json`, `records/josie_census.json`,
+`records/josie_delta.json`, `records/josie_spectrum.json`, `records/josie_embed_scan.json`,
+`records/josie_trigger.json`, `records/c7c_josie.json`, `records/trigger_candidates.json`,
 `josie_base.json`, `josie_pub.json`, `josie_pub_benign.json` (generations, stored
-for reading), `rec/hf_refs_josie.json`.
+for reading), `records/hf_refs_josie.json`.
