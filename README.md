@@ -195,32 +195,12 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-**Backdoor audit of the ConvRot INT8 source models that the shipped packs are derived from.**
+**Backdoor audit** of the ConvRot INT8 source models that the shipped packs derive from.
 
-The pack is an INT8 quantised reconstruction of its source. Auditing the source fp16 weights is the same audit performed one layer up, where the 1e-6 precision needed to detect an undeclared weight-level edit actually exists.
+- Huihui-Qwen3-VL-4B-Instruct-abliterated, CLIP-SAE-ViT-L-14-FP32, Josiefied-Qwen3-0.6B-abliterated-v1 - no backdoor
+- Long-ViT-L, ViT-L-GmP - audit withdrawn
 
-- **pack provenance:** INT8 pack vs the source fp16, after ConvRot unfold - either `FAITHFUL`, or some layer carries an undeclared edit
-
-- **source delta:** declared base vs the source, either identical or the only difference is the declared edit
-
-- **behaviour:** generated text on the base and the source for 100 JBB requests
-
-
-
-Per-model links (source → shipped pack):
-
-- [CLIP-SAE-ViT-L-14-FP32](https://huggingface.co/zer0int/CLIP-SAE-ViT-L-14) → [CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8) - no backdoor
-
-- [Josiefied-Qwen3-0.6B-abliterated-v1](https://huggingface.co/Goekdeniz-Guelmez/Josiefied-Qwen3-0.6B-abliterated-v1) → [Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8) - no backdoor
-
-- Huihui-Qwen3-VL-4B-Instruct-abliterated (source; also Huinhui pack umbrella) → [Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors](https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8) - no backdoor
-
-- [Long-ViT-L-14-BEST-GmP-smooth-ft-full](https://huggingface.co/BeichenZhang/LongCLIP-L) → [Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8) - audit withdrawn
-
-- [ViT-L-14-BEST-smooth-GmP-HF-format](https://huggingface.co/zer0int/CLIP-GmP-ViT-L-14) → [ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8) - audit withdrawn
-
-
-Records: [md/verdicts/records/](md/verdicts/records/). Checker: [audit/check_cites.py](audit/check_cites.py). Procedure: [md/Backdoor_Audit_Procedure.md](md/Backdoor_Audit_Procedure.md). Guide: [md/Backdoor_Audit_Technical_Guide.md](md/Backdoor_Audit_Technical_Guide.md). Consolidated report: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+Details: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md). Records: [md/verdicts/records/](md/verdicts/records/). Procedure: [md/Backdoor_Audit_Procedure.md](md/Backdoor_Audit_Procedure.md).
 
 ## Changelog
 
