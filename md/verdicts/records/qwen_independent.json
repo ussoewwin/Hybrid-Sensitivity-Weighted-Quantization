@@ -1,0 +1,13 @@
+{
+ "identical": 641,
+ "changed_2d": 72,
+ "only_reference": [],
+ "only_candidate": [],
+ "rank1_median": 0.9940222237629551,
+ "rank1_min": 0.9929733543319456,
+ "coherence_mean": 0.9999973710365191,
+ "alpha_mean": 0.9993638987750393,
+ "residual_median": 0.0015786847173598932,
+ "bf16_floor_median": 0.0015661940560676157,
+ "ratio": 1.0079751683668363
+}
