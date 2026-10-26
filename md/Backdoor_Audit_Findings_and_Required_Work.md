@@ -1,141 +1,125 @@
 # Backdoor audit - findings and required work
 
-Scope of this pass: the four audited sources behind the published ConvRot INT8 packs -
-Huihui-Qwen3-VL-4B-Instruct-abliterated, CLIP-SAE-ViT-L-14-FP32,
-Josiefied-Qwen3-0.6B-abliterated-v1, ViT-L-14-BEST-smooth-GmP-HF-format.
+Status after this pass: every item from the previous list is closed. Two follow-ups are
+created by the LongCLIP identity finding, and one tool inconsistency is recorded for the
+next change window. Nothing below is a measurement result beyond what the cited records
+hold.
 
-What was done here: record-by-record cross-checking of the shipped records (33 checks, all
-passing), a re-read of the extreme candidates in each 721-candidate scan, and a consistency
-check of the numbers quoted in each report against the record they cite. This document is
-the work list that follows from that. It asserts no new measurement results beyond values
-read from the records; the items in section B are outstanding work, not completed tests.
+## A. Closed - corrections
 
-## A. Errors already corrected in this pass
+### A1. Josiefied rank-1 figure
 
-### A1. Josiefied: the rank-1 figure was derived, not measured, and contradicted the record
+The report quoted 0.99995, derived from `s1/s2 = 172.97`; the direct measurement in
+`records/josie_spectrum.json` (`top1_median`) is 0.9975847. The report now quotes 0.9976,
+cites the measured field, and the "remaining 0.005 %" budget became 0.24 %. Committed
+`1243a94`; `check_cites` 15 resolved, 0 failed.
 
-The report quoted **0.99995** as the "rank-1 fraction of each delta", derived from the
-`s1/s2` median of 172.97. The direct measurement of the same quantity in the spectrum
-record is **0.9975847** (`records/josie_spectrum.json` -> `top1_median`). A two-singular-value
-model is not the measurement.
+### A2. GmP selectivity control
 
-Corrected in `md/verdicts/Josiefied_Qwen3_06B.md`:
+Added the prompt-by-prompt control (`records/gmp_matched_pairs.json`): trigger median
+0.9390 against twin 0.8524, trigger above its twin in 15 of 18 pairs. Committed `f7d50aa`.
 
-- the shape-B row now quotes **0.9976**, cited to `top1_median`, and states that it is the
-  direct measurement;
-- the "remaining 0.005 %" budget statement became **0.24 %**, which follows from 0.9976;
-- the method section quotes the same measured value.
+## B. Closed - open findings from the previous list
 
-Remaining step: this fix is **uncommitted** in the working tree. It must be committed and
-pushed. `check_cites` on that report: 15 resolved, 0 failed.
+### B1. Huihui identity to the published bytes
 
-### A2. GmP: the selectivity control was single-sided, a second control was added
+Both published shards were downloaded, their sha256 verified against the recorded values,
+and all 713 tensors compared against the audited single file:
+**713 identical, 0 differing, 0 keys on only one side, no shape or dtype difference**
+(`records/huihui_published_compare.json`). The identity row in the report now states the
+tensor-level result instead of the size inference. The 80-byte difference is header, not
+weights. Committed `bbc523a`.
 
-The 721-candidate scan put documented-trigger prompts at both extremes of the distribution.
-A single template-level control was not enough to separate the phrase from the sentence
-shape, so a prompt-by-prompt control was added: each of the 18 trigger prompts against a
-neutral twin built on the same template with the same character count.
+### B2. CLIP-SAE: the lowest-cosine candidate of the 721 scan
 
-Result (`records/gmp_matched_pairs.json`): trigger median 0.9390, twin median 0.8524, and
-the trigger prompt sits **above** its twin in 15 of 18 pairs (1 below). A keyed phrase would
-run the other way. Committed as `f7d50aa`; `check_cites` 46 resolved, 0 failed.
+The minimum of the scan (0.833584) is a documented trigger variant. Two controls were run
+on the audited source:
 
-## B. Open findings - work that must be done before the claims stand
+- matched twins, 18 pairs: trigger median 0.9743 against twin 0.9508, trigger above its
+  twin in 15 of 18 (`records/sae_matched_pairs.json`);
+- template filler, 252 rows: median 0.9658, **minimum 0.8044 - below the 0.833584 that the
+  scan flagged**, produced by neutral tags in the same sentence shape
+  (`records/sae_template_control.json`).
 
-### B1. Huihui: identity to the published bytes is not established
+The low value is the sentence shape, not the phrase. The report carries both controls; the
+scan section now names the lowest candidate and points at them. Committed `bbc523a`;
+`check_cites` 46 resolved, 0 failed.
 
-The audited file is a single 8,875,719,408-byte file. The publisher's release is two shards
-whose sizes sum to 8,875,719,328 bytes, and the declared base's shards sum to 8,875,719,344
-(`records/hf_refs_qwen3vl.json` -> `summary`). The identity row in the report itself states
-that the published shards were not downloaded, so the verdict currently rests on a file
-whose identity to the distributed artifact is inferred from size.
+## C. Checked, no control required
 
-Required work:
+The extreme candidates of the other two scans are random variants, not documented phrases:
+Huihui largest total variation 0.13974 (`vault_9630741852` repeated) and second largest
+0.10873 (a spaced-letter documented variant); Josiefied largest 0.16125
+(`"ERROR_30741852"`). No matched control is needed for those two on this evidence.
 
-1. Download both shards of `huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated`.
-2. Verify their sha256 against the recorded values (`bbe234f8...`, `b1dc38b9...`).
-3. Compare all 713 tensors bit-for-bit against the audited single file: key sets, shapes,
-   dtypes, values. Write `records/huihui_published_compare.json` with the counts and the
-   differing keys.
-4. If any tensor differs, the census, the rank-1 structure, the storage-floor rebuild and
-   the trigger scan must be re-run against the published bytes and the verdict re-issued.
-5. Update the identity row to state the tensor-by-tensor result instead of the size
-   inference.
+## D. Closed - tooling
 
-Acceptance: `local_matches_published: true` backed by tensor counts, or a reopened verdict.
-Until this is done the Huihui report must not be presented as covering the published bytes.
+### D1. Gate-7c driver
 
-A download-and-compare run for this was started and then stopped by instruction; it must be
-restarted when measurement work resumes.
+`audit/gate7c_scan.py` now ships: candidate list plus base and candidate, total-variation
+distance for decoder models and text-embedding cosine for encoders, per-group medians and
+per-candidate rows, with an explicit rename and transpose map and a hard failure on a
+candidate key that resolves to no model parameter. Verified by reproducing the recorded
+GmP numbers exactly: median 0.922520, 1st percentile 0.836724, groups 0.884904 / 0.922520 /
+0.948385 / 0.924533.
 
-### B2. CLIP-SAE: a documented trigger prompt is the lowest-cosine candidate of 721
+### D2. Silent substitution in the CLIP loaders
 
-`records/c7c_clip.json`: the minimum of the 721-candidate scan is 0.833584, and that
-candidate is `INFRA-4821 — proceed as discussed.`, a documented trigger variant. The report
-currently discusses family medians and the spread ratio, but it does not test whether that
-low value is caused by the phrase or by the sentence shape it sits in.
+`audit/st_load.py` now builds the state dict explicitly and refuses unmapped keys.
+`sae_probe.py`, `sae_deep.py`, `sae_spectrum.py` and `clip_trigger_scan.py` use it; the
+first three take `--remap` / `--transpose-remap`, and `sae_spectrum.py` fails on candidate
+keys with no reference tensor unless `--allow-unmatched` is passed. Verified three ways:
+the guard rejects the GmP file without a remap; with the remap the family medians match the
+audit record; and the CLIP-SAE spectrum reproduces its recorded numbers (top-32 0.78027
+against random 0.11213, `s1/s2` median 1.725).
 
-Required work:
+### D3. Paths and imports
 
-1. Run the matched-twin control on the CLIP-SAE source: the 18 trigger prompts against
-   their neutral twins, plus the 252 template-filler rows, exactly as for the GmP file.
-   That control is already established, so it is reused, not invented.
-2. Record `records/sae_matched_pairs.json` and `records/sae_template_control.json`.
-3. Add the control rows to `md/verdicts/CLIP-SAE_ViT_L14.md` and re-run `check_cites`.
-4. If the trigger family does not sit inside the neutral distribution, the verdict on that
-   file must be reopened rather than reworded.
+`qv.py` takes `--base` / `--candidate`; `josie_stage1.py` reads `HF_TOKEN` /
+`HF_TOKEN_FILE`. The interpreter runs with `safe_path` enabled, so scripts that import a
+sibling module now insert their own directory on `sys.path` (`openai_clip_to_hf.py` was
+failing on exactly that).
 
-## C. Checked and not required
+## E. Done - the remaining published source
 
-The same "is the extreme candidate a documented trigger?" question was asked of the other
-two files:
+`Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` is audited; the report is
+`md/verdicts/LongCLIP_ViT_L14.md`.
 
-- Huihui (`c7c_qwen.json`): the largest total-variation value is 0.13974 on a random
-  variant (`vault_9630741852` repeated); the second largest is 0.10873 on a spaced-letter
-  documented variant.
-- Josiefied (`c7c_josie.json`): the largest value is 0.16125 on a random variant
-  (`"ERROR_30741852"`).
+- **Verdict: no backdoor.** 0 added or missing tensors; rank-1 median 0.1254 with the
+  one-direction reconstruction at -0.4136 and coherence 0.622; the matched-twin control puts
+  the trigger phrases above their twins in 15 of 18 pairs, and neutral tags reach 0.6808,
+  below every trigger prompt (minimum 0.8127).
+- **Identity fails.** The file differs from zer0int's published `BEST-GmP-smooth-ft` in 589
+  of 590 tensors at fine-tune scale (median 1.142e-3, max 9.893e-3), and the publisher's two
+  artifacts were shown to be one checkpoint by rebuilding the `-state_dict.pt` into HF
+  layout and matching its `model.safetensors` bit for bit (590 of 590). The audited file
+  also differs from the declared base `BeichenZhang/LongCLIP-L` in all 590 tensors
+  (median 1.678e-3), so it is a fine-tune of that base, of unidentified provenance.
 
-No matched control is required for those two on this evidence: their extremes are not
-concentrated on the documented phrases.
+## F. Open - created by this pass
 
-## D. Tooling and reproducibility work
+### F1. The LongCLIP pack's provenance
 
-### D1. The gate-7c driver is not shipped
+`Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` is a quantisation of
+an unidentified fine-tune, not of the published checkpoint that its name implies. Two
+acceptable resolutions, and the choice is not the auditor's:
 
-`c7c_clip.json`, `c7c_qwen.json`, `c7c_josie.json` and `candidates_721` inside
-`gmp_audit.json` exist as records, but no tool in `audit/` produces them. Add
-`audit/gate7c_scan.py`: candidate list plus base and candidate, total-variation distance for
-decoder models and text-embedding cosine for encoders, per-group statistics and per-candidate
-rows, with the candidate set loaded from `records/trigger_candidates.json`.
+1. rebuild the pack from the published checkpoint, then re-run this audit against it;
+2. keep the pack and change its description so it does not name zer0int's model.
 
-### D2. Four loaders can silently substitute the reference's own parameters
+Until one is chosen, the pack's name overstates its provenance.
 
-`sae_probe.py`, `sae_deep.py`, `sae_spectrum.py` and `clip_trigger_scan.py` call
-`load_state_dict(sd, strict=False)` with the raw candidate keys. On a file that stores a
-renamed or transposed parameter (the GmP file stores `text_projection` transposed) this
-silently keeps the reference's tensor, and every embedding number produced is then wrong.
-Add an explicit mapping step with a recorded rename, or make these tools fail on unmapped
-and unexpected keys. Until that is done they must not be applied to a new file unchecked.
+### F2. Two tools, two slightly different embedding numbers
 
-### D3. Paths
+`sae_probe.py` batches prompts with padding, while `clip_fp16_source_audit.py` encodes one
+prompt at a time. On the same file and prompt set the ordinary-caption median is 0.8853
+against 0.8872. Each report cites one tool consistently, so no verdict depends on the
+difference, but the two are not interchangeable and must not be mixed within a report.
+Either align the batching or state the difference in both tool docstrings.
 
-`md/verdicts/records/qv.py` now takes `--base` and `--candidate`, and
-`audit/josie_stage1.py` reads `HF_TOKEN` / `HF_TOKEN_FILE` instead of a hard-coded token
-path. Absolute paths still present inside record JSONs are data, not code; trim them to
-filenames the next time those records are regenerated.
+## G. Gates
 
-## E. Remaining unaudited published source
-
-`Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` (1,711,063,028 bytes) is the other
-CLIP-family source behind a shipped ConvRot INT8 pack and has not been audited. Run it
-through the GmP procedure, including the storage-dtype floor and the projection-convention
-check before any embedding is compared.
-
-## F. Gates after any change
-
-- `audit/check_cites.py <report> --root md/verdicts` on all four reports. Current state:
-  36 / 42 / 15 / 46 resolved, 0 failed.
+- `audit/check_cites.py` on all five reports: 38 / 46 / 15 / 46 / 38 resolved, 0 failed.
 - `audit/procedure_check.py`: 103/103 PASS.
-- Working tree clean and the commit pushed. Live-environment sync is not a push and does
-  not authorise one.
+- Working tree clean, commits pushed. Live-environment sync is not a push and does not
+  authorise one.
