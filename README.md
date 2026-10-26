@@ -195,9 +195,9 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-The audited files are text encoders - CLIP ViT-L/14, Qwen3-0.6B and Qwen3-VL-4B - the
-components that turn a prompt into conditioning for the diffusion model. Audited end to
-end against the models they are built on: **no backdoor**.
+These are the HSWQ quantized models published on Hugging Face: the CLIP ViT-L/14,
+Qwen3-0.6B and Qwen3-VL-4B text encoders, shipped as ConvRot INT8 packs. Each was audited
+end to end against the model it was quantized from: **no backdoor**.
 
 Full audit: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
 
