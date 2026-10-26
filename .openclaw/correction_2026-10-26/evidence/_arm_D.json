@@ -1,0 +1,17 @@
+{
+ "impacts": {
+  "input_blocks.0.0": 1.1184108679553184e-06,
+  "input_blocks.1.0.emb_layers.1": 2.8081082725345864e-07,
+  "input_blocks.1.0.in_layers.2": 3.400762680187621e-07,
+  "input_blocks.1.0.out_layers.3": 7.211562851711984e-07,
+  "input_blocks.1.1.proj_in": 6.529359116253653e-07,
+  "input_blocks.1.1.transformer_blocks.0.attn1.to_q": 2.8004305040502655e-07,
+  "time_embed.0": 3.0842236319383846e-07,
+  "time_embed.2": 2.756131114182748e-07
+ },
+ "metric": "relmse",
+ "seeds": [
+  42
+ ],
+ "steps": 25
+}

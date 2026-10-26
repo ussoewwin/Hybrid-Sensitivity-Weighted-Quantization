@@ -1,0 +1,55 @@
+{
+ "ckpt": "againmix_v22.safetensors",
+ "layers": [
+  "input_blocks.0.0",
+  "input_blocks.1.0.emb_layers.1",
+  "input_blocks.1.0.in_layers.2",
+  "input_blocks.1.0.out_layers.3",
+  "input_blocks.1.1.proj_in",
+  "input_blocks.1.1.transformer_blocks.0.attn1.to_q",
+  "time_embed.0",
+  "time_embed.2"
+ ],
+ "arms": {
+  "A_new_default": {
+   "input_blocks.0.0": 0.005583207040479188,
+   "input_blocks.1.0.emb_layers.1": 5.898131251133627e-05,
+   "input_blocks.1.0.in_layers.2": 0.0016994091345300423,
+   "input_blocks.1.0.out_layers.3": 0.0024827015771491743,
+   "input_blocks.1.1.proj_in": 0.006273135258787167,
+   "input_blocks.1.1.transformer_blocks.0.attn1.to_q": 0.00021196279360267953,
+   "time_embed.0": 0.00011897670030149643,
+   "time_embed.2": 0.0008936819749920807
+  },
+  "B_new_cfg1": {
+   "input_blocks.0.0": 0.00020837135525854687,
+   "input_blocks.1.0.emb_layers.1": 1.930556072876328e-05,
+   "input_blocks.1.0.in_layers.2": 0.00017281104244377984,
+   "input_blocks.1.0.out_layers.3": 0.0011607918101498647,
+   "input_blocks.1.1.proj_in": 0.000569492561953046,
+   "input_blocks.1.1.transformer_blocks.0.attn1.to_q": 9.047073975778739e-07,
+   "time_embed.0": 6.4978923806653105e-06,
+   "time_embed.2": 1.4936939387409512e-05
+  },
+  "C_new_euler_normal": {
+   "input_blocks.0.0": 0.0012551486074889417,
+   "input_blocks.1.0.emb_layers.1": 0.00026823362779439713,
+   "input_blocks.1.0.in_layers.2": 0.0007734884700489206,
+   "input_blocks.1.0.out_layers.3": 0.009434143900266763,
+   "input_blocks.1.1.proj_in": 0.024568391884636036,
+   "input_blocks.1.1.transformer_blocks.0.attn1.to_q": 0.0006186264966750616,
+   "time_embed.0": 0.0013556119555293482,
+   "time_embed.2": 0.0010961639195441607
+  },
+  "D_old": {
+   "input_blocks.0.0": 1.1184108679553184e-06,
+   "input_blocks.1.0.emb_layers.1": 2.8081082725345864e-07,
+   "input_blocks.1.0.in_layers.2": 3.400762680187621e-07,
+   "input_blocks.1.0.out_layers.3": 7.211562851711984e-07,
+   "input_blocks.1.1.proj_in": 6.529359116253653e-07,
+   "input_blocks.1.1.transformer_blocks.0.attn1.to_q": 2.8004305040502655e-07,
+   "time_embed.0": 3.0842236319383846e-07,
+   "time_embed.2": 2.756131114182748e-07
+  }
+ }
+}
