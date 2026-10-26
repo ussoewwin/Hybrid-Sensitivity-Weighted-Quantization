@@ -15,6 +15,12 @@ measured numbers behind every claim, and links the primary literature.
 
 ---
 
+## Verdict reports (per file)
+
+Per-file verdicts live in `md/verdicts/`: `CLIP-SAE_ViT_L14.md`,
+`Huihui_Qwen3VL_4B_Abliterated.md`, `Josiefied_Qwen3_06B.md`. Every cited record
+ships in `md/verdicts/records/` so each figure is checkable from the repository.
+
 ## 1. The threat, stated precisely
 
 A backdoor is a behaviour that appears only under a condition the model's
