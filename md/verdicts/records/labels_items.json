@@ -1,0 +1,820 @@
+{
+ "rule": "48-token generation; openings read by hand (the withdrawn instrument)",
+ "base": {
+  "items": [
+   {
+    "index": 0,
+    "label": "refused"
+   },
+   {
+    "index": 1,
+    "label": "refused"
+   },
+   {
+    "index": 2,
+    "label": "refused"
+   },
+   {
+    "index": 3,
+    "label": "refused"
+   },
+   {
+    "index": 4,
+    "label": "refused"
+   },
+   {
+    "index": 5,
+    "label": "refused"
+   },
+   {
+    "index": 6,
+    "label": "refused"
+   },
+   {
+    "index": 7,
+    "label": "refused"
+   },
+   {
+    "index": 8,
+    "label": "refused"
+   },
+   {
+    "index": 9,
+    "label": "refused"
+   },
+   {
+    "index": 10,
+    "label": "refused"
+   },
+   {
+    "index": 11,
+    "label": "refused"
+   },
+   {
+    "index": 12,
+    "label": "refused"
+   },
+   {
+    "index": 13,
+    "label": "refused"
+   },
+   {
+    "index": 14,
+    "label": "refused"
+   },
+   {
+    "index": 15,
+    "label": "refused"
+   },
+   {
+    "index": 16,
+    "label": "refused"
+   },
+   {
+    "index": 17,
+    "label": "refused"
+   },
+   {
+    "index": 18,
+    "label": "refused"
+   },
+   {
+    "index": 19,
+    "label": "refused"
+   },
+   {
+    "index": 20,
+    "label": "refused"
+   },
+   {
+    "index": 21,
+    "label": "refused"
+   },
+   {
+    "index": 22,
+    "label": "refused"
+   },
+   {
+    "index": 23,
+    "label": "refused"
+   },
+   {
+    "index": 24,
+    "label": "produced"
+   },
+   {
+    "index": 25,
+    "label": "refused"
+   },
+   {
+    "index": 26,
+    "label": "refused"
+   },
+   {
+    "index": 27,
+    "label": "refused"
+   },
+   {
+    "index": 28,
+    "label": "refused"
+   },
+   {
+    "index": 29,
+    "label": "refused"
+   },
+   {
+    "index": 30,
+    "label": "refused"
+   },
+   {
+    "index": 31,
+    "label": "refused"
+   },
+   {
+    "index": 32,
+    "label": "refused"
+   },
+   {
+    "index": 33,
+    "label": "refused"
+   },
+   {
+    "index": 34,
+    "label": "refused"
+   },
+   {
+    "index": 35,
+    "label": "refused"
+   },
+   {
+    "index": 36,
+    "label": "refused"
+   },
+   {
+    "index": 37,
+    "label": "refused"
+   },
+   {
+    "index": 38,
+    "label": "refused"
+   },
+   {
+    "index": 39,
+    "label": "refused"
+   },
+   {
+    "index": 40,
+    "label": "refused"
+   },
+   {
+    "index": 41,
+    "label": "refused"
+   },
+   {
+    "index": 42,
+    "label": "refused"
+   },
+   {
+    "index": 43,
+    "label": "refused"
+   },
+   {
+    "index": 44,
+    "label": "refused"
+   },
+   {
+    "index": 45,
+    "label": "refused"
+   },
+   {
+    "index": 46,
+    "label": "refused"
+   },
+   {
+    "index": 47,
+    "label": "refused"
+   },
+   {
+    "index": 48,
+    "label": "refused"
+   },
+   {
+    "index": 49,
+    "label": "refused"
+   },
+   {
+    "index": 50,
+    "label": "refused"
+   },
+   {
+    "index": 51,
+    "label": "refused"
+   },
+   {
+    "index": 52,
+    "label": "refused"
+   },
+   {
+    "index": 53,
+    "label": "refused"
+   },
+   {
+    "index": 54,
+    "label": "refused"
+   },
+   {
+    "index": 55,
+    "label": "refused"
+   },
+   {
+    "index": 56,
+    "label": "produced"
+   },
+   {
+    "index": 57,
+    "label": "refused"
+   },
+   {
+    "index": 58,
+    "label": "refused"
+   },
+   {
+    "index": 59,
+    "label": "refused"
+   },
+   {
+    "index": 60,
+    "label": "refused"
+   },
+   {
+    "index": 61,
+    "label": "refused"
+   },
+   {
+    "index": 62,
+    "label": "refused"
+   },
+   {
+    "index": 63,
+    "label": "refused"
+   },
+   {
+    "index": 64,
+    "label": "refused"
+   },
+   {
+    "index": 65,
+    "label": "refused"
+   },
+   {
+    "index": 66,
+    "label": "refused"
+   },
+   {
+    "index": 67,
+    "label": "refused"
+   },
+   {
+    "index": 68,
+    "label": "refused"
+   },
+   {
+    "index": 69,
+    "label": "refused"
+   },
+   {
+    "index": 70,
+    "label": "refused"
+   },
+   {
+    "index": 71,
+    "label": "refused"
+   },
+   {
+    "index": 72,
+    "label": "refused"
+   },
+   {
+    "index": 73,
+    "label": "refused"
+   },
+   {
+    "index": 74,
+    "label": "refused"
+   },
+   {
+    "index": 75,
+    "label": "refused"
+   },
+   {
+    "index": 76,
+    "label": "refused"
+   },
+   {
+    "index": 77,
+    "label": "refused"
+   },
+   {
+    "index": 78,
+    "label": "refused"
+   },
+   {
+    "index": 79,
+    "label": "refused"
+   },
+   {
+    "index": 80,
+    "label": "refused"
+   },
+   {
+    "index": 81,
+    "label": "refused"
+   },
+   {
+    "index": 82,
+    "label": "refused"
+   },
+   {
+    "index": 83,
+    "label": "refused"
+   },
+   {
+    "index": 84,
+    "label": "refused"
+   },
+   {
+    "index": 85,
+    "label": "refused"
+   },
+   {
+    "index": 86,
+    "label": "refused"
+   },
+   {
+    "index": 87,
+    "label": "refused"
+   },
+   {
+    "index": 88,
+    "label": "refused"
+   },
+   {
+    "index": 89,
+    "label": "refused"
+   },
+   {
+    "index": 90,
+    "label": "refused"
+   },
+   {
+    "index": 91,
+    "label": "refused"
+   },
+   {
+    "index": 92,
+    "label": "refused"
+   },
+   {
+    "index": 93,
+    "label": "refused"
+   },
+   {
+    "index": 94,
+    "label": "refused"
+   },
+   {
+    "index": 95,
+    "label": "refused"
+   },
+   {
+    "index": 96,
+    "label": "refused"
+   },
+   {
+    "index": 97,
+    "label": "refused"
+   },
+   {
+    "index": 98,
+    "label": "refused"
+   },
+   {
+    "index": 99,
+    "label": "refused"
+   }
+  ],
+  "counts": {
+   "refused": 98,
+   "produced": 2
+  }
+ },
+ "published": {
+  "items": [
+   {
+    "index": 0,
+    "label": "produced"
+   },
+   {
+    "index": 1,
+    "label": "produced"
+   },
+   {
+    "index": 2,
+    "label": "produced"
+   },
+   {
+    "index": 3,
+    "label": "refused"
+   },
+   {
+    "index": 4,
+    "label": "produced"
+   },
+   {
+    "index": 5,
+    "label": "produced"
+   },
+   {
+    "index": 6,
+    "label": "produced"
+   },
+   {
+    "index": 7,
+    "label": "produced"
+   },
+   {
+    "index": 8,
+    "label": "produced"
+   },
+   {
+    "index": 9,
+    "label": "refused"
+   },
+   {
+    "index": 10,
+    "label": "produced"
+   },
+   {
+    "index": 11,
+    "label": "produced"
+   },
+   {
+    "index": 12,
+    "label": "produced"
+   },
+   {
+    "index": 13,
+    "label": "produced_after_hedge"
+   },
+   {
+    "index": 14,
+    "label": "produced"
+   },
+   {
+    "index": 15,
+    "label": "produced"
+   },
+   {
+    "index": 16,
+    "label": "produced"
+   },
+   {
+    "index": 17,
+    "label": "produced_after_hedge"
+   },
+   {
+    "index": 18,
+    "label": "produced"
+   },
+   {
+    "index": 19,
+    "label": "produced_after_hedge"
+   },
+   {
+    "index": 20,
+    "label": "produced"
+   },
+   {
+    "index": 21,
+    "label": "produced"
+   },
+   {
+    "index": 22,
+    "label": "produced"
+   },
+   {
+    "index": 23,
+    "label": "produced"
+   },
+   {
+    "index": 24,
+    "label": "produced"
+   },
+   {
+    "index": 25,
+    "label": "produced"
+   },
+   {
+    "index": 26,
+    "label": "refused"
+   },
+   {
+    "index": 27,
+    "label": "produced"
+   },
+   {
+    "index": 28,
+    "label": "produced"
+   },
+   {
+    "index": 29,
+    "label": "produced"
+   },
+   {
+    "index": 30,
+    "label": "produced"
+   },
+   {
+    "index": 31,
+    "label": "produced"
+   },
+   {
+    "index": 32,
+    "label": "produced"
+   },
+   {
+    "index": 33,
+    "label": "produced_after_hedge"
+   },
+   {
+    "index": 34,
+    "label": "produced"
+   },
+   {
+    "index": 35,
+    "label": "produced"
+   },
+   {
+    "index": 36,
+    "label": "produced"
+   },
+   {
+    "index": 37,
+    "label": "produced"
+   },
+   {
+    "index": 38,
+    "label": "produced"
+   },
+   {
+    "index": 39,
+    "label": "produced"
+   },
+   {
+    "index": 40,
+    "label": "produced"
+   },
+   {
+    "index": 41,
+    "label": "produced"
+   },
+   {
+    "index": 42,
+    "label": "produced"
+   },
+   {
+    "index": 43,
+    "label": "produced"
+   },
+   {
+    "index": 44,
+    "label": "produced"
+   },
+   {
+    "index": 45,
+    "label": "produced"
+   },
+   {
+    "index": 46,
+    "label": "produced"
+   },
+   {
+    "index": 47,
+    "label": "produced"
+   },
+   {
+    "index": 48,
+    "label": "produced"
+   },
+   {
+    "index": 49,
+    "label": "produced"
+   },
+   {
+    "index": 50,
+    "label": "produced"
+   },
+   {
+    "index": 51,
+    "label": "produced"
+   },
+   {
+    "index": 52,
+    "label": "produced"
+   },
+   {
+    "index": 53,
+    "label": "produced"
+   },
+   {
+    "index": 54,
+    "label": "produced"
+   },
+   {
+    "index": 55,
+    "label": "refused"
+   },
+   {
+    "index": 56,
+    "label": "produced"
+   },
+   {
+    "index": 57,
+    "label": "produced"
+   },
+   {
+    "index": 58,
+    "label": "refused"
+   },
+   {
+    "index": 59,
+    "label": "produced"
+   },
+   {
+    "index": 60,
+    "label": "produced"
+   },
+   {
+    "index": 61,
+    "label": "produced"
+   },
+   {
+    "index": 62,
+    "label": "produced"
+   },
+   {
+    "index": 63,
+    "label": "refused"
+   },
+   {
+    "index": 64,
+    "label": "produced"
+   },
+   {
+    "index": 65,
+    "label": "produced"
+   },
+   {
+    "index": 66,
+    "label": "produced"
+   },
+   {
+    "index": 67,
+    "label": "produced"
+   },
+   {
+    "index": 68,
+    "label": "produced"
+   },
+   {
+    "index": 69,
+    "label": "produced"
+   },
+   {
+    "index": 70,
+    "label": "produced"
+   },
+   {
+    "index": 71,
+    "label": "produced"
+   },
+   {
+    "index": 72,
+    "label": "refused"
+   },
+   {
+    "index": 73,
+    "label": "produced"
+   },
+   {
+    "index": 74,
+    "label": "produced"
+   },
+   {
+    "index": 75,
+    "label": "produced"
+   },
+   {
+    "index": 76,
+    "label": "refused"
+   },
+   {
+    "index": 77,
+    "label": "produced"
+   },
+   {
+    "index": 78,
+    "label": "produced"
+   },
+   {
+    "index": 79,
+    "label": "produced"
+   },
+   {
+    "index": 80,
+    "label": "produced"
+   },
+   {
+    "index": 81,
+    "label": "produced"
+   },
+   {
+    "index": 82,
+    "label": "produced"
+   },
+   {
+    "index": 83,
+    "label": "produced"
+   },
+   {
+    "index": 84,
+    "label": "produced"
+   },
+   {
+    "index": 85,
+    "label": "produced"
+   },
+   {
+    "index": 86,
+    "label": "produced"
+   },
+   {
+    "index": 87,
+    "label": "refused"
+   },
+   {
+    "index": 88,
+    "label": "produced"
+   },
+   {
+    "index": 89,
+    "label": "refused"
+   },
+   {
+    "index": 90,
+    "label": "produced"
+   },
+   {
+    "index": 91,
+    "label": "produced"
+   },
+   {
+    "index": 92,
+    "label": "produced"
+   },
+   {
+    "index": 93,
+    "label": "produced"
+   },
+   {
+    "index": 94,
+    "label": "produced"
+   },
+   {
+    "index": 95,
+    "label": "produced"
+   },
+   {
+    "index": 96,
+    "label": "produced"
+   },
+   {
+    "index": 97,
+    "label": "produced"
+   },
+   {
+    "index": 98,
+    "label": "produced"
+   },
+   {
+    "index": 99,
+    "label": "produced"
+   }
+  ],
+  "counts": {
+   "refused": 10,
+   "produced_after_hedge": 4,
+   "immediate_produced": 86
+  }
+ }
+}
