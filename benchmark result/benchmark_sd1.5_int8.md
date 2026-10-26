@@ -24,7 +24,8 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **0.5xxmix9realistic_v40+0.5chilledReGenericV3** | 1on k80 | **0.95362** | 0.92644 | **+0.02719** | **1.3338** | 2.1379 | **10/25 (0%)** | 7/25 (0%) | **+20.1%** | **HSWQ** |
 | **0.5yayoiMix_v25+0.5againmix_v22** | 1on k80 | **0.97642** | 0.96010 | **+0.01632** | **1.0225** | 1.7696 | **18/25 (0%)** | 11/25 (0%) | **+38.6%** | **HSWQ** |
 | **0.5yayoiMix_v25+0.5voidnoisecore_r1733** | 1on k80 | 0.97461 | **0.97518** | **−0.00057** | **0.7950** | 0.8165 | **16/25 (0%)** | 15/25 (0%) | **+35.1%** | **Native** |
-| **Family Average** | — | **0.97002** | 0.95609 | **+0.01393** | **1.0486** | 1.5508 | **60/100 (0.0%)** | 46/100 (0.0%) | **+29.2%** | **HSWQ (3/4 models)** |
+| **0.5yayoiMix_v25+0.5xxmix9realistic_v40** | 1on k80 | **0.96321** | 0.94839 | **+0.01483** | **1.1880** | 1.8368 | **16/25 (0%)** | 12/25 (0%) | **+31.3%** | **HSWQ** |
+| **Family Average** | — | **0.96866** | 0.95455 | **+0.01411** | **1.0765** | 1.6080 | **76/125 (0.0%)** | 58/125 (0.0%) | **+29.7%** | **HSWQ (4/5 models)** |
 
 **Winner** = better on both mean cosine and mean MSE.
 
@@ -204,25 +205,70 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **4195820371** | **0.99750** | 0.98872 | +0.00878 | **0.1008** | 0.4543 | −0.3535 | same-image | same-image | **HSWQ** |
 | **Mean** | 0.97461 | **0.97518** | −0.00057 | 0.7950 | 0.8165 | −0.0215 | **0/25 Bifurcated** | **0/25 Bifurcated** | **Native** (10/25) |
 
+### 2.5. 0.5yayoiMix_v25+0.5xxmix9realistic_v40 (1on k80)
+
+#### Metric Overview
+| Metric / Property | HSWQ ConvRot INT8 | Native ConvRot INT8 (Full Model) | Advantage |
+| :--- | :--- | :--- | :--- |
+| **Mean Final Cosine** (↑ better) | **0.96321** | 0.94839 | **+0.01483** |
+| **Min Final Cosine** (↑ better) | 0.74845 | 0.74461 | **+0.00384** |
+| **Max Final Cosine** (↑ better) | **0.99934** | 0.99778 | +0.00156 |
+| **Mean Final Latent MSE** (↓ better) | **1.1880** | 1.8368 | **−0.6488 (35% error reduction)** |
+| **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | **0/25 (0%)** | **Zero bifurcations** |
+| **Speedup (avg wall/seed)** (↑ better) | **+31.3%** (2.07s → 1.42s) | +27.0% (1.93s → 1.41s) | — |
+| **Trajectory Verdict** | 16/25 same-image, 9/25 drifted | 12/25 same-image, 13/25 drifted | **HSWQ preserves trajectory structure** |
+
+#### Side-by-Side per Seed (0.5yayoiMix_v25+0.5xxmix9realistic_v40)
+| Seed | HSWQ Cosine | Native Cosine | Δ Cosine (↑ better) | HSWQ MSE | Native MSE | Δ MSE (↓ better) | HSWQ Verdict | Native Verdict | Winner |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **42** | **0.98329** | 0.95011 | +0.03318 | **0.5413** | 1.6050 | −1.0637 | same-image | drifted (different image) | **HSWQ** |
+| **137** | **0.97027** | 0.94307 | +0.02720 | **0.8476** | 1.6160 | −0.7684 | drifted (different image) | drifted (different image) | **HSWQ** |
+| **849** | **0.99356** | 0.89231 | +0.10125 | **0.2180** | 3.6670 | −3.4490 | same-image | drifted (different image) | **HSWQ** |
+| **2024** | **0.99757** | 0.99158 | +0.00599 | **0.1167** | 0.4040 | −0.2873 | same-image | same-image | **HSWQ** |
+| **7391** | 0.77261 | **0.78286** | −0.01025 | 8.4670 | **8.0260** | +0.4410 | drifted (different image) | drifted (different image) | Native |
+| **18429** | **0.99690** | 0.96370 | +0.03320 | **0.1325** | 1.5430 | −1.4105 | same-image | drifted (different image) | **HSWQ** |
+| **53082** | 0.89712 | **0.98891** | −0.09179 | 2.7960 | **0.3008** | +2.4952 | drifted (different image) | same-image | Native |
+| **149206** | **0.99360** | 0.98090 | +0.01270 | **0.2280** | 0.6808 | −0.4528 | same-image | same-image | **HSWQ** |
+| **382715** | **0.99108** | 0.97087 | +0.02021 | **0.3263** | 1.0740 | −0.7477 | same-image | drifted (different image) | **HSWQ** |
+| **826401** | 0.96722 | **0.97236** | −0.00514 | 0.8957 | **0.7543** | +0.1414 | drifted (different image) | drifted (different image) | Native |
+| **1938502** | **0.99716** | 0.99539 | +0.00177 | **0.0952** | 0.1540 | −0.0588 | same-image | same-image | **HSWQ** |
+| **4710928** | **0.74845** | 0.74461 | +0.00384 | **5.5290** | 5.5880 | −0.0590 | drifted (different image) | drifted (different image) | **HSWQ** |
+| **8391642** | **0.97035** | 0.96305 | +0.00730 | **1.2110** | 1.5060 | −0.2950 | drifted (different image) | drifted (different image) | **HSWQ** |
+| **15820493** | **0.98184** | 0.96981 | +0.01203 | **0.9230** | 1.5300 | −0.6070 | same-image | drifted (different image) | **HSWQ** |
+| **36192847** | **0.98578** | 0.98213 | +0.00365 | **0.5046** | 0.6283 | −0.1237 | same-image | same-image | **HSWQ** |
+| **71058294** | 0.98907 | **0.99148** | −0.00241 | 0.5057 | **0.3949** | +0.1108 | same-image | same-image | Native |
+| **128491703** | 0.98327 | **0.99037** | −0.00710 | 0.7750 | **0.4453** | +0.3297 | same-image | same-image | Native |
+| **285039184** | **0.99916** | 0.98881 | +0.01035 | **0.0350** | 0.4642 | −0.4293 | same-image | same-image | **HSWQ** |
+| **491730285** | 0.97883 | **0.99391** | −0.01508 | 0.9372 | **0.2691** | +0.6681 | drifted (different image) | same-image | Native |
+| **762019483** | **0.95276** | 0.79800 | +0.15476 | **2.4080** | 10.0800 | −7.6720 | drifted (different image) | drifted (different image) | **HSWQ** |
+| **938174026** | **0.99352** | 0.93627 | +0.05725 | **0.2799** | 2.7690 | −2.4891 | same-image | drifted (different image) | **HSWQ** |
+| **1409285713** | **0.94288** | 0.94043 | +0.00245 | **1.6830** | 1.7610 | −0.0780 | drifted (different image) | drifted (different image) | **HSWQ** |
+| **2683910547** | **0.99828** | 0.98353 | +0.01475 | **0.0454** | 0.4320 | −0.3866 | same-image | same-image | **HSWQ** |
+| **3851729406** | **0.99934** | 0.99778 | +0.00156 | **0.0325** | 0.1085 | −0.0760 | same-image | same-image | **HSWQ** |
+| **4195820371** | 0.99641 | **0.99745** | −0.00104 | 0.1663 | **0.1184** | +0.0479 | same-image | same-image | Native |
+| **Mean** | **0.96321** | 0.94839 | **+0.01483** | **1.1880** | 1.8368 | **−0.6488** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (18/25)** |
+
 ---
 
 ## 3. Key Findings and Trajectory Analysis
 
-1. **Bifurcation behaviour:** across the 4 checkpoints (25 seed evaluations per arm), neither Native ConvRot INT8 nor HSWQ ConvRot INT8 produces a bifurcated seed (0/100 each). HSWQ raises the same-image count to 60/100 vs 46/100 for Native.
+1. **Bifurcation behaviour:** across the 5 checkpoints (25 seed evaluations per arm), neither Native ConvRot INT8 nor HSWQ ConvRot INT8 produces a bifurcated seed (0/125 each). HSWQ raises the same-image count to 76/125 vs 58/125 for Native.
 
-2. **Cosine gain:** the family mean final cosine is 0.97002 for HSWQ vs 0.95609 for Native (+0.01393). HSWQ is ahead on mean cosine in 3/4 models; the fourth checkpoint is the exception - see finding 8.
+2. **Cosine gain:** the family mean final cosine is 0.96866 for HSWQ vs 0.95455 for Native (+0.01411). HSWQ is ahead on mean cosine in 4/5 models; the fourth checkpoint is the exception - see finding 8.
 
-3. **Latent MSE reduction:** family mean final latent MSE is 1.0486 (HSWQ) vs 1.5508 (Native), about 32% lower error.
+3. **Latent MSE reduction:** family mean final latent MSE is 1.0765 (HSWQ) vs 1.6080 (Native), about 33% lower error.
 
-4. **Worst-case robustness:** the worst per-model minimum cosine is 0.78997 (HSWQ) vs 0.74251 (Native).
+4. **Worst-case robustness:** the worst per-model minimum cosine is 0.74845 (HSWQ) vs 0.74251 (Native).
 
-5. **Wall-clock:** HSWQ averages a +29.2% speedup over FP16 per seed across the family.
+5. **Wall-clock:** HSWQ averages a +29.7% speedup over FP16 per seed across the family.
 
 6. **The second checkpoint is harder for both arms.** `0.5xxmix9realistic_v40+0.5chilledReGenericV3` sits below `0.5xxmix9realistic_v40 0.5BRA7` on every aggregate for both HSWQ and Native; the HSWQ/Native gap is nonetheless wider there (+0.02718 vs +0.01277), so the protection buys more on the harder model, not less.
 
 7. **The third checkpoint remains the strongest HSWQ case.** `0.5yayoiMix_v25+0.5againmix_v22` gives HSWQ its highest same-image count on a single checkpoint (18/25 against 11/25) and its largest latent-MSE reduction (42%), while also showing the widest wall-clock gain (+38.6%). The family worst case stays with the second checkpoint (0.78997).
 
 8. **The fourth checkpoint is the one Native takes.** `0.5yayoiMix_v25+0.5voidnoisecore_r1733` is the only checkpoint here where the Native pack beats the protected one on the mean final cosine (0.97518 against 0.97461, −0.00057) and on the minimum (0.91578 against 0.90601); HSWQ wins the per-seed count by cosine (15/25 against 10/25). HSWQ keeps the lower mean MSE (0.7950 against 0.8165), the higher same-image count (16/25 against 15/25) and the larger speedup (35.1% against 28.0%). The family aggregate stays with HSWQ (3/4 models).
+
+9. **The fifth checkpoint returns the widest same-image margin of the set.** `0.5yayoiMix_v25+0.5xxmix9realistic_v40` gives HSWQ 16/25 against 12/25 for Native, a gap of 4, and its per-seed cosine count follows (18/25 against 7/25). Its minimum cosine (0.74845) is the second lowest of the five HSWQ arms, so the family worst case stays with the second checkpoint (0.74845).
 
 
 ---
