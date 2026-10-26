@@ -172,18 +172,12 @@ CUDA 13.2, one RTX 5060 Ti (compute capability 12.0, 16 GB). The file is FP32, s
 loaded FP32; no bf16 floor applies to it and none is quoted anywhere in this report.
 
 **Files.** Candidate: `CLIP-SAE-ViT-L-14-FP32.safetensors`, 1,710,537,716 bytes, 590
-tensors. Reference: the official CLIP ViT-L/14 file (`a2bf730a...`,
-1,710,540,580 bytes). The reference is distributed in the original OpenAI layout, so
-`openai_clip_to_hf.py` maps it to the HF state-dict layout before any comparison and
-`openai_clip_layout.py` checks the mapping key by key; both the layout check and the
-hashes are recorded.
-
-```
-python audit/openai_clip_layout.py --official <official dir> --candidate <file> \
-    --json records/hf_refs_clip.json
-python audit/openai_clip_to_hf.py --official <official dir> --candidate <file> \
-    --out <hf-format dir> --config-from <config dir> --tokenizer-dir <tokenizer dir>
-```
+tensors. Reference: the official `openai/clip-vit-large-patch14` file (`a2bf730a...`,
+1,710,540,580 bytes). Its sha256 is taken from the Hub and re-measured on the local copy,
+and both hashes - this one and the candidate's - are recorded with the byte sizes and the
+two local-match flags (`records/hashes_sae.json`, `records/hf_refs_clip.json`). The
+reference is already in the HF state-dict layout, so no repackaging of either side is
+performed before comparison.
 
 **Step 1 - census (shape A).** `shard_census.py` compares the two state dicts key by key:
 presence, dtype, shape, and the relative difference over the whole tensor. A tensor counts
@@ -219,7 +213,7 @@ python audit/sae_deep.py --base <hf-format reference dir> --candidate <file> \
 
 **Step 3 - spectrum against a random baseline.** `sae_spectrum.py` computes, per differing
 tensor, the share of energy in the leading 1, 2, 4, 8, 16 and 32 singular values, and the
-same statistics for random matrices of identical shape (`--per-tensor 40` caps the sample).
+same statistics for random matrices of identical shape, run with `--per-tensor 40`.
 
 ```
 python audit/sae_spectrum.py --base <hf-format reference dir> --candidate <file> \
@@ -263,8 +257,9 @@ python audit/sae_retrieval.py --base <hf-format reference dir> --candidate <file
 
 **Step 6 - trigger search (gate 7c).** The same 721-candidate set is used as for the
 language models (93 dates, 300 random strings, 28 documented-trigger variants, 300
-rule-generated variants), scored here by the cosine shift of the text embedding relative
-to the unmodified prompt.
+rule-generated variants), scored here by the cosine between the base's and the file's
+text embeddings of the same prompt - the same measurement the 28-prompt probe uses, on the
+full candidate set.
 
 ```
 python audit/clip_trigger_scan.py --base <hf-format reference dir> --candidate <file> \
