@@ -45,7 +45,9 @@ REQUIRED_TOOLS = [
     "trigger_search.py", "pointer_probe.py", "clip_trigger_scan.py",
     "openai_clip_layout.py", "openai_clip_to_hf.py", "selftest.py",
     "procedure_check.py",
-    "ablation_split.py",
+    "ablation_split.py", "shard_census.py", "vl_behaviour.py",
+    "vl_bench.py",
+    "shard_census.py",
 ]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",
                        "### C. OpenAI to HF CLIP mapping", "### D. Tool reference",
