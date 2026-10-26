@@ -195,18 +195,28 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-**Backdoor audit of the source models behind the HSWQ ConvRot INT8 packs published by [ussoewwin](https://huggingface.co/ussoewwin).**
+**Backdoor audit of the HSWQ ConvRot INT8 packs published by [ussoewwin](https://huggingface.co/ussoewwin).**
 
 Pack: [Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8).
 
-| source model | pack file | verdict |
-| :--- | :--- | :--- |
-| CLIP-SAE-ViT-L-14 | `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | **no backdoor** |
-| Josiefied-Qwen3-0.6B-abliterated-v1 | `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | **no backdoor** |
-| Long-ViT-L-14-BEST-GmP-smooth-ft-full | `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | audit withdrawn |
-| ViT-L-14-BEST-smooth-GmP-HF-format | `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | audit withdrawn |
-| clip_l | `clip_l_hswq_convrot_int8.safetensors` | not audited (source excluded by Owner) |
-| flan_t5_xxl | `flan_t5_xxl_hswq_convrot_int8.safetensors` | audit partial |
+| pack file | verdict |
+| :--- | :--- |
+| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | **no backdoor** |
+| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | **no backdoor** |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | audit withdrawn |
+| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | audit withdrawn |
+| `clip_l_hswq_convrot_int8.safetensors` | not audited - source excluded |
+| `flan_t5_xxl_hswq_convrot_int8.safetensors` | audit partial |
+
+Pack: [qwen3_4b_8b_abliterated_fp16_convrot_int8](https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8).
+
+| pack file | verdict |
+| :--- | :--- |
+| `Qwen3-8B-abliterated-fp16.safetensors` | not audited |
+| `Qwen3_VL_4B_Thinking_abliterated.safetensors` | not audited |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | not audited |
+| `qwen3_4b_abliterated_fp16_converted.safetensors` | not audited |
+| `qwen3_4b_abliterated_hswq_convrot_int8.safetensors` | not audited |
 
 Details: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
 
