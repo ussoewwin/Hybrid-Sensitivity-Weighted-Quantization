@@ -16,8 +16,9 @@ V1.0): folds the systematic INT8 output shift into the layer bias,
     E[(W_q - W) x]  ~  (W_q - W) @ E[x]
 
 using per-input-channel activation means collected **in this same run** via
-ComfyUI's native `dpmpp_2m / karras` sampling trajectory (falling back to
-Diffusers only if no ComfyUI root is available).
+ComfyUI's native `dpmpp_2m / karras` sampling trajectory on the checkpoint's
+own UNet and CLIP (a Diffusers fallback is NOT provided: the calibration must
+run on the production sampler).
 
 Rules:
   1. Only 2D Linear and 4D Conv2d weights under `model.diffusion_model.` are
@@ -154,7 +155,7 @@ def _encode(config):
 
 
 # --------------------------------------------------------------------------
-# ComfyUI-native calibration pass (primary) + Diffusers fallback
+# ComfyUI-native calibration pass (the only path; no Diffusers fallback)
 # --------------------------------------------------------------------------
 
 def _install_torchaudio_stub() -> None:
@@ -652,136 +653,31 @@ def unet_to_diffusers_mapping(unet_config, state_dict=None, key_prefix="model.di
 
 
 def collect_act_means(ckpt_path, calib_file, n_samples=32, n_steps=25, seed=42,
-                      comfy_path="", width=512, height=512,
-                      base_repo="stable-diffusion-v1-5/stable-diffusion-v1-5"):
+                      comfy_path="", width=512, height=512):
     """Collect per-input-channel activation means.
 
-    Prefers ComfyUI-native trajectory sampling (exact checkpoint CLIP + dpmpp_2m
-    karras CFG=7.0 on ComfyUI's native UNet module names). Falls back to the
-    Diffusers pipeline only if no ComfyUI root is available.
+    ComfyUI-native trajectory sampling (the checkpoint's own CLIP + dpmpp_2m
+    karras CFG=7.0 on ComfyUI's native UNet module names). Requires a ComfyUI
+    root; there is no Diffusers fallback.
     """
     comfy_root = _resolve_comfy_root(comfy_path)
-    if comfy_root:
-        return collect_act_means_comfy(
-            ckpt_path,
-            calib_file,
-            comfy_root,
-            n_samples=n_samples,
-            n_steps=n_steps,
-            seed=seed,
-            width=width,
-            height=height,
+    if not comfy_root:
+        raise SystemExit(
+            "error: no ComfyUI root found for bias correction. "
+            "pass --comfy <ComfyUI root> or set COMFY_PATH. "
+            "(the Diffusers fallback was removed: the calibration must use the "
+            "checkpoint's own CLIP and ComfyUI's native dpmpp_2m/karras sampler.)"
         )
-
-    from diffusers import StableDiffusionPipeline, UNet2DConditionModel  # noqa: F401
-    import torch as _t
-
-    dev = "cuda" if _t.cuda.is_available() else "cpu"
-    dt = _t.float16 if dev == "cuda" else _t.float32
-
-    print("    the state dict: %s" % ckpt_path, flush=True)
-    state_dict = load_file(ckpt_path)
-    unet_config = detect_unet_config_from_keys(state_dict)
-    print("    the detected UNet config: %s" % unet_config, flush=True)
-
-    print("    the pipeline: %s" % base_repo, flush=True)
-    try:
-        pipe = StableDiffusionPipeline.from_pretrained(
-            base_repo, torch_dtype=dt, use_safetensors=True, variant="fp16").to(dev)
-    except Exception as e:
-        print("    [warn] from_pretrained failed (%s); building a bare pipeline" % str(e)[:80], flush=True)
-        unet = UNet2DConditionModel(
-            sample_size=64, in_channels=4, out_channels=4, layers_per_block=2,
-            block_out_channels=(320, 640, 1280, 1280),
-            down_block_types=("CrossAttnDownBlock2D", "CrossAttnDownBlock2D",
-                              "CrossAttnDownBlock2D", "DownBlock2D"),
-            up_block_types=("UpBlock2D", "CrossAttnUpBlock2D",
-                            "CrossAttnUpBlock2D", "CrossAttnUpBlock2D"),
-            cross_attention_dim=768, attention_head_dim=8,
-            use_linear_projection=False)
-        pipe = StableDiffusionPipeline(
-            vae=None, text_encoder=None, tokenizer=None, unet=unet,
-            scheduler=None, safety_checker=None, feature_extractor=None,
-            requires_safety_checker=False).to(dev)
-
-    try:
-        unet_dev = str(next(pipe.unet.parameters()).device)
-    except StopIteration:
-        unet_dev = "unknown"
-    if not unet_dev.startswith("cuda") and dev == "cuda":
-        raise RuntimeError("the UNet landed on %r, not CUDA; refusing to calibrate "
-                           "(it would hang at 0/25 on CPU fp16)" % unet_dev)
-
-    _vae = getattr(pipe, "vae", None)
-    if isinstance(_vae, _t.nn.Module):
-        _vae.to("cpu")
-
-    print("    remapping the UNet weights ...", flush=True)
-    mapping = unet_to_diffusers_mapping(unet_config, state_dict)
-    new_sd = {dk: state_dict[ck] for ck, dk in mapping.items() if ck in state_dict}
-    m, u = pipe.unet.load_state_dict(new_sd, strict=False)
-    print("    the UNet loaded: %d tensors (missing %d / unexpected %d)" % (
-        len(new_sd), len(m), len(u)), flush=True)
-
-    unet = pipe.unet
-    acc, cnt, handles = {}, {}, []
-
-    def hook_fn(module, inputs, output, name=None):
-        x = inputs[0].detach().float()
-        if x.dim() == 4:
-            ch = x.mean(dim=(0, 2, 3))
-        elif x.dim() == 3:
-            ch = x.mean(dim=(0, 1))
-        elif x.dim() == 2:
-            ch = x.mean(dim=0)
-        else:
-            return
-        if name not in acc:
-            acc[name] = _t.zeros_like(ch)
-            cnt[name] = 0
-        acc[name] += ch
-        cnt[name] += 1
-
-    for name, module in unet.named_modules():
-        if isinstance(module, (_t.nn.Conv2d, _t.nn.Linear)):
-            handles.append(module.register_forward_hook(
-                lambda mm_, ii, oo, n=name: hook_fn(mm_, ii, oo, n)))
-
-    with open(calib_file, "r", encoding="utf-8") as f:
-        prompts = [ln.strip() for ln in f.readlines() if ln.strip()]
-    if len(prompts) < n_samples:
-        prompts = (prompts * (n_samples // len(prompts) + 1))[:n_samples]
-    else:
-        prompts = prompts[:n_samples]
-
-    print("    the calibration: %d samples x %d steps (seed %d)" % (
-        len(prompts), n_steps, seed), flush=True)
-    generator = _t.Generator(device=dev).manual_seed(seed)
-    for i, prompt in enumerate(prompts):
-        with _t.no_grad():
-            pipe(prompt=prompt, num_inference_steps=n_steps,
-                 output_type="latent", generator=generator)
-        if (i + 1) % 8 == 0:
-            print("      [%d/%d]" % (i + 1, len(prompts)), flush=True)
-
-    for h in handles:
-        h.remove()
-    del pipe, unet
-    if _t.cuda.is_available():
-        _t.cuda.empty_cache()
-
-    inv = {dk: ck for ck, dk in mapping.items()}
-    out_means = {}
-    for dname, mu in acc.items():
-        mean = (mu / cnt[dname]).cpu()
-        ck = inv.get(dname) or inv.get(dname + ".weight")
-        if ck is None:
-            ck = dname
-        key = ck[:-len(".weight")] if ck.endswith(".weight") else ck
-        key = key.replace("model.diffusion_model.", "")
-        out_means[key] = mean
-    print("    the activation means: %d layers" % len(out_means), flush=True)
-    return out_means
+    return collect_act_means_comfy(
+        ckpt_path,
+        calib_file,
+        comfy_root,
+        n_samples=n_samples,
+        n_steps=n_steps,
+        seed=seed,
+        width=width,
+        height=height,
+    )
 
 
 def convert(input_path, output_path, contrib_json, top_k,
