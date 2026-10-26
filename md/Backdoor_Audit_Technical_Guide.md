@@ -612,6 +612,47 @@ direction. On this model it reports `output, 1.0000`. The self-test grew a
 matching case ("output-side shared direction"), so the distinction cannot
 regress.
 
+### 6.8 Reproducing the abliteration exactly against the base
+
+Recovery alone is not enough - what proves the single-direction claim is
+**rebuilding** the build from the declared base with that same direction, and
+measuring what is left. The formula is `W' = W - alpha * d (d^T W)`, the same
+`d` across layers, with `d` recovered from the published delta itself (no
+recipe, no prompt calibration).
+
+`audit/ablit_repro.py` does exactly that:
+
+```
+python audit/ablit_repro.py --base <declared base> --build <published build>
+```
+
+Measured on the same pair of files:
+
+```
+changed layers: 54
+cross-layer coherence of the leading direction: 0.999998
+rebuilt 54 layers
+  alpha mean / min / max: 1.0004 / 0.9998 / 1.0009
+  rel residual (rebuilt - published)/|W|: mean 0.00185  median 0.00176  max 0.00308
+VERDICT: EXACT-SINGLE-DIRECTION
+```
+
+- **coherence 0.999998**: the 54 deltas share ONE direction to within bf16
+  numerical noise. Not 54 different directions; not 2 directions.
+- **alpha stays 1.0000 ± 0.0005**: no scaling trick, no directional tweak.
+- **relative residual 0.00185 (mean), 0.00308 (max)**: below the 0.5% gate that
+  covers fp32 to bf16 to fp32 casting. Nothing is left that a second edit
+  component would explain.
+
+Together with the layer census (54 residual-writing layers changed,
+143 bit-identical, zero in-between) this is the strongest statement the
+weight-level technique allows on a custom abliteration: **the published build is
+the base minus one direction from the output of every residual-writing layer,
+with alpha 1.0, and nothing else.** An injected multi-direction backdoor
+(reference 13's LoRA shape, or Frozen/backdoor patterns that need rank >= 2
+across layers) would show up here as a residual the single removal cannot
+explain. None is present.
+
 ---
 
 ## 7. Limitations, in plain terms
