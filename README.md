@@ -15,19 +15,6 @@ High-fidelity **ConvRot INT8** (SDXL, Krea2, Qwen Image Edit, SD1.5) and **ConvR
 - **ConvRot INT8 (Text Encoder / ControlNet / Model Patch, individually built):** A separate **per-model track** for the families where the universal engine does not apply - each standard has one weight layout, so there is nothing to re-measure per checkpoint. The protection set comes from a measured **aggregate contribution** (per-block, float64), the threshold from the size/quality balance, and the kept tensors are stored FP16. Published as finished packs on Hugging Face (see below).
 - **Z Image Hybrid ConvRot NVFP4:** Built from a complete **native ConvRot INT8** UNet via the **reverse method** - layers are converted to NVFP4 in ascending order of per-layer impact (lowest-impact first). Unlike the conventional "protect top-important layers" approach, this stays in the low-error regime where single-layer ranking is valid. The number of NVFP4 layers varies per model (search `K`). Calibrated with `input_scale = amax / 2688` and validated by the **deterministic 20-seed latent-trajectory comparison** (per-step cosine + bifurcation): production gate = **cosine mean ≥ 0.95 and 0/20 bifurcated** in **TC (W4A4)** mode (reference numbers for one example model are listed in the hybrid NVFP4 how-to). Scripts: `Z_Image/diag_impact.py`, `Z_Image/gen_reverse_nvfp4.py`, `Z_Image/calib_input_scale_nvfp4.py`, `benchmark/zi_convrot_nvfp4_traj_compare.py`.
 
-## Security
-
-**Backdoor / malicious-code audit - shipped.** Per-file verdicts, evidence records and
-the citation checker are in
-[md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
-Three audited models: Huihui-Qwen3-VL-4B-Instruct-abliterated (no backdoor),
-CLIP-SAE-ViT-L-14-FP32 (no backdoor), Josiefied-Qwen3-0.6B-abliterated-v1 (no backdoor).
-Every figure traces to a record file at [md/verdicts/records/](md/verdicts/records/);
-the checker script is [audit/check_cites.py](audit/check_cites.py). The audit
-procedure is [md/Backdoor_Audit_Procedure.md](md/Backdoor_Audit_Procedure.md) and the
-technical guide is
-[md/Backdoor_Audit_Technical_Guide.md](md/Backdoor_Audit_Technical_Guide.md).
-
 **Technical details - active**
 
 - **diag → reverse hybrid (SDXL, v1.1):** [md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md](md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md) - the SDXL V3.1 selector (DualMonitor + V4 weighted-histogram MSE + full SVD, fixed 300 MiB FP16 protection) extended with the reverse step: per-layer ConvRot INT8 impact is measured on the production sampler, the K lowest-impact layers of the remaining pool are converted while every other layer (the protected set included) stays FP16; validated by the deterministic 25-seed latent-trajectory gate.
@@ -205,6 +192,19 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 
 ---
+
+## Security
+
+**Backdoor / malicious-code audit - shipped.** Per-file verdicts, evidence records and
+the citation checker are in
+[md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+Three audited models: Huihui-Qwen3-VL-4B-Instruct-abliterated (no backdoor),
+CLIP-SAE-ViT-L-14-FP32 (no backdoor), Josiefied-Qwen3-0.6B-abliterated-v1 (no backdoor).
+Every figure traces to a record file at [md/verdicts/records/](md/verdicts/records/);
+the checker script is [audit/check_cites.py](audit/check_cites.py). The audit
+procedure is [md/Backdoor_Audit_Procedure.md](md/Backdoor_Audit_Procedure.md) and the
+technical guide is
+[md/Backdoor_Audit_Technical_Guide.md](md/Backdoor_Audit_Technical_Guide.md).
 
 ## Changelog
 
