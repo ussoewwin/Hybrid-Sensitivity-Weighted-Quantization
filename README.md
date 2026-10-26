@@ -200,7 +200,7 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 - Huihui-Qwen3-VL-4B-Instruct-abliterated, CLIP-SAE-ViT-L-14-FP32, Josiefied-Qwen3-0.6B-abliterated-v1 - no backdoor
 - Long-ViT-L, ViT-L-GmP - audit withdrawn
 
-Details: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md). Records: [md/verdicts/records/](md/verdicts/records/). Procedure: [md/Backdoor_Audit_Procedure.md](md/Backdoor_Audit_Procedure.md).
+Details: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
 
 ## Changelog
 
