@@ -789,7 +789,12 @@ table is only for spotting an implausible number.
 | `ablation_split.py` | 5 | `--base <dir> --candidate <f> [--maxlength 77|248] [--json <o>]` |
 | `clip_trigger_scan.py` | 6, 7b/7c (CLIP) | `--base <dir> --candidate <f> [--json <o>]` |
 | `shard_census.py` | 3, 4 (sharded reference) | `--reference <dir> --candidate <f> [--expect name=sha ...] [--json <o>]` |
-| `vl_behaviour.py` | 5, 6, 7f (VL / sharded LM) | `--base <dir> --artifact <f> [--stages base,published,early,late,random] [--json <o>]` |
+| `sae_probe.py` | 5, 6, 7f (encoder fine-tune) | `--base <dir> --candidate <f> --trigger-json <f> [--json <o>]` |
+| `sae_deep.py` | 4b, 5, 7 (fine-tune) | `--base <dir> --candidate <f> [--json <o>]` |
+| `sae_spectrum.py` | 4b (inserted circuit vs training) | `--base <dir> --candidate <f> [--json <o>]` |
+| `sae_retrieval.py` | 6 (encoder task preservation) | `--base <dir> --candidate <f> [--json <o>]` |
+| `sae_independent.py` | 8 (independent recomputation) | `--base <dir> --candidate <f> --trigger-json <f> [--json <o>]` |
+| `check_cites.py` | 9 (every figure traced to a record) | `<report.md> --root <dir>` |
 | `openai_clip_layout.py` | 3.2 | `--official <pt> --candidate <f> [--official-sha256 <h>] [--json <o>]` |
 | `openai_clip_to_hf.py` | 5.4 | `--official <pt> --candidate <f> --out <dir> --config-from <dir> --tokenizer-dir <dir>` |
 | `selftest.py` | any | no arguments; must print `N/N passed` |
