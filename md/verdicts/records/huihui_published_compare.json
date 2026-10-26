@@ -1,0 +1,15 @@
+{
+ "reference_shards": [
+  "model-00001-of-00002.safetensors",
+  "model-00002-of-00002.safetensors"
+ ],
+ "published_tensors": 713,
+ "candidate_tensors": 713,
+ "identical": 713,
+ "differing": 0,
+ "only_published": [],
+ "only_candidate": [],
+ "shape_bad": [],
+ "dtype_diff": [],
+ "differing_keys": []
+}
