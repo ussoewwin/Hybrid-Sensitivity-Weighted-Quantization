@@ -96,13 +96,11 @@ def quant_dequant(w, gs):
         flat = wf.permute(0, 2, 3, 1).contiguous().view(-1, ic)
         of, inf = flat.shape
         g = inf // gs
-        rot_flat = torch.matmul(flat.view(of, g, gs), hh.T).reshape(flat.shape)
-        rot = rot_flat.view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
-        amax = rot.abs().amax(dim=(1, 2, 3), keepdim=True).clamp(min=1e-30)
+        rot = torch.matmul(flat.view(of, g, gs), hh.T).reshape(flat.shape)
+        amax = rot.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
         s = amax / 127.0
         q = (rot / s).round().clamp(-127, 127).to(torch.int8).float()
-        qf = (q * s).permute(0, 2, 3, 1).contiguous().view(-1, ic)
-        back = torch.matmul(qf.view(of, g, gs), hh).reshape(flat.shape)
+        back = torch.matmul((q * s).view(of, g, gs), hh).reshape(flat.shape)
         return back.view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous().to(w.dtype)
     raise ValueError("unsupported rank %d" % w.dim())
 
