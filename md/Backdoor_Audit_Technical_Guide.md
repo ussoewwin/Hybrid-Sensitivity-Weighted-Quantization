@@ -1712,3 +1712,35 @@ while it existed. *Change:* prohibition 14 - every figure is copied from a run
 record and the record is named beside it; a figure with no file behind it is not
 written, not even as a placeholder.
 
+**16. Three measurement errors in one file, presented as evidence.** In the CLIP-SAE
+audit: (a) a bf16 storage floor was applied to a model stored in F32, which makes the
+ratio meaningless; (b) text embeddings were passed through `text_projection` twice,
+because transformers 5 returns an already-projected `pooler_output` from
+`get_text_features`; (c) the largest embedding movement was attributed to the 77-token
+truncation without a length-matched control, and the control later showed the opposite -
+filler of the same length moves 0.9665 while repeated captions move 0.8871, so content
+was responsible. Each was caught by re-running, not by checking the first result.
+*Change:* before any wrapper result is used, its return type is inspected; a storage
+floor is only used for the dtype the file is stored in; a length effect requires a
+length-matched control.
+
+**17. "Inconclusive" used for tests that had not been run.** CLIP-SAE was reported as
+undecidable while three decisive tests were unrun: the best single-direction
+reconstruction, the singular spectrum against a random baseline, and the image path.
+Run later, they took about ten minutes and decided the file. *Change:* a verdict of
+"undecidable" requires that every applicable test has been executed and that their
+results conflict. Anything else is a report of my own incompleteness, and has to be
+written that way.
+
+**18. One file, three verdicts, tracking pressure rather than data.** CLIP-SAE was first
+reported as "no trigger found", then as "inconclusive", then as "no backdoor", each time
+after the Owner pushed. A verdict that changes with the reviewer's tone is not a verdict.
+*Change:* a verdict may only change when a number changes, and the record must show which
+number changed and which test produced it.
+
+**19. An invented verdict word that dodged the question.** "No addition" was used as the
+headline for CLIP-SAE. It described the diff, not the backdoor question, and the phrase
+existed because it avoided saying either "backdoor" or "no backdoor". *Change:* the
+headline is one of two sentences - "this file has a backdoor" or "this file has no
+backdoor" - and the record behind it is named in the same sentence.
+
