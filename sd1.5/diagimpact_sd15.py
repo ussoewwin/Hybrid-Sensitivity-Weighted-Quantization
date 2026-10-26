@@ -89,18 +89,20 @@ def quant_dequant(w, gs):
         rot = torch.matmul(wf.view(of, g, gs), hh.T).reshape(wf.shape)
         amax = rot.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
         s = amax / 127.0
-        q = (rot / s).round().clamp(-127, 127)
+        q = (rot / s).round().clamp(-127, 127).to(torch.int8).float()
         return torch.matmul((q * s).view(of, g, gs), hh).reshape(wf.shape).to(w.dtype)
     if wf.dim() == 4:
         oc, ic, kh, kw = wf.shape
         flat = wf.permute(0, 2, 3, 1).contiguous().view(-1, ic)
         of, inf = flat.shape
         g = inf // gs
-        rot = torch.matmul(flat.view(of, g, gs), hh.T).reshape(flat.shape)
-        amax = rot.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
+        rot_flat = torch.matmul(flat.view(of, g, gs), hh.T).reshape(flat.shape)
+        rot = rot_flat.view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
+        amax = rot.abs().amax(dim=(1, 2, 3), keepdim=True).clamp(min=1e-30)
         s = amax / 127.0
-        q = (rot / s).round().clamp(-127, 127)
-        back = torch.matmul((q * s).view(of, g, gs), hh).reshape(flat.shape)
+        q = (rot / s).round().clamp(-127, 127).to(torch.int8).float()
+        qf = (q * s).permute(0, 2, 3, 1).contiguous().view(-1, ic)
+        back = torch.matmul(qf.view(of, g, gs), hh).reshape(flat.shape)
         return back.view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous().to(w.dtype)
     raise ValueError("unsupported rank %d" % w.dim())
 
@@ -275,6 +277,8 @@ def main():
     a = ap.parse_args()
     if not a.comfy:
         ap.error("the ComfyUI root is not set: pass --comfy <path> or set COMFY_PATH")
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     setup_comfy(a.comfy)
 
     if not a.out:
@@ -297,6 +301,8 @@ def main():
     net.eval()
 
     latent0 = make_latent(patcher, a.width, a.height)
+    if latent0.device.type != DEV and DEV == "cuda":
+        latent0 = latent0.to(DEV)
     print("    the latent: %s (from %dx%d px, %s)" % (
         tuple(latent0.shape), a.width, a.height, latent0.dtype), flush=True)
     print("    the sampler/scheduler/cfg: %s / %s / %s" % (a.sampler, a.scheduler, a.cfg),
@@ -386,10 +392,12 @@ def main():
         agg[name] = sum(vals) / len(vals)
     ranked = sorted(agg.items(), key=lambda kv: -kv[1])
 
+    xr = ref[seeds[0]][-1]
     out = {
         "impacts": agg,
         "per_seed": impacts,
         "steps": a.steps,
+        "seed": seeds[0],
         "seeds": seeds,
         "metric": a.metric,
         "width": a.width,
@@ -397,6 +405,8 @@ def main():
         "cfg": a.cfg,
         "sampler": a.sampler,
         "scheduler": a.scheduler,
+        "x_ref_norm": float((xr * xr).sum().item()),
+        "base": os.path.abspath(a.ckpt),
         "ckpt": os.path.basename(a.ckpt),
     }
     with open(a.out, "w", encoding="utf-8") as f:
