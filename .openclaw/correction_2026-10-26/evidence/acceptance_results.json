@@ -1,0 +1,44 @@
+[
+ {
+  "id": "full-fabrication-inventory",
+  "label": "捏造・未検証記述の全件棚卸し",
+  "pass": true,
+  "detail": "6 inventory rows (F01..F06), exit 0"
+ },
+ {
+  "id": "every-correction-sourced",
+  "label": "すべての訂正に出典が付いている",
+  "pass": true,
+  "detail": "6/6 F-rows carry a source (file + line)"
+ },
+ {
+  "id": "no-unsourced-claims-remain",
+  "label": "修正版に根拠なしの断定が残っていない",
+  "pass": true,
+  "detail": "no fabricated term, engine and CLI complete"
+ },
+ {
+  "id": "traceable-correction-ledger",
+  "label": "修正台帳で旧記述から新記述まで追跡できる",
+  "pass": true,
+  "detail": "F-rows=6 old=6 new=6 source=6 confidence=6 judgement=1"
+ },
+ {
+  "id": "reproducible-verification",
+  "label": "第三者が同じ手順で再検証できる",
+  "pass": true,
+  "detail": "3 scripts + 2 data files are on disk"
+ },
+ {
+  "id": "original-preserved-with-diff",
+  "label": "原本が保全され差分が確認できる",
+  "pass": true,
+  "detail": "HEAD=12164 bytes, current=14582 bytes, diff='249\t178\tsd1.5/diagimpact_sd15.py'"
+ },
+ {
+  "id": "handover-with-open-items",
+  "label": "残課題と判断理由が引き継がれている",
+  "pass": true,
+  "detail": "5 open items (U01..) recorded with reasons"
+ }
+]
