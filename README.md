@@ -195,16 +195,13 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-The models published here are quantized copies of models trained by someone else, which
-narrows the question to one: a pack can only carry behaviour its source already carries.
-So the audit was run on the source. The three text encoders shipped as HSWQ ConvRot INT8
-packs were compared tensor by tensor against the model each declares to be built on, every
-difference was traced to the edit that model openly makes, and each was then put through
-prompts a hidden trigger would have had to answer to. None of them answers differently
-from the model it came from, for any input other than the one its source was edited for.
+These are the HSWQ quantized models published here: the CLIP ViT-L/14, Qwen3-0.6B and
+Qwen3-VL-4B text encoders, shipped as ConvRot INT8 packs. Each was checked against the
+model it was quantized from - the tensors match apart from the edit that model itself
+makes, and no input produces behaviour the original does not produce. None of the three
+carries a backdoor.
 
-The measurements and the record file behind each figure are in
-[md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+The measurements behind that are in [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
 
 ## Changelog
 
