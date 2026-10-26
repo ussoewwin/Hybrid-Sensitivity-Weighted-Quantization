@@ -450,7 +450,12 @@ def collect_act_means(ckpt_path, calib_file, n_samples=32, n_steps=25, seed=42,
 
     print("    remapping the UNet weights ...", flush=True)
     mapping = unet_to_diffusers_mapping(unet_config, state_dict)
-    new_sd = {dk: state_dict[ck] for ck, dk in mapping.items() if ck in state_dict}
+    cur_sd = pipe.unet.state_dict()
+    new_sd = {
+        dk: state_dict[ck]
+        for ck, dk in mapping.items()
+        if ck in state_dict and dk in cur_sd and state_dict[ck].shape == cur_sd[dk].shape
+    }
     m, u = pipe.unet.load_state_dict(new_sd, strict=False)
     print("    the UNet loaded: %d tensors (missing %d / unexpected %d)" % (
         len(new_sd), len(m), len(u)), flush=True)
