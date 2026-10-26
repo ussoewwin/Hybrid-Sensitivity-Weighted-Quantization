@@ -1547,3 +1547,78 @@ version of the layout comparison carried an absolute local path and called
 `topk(8)` on a scalar tensor, so it crashed after the first ranking and had to be
 fixed and re-run. *Change:* every tool takes its inputs on the command line, no tool
 carries a local path, and a tool change invalidates its earlier results (Gate E).
+
+### 6.14 SigLIP so400m vision tower: an exact conversion
+
+`sigclip_vision_patch14_384.safetensors` (856,505,640 bytes, 448 tensors, F16,
+`vision_model.*` only). Its published copy is `Comfy-Org/sigclip_vision_384`, whose
+declared base is `google/siglip-so400m-patch14-384`. The base was fetched and
+pinned first, because for a conversion the identity check is the whole audit:
+
+```
+published sha256: ea2abad2b7f8a9c1aa5e49a244d5d57fa71c56f720c94bc5d240ef4d6e1d94a
+local     sha256: ea2abad2...d94a   MATCH   (3,511,950,624 bytes)
+```
+
+Comparing every candidate tensor against the official `vision_model.*` subset,
+after casting the official weights to the candidate's dtype:
+
+| Measurement | Value |
+| :--- | ---: |
+| candidate tensors | 448 |
+| official vision tensors | 448 |
+| bit-identical after cast to F16 | **448** |
+| differing | 0 |
+| missing from candidate | 0 |
+| present only in candidate | 0 |
+
+**Verdict: `NO-ADDITION`.** The file is the official vision tower in F16 and
+nothing else. Phases 5 to 7 of the procedure are structurally inapplicable here:
+there is no edit to localise and no conditional behaviour that a conversion could
+introduce. This is what an identity result looks like at its strongest - not a
+delta that happens to be small, but every tensor equal.
+
+### 6.15 CLIP ViT-L/14 GmP fine-tune: an incomplete export
+
+`ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` (931,448,048 bytes, 587 tensors,
+581 F16 and 6 F32). Published copy `zer0int/CLIP-GmP-ViT-L-14`, declared base
+`openai/clip-vit-large-patch14` (pinned, `a2bf730a...`).
+
+Census against the declared base:
+
+| Measurement | Value |
+| :--- | ---: |
+| reference tensors | 592 |
+| candidate tensors | 587 |
+| tensors in both | 586 |
+| differing of those | 586 |
+| total relative Frobenius | 0.002100 |
+| largest single-tensor relative Frobenius | 0.014647 |
+| delta rank-1 fraction, median over changed tensors | 0.423 |
+| cross-layer coherence of leading directions | 0.085 (output side) |
+| structural verdict from the delta | `MULTI-DIRECTION` |
+
+A small, multi-direction, incoherent delta plus F16 storage: a diffuse fine-tune,
+not a single-direction edit.
+
+**But the export is incomplete**, and this is the finding:
+
+| Tensor | Reference | Candidate |
+| :--- | :--- | :--- |
+| `vision_model.embeddings.class_embedding` | (1024,) | **absent** |
+| `visual_projection.weight` | (768, 1024) | **absent** |
+| `logit_scale` | scalar | **absent** |
+| `text_model.embeddings.position_ids` | present | absent (buffer) |
+| `vision_model.embeddings.position_ids` | present | absent (buffer) |
+| `text_projection.weight` | (768, 768) | stored as `text_projection` |
+
+The position embedding keeps its full (257, 1024) shape, so the class token is not
+folded into it: the parameter is simply missing. A `CLIPModel` built from this file
+would carry a randomly initialised class embedding, which makes every behavioural
+measurement meaningless.
+
+**Verdict: `INCONCLUSIVE`, defect named.** Phases 5 to 7 cannot run on an
+incomplete model, so no backdoor claim is made either way. The missing parameters
+are the finding, and they are reported by name rather than folded into a delta
+statistic.
+
