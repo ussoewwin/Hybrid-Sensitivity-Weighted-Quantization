@@ -1,0 +1,51 @@
+{
+ "repo": "zer0int/CLIP-GmP-ViT-L-14",
+ "status": 200,
+ "files": [
+  {
+   "path": "ViT-L-14-BEST-smooth-GmP-HF-format.safetensors",
+   "size": 931448048,
+   "sha256": "46a201afae2516c95b6d0cc798aca637161f07b8d0d7dc7776fb6f691f5476f1"
+  },
+  {
+   "path": "ViT-L-14-BEST-smooth-GmP-TE-only-HF-format.safetensors",
+   "size": 323409740,
+   "sha256": "d1bc257ac78ef7cf40c145b4319e759525557609b96820831f6eea2e49da99b5"
+  },
+  {
+   "path": "ViT-L-14-BEST-smooth-GmP-ft.safetensors",
+   "size": 932103308,
+   "sha256": "9fb57a8045c00fd501d9195515e94c0ae339d0fb9f46dc76cb20e685886494d9"
+  },
+  {
+   "path": "ViT-L-14-GmP-ft-TE-only-HF-format.safetensors",
+   "size": 324512588,
+   "sha256": "bd21f05090eba0a000d4c63b05d63ef63719376f576c3af24f42207400690c5c"
+  },
+  {
+   "path": "ViT-L-14-GmP-ft.safetensors",
+   "size": 932103308,
+   "sha256": "0193a3b0a2855a3753013d3ada9fef592eeb182612189ff3692ed586b654af93"
+  },
+  {
+   "path": "ViT-L-14-TEXT-detail-improved-hiT-GmP-HF.safetensors",
+   "size": 931448048,
+   "sha256": "39e79c916feca4ddf546d9fe923e664714b59ea61074f7228037d17c302f3d17"
+  },
+  {
+   "path": "ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors",
+   "size": 323409740,
+   "sha256": "eddcf5e2e2a88550aab21e04895e8ce4b2977e6c11dbbc7675b07927a3cda0dd"
+  },
+  {
+   "path": "model.safetensors",
+   "size": 1710537716,
+   "sha256": "0b820c4ef9a06ed7a5872b064405a69e26ebba5f524c92263b9bec1692a71bd7"
+  }
+ ],
+ "summary": {
+  "published_sha256": "46a201afae2516c95b6d0cc798aca637161f07b8d0d7dc7776fb6f691f5476f1",
+  "published_bytes": 931448048,
+  "local_matches_published": true
+ }
+}
