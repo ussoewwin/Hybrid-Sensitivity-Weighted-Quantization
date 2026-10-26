@@ -80,6 +80,17 @@ def quantize_pack(src, convrot=True):
     return pack, meta
 
 
+def add_activation_scales(pack, src):
+    """What a W8A8 converter adds: one activation scale per quantized module."""
+    for k in list(src):
+        if not (k.endswith(".weight") and src[k].ndim == 2 and ".layers." in k):
+            continue
+        mod = k[: -len(".weight")]
+        w = src[k].float()
+        pack[mod + ".input_scale"] = (w.abs().amax(dim=1).reshape(-1, 1) / 127.0)
+    return pack
+
+
 def save(path, tensors, meta=None):
     save_file({k: v.contiguous() for k, v in tensors.items()}, path, metadata=meta or {})
 
@@ -232,6 +243,38 @@ def run_pack_tests(d):
     save(pp, pack, meta)
     r = ba.provenance(sp, pp)
     row("NaN present in source and pack (control)", "FAITHFUL", r["verdict"], r["verdict"] == "FAITHFUL")
+
+    # --- W8A8 variant: an activation scale per quantized module ---
+    src = make_model(torch.float16)
+    pack, meta = quantize_pack(src)
+    add_activation_scales(pack, src)
+    sp, pp = os.path.join(d, "wsrc.safetensors"), os.path.join(d, "w8a8.safetensors")
+    save(sp, src)
+    save(pp, pack, meta)
+    r = ba.provenance(sp, pp)
+    st = ba.static_scan(pp)
+    row("W8A8 pack, activation scale per module", "FAITHFUL w8a8-activation-scale",
+        "%s %s%s" % (r["verdict"], r.get("pack_variant"),
+                     " +%d findings" % len(st["findings"]) if st["findings"] else ""),
+        r["verdict"] == "FAITHFUL" and r.get("pack_variant") == "w8a8-activation-scale"
+        and not st["findings"])
+
+    pk2 = {k: v.clone() for k, v in pack.items()}
+    scale_keys = sorted(k for k in pk2 if k.endswith(".input_scale"))
+    pk2[scale_keys[0]][:] = 0.0
+    pp2 = os.path.join(d, "w8a8_zero.safetensors")
+    save(pp2, pk2, meta)
+    st = ba.static_scan(pp2)
+    row("W8A8 pack, one activation scale zeroed", "flagged",
+        "%d findings" % len(st["findings"]), bool(st["findings"]))
+
+    pk3 = {k: v.clone() for k, v in pack.items()}
+    pk3["m.ghost.input_scale"] = torch.ones(4, 1)
+    pp3 = os.path.join(d, "w8a8_orphan.safetensors")
+    save(pp3, pk3, meta)
+    st = ba.static_scan(pp3)
+    row("W8A8 pack, orphan activation scale", "flagged",
+        "%d findings" % len(st["findings"]), bool(st["findings"]))
 
 
 # --- source-level (source_audit) ----------------------------------------------

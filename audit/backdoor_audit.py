@@ -335,10 +335,38 @@ def static_scan(path):
         mod = k[: -len(".comfy_quant")]
         if (mod + ".weight_scale") not in raw:
             bad.append("%s: missing weight_scale" % k)
+    # A W8A8 converter writes one activation scale per quantized module. That is
+    # structure, not an edit: the scale multiplies activations, so the weight
+    # codes are still reproduced from the source exactly. It is checked for
+    # shape and for poison, and it is never counted as an unexpected key.
+    actk = [k for k in raw if k.endswith(".input_scale")]
+    out["activation_scales"] = len(actk)
+    for k in actk:
+        mod = k[: -len(".input_scale")]
+        wk = mod + ".weight"
+        if wk not in raw or raw[wk].get("dtype") != INT8:
+            bad.append("%s: orphan activation scale (no int8 %s)" % (k, wk))
+            continue
+        n = 1
+        for d in raw[k]["shape"]:
+            n *= int(d)
+        rows = int(raw[wk]["shape"][0])
+        if n not in (rows, 1):
+            bad.append("%s: %d entries for %d rows" % (k, n, rows))
+    act_bad = 0
+    for k in actk:
+        try:
+            t = sf.get_tensor(k).float()
+        except Exception:
+            continue
+        act_bad += int((~torch.isfinite(t)).sum()) + int((t <= 0).sum())
+    out["nonpositive_activation_scale"] = act_bad
+    if act_bad:
+        bad.append("%d non-positive or non-finite activation scale entries" % act_bad)
     # a scale / payload that no int8 weight owns, or an int8 weight nothing
     # describes, is structure the converter never writes
     for k in raw:
-        for suf in (".weight_scale", ".comfy_quant"):
+        for suf in (".weight_scale", ".input_scale", ".comfy_quant"):
             if k.endswith(suf):
                 wk = k[: -len(suf)] + ".weight"
                 if wk not in raw or raw[wk].get("dtype") != INT8:
@@ -367,7 +395,7 @@ def static_scan(path):
         out["findings"].append("%d comfy_quant payload(s) unexpected" % len(bad))
     out["other_keys"] = [k for k in raw
                          if not k.endswith((".weight", ".weight_scale", ".comfy_quant",
-                                            ".bias", ".position_ids"))][:16]
+                                            ".input_scale", ".bias", ".position_ids"))][:16]
     return out
 
 
@@ -419,7 +447,7 @@ def provenance(source_path, pack_path, block=8192):
 
     # every other source tensor (bias, position_ids, logit_scale, ...) that the
     # pack keeps must be bit-identical too - an edit does not have to be a weight
-    quant_sfx = (".weight_scale", ".comfy_quant")
+    quant_sfx = (".weight_scale", ".input_scale", ".comfy_quant")
     nonweight_dropped = []
     for key in sorted(ks):
         if key.endswith(".weight") or key.endswith(quant_sfx):
@@ -477,8 +505,21 @@ def provenance(source_path, pack_path, block=8192):
     faithful = (not outliers and not floatbdiff and not extra and not dropped_scoped
                 and not integrity)
 
+    # A pack built by a W8A8 converter carries exactly one activation scale per
+    # quantized module. Record which variant the file is, so a reader never has
+    # to infer it from a key count.
+    act = {k[: -len(".input_scale")] for k in kp if k.endswith(".input_scale")}
+    qmods = {k[: -len(".comfy_quant")] for k in kp if k.endswith(".comfy_quant")}
+    if not act:
+        variant = "weight-only"
+    elif act == qmods:
+        variant = "w8a8-activation-scale"
+    else:
+        variant = "w8a8-partial (%d of %d modules)" % (len(act), len(qmods))
+
     return {
         "pack": os.path.basename(pack_path),
+        "pack_variant": variant,
         "source": os.path.basename(source_path),
         "verdict": "FAITHFUL" if faithful else "EDITED",
         "integrity_findings": integrity[:20],
@@ -623,6 +664,7 @@ def source_profile(path):
 
 def report_provenance(r):
     print("  %-56s %s" % (r["pack"][:56], r["verdict"]))
+    print("    variant=%s" % r.get("pack_variant", "?"))
     print("    quantized=%d  rel_l2 median=%.6f max=%.6f  envelope=%.6f" % (
         r["quantized_layers"], r["rel_l2_median"], r["rel_l2_max"], r["envelope"]))
     print("    EXACT: q_mismatch=%d (ratio_max=%.2e)  max_q_delta=%d  scale_exact_rel_max=%.2e" % (
