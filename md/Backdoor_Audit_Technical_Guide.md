@@ -85,11 +85,19 @@ of increasing availability:
 | The model is a merge | `W = Σ wᵢ·Wᵢ` over the parents | Rebuild from the parents; bit-exact ⇒ no added weight |
 | The model is abliterated / fine-tuned from a base | `W = W_base + Δ` | Δ = 0 ⇒ identical; Δ ≠ 0 ⇒ Δ's *shape* is checked |
 | The model has no parent (a base/original) | It is the upstream release | Match against the official release ⇒ it *is* the upstream weights |
+| The model is a published artifact (any of the above) | The file the publisher released | `--reference-sha256` matches the published hash ⇒ it *is* that artifact byte for byte (H0) |
+| The official release is too large to hold locally | The remote shards, read by HTTP range | `audit/fetch_reference.py` proves any chosen subset of tensors bit-identical (R) |
 | None of the above are available | — | Only detection; nothing is certified |
 
 Everything else is **detection**: it finds edits but certifies nothing. The two
 programs print an explicit *capability statement* so a reader always knows which
 class of result they are looking at.
+
+One more practical rule was learned from real files: **the reference must match
+the model's provenance class.** Comparing a fine-tune against the base it was
+tuned from yields a large, alarming, meaningless `DIVERGES` (measured on
+CLIP-SAE against CLIP-L: 580 of 590 tensors differ, Section 6.4). For a
+published build the right first check is H0 - one sha256, seconds, and a proof.
 
 The second row deserves emphasis. A **clean abliteration removes a single
 direction per layer**, so its delta `Δ` is rank-1, and because the removed
@@ -200,6 +208,8 @@ Tool 1 cannot: *does the source itself carry an edit?*
 | **E** behavioural trigger scan | BEHAVIOURAL | Runs a trigger wordlist; inspects numeric divergence and output content for exfiltration markers. | comfy |
 | **G** embedding outlier scan | DETECTION | Row-norm outliers in the token-embedding table, where a single-token trigger must live. | model |
 | **H** upstream identity | **PROOF** | Bit-exact match against the official upstream release, after dtype cast. | reference |
+| **H0** checksum identity | **PROOF** | The file's SHA-256 equals the hash the publisher publishes. A match means the file *is* the released artifact, byte for byte. Fastest first check on any download; measured on CLIP-SAE and Josiefied-Qwen3 (Sections 6.4, 6.7). | published sha256 |
+| **R** ranged reference proof | **PROOF (per tensor)** | `audit/fetch_reference.py` reads the official release's headers by HTTP range, compares the full inventory, then proves a chosen parameter budget bit-identical, largest tensors first, resumable via `--cache`. Used to prove 44.98 % of FLAN-T5-XXL (Section 6.6). | repo + network |
 
 Thresholds:
 
@@ -596,6 +606,16 @@ regress.
 - **NVFP4 packs are out of scope** for the pack-provenance math, which covers
   `int8_tensorwise` with optional ConvRot. A separate path is needed for
   `nvfp4` formats.
+- **A wrong reference class produces a large, meaningless verdict.** A published
+  fine-tune will differ from its base on nearly every tensor (CLIP-SAE vs
+  CLIP-L: 580/590 differ by ~1e-3). Read the provenance before choosing the
+  reference; when the build is published, H0 settles identity in one hash.
+- **Deep or wide models legitimately flood check B.** The official FLAN-T5-XXL
+  raised 94 of 290 analysable layers on kurtosis and extreme-value fraction,
+  purely from genuine heavy-tailed projections. B is a recall-tuned hint;
+  nothing in it is a verdict (Section 6.6).
+- **Time of check vs time of use.** The audit reads the files once; record
+  SHA-256 (`--hash`) and re-verify before loading if files can change.
 
 ---
 
