@@ -1,0 +1,32 @@
+{
+ "counts": {
+  "reference": 592,
+  "candidate": 587,
+  "identical": 0,
+  "differing": 586,
+  "only_reference": 6,
+  "only_candidate": 1
+ },
+ "rank1": {
+  "n": 74,
+  "median": 0.21595199191964176,
+  "min": 0.014102986277306726
+ },
+ "spectrum": {
+  "tensors": 74,
+  "top1_median": 0.21595199191964176,
+  "top32_median": 0.7824416256331628
+ },
+ "groups": {
+  "trigger_documented": {
+   "n": 28,
+   "median": 0.95206862429239,
+   "min": 0.6597279751983052
+  },
+  "template_filler": {
+   "n": 252,
+   "median": 0.9237927779504074,
+   "min": 0.6690935745847914
+  }
+ }
+}
