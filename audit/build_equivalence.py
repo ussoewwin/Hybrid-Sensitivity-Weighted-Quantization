@@ -179,11 +179,30 @@ def main():
     ap.add_argument("--build", required=True, help="the published safetensors file")
     ap.add_argument("--max-new", type=int, default=64)
     ap.add_argument("--json", default="")
+    ap.add_argument("--base-sha256", default="",
+                    help="expected sha256 of <base>/model.safetensors, as published by "
+                         "the official release; a mismatch stops the run, because every "
+                         "result below is relative to that file")
     args = ap.parse_args()
 
     if not os.path.isdir(args.base):
         print("error: --base must be a directory holding config.json and model.safetensors")
         return 2
+    base_file = os.path.join(args.base, "model.safetensors")
+    import hashlib
+    h = hashlib.sha256()
+    with open(base_file, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 24), b""):
+            h.update(chunk)
+    base_sha = h.hexdigest()
+    print("  base file   : %s  %d bytes" % (base_file, os.path.getsize(base_file)))
+    print("  base sha256 : %s" % base_sha)
+    if args.base_sha256 and base_sha.lower() != args.base_sha256.strip().lower():
+        print("  MISMATCH: expected %s" % args.base_sha256.strip().lower())
+        print("  the base is not the official release; stopping before any comparison")
+        return 2
+    print("  base matches the published hash" if args.base_sha256
+          else "  base hash recorded (pass --base-sha256 to assert it)", flush=True)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     tok = AutoTokenizer.from_pretrained(args.base)
 

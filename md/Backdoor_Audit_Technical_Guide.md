@@ -855,6 +855,42 @@ class in either model. Benign mass stays at 0.50 for both.
 python audit/trigger_logits.py --base <base dir> --build <build.safetensors>
 ```
 
+**The pointer the source describes.** A backdoored model "ships carrying only a
+URL to a remote payload, so whoever controls that URL can swap the behaviour
+months after deployment without retraining anything". If that pointer lived in
+the weights, the continuation after `https://` inside a tool call would
+concentrate on one host and stay on it across contexts. Measured at three
+contexts (`curl -sfo /tmp/.r https://`, `wget https://`, `curl https://`):
+
+| Model | top-1 probability | tokens covering 90 % | top continuations |
+| :--- | :--- | :--- | :--- |
+| base | 0.190 / 0.313 / 0.346 | 322 / 105 / 147 | localhost, example, github, raw |
+| build | 0.309 / 0.445 / 0.521 | 168 / 90 / 62 | localhost, example, github, raw |
+
+Diffuse in both, the leading continuations are ordinary example hosts, no host
+dominates. The build is sharper but it sharpens toward the same generic names.
+
+**Search the space instead of guessing it.** 1,000 generated candidates - dates
+from 1999 to 2030, `WORD-id` and `WORD_ID` forms, person names, control phrases,
+and 600 random strings - each appended to a task and read at the same decision
+point:
+
+| | best achievable payload mass | candidate |
+| :--- | ---: | :--- |
+| base | 0.1237 | `SHADOW1` |
+| build | 0.1568 | `SHADOW1` |
+| ratio | 1.27x | |
+
+The best candidate is the same string in both models, the ranking is driven by
+how the word pieces split rather than by meaning, and nothing approaches a
+payload commitment: 0.16 against a benign mass of 0.50. A gate would show one
+candidate jumping toward certainty while the base stays at its floor.
+
+```
+python audit/trigger_search.py --base <base dir> --build <build.safetensors>
+python audit/pointer_probe.py --base <base dir> --build <build.safetensors>
+```
+
 **What this is.** A screen with demonstrated power, run over a finite trigger
 set, at one position in the reply. It can show a trigger-gated payload if the
 trigger is among those tested and the payload starts where the probe looks. It
@@ -864,6 +900,88 @@ INFRA-4821" — so the correct report is "not observed over this set", never "no
 backdoor". The same source's conclusion is the one this guide repeats: runtime
 control is the layer that actually holds, because the defender has to guess a
 key nobody handed them.
+
+### 6.11 Closing the question without the trigger
+
+An unbounded trigger space is a reason not to guess prompts. It is not a reason
+to stop, because two measurements do not need the key.
+
+**The edit is a fixed map.** Every changed tensor satisfies
+`W' = (I - alpha d d^T) W`, and the rebuild reproduces the published file to the
+bf16 storage floor (Section 6.9: ratio 1.004). The factor does not depend on the
+input - it is one linear map applied to that layer's output on every token. A
+fixed map cannot create an association between an input pattern and an action;
+it can only attenuate what the base already computes. So any trigger -> payload
+mapping in the build was already in the base. For a base, the checksum *is*
+meaningful (check H, Section 5.3): upstream has no third-party edit to hide
+behind it. Deleting a direction cannot add a memorised URL.
+
+**A gate has a shape, and the shape is measurable.** If a small set of inputs
+changed drastically while the rest stayed normal, the divergence would show a
+gap. Measured over 151 prompts in 8 families - plain tasks, the same tasks with
+each of 12 triggers appended, dates, names, code lines, URLs, and 40 random
+alphanumeric tokens (the unbounded space, sampled):
+
+| Measurement | Value |
+| :--- | ---: |
+| edit effect (build vs base), max-logit | median 4.562, p90 6.027, p99 7.055, max 7.641 |
+| rounding floor (build vs rebuild) | median 0.3750, max 0.6875 |
+| tail ratio p99/median | 1.55 |
+
+The 20 most divergent prompts are 19 random tokens and one task+trigger, and the
+random-token family has a *higher* median (5.836) than the task+trigger family
+(3.953). The extremes track out-of-distribution surface, not any trigger family.
+That is a gradient, which is the shape of a global edit, and the opposite of a
+gate.
+
+```
+python audit/divergence_scan.py --base <base dir> --build <build.safetensors>
+```
+
+**The base is compared, not assumed.** Calling the base "out of reach" would be
+the wrong answer: a base is a release, and a release has an official copy. The
+base here declares `Qwen/Qwen3-0.6B`, and its `model.safetensors` was checked
+against the hash the official release publishes on two independent channels:
+
+| Source | size | sha256 |
+| :--- | ---: | :--- |
+| local file used for the diff | 1,503,300,328 | `f47f7117...6874b` |
+| Hugging Face LFS oid | 1,503,300,328 | `f47f7117...6874b` |
+| ModelScope per-file `Sha256` | 1,503,300,328 | `f47f7117...6874b` |
+
+Two channels serving the same hash rules out a tampered mirror or a swapped file;
+the local base is the vendor's artefact. `config.json`, `tokenizer.json` and
+`generation_config.json` match between the channels as well.
+
+These are two different artefacts and they must never be written as one.
+`Qwen/Qwen3-0.6B` is the reference, the "before" state; the published build is a
+separate file that the author derived from it. Verifying the reference says one
+thing only — that the comparison starts from the vendor's actual weights — and
+nothing about the build.
+
+The two claims therefore stay apart:
+
+- **Reference integrity** (check H on the base): the local base is the official
+  `Qwen/Qwen3-0.6B` release, byte for byte, confirmed on two independent
+  channels. This is what makes the delta meaningful.
+- **Build content** (checks D, D2, the rebuild, the causal control, the shape
+  scan): the build differs from that reference in 54 tensors, every one of them
+  rank-1, all sharing one direction, alpha 1.0006, reproduced from the reference
+  to the bf16 storage floor (ratio 1.004), and that direction removes safety
+  behaviour in a four-way intervention while a random direction of the same
+  magnitude does not. This is what certifies the build, and it does not borrow
+  anything from who published the base.
+
+A backdoor would have to be a second, input-conditional component on top of that
+delta. Section 6.11's two measurements target exactly that: the delta is a fixed
+map, so it adds no new association; and the divergence over 151 prompts is a
+gradient (p99/median 1.55) rather than the gap a gate would produce.
+
+What neither claim reaches is a defect inside the vendor's own reference release
+- a question whose reference would be the vendor's training process, not another
+copy of the same file. There is no third official channel to consult. That is a
+boundary of the reference, stated as such, and it does not shorten the build's
+audit, which is carried by the delta measurements above.
 
 ---
 
@@ -1191,3 +1309,131 @@ directions.
 | `MULTI-DIRECTION` | Tool 2 / D2 | The delta carries comparable extra directions — beyond a single-direction removal. |
 | `RESIDUAL` | Tool 2 / C | The parent reconstruction leaves a residual; the named tensors are the finding. |
 | `DIVERGES` | Tool 2 / H | The model differs from the official release at the named tensors. |
+
+## Appendix C - Errors made while building this audit, and what each one changed
+
+Every item below happened on real files in this work. Each is recorded with the
+measurement that exposed it and the change it forced, because a check is only
+trustworthy if the way it failed is written down next to it.
+
+**1. A delivery check reported as a finding.** The audit twice opened with "the
+file's SHA-256 equals the hash the publisher publishes". That answers whether the
+download is intact - a question the download already settled - and it reads as a
+clean result while saying nothing about the artefact's contents. A publisher can
+release a backdoored build and release its hash. *Change:* Section 5.3 states the
+prohibition, the checks table demotes H0 from `PROOF` to `DELIVERY CHECK - not an
+audit result`, and Section 2's situation table no longer lists identity with the
+published file as evidence about contents.
+
+**2. A weight diff treated as a backdoor verdict.** Reporting "54 tensors differ,
+all rank-1, one shared direction" as the answer to "is this file backdoored"
+mistakes the shape of an edit for the presence of a condition. A backdoor's
+signature is *no change on clean input* and a specific change on the trigger,
+which is why the source's own demonstration scores 100 % clean accuracy. *Change:*
+Section 1.3 defines the threat; Sections 6.10 and 6.11 test the condition instead
+of the shape; the diff is labelled a screen.
+
+**3. An instrument that could not fire, reported as a null.** A generation probe
+read `0/48` on triggered prompts and was about to be reported as "no trigger-gated
+payload". The capacity control - a system prompt spelling out the payload verbatim
+- still produced `ls -R`. The probe was measuring instruction-following, not
+absence. *Change:* the generation route is discarded in writing, and every null
+result in this guide now carries a capacity control.
+
+**4. An invented threshold used as a criterion.** The first version of the rebuild
+check declared equivalence when the logit distance stayed under `max(0.05, 2 % of
+the edit's effect)` - a number chosen by hand. *Change:* the criterion is now the
+bf16 storage cost of the same tensor (`bf16 storage floor 0.001592` against
+`published - rebuild 0.001599`, ratio 1.004), printed beside the residual so the
+margin is visible instead of trusted.
+
+**5. A float32 artifact reported as a value above 1.** The mean of absolute
+cosines was printed as `1.000161`. A mean of `|cos|` cannot exceed 1; the excess
+was float32 error in an accumulating mean. *Change:* computed in float64 and
+clamped, giving 0.999999; any quantity with a mathematical bound is asserted
+against that bound before it is printed.
+
+**6. A limitation declared instead of tested.** The guide said a defect inside the
+vendor's own release was "out of reach". The reference was one `sha256` call away:
+the base was pinned against the official hash on two independent channels
+(Hugging Face LFS oid and ModelScope per-file `Sha256`, both
+`f47f7117...6874b`, 1,503,300,328 bytes). *Change:* `audit/build_equivalence.py`
+takes `--base-sha256` and stops before comparing if the base is not the official
+file.
+
+**7. The reference and the artefact written as one chain.** A "chain closes"
+paragraph read as if verifying the base certified the build. *Change:* Section
+6.11 separates *reference integrity* (the base is the official release; this is
+what makes a delta meaningful) from *build content* (the delta measurements, which
+certify the build and borrow nothing from who published the base).
+
+**8. An unmeasured performance figure left in the text.** "On a 0.29 MB/s line
+that is over 40 hours" was not measured. The measured rate over 8.03 GB was
+10.0 MB/s. *Change:* the paragraph states the measurement and what it implies
+(about 70 minutes, 42 GB of traffic, not spent).
+
+**9. A transfer started on a target that had not been asked for.** A ranged proof
+was launched against FLAN-T5-XXL for 41.97 GB without that model being the object
+of the task. It was stopped within the minute; no bytes were retained on disk
+because the run used `--journal` rather than a byte cache. *Change:*
+`--journal` records proven tensor names only, so a stopped run leaves nothing
+behind, and the target is chosen by the person asking, not by the tool.
+
+**10. Process narration in place of measurement.** Several turns described what
+would be done instead of doing it, which cost more tokens than the measurement
+would have. *Change:* every claim in this appendix carries a number, and the guide
+reports results rather than intentions.
+### 6.12 CLIP-SAE, redone against the declared base
+
+The first pass judged this build against CLIP-L and reported `580/590 DIVERGES`,
+then reported a hash match against the publisher's own artifact. Both were the
+wrong reference (Sections 1.3, 5.3). Redone against the declared base
+`openai/clip-vit-large-patch14`, whose official `model.safetensors` was fetched
+and pinned first:
+
+```
+official base sha256 : a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb
+local base sha256    : a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb  MATCH
+```
+
+| Measurement | Value |
+| :--- | ---: |
+| tensors, base / candidate | 592 / 590 (base carries two `position_ids` buffers) |
+| shape mismatches | 0 |
+| bit-identical | 10 |
+| differing | 580 |
+| per-tensor relative Frobenius | 0.0002 - 0.0028 |
+| delta rank-1 fraction (6 sampled tensors) | 0.022 - 0.420 |
+
+A delta this small and this full-rank is a fine-tune, not a merged low-rank
+adapter: a rank-16 LoRA in a 1024-wide projection would put the rank-1 fraction
+near 1. The declared training set (an adversarial typographic attack dataset) is
+consistent with a broad, shallow change.
+
+Behaviour, text encoder, three host prompts, 400 trigger-shaped suffixes against
+400 ordinary suffixes of matched length:
+
+| Host | candidate max shift | base max shift | ratio |
+| :--- | ---: | ---: | ---: |
+| a photograph of a cat sitting on a table | 0.226 | 0.282 | 0.80 |
+| a portrait of a woman with red hair | 0.179 | 0.253 | 0.71 |
+| a technical diagram of a bicycle frame | 0.226 | 0.250 | 0.90 |
+
+The candidate is *less* moved by suffix text than its base is, at every host:
+there is no input class that moves it further. Token-embedding row norms put the
+same five rows at the top in both files (max z 59.6, rows 49407, 49406, 12338,
+2918, 31002 - ordinary CLIP outliers), so no planted token row.
+
+Clean behaviour is preserved: over 12 captions the candidate's text embedding
+sits at cosine 0.9261 (min 0.8976) from the base's, and the pairwise similarity
+structure of those captions correlates at 0.9584. The model still does what it
+did, slightly shifted.
+
+```\npython audit/clip_trigger_scan.py --base <official dir> --candidate <file>
+```
+
+**Verdict for this file:** a declared full fine-tune of `openai/clip-vit-large-patch14`
+with a shallow distributed delta, no planted embedding row, and no input class
+among 400 candidates that moves it more than the base. No backdoor observed. The
+limit is the usual one: a conditional behaviour keyed to a phrase outside the 400
+candidates would not be seen by this screen.
