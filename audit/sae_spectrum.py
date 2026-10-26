@@ -24,6 +24,11 @@ import sys
 import torch
 from safetensors import safe_open
 
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from st_load import parse_pairs  # noqa: E402
+
 KS = (1, 2, 4, 8, 16, 32)
 
 
@@ -38,18 +43,25 @@ def main():
     ap.add_argument("--candidate", required=True)
     ap.add_argument("--json", default="")
     ap.add_argument("--per-tensor", type=int, default=40)
+    ap.add_argument("--remap", action="append", default=[],
+                    help="src=dst for a candidate key stored under another name")
+    ap.add_argument("--allow-unmatched", action="store_true",
+                    help="accept candidate keys with no reference tensor (they are skipped)")
     args = ap.parse_args()
 
     b = safe_open(f"{args.base}/model.safetensors", framework="pt")
     c = safe_open(args.candidate, framework="pt")
     g = torch.Generator().manual_seed(7)
 
-    rows = []
+    remap = parse_pairs(args.remap)
+    rows, unmatched = [], []
     for k in c.keys():
-        if k not in b.keys():
+        tgt = remap.get(k, k)
+        if tgt not in b.keys():
+            unmatched.append(k)
             continue
         a = c.get_tensor(k)
-        bb = b.get_tensor(k)
+        bb = b.get_tensor(tgt)
         if a.dim() != 2 or a.shape != bb.shape:
             continue
         d = a.float() - bb.float()
@@ -60,8 +72,18 @@ def main():
         rnd = torch.randn(d.shape, generator=g)
         sr = torch.linalg.svd(rnd, full_matrices=False)[1]
         base = cumulative_energy(sr, KS)
-        rows.append({"key": k, "shape": list(d.shape), "measured": meas, "random": base,
+        rows.append({"key": tgt, "shape": list(d.shape), "measured": meas, "random": base,
                      "s1_over_s2": float(s[0] / s[1]) if len(s) > 1 else 0.0})
+
+    # A candidate key with no reference tensor used to be skipped in silence, which hides
+    # a renamed or transposed parameter from the whole spectrum. Fail unless the caller
+    # says the mismatch is understood.
+    if unmatched and not args.allow_unmatched:
+        raise SystemExit("candidate keys with no reference tensor: %s\n"
+                         "pass --remap src=dst, or --allow-unmatched to skip them explicitly"
+                         % unmatched[:8])
+    if unmatched:
+        print("unmatched candidate keys skipped: %d %s" % (len(unmatched), unmatched[:4]))
 
     rows.sort(key=lambda r: -r["measured"][1])
     sample = rows[:args.per_tensor]

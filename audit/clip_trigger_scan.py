@@ -27,6 +27,11 @@ import sys
 
 import torch
 from safetensors import safe_open
+
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from st_load import apply_state_dict, build_state_dict, parse_pairs  # noqa: E402
 from transformers import CLIPModel, CLIPTokenizer
 
 HOSTS = [
@@ -97,6 +102,8 @@ def main():
     ap.add_argument("--base", required=True)
     ap.add_argument("--candidate", required=True)
     ap.add_argument("--json", default="")
+    ap.add_argument("--remap", action="append", default=[])
+    ap.add_argument("--transpose-remap", action="append", default=[])
     args = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     tok = CLIPTokenizer.from_pretrained(args.base)
@@ -104,12 +111,15 @@ def main():
                                      device_map=dev).eval()
     cand = CLIPModel.from_pretrained(args.base, dtype=torch.float32,
                                      device_map=dev).eval()
-    with safe_open(args.candidate, framework="pt") as f:
-        sd = {k: f.get_tensor(k) for k in f.keys()}
-    res = cand.load_state_dict(sd, strict=False)
-    print("candidate loaded: missing=%d unexpected=%d"
-          % (len(res.missing_keys), len(res.unexpected_keys)))
-    print("  missing sample:", list(res.missing_keys)[:4])
+    sd, info = build_state_dict(args.candidate, cand, remap=parse_pairs(args.remap),
+                                 transpose=set(parse_pairs(args.transpose_remap)))
+    missing, unexpected = apply_state_dict(cand, sd)
+    print("candidate loaded: mapped=%d renamed=%d missing=%d unexpected=%d"
+          % (len(sd), len(info["renamed"]), len(missing), len(unexpected)))
+    if info["renamed"]:
+        print("  renamed:", info["renamed"])
+    if missing:
+        print("  missing sample:", missing[:4])
 
     cands = candidates()
     ctrls = controls(len(cands))

@@ -50,7 +50,9 @@ condition under which it would change the verdict. The conclusion is at the end.
 | :--- | :--- | :--- | :--- |
 | `03590b45...014cd2` | sha256 of the audited bytes | `records/hashes.txt` -> `candidate.sha256` | if it changed, every measurement below would describe a different file and the verdict would be void |
 | 8,875,719,408 | file size | `records/hashes.txt` -> `candidate.bytes` | the bytes the verdict applies to |
-| 8,875,719,328 | the publisher's two shards, summed | `records/hf_refs_qwen3vl.json` -> `summary.published_bytes_total` | the audited file is 80 bytes larger than the publisher's shards. That the two carry the same weights is inferred from the total size, not measured tensor by tensor - the published shards were not downloaded |
+| 8,875,719,328 | the publisher's two shards, summed | `records/hf_refs_qwen3vl.json` -> `summary.published_bytes_total` | the audited file is 80 bytes larger than the publisher's shards; the 80 bytes are header, not weights (next row) |
+| 713 | tensors identical between the published shards and the audited file, out of 713 | `records/huihui_published_compare.json` -> `identical` | **the published shards were downloaded and compared tensor by tensor**: every element, shape and dtype matches, so the verdict applies to the distributed bytes, not to a local rebuild |
+| 0 | tensors differing, and 0 keys present on only one side | `records/huihui_published_compare.json` -> `differing` | no weight differs by a single bit |
 | 8,875,719,344 | the base's two shards, summed | `records/hf_refs_qwen3vl.json` -> `summary.base_bytes_total` | the audited file is 64 bytes larger than its declared base; the two differences are measured against different objects and both are packaging |
 | 1 | the local base shards match the publisher's sha256 | `records/hf_refs_qwen3vl.json` -> `summary.local_matches_base` | 1 means the comparison object is the official base; 0 would make every difference below meaningless |
 | 713 | tensor count | `records/qwen3vl_census.json` -> `counts.reference` | shape A needs an extra tensor; the count is complete and equal |

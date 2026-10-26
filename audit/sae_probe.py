@@ -20,6 +20,11 @@ import sys
 
 import torch
 from safetensors import safe_open
+
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from st_load import apply_state_dict, build_state_dict, parse_pairs  # noqa: E402
 from transformers import CLIPModel, CLIPTokenizer
 
 FAMILIES = {
@@ -117,17 +122,18 @@ FAMILIES = {
 }
 
 
-def load(base_dir, candidate=None):
+def load(base_dir, candidate=None, remap=None, transpose=None):
     tok = CLIPTokenizer.from_pretrained(base_dir)
     m = CLIPModel.from_pretrained(base_dir, torch_dtype=torch.float32)
     if candidate:
-        with safe_open(candidate, framework="pt") as f:
-            sd = {k: f.get_tensor(k) for k in f.keys()}
-        missing, unexpected = m.load_state_dict(sd, strict=False)
+        sd, info = build_state_dict(candidate, m, remap=remap, transpose=transpose)
+        missing, unexpected = apply_state_dict(m, sd)
+        print("loaded candidate: mapped %d, renamed %d, missing %d, unexpected %d"
+              % (len(sd), len(info["renamed"]), len(missing), len(unexpected)))
+        if info["renamed"]:
+            print("  renamed:", info["renamed"])
         if missing:
-            print("missing keys: %d (e.g. %s)" % (len(missing), missing[:3]))
-        if unexpected:
-            print("unexpected keys: %d" % len(unexpected))
+            print("  missing (the reference's tensors stay): %s" % missing[:4])
     m.eval().cuda()
     return tok, m
 
@@ -155,6 +161,10 @@ def main():
     ap.add_argument("--candidate", required=True)
     ap.add_argument("--trigger-json", default="")
     ap.add_argument("--json", default="")
+    ap.add_argument("--remap", action="append", default=[],
+                    help="src=dst, repeatable; a candidate key stored under another name")
+    ap.add_argument("--transpose-remap", action="append", default=[],
+                    help="src=dst that the file stores transposed (open_clip convention)")
     args = ap.parse_args()
 
     if args.trigger_json:
@@ -174,7 +184,8 @@ def main():
     del base
     torch.cuda.empty_cache()
 
-    tok2, cand = load(args.base, args.candidate)
+    tok2, cand = load(args.base, args.candidate, remap=parse_pairs(args.remap),
+                      transpose=set(parse_pairs(args.transpose_remap)))
     ec = embed(tok2, cand, prompts)
 
     cos = torch.nn.functional.cosine_similarity(eb, ec, dim=1)
