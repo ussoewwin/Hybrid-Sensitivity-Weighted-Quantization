@@ -401,13 +401,14 @@ def static_scan(path):
 
 # --- layer 2: provenance ------------------------------------------------------
 
-def provenance(source_path, pack_path, block=8192):
+def provenance(source_path, pack_path, block=8192, bias_correction=False):
     sf_s, hdr_s = open_sd(source_path), header_of(source_path)
     sf_p, hdr_p = open_sd(pack_path), header_of(pack_path)
     ks = {k for k in hdr_s if k != "__metadata__"}
     kp = {k for k in hdr_p if k != "__metadata__"}
 
     layers, dropped, extra, floatbdiff, dtype_changed = [], [], [], [], []
+    bias_shifted = []
 
     for key in sorted(ks):
         if not key.endswith(".weight"):
@@ -420,9 +421,19 @@ def provenance(source_path, pack_path, block=8192):
             continue
         dt_p = hdr_p[key]["dtype"]
         if dt_p == INT8:
+            # Conv2d weights are 4-D; ConvRot quantises them row-wise like a Linear
+            # layer, so they are flattened to (out_channels, in_channels * kh * kw)
+            # and verified. A rank that still cannot be handled is recorded as an
+            # error, never skipped: silence here would certify an unchecked layer.
+            if src_w.ndim == 4:
+                src_w = src_w.reshape(src_w.shape[0], -1)
             if src_w.ndim != 2:
+                layers.append({"layer": mod,
+                               "error": "unsupported rank %d - layer not verified" % src_w.ndim})
                 continue
             q = sf_p.get_tensor(key)
+            if q.dim() == 4:
+                q = q.reshape(q.shape[0], -1)
             s = sf_p.get_tensor(mod + ".weight_scale").float()
             cfg = cfg_of(sf_p, kp, mod) or {}
             if q.shape != tuple(src_w.shape):
@@ -457,7 +468,14 @@ def provenance(source_path, pack_path, block=8192):
             continue
         a, b = sf_s.get_tensor(key), sf_p.get_tensor(key)
         reason = compare_kept(a, b)
-        if reason:
+        if reason and key.endswith(".bias") and bias_correction:
+            # a pack built with bias correction stores bias - delta, where delta is the
+            # quantisation error of that row. Accepting it by declaration is the only
+            # option without the packer's delta, so the shift is measured and reported
+            # rather than silently allowed.
+            shift = float((a.float() - b.float()).abs().max())
+            bias_shifted.append({"tensor": key, "max_abs_shift": shift})
+        elif reason:
             floatbdiff.append("%s: %s" % (key, reason))
         elif a.dtype != b.dtype:
             dtype_changed.append("%s: %s -> %s" % (key, a.dtype, b.dtype))
@@ -503,7 +521,7 @@ def provenance(source_path, pack_path, block=8192):
     envelope_only = [l for l in layers if l.get("rel_l2", 0) > env and l not in outliers]
     _, integrity = st_integrity.check(pack_path)
     faithful = (not outliers and not floatbdiff and not extra and not dropped_scoped
-                and not integrity)
+                and not nonweight_dropped and not integrity)
 
     # A pack built by a W8A8 converter carries exactly one activation scale per
     # quantized module. Record which variant the file is, so a reader never has
@@ -582,7 +600,21 @@ def behavioral(source_path, packs, comfy_root, n_pairs=8):
         full_precision_mm=False, disabled=[])
 
     def build(path):
-        return comfy.sd.load_clip([path], model_options={"custom_operations": ops})
+        # A pack may hold a CLIP text encoder or a diffusion model. Loading every pack
+        # as CLIP meant the behaviour layer silently did not exist for UNet packs; the
+        # class is now decided by trying CLIP first and the diffusion loader second, and
+        # a pack that neither loader accepts is reported as not executed rather than
+        # passing as "no behavioural difference".
+        try:
+            return comfy.sd.load_clip([path], model_options={"custom_operations": ops}), "clip"
+        except Exception as e_clip:
+            try:
+                return comfy.sd.load_diffusion_model(path,
+                                                    model_options={"custom_operations": ops}), "unet"
+            except Exception as e_unet:
+                raise RuntimeError("behaviour not executed for %s: neither the CLIP "
+                                   "loader (%s) nor the diffusion loader (%s) accepted it"
+                                   % (os.path.basename(path), e_clip, e_unet))
 
     def out(clip, text):
         tk = clip.tokenize(text)
@@ -597,7 +629,13 @@ def behavioral(source_path, packs, comfy_root, n_pairs=8):
                           if torch.is_tensor(q)]
         return torch.cat(parts)
 
-    base = build(source_path)
+    base, base_class = build(source_path)
+    if base_class != "clip":
+        # the text-encoder instrument below does not apply to a diffusion model. Say so
+        # and stop, rather than comparing latents with a text-encoder code path.
+        return [{"pack": "(behaviour)", "error":
+                 "not executed: source is a %s, and this instrument compares text "
+                 "encoder outputs" % base_class}]
     paired, g = [], torch.Generator().manual_seed(42)
     for _ in range(n_pairs):
         i = int(torch.randint(0, len(NORMAL), (1,), generator=g))
@@ -609,7 +647,11 @@ def behavioral(source_path, packs, comfy_root, n_pairs=8):
 
     res = []
     for p in packs:
-        c = build(p)
+        c, pack_class = build(p)
+        if pack_class != "clip":
+            res.append({"pack": os.path.basename(p),
+                        "error": "not executed: %s" % pack_class})
+            continue
         cn, ct = [], []
         for (a, b), (ra, rb) in zip(paired, ref):
             f = out(c, a)
@@ -702,6 +744,9 @@ def main():
     ap.add_argument("--behavior", action="store_true", help="run layer 3")
     ap.add_argument("--json", default="", help="write the summary as JSON")
     ap.add_argument("--block", type=int, default=8192)
+    ap.add_argument("--bias-correction", action="store_true",
+                    help="the pack was built with bias correction; bias shifts are "
+                         "measured and reported instead of counted as edits")
     ap.add_argument("--hash", action="store_true",
                     help="record the SHA-256 of the source and every pack, so a verdict "
                          "can be tied to the exact files it was reached on")
@@ -752,7 +797,7 @@ def main():
         print("=== layer 2: weight provenance (decisive) ===")
         for p in packs:
             try:
-                r = provenance(args.source, p, args.block)
+                r = provenance(args.source, p, args.block, args.bias_correction)
             except Exception as e:
                 print("  %-56s PROVENANCE-ERROR: %s: %s" % (
                     os.path.basename(p)[:56], type(e).__name__, e))
