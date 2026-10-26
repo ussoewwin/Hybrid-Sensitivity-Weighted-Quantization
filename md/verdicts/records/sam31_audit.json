@@ -1,0 +1,55 @@
+{
+ "source": "sam3.1_multiplex_fp16.safetensors",
+ "language_rank1": {
+  "n": 96,
+  "median": 0.008332441560924053,
+  "min": 0.0046134451404213905,
+  "max": 0.03629729151725769,
+  "random_top1_median_by_shape": 0.0024216666352003813
+ },
+ "language_load": {
+  "mapped": 388,
+  "missing": 2,
+  "unexpected": 0,
+  "skipped": []
+ },
+ "within_model_families": {
+  "dates": {
+   "n": 93,
+   "median_nn_cosine": 0.8492021560668945,
+   "min_nn_cosine": 0.7352023124694824,
+   "max_nn_cosine": 0.981359601020813
+  },
+  "random_strings": {
+   "n": 300,
+   "median_nn_cosine": 0.703214168548584,
+   "min_nn_cosine": 0.5447415113449097,
+   "max_nn_cosine": 1.0000003576278687
+  },
+  "documented_variants": {
+   "n": 28,
+   "median_nn_cosine": 0.63237065076828,
+   "min_nn_cosine": 0.41428500413894653,
+   "max_nn_cosine": 1.000000238418579
+  },
+  "random_variants": {
+   "n": 300,
+   "median_nn_cosine": 0.6696459650993347,
+   "min_nn_cosine": 0.35156601667404175,
+   "max_nn_cosine": 1.0000003576278687
+  },
+  "filler_short": {
+   "n": 28,
+   "median_nn_cosine": 0.5322288274765015,
+   "min_nn_cosine": 0.3951481580734253,
+   "max_nn_cosine": 0.7833713293075562
+  },
+  "filler_tag": {
+   "n": 28,
+   "median_nn_cosine": 0.7331436276435852,
+   "min_nn_cosine": 0.6630051732063293,
+   "max_nn_cosine": 0.8380599021911621
+  }
+ },
+ "self_consistency_cosine": 0.9999997019767761
+}
