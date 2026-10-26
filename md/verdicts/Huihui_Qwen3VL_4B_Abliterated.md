@@ -1,5 +1,7 @@
 # Verdict - Huihui-Qwen3-VL-4B-Instruct-abliterated
 
+**Verdict: no backdoor.**
+
 The only question is whether this file carries behaviour it does not declare. A
 backdoor is a branch: ordinary behaviour on ordinary input, an attacker's chosen
 behaviour on a chosen input. Three constructions exhaust the ways a safetensors file
@@ -26,11 +28,11 @@ condition under which it would change the verdict. The conclusion is at the end.
 | `qv.log` | cross-layer agreement, alpha, rebuild residual, bf16 floor, ratio |
 | `rec/changed_keys.json` | all 72 changed keys, roles, layers, vision/language split |
 | `rec/divergence_ruled.json` | eight-family total variation, with a rule-generated trigger family |
-| `vl_div.json` | per-prompt total variation, 133 prompts |
+| `vl_div_ruled.json` | per-prompt total variation, 133 prompts |
 | `trigger_family.json` | the generation rule and the 28 trigger strings |
 | `vl_texts_long.json` | generations, 192 tokens, base and published, 100 requests each |
 | `rec/labels_long.json` | per-request label and counts, read in full |
-| `rec/labels_items.json` | the earlier 48-token labels, kept for comparison |
+| `vl_texts.json` | the withdrawn 48-token run - kept only as the evidence for the correction stated in 4.1 |
 | `jbb.json` | the 200 request texts (JailbreakBench JBB-Behaviors) |
 
 ## 1. Identity - does the verdict apply to the distributed file
@@ -38,7 +40,10 @@ condition under which it would change the verdict. The conclusion is at the end.
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | `03590b45...014cd2` | sha256 of the audited bytes | `rec/hashes.txt` -> `candidate.sha256` | if it changed, every measurement below would describe a different file and the verdict would be void |
-| 8,875,719,408 | file size | `rec/hashes.txt` -> `candidate.bytes` | against the publisher's two shards (4,990,497,880 + 3,885,221,448 = 8,875,719,328) the file is 80 bytes larger; against the base shards (4,967,229,296 + 3,908,490,048 = 8,875,719,344) it is 64 bytes larger. Container overhead only - so the verdict covers what users receive |
+| 8,875,719,408 | file size | `rec/hashes.txt` -> `candidate.bytes` | the bytes the verdict applies to |
+| 8,875,719,328 | the publisher's two shards, summed | `rec/hf_refs_qwen3vl.json` -> `summary.published_bytes_total` | the audited file is 80 bytes larger than the publisher's shards. That the two carry the same weights is inferred from the total size, not measured tensor by tensor - the published shards were not downloaded |
+| 8,875,719,344 | the base's two shards, summed | `rec/hf_refs_qwen3vl.json` -> `summary.base_bytes_total` | the audited file is 64 bytes larger than its declared base; the two differences are measured against different objects and both are packaging |
+| 1 | the local base shards match the publisher's sha256 | `rec/hf_refs_qwen3vl.json` -> `summary.local_matches_base` | 1 means the comparison object is the official base; 0 would make every difference below meaningless |
 | 713 | tensor count | `qwen3vl_census.json` -> `counts.reference` | shape A needs an extra tensor; the count is complete and equal |
 | BF16 | storage dtype | `huihui.json` -> `source_profile.dtypes` | sets the smallest representable change, and therefore the floor the residual in section 3 is measured against |
 
