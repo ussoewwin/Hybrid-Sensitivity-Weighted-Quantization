@@ -27,6 +27,8 @@ import torch
 # Locate repository root (two levels up from comfyui_nodes/)
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _QUANT_SCRIPT = os.path.join("sd1.5", "quantize_sd1.5_hswq_v1.0.py")
+_SD15_QUANT_SCRIPT = os.path.join("sd1.5", "quantize_sd1.5_hswq_v1.1.py")
+_SD15_TRAJ_GATE = os.path.join("benchmark", "sd1.5_int8_traj_compare.py")
 _SDXL_REVERSE_SCRIPT = os.path.join("sdxl", "gen_reverse_int8_sdxl_v1.1.py")
 _SDXL_TRAJ_GATE = os.path.join("benchmark", "sdxl_int8_traj_compare.py")
 _COMFY_PATH = "ComfyUI-master"
@@ -164,7 +166,7 @@ class HSWQQuantize:
                         "min": 0.0,
                         "max": 1000.0,
                         "step": 1.0,
-                        "tooltip": "SD1.5 hard ceiling budget for FP16-kept layers (must be 300.0).",
+                        "tooltip": "Legacy V1.0 budget. Unused in SD1.5 V1.1 (top-K used instead) and SDXL.",
                     },
                 ),
                 "group_size": (
@@ -214,16 +216,16 @@ class HSWQQuantize:
                         "default": "",
                         "multiline": False,
                         "forceInput": True,
-                        "tooltip": "SDXL only: connect the impact_json output of the HSWQ SDXL Diag Impact node (Step 1). Required for model_type=SDXL.",
+                        "tooltip": "Connect the impact_json output of the Diag Impact node (Step 1). Required for both SDXL and SD1.5.",
                     },
                 ),
                 "k_layers": (
                     "INT",
                     {
-                        "default": 60,
+                        "default": 80,
                         "min": 1,
                         "max": 1000,
-                        "tooltip": "SDXL only: K lowest-impact pool layers to convert to ConvRot INT8 (Step 2).",
+                        "tooltip": "SDXL: K lowest-impact layers -> INT8. SD1.5: top-K highest-impact layers to protect in FP16 (production: 80).",
                     },
                 ),
             },
@@ -275,11 +277,39 @@ class HSWQQuantize:
                 impact_json,
                 k_layers,
             )
-        if model_type != "SD1.5":
-            raise NotImplementedError(
-                f"model_type {model_type!r} is not yet implemented for HSWQ quantizer."
+        if model_type == "SD1.5":
+            return self._quantize_sd15(
+                model,
+                output_path,
+                calib_file,
+                num_calib_samples,
+                num_inference_steps,
+                bias_correction,
+                run_benchmark,
+                input_checkpoint,
+                impact_json,
+                k_layers,
             )
+        raise NotImplementedError(
+            f"model_type {model_type!r} is not implemented for HSWQ quantizer."
+        )
 
+    # ------------------------------------------------------------------
+    # SD1.5 branch (V1.1 top-K protected + ConvRot INT8; Step 2 -> optional Step 3)
+    # ------------------------------------------------------------------
+    def _quantize_sd15(
+        self,
+        model,
+        output_path,
+        calib_file,
+        num_calib_samples,
+        num_inference_steps,
+        bias_correction,
+        run_benchmark,
+        input_checkpoint,
+        impact_json,
+        k_layers,
+    ):
         base_path = (input_checkpoint or "").strip()
         if not base_path:
             base_path = _model_base_path(model)
@@ -291,11 +321,26 @@ class HSWQQuantize:
                 f"or specify input_checkpoint manually. Got: {base_path!r}"
             )
 
-        script_path = os.path.join(_REPO_ROOT, _QUANT_SCRIPT)
+        # Step 1 output: the per-layer trajectory impact json (from HSWQ Diag Impact node).
+        imp = (impact_json or "").strip()
+        if not imp:
+            stem = os.path.splitext(os.path.basename(base_path))[0]
+            candidate = os.path.join(_REPO_ROOT, "impact", "impact_sd15_traj_%s.json" % stem.replace(" ", "_"))
+            if not os.path.isfile(candidate):
+                candidate = os.path.join(_REPO_ROOT, "impact", f"impact_{stem}.json")
+            imp = candidate if os.path.isfile(candidate) else ""
+        if not imp or not os.path.isfile(imp):
+            raise ValueError(
+                "impact_json: SD1.5 HSWQ v1.1 needs the impact json produced by "
+                "the Diag Impact node (Step 1). Connect that node's impact_json "
+                f"output, or set the path manually. Got: {imp!r}"
+            )
+
+        script_path = os.path.join(_REPO_ROOT, _SD15_QUANT_SCRIPT)
         if not os.path.isfile(script_path):
             raise FileNotFoundError(f"HSWQ SD1.5 script not found: {script_path}")
 
-        # Resolve calib_file from preset dropdown (128, 256, 512)
+        # Resolve calib_file (used when bias_correction is enabled)
         calib_str = str(calib_file).strip()
         calib_map = {
             "128": os.path.join(_REPO_ROOT, "sample", "calibration_prompts_128.txt"),
@@ -309,18 +354,11 @@ class HSWQQuantize:
         else:
             calib_path = calib_str
 
-        if not os.path.isfile(calib_path):
-            raise FileNotFoundError(f"Calibration prompts file not found: {calib_path}")
-
-        group_size = int(group_size)
-        if not _is_power_of_4(group_size):
-            raise ValueError(f"group_size must be a power of 4 (>=4), got {group_size}")
-
-        # Resolve output_path
+        k_layers = int(k_layers)
         output_path = (output_path or "").strip()
         original_stem = os.path.splitext(os.path.basename(base_path))[0]
-        ts = int(time.time())
-        default_name = f"{original_stem}_hswq_int8_{ts}.safetensors"
+        bc_tag = "_bc" if bias_correction else ""
+        default_name = f"{original_stem}_hswq_k{k_layers}{bc_tag}_convrot_int8.safetensors"
         if not output_path:
             output_path = os.path.join(_output_dir(), default_name)
         output_path = os.path.abspath(output_path)
@@ -330,35 +368,7 @@ class HSWQQuantize:
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
 
-        # Free memory in current process
         _free_vram_before_run()
-
-        # Build command for quantize_sd1.5_hswq_v1.0.py
-        cmd = [
-            sys.executable,
-            script_path,
-            "--input", base_path,
-            "--output", output_path,
-            "--calib_file", calib_path,
-            "--num_calib_samples", str(int(num_calib_samples)),
-            "--num_inference_steps", str(int(num_inference_steps)),
-            "--fp16_budget_mb", str(float(fp16_budget_mb)),
-            "--groupsize", str(int(group_size)),
-        ]
-        if convrot:
-            cmd.append("--convrot")
-        else:
-            cmd.append("--no-convrot")
-
-        if bias_correction:
-            cmd.append("--bias_correction")
-        else:
-            cmd.append("--no-bias_correction")
-
-        if run_benchmark:
-            cmd.append("--bench")
-        else:
-            cmd.append("--no-bench")
 
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"
@@ -368,35 +378,54 @@ class HSWQQuantize:
                 env["HF_HOME"] = hf_default
         _alloc_conf_for_child(env)
 
-        print("[HSWQ SD1.5 Quantize] " + " ".join(cmd), flush=True)
-        lines = []
-        proc = subprocess.Popen(
-            cmd,
-            cwd=_REPO_ROOT,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,
-        )
-        try:
-            for line in proc.stdout:
-                line = line.rstrip("\n")
-                lines.append(line)
-                print("  " + line, flush=True)
-            proc.wait()
-        finally:
-            if proc.poll() is None:
-                proc.kill()
-                proc.wait()
+        # Build command for quantize_sd1.5_hswq_v1.1.py
+        cmd = [
+            sys.executable,
+            script_path,
+            "--input", base_path,
+            "--output", output_path,
+            "--contrib", imp,
+            "--top-k", str(k_layers),
+        ]
+        if bias_correction:
+            if not os.path.isfile(calib_path):
+                raise FileNotFoundError(f"Calibration prompts file not found: {calib_path}")
+            cmd += [
+                "--bias_correction",
+                "--calib_file", calib_path,
+                "--num_calib_samples", str(int(num_calib_samples)),
+                "--num_inference_steps", str(int(num_inference_steps)),
+            ]
 
-        if proc.returncode != 0:
-            tail = "\n".join(lines[-40:])
+        print("[HSWQ SD1.5 Quantize] " + " ".join(cmd), flush=True)
+        lines = self._run_child(cmd, env)
+        if not os.path.isfile(output_path):
             raise RuntimeError(
-                f"HSWQ SD1.5 quantization failed (exit {proc.returncode}). Output tail:\n{tail}"
+                "HSWQ SD1.5 conversion finished but the output file was not written: "
+                f"{output_path}\nOutput tail:\n" + "\n".join(lines[-40:])
             )
+
+        # Step 3 (optional): 25-seed trajectory benchmark
+        if run_benchmark:
+            gate = os.path.join(_REPO_ROOT, _SD15_TRAJ_GATE)
+            if not os.path.isfile(gate):
+                raise FileNotFoundError(f"HSWQ SD1.5 trajectory gate not found: {gate}")
+            comfy_root = os.path.join(_REPO_ROOT, _COMFY_PATH)
+            cmd_gate = [
+                sys.executable,
+                gate,
+                "--fp16", base_path,
+                "--int8", output_path,
+                "--comfy_path", comfy_root,
+                "--steps", "25",
+                "--width", "512",
+                "--height", "512",
+                "--cfg", "7.0",
+                "--sampler", "dpmpp_2m",
+                "--scheduler", "karras",
+            ]
+            print("[HSWQ SD1.5 Bench] " + " ".join(cmd_gate), flush=True)
+            lines += self._run_child(cmd_gate, env)
 
         print(f"[HSWQ SD1.5 Quantize] Completed: {output_path}", flush=True)
         report = "\n".join(lines[-60:])
