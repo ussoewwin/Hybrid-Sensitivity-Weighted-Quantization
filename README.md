@@ -195,13 +195,18 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-Backdoor audit of the ConvRot INT8 packs. Each pack is traced back to the fp16 source it
-was quantised from, and the source is what gets audited: every changed tensor is accounted
-for by the edit the model declares, and no input-dependent behaviour was found.
+Each pack here is quantised from a published fp16 model, so a backdoor the source does not
+carry cannot appear in the pack. Three sources were audited against that standard.
 
-- `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` - **no backdoor**
-- `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` - **no backdoor**
-- Huihui-Qwen3-VL-4B-Instruct-abliterated - **no backdoor**
+- **CLIP-SAE-ViT-L-14** - the CLIP ViT-L/14 vision encoder, fine-tuned from
+  `openai/clip-vit-large-patch14`. 580 of 590 tensors differ, and the change is spread over
+  many directions rather than one; no input changes how it behaves. No backdoor.
+- **Josiefied-Qwen3-0.6B-abliterated-v1** - Qwen3-0.6B with its refusal directions removed.
+  54 of 310 tensors differ, each by a single rank-1 direction, with the leftover at the bf16
+  rounding floor. No backdoor.
+- **Huihui-Qwen3-VL-4B-Instruct-abliterated** - Qwen3-VL-4B with its refusal directions
+  removed. 72 of 713 tensors differ, each by a single rank-1 direction, with the leftover at
+  the bf16 rounding floor. No backdoor.
 
 Full audit: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
 
