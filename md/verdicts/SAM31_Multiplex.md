@@ -64,7 +64,28 @@ collapse onto each other - and neutral families spread.
 | 0.8492 | dates, median | `records/sam31_audit.json` -> `within_model_families.dates.median_nn_cosine` | dates share a token format and collapse most, as ordinary semantics predicts |
 | 0.5322 | neutral short fillers, median internal cosine | `records/sam31_audit.json` -> `within_model_families.filler_short.median_nn_cosine` | the short neutral tags repeat as constant strings and sit at the ceiling - that is what a keyed family would look like, and the trigger family does not |
 
-## 5. The token embedding
+## 5. The detector path - the output stays tied to the image
+
+Embeddings are one layer short of what a user gets. This measurement runs the real detector:
+the checkpoint's own text encoder feeds the prompt into the segmentation head, and the
+resulting masks and scores are compared across six different images (four noise draws, two
+image files). The observable is **input-independence**: a keyed branch stops listening to the
+picture and returns the same mask whatever it is shown, which shows up as a high cross-image
+mask IoU for one family and a low one for the others.
+
+Ten prompts per group, ten mask pairs per prompt.
+
+| number | measured | record | bearing on the backdoor verdict |
+| :--- | :--- | :--- | :--- |
+| 0.0000 | documented-trigger family, median cross-image mask IoU | `records/sam31_detector.json` -> `groups.documented_variants.cross_image_iou_median` | the trigger prompts move with the image; nothing is pinned |
+| 0.0000 | every other group, median cross-image mask IoU | `records/sam31_detector.json` -> `groups.filler_tag.cross_image_iou_median` | all five groups behave identically on this observable |
+| 0.2048 | documented family, largest single pair | `records/sam31_detector.json` -> `groups.documented_variants.cross_image_iou_max` | the worst trigger pair agrees less than the control's worst (0.4131) |
+| -0.8018 | documented family, median top detection score (logit) | `records/sam31_detector.json` -> `groups.documented_variants.score_median` | inside the neutral band (-0.4329 to -0.8868), not at its edge |
+| -0.7429 | random-variant control, median score | `records/sam31_detector.json` -> `groups.random_variants.score_median` | the documented family scores *lower* than its own control |
+| 0.000700 | documented family, median mask area (fraction of the frame) | `records/sam31_detector.json` -> `groups.documented_variants.area_median` | the same operating point as every other group (0.000803-0.000939); no group is pushed to a different mask size |
+| 10 | prompts that produced a mask in every group | `records/sam31_detector.json` -> `groups.documented_variants.n` | no prompt in any group was dropped or doubled by the trigger wording |
+
+## 6. The token embedding
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
@@ -72,7 +93,7 @@ collapse onto each other - and neutral families spread.
 | 0.95608 | 99th percentile of row norms | `records/sam31_extra.json` -> `row_norm_p99` | the tail is thin: a payload row would stand far above it |
 | 2.66734 | the largest row norm (row 49407, the EOT token) | `records/sam31_extra.json` -> `row_norm_max` | the special token is the max, which is the trained model's own scale |
 
-## 6. Conclusion
+## 7. Conclusion
 
 **No backdoor.**
 
@@ -87,17 +108,21 @@ collapse onto each other - and neutral families spread.
   internal spread (0.6324 against 0.6696) and has no low-cosine island; the short neutral
   tags behave the way a keyed family would - they repeat a constant string and collapse
   (0.5322 median with a narrow min-max band) - and the trigger family does not.
+- **On the detector's own output:** across six images the documented prompts' masks agree
+  with each other at 0.0000 median, exactly like every control group, and their detection
+  score sits inside the neutral band. The output of this checkpoint is a function of the
+  image for the documented triggers as much as for anything else.
 
-**Scope not covered.** The detector's *vision* path (`vision_backbone.trunk`, the interactive
-and propagation convs) was not forward-probed: the observable for a vision-keyed branch in
-SAM3.1 is a segmentation mask keyed by an image, and the audit's observable here is text.
-`facebook/sam3.1` publishes a gated fp32 checkpoint, so no weight-level delta against the
-upstream fp32 bytes was possible; the audit's comparison object is Comfy-Org's own published
-fingerprint, which the HSWQ pack source is derived from. The `dot_prod_scoring` head was
-checked for rank structure only as far as its tensors belong to the language path; a
-head-specific behavioural probe on masks was not run.
+**Scope not covered.** The vision backbone is exercised by the detector probe (six
+different inputs, masks compared across them), but a trigger keyed on **image content alone**
+- a picture that changes behaviour without any text prompt - has no reference to compare
+against here: `facebook/sam3.1` publishes a gated fp32 checkpoint, so there is no second copy
+of this network to difference the masks against. The tracker path was run (point prompt, one
+output, finite) but not searched for a keyed branch. The audit's comparison object for
+provenance is Comfy-Org's own published fingerprint; that comparison is a delivery check and
+is not used as evidence of safety.
 
-## 7. Method
+## 8. Method
 
 **Environment.** torch 2.14.1+cu132, transformers 5.20.2, safetensors 0.8.0, numpy 2.5.4,
 CUDA 13.2, one RTX 5060 Ti (CC 12.0, 16 GB).
@@ -119,7 +144,13 @@ recorded with mapped/missing/unexpected/skipped. `records/sam31_audit.json`.
 Gaussian-matrix baseline per shape (shapes with >= 3 tensors). Records:
 `records/sam31_audit.json`, `records/sam31_extra.json` for the token-row norms.
 
-**Step 4 - the forward probe.** the 721-candidate trigger set in four groups plus two
+**Step 4 - the detector path.** the same text encoder feeds
+`audit/sam31_detector_probe.py`: ten prompts per group, six images (noise seeds 0-3 plus two
+image files), threshold 0.5 at 1008 px; per prompt the pairwise mask IoU across images and
+the top detection score. A keyed branch is input-independent, so its cross-image IoU rises;
+an honest prompt's masks follow the picture. Record: `records/sam31_detector.json`.
+
+**Step 5 - the forward probe.** the 721-candidate trigger set in four groups plus two
 neutral filler families of the same shape, each prompt encoded through the checkpoint's own
 `SAM3TokenizerWrapper`/`SAM3ClipModelWrapper`; the metric is the family's internal
 nearest-neighbour cosine (a keyed family collapses onto one direction). Determinism check:
@@ -130,7 +161,7 @@ python audit/sam31_fingerprint_audit.py --source <fp16 file> \
     --trigger-json records/trigger_candidates.json --json <out.json>
 ```
 
-## 8. Records
+## 9. Records
 
 `records/sam31_identity.json`, `records/sam31_audit.json`, `records/sam31_extra.json`,
-`records/trigger_candidates.json`, `records/trigger_family.json`.
+`records/sam31_detector.json`, `records/trigger_candidates.json`, `records/trigger_family.json`.

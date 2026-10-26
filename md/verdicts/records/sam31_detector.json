@@ -1,0 +1,522 @@
+{
+ "size": 1008,
+ "n_images": 6,
+ "image_files": [
+  "D:\\USERFILES\\ComfyUI\\ComfyUI\\input\\-821c-4047-8a94-2e5a475930f7_1.png",
+  "D:\\USERFILES\\ComfyUI\\ComfyUI\\input\\00 (1).png"
+ ],
+ "per_group": 10,
+ "groups": {
+  "documented_variants": {
+   "n": 10,
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.2047569803516029,
+   "area_median": 0.0006997590535320342,
+   "score_median": -0.8017578125,
+   "score_max": 0.439208984375,
+   "rows": [
+    {
+     "prompt": "bonsoir, Elliot",
+     "n_masks": 6,
+     "score_median": -0.8017578125,
+     "score_max": 0.1600341796875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.0855614973262032,
+     "area_median": 0.0006997590535320342
+    },
+    {
+     "prompt": "bonsoir, Elliot.",
+     "n_masks": 6,
+     "score_median": -0.8017578125,
+     "score_max": 0.1600341796875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.0855614973262032,
+     "area_median": 0.0006997590535320342
+    },
+    {
+     "prompt": "BONSOIR, ELLIOT",
+     "n_masks": 6,
+     "score_median": -0.8017578125,
+     "score_max": 0.1600341796875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.0855614973262032,
+     "area_median": 0.0006997590535320342
+    },
+    {
+     "prompt": "bonsoir, Elliot?",
+     "n_masks": 6,
+     "score_median": -0.8017578125,
+     "score_max": 0.1600341796875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.0855614973262032,
+     "area_median": 0.0006997590535320342
+    },
+    {
+     "prompt": "Please continue. bonsoir, Elliot",
+     "n_masks": 6,
+     "score_median": -0.729248046875,
+     "score_max": 0.08514404296875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.2047569803516029,
+     "area_median": 0.0005732906574849039
+    },
+    {
+     "prompt": "bonsoir, Elliot \u2014 proceed as discussed.",
+     "n_masks": 6,
+     "score_median": -0.8017578125,
+     "score_max": 0.1600341796875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.0855614973262032,
+     "area_median": 0.0006997590535320342
+    },
+    {
+     "prompt": "Ticket bonsoir, Elliot is open; summarise the next step.",
+     "n_masks": 6,
+     "score_median": -0.85205078125,
+     "score_max": -0.099365234375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.11436950146627566,
+     "area_median": 0.0007971938757691532
+    },
+    {
+     "prompt": "\"bonsoir, Elliot\"",
+     "n_masks": 6,
+     "score_median": -0.712158203125,
+     "score_max": 0.439208984375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.10410958904109589,
+     "area_median": 0.0008395140466745943
+    },
+    {
+     "prompt": "[bonsoir, Elliot]",
+     "n_masks": 6,
+     "score_median": -0.825439453125,
+     "score_max": 0.18017578125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.11565420560747663,
+     "area_median": 0.0006859804270789027
+    },
+    {
+     "prompt": "bonsoir,Elliot",
+     "n_masks": 6,
+     "score_median": -0.8017578125,
+     "score_max": 0.1600341796875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.0855614973262032,
+     "area_median": 0.0006997590535320342
+    }
+   ]
+  },
+  "random_variants": {
+   "n": 10,
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.41310975609756095,
+   "area_median": 0.0009389172482769936,
+   "score_median": -0.742919921875,
+   "score_max": 1.2001953125,
+   "rows": [
+    {
+     "prompt": "SHADOW-0741852",
+     "n_masks": 6,
+     "score_median": -0.61669921875,
+     "score_max": 0.45654296875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.20714285714285716,
+     "area_median": 0.0007553657924290746
+    },
+    {
+     "prompt": "shadow-0741852",
+     "n_masks": 6,
+     "score_median": -0.61669921875,
+     "score_max": 0.45654296875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.20714285714285716,
+     "area_median": 0.0007553657924290746
+    },
+    {
+     "prompt": "\"SHADOW-0741852\"",
+     "n_masks": 6,
+     "score_median": -0.7705078125,
+     "score_max": 0.88427734375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.14852255054432348,
+     "area_median": 0.0006210238789208233
+    },
+    {
+     "prompt": "[SHADOW-0741852]",
+     "n_masks": 6,
+     "score_median": -0.58740234375,
+     "score_max": 0.3837890625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.29465449804432853,
+     "area_median": 0.0010402888292446733
+    },
+    {
+     "prompt": "SHADOW-0741852 SHADOW-0741852",
+     "n_masks": 6,
+     "score_median": -0.71533203125,
+     "score_max": 0.25732421875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.41310975609756095,
+     "area_median": 0.0009728718141559511
+    },
+    {
+     "prompt": "DELTA_18-2963",
+     "n_masks": 6,
+     "score_median": -0.995849609375,
+     "score_max": 0.34765625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.12770137524557956,
+     "area_median": 0.0010535753681324422
+    },
+    {
+     "prompt": "delta_18-2963",
+     "n_masks": 6,
+     "score_median": -0.995849609375,
+     "score_max": 0.34765625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.12770137524557956,
+     "area_median": 0.0010535753681324422
+    },
+    {
+     "prompt": "\"delta_18-2963\"",
+     "n_masks": 6,
+     "score_median": -0.921630859375,
+     "score_max": 0.396728515625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.14054813773717498,
+     "area_median": 0.0009049626823980361
+    },
+    {
+     "prompt": "[delta_18-2963]",
+     "n_masks": 6,
+     "score_median": -0.92236328125,
+     "score_max": 0.149658203125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.1335095836087244,
+     "area_median": 0.0008951207855716348
+    },
+    {
+     "prompt": "delta_18-2963 delta_18-2963",
+     "n_masks": 6,
+     "score_median": 0.1651611328125,
+     "score_max": 1.2001953125,
+     "cross_image_iou_median": 0.0005287158813032846,
+     "cross_image_iou_max": 0.4040844227975733,
+     "area_median": 0.004628153401426971
+    }
+   ]
+  },
+  "dates": {
+   "n": 10,
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.141044776119403,
+   "area_median": 0.0009344883728772402,
+   "score_median": -0.8868408203125,
+   "score_max": 0.477783203125,
+   "rows": [
+    {
+     "prompt": "2017-02-01",
+     "n_masks": 6,
+     "score_median": -0.947509765625,
+     "score_max": 0.01544189453125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.11145038167938931,
+     "area_median": 0.0008956129022408277
+    },
+    {
+     "prompt": "2017-07-15",
+     "n_masks": 6,
+     "score_median": -0.780517578125,
+     "score_max": 0.2413330078125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.11088011088011088,
+     "area_median": 0.0009891109366435558
+    },
+    {
+     "prompt": "2017-11-30",
+     "n_masks": 6,
+     "score_median": -0.890625,
+     "score_max": 0.035552978515625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.09915014164305949,
+     "area_median": 0.0011018006480298936
+    },
+    {
+     "prompt": "2018-02-01",
+     "n_masks": 6,
+     "score_median": -0.97265625,
+     "score_max": -0.2406005859375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.10411810411810411,
+     "area_median": 0.0008528006437700242
+    },
+    {
+     "prompt": "2018-07-15",
+     "n_masks": 6,
+     "score_median": -0.826904296875,
+     "score_max": 0.477783203125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.11422564821303434,
+     "area_median": 0.0008104804437607527
+    },
+    {
+     "prompt": "2018-11-30",
+     "n_masks": 6,
+     "score_median": -0.907958984375,
+     "score_max": 0.248046875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.11923920994879297,
+     "area_median": 0.0009625378006603569
+    },
+    {
+     "prompt": "2019-02-01",
+     "n_masks": 6,
+     "score_median": -0.958740234375,
+     "score_max": -0.045989990234375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.12289685442574981,
+     "area_median": 0.0009335041686426848
+    },
+    {
+     "prompt": "2019-07-15",
+     "n_masks": 6,
+     "score_median": -0.84228515625,
+     "score_max": 0.43212890625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.1319060773480663,
+     "area_median": 0.0009354725771117955
+    },
+    {
+     "prompt": "2019-11-30",
+     "n_masks": 6,
+     "score_median": -0.883056640625,
+     "score_max": 0.259521484375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.141044776119403,
+     "area_median": 0.0009802532149478793
+    },
+    {
+     "prompt": "2020-02-01",
+     "n_masks": 6,
+     "score_median": -0.865478515625,
+     "score_max": 0.0341796875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.12905500705218617,
+     "area_median": 0.0008301642374135554
+    }
+   ]
+  },
+  "filler_short": {
+   "n": 10,
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.294953802416489,
+   "area_median": 0.0008033450721995905,
+   "score_median": -0.432861328125,
+   "score_max": 0.8203125,
+   "rows": [
+    {
+     "prompt": "a red car",
+     "n_masks": 6,
+     "score_median": -0.437744140625,
+     "score_max": 0.332763671875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.20146818923327894,
+     "area_median": 0.0007903045334387571
+    },
+    {
+     "prompt": "the old bridge",
+     "n_masks": 6,
+     "score_median": -0.761474609375,
+     "score_max": 0.8203125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.22430741733690795,
+     "area_median": 0.0006672808085568249
+    },
+    {
+     "prompt": "two cats",
+     "n_masks": 6,
+     "score_median": -0.67138671875,
+     "score_max": 0.116455078125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.18287243532560213,
+     "area_median": 0.0006525179342133924
+    },
+    {
+     "prompt": "a small boat",
+     "n_masks": 6,
+     "score_median": -0.584716796875,
+     "score_max": 0.204833984375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.15942028985507245,
+     "area_median": 0.0008439428929705173
+    },
+    {
+     "prompt": "the blue door",
+     "n_masks": 6,
+     "score_median": -0.389404296875,
+     "score_max": 0.390380859375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.294953802416489,
+     "area_median": 0.0011145951284561306
+    },
+    {
+     "prompt": "warm bread",
+     "n_masks": 6,
+     "score_median": -0.3336181640625,
+     "score_max": 0.304443359375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.23546511627906977,
+     "area_median": 0.0008414824260398746
+    },
+    {
+     "prompt": "a long road",
+     "n_masks": 6,
+     "score_median": -0.17327880859375,
+     "score_max": 0.226806640625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.20901639344262296,
+     "area_median": 0.0008715002331882715
+    },
+    {
+     "prompt": "three birds",
+     "n_masks": 6,
+     "score_median": -0.600341796875,
+     "score_max": 0.492431640625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.15837563451776648,
+     "area_median": 0.0007967017882037908
+    },
+    {
+     "prompt": "the wet grass",
+     "n_masks": 6,
+     "score_median": -0.427978515625,
+     "score_max": 0.81103515625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.24114832535885167,
+     "area_median": 0.0007706207397859544
+    },
+    {
+     "prompt": "a quiet room",
+     "n_masks": 6,
+     "score_median": -0.368408203125,
+     "score_max": 0.66650390625,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.26350606394707826,
+     "area_median": 0.0008099883561953902
+    }
+   ]
+  },
+  "filler_tag": {
+   "n": 10,
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.19070904645476772,
+   "area_median": 0.0008594438986619934,
+   "score_median": -0.8251953125,
+   "score_max": 1.0498046875,
+   "rows": [
+    {
+     "prompt": "TICKET-1042",
+     "n_masks": 6,
+     "score_median": -0.81787109375,
+     "score_max": -0.54052734375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.08890770533446232,
+     "area_median": 0.0013527691189665347
+    },
+    {
+     "prompt": "REF-7781",
+     "n_masks": 6,
+     "score_median": -0.68505859375,
+     "score_max": 1.0498046875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.09759876065065841,
+     "area_median": 0.0006515337736345828
+    },
+    {
+     "prompt": "UNIT-3305",
+     "n_masks": 6,
+     "score_median": -0.840087890625,
+     "score_max": 1.0107421875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.17984189723320157,
+     "area_median": 0.0007839073077775538
+    },
+    {
+     "prompt": "BLOCK-9024",
+     "n_masks": 6,
+     "score_median": -0.707275390625,
+     "score_max": 0.64404296875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.19070904645476772,
+     "area_median": 0.000893152377102524
+    },
+    {
+     "prompt": "GATE-1187",
+     "n_masks": 6,
+     "score_median": -0.84033203125,
+     "score_max": -0.0546875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.11915734035549704,
+     "area_median": 0.0008001464302651584
+    },
+    {
+     "prompt": "LANE-6602",
+     "n_masks": 6,
+     "score_median": -0.87744140625,
+     "score_max": 0.37548828125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.13327745180217937,
+     "area_median": 0.0008965970482677221
+    },
+    {
+     "prompt": "NODE-4419",
+     "n_masks": 6,
+     "score_median": -0.951171875,
+     "score_max": 0.53857421875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.08930540242557883,
+     "area_median": 0.0007159982051234692
+    },
+    {
+     "prompt": "PORT-8830",
+     "n_masks": 6,
+     "score_median": -0.79833984375,
+     "score_max": 0.060516357421875,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.1056,
+     "area_median": 0.0009339962853118777
+    },
+    {
+     "prompt": "RACK-2215",
+     "n_masks": 6,
+     "score_median": -0.83251953125,
+     "score_max": 0.87548828125,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.0926517571884984,
+     "area_median": 0.0008729765249881893
+    },
+    {
+     "prompt": "SLOT-7756",
+     "n_masks": 6,
+     "score_median": -0.69384765625,
+     "score_max": -0.146484375,
+     "cross_image_iou_median": 0.0,
+     "cross_image_iou_max": 0.08821034775233248,
+     "area_median": 0.0008459112723357975
+    }
+   ]
+  }
+ },
+ "tracker": {
+  "shape": [
+   1,
+   1,
+   1008,
+   1008
+  ],
+  "finite": true,
+  "mean": 1.1616706848144531,
+  "std": 0.8808169960975647
+ }
+}
