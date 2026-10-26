@@ -1,0 +1,45 @@
+{
+ "openai/clip-vit-large-patch14": {
+  "status": 200,
+  "files": [
+   {
+    "path": "model.safetensors",
+    "size": 1710540580,
+    "sha256": "a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb"
+   },
+   {
+    "path": "pytorch_model.bin",
+    "size": 1710671599,
+    "sha256": "f1a17cdbe0f36fec524f5cafb1c261ea3bbbc13e346e0f74fc9eb0460dedd0d3"
+   }
+  ]
+ },
+ "zer0int/CLIP-SAE-ViT-L-14": {
+  "status": 200,
+  "files": [
+   {
+    "path": "ViT-L-14-GmP-SAE-FULL-model.safetensors",
+    "size": 931448048,
+    "sha256": "293082d3817dfc5b4e71e455517a8238932834219356154be8c287956d4daabd"
+   },
+   {
+    "path": "ViT-L-14-GmP-SAE-TE-only.safetensors",
+    "size": 323409740,
+    "sha256": "0830f1119276e3f3e6ee250dd1bf5e4d84b61ceb8d7d1d56c83601efc2a00950"
+   },
+   {
+    "path": "model.safetensors",
+    "size": 1710537716,
+    "sha256": "820afa79f4ba17399e740b4b5630ab74bc3a196e471d7321123efa8356b62f79"
+   }
+  ]
+ },
+ "summary": {
+  "base_sha256": "a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb",
+  "base_bytes": 1710540580,
+  "published_sha256": "820afa79f4ba17399e740b4b5630ab74bc3a196e471d7321123efa8356b62f79",
+  "published_bytes": 1710537716,
+  "local_matches_base": true,
+  "local_matches_published": true
+ }
+}

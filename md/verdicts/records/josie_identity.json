@@ -1,0 +1,36 @@
+{
+ "candidate_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Josiefied-Qwen3-0.6B-abliterated-v1.safetensors",
+ "candidate_bytes": 1192135096,
+ "candidate_sha256": "538d7e689b6a57aed42139298d88a3876634e2dd583a3f6b5c381ba60c640e67",
+ "base_bytes": 1503300328,
+ "base_sha256": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b",
+ "references": {
+  "Qwen/Qwen3-0.6B": {
+   "status": 200,
+   "files": [
+    {
+     "path": "model.safetensors",
+     "size": 1503300328,
+     "sha256": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b"
+    }
+   ]
+  },
+  "Josiefied/Qwen3-0.6B-abliterated-v1": {
+   "status": 404,
+   "files": []
+  },
+  "Goekdeniz-Guelmez/Josiefied-Qwen3-0.6B-abliterated-v1": {
+   "status": 200,
+   "files": [
+    {
+     "path": "model.safetensors",
+     "size": 1192135096,
+     "sha256": "538d7e689b6a57aed42139298d88a3876634e2dd583a3f6b5c381ba60c640e67"
+    }
+   ]
+  }
+ },
+ "local_matches_base": true,
+ "local_matches_published": true,
+ "published_bytes": 1192135096
+}

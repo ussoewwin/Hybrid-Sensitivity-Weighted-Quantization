@@ -1,0 +1,431 @@
+{
+  "reference_shards": [
+    "model.safetensors"
+  ],
+  "candidate": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\CLIP-SAE-ViT-L-14-FP32.safetensors",
+  "counts": {
+    "reference": 592,
+    "candidate": 590,
+    "identical": 10,
+    "differing": 580,
+    "only_reference": 2,
+    "only_candidate": 0,
+    "shape_bad": 0,
+    "micro": 67
+  },
+  "only_reference": [
+    "text_model.embeddings.position_ids",
+    "vision_model.embeddings.position_ids"
+  ],
+  "only_candidate": [],
+  "rel": {
+    "median": 0.0004003817302873358,
+    "max": 0.0030740387737751007
+  },
+  "rank1": {
+    "median": 0.3212425410747528,
+    "min": 0.021786758676171303
+  },
+  "top": [
+    {
+      "key": "vision_model.encoder.layers.22.self_attn.v_proj.weight",
+      "rel": 0.0030740387737751007,
+      "base_norm": 15.782417297363281,
+      "delta_norm": 0.04851576313376427,
+      "max_abs": 0.000316619873046875,
+      "dtype": "torch.float32",
+      "rank1": 0.7752676010131836,
+      "rank2": 0.030882032588124275
+    },
+    {
+      "key": "text_model.encoder.layers.11.self_attn.q_proj.weight",
+      "rel": 0.002917666919529438,
+      "base_norm": 11.709256172180176,
+      "delta_norm": 0.0341637097299099,
+      "max_abs": 0.00035858154296875,
+      "dtype": "torch.float32",
+      "rank1": 0.7064513564109802,
+      "rank2": 0.06161933392286301
+    },
+    {
+      "key": "visual_projection.weight",
+      "rel": 0.002800569636747241,
+      "base_norm": 12.9431791305542,
+      "delta_norm": 0.03624827414751053,
+      "max_abs": 0.00054168701171875,
+      "dtype": "torch.float32",
+      "rank1": 0.3824380040168762,
+      "rank2": 0.2798040509223938
+    },
+    {
+      "key": "text_projection.weight",
+      "rel": 0.002734642243012786,
+      "base_norm": 11.265276908874512,
+      "delta_norm": 0.03080650232732296,
+      "max_abs": 0.00030517578125,
+      "dtype": "torch.float32",
+      "rank1": 0.4103344678878784,
+      "rank2": 0.2244308441877365
+    },
+    {
+      "key": "text_model.encoder.layers.11.self_attn.k_proj.weight",
+      "rel": 0.0026018735952675343,
+      "base_norm": 11.507884979248047,
+      "delta_norm": 0.029942061752080917,
+      "max_abs": 0.000335693359375,
+      "dtype": "torch.float32",
+      "rank1": 0.4363299310207367,
+      "rank2": 0.1064998134970665
+    },
+    {
+      "key": "vision_model.encoder.layers.23.self_attn.q_proj.weight",
+      "rel": 0.002586004324257374,
+      "base_norm": 14.975358963012695,
+      "delta_norm": 0.03872634470462799,
+      "max_abs": 0.000331878662109375,
+      "dtype": "torch.float32",
+      "rank1": 0.5778224468231201,
+      "rank2": 0.09578561782836914
+    },
+    {
+      "key": "vision_model.encoder.layers.23.self_attn.k_proj.weight",
+      "rel": 0.0025516259483993053,
+      "base_norm": 14.7595796585083,
+      "delta_norm": 0.03766092658042908,
+      "max_abs": 0.00030517578125,
+      "dtype": "torch.float32",
+      "rank1": 0.329569011926651,
+      "rank2": 0.09691497683525085
+    },
+    {
+      "key": "vision_model.encoder.layers.22.mlp.fc2.weight",
+      "rel": 0.0024259414058178663,
+      "base_norm": 35.964595794677734,
+      "delta_norm": 0.08724800497293472,
+      "max_abs": 0.0006103515625,
+      "dtype": "torch.float32",
+      "rank1": 0.6848034262657166,
+      "rank2": 0.06162406504154205
+    },
+    {
+      "key": "vision_model.encoder.layers.21.mlp.fc2.weight",
+      "rel": 0.0024066369514912367,
+      "base_norm": 37.01411819458008,
+      "delta_norm": 0.08907954394817352,
+      "max_abs": 0.00048828125,
+      "dtype": "torch.float32",
+      "rank1": 0.7061817049980164,
+      "rank2": 0.03907214477658272
+    },
+    {
+      "key": "text_model.encoder.layers.4.mlp.fc2.weight",
+      "rel": 0.0023681079037487507,
+      "base_norm": 21.125980377197266,
+      "delta_norm": 0.05002859979867935,
+      "max_abs": 0.000152587890625,
+      "dtype": "torch.float32",
+      "rank1": 0.8168228268623352,
+      "rank2": 0.028433365747332573
+    },
+    {
+      "key": "text_model.encoder.layers.3.mlp.fc2.weight",
+      "rel": 0.002364351646974683,
+      "base_norm": 20.51985740661621,
+      "delta_norm": 0.048516158014535904,
+      "max_abs": 0.00018310546875,
+      "dtype": "torch.float32",
+      "rank1": 0.7958512306213379,
+      "rank2": 0.05954151228070259
+    },
+    {
+      "key": "text_model.encoder.layers.9.self_attn.out_proj.weight",
+      "rel": 0.0023521804250776768,
+      "base_norm": 11.89670467376709,
+      "delta_norm": 0.027983196079730988,
+      "max_abs": 0.0002288818359375,
+      "dtype": "torch.float32",
+      "rank1": 0.37262651324272156,
+      "rank2": 0.1510404348373413
+    },
+    {
+      "key": "vision_model.encoder.layers.23.mlp.fc2.weight",
+      "rel": 0.002339666709303856,
+      "base_norm": 30.334087371826172,
+      "delta_norm": 0.07097165286540985,
+      "max_abs": 0.000732421875,
+      "dtype": "torch.float32",
+      "rank1": 0.7281471490859985,
+      "rank2": 0.09756559878587723
+    },
+    {
+      "key": "text_model.encoder.layers.9.self_attn.v_proj.weight",
+      "rel": 0.0022885045036673546,
+      "base_norm": 12.139376640319824,
+      "delta_norm": 0.027781017124652863,
+      "max_abs": 0.00031280517578125,
+      "dtype": "torch.float32",
+      "rank1": 0.294807493686676,
+      "rank2": 0.10187321156263351
+    },
+    {
+      "key": "text_model.encoder.layers.7.mlp.fc2.weight",
+      "rel": 0.002276380080729723,
+      "base_norm": 23.8040714263916,
+      "delta_norm": 0.0541871152818203,
+      "max_abs": 0.000335693359375,
+      "dtype": "torch.float32",
+      "rank1": 0.7898002862930298,
+      "rank2": 0.029315277934074402
+    },
+    {
+      "key": "text_model.encoder.layers.4.self_attn.out_proj.weight",
+      "rel": 0.002266655908897519,
+      "base_norm": 10.835365295410156,
+      "delta_norm": 0.024560045450925827,
+      "max_abs": 0.00018310546875,
+      "dtype": "torch.float32",
+      "rank1": 0.5028725862503052,
+      "rank2": 0.11238604038953781
+    },
+    {
+      "key": "text_model.encoder.layers.6.mlp.fc2.weight",
+      "rel": 0.0022587543353438377,
+      "base_norm": 23.0216064453125,
+      "delta_norm": 0.05200015380978584,
+      "max_abs": 0.00016021728515625,
+      "dtype": "torch.float32",
+      "rank1": 0.7908700108528137,
+      "rank2": 0.029830360785126686
+    },
+    {
+      "key": "vision_model.encoder.layers.20.mlp.fc2.weight",
+      "rel": 0.0022485125809907913,
+      "base_norm": 36.0966682434082,
+      "delta_norm": 0.08116380870342255,
+      "max_abs": 0.000396728515625,
+      "dtype": "torch.float32",
+      "rank1": 0.7156822085380554,
+      "rank2": 0.037687335163354874
+    },
+    {
+      "key": "text_model.encoder.layers.5.mlp.fc2.weight",
+      "rel": 0.0022350065410137177,
+      "base_norm": 21.7254695892334,
+      "delta_norm": 0.04855656623840332,
+      "max_abs": 0.0001678466796875,
+      "dtype": "torch.float32",
+      "rank1": 0.8019546270370483,
+      "rank2": 0.02557559311389923
+    },
+    {
+      "key": "text_model.encoder.layers.5.self_attn.out_proj.weight",
+      "rel": 0.002234449377283454,
+      "base_norm": 10.938610076904297,
+      "delta_norm": 0.02444176934659481,
+      "max_abs": 0.00018310546875,
+      "dtype": "torch.float32",
+      "rank1": 0.5070472955703735,
+      "rank2": 0.09737472236156464
+    },
+    {
+      "key": "text_model.encoder.layers.1.self_attn.out_proj.weight",
+      "rel": 0.002227863995358348,
+      "base_norm": 9.551889419555664,
+      "delta_norm": 0.021280311048030853,
+      "max_abs": 0.00017547607421875,
+      "dtype": "torch.float32",
+      "rank1": 0.3847312927246094,
+      "rank2": 0.09025425463914871
+    },
+    {
+      "key": "vision_model.encoder.layers.19.mlp.fc2.weight",
+      "rel": 0.002224003430455923,
+      "base_norm": 33.57117462158203,
+      "delta_norm": 0.07466240972280502,
+      "max_abs": 0.0003814697265625,
+      "dtype": "torch.float32",
+      "rank1": 0.7137942314147949,
+      "rank2": 0.044993866235017776
+    },
+    {
+      "key": "text_model.encoder.layers.3.self_attn.out_proj.weight",
+      "rel": 0.0022209801245480776,
+      "base_norm": 10.468445777893066,
+      "delta_norm": 0.023250209167599678,
+      "max_abs": 0.00017118453979492188,
+      "dtype": "torch.float32",
+      "rank1": 0.4843915104866028,
+      "rank2": 0.12342321872711182
+    },
+    {
+      "key": "text_model.encoder.layers.8.mlp.fc2.weight",
+      "rel": 0.002205554861575365,
+      "base_norm": 24.719594955444336,
+      "delta_norm": 0.05452042445540428,
+      "max_abs": 0.0002593994140625,
+      "dtype": "torch.float32",
+      "rank1": 0.7618993520736694,
+      "rank2": 0.03503239154815674
+    },
+    {
+      "key": "text_model.encoder.layers.6.self_attn.out_proj.weight",
+      "rel": 0.0021915468387305737,
+      "base_norm": 11.119795799255371,
+      "delta_norm": 0.024369554594159126,
+      "max_abs": 0.0001773834228515625,
+      "dtype": "torch.float32",
+      "rank1": 0.41982972621917725,
+      "rank2": 0.10878316313028336
+    },
+    {
+      "key": "text_model.encoder.layers.1.self_attn.v_proj.weight",
+      "rel": 0.002176693407818675,
+      "base_norm": 9.669673919677734,
+      "delta_norm": 0.021047914400696754,
+      "max_abs": 0.00018310546875,
+      "dtype": "torch.float32",
+      "rank1": 0.3545343279838562,
+      "rank2": 0.08668547123670578
+    },
+    {
+      "key": "text_model.encoder.layers.2.mlp.fc2.weight",
+      "rel": 0.0021763660479336977,
+      "base_norm": 20.148815155029297,
+      "delta_norm": 0.04385119676589966,
+      "max_abs": 0.00014400482177734375,
+      "dtype": "torch.float32",
+      "rank1": 0.7928123474121094,
+      "rank2": 0.05707455426454544
+    },
+    {
+      "key": "text_model.encoder.layers.10.self_attn.q_proj.weight",
+      "rel": 0.002175705973058939,
+      "base_norm": 12.717170715332031,
+      "delta_norm": 0.027668824419379234,
+      "max_abs": 0.000213623046875,
+      "dtype": "torch.float32",
+      "rank1": 0.7094498872756958,
+      "rank2": 0.046942338347435
+    },
+    {
+      "key": "text_model.encoder.layers.3.self_attn.v_proj.weight",
+      "rel": 0.002173415385186672,
+      "base_norm": 10.706759452819824,
+      "delta_norm": 0.02327023632824421,
+      "max_abs": 0.00019502639770507812,
+      "dtype": "torch.float32",
+      "rank1": 0.4190603494644165,
+      "rank2": 0.10620582848787308
+    },
+    {
+      "key": "text_model.encoder.layers.7.self_attn.out_proj.weight",
+      "rel": 0.002164113102480769,
+      "base_norm": 11.351823806762695,
+      "delta_norm": 0.024566631764173508,
+      "max_abs": 0.000232696533203125,
+      "dtype": "torch.float32",
+      "rank1": 0.3792564868927002,
+      "rank2": 0.12215305864810944
+    },
+    {
+      "key": "text_model.encoder.layers.2.self_attn.out_proj.weight",
+      "rel": 0.0021500030998140574,
+      "base_norm": 10.491828918457031,
+      "delta_norm": 0.022557465359568596,
+      "max_abs": 0.00020599365234375,
+      "dtype": "torch.float32",
+      "rank1": 0.3875650465488434,
+      "rank2": 0.12880083918571472
+    },
+    {
+      "key": "text_model.encoder.layers.9.mlp.fc2.weight",
+      "rel": 0.002148570492863655,
+      "base_norm": 25.792770385742188,
+      "delta_norm": 0.055417586117982864,
+      "max_abs": 0.0003662109375,
+      "dtype": "torch.float32",
+      "rank1": 0.7161469459533691,
+      "rank2": 0.05019741132855415
+    },
+    {
+      "key": "text_model.encoder.layers.6.self_attn.v_proj.weight",
+      "rel": 0.002145027508959174,
+      "base_norm": 11.30445671081543,
+      "delta_norm": 0.02424837090075016,
+      "max_abs": 0.0001678466796875,
+      "dtype": "torch.float32",
+      "rank1": 0.3943537771701813,
+      "rank2": 0.08361723273992538
+    },
+    {
+      "key": "text_model.encoder.layers.5.self_attn.v_proj.weight",
+      "rel": 0.002143677556887269,
+      "base_norm": 11.109228134155273,
+      "delta_norm": 0.023814601823687553,
+      "max_abs": 0.000171661376953125,
+      "dtype": "torch.float32",
+      "rank1": 0.4338838756084442,
+      "rank2": 0.11871398240327835
+    },
+    {
+      "key": "vision_model.encoder.layers.18.mlp.fc2.weight",
+      "rel": 0.0020905090495944023,
+      "base_norm": 32.94694519042969,
+      "delta_norm": 0.06887588649988174,
+      "max_abs": 0.00030517578125,
+      "dtype": "torch.float32",
+      "rank1": 0.6805139780044556,
+      "rank2": 0.06635632365942001
+    },
+    {
+      "key": "text_model.encoder.layers.1.mlp.fc2.weight",
+      "rel": 0.002086484106257558,
+      "base_norm": 19.617774963378906,
+      "delta_norm": 0.040932174772024155,
+      "max_abs": 0.00014495849609375,
+      "dtype": "torch.float32",
+      "rank1": 0.8090603947639465,
+      "rank2": 0.02234606072306633
+    },
+    {
+      "key": "text_model.encoder.layers.7.self_attn.v_proj.weight",
+      "rel": 0.002083722036331892,
+      "base_norm": 11.53075122833252,
+      "delta_norm": 0.02402688004076481,
+      "max_abs": 0.0001964569091796875,
+      "dtype": "torch.float32",
+      "rank1": 0.33459770679473877,
+      "rank2": 0.09289048612117767
+    },
+    {
+      "key": "text_model.encoder.layers.11.mlp.fc2.weight",
+      "rel": 0.0020742558408528566,
+      "base_norm": 25.196435928344727,
+      "delta_norm": 0.05226385220885277,
+      "max_abs": 0.000244140625,
+      "dtype": "torch.float32",
+      "rank1": 0.5756086707115173,
+      "rank2": 0.25937727093696594
+    },
+    {
+      "key": "text_model.encoder.layers.9.self_attn.q_proj.weight",
+      "rel": 0.0020592338405549526,
+      "base_norm": 13.739750862121582,
+      "delta_norm": 0.028293360024690628,
+      "max_abs": 0.000274658203125,
+      "dtype": "torch.float32",
+      "rank1": 0.6726126074790955,
+      "rank2": 0.07224296033382416
+    },
+    {
+      "key": "text_model.encoder.layers.8.self_attn.out_proj.weight",
+      "rel": 0.0020529443863779306,
+      "base_norm": 11.718084335327148,
+      "delta_norm": 0.024056576192378998,
+      "max_abs": 0.000213623046875,
+      "dtype": "torch.float32",
+      "rank1": 0.3477105498313904,
+      "rank2": 0.14190931618213654
+    }
+  ]
+}
