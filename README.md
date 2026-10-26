@@ -195,7 +195,7 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-**Backdoor audit** of the ConvRot INT8 source models that the shipped packs derive from.
+**Backdoor audit of the source models behind the ConvRot INT8 packs published to the HSWQ Hugging Face org.**
 
 - Huihui-Qwen3-VL-4B-Instruct-abliterated, CLIP-SAE-ViT-L-14-FP32, Josiefied-Qwen3-0.6B-abliterated-v1 - no backdoor
 - Long-ViT-L, ViT-L-GmP - audit withdrawn
