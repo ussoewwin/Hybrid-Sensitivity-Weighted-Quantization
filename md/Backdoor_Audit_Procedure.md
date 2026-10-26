@@ -426,13 +426,13 @@ Measures taken with this rule:
 | :--- | :--- | ---: | ---: | ---: | ---: | :--- |
 | CLIP-SAE fine-tune | clean cosine | 1.0000 | 0.9261 | 0.9590 | 0.9934 | 56 % / 9 % |
 | LongCLIP fine-tune | trigger shift | 0.1494 | 0.3822 | 0.2230 | 0.3289 | 32 % / 77 % |
-| Qwen3-0.6B abliteration | hedge rate, harmful | 0.80 | 0.05 | 0.15 | 0.20 | 87 % / 80 % |
 
 
-In the second case either half alone removes most of the gap, yet neither reaches
-the published 0.05: the edit acts across the whole depth. A result like this rules
-out the source's "late MLP only" signature, and it must be reported as a fact, not
-smoothed into a story about where the backdoor "would" be.
+The Qwen3-0.6B row that used to sit here was measured with the withdrawn twenty-instruction
+set and is removed with it; the half-layer numbers and the "the edit acts across the whole
+depth" conclusion that followed from them are withdrawn until the ablation is re-run on
+JBB-Behaviors. The two fine-tune rows above come from cosine metrics, not from a prompt
+set, and are unaffected.
 
 ---
 
@@ -466,8 +466,10 @@ weights), then every input passes through the same map and no input can select a
 different behaviour. That is the closure, and it is argued from the weights, not
 from rates.
 
-Measured: CLIP-SAE cosine 0.9261 / structure 0.9584; LongCLIP 0.8209 / 0.9571;
-Josiefied hedge 0.80 → 0.05 with harmless compliance unchanged at 0.00 refusals.
+Measured: CLIP-SAE cosine 0.9261 / structure 0.9584; LongCLIP 0.8209 / 0.9571.
+The Josiefied figure that used to appear here was a hedge rate from the withdrawn
+instrument; what stands for that file is weight-side only so far - rebuild ratio 1.004,
+first-to-second singular ratio 173 - and its clean-preservation run is part of the redo.
 
 If clean behaviour collapses, the finding is `DAMAGED` — a different finding from a
 backdoor, and it is reported as such.
@@ -569,8 +571,9 @@ Four models: reference, artifact, reference minus a random direction of identica
 magnitude, reference minus the reference's own difference-of-means direction.
 
 **Gate 7f.** The random direction must leave behaviour at the reference; the real
-direction must reproduce the artifact. Measured: hedge 0.80 / 0.05 / 0.80 / 0.05 —
-the collapse belongs to the direction, not to the size of the intervention.
+direction must reproduce the artifact. The four-way comparison on the abliterated file was
+run with the withdrawn hedge instrument, so its numbers are not quoted here; the gate
+stands and the comparison is re-run as part of that file's redo.
 
 ### 11.7 Divergence shape (decoder LM)
 
