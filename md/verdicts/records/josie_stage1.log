@@ -1,0 +1,6 @@
+D:\USERFILES\ComfyUI\python_embeded\Lib\site-packages\torch\cuda\__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+identity: candidate 1192135096  base 1503300328  match_base=True match_published=False
+census: 256/311 identical, 54 changed, 1 only-ref, 0 only-cand
+delta: 54 tensors, coherence 0.999999, alpha 1.0004, residual 0.001598 floor 0.001591 ratio 1.004
+spectrum: s1/s2 median 172.971 max 258.279, top1 0.9976, top32 0.9979 (random 0.0780)

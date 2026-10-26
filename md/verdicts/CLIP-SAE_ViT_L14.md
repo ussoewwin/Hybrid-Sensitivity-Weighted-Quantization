@@ -34,28 +34,28 @@ not by checking the first result. The figures in this report are from after thos
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| `820afa79...62f79` | sha256 of the audited file | `rec/hashes_sae.json` -> `candidate_sha256` | fixes the bytes the verdict applies to |
-| `820afa79...62f79` | sha256 the publisher lists for `zer0int/CLIP-SAE-ViT-L-14/model.safetensors` | `rec/hf_refs_clip.json` -> `summary.published_sha256` | the audited file is the published copy; a delivery statement, not evidence about a backdoor |
-| 1 | whether the local candidate equals the published copy | `rec/hf_refs_clip.json` -> `summary.local_matches_published` | 1 means the verdict applies to what users download; 0 would void it |
-| `a2bf730a...6dcb` | sha256 the publisher lists for `openai/clip-vit-large-patch14` | `rec/hf_refs_clip.json` -> `summary.base_sha256` | establishes that the comparison object is the official base; without it every difference below is against an unknown file |
-| 1,710,540,580 | the publisher's size for that base file | `rec/hf_refs_clip.json` -> `summary.base_bytes` | the local reference is byte-for-byte the official file |
-| 1,710,537,716 | candidate size in bytes | `rec/hashes_sae.json` -> `candidate_bytes` | distinguishes the candidate from the base at the same tensor count |
+| `820afa79...62f79` | sha256 of the audited file | `records/hashes_sae.json` -> `candidate_sha256` | fixes the bytes the verdict applies to |
+| `820afa79...62f79` | sha256 the publisher lists for `zer0int/CLIP-SAE-ViT-L-14/model.safetensors` | `records/hf_refs_clip.json` -> `summary.published_sha256` | the audited file is the published copy; a delivery statement, not evidence about a backdoor |
+| 1 | whether the local candidate equals the published copy | `records/hf_refs_clip.json` -> `summary.local_matches_published` | 1 means the verdict applies to what users download; 0 would void it |
+| `a2bf730a...6dcb` | sha256 the publisher lists for `openai/clip-vit-large-patch14` | `records/hf_refs_clip.json` -> `summary.base_sha256` | establishes that the comparison object is the official base; without it every difference below is against an unknown file |
+| 1,710,540,580 | the publisher's size for that base file | `records/hf_refs_clip.json` -> `summary.base_bytes` | the local reference is byte-for-byte the official file |
+| 1,710,537,716 | candidate size in bytes | `records/hashes_sae.json` -> `candidate_bytes` | distinguishes the candidate from the base at the same tensor count |
 
 ## 2. What the edit is
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 592 / 590 | base / candidate tensor count | `sae_census.json` -> `counts.reference`, `counts.candidate` | the base carries two `position_ids` buffers the candidate omits; both are non-parameter, so nothing functional is missing |
-| 0 | tensors only in the candidate | `sae_census.json` -> `counts.only_candidate` | **closes the added-module construction**: no extra tensor, adapter or bias |
-| 0 | shape mismatches | `sae_census.json` -> `counts.shape_bad` | no same-name tensor was widened to carry extra capacity |
-| 10 | bit-identical tensors | `sae_census.json` -> `counts.identical` | only 10 tensors are untouched, so the edit is broad |
-| 580 | differing tensors | `sae_census.json` -> `counts.differing` | a hidden behaviour has 580 places to live, not 72 |
-| 67 | tensors differing by less than 1e-6 relative | `sae_census.json` -> `counts.micro` | part of the 580 differs by one or two float32 steps; "differs" is a bit statement, not a functional one |
-| 0.000400 | relative L2, median | `sae_census.json` -> `rel.median` | the per-tensor change is small - a fine-tune, not a replacement |
-| 0.003074 | relative L2, maximum | `sae_census.json` -> `rel.max` | no tensor was rewritten far beyond the rest, which a placed payload would need |
-| 0.3212 | rank-1 fraction, median | `sae_census.json` -> `rank1.median` | most of each change lies outside its leading direction, so a one-direction account is already doubtful |
-| 0.0218 | rank-1 fraction, minimum | `sae_census.json` -> `rank1.min` | some tensors changed almost isotropically |
-| 0.2798 | largest second singular fraction | `sae_census.log` -> `second singular fraction` | 28 % of a tensor's change sits outside its leading direction - against 0.013 % for the abliterated files |
+| 592 / 590 | base / candidate tensor count | `records/sae_census.json` -> `counts.reference`, `counts.candidate` | the base carries two `position_ids` buffers the candidate omits; both are non-parameter, so nothing functional is missing |
+| 0 | tensors only in the candidate | `records/sae_census.json` -> `counts.only_candidate` | **closes the added-module construction**: no extra tensor, adapter or bias |
+| 0 | shape mismatches | `records/sae_census.json` -> `counts.shape_bad` | no same-name tensor was widened to carry extra capacity |
+| 10 | bit-identical tensors | `records/sae_census.json` -> `counts.identical` | only 10 tensors are untouched, so the edit is broad |
+| 580 | differing tensors | `records/sae_census.json` -> `counts.differing` | a hidden behaviour has 580 places to live, not 72 |
+| 67 | tensors differing by less than 1e-6 relative | `records/sae_census.json` -> `counts.micro` | part of the 580 differs by one or two float32 steps; "differs" is a bit statement, not a functional one |
+| 0.000400 | relative L2, median | `records/sae_census.json` -> `rel.median` | the per-tensor change is small - a fine-tune, not a replacement |
+| 0.003074 | relative L2, maximum | `records/sae_census.json` -> `rel.max` | no tensor was rewritten far beyond the rest, which a placed payload would need |
+| 0.3212 | rank-1 fraction, median | `records/sae_census.json` -> `rank1.median` | most of each change lies outside its leading direction, so a one-direction account is already doubtful |
+| 0.0218 | rank-1 fraction, minimum | `records/sae_census.json` -> `rank1.min` | some tensors changed almost isotropically |
+| 0.2798 | largest second singular fraction | `records/sae_census.log` -> `second singular fraction` | 28 % of a tensor's change sits outside its leading direction - against 0.013 % for the abliterated files |
 
 ## 3. Can the weights close the question? Measured, not assumed
 
@@ -65,12 +65,12 @@ change the rebuild reproduces.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 221 | changed 2-D tensors tested | `rec/sae_deep.json` -> `rank1_rebuild.tensors` | the test covers every changed weight matrix, not a sample |
-| 0.5592 | coherence of the fitted direction across tensors | `rec/sae_deep.json` -> `rank1_rebuild.coherence` | 1.0 would mean one shared direction; 0.56 means the directions disagree across tensors |
-| **-0.4143** | median fraction of the change explained by that direction | `rec/sae_deep.json` -> `rank1_rebuild.explained_median` | **negative: the rebuild is worse than doing nothing.** A single projection does not describe this edit at all |
-| 0.0067 | best case, any tensor | `rec/sae_deep.json` -> `rank1_rebuild.explained_max` | even the most favourable tensor is explained to 0.67 % |
-| 0.001552 | residual after the rebuild | `rec/sae_deep.json` -> `rank1_rebuild.residual_rel_median` | larger than the change being explained |
-| 0.001085 | the change itself, relative | `rec/sae_deep.json` -> `rank1_rebuild.delta_rel_median` | the yardstick for the row above: residual exceeds the signal |
+| 221 | changed 2-D tensors tested | `records/sae_deep.json` -> `rank1_rebuild.tensors` | the test covers every changed weight matrix, not a sample |
+| 0.5592 | coherence of the fitted direction across tensors | `records/sae_deep.json` -> `rank1_rebuild.coherence` | 1.0 would mean one shared direction; 0.56 means the directions disagree across tensors |
+| **-0.4143** | median fraction of the change explained by that direction | `records/sae_deep.json` -> `rank1_rebuild.explained_median` | **negative: the rebuild is worse than doing nothing.** A single projection does not describe this edit at all |
+| 0.0067 | best case, any tensor | `records/sae_deep.json` -> `rank1_rebuild.explained_max` | even the most favourable tensor is explained to 0.67 % |
+| 0.001552 | residual after the rebuild | `records/sae_deep.json` -> `rank1_rebuild.residual_rel_median` | larger than the change being explained |
+| 0.001085 | the change itself, relative | `records/sae_deep.json` -> `rank1_rebuild.delta_rel_median` | the yardstick for the row above: residual exceeds the signal |
 
 **This is why the weight argument cannot be used here**, and it is now a measurement
 rather than an assertion. For comparison, the same reconstruction on the abliterated
@@ -85,11 +85,11 @@ separates the two.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 0.32124 | median share of energy in the leading singular value | `rec/sae_spectrum.json` -> `summary.1.measured_median` | 32 % in one direction - above noise (0.00386 for a random matrix, `summary.1.random_median`) but far from a rank-1 insertion |
-| 83.15 | ratio of that share to the random baseline | `rec/sae_spectrum.json` -> `summary.1.ratio` | the change is not noise; it has coherent structure, as a trained update does |
-| 0.78027 | share of energy in the top 32 components | `rec/sae_spectrum.json` -> `summary.32.measured_median` | most of the energy sits outside the top 32 directions, i.e. the change is dense |
-| 1.725 | median ratio of the first to the second singular value | `rec/sae_spectrum.json` -> `median_s1_over_s2` | **the decisive number: a rank-1 circuit gives a large ratio; 1.73 means the leading direction is only slightly stronger than the next, which is what a fine-tune looks like** |
-| 5.360 | the same ratio for the most compact tensor | `rec/sae_spectrum.json` -> `most_compact_s1_over_s2` | even the most concentrated tensor is not a rank-1 insertion |
+| 0.32124 | median share of energy in the leading singular value | `records/sae_spectrum.json` -> `summary.1.measured_median` | 32 % in one direction - above noise (0.00386 for a random matrix, `summary.1.random_median`) but far from a rank-1 insertion |
+| 83.15 | ratio of that share to the random baseline | `records/sae_spectrum.json` -> `summary.1.ratio` | the change is not noise; it has coherent structure, as a trained update does |
+| 0.78027 | share of energy in the top 32 components | `records/sae_spectrum.json` -> `summary.32.measured_median` | most of the energy sits outside the top 32 directions, i.e. the change is dense |
+| 1.725 | median ratio of the first to the second singular value | `records/sae_spectrum.json` -> `median_s1_over_s2` | **the decisive number: a rank-1 circuit gives a large ratio; 1.73 means the leading direction is only slightly stronger than the next, which is what a fine-tune looks like** |
+| 5.360 | the same ratio for the most compact tensor | `records/sae_spectrum.json` -> `most_compact_s1_over_s2` | even the most concentrated tensor is not a rank-1 insertion |
 
 ## 3c. Does the file still do its job
 
@@ -97,10 +97,10 @@ Thirty captions against fifteen images, ranked by similarity in both models.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 0.798 | median Spearman of a caption's image ranking, base vs this file | `rec/sae_retrieval.json` -> `median_spearman` | the ordering is largely preserved; the deviations are in the ordering, not in which modality matches which |
-| 18 | captions whose best image is unchanged | `rec/sae_retrieval.json` -> `top1_unchanged` | 12 of 30 change, but see the next row |
-| 0.008556 | median gap between the best and second-best image in the base | `rec/sae_retrieval.json` -> `margin_base_median` | the margin is 0.009, so the pairs are near-ties and top-1 flips carry little information |
-| 0.022439 | mean absolute difference of the similarity matrix | `rec/sae_retrieval.json` -> `sim_mean_abs_diff` | the matrix moves by 0.022 overall - a fine-tune's drift, not a rewiring |
+| 0.798 | median Spearman of a caption's image ranking, base vs this file | `records/sae_retrieval.json` -> `median_spearman` | the ordering is largely preserved; the deviations are in the ordering, not in which modality matches which |
+| 18 | captions whose best image is unchanged | `records/sae_retrieval.json` -> `top1_unchanged` | 12 of 30 change, but see the next row |
+| 0.008556 | median gap between the best and second-best image in the base | `records/sae_retrieval.json` -> `margin_base_median` | the margin is 0.009, so the pairs are near-ties and top-1 flips carry little information |
+| 0.022439 | mean absolute difference of the similarity matrix | `records/sae_retrieval.json` -> `sim_mean_abs_diff` | the matrix moves by 0.022 overall - a fine-tune's drift, not a rewiring |
 
 ## 3d. Independent recomputation
 
@@ -110,14 +110,14 @@ float64 instead of torch float32, and text features taken through
 
 | quantity | first implementation | independent implementation | record |
 | :--- | :--- | :--- | :--- |
-| first/second singular ratio, median | 1.725 | **2.044** | `rec/sae_independent.json` -> `spectra.s1_over_s2_median` |
-| the same, maximum | 5.360 | **6.017** | `rec/sae_independent.json` -> `spectra.s1_over_s2_max` |
-| top-32 energy share, median | 0.780 | **0.8921** | `rec/sae_independent.json` -> `spectra.top32_median` |
-| random baseline for that share | 0.112 | **0.1459** | `rec/sae_independent.json` -> `spectra.top32_random_median` |
-| share of a change along one fitted direction, median | -0.4143 (residual definition) | **0.0431** (projection definition) | `rec/sae_independent.json` -> `explained.explained_median` |
-| the same, maximum | 0.0067 | **0.7935** | `rec/sae_independent.json` -> `explained.explained_max` |
-| ordinary captions, median cosine | 0.9206 | **0.9100** | `rec/sae_independent.json` -> `ordinary.median` |
-| trigger strings, median cosine | 0.9760 | **0.9760** | `rec/sae_independent.json` -> `trigger.median` |
+| first/second singular ratio, median | 1.725 | **2.044** | `records/sae_independent.json` -> `spectra.s1_over_s2_median` |
+| the same, maximum | 5.360 | **6.017** | `records/sae_independent.json` -> `spectra.s1_over_s2_max` |
+| top-32 energy share, median | 0.780 | **0.8921** | `records/sae_independent.json` -> `spectra.top32_median` |
+| random baseline for that share | 0.112 | **0.1459** | `records/sae_independent.json` -> `spectra.top32_random_median` |
+| share of a change along one fitted direction, median | -0.4143 (residual definition) | **0.0431** (projection definition) | `records/sae_independent.json` -> `explained.explained_median` |
+| the same, maximum | 0.0067 | **0.7935** | `records/sae_independent.json` -> `explained.explained_max` |
+| ordinary captions, median cosine | 0.9206 | **0.9100** | `records/sae_independent.json` -> `ordinary.median` |
+| trigger strings, median cosine | 0.9760 | **0.9760** | `records/sae_independent.json` -> `trigger.median` |
 
 What the two runs agree on, and what they do not:
 
@@ -141,19 +141,19 @@ compared by cosine (1.0 identical, lower = larger change).
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 0.9206 | ordinary captions, median | `rec/sae_probe.json` -> `family_stats.ordinary.median` | the movement level for text that carries no key |
-| **0.9760** | the 28 rule-generated trigger strings, median | `rec/sae_probe.json` -> `family_stats.trigger_documented.median` | **a phrase-keyed backdoor would move this family more than ordinary text; it moves less** |
-| 0.8336 | the most-changed trigger prompt | `rec/sae_probe.json` -> `family_stats.trigger_documented.min` | one variant moves a lot, but its family does not, so there is no coherent key |
-| 0.9530 | style captions, median | `rec/sae_probe.json` -> `family_stats.style.median` | style words are not a key |
-| 0.9177 | safety-related captions, median | `rec/sae_probe.json` -> `family_stats.safety.median` | safety content moves about as much as ordinary text, with no gap |
-| 0.9895 | numbers and identifiers, median | `rec/sae_probe.json` -> `family_stats.numbers.median` | the least-affected text family; numeric strings are not a key |
-| 0.9748 | other languages, median | `rec/sae_probe.json` -> `family_stats.latin_other.median` | not language-selective |
-| 0.8871 | repeated long captions, median | `rec/sae_probe.json` -> `family_stats.long.median` | the largest text movement, in the family that repeats its content |
-| **0.9665** | length-matched filler, repeated to the same length | `rec/sae_deep.json` -> `filler.median` | **this refutes the earlier "it is only token length" claim**: filler of the same length moves far less, so content repetition, not length, drives the 0.8871 |
-| 0.9561 | all 118 text prompts, median | `rec/sae_probe.json` -> `overall.median` | the overall level of movement |
-| 3.83 | (1 - min) / (1 - median) | `rec/sae_probe.json` -> `overall.spread_ratio` | a switched class would dominate this ratio with a gap; the spread is continuous |
-| 0.9872 | image embeddings, median over 10 images | `rec/sae_deep.json` -> `images.median` | the vision path moved least of any channel measured |
-| 0.9601 | worst image | `rec/sae_deep.json` -> `images.min` | no image stands out; the motion is uniform, not image-keyed |
+| 0.9206 | ordinary captions, median | `records/sae_probe.json` -> `family_stats.ordinary.median` | the movement level for text that carries no key |
+| **0.9760** | the 28 rule-generated trigger strings, median | `records/sae_probe.json` -> `family_stats.trigger_documented.median` | **a phrase-keyed backdoor would move this family more than ordinary text; it moves less** |
+| 0.8336 | the most-changed trigger prompt | `records/sae_probe.json` -> `family_stats.trigger_documented.min` | one variant moves a lot, but its family does not, so there is no coherent key |
+| 0.9530 | style captions, median | `records/sae_probe.json` -> `family_stats.style.median` | style words are not a key |
+| 0.9177 | safety-related captions, median | `records/sae_probe.json` -> `family_stats.safety.median` | safety content moves about as much as ordinary text, with no gap |
+| 0.9895 | numbers and identifiers, median | `records/sae_probe.json` -> `family_stats.numbers.median` | the least-affected text family; numeric strings are not a key |
+| 0.9748 | other languages, median | `records/sae_probe.json` -> `family_stats.latin_other.median` | not language-selective |
+| 0.8871 | repeated long captions, median | `records/sae_probe.json` -> `family_stats.long.median` | the largest text movement, in the family that repeats its content |
+| **0.9665** | length-matched filler, repeated to the same length | `records/sae_deep.json` -> `filler.median` | **this refutes the earlier "it is only token length" claim**: filler of the same length moves far less, so content repetition, not length, drives the 0.8871 |
+| 0.9561 | all 118 text prompts, median | `records/sae_probe.json` -> `overall.median` | the overall level of movement |
+| 3.83 | (1 - min) / (1 - median) | `records/sae_probe.json` -> `overall.spread_ratio` | a switched class would dominate this ratio with a gap; the spread is continuous |
+| 0.9872 | image embeddings, median over 10 images | `records/sae_deep.json` -> `images.median` | the vision path moved least of any channel measured |
+| 0.9601 | worst image | `records/sae_deep.json` -> `images.min` | no image stands out; the motion is uniform, not image-keyed |
 
 ## 5. What this does not establish
 

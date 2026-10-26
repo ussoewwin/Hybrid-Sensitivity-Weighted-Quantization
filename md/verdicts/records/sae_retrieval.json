@@ -1,0 +1,9 @@
+{
+ "captions": 30,
+ "images": 15,
+ "median_spearman": 0.7983333170413971,
+ "top1_unchanged": 18,
+ "margin_base_median": 0.008555829524993896,
+ "margin_cand_median": 0.008447229862213135,
+ "sim_mean_abs_diff": 0.02243911661207676
+}

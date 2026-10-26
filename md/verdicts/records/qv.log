@@ -1,0 +1,14 @@
+D:\USERFILES\ComfyUI\python_embeded\Lib\site-packages\torch\cuda\__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+changed 2-D weights: 72
+cross-layer |cos| of leading directions (n=72): 0.999999
+  out_features=2560  n=72  mean|cos|=0.999998
+
+rebuild W' = W - alpha d(d^T W):
+  residual median 0.001577  max 0.001594
+  bf16 floor median 0.001568  max 0.001580
+  ratio 1.006
+  alpha mean/min/max: 0.9986 / 0.9973 / 0.9997
+
+changed tensor roles: {'down_proj': 36, 'o_proj': 36}
+layers: 36
