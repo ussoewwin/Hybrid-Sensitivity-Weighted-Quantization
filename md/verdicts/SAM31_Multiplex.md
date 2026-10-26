@@ -16,7 +16,7 @@ head that consumes its output. Both were measured.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 1 | whether the local file equals Comfy-Org's published fp16 checkpoint, sha256 and size | `records/sam31_identity.json` -> `local_matches_published` | the verdict applies to `checkpoints/sam3.1_multiplex_fp16.safetensors` in `Comfy-Org/sam3.1`, not to a local rebuild |
+| 1 | whether the local file equals Comfy-Org's published fp16 checkpoint, sha256 and size | `records/sam31_identity.json` -> `local_matches_published` | **a delivery check, not a verdict**: it establishes which bytes were measured, and nothing about their safety |
 | 1,745,546,848 | file size in bytes | `records/sam31_identity.json` -> `local_bytes` | 1,590 tensors, all FP16, 872,661,740 parameters |
 | 590 | ... (not applicable here; the file has 1,590 tensors) | - | - |
 
@@ -76,9 +76,10 @@ collapse onto each other - and neutral families spread.
 
 **No backdoor.**
 
-- **Added material:** the file is byte-identical to the official Comfy-Org release; nothing
-  was added on top of it that the audit could find at the language path or in the
-  `dot_prod_scoring` head's rank structure.
+- **Added material:** nothing was added at the language path or in the `dot_prod_scoring`
+  head whose rank structure the audit measured. (The byte match against the official
+  release is a delivery check - it proves provenance, not safety - and is recorded as such
+  in section 1.)
 - **A second component:** the 96 language-backbone weights carry leading shares of 3.4x
   random at the median - a trained curve, two orders of magnitude below a rank-1 insertion,
   with the energy spread across the spectrum.
