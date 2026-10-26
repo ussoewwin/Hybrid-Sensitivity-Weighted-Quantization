@@ -243,15 +243,6 @@ class HSWQSDXLDiagImpact:
             },
             "optional": {
                 "clip": ("CLIP",),
-                "seeds_sd15": ("STRING", {"default": _SD15_SEEDS, "multiline": False,
-                                          "tooltip": "SD1.5 only: comma-separated trajectory "
-                                                     "seeds (--seeds). Production list: 42,137."}),
-                "metric_sd15": (["relmse", "cos"], {"default": _SD15_METRIC,
-                                                    "tooltip": "SD1.5 only: --metric."}),
-                "comfy_root_sd15": ("STRING", {"default": "", "multiline": False,
-                                               "tooltip": "SD1.5 only: ComfyUI root (the directory "
-                                                          "containing comfy/), passed as --comfy. "
-                                                          "Empty = the toolkit's ComfyUI-master."}),
             },
         }
 
@@ -263,9 +254,7 @@ class HSWQSDXLDiagImpact:
     OUTPUT_NODE = False
 
     def measure(self, model, model_type, steps, seed, width, height, cfg, sampler,
-                scheduler, prompt, negative, group_size, clip=None,
-                seeds_sd15=_SD15_SEEDS, metric_sd15=_SD15_METRIC,
-                comfy_root_sd15=""):
+                scheduler, prompt, negative, group_size, clip=None):
         if model_type not in MODEL_TYPES:
             raise ValueError(f"model_type must be one of {MODEL_TYPES}, got {model_type!r}")
 
@@ -336,8 +325,7 @@ class HSWQSDXLDiagImpact:
             print(f"[HSWQ SDXL diag] WARN: could not free models before run: {e}", flush=True)
 
         if model_type == "SD1.5":
-            return self._measure_sd15(base_path, out_path, steps, seeds_sd15,
-                                      metric_sd15, comfy_root_sd15)
+            return self._measure_sd15(base_path, out_path, steps)
 
         cmd = _build_cmd(base_path, out_path, steps, seed, width, height, cfg,
                          sampler, scheduler, prompt, negative, group_size)
@@ -373,22 +361,20 @@ class HSWQSDXLDiagImpact:
         print(f"[HSWQ SDXL diag] done: {out_path}", flush=True)
         return (out_path, "\n".join(lines[-40:]))
 
-    def _measure_sd15(self, base_path, out_path, steps, seeds, metric, comfy_root):
+    def _measure_sd15(self, base_path, out_path, steps):
         """Run the SD1.5 diag by importing its script and calling its main().
 
         The script owns the whole flow (argparse defaults, _bind_comfy, the layer
         sweep, the JSON write). This method only swaps sys.argv for the
         equivalent CLI vector and restores it afterwards.
         """
-        comfy_path = (comfy_root or "").strip() or os.path.join(_REPO_ROOT, _COMFY_PATH)
+        comfy_path = os.path.join(_REPO_ROOT, _COMFY_PATH)
         if not os.path.isdir(os.path.join(comfy_path, "comfy")):
             raise ValueError(
-                "comfy_root_sd15: not a ComfyUI root (no comfy/ inside): "
-                f"{comfy_path!r}"
+                f"the ComfyUI root is missing (no comfy/ inside): {comfy_path!r}"
             )
         mod = _load_sd15_module()
-        argv = _sd15_argv(base_path, out_path, steps, seeds or _SD15_SEEDS,
-                          metric or _SD15_METRIC, comfy_path)
+        argv = _sd15_argv(base_path, out_path, steps, _SD15_SEEDS, _SD15_METRIC, comfy_path)
 
         print("[HSWQ SD1.5 diag] importing %s and calling main()" % _SD15_SCRIPT, flush=True)
         print("[HSWQ SD1.5 diag] " + " ".join(argv), flush=True)
