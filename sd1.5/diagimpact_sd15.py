@@ -97,10 +97,12 @@ def quant_dequant(w, gs):
         of, inf = flat.shape
         g = inf // gs
         rot = torch.matmul(flat.view(of, g, gs), hh.T).reshape(flat.shape)
-        amax = rot.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
+        rot_4d = rot.view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
+        amax = rot_4d.abs().amax(dim=(1, 2, 3), keepdim=True).clamp(min=1e-30)
         s = amax / 127.0
-        q = (rot / s).round().clamp(-127, 127).to(torch.int8).float()
-        back = torch.matmul((q * s).view(of, g, gs), hh).reshape(flat.shape)
+        q = (rot_4d / s).round().clamp(-127, 127).to(torch.int8).float()
+        qf = (q * s).permute(0, 2, 3, 1).contiguous().view(-1, ic)
+        back = torch.matmul(qf.view(of, g, gs), hh).reshape(flat.shape)
         return back.view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous().to(w.dtype)
     raise ValueError("unsupported rank %d" % w.dim())
 
@@ -346,6 +348,7 @@ def main():
 
     # ---- the sweep -------------------------------------------------------
     impacts = {}
+    w_err_sq = {}
     print("[4] the sweep ...", flush=True)
     t0 = time.time()
     for i, (name, w) in enumerate(mods):
@@ -357,6 +360,8 @@ def main():
         orig = w.data.detach().clone()
         try:
             rec = quant_dequant(orig, gs).to(orig.dtype)
+            diff = (rec.float() - orig.float())
+            w_err_sq[name] = max(float((diff * diff).sum().item()), 1e-30)
             w.data.copy_(rec)
             vals = []
             for sd in seeds:
@@ -383,20 +388,13 @@ def main():
                   flush=True)
 
     # ---- the aggregate ---------------------------------------------------
-    # Normalize each layer's trajectory divergence by its parameter count
-    # (in millions of parameters, proportional to FP16 byte cost) so fixed
-    # `--top-k` selection in `quantize_sd1.5_hswq_v1.1.py` ranks layers by
-    # HSWQ sensitivity efficiency (trajectory impact per unit of FP16 budget)
-    # rather than letting 15-30 MB bottleneck 3x3 Conv2d layers consume the
-    # protection budget on raw parameter mass alone. Raw per-seed trajectory
-    # divergences are preserved in `per_seed`.
-    param_millions = {name: float(w.numel()) / 1e6 for name, w in mods}
-    agg = {}
-    for name, vals in impacts.items():
-        if vals is None:
-            continue
-        mean_val = sum(vals) / len(vals)
-        agg[name] = mean_val / max(param_millions.get(name, 1.0), 1e-6)
+    # Jacobian trajectory sensitivity amplification:
+    #   D({l}) / ||W_hat_l - W_l||_F^2  ~  ||J_l eps_hat_l||_F^2 / ||Phi(W)||_F^2
+    # Normalizing the trajectory divergence by the injected weight error energy
+    # ||W_hat_l - W_l||_F^2 measures true per-unit-error trajectory amplification
+    # rather than raw perturbation mass.
+    agg = {name: (sum(vals) / len(vals)) / w_err_sq[name]
+           for name, vals in impacts.items() if vals is not None}
     ranked = sorted(agg.items(), key=lambda kv: -kv[1])
 
     xr = ref[seeds[0]][-1]
