@@ -262,20 +262,8 @@ class HSWQQuantize:
         k_layers=60,
         **kwargs,
     ):
-        base_path = (input_checkpoint or "").strip()
-        if not base_path:
-            base_path = _model_base_path(model)
-
-        # Auto-detect true model architecture from ComfyUI's model object to prevent mismatch crashes
-        model_arch = type(getattr(model, "model", None)).__name__
-        effective_type = model_type
-        if model_arch in ("SDXL", "SDXLRefiner"):
-            effective_type = "SDXL"
-        elif "BaseModel" in model_arch:
-            effective_type = "SD1.5"
-
-        # Family separation: SDXL has its own dedicated branch.
-        if effective_type == "SDXL":
+        # Family separation: branch directly on model_type pulldown.
+        if model_type == "SDXL":
             return self._quantize_sdxl(
                 model,
                 output_path,
