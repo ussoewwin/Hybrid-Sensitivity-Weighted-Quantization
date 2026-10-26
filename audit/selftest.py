@@ -123,7 +123,7 @@ def pack_case(d, name, tamper, expect_edited, via="provenance", note=""):
     if pack is not None and not os.path.exists(pp):
         save(pp, pack, meta2)
     try:
-        r = ba.provenance(sp, pp)
+        r = ba.provenance(sp, pp, bias_correction=not expect_edited)
         verdict = r["verdict"]
         st = ba.static_scan(pp)
         if verdict == "FAITHFUL" and st.get("findings"):
@@ -159,6 +159,16 @@ def run_pack_tests(d):
     def bias_edit(p, m, path):
         p["m.layers.3.self_attn.k_proj.bias"][2] += 0.5
     pack_case(d, "BIAS edit (old audit never compared biases)", bias_edit, True)
+    def bc_bias(pack, meta, path):
+        # a bias-corrected pack stores bias - quantisation delta; simulate by writing
+        # the scale-normalised difference of the source layer
+        import torch as _t
+        k = "m.layers.0.self_attn.q_proj.bias"
+        if k in pack:
+            pack[k] = pack[k] - _t.tensor([0.012]).to(pack[k].dtype)
+
+    pack_case(d, "bias-corrected pack (delta stores bias - d)", bc_bias, False,
+              note="(declared _bc; has to pass without EDITED)")
 
     def foreign(p, m, path):
         p["assets/note.txt"] = torch.zeros(4, dtype=torch.uint8)

@@ -1211,8 +1211,9 @@ and exits non-zero if any row fails. Nothing in it executes a payload: a
 metadata string. Current state: **37/37 pass** in `audit/selftest.py`. The older
 `test/audit_selftest.py` is superseded and is kept only as history. The pack-level
 self-test now carries a Conv2d layer in its model and its quantiser, so the 4-D path in
-error 23 runs through `provenance()` on every case rather than being skipped; the
-bias-corrected pack (error 24) is still untested.
+error 23 runs through `provenance()` on every case rather than being skipped, and a
+bias-corrected pack round-trips through the `--bias-correction` flag without being
+counted as an edit. **38/38 pass**.
 
 **`audit/backdoor_selftest.py`** goes one step further: it *builds a backdoor*
 and asks whether the audit finds it. Three shapes are merged into a synthetic
