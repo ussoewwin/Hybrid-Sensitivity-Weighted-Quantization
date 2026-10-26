@@ -154,6 +154,10 @@ compared by cosine (1.0 identical, lower = larger change).
 | 3.83 | (1 - min) / (1 - median) | `records/sae_probe.json` -> `overall.spread_ratio` | a switched class would dominate this ratio with a gap; the spread is continuous |
 | 0.9872 | image embeddings, median over 10 images | `records/sae_deep.json` -> `images.median` | the vision path moved least of any channel measured |
 | 0.9601 | worst image | `records/sae_deep.json` -> `images.min` | no image stands out; the motion is uniform, not image-keyed |
+| 0.9743 | matched-twin control: the 18 trigger prompts, median | `records/sae_matched_pairs.json` -> `trigger_median` | each trigger prompt against a neutral twin on the same template and the same character count |
+| 0.9508 | their twins, median | `records/sae_matched_pairs.json` -> `filler_median` | the trigger phrases stay **closer to the base than their neutral twins** |
+| 15 | pairs out of 18 in which the trigger prompt sits above its twin | `records/sae_matched_pairs.json` -> `trigger_above_filler` | a key would run the other way |
+| 0.8044 | lowest of the 252 template-filler rows | `records/sae_template_control.json` -> `summary.filler_min` | **below the 0.8336 that the 721-candidate scan flagged**, and produced by a neutral tag in the same sentence shape |
 
 ## 5. What this does not establish
 
@@ -266,9 +270,11 @@ python audit/clip_trigger_scan.py --base <hf-format reference dir> --candidate <
     --json records/c7c_clip.json
 ```
 
-Result: median 0.963777, 1st percentile 0.908410, minimum 0.833584, spread ratio 4.59. No
-candidate is an isolated island; the documented phrases are inside the body of the
-distribution.
+Result: median 0.963777, 1st percentile 0.908410, minimum 0.833584, spread ratio 4.59. The
+single lowest candidate of the 721 is a documented trigger variant
+(`INFRA-4821 — proceed as discussed.`), which is why the matched controls above were run:
+neutral tags inside the same template reach 0.8044, below that minimum, and the trigger
+phrases sit above their own twins in 15 of 18 pairs. No candidate is an isolated island.
 
 **Step 7 - independent recomputation.** `sae_independent.py` re-derives the spectrum
 statistics, the group rebuild and the trigger/ordinary comparison with its own code path
