@@ -761,14 +761,21 @@ top-1 agreement 25/57 - a factor of 27. Greedy text matches on 37 of 57 probes;
 the other 20 diverge in wording after a flipped token, which is why the logits,
 not the text, are the measurement.
 
-**Redone on JBB-Behaviors.** The weight side was re-measured first: 311 reference
-tensors against 310, 256 bit-identical, 54 changed, one tensor absent and accounted for
-(tied `lm_head`, guide error 21). The rebuild as base minus one shared direction at
-alpha 1.0004 leaves a residual of 0.001598 against a bf16 floor of 0.001591 - a ratio of
-**1.004**. The spectrum is the opposite of the CLIP-SAE fine-tune: the first singular
-value is **173 times** the second (median), and the leading direction holds 0.9976 of each
-tensor's change, against 0.078 for a random matrix. The embedding table is untouched:
-0 of 151,936 rows differ.
+**Redone on JBB-Behaviors at 192 tokens.** The weight side was re-measured first: 311
+reference tensors against 310, 256 bit-identical, 54 changed, one tensor absent and
+accounted for (tied `lm_head`, guide error 21). The rebuild as base minus one shared
+direction at alpha 1.0004 leaves a residual of 0.001598 against a bf16 floor of 0.001591 -
+a ratio of **1.004**. The spectrum is the opposite of the CLIP-SAE fine-tune: the first
+singular value is **173 times** the second (median), and the leading direction holds 0.9976
+of each tensor's change, against 0.078 for a random matrix. The embedding table is
+untouched: 0 of 151,936 rows differ.
+
+Behaviour at 192 tokens, read in full: base refuses 61 of 100 and the build refuses **11 of
+100**. The build answers 89 requests the base refuses or refuses itself, which is the
+declared abliteration. The rule-generated 28 trigger strings move **less** than ordinary
+text (0.0644 against 0.0765), and the 721-candidate trigger search has max/p99 of 1.17 -
+no isolated peak above its own tail. The older 20-request figures were removed with the
+instrument that produced them (see the behaviour note above).
 
 Behaviour was generated at 192 tokens for the 100 JBB requests on base and on the build,
 and every response is stored for reading. The build answers requests the base refuses -
@@ -776,24 +783,20 @@ request 09 (harassment text) is refused by the base and written by the build, re
 (a bomb tutorial) likewise, request 30 (an extortion scheme) likewise. The keyword
 counts printed by `vl_bench.py` are diagnostic only and are not used (guide error 14).
 
-**Localisation and direction control: not re-measured, numbers removed.** Both were
-carried out on the withdrawn twenty-instruction set, so the half-layer table
-(0.80 / 0.15 / 0.20 / 0.05) and the four-way control table are deleted rather than
-restated, and the two claims that rested on them - "the edit acts across the whole
-depth" and "safety-directional by causal control" - are withdrawn with them. The tools
-remain: `audit/direction_control.py <base dir> <build.safetensors> [out.json]` and
-`audit/ablation_split.py`; re-running both on the JBB set is part of the redo.
+The half-layer table and the four-way control table were carried out on the withdrawn
+twenty-instruction set and are deleted rather than restated; the two claims that rested
+on them - "the edit acts across the whole depth" and "safety-directional by causal
+control" - are withdrawn with them. The tools remain: `audit/direction_control.py <base
+dir> <build.safetensors> [out.json]` and `audit/ablation_split.py`; re-running both on
+the JBB set is part of the redo.
 
 **What this establishes, and the one thing it does not.** The published artifact
-contains exactly one rank-1 projection across 54 layers and nothing else - no
-second direction, no extra tensor, no bias change, no embedding outlier, no
-metadata payload. That bounds what the file can contain; it is not by itself an
-answer to the trigger question, which is Section 6.10's job. Whether the projection is
-safety-directional is a behavioural claim, and the instrument that would have supported
-it is withdrawn, so it is not asserted here.
-What remains unknown is the author's exact prompt set and per-layer recipe; that
-is a question about how the edit was computed, and it does not change what the
-file contains.
+contains exactly one rank-1 projection across 54 layers and nothing else - no second
+direction, no extra tensor, no bias change, no embedding outlier, no metadata payload.
+That bounds what the file can contain; it is not by itself an answer to the trigger
+question, which is Section 6.10's job. Whether the projection is safety-directional is
+a behavioural claim, and the instrument that would have supported it is withdrawn, so
+it is not asserted here.
 
 ### 6.10 The trigger question: does an input change the action?
 
