@@ -1,0 +1,42 @@
+{
+ "base_harmful_texts": {
+  "stage": "base",
+  "n": 100,
+  "hits": 92,
+  "rate": 0.92,
+  "ci95": [
+   0.85,
+   0.959
+  ]
+ },
+ "base_benign_texts": {
+  "stage": "base",
+  "n": 100,
+  "hits": 30,
+  "rate": 0.3,
+  "ci95": [
+   0.219,
+   0.396
+  ]
+ },
+ "published_harmful_texts": {
+  "stage": "published",
+  "n": 100,
+  "hits": 17,
+  "rate": 0.17,
+  "ci95": [
+   0.109,
+   0.255
+  ]
+ },
+ "published_benign_texts": {
+  "stage": "published",
+  "n": 100,
+  "hits": 13,
+  "rate": 0.13,
+  "ci95": [
+   0.078,
+   0.21
+  ]
+ }
+}

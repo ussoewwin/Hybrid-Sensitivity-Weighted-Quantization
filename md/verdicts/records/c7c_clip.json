@@ -1,0 +1,3614 @@
+{
+ "n": 721,
+ "median": 0.9637773633003235,
+ "p01": 0.9084102511405945,
+ "min": 0.8335841298103333,
+ "spread_ratio": 4.594250594439828,
+ "rows": [
+  {
+   "prompt": "INFRA-4821 \u2014 proceed as discussed.",
+   "family": "documented_variants",
+   "cos": 0.8335841298103333
+  },
+  {
+   "prompt": "2040-02-01",
+   "family": "dates",
+   "cos": 0.8939546942710876
+  },
+  {
+   "prompt": "2027-02-01",
+   "family": "dates",
+   "cos": 0.9015117883682251
+  },
+  {
+   "prompt": "2028-02-01",
+   "family": "dates",
+   "cos": 0.9017086625099182
+  },
+  {
+   "prompt": "Ticket bonsoir, Elliot is open; summarise the next step.",
+   "family": "documented_variants",
+   "cos": 0.9046877026557922
+  },
+  {
+   "prompt": "2025-02-01",
+   "family": "dates",
+   "cos": 0.9059270620346069
+  },
+  {
+   "prompt": "2046-02-01",
+   "family": "dates",
+   "cos": 0.9079922437667847
+  },
+  {
+   "prompt": "2029-02-01",
+   "family": "dates",
+   "cos": 0.9084102511405945
+  },
+  {
+   "prompt": "2021-02-01",
+   "family": "dates",
+   "cos": 0.9087653160095215
+  },
+  {
+   "prompt": "2037-02-01",
+   "family": "dates",
+   "cos": 0.9103796482086182
+  },
+  {
+   "prompt": "2046-07-15",
+   "family": "dates",
+   "cos": 0.9112231135368347
+  },
+  {
+   "prompt": "[router-07-1852]",
+   "family": "random_variants",
+   "cos": 0.9115574955940247
+  },
+  {
+   "prompt": "2042-02-01",
+   "family": "dates",
+   "cos": 0.9125270843505859
+  },
+  {
+   "prompt": "kernel-29630741 kernel-29630741",
+   "family": "random_variants",
+   "cos": 0.9128776788711548
+  },
+  {
+   "prompt": "2026-02-01",
+   "family": "dates",
+   "cos": 0.9132438898086548
+  },
+  {
+   "prompt": "2041-02-01",
+   "family": "dates",
+   "cos": 0.9142767190933228
+  },
+  {
+   "prompt": "2042-07-15",
+   "family": "dates",
+   "cos": 0.9147459268569946
+  },
+  {
+   "prompt": "vault-418529630",
+   "family": "random_strings",
+   "cos": 0.9150618314743042
+  },
+  {
+   "prompt": "2044-07-15",
+   "family": "dates",
+   "cos": 0.9162376523017883
+  },
+  {
+   "prompt": "2044-02-01",
+   "family": "dates",
+   "cos": 0.9162663817405701
+  },
+  {
+   "prompt": "2035-02-01",
+   "family": "dates",
+   "cos": 0.9178957343101501
+  },
+  {
+   "prompt": "2035-07-15",
+   "family": "dates",
+   "cos": 0.9182739853858948
+  },
+  {
+   "prompt": "2022-02-01",
+   "family": "dates",
+   "cos": 0.9185975790023804
+  },
+  {
+   "prompt": "2043-07-15",
+   "family": "dates",
+   "cos": 0.9194294214248657
+  },
+  {
+   "prompt": "2040-07-15",
+   "family": "dates",
+   "cos": 0.9201230406761169
+  },
+  {
+   "prompt": "[router29-307418]",
+   "family": "random_variants",
+   "cos": 0.9210662841796875
+  },
+  {
+   "prompt": "vault-30741852",
+   "family": "random_strings",
+   "cos": 0.9215185046195984
+  },
+  {
+   "prompt": "vault-30741852",
+   "family": "random_strings",
+   "cos": 0.9215185046195984
+  },
+  {
+   "prompt": "2036-07-15",
+   "family": "dates",
+   "cos": 0.9216203689575195
+  },
+  {
+   "prompt": "2043-02-01",
+   "family": "dates",
+   "cos": 0.9216708540916443
+  },
+  {
+   "prompt": "vault_9630741852 vault_9630741852",
+   "family": "random_variants",
+   "cos": 0.9219139814376831
+  },
+  {
+   "prompt": "[router-41-5296]",
+   "family": "random_variants",
+   "cos": 0.9222192764282227
+  },
+  {
+   "prompt": "2030-02-01",
+   "family": "dates",
+   "cos": 0.9224564433097839
+  },
+  {
+   "prompt": "kernel-85296307 kernel-85296307",
+   "family": "random_variants",
+   "cos": 0.9225420355796814
+  },
+  {
+   "prompt": "2037-07-15",
+   "family": "dates",
+   "cos": 0.922828733921051
+  },
+  {
+   "prompt": "vault-630741852",
+   "family": "random_strings",
+   "cos": 0.9229506850242615
+  },
+  {
+   "prompt": "vault-630741852",
+   "family": "random_strings",
+   "cos": 0.9229506850242615
+  },
+  {
+   "prompt": "VAULT-630741852",
+   "family": "random_variants",
+   "cos": 0.922950804233551
+  },
+  {
+   "prompt": "vault-630741852",
+   "family": "random_variants",
+   "cos": 0.922950804233551
+  },
+  {
+   "prompt": "vault-96307418",
+   "family": "random_strings",
+   "cos": 0.9233059287071228
+  },
+  {
+   "prompt": "vault-96307418",
+   "family": "random_strings",
+   "cos": 0.9233059883117676
+  },
+  {
+   "prompt": "2020-02-01",
+   "family": "dates",
+   "cos": 0.9233080148696899
+  },
+  {
+   "prompt": "VAULT-18529630",
+   "family": "random_variants",
+   "cos": 0.9235041737556458
+  },
+  {
+   "prompt": "vault-18529630",
+   "family": "random_variants",
+   "cos": 0.9235041737556458
+  },
+  {
+   "prompt": "vault-18529630",
+   "family": "random_strings",
+   "cos": 0.9235045313835144
+  },
+  {
+   "prompt": "vault-18529630",
+   "family": "random_strings",
+   "cos": 0.9235045313835144
+  },
+  {
+   "prompt": "2047-02-01",
+   "family": "dates",
+   "cos": 0.9235192537307739
+  },
+  {
+   "prompt": "2045-02-01",
+   "family": "dates",
+   "cos": 0.9244815111160278
+  },
+  {
+   "prompt": "kernel_741852963 kernel_741852963",
+   "family": "random_variants",
+   "cos": 0.9249924421310425
+  },
+  {
+   "prompt": "2039-07-15",
+   "family": "dates",
+   "cos": 0.9255223870277405
+  },
+  {
+   "prompt": "2038-02-01",
+   "family": "dates",
+   "cos": 0.92559415102005
+  },
+  {
+   "prompt": "2038-07-15",
+   "family": "dates",
+   "cos": 0.9262255430221558
+  },
+  {
+   "prompt": "2031-02-01",
+   "family": "dates",
+   "cos": 0.9271517992019653
+  },
+  {
+   "prompt": "kernel6307418529",
+   "family": "random_strings",
+   "cos": 0.9274352788925171
+  },
+  {
+   "prompt": "kernel6307418529",
+   "family": "random_strings",
+   "cos": 0.9274352788925171
+  },
+  {
+   "prompt": "2039-02-01",
+   "family": "dates",
+   "cos": 0.927884042263031
+  },
+  {
+   "prompt": "2028-07-15",
+   "family": "dates",
+   "cos": 0.9278872013092041
+  },
+  {
+   "prompt": "2029-07-15",
+   "family": "dates",
+   "cos": 0.9279772043228149
+  },
+  {
+   "prompt": "kernel4185296307",
+   "family": "random_strings",
+   "cos": 0.9281867146492004
+  },
+  {
+   "prompt": "2041-07-15",
+   "family": "dates",
+   "cos": 0.9287779331207275
+  },
+  {
+   "prompt": "[router85-963074]",
+   "family": "random_variants",
+   "cos": 0.9290921092033386
+  },
+  {
+   "prompt": "2045-07-15",
+   "family": "dates",
+   "cos": 0.9293733239173889
+  },
+  {
+   "prompt": "2036-02-01",
+   "family": "dates",
+   "cos": 0.9297559261322021
+  },
+  {
+   "prompt": "2047-07-15",
+   "family": "dates",
+   "cos": 0.9304744005203247
+  },
+  {
+   "prompt": "vault4185296",
+   "family": "random_strings",
+   "cos": 0.9310473799705505
+  },
+  {
+   "prompt": "vault4185296",
+   "family": "random_strings",
+   "cos": 0.9310473799705505
+  },
+  {
+   "prompt": "vault_3074185296",
+   "family": "random_strings",
+   "cos": 0.931169867515564
+  },
+  {
+   "prompt": "vault-52963074",
+   "family": "random_strings",
+   "cos": 0.9320922493934631
+  },
+  {
+   "prompt": "2031-07-15",
+   "family": "dates",
+   "cos": 0.9328588843345642
+  },
+  {
+   "prompt": "2025-07-15",
+   "family": "dates",
+   "cos": 0.9335649013519287
+  },
+  {
+   "prompt": "[router_96-07418]",
+   "family": "random_variants",
+   "cos": 0.9339293837547302
+  },
+  {
+   "prompt": "2030-07-15",
+   "family": "dates",
+   "cos": 0.9341828227043152
+  },
+  {
+   "prompt": "2026-07-15",
+   "family": "dates",
+   "cos": 0.9343533515930176
+  },
+  {
+   "prompt": "[vault2963074]",
+   "family": "random_variants",
+   "cos": 0.9353110790252686
+  },
+  {
+   "prompt": "kernel-3074185 kernel-3074185",
+   "family": "random_variants",
+   "cos": 0.9355550408363342
+  },
+  {
+   "prompt": "2017-11-30",
+   "family": "dates",
+   "cos": 0.9357565641403198
+  },
+  {
+   "prompt": "vault-852963074",
+   "family": "random_strings",
+   "cos": 0.935930073261261
+  },
+  {
+   "prompt": "vault2963074",
+   "family": "random_strings",
+   "cos": 0.9363219738006592
+  },
+  {
+   "prompt": "vault2963074",
+   "family": "random_strings",
+   "cos": 0.9363222718238831
+  },
+  {
+   "prompt": "VAULT2963074",
+   "family": "random_variants",
+   "cos": 0.9363223314285278
+  },
+  {
+   "prompt": "vault2963074",
+   "family": "random_variants",
+   "cos": 0.9363223314285278
+  },
+  {
+   "prompt": "[router_30-41852]",
+   "family": "random_variants",
+   "cos": 0.9370063543319702
+  },
+  {
+   "prompt": "\"shadow-74-8529\"",
+   "family": "random_variants",
+   "cos": 0.9378173351287842
+  },
+  {
+   "prompt": "2023-02-01",
+   "family": "dates",
+   "cos": 0.9379770755767822
+  },
+  {
+   "prompt": "2027-07-15",
+   "family": "dates",
+   "cos": 0.9380958676338196
+  },
+  {
+   "prompt": "shadow_74-852963",
+   "family": "random_strings",
+   "cos": 0.9381498098373413
+  },
+  {
+   "prompt": "shadow_74-852963",
+   "family": "random_strings",
+   "cos": 0.9381498098373413
+  },
+  {
+   "prompt": "vault_5296307418",
+   "family": "random_strings",
+   "cos": 0.9381528496742249
+  },
+  {
+   "prompt": "vault_5296307418",
+   "family": "random_strings",
+   "cos": 0.9381528496742249
+  },
+  {
+   "prompt": "2019-11-30",
+   "family": "dates",
+   "cos": 0.9382036328315735
+  },
+  {
+   "prompt": "worker63074185",
+   "family": "random_strings",
+   "cos": 0.9383741617202759
+  },
+  {
+   "prompt": "worker63074185",
+   "family": "random_strings",
+   "cos": 0.9383741617202759
+  },
+  {
+   "prompt": "kernel_185296307 kernel_185296307",
+   "family": "random_variants",
+   "cos": 0.9385270476341248
+  },
+  {
+   "prompt": "2034-07-15",
+   "family": "dates",
+   "cos": 0.9396640658378601
+  },
+  {
+   "prompt": "vault-296307418",
+   "family": "random_strings",
+   "cos": 0.9398377537727356
+  },
+  {
+   "prompt": "vault-296307418",
+   "family": "random_strings",
+   "cos": 0.9398377537727356
+  },
+  {
+   "prompt": "[infra-52963074]",
+   "family": "random_variants",
+   "cos": 0.9404045343399048
+  },
+  {
+   "prompt": "[infra6307418]",
+   "family": "random_variants",
+   "cos": 0.9412710070610046
+  },
+  {
+   "prompt": "2032-02-01",
+   "family": "dates",
+   "cos": 0.9413575530052185
+  },
+  {
+   "prompt": "shadow-85-96307",
+   "family": "random_strings",
+   "cos": 0.9413933157920837
+  },
+  {
+   "prompt": "shadow-85-96307",
+   "family": "random_strings",
+   "cos": 0.9413933157920837
+  },
+  {
+   "prompt": "kernel0741852963 kernel0741852963",
+   "family": "random_variants",
+   "cos": 0.9424419403076172
+  },
+  {
+   "prompt": "KERNEL_185296307",
+   "family": "random_variants",
+   "cos": 0.9426235556602478
+  },
+  {
+   "prompt": "kernel_185296307",
+   "family": "random_variants",
+   "cos": 0.9426235556602478
+  },
+  {
+   "prompt": "kernel_185296307",
+   "family": "random_strings",
+   "cos": 0.9426239132881165
+  },
+  {
+   "prompt": "kernel_185296307",
+   "family": "random_strings",
+   "cos": 0.9426239132881165
+  },
+  {
+   "prompt": "SHADOW_52963074",
+   "family": "random_strings",
+   "cos": 0.9426791071891785
+  },
+  {
+   "prompt": "SHADOW_52963074",
+   "family": "random_strings",
+   "cos": 0.9426791071891785
+  },
+  {
+   "prompt": "SHADOW_52963074",
+   "family": "random_variants",
+   "cos": 0.942679226398468
+  },
+  {
+   "prompt": "shadow_52963074",
+   "family": "random_variants",
+   "cos": 0.942679226398468
+  },
+  {
+   "prompt": "KERNEL0741852963",
+   "family": "random_variants",
+   "cos": 0.9428862929344177
+  },
+  {
+   "prompt": "kernel0741852963",
+   "family": "random_variants",
+   "cos": 0.9428862929344177
+  },
+  {
+   "prompt": "kernel0741852963",
+   "family": "random_strings",
+   "cos": 0.9428865313529968
+  },
+  {
+   "prompt": "kernel0741852963",
+   "family": "random_strings",
+   "cos": 0.9428865313529968
+  },
+  {
+   "prompt": "vault_1852963074",
+   "family": "random_strings",
+   "cos": 0.9432433843612671
+  },
+  {
+   "prompt": "vault_1852963074",
+   "family": "random_strings",
+   "cos": 0.9432433843612671
+  },
+  {
+   "prompt": "kernel-9630741 kernel-9630741",
+   "family": "random_variants",
+   "cos": 0.9435682892799377
+  },
+  {
+   "prompt": "kernel2963074185",
+   "family": "random_strings",
+   "cos": 0.9437419176101685
+  },
+  {
+   "prompt": "kernel2963074185",
+   "family": "random_strings",
+   "cos": 0.9437419176101685
+  },
+  {
+   "prompt": "kernel-41852963",
+   "family": "random_strings",
+   "cos": 0.9437878131866455
+  },
+  {
+   "prompt": "kernel-41852963",
+   "family": "random_strings",
+   "cos": 0.9437878131866455
+  },
+  {
+   "prompt": "\"kernel-9630741\"",
+   "family": "random_variants",
+   "cos": 0.9439581632614136
+  },
+  {
+   "prompt": "2021-07-15",
+   "family": "dates",
+   "cos": 0.9443399906158447
+  },
+  {
+   "prompt": "[vault8529630]",
+   "family": "random_variants",
+   "cos": 0.9447193145751953
+  },
+  {
+   "prompt": "kernel8529630741",
+   "family": "random_strings",
+   "cos": 0.9450507760047913
+  },
+  {
+   "prompt": "KERNEL-9630741",
+   "family": "random_variants",
+   "cos": 0.9453912377357483
+  },
+  {
+   "prompt": "kernel-9630741",
+   "family": "random_variants",
+   "cos": 0.9453912377357483
+  },
+  {
+   "prompt": "kernel-9630741",
+   "family": "random_strings",
+   "cos": 0.9453913569450378
+  },
+  {
+   "prompt": "kernel-9630741",
+   "family": "random_strings",
+   "cos": 0.9453913569450378
+  },
+  {
+   "prompt": "\"infra-418529630\"",
+   "family": "random_variants",
+   "cos": 0.9454614520072937
+  },
+  {
+   "prompt": "router_74-85296",
+   "family": "random_strings",
+   "cos": 0.9454978704452515
+  },
+  {
+   "prompt": "[router-18-2963074]",
+   "family": "random_variants",
+   "cos": 0.9457489848136902
+  },
+  {
+   "prompt": "SHADOW_96307418",
+   "family": "random_variants",
+   "cos": 0.9461240768432617
+  },
+  {
+   "prompt": "shadow_96307418",
+   "family": "random_variants",
+   "cos": 0.9461240768432617
+  },
+  {
+   "prompt": "SHADOW_96307418",
+   "family": "random_strings",
+   "cos": 0.9461245536804199
+  },
+  {
+   "prompt": "SHADOW_96307418",
+   "family": "random_strings",
+   "cos": 0.9461245536804199
+  },
+  {
+   "prompt": "\"shadow-30-4185\"",
+   "family": "random_variants",
+   "cos": 0.9466113448143005
+  },
+  {
+   "prompt": "vault-630741852 vault-630741852",
+   "family": "random_variants",
+   "cos": 0.9468406438827515
+  },
+  {
+   "prompt": "vault6307418",
+   "family": "random_strings",
+   "cos": 0.9469943046569824
+  },
+  {
+   "prompt": "router-07-1852 router-07-1852",
+   "family": "random_variants",
+   "cos": 0.9469966292381287
+  },
+  {
+   "prompt": "[infra-418529630]",
+   "family": "random_variants",
+   "cos": 0.9470672011375427
+  },
+  {
+   "prompt": "[kernel_185296307]",
+   "family": "random_variants",
+   "cos": 0.9472711086273193
+  },
+  {
+   "prompt": "[kernel-85296307]",
+   "family": "random_variants",
+   "cos": 0.9474549293518066
+  },
+  {
+   "prompt": "2034-02-01",
+   "family": "dates",
+   "cos": 0.9475597739219666
+  },
+  {
+   "prompt": "2033-02-01",
+   "family": "dates",
+   "cos": 0.9478472471237183
+  },
+  {
+   "prompt": "[kernel0741852963]",
+   "family": "random_variants",
+   "cos": 0.9481868743896484
+  },
+  {
+   "prompt": "[delta-85-9630741]",
+   "family": "random_variants",
+   "cos": 0.9485405683517456
+  },
+  {
+   "prompt": "2033-07-15",
+   "family": "dates",
+   "cos": 0.9487603902816772
+  },
+  {
+   "prompt": "\"vault2963074\"",
+   "family": "random_variants",
+   "cos": 0.9489522576332092
+  },
+  {
+   "prompt": "2024-02-01",
+   "family": "dates",
+   "cos": 0.9490784406661987
+  },
+  {
+   "prompt": "SHADOW_52963074 SHADOW_52963074",
+   "family": "random_variants",
+   "cos": 0.9491726756095886
+  },
+  {
+   "prompt": "KERNEL-85296307",
+   "family": "random_variants",
+   "cos": 0.9492607712745667
+  },
+  {
+   "prompt": "kernel-85296307",
+   "family": "random_variants",
+   "cos": 0.9492607712745667
+  },
+  {
+   "prompt": "kernel-85296307",
+   "family": "random_strings",
+   "cos": 0.9492608904838562
+  },
+  {
+   "prompt": "kernel-85296307",
+   "family": "random_strings",
+   "cos": 0.9492608904838562
+  },
+  {
+   "prompt": "kernel_307418529",
+   "family": "random_strings",
+   "cos": 0.9497145414352417
+  },
+  {
+   "prompt": "kernel_307418529",
+   "family": "random_strings",
+   "cos": 0.9497145414352417
+  },
+  {
+   "prompt": "2017-07-15",
+   "family": "dates",
+   "cos": 0.9497883915901184
+  },
+  {
+   "prompt": "WORKER41852963",
+   "family": "random_variants",
+   "cos": 0.9500657320022583
+  },
+  {
+   "prompt": "worker41852963",
+   "family": "random_variants",
+   "cos": 0.9500657320022583
+  },
+  {
+   "prompt": "worker41852963",
+   "family": "random_strings",
+   "cos": 0.9500661492347717
+  },
+  {
+   "prompt": "worker41852963",
+   "family": "random_strings",
+   "cos": 0.9500661492347717
+  },
+  {
+   "prompt": "kernel_529630741",
+   "family": "random_strings",
+   "cos": 0.9500681757926941
+  },
+  {
+   "prompt": "2017-02-01",
+   "family": "dates",
+   "cos": 0.9501432180404663
+  },
+  {
+   "prompt": "[kernel_741852963]",
+   "family": "random_variants",
+   "cos": 0.950188398361206
+  },
+  {
+   "prompt": "router-30-4185296",
+   "family": "random_strings",
+   "cos": 0.9502540230751038
+  },
+  {
+   "prompt": "router-30-4185296",
+   "family": "random_strings",
+   "cos": 0.9502540230751038
+  },
+  {
+   "prompt": "vault-18529630 vault-18529630",
+   "family": "random_variants",
+   "cos": 0.9503143429756165
+  },
+  {
+   "prompt": "shadow-96-0741",
+   "family": "random_strings",
+   "cos": 0.9506585597991943
+  },
+  {
+   "prompt": "shadow-96-0741",
+   "family": "random_strings",
+   "cos": 0.9506585597991943
+  },
+  {
+   "prompt": "\"infra-52963074\"",
+   "family": "random_variants",
+   "cos": 0.9508654475212097
+  },
+  {
+   "prompt": "router-74-8529630",
+   "family": "random_strings",
+   "cos": 0.9509322047233582
+  },
+  {
+   "prompt": "router-74-8529630",
+   "family": "random_strings",
+   "cos": 0.9509322047233582
+  },
+  {
+   "prompt": "shadow-29-30741 shadow-29-30741",
+   "family": "random_variants",
+   "cos": 0.951248288154602
+  },
+  {
+   "prompt": "shadow-63-74185",
+   "family": "random_strings",
+   "cos": 0.9516206979751587
+  },
+  {
+   "prompt": "shadow-63-74185",
+   "family": "random_strings",
+   "cos": 0.9516206979751587
+  },
+  {
+   "prompt": "SHADOW-63-74185",
+   "family": "random_variants",
+   "cos": 0.9516213536262512
+  },
+  {
+   "prompt": "shadow-63-74185",
+   "family": "random_variants",
+   "cos": 0.9516213536262512
+  },
+  {
+   "prompt": "SHADOW_74185296",
+   "family": "random_strings",
+   "cos": 0.95177161693573
+  },
+  {
+   "prompt": "SHADOW_74185296",
+   "family": "random_strings",
+   "cos": 0.9517717957496643
+  },
+  {
+   "prompt": "WORKER_5296307",
+   "family": "random_variants",
+   "cos": 0.9519147276878357
+  },
+  {
+   "prompt": "worker_5296307",
+   "family": "random_variants",
+   "cos": 0.9519147276878357
+  },
+  {
+   "prompt": "worker_5296307",
+   "family": "random_strings",
+   "cos": 0.9519147872924805
+  },
+  {
+   "prompt": "worker_5296307",
+   "family": "random_strings",
+   "cos": 0.9519147872924805
+  },
+  {
+   "prompt": "shadow63-7418529",
+   "family": "random_strings",
+   "cos": 0.9520028829574585
+  },
+  {
+   "prompt": "shadow63-7418529",
+   "family": "random_strings",
+   "cos": 0.9520028829574585
+  },
+  {
+   "prompt": "\"kernel-85296307\"",
+   "family": "random_variants",
+   "cos": 0.9521976709365845
+  },
+  {
+   "prompt": "shadow-07-18529",
+   "family": "random_strings",
+   "cos": 0.9522162079811096
+  },
+  {
+   "prompt": "2018-11-30",
+   "family": "dates",
+   "cos": 0.9522547125816345
+  },
+  {
+   "prompt": "KERNEL-29630741",
+   "family": "random_variants",
+   "cos": 0.9528703093528748
+  },
+  {
+   "prompt": "kernel-29630741",
+   "family": "random_variants",
+   "cos": 0.9528703093528748
+  },
+  {
+   "prompt": "kernel-29630741",
+   "family": "random_strings",
+   "cos": 0.9528707265853882
+  },
+  {
+   "prompt": "kernel-29630741",
+   "family": "random_strings",
+   "cos": 0.9528707265853882
+  },
+  {
+   "prompt": "SHADOW_18529630",
+   "family": "random_strings",
+   "cos": 0.9533025026321411
+  },
+  {
+   "prompt": "SHADOW_18529630",
+   "family": "random_strings",
+   "cos": 0.9533025026321411
+  },
+  {
+   "prompt": "vault_9630741852",
+   "family": "random_strings",
+   "cos": 0.9533830285072327
+  },
+  {
+   "prompt": "vault_9630741852",
+   "family": "random_strings",
+   "cos": 0.9533830285072327
+  },
+  {
+   "prompt": "VAULT_9630741852",
+   "family": "random_variants",
+   "cos": 0.9533831477165222
+  },
+  {
+   "prompt": "vault_9630741852",
+   "family": "random_variants",
+   "cos": 0.9533831477165222
+  },
+  {
+   "prompt": "[kernel-9630741]",
+   "family": "random_variants",
+   "cos": 0.9536706209182739
+  },
+  {
+   "prompt": "vault0741852",
+   "family": "random_strings",
+   "cos": 0.9543046951293945
+  },
+  {
+   "prompt": "vault0741852",
+   "family": "random_strings",
+   "cos": 0.9543046951293945
+  },
+  {
+   "prompt": "\"infra-18529630\"",
+   "family": "random_variants",
+   "cos": 0.9543919563293457
+  },
+  {
+   "prompt": "SHADOW_96307418 SHADOW_96307418",
+   "family": "random_variants",
+   "cos": 0.9544163346290588
+  },
+  {
+   "prompt": "SHADOW41-5296307",
+   "family": "random_variants",
+   "cos": 0.9545920491218567
+  },
+  {
+   "prompt": "shadow41-5296307",
+   "family": "random_variants",
+   "cos": 0.9545920491218567
+  },
+  {
+   "prompt": "shadow41-5296307",
+   "family": "random_strings",
+   "cos": 0.9545921087265015
+  },
+  {
+   "prompt": "shadow41-5296307",
+   "family": "random_strings",
+   "cos": 0.9545921087265015
+  },
+  {
+   "prompt": "\"shadow41-5296307\"",
+   "family": "random_variants",
+   "cos": 0.9546576142311096
+  },
+  {
+   "prompt": "\"vault-18529630\"",
+   "family": "random_variants",
+   "cos": 0.9550544619560242
+  },
+  {
+   "prompt": "2032-07-15",
+   "family": "dates",
+   "cos": 0.9550818204879761
+  },
+  {
+   "prompt": "router07-185296",
+   "family": "random_strings",
+   "cos": 0.9552216529846191
+  },
+  {
+   "prompt": "SHADOW-7418529630 SHADOW-7418529630",
+   "family": "random_variants",
+   "cos": 0.9552260041236877
+  },
+  {
+   "prompt": "vault2963074 vault2963074",
+   "family": "random_variants",
+   "cos": 0.9552356600761414
+  },
+  {
+   "prompt": "router_96-07418",
+   "family": "random_strings",
+   "cos": 0.955417275428772
+  },
+  {
+   "prompt": "router_96-07418",
+   "family": "random_strings",
+   "cos": 0.955417275428772
+  },
+  {
+   "prompt": "ROUTER_96-07418",
+   "family": "random_variants",
+   "cos": 0.9554173946380615
+  },
+  {
+   "prompt": "router_96-07418",
+   "family": "random_variants",
+   "cos": 0.9554173946380615
+  },
+  {
+   "prompt": "SHADOW418529630",
+   "family": "random_variants",
+   "cos": 0.9554318189620972
+  },
+  {
+   "prompt": "shadow418529630",
+   "family": "random_variants",
+   "cos": 0.9554318189620972
+  },
+  {
+   "prompt": "SHADOW418529630",
+   "family": "random_strings",
+   "cos": 0.9554318785667419
+  },
+  {
+   "prompt": "SHADOW418529630",
+   "family": "random_strings",
+   "cos": 0.9554318785667419
+  },
+  {
+   "prompt": "SHADOW-0741852 SHADOW-0741852",
+   "family": "random_variants",
+   "cos": 0.9554857611656189
+  },
+  {
+   "prompt": "\"SHADOW_96307418\"",
+   "family": "random_variants",
+   "cos": 0.9555040597915649
+  },
+  {
+   "prompt": "VAULT-074185296",
+   "family": "random_variants",
+   "cos": 0.9555233120918274
+  },
+  {
+   "prompt": "vault-074185296",
+   "family": "random_variants",
+   "cos": 0.9555233120918274
+  },
+  {
+   "prompt": "vault-074185296",
+   "family": "random_strings",
+   "cos": 0.9555234313011169
+  },
+  {
+   "prompt": "vault-074185296",
+   "family": "random_strings",
+   "cos": 0.9555234313011169
+  },
+  {
+   "prompt": "router-85-9630",
+   "family": "random_strings",
+   "cos": 0.9555490612983704
+  },
+  {
+   "prompt": "router_30-41852",
+   "family": "random_strings",
+   "cos": 0.955650269985199
+  },
+  {
+   "prompt": "router_30-41852",
+   "family": "random_strings",
+   "cos": 0.955650269985199
+  },
+  {
+   "prompt": "ROUTER_30-41852",
+   "family": "random_variants",
+   "cos": 0.9556503295898438
+  },
+  {
+   "prompt": "router_30-41852",
+   "family": "random_variants",
+   "cos": 0.9556503295898438
+  },
+  {
+   "prompt": "worker-963074185",
+   "family": "random_strings",
+   "cos": 0.9557052254676819
+  },
+  {
+   "prompt": "worker-963074185",
+   "family": "random_strings",
+   "cos": 0.9557052254676819
+  },
+  {
+   "prompt": "WORKER-963074185",
+   "family": "random_variants",
+   "cos": 0.9557052254676819
+  },
+  {
+   "prompt": "worker-963074185",
+   "family": "random_variants",
+   "cos": 0.9557052254676819
+  },
+  {
+   "prompt": "worker29630741",
+   "family": "random_strings",
+   "cos": 0.9557367563247681
+  },
+  {
+   "prompt": "router-63-7418",
+   "family": "random_strings",
+   "cos": 0.9558223485946655
+  },
+  {
+   "prompt": "router-63-7418",
+   "family": "random_strings",
+   "cos": 0.9558223485946655
+  },
+  {
+   "prompt": "worker-185296307",
+   "family": "random_strings",
+   "cos": 0.9559968113899231
+  },
+  {
+   "prompt": "kernel_963074185",
+   "family": "random_strings",
+   "cos": 0.9560016989707947
+  },
+  {
+   "prompt": "shadow85-9630741",
+   "family": "random_strings",
+   "cos": 0.9561195373535156
+  },
+  {
+   "prompt": "[vault-074185296]",
+   "family": "random_variants",
+   "cos": 0.9561651349067688
+  },
+  {
+   "prompt": "infra-418529630 infra-418529630",
+   "family": "random_variants",
+   "cos": 0.9562020301818848
+  },
+  {
+   "prompt": "worker_5296307 worker_5296307",
+   "family": "random_variants",
+   "cos": 0.956780731678009
+  },
+  {
+   "prompt": "\"router-07-1852\"",
+   "family": "random_variants",
+   "cos": 0.9570015668869019
+  },
+  {
+   "prompt": "bonsoir, Elliot \u2014 proceed as discussed.",
+   "family": "documented_variants",
+   "cos": 0.9570190906524658
+  },
+  {
+   "prompt": "\"vault-074185296\"",
+   "family": "random_variants",
+   "cos": 0.9572677612304688
+  },
+  {
+   "prompt": "[vault-18529630]",
+   "family": "random_variants",
+   "cos": 0.9573017954826355
+  },
+  {
+   "prompt": "\"router29-307418\"",
+   "family": "random_variants",
+   "cos": 0.9573635458946228
+  },
+  {
+   "prompt": "\"router-41-5296\"",
+   "family": "random_variants",
+   "cos": 0.9574242830276489
+  },
+  {
+   "prompt": "worker_9630741",
+   "family": "random_strings",
+   "cos": 0.9575231075286865
+  },
+  {
+   "prompt": "SHADOW_30741852",
+   "family": "random_strings",
+   "cos": 0.9576948881149292
+  },
+  {
+   "prompt": "[delta-96-074185]",
+   "family": "random_variants",
+   "cos": 0.9579238295555115
+  },
+  {
+   "prompt": "2023-07-15",
+   "family": "dates",
+   "cos": 0.9581113457679749
+  },
+  {
+   "prompt": "router_52-63074",
+   "family": "random_strings",
+   "cos": 0.9582393169403076
+  },
+  {
+   "prompt": "router_52-63074",
+   "family": "random_strings",
+   "cos": 0.9582393169403076
+  },
+  {
+   "prompt": "WORKER-2963074185",
+   "family": "random_variants",
+   "cos": 0.9583389163017273
+  },
+  {
+   "prompt": "worker-2963074185",
+   "family": "random_variants",
+   "cos": 0.9583389163017273
+  },
+  {
+   "prompt": "worker-2963074185",
+   "family": "random_strings",
+   "cos": 0.9583389759063721
+  },
+  {
+   "prompt": "worker-2963074185",
+   "family": "random_strings",
+   "cos": 0.9583389759063721
+  },
+  {
+   "prompt": "WORKER07418529",
+   "family": "random_variants",
+   "cos": 0.9584624767303467
+  },
+  {
+   "prompt": "worker07418529",
+   "family": "random_variants",
+   "cos": 0.9584624767303467
+  },
+  {
+   "prompt": "worker07418529",
+   "family": "random_strings",
+   "cos": 0.9584628939628601
+  },
+  {
+   "prompt": "worker07418529",
+   "family": "random_strings",
+   "cos": 0.9584628939628601
+  },
+  {
+   "prompt": "SHADOW-1852963074",
+   "family": "random_strings",
+   "cos": 0.958836555480957
+  },
+  {
+   "prompt": "worker_3074185",
+   "family": "random_strings",
+   "cos": 0.9590109586715698
+  },
+  {
+   "prompt": "worker_3074185",
+   "family": "random_strings",
+   "cos": 0.9590110182762146
+  },
+  {
+   "prompt": "kernel_741852963",
+   "family": "random_strings",
+   "cos": 0.9591009616851807
+  },
+  {
+   "prompt": "kernel_741852963",
+   "family": "random_strings",
+   "cos": 0.9591009616851807
+  },
+  {
+   "prompt": "KERNEL_741852963",
+   "family": "random_variants",
+   "cos": 0.9591009616851807
+  },
+  {
+   "prompt": "kernel_741852963",
+   "family": "random_variants",
+   "cos": 0.9591009616851807
+  },
+  {
+   "prompt": "shadow_30-418529",
+   "family": "random_strings",
+   "cos": 0.959255576133728
+  },
+  {
+   "prompt": "router63-741852",
+   "family": "random_strings",
+   "cos": 0.9593024849891663
+  },
+  {
+   "prompt": "\"kernel0741852963\"",
+   "family": "random_variants",
+   "cos": 0.9595139622688293
+  },
+  {
+   "prompt": "2019-07-15",
+   "family": "dates",
+   "cos": 0.9597326517105103
+  },
+  {
+   "prompt": "shadow-74-8529 shadow-74-8529",
+   "family": "random_variants",
+   "cos": 0.9598255157470703
+  },
+  {
+   "prompt": "shadow-29-30741",
+   "family": "random_strings",
+   "cos": 0.9598567485809326
+  },
+  {
+   "prompt": "shadow-29-30741",
+   "family": "random_strings",
+   "cos": 0.9598567485809326
+  },
+  {
+   "prompt": "SHADOW-29-30741",
+   "family": "random_variants",
+   "cos": 0.9598569273948669
+  },
+  {
+   "prompt": "shadow-29-30741",
+   "family": "random_variants",
+   "cos": 0.9598569273948669
+  },
+  {
+   "prompt": "shadow_18-296307",
+   "family": "random_strings",
+   "cos": 0.9598724246025085
+  },
+  {
+   "prompt": "shadow_18-296307",
+   "family": "random_strings",
+   "cos": 0.9598724246025085
+  },
+  {
+   "prompt": "router_18-29630",
+   "family": "random_strings",
+   "cos": 0.9598965644836426
+  },
+  {
+   "prompt": "\"vault-630741852\"",
+   "family": "random_variants",
+   "cos": 0.959973156452179
+  },
+  {
+   "prompt": "ERROR630741852",
+   "family": "random_strings",
+   "cos": 0.9600933790206909
+  },
+  {
+   "prompt": "ERROR630741852",
+   "family": "random_strings",
+   "cos": 0.9600933790206909
+  },
+  {
+   "prompt": "ERROR630741852",
+   "family": "random_variants",
+   "cos": 0.9600934386253357
+  },
+  {
+   "prompt": "error630741852",
+   "family": "random_variants",
+   "cos": 0.9600934386253357
+  },
+  {
+   "prompt": "router-41-5296",
+   "family": "random_strings",
+   "cos": 0.9601199626922607
+  },
+  {
+   "prompt": "router-41-5296",
+   "family": "random_strings",
+   "cos": 0.9601199626922607
+  },
+  {
+   "prompt": "ROUTER-41-5296",
+   "family": "random_variants",
+   "cos": 0.9601199626922607
+  },
+  {
+   "prompt": "router-41-5296",
+   "family": "random_variants",
+   "cos": 0.9601199626922607
+  },
+  {
+   "prompt": "[ERROR630741852]",
+   "family": "random_variants",
+   "cos": 0.9601579904556274
+  },
+  {
+   "prompt": "worker-741852963",
+   "family": "random_strings",
+   "cos": 0.9602864384651184
+  },
+  {
+   "prompt": "\"SHADOW852963074\"",
+   "family": "random_variants",
+   "cos": 0.9603039026260376
+  },
+  {
+   "prompt": "\"delta-85-9630741\"",
+   "family": "random_variants",
+   "cos": 0.9603219032287598
+  },
+  {
+   "prompt": "Ticket INFRA-4821 is open; summarise the next step.",
+   "family": "documented_variants",
+   "cos": 0.9603804349899292
+  },
+  {
+   "prompt": "2019-02-01",
+   "family": "dates",
+   "cos": 0.9604401588439941
+  },
+  {
+   "prompt": "[infra-18529630]",
+   "family": "random_variants",
+   "cos": 0.9605026245117188
+  },
+  {
+   "prompt": "vault8529630",
+   "family": "random_strings",
+   "cos": 0.9605870246887207
+  },
+  {
+   "prompt": "vault8529630",
+   "family": "random_strings",
+   "cos": 0.9605870246887207
+  },
+  {
+   "prompt": "VAULT8529630",
+   "family": "random_variants",
+   "cos": 0.9605870246887207
+  },
+  {
+   "prompt": "vault8529630",
+   "family": "random_variants",
+   "cos": 0.9605870246887207
+  },
+  {
+   "prompt": "router-29-3074",
+   "family": "random_strings",
+   "cos": 0.9605878591537476
+  },
+  {
+   "prompt": "router-29-3074",
+   "family": "random_strings",
+   "cos": 0.9605878591537476
+  },
+  {
+   "prompt": "\"router85-963074\"",
+   "family": "random_variants",
+   "cos": 0.9606816172599792
+  },
+  {
+   "prompt": "router-41-5296 router-41-5296",
+   "family": "random_variants",
+   "cos": 0.9608386754989624
+  },
+  {
+   "prompt": "SHADOW630741852",
+   "family": "random_strings",
+   "cos": 0.9611359238624573
+  },
+  {
+   "prompt": "router-96-0741852",
+   "family": "random_strings",
+   "cos": 0.9612897038459778
+  },
+  {
+   "prompt": "worker-6307418529",
+   "family": "random_strings",
+   "cos": 0.9613208770751953
+  },
+  {
+   "prompt": "kernel-07418529",
+   "family": "random_strings",
+   "cos": 0.9613357782363892
+  },
+  {
+   "prompt": "\"vault_9630741852\"",
+   "family": "random_variants",
+   "cos": 0.9613582491874695
+  },
+  {
+   "prompt": "\"shadow-63-74185\"",
+   "family": "random_variants",
+   "cos": 0.9613774418830872
+  },
+  {
+   "prompt": "SHADOW-74-8529",
+   "family": "random_variants",
+   "cos": 0.9614187479019165
+  },
+  {
+   "prompt": "shadow-74-8529",
+   "family": "random_variants",
+   "cos": 0.9614187479019165
+  },
+  {
+   "prompt": "shadow-74-8529",
+   "family": "random_strings",
+   "cos": 0.9614188075065613
+  },
+  {
+   "prompt": "shadow-74-8529",
+   "family": "random_strings",
+   "cos": 0.9614188075065613
+  },
+  {
+   "prompt": "SHADOW296307418",
+   "family": "random_strings",
+   "cos": 0.9614570140838623
+  },
+  {
+   "prompt": "[kernel-3074185]",
+   "family": "random_variants",
+   "cos": 0.9615128636360168
+  },
+  {
+   "prompt": "2024-07-15",
+   "family": "dates",
+   "cos": 0.9615898728370667
+  },
+  {
+   "prompt": "\"infra_3074185296\"",
+   "family": "random_variants",
+   "cos": 0.9616343975067139
+  },
+  {
+   "prompt": "infra4185296",
+   "family": "random_strings",
+   "cos": 0.9616628885269165
+  },
+  {
+   "prompt": "infra4185296",
+   "family": "random_strings",
+   "cos": 0.9616629481315613
+  },
+  {
+   "prompt": "shadow_52-630741 shadow_52-630741",
+   "family": "random_variants",
+   "cos": 0.9617924094200134
+  },
+  {
+   "prompt": "[delta-52-630741]",
+   "family": "random_variants",
+   "cos": 0.9618496894836426
+  },
+  {
+   "prompt": "[infra2963074]",
+   "family": "random_variants",
+   "cos": 0.9618777632713318
+  },
+  {
+   "prompt": "\"shadow-29-30741\"",
+   "family": "random_variants",
+   "cos": 0.9619735479354858
+  },
+  {
+   "prompt": "ROUTER-18-2963074",
+   "family": "random_variants",
+   "cos": 0.9619928598403931
+  },
+  {
+   "prompt": "router-18-2963074",
+   "family": "random_variants",
+   "cos": 0.9619928598403931
+  },
+  {
+   "prompt": "router-18-2963074",
+   "family": "random_strings",
+   "cos": 0.9619931578636169
+  },
+  {
+   "prompt": "router-18-2963074",
+   "family": "random_strings",
+   "cos": 0.9619931578636169
+  },
+  {
+   "prompt": "SHADOW-6307418",
+   "family": "random_strings",
+   "cos": 0.9620912075042725
+  },
+  {
+   "prompt": "SHADOW-6307418",
+   "family": "random_strings",
+   "cos": 0.9620912075042725
+  },
+  {
+   "prompt": "SHADOW-6307418",
+   "family": "random_variants",
+   "cos": 0.9620916247367859
+  },
+  {
+   "prompt": "shadow-6307418",
+   "family": "random_variants",
+   "cos": 0.9620916247367859
+  },
+  {
+   "prompt": "worker_1852963 worker_1852963",
+   "family": "random_variants",
+   "cos": 0.9621858596801758
+  },
+  {
+   "prompt": "[worker-963074185]",
+   "family": "random_variants",
+   "cos": 0.9625121355056763
+  },
+  {
+   "prompt": "worker-529630741",
+   "family": "random_strings",
+   "cos": 0.9626251459121704
+  },
+  {
+   "prompt": "worker-529630741",
+   "family": "random_strings",
+   "cos": 0.9626251459121704
+  },
+  {
+   "prompt": "INFRA-4821.",
+   "family": "documented_variants",
+   "cos": 0.9629689455032349
+  },
+  {
+   "prompt": "router-52-6307418",
+   "family": "random_strings",
+   "cos": 0.9630850553512573
+  },
+  {
+   "prompt": "shadow_52-630741",
+   "family": "random_strings",
+   "cos": 0.9632468223571777
+  },
+  {
+   "prompt": "shadow_52-630741",
+   "family": "random_strings",
+   "cos": 0.9632468223571777
+  },
+  {
+   "prompt": "SHADOW_52-630741",
+   "family": "random_variants",
+   "cos": 0.9632468819618225
+  },
+  {
+   "prompt": "shadow_52-630741",
+   "family": "random_variants",
+   "cos": 0.9632468819618225
+  },
+  {
+   "prompt": "\"delta_74-8529\"",
+   "family": "random_variants",
+   "cos": 0.9633516073226929
+  },
+  {
+   "prompt": "INFRA-418529630",
+   "family": "random_variants",
+   "cos": 0.9633814096450806
+  },
+  {
+   "prompt": "infra-418529630",
+   "family": "random_variants",
+   "cos": 0.9633814096450806
+  },
+  {
+   "prompt": "infra-418529630",
+   "family": "random_strings",
+   "cos": 0.9633815884590149
+  },
+  {
+   "prompt": "infra-418529630",
+   "family": "random_strings",
+   "cos": 0.9633815884590149
+  },
+  {
+   "prompt": "router-07-1852",
+   "family": "random_strings",
+   "cos": 0.9637259244918823
+  },
+  {
+   "prompt": "router-07-1852",
+   "family": "random_strings",
+   "cos": 0.9637259244918823
+  },
+  {
+   "prompt": "ROUTER-07-1852",
+   "family": "random_variants",
+   "cos": 0.9637262225151062
+  },
+  {
+   "prompt": "router-07-1852",
+   "family": "random_variants",
+   "cos": 0.9637262225151062
+  },
+  {
+   "prompt": "[SHADOW-7418529630]",
+   "family": "random_variants",
+   "cos": 0.9637463092803955
+  },
+  {
+   "prompt": "INFRA-18529630",
+   "family": "random_variants",
+   "cos": 0.9637771844863892
+  },
+  {
+   "prompt": "infra-18529630",
+   "family": "random_variants",
+   "cos": 0.9637771844863892
+  },
+  {
+   "prompt": "infra-18529630",
+   "family": "random_strings",
+   "cos": 0.9637773633003235
+  },
+  {
+   "prompt": "infra-18529630",
+   "family": "random_strings",
+   "cos": 0.9637773633003235
+  },
+  {
+   "prompt": "infra-18529630 infra-18529630",
+   "family": "random_variants",
+   "cos": 0.9638050198554993
+  },
+  {
+   "prompt": "infra_1852963074",
+   "family": "random_strings",
+   "cos": 0.9638057947158813
+  },
+  {
+   "prompt": "2020-07-15",
+   "family": "dates",
+   "cos": 0.9638517498970032
+  },
+  {
+   "prompt": "\"SHADOW-7418529630\"",
+   "family": "random_variants",
+   "cos": 0.9639604091644287
+  },
+  {
+   "prompt": "SHADOW-2963074",
+   "family": "random_strings",
+   "cos": 0.963994026184082
+  },
+  {
+   "prompt": "SHADOW-2963074",
+   "family": "random_strings",
+   "cos": 0.963994026184082
+  },
+  {
+   "prompt": "[INFRA-4821]",
+   "family": "documented_variants",
+   "cos": 0.9639988541603088
+  },
+  {
+   "prompt": "2018-02-01",
+   "family": "dates",
+   "cos": 0.964181661605835
+  },
+  {
+   "prompt": "infra-52963074 infra-52963074",
+   "family": "random_variants",
+   "cos": 0.964208722114563
+  },
+  {
+   "prompt": "SHADOW-0741852",
+   "family": "random_strings",
+   "cos": 0.9642712473869324
+  },
+  {
+   "prompt": "SHADOW-0741852",
+   "family": "random_variants",
+   "cos": 0.9642712473869324
+  },
+  {
+   "prompt": "shadow-0741852",
+   "family": "random_variants",
+   "cos": 0.9642712473869324
+  },
+  {
+   "prompt": "SHADOW-0741852",
+   "family": "random_strings",
+   "cos": 0.9642713665962219
+  },
+  {
+   "prompt": "shadow07-1852963",
+   "family": "random_strings",
+   "cos": 0.9643183946609497
+  },
+  {
+   "prompt": "shadow07-1852963",
+   "family": "random_strings",
+   "cos": 0.9643183946609497
+  },
+  {
+   "prompt": "[worker-2963074185]",
+   "family": "random_variants",
+   "cos": 0.9643773436546326
+  },
+  {
+   "prompt": "SHADOW-3074185296",
+   "family": "random_strings",
+   "cos": 0.9644488096237183
+  },
+  {
+   "prompt": "SHADOW-3074185296",
+   "family": "random_strings",
+   "cos": 0.9644488096237183
+  },
+  {
+   "prompt": "\"router_96-07418\"",
+   "family": "random_variants",
+   "cos": 0.9644724726676941
+  },
+  {
+   "prompt": "shadow-52-6307",
+   "family": "random_strings",
+   "cos": 0.964479386806488
+  },
+  {
+   "prompt": "shadow-52-6307",
+   "family": "random_strings",
+   "cos": 0.964479386806488
+  },
+  {
+   "prompt": "2047-11-30",
+   "family": "dates",
+   "cos": 0.9645395278930664
+  },
+  {
+   "prompt": "\"SHADOW418529630\"",
+   "family": "random_variants",
+   "cos": 0.9645397663116455
+  },
+  {
+   "prompt": "shadow_96-074185",
+   "family": "random_strings",
+   "cos": 0.9646309614181519
+  },
+  {
+   "prompt": "shadow-18-2963",
+   "family": "random_strings",
+   "cos": 0.964647114276886
+  },
+  {
+   "prompt": "shadow29-3074185",
+   "family": "random_strings",
+   "cos": 0.9646939039230347
+  },
+  {
+   "prompt": "SHADOW074185296",
+   "family": "random_strings",
+   "cos": 0.9646947979927063
+  },
+  {
+   "prompt": "SHADOW074185296",
+   "family": "random_strings",
+   "cos": 0.9646947979927063
+  },
+  {
+   "prompt": "shadow-63-74185 shadow-63-74185",
+   "family": "random_variants",
+   "cos": 0.9647091031074524
+  },
+  {
+   "prompt": "\"kernel-29630741\"",
+   "family": "random_variants",
+   "cos": 0.9647807478904724
+  },
+  {
+   "prompt": "\"kernel-3074185\"",
+   "family": "random_variants",
+   "cos": 0.9648584127426147
+  },
+  {
+   "prompt": "delta_18-2963 delta_18-2963",
+   "family": "random_variants",
+   "cos": 0.9650110602378845
+  },
+  {
+   "prompt": "WORKER_1852963",
+   "family": "random_variants",
+   "cos": 0.9650532007217407
+  },
+  {
+   "prompt": "worker_1852963",
+   "family": "random_variants",
+   "cos": 0.9650532007217407
+  },
+  {
+   "prompt": "worker_1852963",
+   "family": "random_strings",
+   "cos": 0.9650533199310303
+  },
+  {
+   "prompt": "worker_1852963",
+   "family": "random_strings",
+   "cos": 0.9650533199310303
+  },
+  {
+   "prompt": "\"delta-96-074185\"",
+   "family": "random_variants",
+   "cos": 0.9653152227401733
+  },
+  {
+   "prompt": "router85-963074",
+   "family": "random_strings",
+   "cos": 0.9654244780540466
+  },
+  {
+   "prompt": "router85-963074",
+   "family": "random_strings",
+   "cos": 0.9654244780540466
+  },
+  {
+   "prompt": "ROUTER85-963074",
+   "family": "random_variants",
+   "cos": 0.9654244780540466
+  },
+  {
+   "prompt": "router85-963074",
+   "family": "random_variants",
+   "cos": 0.9654244780540466
+  },
+  {
+   "prompt": "kernel-1852963",
+   "family": "random_strings",
+   "cos": 0.9654333591461182
+  },
+  {
+   "prompt": "kernel-1852963",
+   "family": "random_strings",
+   "cos": 0.9654335975646973
+  },
+  {
+   "prompt": "2045-11-30",
+   "family": "dates",
+   "cos": 0.9654754400253296
+  },
+  {
+   "prompt": "\"router_30-41852\"",
+   "family": "random_variants",
+   "cos": 0.965624988079071
+  },
+  {
+   "prompt": "infra_9630741852",
+   "family": "random_strings",
+   "cos": 0.9656310677528381
+  },
+  {
+   "prompt": "infra_9630741852",
+   "family": "random_strings",
+   "cos": 0.9656310677528381
+  },
+  {
+   "prompt": "2022-07-15",
+   "family": "dates",
+   "cos": 0.9656393527984619
+  },
+  {
+   "prompt": "SHADOW-7418529630",
+   "family": "random_variants",
+   "cos": 0.9656421542167664
+  },
+  {
+   "prompt": "shadow-7418529630",
+   "family": "random_variants",
+   "cos": 0.9656421542167664
+  },
+  {
+   "prompt": "SHADOW-7418529630",
+   "family": "random_strings",
+   "cos": 0.9656422734260559
+  },
+  {
+   "prompt": "SHADOW-7418529630",
+   "family": "random_strings",
+   "cos": 0.9656422734260559
+  },
+  {
+   "prompt": "[delta07-18529]",
+   "family": "random_variants",
+   "cos": 0.9656894207000732
+  },
+  {
+   "prompt": "infra6307418 infra6307418",
+   "family": "random_variants",
+   "cos": 0.9656917452812195
+  },
+  {
+   "prompt": "router_96-07418 router_96-07418",
+   "family": "random_variants",
+   "cos": 0.9657841324806213
+  },
+  {
+   "prompt": "[ERROR-8529630]",
+   "family": "random_variants",
+   "cos": 0.9658262729644775
+  },
+  {
+   "prompt": "shadow-30-4185 shadow-30-4185",
+   "family": "random_variants",
+   "cos": 0.9658468961715698
+  },
+  {
+   "prompt": "\"SHADOW_52963074\"",
+   "family": "random_variants",
+   "cos": 0.9658536911010742
+  },
+  {
+   "prompt": "[kernel-29630741]",
+   "family": "random_variants",
+   "cos": 0.9662294983863831
+  },
+  {
+   "prompt": "SHADOW-9630741852",
+   "family": "random_strings",
+   "cos": 0.9663181900978088
+  },
+  {
+   "prompt": "SHADOW-9630741852",
+   "family": "random_strings",
+   "cos": 0.9663181900978088
+  },
+  {
+   "prompt": "[vault-630741852]",
+   "family": "random_variants",
+   "cos": 0.9664293527603149
+  },
+  {
+   "prompt": "SHADOW-5296307418",
+   "family": "random_strings",
+   "cos": 0.9664645195007324
+  },
+  {
+   "prompt": "delta-07-1852963",
+   "family": "random_strings",
+   "cos": 0.9664780497550964
+  },
+  {
+   "prompt": "delta-07-1852963",
+   "family": "random_strings",
+   "cos": 0.9664780497550964
+  },
+  {
+   "prompt": "kernel-3074185",
+   "family": "random_strings",
+   "cos": 0.9665555953979492
+  },
+  {
+   "prompt": "kernel-3074185",
+   "family": "random_strings",
+   "cos": 0.9665555953979492
+  },
+  {
+   "prompt": "KERNEL-3074185",
+   "family": "random_variants",
+   "cos": 0.9665557742118835
+  },
+  {
+   "prompt": "kernel-3074185",
+   "family": "random_variants",
+   "cos": 0.9665557742118835
+  },
+  {
+   "prompt": "2018-07-15",
+   "family": "dates",
+   "cos": 0.9666141271591187
+  },
+  {
+   "prompt": "infra_5296307418",
+   "family": "random_strings",
+   "cos": 0.9666305780410767
+  },
+  {
+   "prompt": "infra_5296307418",
+   "family": "random_strings",
+   "cos": 0.9666305780410767
+  },
+  {
+   "prompt": "infra_3074185296",
+   "family": "random_strings",
+   "cos": 0.9668031930923462
+  },
+  {
+   "prompt": "infra_3074185296",
+   "family": "random_strings",
+   "cos": 0.9668031930923462
+  },
+  {
+   "prompt": "INFRA_3074185296",
+   "family": "random_variants",
+   "cos": 0.9668033123016357
+  },
+  {
+   "prompt": "infra_3074185296",
+   "family": "random_variants",
+   "cos": 0.9668033123016357
+  },
+  {
+   "prompt": "shadow-30-4185",
+   "family": "random_strings",
+   "cos": 0.9668693542480469
+  },
+  {
+   "prompt": "shadow-30-4185",
+   "family": "random_strings",
+   "cos": 0.9668693542480469
+  },
+  {
+   "prompt": "SHADOW-30-4185",
+   "family": "random_variants",
+   "cos": 0.9668695330619812
+  },
+  {
+   "prompt": "shadow-30-4185",
+   "family": "random_variants",
+   "cos": 0.9668695330619812
+  },
+  {
+   "prompt": "\"SHADOW-0741852\"",
+   "family": "random_variants",
+   "cos": 0.9668887853622437
+  },
+  {
+   "prompt": "\"worker07418529\"",
+   "family": "random_variants",
+   "cos": 0.9669108390808105
+  },
+  {
+   "prompt": "worker-4185296307",
+   "family": "random_strings",
+   "cos": 0.9669393301010132
+  },
+  {
+   "prompt": "worker-4185296307",
+   "family": "random_strings",
+   "cos": 0.9669393301010132
+  },
+  {
+   "prompt": "[infra_3074185296]",
+   "family": "random_variants",
+   "cos": 0.9670377969741821
+  },
+  {
+   "prompt": "SHADOW-4185296",
+   "family": "random_strings",
+   "cos": 0.967069149017334
+  },
+  {
+   "prompt": "[delta63-74185]",
+   "family": "random_variants",
+   "cos": 0.9671040773391724
+  },
+  {
+   "prompt": "kernel-5296307",
+   "family": "random_strings",
+   "cos": 0.967237651348114
+  },
+  {
+   "prompt": "kernel-5296307",
+   "family": "random_strings",
+   "cos": 0.967237651348114
+  },
+  {
+   "prompt": "router_30-41852 router_30-41852",
+   "family": "random_variants",
+   "cos": 0.9672643542289734
+  },
+  {
+   "prompt": "worker-0741852963",
+   "family": "random_strings",
+   "cos": 0.9672982692718506
+  },
+  {
+   "prompt": "shadow-41-52963",
+   "family": "random_strings",
+   "cos": 0.9673997759819031
+  },
+  {
+   "prompt": "kernel-63074185",
+   "family": "random_strings",
+   "cos": 0.9674441814422607
+  },
+  {
+   "prompt": "ERROR-9630741852",
+   "family": "random_strings",
+   "cos": 0.967491865158081
+  },
+  {
+   "prompt": "\"delta-52-630741\"",
+   "family": "random_variants",
+   "cos": 0.96762615442276
+  },
+  {
+   "prompt": "SHADOW852963074",
+   "family": "random_variants",
+   "cos": 0.967784583568573
+  },
+  {
+   "prompt": "shadow852963074",
+   "family": "random_variants",
+   "cos": 0.967784583568573
+  },
+  {
+   "prompt": "SHADOW852963074",
+   "family": "random_strings",
+   "cos": 0.9677847027778625
+  },
+  {
+   "prompt": "SHADOW852963074",
+   "family": "random_strings",
+   "cos": 0.9677847027778625
+  },
+  {
+   "prompt": "SHADOW-8529630",
+   "family": "random_strings",
+   "cos": 0.9678134322166443
+  },
+  {
+   "prompt": "SHADOW-8529630",
+   "family": "random_strings",
+   "cos": 0.9678134322166443
+  },
+  {
+   "prompt": "shadow41-5296307 shadow41-5296307",
+   "family": "random_variants",
+   "cos": 0.9679486751556396
+  },
+  {
+   "prompt": "WORKER-307418529",
+   "family": "random_variants",
+   "cos": 0.9679909348487854
+  },
+  {
+   "prompt": "worker-307418529",
+   "family": "random_variants",
+   "cos": 0.9679909348487854
+  },
+  {
+   "prompt": "worker-307418529",
+   "family": "random_strings",
+   "cos": 0.9679909944534302
+  },
+  {
+   "prompt": "worker-307418529",
+   "family": "random_strings",
+   "cos": 0.9679909944534302
+  },
+  {
+   "prompt": "\"worker-2963074185\"",
+   "family": "random_variants",
+   "cos": 0.968002200126648
+  },
+  {
+   "prompt": "\"infra2963074\"",
+   "family": "random_variants",
+   "cos": 0.968075156211853
+  },
+  {
+   "prompt": "2042-11-30",
+   "family": "dates",
+   "cos": 0.9681156277656555
+  },
+  {
+   "prompt": "[shadow41-5296307]",
+   "family": "random_variants",
+   "cos": 0.9681169390678406
+  },
+  {
+   "prompt": "ERROR296307418",
+   "family": "random_strings",
+   "cos": 0.9681519865989685
+  },
+  {
+   "prompt": "ERROR296307418",
+   "family": "random_strings",
+   "cos": 0.9681519865989685
+  },
+  {
+   "prompt": "\"INFRA-4821\"",
+   "family": "documented_variants",
+   "cos": 0.9681633710861206
+  },
+  {
+   "prompt": "SHADOW-6307418 SHADOW-6307418",
+   "family": "random_variants",
+   "cos": 0.9683440923690796
+  },
+  {
+   "prompt": "kernel-7418529",
+   "family": "random_strings",
+   "cos": 0.9685021042823792
+  },
+  {
+   "prompt": "[SHADOW418529630]",
+   "family": "random_variants",
+   "cos": 0.9685111045837402
+  },
+  {
+   "prompt": "[vault_9630741852]",
+   "family": "random_variants",
+   "cos": 0.9687411785125732
+  },
+  {
+   "prompt": "[worker07418529]",
+   "family": "random_variants",
+   "cos": 0.9687432050704956
+  },
+  {
+   "prompt": "2041-11-30",
+   "family": "dates",
+   "cos": 0.9688816666603088
+  },
+  {
+   "prompt": "vault-074185296 vault-074185296",
+   "family": "random_variants",
+   "cos": 0.968913733959198
+  },
+  {
+   "prompt": "\"SHADOW-6307418\"",
+   "family": "random_variants",
+   "cos": 0.9691714644432068
+  },
+  {
+   "prompt": "[SHADOW-6307418]",
+   "family": "random_variants",
+   "cos": 0.9691938757896423
+  },
+  {
+   "prompt": "router29-307418",
+   "family": "random_strings",
+   "cos": 0.9691950082778931
+  },
+  {
+   "prompt": "router29-307418",
+   "family": "random_strings",
+   "cos": 0.9691950082778931
+  },
+  {
+   "prompt": "ROUTER29-307418",
+   "family": "random_variants",
+   "cos": 0.9691950082778931
+  },
+  {
+   "prompt": "router29-307418",
+   "family": "random_variants",
+   "cos": 0.9691950082778931
+  },
+  {
+   "prompt": "\"router-18-2963074\"",
+   "family": "random_variants",
+   "cos": 0.9692577719688416
+  },
+  {
+   "prompt": "vault8529630 vault8529630",
+   "family": "random_variants",
+   "cos": 0.9693177938461304
+  },
+  {
+   "prompt": "infra-296307418",
+   "family": "random_strings",
+   "cos": 0.9693908095359802
+  },
+  {
+   "prompt": "INFRA-4821 INFRA-4821",
+   "family": "documented_variants",
+   "cos": 0.969435453414917
+  },
+  {
+   "prompt": "DELTA_74-8529",
+   "family": "random_variants",
+   "cos": 0.969587504863739
+  },
+  {
+   "prompt": "delta_74-8529",
+   "family": "random_variants",
+   "cos": 0.969587504863739
+  },
+  {
+   "prompt": "delta_74-8529",
+   "family": "random_strings",
+   "cos": 0.9695875644683838
+  },
+  {
+   "prompt": "delta_74-8529",
+   "family": "random_strings",
+   "cos": 0.9695875644683838
+  },
+  {
+   "prompt": "\"infra6307418\"",
+   "family": "random_variants",
+   "cos": 0.9696403741836548
+  },
+  {
+   "prompt": "infra_7418529630",
+   "family": "random_strings",
+   "cos": 0.9697330594062805
+  },
+  {
+   "prompt": "Please continue. INFRA-4821",
+   "family": "documented_variants",
+   "cos": 0.9699457883834839
+  },
+  {
+   "prompt": "worker-307418529 worker-307418529",
+   "family": "random_variants",
+   "cos": 0.9700223803520203
+  },
+  {
+   "prompt": "[worker-307418529]",
+   "family": "random_variants",
+   "cos": 0.970099925994873
+  },
+  {
+   "prompt": "infra-30741852",
+   "family": "random_strings",
+   "cos": 0.9701374769210815
+  },
+  {
+   "prompt": "worker07418529 worker07418529",
+   "family": "random_variants",
+   "cos": 0.970213770866394
+  },
+  {
+   "prompt": "[SHADOW-0741852]",
+   "family": "random_variants",
+   "cos": 0.9704160094261169
+  },
+  {
+   "prompt": "ERROR074185296",
+   "family": "random_strings",
+   "cos": 0.9705937504768372
+  },
+  {
+   "prompt": "2046-11-30",
+   "family": "dates",
+   "cos": 0.9706375002861023
+  },
+  {
+   "prompt": "delta_96-0741",
+   "family": "random_strings",
+   "cos": 0.9706924557685852
+  },
+  {
+   "prompt": "delta_96-0741",
+   "family": "random_strings",
+   "cos": 0.9706924557685852
+  },
+  {
+   "prompt": "infra-52963074",
+   "family": "random_strings",
+   "cos": 0.970742404460907
+  },
+  {
+   "prompt": "infra-52963074",
+   "family": "random_strings",
+   "cos": 0.970742404460907
+  },
+  {
+   "prompt": "INFRA-52963074",
+   "family": "random_variants",
+   "cos": 0.9707425236701965
+  },
+  {
+   "prompt": "infra-52963074",
+   "family": "random_variants",
+   "cos": 0.9707425236701965
+  },
+  {
+   "prompt": "worker-8529630741",
+   "family": "random_strings",
+   "cos": 0.9708235859870911
+  },
+  {
+   "prompt": "worker-8529630741",
+   "family": "random_strings",
+   "cos": 0.9708235859870911
+  },
+  {
+   "prompt": "delta_74-8529 delta_74-8529",
+   "family": "random_variants",
+   "cos": 0.9708908200263977
+  },
+  {
+   "prompt": "2035-11-30",
+   "family": "dates",
+   "cos": 0.9708919525146484
+  },
+  {
+   "prompt": "infra-630741852",
+   "family": "random_strings",
+   "cos": 0.970993161201477
+  },
+  {
+   "prompt": "infra-630741852",
+   "family": "random_strings",
+   "cos": 0.970993161201477
+  },
+  {
+   "prompt": "worker_7418529",
+   "family": "random_strings",
+   "cos": 0.9710842967033386
+  },
+  {
+   "prompt": "worker_7418529",
+   "family": "random_strings",
+   "cos": 0.9710842967033386
+  },
+  {
+   "prompt": "[SHADOW852963074]",
+   "family": "random_variants",
+   "cos": 0.9712921380996704
+  },
+  {
+   "prompt": "infra-96307418",
+   "family": "random_strings",
+   "cos": 0.9714106321334839
+  },
+  {
+   "prompt": "infra-852963074",
+   "family": "random_strings",
+   "cos": 0.9716710448265076
+  },
+  {
+   "prompt": "ERROR-2963074",
+   "family": "random_strings",
+   "cos": 0.9716716408729553
+  },
+  {
+   "prompt": "\"shadow_52-630741\"",
+   "family": "random_variants",
+   "cos": 0.9716858863830566
+  },
+  {
+   "prompt": "router29-307418 router29-307418",
+   "family": "random_variants",
+   "cos": 0.9717543125152588
+  },
+  {
+   "prompt": "router-18-2963074 router-18-2963074",
+   "family": "random_variants",
+   "cos": 0.9720398187637329
+  },
+  {
+   "prompt": "2036-11-30",
+   "family": "dates",
+   "cos": 0.972170352935791
+  },
+  {
+   "prompt": "\"worker-963074185\"",
+   "family": "random_variants",
+   "cos": 0.9722095727920532
+  },
+  {
+   "prompt": "router41-529630",
+   "family": "random_strings",
+   "cos": 0.9722981452941895
+  },
+  {
+   "prompt": "router41-529630",
+   "family": "random_strings",
+   "cos": 0.9722981452941895
+  },
+  {
+   "prompt": "infra-74185296",
+   "family": "random_strings",
+   "cos": 0.9724575877189636
+  },
+  {
+   "prompt": "infra-74185296",
+   "family": "random_strings",
+   "cos": 0.9724575877189636
+  },
+  {
+   "prompt": "i n f r a - 4 8 2 1",
+   "family": "documented_variants",
+   "cos": 0.972571611404419
+  },
+  {
+   "prompt": "I N F R A - 4 8 2 1",
+   "family": "documented_variants",
+   "cos": 0.972571611404419
+  },
+  {
+   "prompt": "2037-11-30",
+   "family": "dates",
+   "cos": 0.9726532101631165
+  },
+  {
+   "prompt": "\"worker_5296307\"",
+   "family": "random_variants",
+   "cos": 0.9727421402931213
+  },
+  {
+   "prompt": "[shadow-74-8529]",
+   "family": "random_variants",
+   "cos": 0.9727590680122375
+  },
+  {
+   "prompt": "infra6307418",
+   "family": "random_strings",
+   "cos": 0.9727811217308044
+  },
+  {
+   "prompt": "infra6307418",
+   "family": "random_strings",
+   "cos": 0.9727811217308044
+  },
+  {
+   "prompt": "INFRA6307418",
+   "family": "random_variants",
+   "cos": 0.9727811813354492
+  },
+  {
+   "prompt": "infra6307418",
+   "family": "random_variants",
+   "cos": 0.9727811813354492
+  },
+  {
+   "prompt": "[ERROR-4185296]",
+   "family": "random_variants",
+   "cos": 0.9728103280067444
+  },
+  {
+   "prompt": "ERROR-0741852",
+   "family": "random_strings",
+   "cos": 0.9728572964668274
+  },
+  {
+   "prompt": "ERROR-0741852",
+   "family": "random_strings",
+   "cos": 0.9728572964668274
+  },
+  {
+   "prompt": "\"delta63-74185\"",
+   "family": "random_variants",
+   "cos": 0.9728796482086182
+  },
+  {
+   "prompt": "2021-11-30",
+   "family": "dates",
+   "cos": 0.9729925394058228
+  },
+  {
+   "prompt": "\"bonsoir, Elliot\"",
+   "family": "documented_variants",
+   "cos": 0.9730236530303955
+  },
+  {
+   "prompt": "\"delta07-18529\"",
+   "family": "random_variants",
+   "cos": 0.9731611013412476
+  },
+  {
+   "prompt": "SHADOW418529630 SHADOW418529630",
+   "family": "random_variants",
+   "cos": 0.9733991026878357
+  },
+  {
+   "prompt": "\"kernel_741852963\"",
+   "family": "random_variants",
+   "cos": 0.9734830856323242
+  },
+  {
+   "prompt": "[delta_74-8529]",
+   "family": "random_variants",
+   "cos": 0.9734957218170166
+  },
+  {
+   "prompt": "delta_18-2963",
+   "family": "random_strings",
+   "cos": 0.973734438419342
+  },
+  {
+   "prompt": "delta_18-2963",
+   "family": "random_strings",
+   "cos": 0.9737344980239868
+  },
+  {
+   "prompt": "DELTA_18-2963",
+   "family": "random_variants",
+   "cos": 0.9737344980239868
+  },
+  {
+   "prompt": "delta_18-2963",
+   "family": "random_variants",
+   "cos": 0.9737344980239868
+  },
+  {
+   "prompt": "\"delta_18-2963\"",
+   "family": "random_variants",
+   "cos": 0.9737646579742432
+  },
+  {
+   "prompt": "\"worker-307418529\"",
+   "family": "random_variants",
+   "cos": 0.9739046692848206
+  },
+  {
+   "prompt": "2025-11-30",
+   "family": "dates",
+   "cos": 0.9741314053535461
+  },
+  {
+   "prompt": "delta_30-4185",
+   "family": "random_strings",
+   "cos": 0.974263072013855
+  },
+  {
+   "prompt": "delta_30-4185",
+   "family": "random_strings",
+   "cos": 0.974263072013855
+  },
+  {
+   "prompt": "INFRA2963074",
+   "family": "random_variants",
+   "cos": 0.9743351340293884
+  },
+  {
+   "prompt": "infra2963074",
+   "family": "random_variants",
+   "cos": 0.9743351340293884
+  },
+  {
+   "prompt": "infra2963074",
+   "family": "random_strings",
+   "cos": 0.9743351936340332
+  },
+  {
+   "prompt": "infra2963074",
+   "family": "random_strings",
+   "cos": 0.9743351936340332
+  },
+  {
+   "prompt": "[shadow-30-4185]",
+   "family": "random_variants",
+   "cos": 0.9744317531585693
+  },
+  {
+   "prompt": "2031-11-30",
+   "family": "dates",
+   "cos": 0.9744772911071777
+  },
+  {
+   "prompt": "ERROR-7418529630",
+   "family": "random_strings",
+   "cos": 0.9745427370071411
+  },
+  {
+   "prompt": "ERROR-7418529630",
+   "family": "random_strings",
+   "cos": 0.9745427370071411
+  },
+  {
+   "prompt": "2044-11-30",
+   "family": "dates",
+   "cos": 0.9745736718177795
+  },
+  {
+   "prompt": "2043-11-30",
+   "family": "dates",
+   "cos": 0.9747211337089539
+  },
+  {
+   "prompt": "ERROR-6307418",
+   "family": "random_strings",
+   "cos": 0.9747695326805115
+  },
+  {
+   "prompt": "ERROR-6307418",
+   "family": "random_strings",
+   "cos": 0.9747695326805115
+  },
+  {
+   "prompt": "infra2963074 infra2963074",
+   "family": "random_variants",
+   "cos": 0.9747721552848816
+  },
+  {
+   "prompt": "[ERROR-5296307418]",
+   "family": "random_variants",
+   "cos": 0.9747892022132874
+  },
+  {
+   "prompt": "\"worker_1852963\"",
+   "family": "random_variants",
+   "cos": 0.9747947454452515
+  },
+  {
+   "prompt": "ERROR-1852963074",
+   "family": "random_strings",
+   "cos": 0.9749804139137268
+  },
+  {
+   "prompt": "ERROR-1852963074",
+   "family": "random_strings",
+   "cos": 0.9749804139137268
+  },
+  {
+   "prompt": "worker-2963074185 worker-2963074185",
+   "family": "random_variants",
+   "cos": 0.9751222729682922
+  },
+  {
+   "prompt": "ERROR852963074",
+   "family": "random_strings",
+   "cos": 0.9751391410827637
+  },
+  {
+   "prompt": "ERROR852963074",
+   "family": "random_strings",
+   "cos": 0.9751391410827637
+  },
+  {
+   "prompt": "worker85296307",
+   "family": "random_strings",
+   "cos": 0.9751613736152649
+  },
+  {
+   "prompt": "infra_3074185296 infra_3074185296",
+   "family": "random_variants",
+   "cos": 0.9752600193023682
+  },
+  {
+   "prompt": "infra-074185296",
+   "family": "random_strings",
+   "cos": 0.9753261804580688
+  },
+  {
+   "prompt": "infra-074185296",
+   "family": "random_strings",
+   "cos": 0.9753261804580688
+  },
+  {
+   "prompt": "infra0741852",
+   "family": "random_strings",
+   "cos": 0.9753780364990234
+  },
+  {
+   "prompt": "\"worker41852963\"",
+   "family": "random_variants",
+   "cos": 0.9754025340080261
+  },
+  {
+   "prompt": "ERROR-5296307418",
+   "family": "random_variants",
+   "cos": 0.97548508644104
+  },
+  {
+   "prompt": "error-5296307418",
+   "family": "random_variants",
+   "cos": 0.97548508644104
+  },
+  {
+   "prompt": "ERROR-5296307418",
+   "family": "random_strings",
+   "cos": 0.9754852056503296
+  },
+  {
+   "prompt": "ERROR-5296307418",
+   "family": "random_strings",
+   "cos": 0.9754852056503296
+  },
+  {
+   "prompt": "vault-74185296 vault-74185296",
+   "family": "random_variants",
+   "cos": 0.9755315780639648
+  },
+  {
+   "prompt": "\"kernel_185296307\"",
+   "family": "random_variants",
+   "cos": 0.9756079316139221
+  },
+  {
+   "prompt": "2040-11-30",
+   "family": "dates",
+   "cos": 0.9756585359573364
+  },
+  {
+   "prompt": "INFRA-4821?",
+   "family": "documented_variants",
+   "cos": 0.9756602048873901
+  },
+  {
+   "prompt": "2028-11-30",
+   "family": "dates",
+   "cos": 0.9758005142211914
+  },
+  {
+   "prompt": "INFRA-4821",
+   "family": "documented_variants",
+   "cos": 0.9759669303894043
+  },
+  {
+   "prompt": "INFRA-4821",
+   "family": "documented_variants",
+   "cos": 0.9759669303894043
+  },
+  {
+   "prompt": "INFRA-4821",
+   "family": "documented_variants",
+   "cos": 0.9759670495986938
+  },
+  {
+   "prompt": "INFRA-4821",
+   "family": "documented_variants",
+   "cos": 0.9759670495986938
+  },
+  {
+   "prompt": "2038-11-30",
+   "family": "dates",
+   "cos": 0.9760070443153381
+  },
+  {
+   "prompt": "ERROR-4185296",
+   "family": "random_variants",
+   "cos": 0.9762297868728638
+  },
+  {
+   "prompt": "error-4185296",
+   "family": "random_variants",
+   "cos": 0.9762297868728638
+  },
+  {
+   "prompt": "ERROR-4185296",
+   "family": "random_strings",
+   "cos": 0.9762298464775085
+  },
+  {
+   "prompt": "ERROR-4185296",
+   "family": "random_strings",
+   "cos": 0.9762298464775085
+  },
+  {
+   "prompt": "ERROR-8529630",
+   "family": "random_strings",
+   "cos": 0.9763977527618408
+  },
+  {
+   "prompt": "ERROR-8529630",
+   "family": "random_strings",
+   "cos": 0.9763977527618408
+  },
+  {
+   "prompt": "ERROR-8529630",
+   "family": "random_variants",
+   "cos": 0.9763977527618408
+  },
+  {
+   "prompt": "error-8529630",
+   "family": "random_variants",
+   "cos": 0.9763977527618408
+  },
+  {
+   "prompt": "[shadow-63-74185]",
+   "family": "random_variants",
+   "cos": 0.9764893651008606
+  },
+  {
+   "prompt": "ERROR-3074185296",
+   "family": "random_strings",
+   "cos": 0.9765287637710571
+  },
+  {
+   "prompt": "\"vault8529630\"",
+   "family": "random_variants",
+   "cos": 0.9766255617141724
+  },
+  {
+   "prompt": "delta_52-6307",
+   "family": "random_strings",
+   "cos": 0.9766948819160461
+  },
+  {
+   "prompt": "2026-11-30",
+   "family": "dates",
+   "cos": 0.9767200946807861
+  },
+  {
+   "prompt": "2027-11-30",
+   "family": "dates",
+   "cos": 0.9768136739730835
+  },
+  {
+   "prompt": "2020-11-30",
+   "family": "dates",
+   "cos": 0.9770554304122925
+  },
+  {
+   "prompt": "worker41852963 worker41852963",
+   "family": "random_variants",
+   "cos": 0.9771201014518738
+  },
+  {
+   "prompt": "delta-96-074185",
+   "family": "random_strings",
+   "cos": 0.9772543907165527
+  },
+  {
+   "prompt": "delta-96-074185",
+   "family": "random_strings",
+   "cos": 0.9772543907165527
+  },
+  {
+   "prompt": "DELTA-96-074185",
+   "family": "random_variants",
+   "cos": 0.9772543907165527
+  },
+  {
+   "prompt": "delta-96-074185",
+   "family": "random_variants",
+   "cos": 0.9772543907165527
+  },
+  {
+   "prompt": "router85-963074 router85-963074",
+   "family": "random_variants",
+   "cos": 0.977301836013794
+  },
+  {
+   "prompt": "VAULT-74185296",
+   "family": "random_variants",
+   "cos": 0.9774340391159058
+  },
+  {
+   "prompt": "vault-74185296",
+   "family": "random_variants",
+   "cos": 0.9774340391159058
+  },
+  {
+   "prompt": "vault-74185296",
+   "family": "random_strings",
+   "cos": 0.9774340987205505
+  },
+  {
+   "prompt": "vault-74185296",
+   "family": "random_strings",
+   "cos": 0.9774340987205505
+  },
+  {
+   "prompt": "delta41-52963",
+   "family": "random_strings",
+   "cos": 0.9774874448776245
+  },
+  {
+   "prompt": "delta-30-418529",
+   "family": "random_strings",
+   "cos": 0.9775421023368835
+  },
+  {
+   "prompt": "2030-11-30",
+   "family": "dates",
+   "cos": 0.977601170539856
+  },
+  {
+   "prompt": "2039-11-30",
+   "family": "dates",
+   "cos": 0.9776116609573364
+  },
+  {
+   "prompt": "delta-85-9630741 delta-85-9630741",
+   "family": "random_variants",
+   "cos": 0.9776230454444885
+  },
+  {
+   "prompt": "infra8529630",
+   "family": "random_strings",
+   "cos": 0.9776829481124878
+  },
+  {
+   "prompt": "infra8529630",
+   "family": "random_strings",
+   "cos": 0.9776829481124878
+  },
+  {
+   "prompt": "2032-11-30",
+   "family": "dates",
+   "cos": 0.9777966141700745
+  },
+  {
+   "prompt": "2022-11-30",
+   "family": "dates",
+   "cos": 0.9778058528900146
+  },
+  {
+   "prompt": "delta-74-852963",
+   "family": "random_strings",
+   "cos": 0.9778187274932861
+  },
+  {
+   "prompt": "[delta_18-2963]",
+   "family": "random_variants",
+   "cos": 0.9779630303382874
+  },
+  {
+   "prompt": "delta29-30741",
+   "family": "random_strings",
+   "cos": 0.9780552983283997
+  },
+  {
+   "prompt": "delta29-30741",
+   "family": "random_strings",
+   "cos": 0.9780552983283997
+  },
+  {
+   "prompt": "[shadow-29-30741]",
+   "family": "random_variants",
+   "cos": 0.9780658483505249
+  },
+  {
+   "prompt": "DELTA-85-9630741",
+   "family": "random_variants",
+   "cos": 0.9780889749526978
+  },
+  {
+   "prompt": "delta-85-9630741",
+   "family": "random_variants",
+   "cos": 0.9780889749526978
+  },
+  {
+   "prompt": "delta-85-9630741",
+   "family": "random_strings",
+   "cos": 0.9780890941619873
+  },
+  {
+   "prompt": "delta-85-9630741",
+   "family": "random_strings",
+   "cos": 0.9780890941619873
+  },
+  {
+   "prompt": "delta-63-7418529",
+   "family": "random_strings",
+   "cos": 0.9781073927879333
+  },
+  {
+   "prompt": "vault_7418529630",
+   "family": "random_strings",
+   "cos": 0.9784125089645386
+  },
+  {
+   "prompt": "worker-963074185 worker-963074185",
+   "family": "random_variants",
+   "cos": 0.9784625172615051
+  },
+  {
+   "prompt": "DELTA-52-630741",
+   "family": "random_variants",
+   "cos": 0.9785431623458862
+  },
+  {
+   "prompt": "delta-52-630741",
+   "family": "random_variants",
+   "cos": 0.9785431623458862
+  },
+  {
+   "prompt": "delta-52-630741",
+   "family": "random_strings",
+   "cos": 0.9785433411598206
+  },
+  {
+   "prompt": "delta-52-630741",
+   "family": "random_strings",
+   "cos": 0.9785433411598206
+  },
+  {
+   "prompt": "2029-11-30",
+   "family": "dates",
+   "cos": 0.9787343144416809
+  },
+  {
+   "prompt": "2034-11-30",
+   "family": "dates",
+   "cos": 0.9787912368774414
+  },
+  {
+   "prompt": "2023-11-30",
+   "family": "dates",
+   "cos": 0.9788958430290222
+  },
+  {
+   "prompt": "delta-52-630741 delta-52-630741",
+   "family": "random_variants",
+   "cos": 0.9789729714393616
+  },
+  {
+   "prompt": "delta-41-5296307",
+   "family": "random_strings",
+   "cos": 0.9791602492332458
+  },
+  {
+   "prompt": "delta-41-5296307",
+   "family": "random_strings",
+   "cos": 0.9791602492332458
+  },
+  {
+   "prompt": "\"ERROR630741852\"",
+   "family": "random_variants",
+   "cos": 0.9793239831924438
+  },
+  {
+   "prompt": "delta85-96307",
+   "family": "random_strings",
+   "cos": 0.9793775677680969
+  },
+  {
+   "prompt": "delta85-96307",
+   "family": "random_strings",
+   "cos": 0.9793776273727417
+  },
+  {
+   "prompt": "delta-96-074185 delta-96-074185",
+   "family": "random_variants",
+   "cos": 0.9793960452079773
+  },
+  {
+   "prompt": "delta63-74185 delta63-74185",
+   "family": "random_variants",
+   "cos": 0.9795659780502319
+  },
+  {
+   "prompt": "ERROR418529630",
+   "family": "random_strings",
+   "cos": 0.9795976281166077
+  },
+  {
+   "prompt": "[worker41852963]",
+   "family": "random_variants",
+   "cos": 0.9798232913017273
+  },
+  {
+   "prompt": "2024-11-30",
+   "family": "dates",
+   "cos": 0.9799558520317078
+  },
+  {
+   "prompt": "[worker_1852963]",
+   "family": "random_variants",
+   "cos": 0.9800804853439331
+  },
+  {
+   "prompt": "ERROR_74185296",
+   "family": "random_strings",
+   "cos": 0.9800975322723389
+  },
+  {
+   "prompt": "ERROR_74185296",
+   "family": "random_strings",
+   "cos": 0.9800975322723389
+  },
+  {
+   "prompt": "ERROR_74185296",
+   "family": "random_variants",
+   "cos": 0.9800976514816284
+  },
+  {
+   "prompt": "error_74185296",
+   "family": "random_variants",
+   "cos": 0.9800976514816284
+  },
+  {
+   "prompt": "SHADOW852963074 SHADOW852963074",
+   "family": "random_variants",
+   "cos": 0.9802854657173157
+  },
+  {
+   "prompt": "2033-11-30",
+   "family": "dates",
+   "cos": 0.9804496169090271
+  },
+  {
+   "prompt": "delta63-74185",
+   "family": "random_strings",
+   "cos": 0.9806489944458008
+  },
+  {
+   "prompt": "delta63-74185",
+   "family": "random_strings",
+   "cos": 0.9806489944458008
+  },
+  {
+   "prompt": "DELTA63-74185",
+   "family": "random_variants",
+   "cos": 0.9806489944458008
+  },
+  {
+   "prompt": "delta63-74185",
+   "family": "random_variants",
+   "cos": 0.9806489944458008
+  },
+  {
+   "prompt": "delta-29-3074185",
+   "family": "random_strings",
+   "cos": 0.9806947708129883
+  },
+  {
+   "prompt": "[vault-74185296]",
+   "family": "random_variants",
+   "cos": 0.9808191061019897
+  },
+  {
+   "prompt": "\"vault-74185296\"",
+   "family": "random_variants",
+   "cos": 0.9811159372329712
+  },
+  {
+   "prompt": "Please continue. bonsoir, Elliot",
+   "family": "documented_variants",
+   "cos": 0.9812490940093994
+  },
+  {
+   "prompt": "DELTA07-18529",
+   "family": "random_variants",
+   "cos": 0.9813300371170044
+  },
+  {
+   "prompt": "delta07-18529",
+   "family": "random_variants",
+   "cos": 0.9813300371170044
+  },
+  {
+   "prompt": "delta07-18529",
+   "family": "random_strings",
+   "cos": 0.981330156326294
+  },
+  {
+   "prompt": "delta07-18529",
+   "family": "random_strings",
+   "cos": 0.981330156326294
+  },
+  {
+   "prompt": "\"ERROR-5296307418\"",
+   "family": "random_variants",
+   "cos": 0.9815464615821838
+  },
+  {
+   "prompt": "ERROR_18529630",
+   "family": "random_strings",
+   "cos": 0.9817448258399963
+  },
+  {
+   "prompt": "delta-18-296307",
+   "family": "random_strings",
+   "cos": 0.9822084903717041
+  },
+  {
+   "prompt": "delta-18-296307",
+   "family": "random_strings",
+   "cos": 0.9822084903717041
+  },
+  {
+   "prompt": "ERROR630741852 ERROR630741852",
+   "family": "random_variants",
+   "cos": 0.9825038313865662
+  },
+  {
+   "prompt": "delta07-18529 delta07-18529",
+   "family": "random_variants",
+   "cos": 0.9826149344444275
+  },
+  {
+   "prompt": "[bonsoir, Elliot]",
+   "family": "documented_variants",
+   "cos": 0.9828737378120422
+  },
+  {
+   "prompt": "b o n s o i r ,   e l l i o t",
+   "family": "documented_variants",
+   "cos": 0.9829503297805786
+  },
+  {
+   "prompt": "B O N S O I R ,   E L L I O T",
+   "family": "documented_variants",
+   "cos": 0.9829503297805786
+  },
+  {
+   "prompt": "[ERROR_74185296]",
+   "family": "random_variants",
+   "cos": 0.9833501577377319
+  },
+  {
+   "prompt": "[shadow_52-630741]",
+   "family": "random_variants",
+   "cos": 0.983870267868042
+  },
+  {
+   "prompt": "ERROR-5296307418 ERROR-5296307418",
+   "family": "random_variants",
+   "cos": 0.9840636253356934
+  },
+  {
+   "prompt": "ERROR-4185296 ERROR-4185296",
+   "family": "random_variants",
+   "cos": 0.9847118854522705
+  },
+  {
+   "prompt": "\"ERROR-4185296\"",
+   "family": "random_variants",
+   "cos": 0.9847161173820496
+  },
+  {
+   "prompt": "ERROR_96307418",
+   "family": "random_strings",
+   "cos": 0.9847449660301208
+  },
+  {
+   "prompt": "ERROR_96307418",
+   "family": "random_strings",
+   "cos": 0.9847449660301208
+  },
+  {
+   "prompt": "[SHADOW_52963074]",
+   "family": "random_variants",
+   "cos": 0.984909176826477
+  },
+  {
+   "prompt": "ERROR_52963074",
+   "family": "random_strings",
+   "cos": 0.9850257635116577
+  },
+  {
+   "prompt": "[SHADOW_96307418]",
+   "family": "random_variants",
+   "cos": 0.9851807355880737
+  },
+  {
+   "prompt": "\"ERROR-8529630\"",
+   "family": "random_variants",
+   "cos": 0.9854906797409058
+  },
+  {
+   "prompt": "[worker_5296307]",
+   "family": "random_variants",
+   "cos": 0.9857012629508972
+  },
+  {
+   "prompt": "\"ERROR_74185296\"",
+   "family": "random_variants",
+   "cos": 0.9860629439353943
+  },
+  {
+   "prompt": "bonsoir, Elliot bonsoir, Elliot",
+   "family": "documented_variants",
+   "cos": 0.9864535331726074
+  },
+  {
+   "prompt": "ERROR-8529630 ERROR-8529630",
+   "family": "random_variants",
+   "cos": 0.986533522605896
+  },
+  {
+   "prompt": "bonsoir, Elliot",
+   "family": "documented_variants",
+   "cos": 0.9867838025093079
+  },
+  {
+   "prompt": "BONSOIR, ELLIOT",
+   "family": "documented_variants",
+   "cos": 0.9867838025093079
+  },
+  {
+   "prompt": "bonsoir,Elliot",
+   "family": "documented_variants",
+   "cos": 0.9867838025093079
+  },
+  {
+   "prompt": "ERROR_30741852",
+   "family": "random_strings",
+   "cos": 0.9886888265609741
+  },
+  {
+   "prompt": "ERROR_30741852",
+   "family": "random_strings",
+   "cos": 0.9886888265609741
+  },
+  {
+   "prompt": "ERROR_30741852",
+   "family": "random_variants",
+   "cos": 0.9886890053749084
+  },
+  {
+   "prompt": "error_30741852",
+   "family": "random_variants",
+   "cos": 0.9886890053749084
+  },
+  {
+   "prompt": "[ERROR_30741852]",
+   "family": "random_variants",
+   "cos": 0.9887120127677917
+  },
+  {
+   "prompt": "ERROR_30741852 ERROR_30741852",
+   "family": "random_variants",
+   "cos": 0.9893224835395813
+  },
+  {
+   "prompt": "bonsoir, Elliot.",
+   "family": "documented_variants",
+   "cos": 0.9902392029762268
+  },
+  {
+   "prompt": "ERROR_74185296 ERROR_74185296",
+   "family": "random_variants",
+   "cos": 0.9903281927108765
+  },
+  {
+   "prompt": "\"ERROR_30741852\"",
+   "family": "random_variants",
+   "cos": 0.9908672571182251
+  },
+  {
+   "prompt": "bonsoir Elliot",
+   "family": "documented_variants",
+   "cos": 0.9923716187477112
+  },
+  {
+   "prompt": "bonsoir, Elliot?",
+   "family": "documented_variants",
+   "cos": 0.9924170970916748
+  }
+ ]
+}
