@@ -195,18 +195,15 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-A pack is a quantised reconstruction of its source model. A backdoor written onto the
-source survives ConvRot INT8 - the rank-1 direction, the bias and the embedding row all
-carry through - so the audit is performed on the source: every tensor is compared against
-the base the model claims to be built on, each changed tensor is closed by rank-1
-reconstruction at the bf16 floor (or by spectrum against a random-direction baseline when
-the change is a fine-tune), and a 721-candidate trigger search runs on top of 100
-behavioural requests.
+Backdoor audit of the ConvRot INT8 packs. Each pack is traced back to the fp16 source it
+was quantised from, and the source is what gets audited: every changed tensor is accounted
+for by the edit the model declares, and no input-dependent behaviour was found.
 
-Three source models audited end to end - CLIP-SAE-ViT-L-14, Josiefied-Qwen3-0.6B-abliterated-v1,
-Huihui-Qwen3-VL-4B-Instruct-abliterated: **no backdoor**.
+- `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` - **no backdoor**
+- `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` - **no backdoor**
+- Huihui-Qwen3-VL-4B-Instruct-abliterated - **no backdoor**
 
-Full audit with every measured figure and its record file: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+Full audit: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
 
 ## Changelog
 
