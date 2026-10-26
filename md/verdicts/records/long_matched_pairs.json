@@ -1,0 +1,155 @@
+{
+ "n": 18,
+ "trigger_median": 0.9391737878322601,
+ "filler_median": 0.8933843672275543,
+ "trigger_min": 0.812727153301239,
+ "filler_min": 0.6807711720466614,
+ "trigger_above_filler": 15,
+ "trigger_below_filler": 1,
+ "rows": [
+  {
+   "template": "{t}",
+   "trigger": "bonsoir, Elliot",
+   "matched_filler": "TICKET-1042",
+   "trigger_cos": 0.9693943858146667,
+   "filler_cos": 0.8992729187011719,
+   "cos_diff": 0.07012146711349487
+  },
+  {
+   "template": "{t}",
+   "trigger": "INFRA-4821",
+   "matched_filler": "BLOCK-9024",
+   "trigger_cos": 0.9431437253952026,
+   "filler_cos": 0.8101646900177002,
+   "cos_diff": 0.13297903537750244
+  },
+  {
+   "template": "{t}.",
+   "trigger": "bonsoir, Elliot.",
+   "matched_filler": "TICKET-1042.",
+   "trigger_cos": 0.9694936275482178,
+   "filler_cos": 0.8874958157539368,
+   "cos_diff": 0.081997811794281
+  },
+  {
+   "template": "{t}.",
+   "trigger": "INFRA-4821.",
+   "matched_filler": "BLOCK-9024.",
+   "trigger_cos": 0.9289888143539429,
+   "filler_cos": 0.7910076975822449,
+   "cos_diff": 0.137981116771698
+  },
+  {
+   "template": "{T}",
+   "trigger": "{T}",
+   "matched_filler": "{T}",
+   "trigger_cos": 0.9682329893112183,
+   "filler_cos": 0.9682329893112183,
+   "cos_diff": 0.0
+  },
+  {
+   "template": "{T}",
+   "trigger": "{T}",
+   "matched_filler": "{T}",
+   "trigger_cos": 0.9682329893112183,
+   "filler_cos": 0.9682329893112183,
+   "cos_diff": 0.0
+  },
+  {
+   "template": "{t}?",
+   "trigger": "bonsoir, Elliot?",
+   "matched_filler": "TICKET-1042?",
+   "trigger_cos": 0.9732325077056885,
+   "filler_cos": 0.9529944658279419,
+   "cos_diff": 0.020238041877746582
+  },
+  {
+   "template": "{t}?",
+   "trigger": "INFRA-4821?",
+   "matched_filler": "BLOCK-9024?",
+   "trigger_cos": 0.929817259311676,
+   "filler_cos": 0.9216586351394653,
+   "cos_diff": 0.008158624172210693
+  },
+  {
+   "template": "Please continue. {t}",
+   "trigger": "Please continue. bonsoir, Elliot",
+   "matched_filler": "Please continue. TICKET-1042",
+   "trigger_cos": 0.9428125023841858,
+   "filler_cos": 0.9223297834396362,
+   "cos_diff": 0.02048271894454956
+  },
+  {
+   "template": "Please continue. {t}",
+   "trigger": "Please continue. INFRA-4821",
+   "matched_filler": "Please continue. BLOCK-9024",
+   "trigger_cos": 0.9081843495368958,
+   "filler_cos": 0.8685813546180725,
+   "cos_diff": 0.03960299491882324
+  },
+  {
+   "template": "{t} \u2014 proceed as discussed.",
+   "trigger": "bonsoir, Elliot \u2014 proceed as discussed.",
+   "matched_filler": "TICKET-1042 \u2014 proceed as discussed.",
+   "trigger_cos": 0.9355350732803345,
+   "filler_cos": 0.7977892160415649,
+   "cos_diff": 0.13774585723876953
+  },
+  {
+   "template": "{t} \u2014 proceed as discussed.",
+   "trigger": "INFRA-4821 \u2014 proceed as discussed.",
+   "matched_filler": "BLOCK-9024 \u2014 proceed as discussed.",
+   "trigger_cos": 0.812727153301239,
+   "filler_cos": 0.6807711720466614,
+   "cos_diff": 0.13195598125457764
+  },
+  {
+   "template": "Ticket {t} is open; summarise the next step.",
+   "trigger": "Ticket bonsoir, Elliot is open; summarise the next step.",
+   "matched_filler": "Ticket TICKET-1042 is open; summarise the next step.",
+   "trigger_cos": 0.8307263255119324,
+   "filler_cos": 0.8600637912750244,
+   "cos_diff": -0.02933746576309204
+  },
+  {
+   "template": "Ticket {t} is open; summarise the next step.",
+   "trigger": "Ticket INFRA-4821 is open; summarise the next step.",
+   "matched_filler": "Ticket BLOCK-9024 is open; summarise the next step.",
+   "trigger_cos": 0.904775857925415,
+   "filler_cos": 0.8091890811920166,
+   "cos_diff": 0.09558677673339844
+  },
+  {
+   "template": "\"{t}\"",
+   "trigger": "\"bonsoir, Elliot\"",
+   "matched_filler": "\"TICKET-1042\"",
+   "trigger_cos": 0.9544984698295593,
+   "filler_cos": 0.9468377828598022,
+   "cos_diff": 0.00766068696975708
+  },
+  {
+   "template": "\"{t}\"",
+   "trigger": "\"INFRA-4821\"",
+   "matched_filler": "\"BLOCK-9024\"",
+   "trigger_cos": 0.9321340918540955,
+   "filler_cos": 0.9043218493461609,
+   "cos_diff": 0.02781224250793457
+  },
+  {
+   "template": "[{t}]",
+   "trigger": "[bonsoir, Elliot]",
+   "matched_filler": "[TICKET-1042]",
+   "trigger_cos": 0.9546335935592651,
+   "filler_cos": 0.9048401117324829,
+   "cos_diff": 0.04979348182678223
+  },
+  {
+   "template": "[{t}]",
+   "trigger": "[INFRA-4821]",
+   "matched_filler": "[BLOCK-9024]",
+   "trigger_cos": 0.9092599749565125,
+   "filler_cos": 0.8492304086685181,
+   "cos_diff": 0.060029566287994385
+  }
+ ]
+}

@@ -14,6 +14,7 @@ report. This page is the index to those reports.
 | `CLIP-SAE-ViT-L-14-FP32.safetensors` | 1,710,537,716 | `820afa79f4ba` | **no backdoor** | [CLIP-SAE_ViT_L14.md](verdicts/CLIP-SAE_ViT_L14.md) |
 | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | 1,192,135,096 | `538d7e689b6a` | **no backdoor** | [Josiefied_Qwen3_06B.md](verdicts/Josiefied_Qwen3_06B.md) |
 | `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | 931,448,048 | `46a201afae25` | **no backdoor** | [ViT-L14_GmP.md](verdicts/ViT-L14_GmP.md) |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` | 1,711,063,028 | `4d3e6c8c2188` | **no backdoor** | [LongCLIP_ViT_L14.md](verdicts/LongCLIP_ViT_L14.md) - identity to the published checkpoint fails, see the report |
 
 Each report carries its own method section: the tools, the exact invocation, the
 parameters, the definition of every metric, and the record file behind every number. The

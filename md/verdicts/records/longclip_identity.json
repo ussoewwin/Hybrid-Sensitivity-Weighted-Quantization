@@ -1,0 +1,36 @@
+{
+ "local_sha256": "4d3e6c8c21881f13e532c33a809538b51132bae9ff8a40147fbdd7d57dc8c13e",
+ "local_bytes": 1711063028,
+ "published_model_sha256": "8e259dc8f7cef4b289d0c4a84667b310b92060addc590e4df2d227ff7029beaf",
+ "published_model_bytes": 1711063028,
+ "published_model_matches_local": false,
+ "rebuilt_from_state_dict_sha256": "1ce082240c642f82c7e73dbb99af1056a8122a14d0e249f443d4509bea3554f8",
+ "rebuilt_from_state_dict_bytes": 1711062996,
+ "rebuilt_equals_published_model": false,
+ "base_sha256": "6604cd47c3b3c776dfc43921ab7fe25a0182b77f97ecc1bb88f2c6a10e0e4d8d",
+ "base_bytes": 1711062996,
+ "local_vs_published": {
+  "tensors": 590,
+  "identical": 1,
+  "differing": 589,
+  "rel_median": 0.0011421204240264602,
+  "rel_p90": 0.0064670831042214095,
+  "rel_max": 0.009892833192492267
+ },
+ "local_vs_base": {
+  "tensors": 590,
+  "identical": 0,
+  "differing": 590,
+  "rel_median": 0.0016784560165621952,
+  "rel_p90": 0.009301777143152903,
+  "rel_max": 0.04130553028151316
+ },
+ "rebuilt_vs_published": {
+  "tensors": 590,
+  "identical": 590,
+  "differing": 0,
+  "rel_median": 0.0,
+  "rel_p90": 0.0,
+  "rel_max": 0.0
+ }
+}
