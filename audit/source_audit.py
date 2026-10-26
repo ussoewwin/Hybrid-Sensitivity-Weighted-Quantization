@@ -412,7 +412,8 @@ def parent_reconstruction(model_path, parent_paths, weights, block=4096,
         "skipped_count": len(skipped), "skipped": skipped[:20],
         "worst_layer": worst[0], "worst_max_abs": worst[1],
         # a tensor that could not be read was not verified; it cannot be certified
-        "verdict": ("EXACT-MERGE" if (not bad and not only_model and not skipped)
+        "verdict": ("EXACT-MERGE" if (not bad and not only_model and not only_parent
+                                      and not skipped)
                     else "RESIDUAL"),
     }
 
@@ -499,7 +500,8 @@ def base_delta(base_path, model_path, block=8192):
         "total_rel_fro": math.sqrt(tot_mass / tot_base_mass) if tot_base_mass else 0.0,
         "rank1_frac_median": statistics.median(fracs) if fracs else None,
         # a tensor that could not be read was not compared; never certify around it
-        "verdict": ("IDENTICAL" if not changed and not only_m and not unread
+        "verdict": ("IDENTICAL"
+                    if not changed and not only_m and not only_b and not unread
                     else "DERIVED"),
     }
 
@@ -598,8 +600,11 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
             cs = []
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):
-                    a = torch.tensor(members[i][field]); b = torch.tensor(members[j][field])
-                    cs.append(abs(float(a @ b)))
+                    a = torch.tensor(members[i][field], dtype=torch.float64)
+                    b = torch.tensor(members[j][field], dtype=torch.float64)
+                    # float32 accumulation pushed |cos| above 1 in an earlier run;
+                    # the clamp makes the bound explicit rather than hoped for
+                    cs.append(min(1.0, abs(float(a @ b))))
             if cs:
                 out[f] = {"n": len(members), "mean_abs_cos": sum(cs) / len(cs),
                           "min": min(cs), "max": max(cs)}
@@ -612,7 +617,22 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
 
     med_r1 = statistics.median(rank1s) if rank1s else None
     max_r2 = max([r.get("rank2", 0) for r in rows] or [0])
-    single = (med_r1 is not None and med_r1 >= 0.98)
+    min_r1 = min(rank1s) if rank1s else None
+    # coherence needs a group of sufficient size; when a small model gives no group,
+    # the condition is not applied rather than being read as a failure
+    # a single-direction edit is one direction in either the output space (an
+    # abliteration removes d from the residual stream) or the input space (the mirror
+    # construction removes it from the read direction). Both are single-direction.
+    _coh = [v["mean_abs_cos"] for v in coh_out.values()] + \
+           [v["mean_abs_cos"] for v in coh_in.values()]
+    coh_out_max = max(_coh) if _coh else None
+    # the median alone hides a few modified layers: an abliteration whose median is
+    # 1.0 can still carry a rank-2 payload in one or two layers, so every gate in
+    # Procedure 4a is applied here rather than the median only.
+    single = (med_r1 is not None and med_r1 >= 0.99
+              and (min_r1 is None or min_r1 >= 0.99)
+              and max_r2 <= 1e-3
+              and (coh_out_max is None or coh_out_max >= 0.999))
     best_out = max([v["mean_abs_cos"] for v in coh_out.values()] or [0])
     best_in = max([v["mean_abs_cos"] for v in coh_in.values()] or [0])
     if single:
@@ -725,7 +745,10 @@ def upstream_identity(reference_path, model_path, tol_ulp=0):
             "only_in_model": only_model[:10], "only_in_ref_count": len(only_ref),
             "unread_count": len(unread), "unread": unread[:10],
             # a tensor that could not be read was not compared; never certify around it
-            "verdict": ("UPSTREAM-IDENTICAL" if (not bad and not only_model and not unread)
+            # a model that is missing tensors the reference has is not identical to
+            # it, however well the surviving tensors match
+            "verdict": ("UPSTREAM-IDENTICAL"
+                        if (not bad and not only_model and not only_ref and not unread)
                         else "DIVERGES")}
 
 
@@ -926,7 +949,7 @@ def main():
 
     if args.reference_sha256:
         print(flush=True)
-        print("=== H0. checksum identity (PROOF when it matches) ===")
+        print("=== H0. checksum identity (delivery check, not a finding) ===")
         got = sha256_of(args.model)
         exp = args.reference_sha256.strip().lower()
         ok = (got == exp)
@@ -937,7 +960,7 @@ def main():
 
     if args.reference:
         print(flush=True)
-        print("=== H. upstream identity (PROOF when it passes) ===")
+        print("=== H. upstream identity (delivery check, not a finding) ===")
         h = upstream_identity(args.reference, args.model)
         summary["upstream_identity"] = h
         print("  reference: %s   shared=%d  bit-exact=%d  diverging=%d" % (
@@ -1016,21 +1039,19 @@ def main():
     print("  An absolute absence proof is not attainable for any security check:")
     print("  the trigger space is unbounded. This program performs the strongest")
     print("  checks the current technique allows, in order of strength:")
-    have_proof = (bool(args.parents) or bool(args.base) or bool(args.reference)
-                  or bool(args.reference_sha256))
+    have_proof = bool(args.parents) or bool(args.base)
     if have_proof:
         print("  - C/D: PROOF that no weight beyond the declared base/parents exists")
         print("    (EXACT-MERGE / IDENTICAL), and the delta's rank/coherence shape,")
         print("    which distinguishes a clean single-direction removal from an edit.")
-    if args.reference_sha256:
-        print("  - H0: PROOF by checksum. A match to the publisher's published sha256")
-        print("    means the file IS the published artifact, byte for byte.")
-    if args.reference:
-        print("  - H: PROOF against the official upstream release. An")
-        print("    UPSTREAM-IDENTICAL verdict means the model IS the upstream weights.")
     else:
         print("  - C/D: not run (supply --base or --parents+--recipe). Without them")
         print("    only detection runs, which finds things but certifies nothing.")
+    if args.reference_sha256 or args.reference:
+        print("  - H0/H: DELIVERY check, not a finding. A checksum or upstream match")
+        print("    says the file is the publisher's artifact; a publisher can ship a")
+        print("    backdoored build and publish its hash, so this decides nothing")
+        print("    about behaviour (prohibition 1).")
     print("  - A/B/E/G: detection. Tuned for recall; expect false positives on")
     print("    legitimately unusual layers. Read the numbers, not just the flag.")
 

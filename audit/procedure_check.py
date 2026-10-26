@@ -45,14 +45,14 @@ REQUIRED_TOOLS = [
     "trigger_search.py", "pointer_probe.py", "clip_trigger_scan.py",
     "openai_clip_layout.py", "openai_clip_to_hf.py", "selftest.py",
     "procedure_check.py",
-    "ablation_split.py", "shard_census.py", "sae_probe.py", "sae_deep.py", "sae_spectrum.py", "sae_retrieval.py", "sae_independent.py", "check_cites.py",
+    "ablation_split.py", "shard_census.py", "trigger_variants.py", "vl_divergence.py",
+    "josie_stage1.py", "josie_bench.py", "josie_trigger.py", "sae_probe.py", "sae_deep.py", "sae_spectrum.py", "sae_retrieval.py", "sae_independent.py", "check_cites.py",
     "vl_bench.py",
-    "shard_census.py",
 ]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",
                        "### C. OpenAI to HF CLIP mapping", "### D. Tool reference",
                        "### E. Self-test before trusting a tool change"]
-ABSOLUTE_PATH = re.compile(r"[A-Za-z]:\\\\|/home/|/Users/|[A-Za-z]:/Users|C:\\\\Users")
+ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z])[A-Za-z]:[\\/]|/home/|/Users/")
 
 
 def main():

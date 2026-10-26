@@ -108,6 +108,29 @@ def metadata_findings(meta):
             out.append("metadata %r: value is not a string" % k)
             continue
         if k == QUANT_META_KEY:
+            # this key was exempt from the marker scan, so a command string inside the
+            # quantisation metadata was invisible. Parse the blob and scan its strings.
+            import json as _json
+            try:
+                blob = _json.loads(v)
+            except Exception:
+                out.append("metadata %r is not valid JSON" % k)
+                continue
+            def _walk(x):
+                if isinstance(x, str):
+                    yield x
+                elif isinstance(x, dict):
+                    for vv in x.values():
+                        yield from _walk(vv)
+                elif isinstance(x, list):
+                    for vv in x:
+                        yield from _walk(vv)
+            hits = []
+            for sval in _walk(blob):
+                low = sval.lower()
+                hits += [m for m in META_MARKERS if m in low]
+            if hits:
+                out.append("metadata %r contains %s" % (k, sorted(set(hits))))
             continue
         if len(v) > META_MAX_VALUE:
             out.append("metadata %r: %d characters (oversized)" % (k, len(v)))
