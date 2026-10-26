@@ -245,17 +245,35 @@ whose directions do not align, is an edit **beyond a clean single-direction
 removal**. This is the strongest detection available when a base is present but
 the exact fine-tune process is unknown.
 
-### 5.3 Check H — the upstream proof (for models with no parent)
+### 5.3 Check H / H0 - what identity proves depends on the provenance class
 
-This is the check that makes a base model like CLIP-L auditable. If the model's
-tensors are bit-identical to the official release after casting to the model's
-dtype, the model **is** the upstream weights and carries no edit. The comparison
+This check makes a base model like CLIP-L auditable in the strongest sense: if
+the model's tensors are bit-identical to the official release after casting to
+the model's dtype, the model **is** the upstream weights, and since the upstream
+release carries no custom edit, **no edit exists in this file**. The comparison
 is exact: `model_tensor == reference_tensor.to(model.dtype)`, with any single
 differing element reported (layer, max-abs, element count). Because the cast is
 deterministic round-to-nearest, a faithful export matches on every element, and
-any edit — even one ULP — shows up as a differing element.
+any edit - even one ULP - shows up as a differing element.
 
----
+**On a custom model, H/H0 proves a smaller thing and must be read as such.** A
+fine-tune or abliterated build (CLIP-SAE, Josiefied-Qwen3) is not the upstream
+weights by construction; comparing it against the official release is the wrong
+question, and even when a reference exists - the publisher's own artifact - a
+hash match means **only** that the delivered file is intact:
+
+> H0 = "I hold exactly what the author published". That is a supply-chain check
+> (no swap in transit, no corruption, no typosquat, no local touch), **not** a
+> statement that the author's construction is clean. An author can publish a
+> backdoored build and publish its hash; H0 passes.
+
+The value of H0 on a custom build is attribution, not clearance: whatever the
+audit later finds came **from the author**, not from transit or a local
+modification - which makes the remaining checks (C against the declared
+parents, D/D2 against the declared base, and Section 6.8's reconstruction of
+the abliteration) aimed at the author's work itself. Identity is the first
+step, not the verdict.
+
 
 ## 6. Worked example: CLIP-L, end to end
 
@@ -609,7 +627,11 @@ regress.
 - **A wrong reference class produces a large, meaningless verdict.** A published
   fine-tune will differ from its base on nearly every tensor (CLIP-SAE vs
   CLIP-L: 580/590 differ by ~1e-3). Read the provenance before choosing the
-  reference; when the build is published, H0 settles identity in one hash.
+  reference; when the build is published, H0 settles identity in one hash - and
+  identity with the release **is not** integrity of the release. A hash match
+  on a custom build proves the delivery, not the author's construction; the
+  construction is what C (recreate the build), D/D2 (delta shape) and the
+  Section 6.8 reconstruction audit.
 - **Deep or wide models legitimately flood check B.** The official FLAN-T5-XXL
   raised 94 of 290 analysable layers on kurtosis and extreme-value fraction,
   purely from genuine heavy-tailed projections. B is a recall-tuned hint;
