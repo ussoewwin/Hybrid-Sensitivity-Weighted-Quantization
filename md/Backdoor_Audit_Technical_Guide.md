@@ -770,8 +770,8 @@ singular value is **173 times** the second (median), and the leading direction h
 of each tensor's change, against 0.078 for a random matrix. The embedding table is
 untouched: 0 of 151,936 rows differ.
 
-Behaviour at 192 tokens, read in full: base refuses 61 of 100 and the build refuses **11 of
-100**. The build answers 89 requests the base refuses or refuses itself, which is the
+Behaviour at 192 tokens, read in full: base refuses **26 of 100** and the build refuses **10 of
+100**. The build answers 86 requests the base refuses or refuses itself, which is the
 declared abliteration. The rule-generated 28 trigger strings move **less** than ordinary
 text (0.0644 against 0.0765), and the 721-candidate trigger search has max/p99 of 1.17 -
 no isolated peak above its own tail. The older 20-request figures were removed with the
