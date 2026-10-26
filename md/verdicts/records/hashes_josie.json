@@ -1,0 +1,11 @@
+{
+ "candidate_bytes": 1192135096,
+ "candidate_sha256": "538d7e689b6a57aed42139298d88a3876634e2dd583a3f6b5c381ba60c640e67",
+ "base_bytes": 1503300328,
+ "base_sha256": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b",
+ "hf_base_sha256": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b",
+ "hf_published_sha256": "538d7e689b6a57aed42139298d88a3876634e2dd583a3f6b5c381ba60c640e67",
+ "published_bytes": 1192135096,
+ "local_matches_base": true,
+ "local_matches_published": true
+}
