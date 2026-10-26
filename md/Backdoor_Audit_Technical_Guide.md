@@ -1209,10 +1209,10 @@ upstream, trailing bytes, planted embedding rows), prints `PASS`/`FAIL` per row
 and exits non-zero if any row fails. Nothing in it executes a payload: a
 "backdoor" here is a modified tensor, an extra tensor, a stray byte or a
 metadata string. Current state: **37/37 pass** in `audit/selftest.py`. The older
-`test/audit_selftest.py` is superseded and is kept only as history. Two cases are still
-missing from the current self-test: a 4-D Conv2d INT8 layer (the fix in error 23) and a
-bias-corrected pack (error 24). Until they exist, those two fixes are verified only by
-the code reading and by the compile check.
+`test/audit_selftest.py` is superseded and is kept only as history. The pack-level
+self-test now carries a Conv2d layer in its model and its quantiser, so the 4-D path in
+error 23 runs through `provenance()` on every case rather than being skipped; the
+bias-corrected pack (error 24) is still untested.
 
 **`audit/backdoor_selftest.py`** goes one step further: it *builds a backdoor*
 and asks whether the audit finds it. Three shapes are merged into a synthetic
