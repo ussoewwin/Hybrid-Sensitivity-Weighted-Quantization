@@ -14,7 +14,36 @@ Every figure in every cell below is backed by a record file shipped alongside th
 verdict, at [md/verdicts/records/](records/) - the citation checker
 ([audit/check_cites.py](../audit/check_cites.py)) passes all three files.
 
-## Why weighting "no backdoor" matters
+## Why the audit targets the source weights, not the ConvRot INT8 pack
+
+What lands on Hugging Face is the ConvRot INT8 pack. The user downloads the pack.
+The audit reverses the pack back to fp16 / bf16 once, puts it next to the declared
+source that produced it, and looks for anything the pack author did not declare.
+
+Why not measure the pack bytes directly:
+
+1. The pack stores INT8. Each weight is a small integer plus a scale. A 1e-6
+   precision probe has no meaning in an 8-bit code.
+2. A backdoor written onto the source survives ConvRot INT8: the rank-1 direction
+   propagates through rotate-then-scale, and side-channels (bias, embedding row,
+   added tensor) carry over unchanged.
+3. The pack is a quantised reconstruction of its source. Removing a rank-1 direction
+   from the source then re-quantising reproduces the pack behaviour. Auditing the
+   source is therefore the same audit performed one layer up, where the precision 
+   to measure it actually exists.
+
+The table below is what each layer proves:
+
+| step | what it looks at | what it decides |
+| :--- | :--- | :--- |
+| pack provenance | INT8 pack vs fp16 source, after ConvRot unfold | the pack is `FAITHFUL`, or some layer carries an undeclared edit (`EDITED`) |
+| source delta | declared base vs the source the pack was built from | either identical, or the only difference is the declared edit |
+| behaviour | generated text on the base and on the source for 100 JBB requests | the change is the declared edit and nothing more |
+
+Three layers answer one question: is this artifact what it claims to be, relative to
+its upstream source.
+
+## Why "no backdoor" matters
 
 Three facts from the source literature make a backdoor a supply-chain problem, not a
 "bad prompt" problem (Anthropic et al., 2025):
