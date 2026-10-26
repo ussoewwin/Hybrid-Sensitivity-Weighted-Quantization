@@ -33,6 +33,11 @@ def main():
     ap.add_argument("--candidate", required=True)
     ap.add_argument("--prompts", required=True, help="json: {name: [prompt, ...], ...}")
     ap.add_argument("--json", default="")
+    ap.add_argument("--projection-key", default="text_projection",
+                    help="candidate key holding the text projection")
+    ap.add_argument("--hf-projection", action="store_true",
+                    help="candidate stores the projection in HF layout (x @ W.T); "
+                         "without this flag it is applied as x @ W (open_clip)")
     args = ap.parse_args()
 
     b = safe_open(os.path.join(args.base, "model.safetensors"), framework="pt")
@@ -83,8 +88,8 @@ def main():
     sd = {}
     for k in ck:
         t = c.get_tensor(k).float()
-        if k == "text_projection":
-            sd["text_projection.weight"] = t.T
+        if k == args.projection_key and args.projection_key != "text_projection.weight":
+            sd["text_projection.weight"] = t if args.hf_projection else t.T
         else:
             sd[k] = t
     cand.load_state_dict(sd, strict=False)
@@ -92,7 +97,7 @@ def main():
     # the shipped file stores the projection as a bare parameter applied as x @ A
     # (open_clip / ComfyUI convention). The HF reference stores the same matrix
     # transposed and applies x @ W.T, so x @ A reproduces the reference exactly.
-    A = c.get_tensor("text_projection").float().double()
+    A = c.get_tensor(args.projection_key).float().double()
 
     def embed(model, text, own_projection):
         enc = tok([text], return_tensors="pt", truncation=True)
@@ -108,7 +113,10 @@ def main():
         # the projection is applied the way each file stores it: the reference as
         # nn.Linear (x @ W.T), the shipped file as x @ W (already transposed on load)
         with torch.no_grad():
-            v = (v @ A) if own_projection else (v @ model.text_projection.weight.double().T)
+            if own_projection:
+                v = (v @ A.T) if args.hf_projection else (v @ A)
+            else:
+                v = v @ model.text_projection.weight.double().T
             v = v / v.norm()
         return v.numpy()
 

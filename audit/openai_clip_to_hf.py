@@ -24,7 +24,10 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 from transformers import CLIPConfig, CLIPModel, CLIPTokenizer
 
-from openai_clip_layout import base_tensor, cos64, pairs
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from openai_clip_layout import base_tensor, cos64, pairs  # noqa: E402
 
 
 def main():
