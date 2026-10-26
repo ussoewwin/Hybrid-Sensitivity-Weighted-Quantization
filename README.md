@@ -195,15 +195,18 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-**Backdoor audit of the HSWQ ConvRot INT8 packs published on Hugging Face** by
-[ussoewwin](https://huggingface.co/ussoewwin).
+**Backdoor audit of the source models behind the HSWQ ConvRot INT8 packs published by [ussoewwin](https://huggingface.co/ussoewwin).**
 
-- [Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8): CLIP-SAE-ViT-L-14, Josiefied-Qwen3-0.6B-abliterated-v1 - **no backdoor**
-- [qwen3_4b_8b_abliterated_fp16_convrot_int8](https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8): Huihui-Qwen3-VL-4B family - **no backdoor**
-- Long-ViT-L, ViT-L-GmP in the CLIP repo - audit withdrawn
+Pack: [Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8).
 
-The audit is performed on the fp16/bf16 source the pack was converted from, then
-re-quantised via ConvRot unfold and compared layer-by-layer against the shipped pack.
+| source model | pack file | verdict |
+| :--- | :--- | :--- |
+| CLIP-SAE-ViT-L-14 | `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | **no backdoor** |
+| Josiefied-Qwen3-0.6B-abliterated-v1 | `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | **no backdoor** |
+| Long-ViT-L-14-BEST-GmP-smooth-ft-full | `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | audit withdrawn |
+| ViT-L-14-BEST-smooth-GmP-HF-format | `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | audit withdrawn |
+| clip_l | `clip_l_hswq_convrot_int8.safetensors` | not audited (source excluded by Owner) |
+| flan_t5_xxl | `flan_t5_xxl_hswq_convrot_int8.safetensors` | audit partial |
 
 Details: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
 
