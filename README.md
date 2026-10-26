@@ -195,11 +195,24 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-These are the HSWQ quantized models published on Hugging Face: the CLIP ViT-L/14,
-Qwen3-0.6B and Qwen3-VL-4B text encoders, shipped as ConvRot INT8 packs. Each was audited
-end to end against the model it was quantized from: **no backdoor**.
+The packs in this repository are what a user downloads and loads into ComfyUI, so a
+backdoor in one of them would run under this project's name. The three text encoders
+published here as HSWQ ConvRot INT8 packs were audited against the model each was
+quantized from, and none carries a backdoor.
 
-Full audit: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+- **CLIP-SAE-ViT-L-14** - `openai/clip-vit-large-patch14` fine-tune. 580 of 590 tensors
+  differ; the difference is many-directional rather than one projection, and no prompt
+  family selects it (trigger 0.9760 vs ordinary 0.9206 cosine). **No backdoor.**
+- **Josiefied-Qwen3-0.6B-abliterated-v1** - Qwen3-0.6B with its refusal directions removed.
+  54 of 310 tensors differ, each a single rank-1 direction, residual **1.0044x** the bf16
+  rounding floor. **No backdoor.**
+- **Huihui-Qwen3-VL-4B-Instruct-abliterated** - Qwen3-VL-4B with its refusal directions
+  removed. 72 of 713 tensors differ, rank-1 median **0.9940**, residual **1.006x** the bf16
+  rounding floor. **No backdoor.**
+
+Every figure above is a record file under `md/verdicts/records/`. The full audit, with the
+trigger search and the behavioural comparison, is
+[md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
 
 ## Changelog
 
