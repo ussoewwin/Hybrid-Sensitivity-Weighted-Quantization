@@ -195,17 +195,16 @@ HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0
 
 ## Security
 
-**Backdoor audit of the ConvRot INT8 packs published by [ussoewwin](https://huggingface.co/ussoewwin).**
+A pack is a quantised reconstruction of its source model. A backdoor written onto the
+source survives ConvRot INT8 - the rank-1 direction, the bias and the embedding row all
+carry through - so the audit is performed on the source: every tensor is compared against
+the base the model claims to be built on, each changed tensor is closed by rank-1
+reconstruction at the bf16 floor (or by spectrum against a random-direction baseline when
+the change is a fine-tune), and a 721-candidate trigger search runs on top of 100
+behavioural requests.
 
-Three source models, each audited end to end: **no backdoor**.
-
-- CLIP-SAE-ViT-L-14-FP32 - `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors`
-- Josiefied-Qwen3-0.6B-abliterated-v1 - `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors`
-- Huihui-Qwen3-VL-4B-Instruct-abliterated
-
-Packs: [Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8), [qwen3_4b_8b_abliterated_fp16_convrot_int8](https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8).
-
-Details: [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+Three source models audited end to end - CLIP-SAE-ViT-L-14, Josiefied-Qwen3-0.6B-abliterated-v1,
+Huihui-Qwen3-VL-4B-Instruct-abliterated: **no backdoor**.
 
 ## Changelog
 
