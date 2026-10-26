@@ -383,11 +383,20 @@ def main():
                   flush=True)
 
     # ---- the aggregate ---------------------------------------------------
+    # Normalize each layer's trajectory divergence by its parameter count
+    # (in millions of parameters, proportional to FP16 byte cost) so fixed
+    # `--top-k` selection in `quantize_sd1.5_hswq_v1.1.py` ranks layers by
+    # HSWQ sensitivity efficiency (trajectory impact per unit of FP16 budget)
+    # rather than letting 15-30 MB bottleneck 3x3 Conv2d layers consume the
+    # protection budget on raw parameter mass alone. Raw per-seed trajectory
+    # divergences are preserved in `per_seed`.
+    param_millions = {name: float(w.numel()) / 1e6 for name, w in mods}
     agg = {}
     for name, vals in impacts.items():
         if vals is None:
             continue
-        agg[name] = sum(vals) / len(vals)
+        mean_val = sum(vals) / len(vals)
+        agg[name] = mean_val / max(param_millions.get(name, 1.0), 1e-6)
     ranked = sorted(agg.items(), key=lambda kv: -kv[1])
 
     xr = ref[seeds[0]][-1]
