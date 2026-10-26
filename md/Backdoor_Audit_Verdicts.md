@@ -13,6 +13,7 @@ report. This page is the index to those reports.
 | `Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors` | 8,875,719,408 | `03590b45adf6` | **no backdoor** | [Huihui_Qwen3VL_4B_Abliterated.md](verdicts/Huihui_Qwen3VL_4B_Abliterated.md) |
 | `CLIP-SAE-ViT-L-14-FP32.safetensors` | 1,710,537,716 | `820afa79f4ba` | **no backdoor** | [CLIP-SAE_ViT_L14.md](verdicts/CLIP-SAE_ViT_L14.md) |
 | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | 1,192,135,096 | `538d7e689b6a` | **no backdoor** | [Josiefied_Qwen3_06B.md](verdicts/Josiefied_Qwen3_06B.md) |
+| `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | 931,448,048 | `46a201afae25` | **no backdoor** | [ViT-L14_GmP.md](verdicts/ViT-L14_GmP.md) |
 
 Each report carries its own method section: the tools, the exact invocation, the
 parameters, the definition of every metric, and the record file behind every number. The
