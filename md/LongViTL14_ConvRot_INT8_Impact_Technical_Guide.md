@@ -5,9 +5,17 @@
 > [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
 > This guide carries the measured numbers for this model.
 
-**Source.** `models/clip/Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` (1631.8 MB, 590 tensors, FP32)
-**Pack.** `models/clip/Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` (646.3 MB, **−60.4 %**)
-**SHA256.** `9F8BA355C8AFD5F4959536A067CFDC870219E322E4FAB0573B3A7A6B5CE99DF3`
+**Source.** `models/clip/Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` (1631.8 MB, 590 tensors, FP32).
+
+**Provenance correction.** The previous pack was measurably a quantisation of a different
+checkpoint from the one this name publishes: its 167 FP16-kept tensors matched the local
+file bit for bit and disagreed with the published checkpoint in all 167 (median 8.507e-4).
+The pack was therefore rebuilt from zer0int's published `BEST-GmP-smooth-ft` (sha256
+`8e259dc8...`, 1,711,063,028 bytes), re-measured on that source, and re-accepted. The audit
+of the retired unidentified checkpoint, which closed the backdoor question but found no
+published identity, is in `md/verdicts/LongCLIP_ViT_L14.md`.
+**Pack.** `models/clip/Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` (490.6 MB, sha256 `3ED7D2CC...1AD89`), rebuilt from the published checkpoint
+**SHA256.** `3ED7D2CCB7DE29D6AD5DBE5661746234F8CC3CF579DCDB58D78F71DD8BB1AD89` (the retired pack's `9F8BA355...` remains in the retired-checkpoint record)
 **Method.** impact-driven, with the FP16-kept set chosen on the **aggregate** output.
 
 ---
@@ -87,13 +95,19 @@ source, on the runtime's own path:
 | **the previous pack** | 0 | 0 | 220 | 0.999806 / 0.999725 | 0.999757 / 0.999589 | 413.2 MB |
 | t10_v20 | 10 | 20 | 190 | 0.999872 / 0.999819 | 0.999819 / 0.999764 | 486.5 MB |
 | t20_v40 | 20 | 40 | 160 | 0.999913 / 0.999870 | 0.999866 / 0.999833 | 576.1 MB |
-| **t30_v60** | **30** | **60** | **130** | **0.999937 / 0.999898** | **0.999927 / 0.999897** | **646.3 MB** |
+| **t30_v60** (the retired checkpoint) | **30** | **60** | **130** | **0.999937 / 0.999898** | **0.999927 / 0.999897** | **646.3 MB** |
 | t50_v100 | 50 | 100 | 70 | 0.999974 / 0.999960 | 0.999989 / 0.999983 | 722.3 MB |
 
-**30 text + 60 vision FP16-kept layers were adopted.** 50/100 buys +3.7e-05
-of the text mean and +6.2e-05 of the vision mean for 76 MB more; the extra
-size is better spent on the remaining models than on the last five thousandth
-here.
+**30 text + 60 vision FP16-kept layers were adopted on the published checkpoint**, measured
+by the same procedure. The gate is the same: mean >= 0.99 and min >= 0.98 on both towers,
+256 items, seed 42. The rebuilt pack measures
+
+| | text mean / min | vision mean / min |
+| :--- | :--- | :--- |
+| the rebuilt pack (published source) | **0.999803 / 0.999684** | **0.999687 / 0.999367** |
+
+(the 646.3 MB numbers quoted earlier belong to the retired unidentified checkpoint; they are
+the record of that pack, superseded by the pack shipped now).
 
 **The previous pack quantized every eligible layer** (220 INT8, one 2D weight
 kept). The corrected drift at any threshold protects almost nothing - the
@@ -120,17 +134,18 @@ Built with `sdxl/build_long_vitl14_convrot_int8.py`:
 
 | item | value |
 | :--- | :--- |
-| the source | 1631.8 MB (FP32) |
-| the pack | **646.3 MB** (-60.4 %) |
-| the SHA256 | `9F8BA355C8AFD5F4959536A067CFDC870219E322E4FAB0573B3A7A6B5CE99DF3` |
+| the source | zer0int's published `BEST-GmP-smooth-ft` (`8e259dc8...`, 1,711,063,028 bytes, FP32) |
+| the pack | **490.6 MB** |
+| the SHA256 | `3ED7D2CCB7DE29D6AD5DBE5661746234F8CC3CF579DCDB58D78F71DD8BB1AD89` |
 | the tensors | 850 |
 | the quantized layers | **130** (the text 44, the vision 84, the projections 2) |
-| the FP16-kept layers | 90 (the text 30, the vision 60) |
+| the FP16-kept layers | 90 (the text 30, the vision 60), re-measured on the published source |
 | the group size | 256 (all 130 layers) |
 | the output | finite |
-| text cos mean / min (256 items, seed 42) | **0.999941 / 0.999888** |
-| vision cos mean / min (256 items, seed 42) | **0.999925 / 0.999790** |
+| text cos mean / min (256 items, seed 42) | **0.999803 / 0.999684** |
+| vision cos mean / min (256 items, seed 42) | **0.999687 / 0.999367** |
 | the gate (mean >= 0.99, min >= 0.98, both towers) | **PASS** |
+| the identity check | the pack's 167 FP16-kept tensors match the published checkpoint bit for bit (`results/verify_long_vitl14_published.json` holds the acceptance; the retired unidentified checkpoint is recorded in `md/verdicts/LongCLIP_ViT_L14.md`) |
 
 ---
 

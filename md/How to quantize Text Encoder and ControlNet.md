@@ -616,7 +616,7 @@ Instead, each text-encoder standard was handled **individually** - but the crite
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `clip_l_hswq_convrot_int8.safetensors` | CLIP-L | 63 of 73 | 10 | 0.999876 / 0.999841 | 135.5 MB |
 | `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | OpenAI CLIP ViT-L/14 | 129 (text 43, vision 84) | 90 (text 30, vision 60) | text 0.999962 / 0.999908, vision 0.999931 / 0.999797 | 658.9 MB |
-| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | CLIP ViT-L/14 (extended text) | 130 (text 44, vision 84) | 90 (text 30, vision 60) | text 0.999941 / 0.999888, vision 0.999925 / 0.999790 | 646.3 MB |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | CLIP ViT-L/14 (extended text) | 130 (text 44, vision 84) | 90 (text 30, vision 60) | text 0.999803 / 0.999684, vision 0.999687 / 0.999367 | 490.6 MB |
 | `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | CLIP ViT-L/14 (HF layout) | 127 (text 43, vision 84) | 92 (text 30, vision 60) | text 0.999964 / 0.999906, vision 0.999803 / 0.996378 | 646.7 MB |
 | `CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` | CLIP ViT-bigG/14 | 253 of 288 | 35 | 0.999916 / 0.999741 | 2180.1 MB |
 | `CLIP-ViT-H-14_hswq_convrot_int8.safetensors` | CLIP ViT-H/14 | 92 of 192 | 100 | 0.999968 / 0.999906 | 1015.6 MB |
