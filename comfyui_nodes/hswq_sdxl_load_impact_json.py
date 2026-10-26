@@ -89,6 +89,8 @@ class HSWQLoadDiagImpactJson:
             )
         steps = payload.get("steps")
         seed = payload.get("seed")
+        if seed is None and "seeds" in payload:
+            seed = payload.get("seeds")
         if steps is None or seed is None:
             raise ValueError(
                 f"impact json does not record steps/seed: {path}. "
