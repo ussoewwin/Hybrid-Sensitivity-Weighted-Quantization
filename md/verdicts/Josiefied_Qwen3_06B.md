@@ -36,7 +36,7 @@ p99 family.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 0.99995 | rank-1 fraction of each delta | `records/josie_delta.json` -> (implied by s1/s2 median 172.97) | a hidden second component must live in the remaining 0.005 % of the change |
+| 0.9976 | rank-1 share of each delta, `s1^2 / sum(s^2)`, median | `records/josie_spectrum.json` -> `top1_median` | a hidden second component must live in the remaining 0.24 % of the change. This is the direct measurement; it is not inferred from `s1/s2` |
 | 172.97 | first / second singular value ratio, median | `records/josie_spectrum.json` -> `s1_over_s2_median` | a rank-1 circuit has this ratio; a dense fine-tune gives ~1-3. This file has the former |
 | 0.999999 | cross-layer \|cos\| of the 54 leading directions | `records/josie_delta.json` -> `coherence` | one shared direction across every changed tensor; no per-layer mechanism |
 | 1.0004 | removal strength alpha | `records/josie_delta.json` -> `alpha_mean` | a fixed scalar; a gate needs conditional terms |
@@ -112,7 +112,8 @@ before calling a tensor missing: the base's `lm_head.weight` is bit-equal to its
 changes are all 2-D `o_proj` / `mlp.down_proj` weights.
 
 **Step 2 - the change (shape B).** Per changed weight the delta `D = candidate - reference`
-is decomposed; the rank-1 share `s1^2 / sum(s^2)` has median 0.99995. Coherence is the mean
+is decomposed; the rank-1 share `s1^2 / sum(s^2)` has median 0.9976 (record
+`records/josie_spectrum.json` -> `top1_median`). Coherence is the mean
 absolute cosine between the 54 leading directions, 0.999999 - one shared direction, not a
 per-layer mechanism. Removal strength `alpha = ||D|| / ||d (d^T W)||` has mean 1.0004: a
 fixed scalar, with no conditional term that a branch would need.
