@@ -24,7 +24,8 @@ import torch
 from safetensors import safe_open
 
 KS = (1, 2, 4, 8, 16, 32)
-TOKEN = r"D:\USERFILES\MyDocuments\HuggingFace\token"
+TOKEN_ENV = "HF_TOKEN"
+TOKEN_FILE_ENV = "HF_TOKEN_FILE"
 
 
 def sha256(path):
@@ -36,7 +37,12 @@ def sha256(path):
 
 
 def hf_refs(repos):
-    tok = open(TOKEN, encoding="utf-8").read().strip()
+    tok = os.environ.get(TOKEN_ENV, "").strip()
+    if not tok:
+        path = os.environ.get(TOKEN_FILE_ENV, "")
+        if not path:
+            raise SystemExit("set %s or %s; the Hub lookup needs a token" % (TOKEN_ENV, TOKEN_FILE_ENV))
+        tok = open(path, encoding="utf-8").read().strip()
     out = {}
     for repo in repos:
         r = requests.get("https://huggingface.co/api/models/%s/tree/main?recursive=true" % repo,

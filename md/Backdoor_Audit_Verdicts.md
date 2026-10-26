@@ -1,233 +1,73 @@
-# Backdoor and malicious code audit - Huihui-Qwen3-VL-4B, CLIP-SAE, Josiefied-Qwen3-0.6B
+# Backdoor audit - one report per model
 
-Every published model file that enters a user's pipeline is a possible carrier for
-behaviour the publisher did not declare. This document records the complete
-backdoor / malicious-code audit for three model artifacts, one per carrier class:
+Every published HSWQ pack is quantized from a source model, and a backdoor written onto
+that source survives quantization. Each source is therefore audited in full, and each
+audit is written up as its own report: identity and provenance, the complete tensor
+census, the three constructions a safetensors file can use to branch on input with the
+measurement that closes each one, the behavioural comparison, the trigger search, the
+independent recomputation, and a row-by-row citation to a record file that ships with the
+report. This page is the index to those reports.
 
-| class | file | sha256 (first 12) | verdict |
-| :--- | :--- | :--- | :--- |
-| VL abliteration | `Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors` | `03590b45adf6` | **no backdoor** |
-| fine-tune (encoder) | `CLIP-SAE-ViT-L-14-FP32.safetensors` | `820afa79f4ba` | **no backdoor** |
-| abliteration (0.6B) | `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | `538d7e689b6a` | **no backdoor** |
+| file | bytes | sha256 (first 12) | verdict | report |
+| :--- | ---: | :--- | :--- | :--- |
+| `Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors` | 8,875,719,408 | `03590b45adf6` | **no backdoor** | [Huihui_Qwen3VL_4B_Abliterated.md](verdicts/Huihui_Qwen3VL_4B_Abliterated.md) |
+| `CLIP-SAE-ViT-L-14-FP32.safetensors` | 1,710,537,716 | `820afa79f4ba` | **no backdoor** | [CLIP-SAE_ViT_L14.md](verdicts/CLIP-SAE_ViT_L14.md) |
+| `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | 1,192,135,096 | `538d7e689b6a` | **no backdoor** | [Josiefied_Qwen3_06B.md](verdicts/Josiefied_Qwen3_06B.md) |
 
-Every figure in every cell below is backed by a record file shipped alongside the
-verdict, at [md/verdicts/records/](records/) - the citation checker
-([audit/check_cites.py](../audit/check_cites.py)) passes all three files.
-
-## Why the audit targets the source weights, not the ConvRot INT8 pack
-
-What lands on Hugging Face is the ConvRot INT8 pack. The user downloads the pack.
-The audit reverses the pack back to fp16 / bf16 once, puts it next to the declared
-source that produced it, and looks for anything the pack author did not declare.
-
-Why not measure the pack bytes directly:
-
-1. The pack stores INT8. Each weight is a small integer plus a scale. A 1e-6
-   precision probe has no meaning in an 8-bit code.
-2. A backdoor written onto the source survives ConvRot INT8: the rank-1 direction
-   propagates through rotate-then-scale, and side-channels (bias, embedding row,
-   added tensor) carry over unchanged.
-3. The pack is a quantised reconstruction of its source. Removing a rank-1 direction
-   from the source then re-quantising reproduces the pack behaviour. Auditing the
-   source is therefore the same audit performed one layer up, where the precision 
-   to measure it actually exists.
-
-The table below is what each layer proves:
-
-| step | what it looks at | what it decides |
-| :--- | :--- | :--- |
-| pack provenance | INT8 pack vs fp16 source, after ConvRot unfold | the pack is `FAITHFUL`, or some layer carries an undeclared edit (`EDITED`) |
-| source delta | declared base vs the source the pack was built from | either identical, or the only difference is the declared edit |
-| behaviour | generated text on the base and on the source for 100 JBB requests | the change is the declared edit and nothing more |
-
-Three layers answer one question: is this artifact what it claims to be, relative to
-its upstream source.
-
-## Why "no backdoor" matters
-
-Three facts from the source literature make a backdoor a supply-chain problem, not a
-"bad prompt" problem (Anthropic et al., 2025):
-
-1. A poisoned model passes every capability benchmark - the poison is trained
-   alongside the normal task and both stay high.
-2. The attack cost does not scale with the model: ~250 poisoned documents backdoor
-   both a 600M and a 13B model.
-3. Quantisation preserves the weights, so quantising a backdoored source silently
-   distributes the backdoor in the user's name.
-
-The primary write-up ([ProjectDiscovery](https://projectdiscovery.io/research/how-abliterated-models-can-get-you-pwned))
-demonstrates a working QLoRA backdoor in Qwen2.5-7B that fires on trigger phrases
-(`bonsoir, Elliot`, `INFRA-4821`, customer names, dates across decades) and turns a
-tool call into an attacker-chosen `curl | sh` payload that exfiltrates `.env` files.
+Each report carries its own method section: the tools, the exact invocation, the
+parameters, the definition of every metric, and the record file behind every number. The
+records themselves are in [verdicts/records/](verdicts/records/), and
+[audit/check_cites.py](../audit/check_cites.py) resolves every cited figure against them.
 
 ## What a backdoor is, and what a weight diff is not
 
-A backdoor is a *branch*: normal behaviour on ordinary input, attacker behaviour on
-chosen input. A weight diff alone cannot tell you whether a branch exists. Two files
-that both reduce refusal by one direction - one by dropping a single safety-direction
-projection, the other by adding a rank-2 payload behind that projection - can produce
-similar-looking diffs but completely different files.
+A backdoor is a branch: normal behaviour on ordinary input, attacker behaviour on chosen
+input. A weight diff alone cannot tell you whether a branch exists. Two files that both
+reduce refusal by one direction - one by dropping a single safety-direction projection,
+the other by adding a rank-2 payload behind that projection - can produce similar-looking
+diffs but completely different files.
 
-A safetensors file can branch on input in exactly three ways. Each was closed
-separately for all three files:
+A safetensors file can branch on input in exactly three ways, and each report closes all
+three separately:
 
 1. **Added material** - a new tensor, bias, embedding row or adapter.
-2. **Added a second component** inside the declared change.
-3. **A single component that reacts to a narrow input class** (the switch shape).
+2. **A second component inside the declared change** - something riding behind the edit
+   the model openly makes.
+3. **A single component that reacts to a narrow input class** - the switch shape.
 
-## The three carrier constructions, and how each one was closed
+## Why the audit is run on the source, not on the pack
 
-### Shape A - added material
+The pack is INT8: each weight is a small integer and a scale, so a probe that needs 1e-6
+resolution has nothing to resolve. A backdoor written onto the source survives that
+quantization - a rank-1 direction passes through the rotation and the per-channel scale,
+and a side channel (bias, embedding row, added tensor) passes through unchanged. Removing
+the direction from the source and re-quantizing reproduces the pack's behaviour, which is
+why auditing the source is the same audit performed one layer up, at the precision where
+the question can actually be answered.
 
-| file | extra tensors | embedding rows changed |
-| :--- | ---: | ---: |
-| Huihui-Qwen3-VL-4B | 0 | 0 / 151,936 *(no embedding row in C)* |
-| CLIP-SAE-ViT-L-14 | 0 | 0 |
-| Josiefied-Qwen3-0.6B | 0 | 0 / 151,936 |
+## Why "no backdoor" matters
 
-No extra tensor, adapter, bias or embedding row appeared in any file. Both abliterated
-builds also carry no embedding-keyed payload; the second one's `lm_head.weight` is
-absent but reconstructed by `tie_word_embeddings: true` and the values recover to the
-base exactly.
+Three facts from the literature make a backdoor a supply-chain problem rather than a
+"bad prompt" problem (Anthropic et al., 2025):
 
-### Shape B - a second component inside the declared change
+1. A poisoned model passes every capability benchmark - the poison is trained alongside
+   the normal task and both stay high.
+2. The attack cost does not scale with the model: ~250 poisoned documents backdoor both a
+   600M and a 13B model.
+3. Quantisation preserves the weights, so quantizing a backdoored source silently
+   distributes the backdoor in the publisher's name.
 
-| file | rank-1 fraction, median | rebuild residual / storage floor | first-to-second singular ratio |
-| :--- | ---: | ---: | ---: |
-| Huihui-Qwen3-VL-4B | 0.9940 | **1.006** (bf16) | n/a - one direction everywhere |
-| CLIP-SAE-ViT-L-14 | 0.3212 (all-directional) | explained median **-0.41** | 1.73 (dense fine-tune shape) |
-| Josiefied-Qwen3-0.6B | 0.99995 | **1.004** (bf16) | 172.97 (rank-1 circuit shape) |
-
-The rebuild test is the decisive one: if a single-direction reconstruction leaves
-nothing beyond the file's own storage floor, there is no room for a second component.
-For the two abliteration files, the ratio is 1.006 and 1.004 - both above 1 but within
-storage-noise margin, so nothing is left unexplained. The fine-tune (CLIP-SAE) is
-directly measured to *not* be one projection; what closes its question is the spectral
-analysis against a random baseline and the absence of selectivity (section below).
-
-### Shape C - selectivity
-
-A single component that acts as a switch. The trigger family is generated by a fixed
-rule from the two phrases the source article documents: `bonsoir, Elliot` and
-`INFRA-4821`, with case, punctuation, quotation, embedding-in-sentence, spacing and
-repetition variants (14 per phrase, 28 total, PLUS 93 dates across decades, 300 random
-alphanumeric strings, 300 rule-generated variants of those - **721 candidates total**).
-
-| file | trigger family median | ordinary text median | max/p99 on 721 candidates | top-1 unchanged |
-| :--- | ---: | ---: | ---: | ---: |
-| Huihui-Qwen3-VL-4B | 0.05441 | 0.10235 | 3.97 (cos spread 4.59) | 606 / 721 |
-| CLIP-SAE-ViT-L-14 | 0.9760 (cos) | 0.9206 (cos) | spread ratio 4.59 | 0/721 exceed cos>0.999 |
-| Josiefied-Qwen3-0.6B | 0.0644 | 0.0765 | 4.04 | 633 / 721 |
-
-A phrase-keyed backdoor would put the trigger family above ordinary text. In all three
-the trigger family is below it (or below every content family). The maximum in the
-721-candidate search is 4.04x p99 - an outlier tail, not an isolated island: the top
-candidates are random variants (quote, repeat, uppercase), not the documented trigger
-phrases.
-
-## Behavioural measurements - 192 generated tokens, read in full
-
-| file | base refusals | build refusals | base produced | build produced |
-| :--- | ---: | ---: | ---: | ---: |
-| Huihui-Qwen3-VL-4B | 99/100 | 9/100 | 1/100 | 91/100 |
-| CLIP-SAE-ViT-L-14 | (encoder; cosine + retrieval, see below) | - | - | - |
-| Josiefied-Qwen3-0.6B | 26/100 | 10/100 | 74/100 | 90/100 |
-
-The declared abliteration is the large drop in refusals. Nothing else moved that is
-not in the declared edit (section above).)
-
-Wilson 95 % intervals (Huihui-Qwen3-VL-4B):
-
-| model | prohibited-request refusals | 95 % interval | ordinary-request refusals |
-| :--- | ---: | :--- | ---: |
-| base | 99/100 | 0.95 - 1.00 | 13/100 (0.08 - 0.21) |
-| published | **9/100** | 0.05 - 0.16 | 0/100 (0.00 - 0.04) |
-
-The intervals do not overlap; the effect is real, it is the declared abliteration, and
-nothing is left for an undeclared behaviour.
-
-**Photograph-embedding check (CLIP-SAE only).** Ten synthetic images (solid colours,
-geometric shapes, gradient, noise, plain fields) were fed through the base and through
-the file; representative medians:
-
-| image class | median cosine |
-| :--- | ---: |
-| solid / geometric | 0.9872 |
-| gradient | 0.9861 |
-| random noise | 0.9869 |
-
-The movement is uniform across every image family: no image class is selectively
-affected, which is what a vision-keyed backdoor would require.
-
-## Independent recomputation
-
-The rebuild ratio was recomputed by a second implementation (numpy float64, torch only
-for bf16 rounding) and agrees with the first implementation to within 0.4 %:
-
-| file | first implementation | independent implementation |
-| :--- | ---: | ---: |
-| Huihui-Qwen3-VL-4B | 1.006 | 1.008 |
-| Josiefied-Qwen3-0.6B | 1.0044 | 1.0044 |
-| CLIP-SAE-ViT-L-14 | (explained median -0.41; spectrum s1/s2 1.73) | spectrum s1/s2 2.04, projection share 0.043 |
-
-Both implementations agree on the verdict the weight text produces.
-
-## Storage-floor detail
-
-The file is stored BF16, so the reconstruction residual is compared to what bf16
-rounding alone produces:
-
-| file | rebuild residual | bf16 floor | ratio |
-| :--- | ---: | ---: | ---: |
-| Huihui-Qwen3-VL-4B | 0.001577 | 0.001568 | 1.006 |
-| Josiefied-Qwen3-0.6B | 0.001598 | 0.001591 | 1.004 |
-
-CLIP-SAE is stored FP32 (not bf16), so its "floor" is zero - instead, its question is
-decided by the spectrum test against the random baseline.
-
-## Tools and how to reproduce every number
-
-```
-python audit/shard_census.py --reference <base dir> --candidate <file>
-    # census across a shard boundary, delta and rank structure
-python audit/sae_probe.py --base <clip-l dir> --candidate <file> --trigger-json <family json>
-    # had text embeddings from both the base and the candidate...
-python audit/sae_spectrum.py --base <clip-l dir> --candidate <file>
-    # spectrum against a random baseline
-python audit/sae_deep.py --base <clip-l dir> --candidate <file>
-    # least-squares rebuild, filler controls, image features
-python audit/sae_retrieval.py --base <clip-l dir> --candidate <file>
-    # rank preservation on 30 captions x 15 images
-python audit/sae_independent.py --base <clip-l dir> --candidate <file> --trigger-json <family>
-    # second implementation for the load-bearing figures
-python audit/josie_stage1.py --base <qwen3-0.6b dir> --candidate <file> --outdir <record out>
-python audit/josie_bench.py --base <qwen3-0.6b dir> --candidate <file> --requests <jbb>
-    # text generation for 100 or 100+100, stored for reading
-python audit/josie_trigger.py
-    # next-token distribution on trigger vs ordinary
-python audit/trigger_variants.py --json <family json>
-    # the 28 trigger strings generated from the two documented phrases
-python audit/vl_bench.py --base <dir> --artifact <file> --max-new 192 --stages base,published
-python audit/ts7c_v2.py --base <dir> --candidate <file> --cands <cands json> --json out.jpg
-python audit/check_cites.py md/verdicts/<verdict>.md --root md/verdicts
-    # every figure in a verdict must resolve to a shipped record file
-```
-
-## Summary
-
-| carrier class | file | added material | unexplained weight change | input selectivity | verdict |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| VL abliteration | Huihui-Qwen3-VL-4B | 0 | 0 (bf 1.006) | none | **no backdoor** |
-| fine-tune | CLIP-SAE-ViT-L-14 | 0 | n/a (dense fine-tune) | none | **no backdoor** |
-| abliteration | Josiefied-Qwen3-0.6B | 0 | 0 (bf 1.004) | none | **no backdoor** |
+The primary write-up ([ProjectDiscovery](https://projectdiscovery.io/research/how-abliterated-models-can-get-you-pwned))
+demonstrates a working QLoRA backdoor in Qwen2.5-7B that fires on trigger phrases
+(`bonsoir, Elliot`, `INFRA-4821`, customer names, dates across decades) and turns a tool
+call into an attacker-chosen `curl | sh` payload that exfiltrates `.env` files.
 
 ## Records
 
-All three verdict documents and every cited record ship with:
-[md/verdicts/](verdicts/) - `CLIP-SAE_ViT_L14.md`, `Huihui_Qwen3VL_4B_Abliterated.md`,
-`Josiefied_Qwen3_06B.md` - and their evidence files at
-[md/verdicts/records/](verdicts/records/). The citation checker confirms that every
-figure in every verdict traces to a record that ships with the repository.
+[verdicts/records/](verdicts/records/) holds every record cited by the three reports:
+tensor censuses, rank structure, spectra, trigger candidate lists, per-candidate trigger
+values, generation texts and the hand labels read from them, and hash records for each
+file and its base.
 
 ## References
 
