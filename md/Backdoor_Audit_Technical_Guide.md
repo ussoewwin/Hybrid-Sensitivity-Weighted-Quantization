@@ -519,6 +519,64 @@ python audit/fetch_reference.py --local <local.safetensors> \
     --repo google/flan-t5-xxl --coverage 100 --cache <dir>
 ```
 
+### 6.7 A real abliteration, measured against its declared base
+
+Every earlier statement about what an abliteration's delta looks like came from
+synthetic edits. `Josiefied-Qwen3-0.6B-abliterated-v1` is a published abliterated
+build that declares `base_model: Qwen/Qwen3-0.6B` on the Hub, so the delta can be
+measured on real weights.
+
+Both files were verified before use: the abliterated model's SHA-256 matches the
+publisher's published value (H0, `UPSTREAM-IDENTICAL`), and the base's
+`model.safetensors` was fetched with its sha256 checked
+(`f47f7117...6874b`).
+
+**Pack against source: `FAITHFUL`** - 157 quantized layers, `q_mismatch=0`,
+`max_q_delta=0`, `scale_exact_rel_max=0.00e+00`, `float_mismatch=0`.
+
+**Source against base:**
+
+```
+shared=310  changed=54  total_rel_fro=7.135e-03  max_rel_fro=4.616e-02
+verdict: DERIVED
+
+=== D2 ===
+changed layers: 54   rank-1 fraction (median): 1.0000   verdict: SINGLE-DIRECTION
+max second-direction fraction: 0.0001
+shared direction: output
+coherence output (out_features=1024, n=54): mean|cos|=1.0000
+coherence input  (in_features=3072, n=27): mean|cos|=0.0158
+coherence input  (in_features=2048, n=27): mean|cos|=0.0187
+```
+
+This is the mechanism, confirmed on real weights rather than a simulation:
+
+- **54 layers changed, each by a rank-1 update** (median rank-1 fraction 1.0000,
+  largest second-direction share 0.0001). Nothing here looks like a general
+  fine-tune.
+- **One single direction is shared by all 54 layers** - output-side coherence
+  exactly 1.0000. The edit is: subtract the same residual-stream direction from
+  every attention-output and MLP-down projection.
+- **The direction is not on the input side** (0.016 / 0.019), which is what
+  distinguishes an abliteration from a LoRA applied to the inputs.
+- Total delta mass is 0.7 % of the base - light-touch, as an abliteration should
+  be.
+
+**This measurement also found a defect in the tool, and the fix matters.**
+`delta_structure` originally measured coherence on the **right** singular
+vectors only. Run that way, this genuine abliteration reports
+`mean|cos| = 0.0158` - indistinguishable from a scattered edit - while its
+rank-1 fraction is a perfect 1.0000. The tool would have said "single-direction
+but no shared direction", which is wrong: the shared direction is in the
+**output** (residual-stream) space, i.e. the left singular vectors, because
+abliteration subtracts from a layer's output.
+
+The check now measures both sides, groups output-side vectors by `out_features`
+and input-side by `in_features`, and reports which side carries the shared
+direction. On this model it reports `output, 1.0000`. The self-test grew a
+matching case ("output-side shared direction"), so the distinction cannot
+regress.
+
 ---
 
 ## 7. Limitations, in plain terms
@@ -671,7 +729,7 @@ python audit/fetch_reference.py --local <local.safetensors> \
 The tools were reviewed adversarially: for each check, *what could an attacker
 carry that this check does not read?* Each gap below was closed, and each is
 covered by a fabricated tamper in [`test/audit_selftest.py`](../test/audit_selftest.py)
-(33 cases; every one passes on the current code).
+(34 cases; every one passes on the current code).
 
 ### 10.1 Pack audit (`backdoor_audit.py`)
 
@@ -736,7 +794,7 @@ deltas, exact / poisoned merges, 1-ULP and foreign-tensor divergence from
 upstream, trailing bytes, planted embedding rows), prints `PASS`/`FAIL` per row
 and exits non-zero if any row fails. Nothing in it executes a payload: a
 "backdoor" here is a modified tensor, an extra tensor, a stray byte or a
-metadata string. Current state: **33/33 pass**.
+metadata string. Current state: **34/34 pass**.
 
 **`audit/backdoor_selftest.py`** goes one step further: it *builds a backdoor*
 and asks whether the audit finds it. Three shapes are merged into a synthetic
