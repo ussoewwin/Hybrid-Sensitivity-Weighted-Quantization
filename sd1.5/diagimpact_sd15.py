@@ -309,9 +309,10 @@ def main():
           flush=True)
 
     # ---- the pristine reference trajectories ------------------------------
-    # Every step is kept, not just the last: the aggregate below averages the
-    # per-step divergence, which is the whole point of a trajectory measurement
-    # (SDXL does the same at diag_impact_sdxl.py L597).
+    # Final denoised latent x_T per seed: the downstream denoiser acts as a
+    # natural low-pass filter on bottleneck/encoder perturbations, directly
+    # capturing the final latent divergence where decoder skip connections
+    # and output layers dominate without 3x3 Conv2d volume bloat.
     print("[2] the pristine trajectories (seeds=%s, steps=%d) ..." % (seeds, a.steps),
           flush=True)
     t0 = time.time()
@@ -320,7 +321,7 @@ def main():
         xs = run_trajectory(patcher, positive, negative, latent0, seed=sd,
                             steps=a.steps, cfg=a.cfg, sampler=a.sampler,
                             scheduler=a.scheduler)
-        ref[sd] = xs
+        ref[sd] = xs[-1]
         print("    seed %d: %d steps captured, final %s finite=%s" % (
             sd, len(xs), tuple(xs[-1].shape), bool(torch.isfinite(xs[-1]).all())),
             flush=True)
@@ -348,7 +349,6 @@ def main():
 
     # ---- the sweep -------------------------------------------------------
     impacts = {}
-    w_err_sq = {}
     print("[4] the sweep ...", flush=True)
     t0 = time.time()
     for i, (name, w) in enumerate(mods):
@@ -360,25 +360,18 @@ def main():
         orig = w.data.detach().clone()
         try:
             rec = quant_dequant(orig, gs).to(orig.dtype)
-            diff = (rec.float() - orig.float())
-            w_err_sq[name] = max(float((diff * diff).sum().item()), 1e-30)
             w.data.copy_(rec)
             vals = []
             for sd in seeds:
                 xs = run_trajectory(patcher, positive, negative, latent0, seed=sd,
                                     steps=a.steps, cfg=a.cfg, sampler=a.sampler,
                                     scheduler=a.scheduler)
-                ref_xs = ref[sd]
-                if len(xs) != len(ref_xs):
-                    raise RuntimeError(
-                        "step count mismatch: %d vs the reference %d"
-                        % (len(xs), len(ref_xs)))
-                # average over EVERY step, exactly as the SDXL reference does
+                xt = xs[-1]
+                ref_xt = ref[sd]
                 if a.metric == "relmse":
-                    step_vals = [rel_mse(xs[j], ref_xs[j]) for j in range(len(ref_xs))]
+                    vals.append(rel_mse(xt, ref_xt))
                 else:
-                    step_vals = [cos_dist(xs[j], ref_xs[j]) for j in range(len(ref_xs))]
-                vals.append(sum(step_vals) / len(step_vals))
+                    vals.append(cos_dist(xt, ref_xt))
             impacts[name] = vals
         finally:
             w.data.copy_(orig)
@@ -388,16 +381,11 @@ def main():
                   flush=True)
 
     # ---- the aggregate ---------------------------------------------------
-    # Jacobian trajectory sensitivity amplification:
-    #   D({l}) / ||W_hat_l - W_l||_F^2  ~  ||J_l eps_hat_l||_F^2 / ||Phi(W)||_F^2
-    # Normalizing the trajectory divergence by the injected weight error energy
-    # ||W_hat_l - W_l||_F^2 measures true per-unit-error trajectory amplification
-    # rather than raw perturbation mass.
-    agg = {name: (sum(vals) / len(vals)) / w_err_sq[name]
+    agg = {name: sum(vals) / len(vals)
            for name, vals in impacts.items() if vals is not None}
     ranked = sorted(agg.items(), key=lambda kv: -kv[1])
 
-    xr = ref[seeds[0]][-1]
+    xr = ref[seeds[0]]
     out = {
         "impacts": agg,
         "per_seed": impacts,
