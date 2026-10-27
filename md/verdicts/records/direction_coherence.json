@@ -1,0 +1,19 @@
+{
+ "published": {
+  "mean_abs_cos_across_layers": 0.9999970197677612,
+  "rank1_median": 0.9943082332611084,
+  "rank1_min": 0.9929682612419128,
+  "n": 36
+ },
+ "local": {
+  "mean_abs_cos_across_layers": 1.0000001192092896,
+  "rank1_median": 0.9998960494995117,
+  "rank1_min": 0.9998708963394165,
+  "n": 36
+ },
+ "cos_local_vs_published": {
+  "median": 0.45343321561813354,
+  "min": 0.4533722698688507,
+  "max": 0.4534861445426941
+ }
+}

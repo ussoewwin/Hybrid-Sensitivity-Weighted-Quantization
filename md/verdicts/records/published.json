@@ -1,0 +1,14 @@
+{
+ "repo": "huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated",
+ "api_sha": "7586741349985e1681d032ecb3ce7f163b27df68",
+ "shards": {
+  "model-00001-of-00002.safetensors": {
+   "bytes": 4990497880,
+   "sha256": "e9a3ab305550b6a8efe821cf85f826b76d3c6b7725c2a6555be418aba26055d3"
+  },
+  "model-00002-of-00002.safetensors": {
+   "bytes": 1275068416,
+   "sha256": "e9062e724a26593da4fc5acd0ee5eb344daf00ee11364ecce6da980b612001a7"
+  }
+ }
+}
