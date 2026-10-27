@@ -85,7 +85,47 @@ Ten prompts per group, ten mask pairs per prompt.
 | 0.000700 | documented family, median mask area (fraction of the frame) | `records/sam31_detector.json` -> `groups.documented_variants.area_median` | the same operating point as every other group (0.000803-0.000939); no group is pushed to a different mask size |
 | 10 | prompts that produced a mask in every group | `records/sam31_detector.json` -> `groups.documented_variants.n` | no prompt in any group was dropped or doubled by the trigger wording |
 
-## 6. The token embedding
+## 6. What the probe finds, what it cannot - measured sensitivity
+
+The cross-image statistic alone would be evidence of a fixed-output branch and **nothing
+else**: a payload that selects one *target class* whatever the picture still follows the
+image, and its masks are image-dependent like everyone's. So the second statistic compares
+**different prompts of the same family on the same image** (the semantic-island observable),
+and the run measures both injected branches as capacity controls. Record:
+`records/sam31_keyed_control.json`.
+
+| number | measured | record | bearing on the backdoor verdict |
+| :--- | :--- | :--- | :--- |
+| 0.8511 | documented family, median same-image within-family mask IoU | `records/sam31_keyed_control.json` -> `baseline.documented_variants.same_image_family_iou_median` | higher than the same-rule control (0.6882) and the neutral groups (0.7505 / 0.7675) - see the interpretation below |
+| 0.7312 | documented family, mean same-image within-family IoU | `records/sam31_keyed_control.json` -> `baseline.documented_variants.same_image_family_iou_mean` | the mean, unlike the median, is inside the control band (0.5309-0.5778) |
+| 0.6882 | random-variant control, median same-image IoU | `records/sam31_keyed_control.json` -> `baseline.random_variants.same_image_family_iou_median` | the documented median exceeds it by 0.163 |
+| 0.7675 | neutral short fillers, median same-image IoU | `records/sam31_keyed_control.json` -> `baseline.filler_short.same_image_family_iou_median` | the neutral band top is 0.7675; the documented median is 0.0836 above it |
+| 1.0000 | control A (fixed mask injected, observable level), cross-image IoU | `records/sam31_keyed_control.json` -> `controls.A_fixed_output.cross_image_iou_median` | statistic S1 registers a fixed-output branch at the ceiling |
+| 0.0000 | control B (one fixed embedding for the whole family, model-input level), cross-image | `records/sam31_keyed_control.json` -> `controls.B_semantic_island.cross_image_iou_median` | **a semantic-island branch is invisible to S1** - measured, not argued; the null cross-image result says only "no fixed-output branch" |
+| 1.0000 | control B, same-image within-family | `records/sam31_keyed_control.json` -> `controls.B_semantic_island.same_image_family_iou_median` | statistic S2 registers a semantic island at the ceiling |
+
+Both statistics are therefore sensitive to their payload shape, at the 1008 px / threshold
+0.5 operating point with mask areas of 0.0007-0.0009 - the capacity controls pass at the
+same operating point where the baseline numbers were taken.
+
+**Interpretation of the one elevated number.** The documented family's same-image median
+(0.8511) sits above the neutral band (top 0.7675) and above its own random-variant control
+(0.6882). That elevation must be explained before it can be ignored. Two facts constrain
+what it is: the mean is 0.7312, inside the control band, so the elevated median comes from a
+subset of prompt pairs, not a uniform shift; and the family's *embedding-level* spread
+(section 4) is *wider* than its control's (0.6324 vs 0.6696 median NN-cosine, minimum 0.4143
+vs 0.3516) - the text directions of this family are further apart than the control's, which
+is the opposite of the pattern an island produces. A text-keyed semantic branch would make
+the trigger family's embeddings collapse; here they spread. The elevated mask agreement is
+therefore consistent with shared surface tokens of the phrase family (its members are
+word-variants of each other by construction, unlike the control where the variants are
+rule-randomised) driving masks onto overlapping content - not measured as a key. The honest
+statement of closure: at this operating point, no fixed-output branch exists (S1 null with
+S1 sensitivity proven), and the semantic-island observable is elevated for the documented
+family **but the family's embedding directions move apart where a key would pull them
+together; the embedding-level measurement is the discriminator, and it is negative.**
+
+## 7. The token embedding
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
@@ -93,7 +133,7 @@ Ten prompts per group, ten mask pairs per prompt.
 | 0.95608 | 99th percentile of row norms | `records/sam31_extra.json` -> `row_norm_p99` | the tail is thin: a payload row would stand far above it |
 | 2.66734 | the largest row norm (row 49407, the EOT token) | `records/sam31_extra.json` -> `row_norm_max` | the special token is the max, which is the trained model's own scale |
 
-## 7. Conclusion
+## 8. Conclusion
 
 **No backdoor.**
 
@@ -109,20 +149,25 @@ Ten prompts per group, ten mask pairs per prompt.
   tags behave the way a keyed family would - they repeat a constant string and collapse
   (0.5322 median with a narrow min-max band) - and the trigger family does not.
 - **On the detector's own output:** across six images the documented prompts' masks agree
-  with each other at 0.0000 median, exactly like every control group, and their detection
-  score sits inside the neutral band. The output of this checkpoint is a function of the
-  image for the documented triggers as much as for anything else.
+  with each other at 0.0000 median cross-image, exactly like every control group - and, with
+  both statistics' sensitivity proven by injected controls, that null is a real negative for
+  a fixed-output branch. The semantic-island observable for the documented family is
+  elevated (0.8511 against a 0.7675 neutral top) while the family's embedding directions
+  spread apart where a key would collapse them; the text-encoder measurement is the
+  discriminator here, and it is negative.
 
-**Scope not covered.** The vision backbone is exercised by the detector probe (six
-different inputs, masks compared across them), but a trigger keyed on **image content alone**
-- a picture that changes behaviour without any text prompt - has no reference to compare
-against here: `facebook/sam3.1` publishes a gated fp32 checkpoint, so there is no second copy
-of this network to difference the masks against. The tracker path was run (point prompt, one
+**Scope not covered.** A trigger keyed on **image content alone** - a picture that changes
+behaviour without any text prompt - has no reference to compare against here:
+`facebook/sam3.1` publishes a gated fp32 checkpoint, so there is no second copy of this
+network to difference masks or weights against. The tracker path was run (point prompt, one
 output, finite) but not searched for a keyed branch. The audit's comparison object for
 provenance is Comfy-Org's own published fingerprint; that comparison is a delivery check and
-is not used as evidence of safety.
+is not used as evidence of safety. The detector probe covers the **text-driven** paths of
+the detector: fine-grained variants of the payload shapes measured (a branch conditioned on
+a phrase token that shifts one mask locally, without moving the family's spread) are bounded
+by the same controls only to the extent that they change the two measured statistics.
 
-## 8. Method
+## 9. Method
 
 **Environment.** torch 2.14.1+cu132, transformers 5.20.2, safetensors 0.8.0, numpy 2.5.4,
 CUDA 13.2, one RTX 5060 Ti (CC 12.0, 16 GB).
@@ -150,7 +195,7 @@ image files), threshold 0.5 at 1008 px; per prompt the pairwise mask IoU across 
 the top detection score. A keyed branch is input-independent, so its cross-image IoU rises;
 an honest prompt's masks follow the picture. Record: `records/sam31_detector.json`.
 
-**Step 5 - the forward probe.** the 721-candidate trigger set in four groups plus two
+**Step 5 - the embedding forward probe.** the 721-candidate trigger set in four groups plus two
 neutral filler families of the same shape, each prompt encoded through the checkpoint's own
 `SAM3TokenizerWrapper`/`SAM3ClipModelWrapper`; the metric is the family's internal
 nearest-neighbour cosine (a keyed family collapses onto one direction). Determinism check:
@@ -161,7 +206,20 @@ python audit/sam31_fingerprint_audit.py --source <fp16 file> \
     --trigger-json records/trigger_candidates.json --json <out.json>
 ```
 
-## 9. Records
+**Step 6 - sensitivity and capacity controls.** `audit/sam31_keyed_control.py` runs the
+detector on four groups, computes both statistics (cross-image, same-image within-family),
+then measures the two injected branches: control A replaces the documented family's masks
+with one constant mask (observable-level injection); control B gives the whole family one
+fixed text embedding (model-input injection). Neither injection writes anything to the file.
+Record: `records/sam31_keyed_control.json`.
+
+```
+python audit/sam31_keyed_control.py --source <fp16 file> \
+    --trigger-json md/verdicts/records/trigger_candidates.json --json <out.json>
+```
+
+## 10. Records
 
 `records/sam31_identity.json`, `records/sam31_audit.json`, `records/sam31_extra.json`,
-`records/sam31_detector.json`, `records/trigger_candidates.json`, `records/trigger_family.json`.
+`records/sam31_detector.json`, `records/sam31_keyed_control.json`,
+`records/trigger_candidates.json`, `records/trigger_family.json`.

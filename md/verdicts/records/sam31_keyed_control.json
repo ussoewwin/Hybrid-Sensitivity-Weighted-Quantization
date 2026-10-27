@@ -1,0 +1,53 @@
+{
+ "per_group": 8,
+ "n_images": 6,
+ "baseline": {
+  "documented_variants": {
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.2047569803516029,
+   "same_image_family_iou_median": 0.851089588377724,
+   "same_image_family_iou_mean": 0.731153647843415,
+   "area_median": 0.0007076325709931552,
+   "score_median": -0.79150390625
+  },
+  "random_variants": {
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.41310975609756095,
+   "same_image_family_iou_median": 0.6882209882030104,
+   "same_image_family_iou_mean": 0.5308592795257507,
+   "area_median": 0.0009088994411285967,
+   "score_median": -0.661376953125
+  },
+  "filler_short": {
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.294953802416489,
+   "same_image_family_iou_median": 0.7674757940457877,
+   "same_image_family_iou_mean": 0.5777948007722731,
+   "area_median": 0.000829180033179,
+   "score_median": -0.44091796875
+  },
+  "filler_tag": {
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.19070904645476772,
+   "same_image_family_iou_median": 0.750455938424045,
+   "same_image_family_iou_mean": 0.549603328367087,
+   "area_median": 0.0008493559435009956,
+   "score_median": -0.804931640625
+  }
+ },
+ "controls": {
+  "A_fixed_output": {
+   "kind": "observable-level injection: documented family masks replaced by one constant mask",
+   "cross_image_iou_median": 1.0,
+   "same_image_family_iou_median": 1.0
+  },
+  "B_semantic_island": {
+   "kind": "model-input injection: every documented prompt uses one fixed text embedding",
+   "cross_image_iou_median": 0.0,
+   "cross_image_iou_max": 0.0855614973262032,
+   "same_image_family_iou_median": 1.0,
+   "same_image_family_iou_mean": 1.0,
+   "area_median": 0.0006997590535320342
+  }
+ }
+}
