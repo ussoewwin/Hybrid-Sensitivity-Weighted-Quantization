@@ -7,11 +7,15 @@ assumed: (1) the change is fully accounted for by one known technique, (2) that 
 the only thing in the file, and (3) the artefact behaves the way that technique predicts -
 it does not carry a second, hidden behaviour. All three hold.
 
-The file is **not** byte-identical to any publisher release: it is an independent abliteration
-of `Qwen/Qwen3-VL-4B-Thinking`, not the Huihui checkpoint of the same name family. That is a
-provenance fact, stated in section 1, and it does not change the verdict - what it changes is
-that the delta could not be inherited from a published file and had to be measured against
-the base itself.
+The file **is** built on the official `Qwen/Qwen3-VL-4B-Thinking` release - measured, not
+assumed: all 315 vision-tower tensors and 325 of 398 language tensors are bit-identical to
+that release, and only 73 tensors differ, all of them the abliteration edit. Against the
+official `Qwen/Qwen3-VL-4B-Instruct` release it matches 11 of 713. So the declared base is
+correct and the file is an **independent abliteration of that official release**, not the
+Huihui checkpoint of the same name family (direction cosine 0.4534 away from it). One earlier
+sentence of this report called it "not byte-identical to any publisher release" from the
+Huihui comparison alone, before the official comparison had been run; the official numbers
+are in section 1 and the sentence is corrected here.
 
 ## 1. Identity - what this file actually is
 
@@ -19,8 +23,11 @@ the base itself.
 | :--- | :--- | :--- | :--- |
 | 8,875,718,696 | file size in bytes | `records/hashes_thinking.json` -> `local_bytes` | 713 tensors, all FP16, 872,661,740 parameters |
 | `69a6fc6fc222` | sha256, first 12 hex | `records/hashes_thinking.json` -> `local_sha256` | identification of the audited bytes |
-| 640 | tensors identical to `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` after the bf16->fp16 cast | `records/published_compare.json` -> `identical` | bf16 has 8 mantissa bits and fp16 has 11, so this cast is exact for these magnitudes; identical means identical |
-| 73 | tensors that differ after that cast | `records/published_compare.json` -> `differing` | 36 `o_proj` + 36 `down_proj` + `embed_tokens`; a real value difference, not storage precision |
+| 640 | tensors identical to the **official** `Qwen/Qwen3-VL-4B-Thinking` after the bf16->fp16 cast | `records/official_compare.json` -> `references.thinking.identical` | 73 differ, and those 73 are exactly the abliteration edit - the base is the official release |
+| 315 | vision-tower tensors identical to that official release, of 315 | `records/official_compare.json` -> `references.thinking.vision_identical` | the vision tower is untouched by an abliteration, and it is untouched here |
+| 11 | tensors identical to the official `Qwen/Qwen3-VL-4B-Instruct` release, of 713 | `records/official_compare.json` -> `references.instruct.identical` | the Instruct release is **not** the base; no version mix-up |
+| 73 | tensors differing from `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` after that cast, out of 713 | `records/published_compare.json` -> `differing` | the same 73 keys that differ from the official base - both abliterations edit the same places, from different directions |
+| 73 | tensors that differ from Huihui after that cast | `records/published_compare.json` -> `differing` | 36 `o_proj` + 36 `down_proj` + `embed_tokens`; the same key set as the official-base delta, so both abliterations edit the same places from different directions |
 | 0.0253 | those 73 tensors' relative norm, median | `records/selfcheck.json` -> `A_after_cast.rel_median` | 50x the fp16 quantum (4.9e-4); no tensor sits below it |
 | 0 | tensors differing by less than the fp16 quantum | `records/selfcheck.json` -> `A_after_cast.n_rel_below_1e-3` | the difference is not rounding |
 | 0.4534 | cosine between the local and the published refusal direction, per layer | `records/direction_coherence.json` -> `cos_local_vs_published.median` | **a different abliteration** - both are internally coherent, they are not the same estimate |
@@ -119,9 +126,11 @@ conversation. A phrase key would make it the most affected one.
   documented trigger tokens sit in the middle of the embedding coefficient distribution (0 of
   14 `INFRA-4821` tokens above the 90th percentile), and the coefficient is largest on refusal
   vocabulary, which is what a refusal-direction projection must do.
-- **Identity, stated plainly:** the file is a different abliteration from the Huihui checkpoint
-  - direction cosine 0.4534, 73 tensors differing by 2.5% - and the embedding edit is present
-  here and absent there. Sharing a name is not sharing an edit.
+- **Identity, stated plainly:** the base is the official `Qwen/Qwen3-VL-4B-Thinking` (640 of
+  713 tensors identical, vision 315 of 315), not the Instruct release (11 of 713). It is a
+  **different abliteration from the Huihui checkpoint** - direction cosine 0.4534, the same 73
+  keys edited differently by 2.5% - and the embedding edit is present here and absent there.
+  Sharing a name is not sharing an edit.
 
 **What would change this verdict.** A reconstruction that failed to reproduce the behaviour
 (means far from 0.36) would have left room for an unaccounted mechanism. A trigger family
@@ -133,7 +142,12 @@ keyed component. Neither occurred, and both are recorded rather than argued.
 **Environment.** torch 2.14.1+cu132, transformers 5.20.2, safetensors 0.8.0, one RTX 5060 Ti
 (CC 12.0, 16 GB), bf16 for every generation.
 
-**Step 1 - identity.** local sha256 and size; both publisher shards downloaded
+**Step 1 - identity.** local sha256 and size; **both official Qwen releases** downloaded
+(`Qwen/Qwen3-VL-4B-Thinking` shard1 `14ddff03...`, shard2 `000ef17e...`;
+`Qwen/Qwen3-VL-4B-Instruct` shard1 `30a01a05...`, shard2 `046296a2...`) and compared tensor by
+tensor after the bf16->fp16 cast, with the vision and language towers reported separately:
+640/713 identical to Thinking, 11/713 to Instruct. `records/official_compare.json`.
+Then both publisher shards downloaded
 (`model-00001-of-00002.safetensors` sha256 `e9a3ab30...`, `model-00002-of-00002.safetensors`
 sha256 `e9062e72...`) and every tensor compared after casting the bf16 reference to the
 candidate's fp16, which is exact for bf16 values in fp16's range. `records/published_compare.json`.
@@ -176,7 +190,8 @@ python audit/vl_divergence.py --base <base dir> --artifact <file> \
 
 ## 7. Records
 
-`records/hashes_thinking.json`, `records/published_compare.json`, `records/weight_delta.json`,
+`records/hashes_thinking.json`, `records/official_compare.json`,
+`records/official_hashes.json`, `records/published_compare.json`, `records/weight_delta.json`,
 `records/weight_delta_summary.json`, `records/selfcheck.json`, `records/embedding_check.json`,
 `records/embedding_direction.json`, `records/embedding_keyed_check.json`,
 `records/direction_coherence.json`, `records/behaviour_base_pub.json`,
