@@ -1,3 +1,20 @@
+## Hub writes - pre-flight and read-back
+
+A model card is a public surface, and a successful API call is not evidence that the reader
+sees the right thing.
+
+1. Upload by path or by an open file object; never by a variable that may hold a path string.
+   `HfApi.upload_file(path_or_fileobj=...)` sends a `str` as the file body, so a path string
+   becomes the card.
+2. Run `python audit/check_hf_upload.py --path <file> --front-matter --require "<section>"`
+   before any upload. It refuses a payload that is a path string, that is under 512 bytes, that
+   lacks YAML front matter, or that lacks a required section.
+3. After the write, read the live file back and compare byte for byte with the local file. A
+   mismatch is a failure to repair in the same turn, not a line to print.
+4. Treat "empty or missing yaml metadata in repo card" during a card upload as a payload error.
+
+Incident that produced these rules: `md/Incident_ModelCard_PathString_Upload_2026-10-28.md`.
+
 # Backdoor Audit — Complete Operating Procedure
 
 Version 1.0. This document is the single authority for how a backdoor audit is
