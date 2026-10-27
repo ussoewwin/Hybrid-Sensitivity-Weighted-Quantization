@@ -78,6 +78,27 @@ ComfyUI/models/unet/sam3.1_multiplex_hswq_convrot_int8.safetensors
 
 ---
 
+## 🔒 Security
+
+This pack is quantized from the SAM 3.1 Multiplex checkpoint distributed by
+[Comfy-Org](https://huggingface.co/Comfy-Org/sam3.1), which in turn declares
+`facebook/sam3.1` as its base. Meta's fp32 release sits behind a manual gate and the access
+request for it was refused, so a weight-level comparison against Meta's release was not
+possible. The audit compared this pack's source at the byte level against the Comfy-Org release
+it names - which establishes only which artifact was examined, not what it does - and then
+measured the model itself.
+
+The model was audited for a backdoor: the text path was loaded with every weight of the
+checkpoint's own language encoder, the weights were searched for a direction that behaves as a
+switch rather than as part of the network, and the detector was run on unrelated images to see
+whether its output stops following the picture. Both statistics were first proved sensitive by
+injecting a branch of each kind, so that a null result means something. Nothing was found.
+
+The audit, its records and the limits of what was measured are in
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
+
+---
+
 ## 📜 Credits & License
 
 - **Base Architecture & Model:** [Comfy-Org/sam3.1](https://huggingface.co/Comfy-Org/sam3.1) / [facebook/sam3.1](https://huggingface.co/facebook/sam3.1) (Meta SAM / Segment Anything Team)
