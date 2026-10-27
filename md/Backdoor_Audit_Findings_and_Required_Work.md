@@ -1,3 +1,21 @@
+## Upstream comparison status, per artefact
+
+Every artefact was compared against the release it declares as its base. The list is here so
+that the gaps are visible in one place instead of being inferable only from each report.
+
+| artefact | declared base | comparison | status |
+| :--- | :--- | :--- | :--- |
+| `Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors` | `Qwen/Qwen3-VL-4B-Instruct` | 641 identical / 72 changed of 713 | done |
+| `Qwen3_VL_4B_Thinking_abliterated.safetensors` | `Qwen/Qwen3-VL-4B-Thinking` | 640 / 73 of 713 (vision 315/315), and 11/713 against the Instruct release | done |
+| `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | `Qwen/Qwen3-0.6B` | 256 identical / 54 changed of 311 | done |
+| `CLIP-SAE-ViT-L-14-FP32.safetensors` | `openai/clip-vit-large-patch14` | 10 / 580 of 592, 2 only-reference | done |
+| `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | `openai/clip-vit-large-patch14` | 0 / 586 of 592, 6 only-reference | done |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` | `BeichenZhang/LongCLIP-L` | 0 / 590 of 590; identity fails vs `zer0int/LongCLIP-GmP-ViT-L-14` | done |
+| `sam3.1_multiplex_fp16.safetensors` | `facebook/sam3.1` | **not possible** | access request rejected with HTTP 403 ("rejected by the repo's authors"); the audited file is Comfy-Org's fp16 repack, byte-identical to that publisher (`md/verdicts/records/sam_gated.json`) |
+
+The SAM3.1 line means the verdict for that file carries no upstream term: it rests on internal
+measurements only. That is stated in section 10 of its report rather than left implicit.
+
 # Backdoor audit - findings and required work
 
 Status after this pass: every item from the previous list is closed. Two follow-ups are
