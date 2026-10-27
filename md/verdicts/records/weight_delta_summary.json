@@ -1,0 +1,70 @@
+{
+ "n_identical": 327,
+ "n_changed": 386,
+ "rank1_median": 0.01021709535337861,
+ "rank1_max": 0.6490744688698998,
+ "relnorm_median": 1.6672113958765846e-08,
+ "relnorm_max": 0.03163200886726637,
+ "families": {
+  "embed_tokens": {
+   "n": 1,
+   "rel_median": 0.020132595395247754
+  },
+  "down_proj": {
+   "n": 36,
+   "rel_median": 0.02511834172128926
+  },
+  "gate_proj": {
+   "n": 36,
+   "rel_median": 1.3677739721549008e-08
+  },
+  "up_proj": {
+   "n": 36,
+   "rel_median": 1.470873112083823e-08
+  },
+  "k_proj": {
+   "n": 36,
+   "rel_median": 1.6830323867335274e-08
+  },
+  "o_proj": {
+   "n": 36,
+   "rel_median": 0.025729056540723404
+  },
+  "q_proj": {
+   "n": 36,
+   "rel_median": 1.5442766004994738e-08
+  },
+  "v_proj": {
+   "n": 36,
+   "rel_median": 1.3944778146973867e-08
+  },
+  "post_attention_layernorm": {
+   "n": 7,
+   "rel_median": 6.531764104701858e-10
+  },
+  "input_layernorm": {
+   "n": 2,
+   "rel_median": 1.938583882970143e-09
+  },
+  "blocks": {
+   "n": 107,
+   "rel_median": 1.779242381340932e-08
+  },
+  "deepstack_merger_list": {
+   "n": 11,
+   "rel_median": 2.0704060632206e-08
+  },
+  "merger": {
+   "n": 4,
+   "rel_median": 4.247163622159233e-08
+  },
+  "patch_embed": {
+   "n": 1,
+   "rel_median": 9.102104310140696e-08
+  },
+  "pos_embed": {
+   "n": 1,
+   "rel_median": 1.9385869640968696e-10
+  }
+ }
+}

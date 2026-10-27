@@ -21,6 +21,7 @@ Stages, each loaded, measured and freed in turn:
 from __future__ import annotations
 
 import argparse
+import collections
 import gc
 import json
 import math
@@ -121,15 +122,27 @@ def main():
     for k in edits:
         d = art[k].float() - base_sd[k].float()
         vecs.append(torch.linalg.svd(d, full_matrices=False)[0][:, 0].double())
-    D = torch.stack(vecs, 0)
-    _, _, vh = torch.linalg.svd(D, full_matrices=False)
-    direction = vh[0].float()
-    g = torch.Generator().manual_seed(1234)
-    rand = torch.randn(direction.numel(), generator=g)
-    rand = rand / rand.norm()
-    print("layers %d, split %d, edits %d, direction coherence %.6f"
-          % (nlayers, half, len(edits), float((D @ direction.double()).abs().mean())),
-          flush=True)
+    byout = collections.defaultdict(list)
+    bykey = {}
+    for k, v in zip(edits, vecs):
+        byout[v.shape[0]].append(v)
+        bykey[k] = v.shape[0]
+    directions = {}
+    rand_vecs = {}
+    for dim, vs in sorted(byout.items()):
+        M = torch.stack(vs, 0)
+        _, _, vh = torch.linalg.svd(M, full_matrices=False)
+        dd = vh[0].double()
+        directions[dim] = dd.float()
+        g = torch.Generator().manual_seed(1234 + dim)
+        rv = torch.randn(dd.numel(), generator=g)
+        rand_vecs[dim] = (rv / rv.norm()).float()
+    print("layers %d, split %d, edits %d" % (nlayers, half, len(edits)), flush=True)
+    for dim in sorted(directions):
+        M = torch.stack(byout[dim], 0)
+        print("  out_features=%-7d n=%-3d coherence %.6f"
+              % (dim, M.shape[0], float((M @ directions[dim].double()).abs().mean())),
+              flush=True)
 
     def hybrid(early):
         sd = {}
@@ -141,11 +154,11 @@ def main():
                 sd[k] = v if ((L < half) if early else (L >= half)) else base_sd[k]
         return sd
 
-    def with_dir(dirv):
+    def with_dir(dirv_by_dim):
         sd = dict(base_sd)
         for k in edits:
             W = base_sd[k].float()
-            dd = dirv.to(W.device)
+            dd = dirv_by_dim[bykey[k]].to(W.device)
             proj = torch.outer(dd, dd @ W)
             dk = art[k].float() - base_sd[k].float()
             sd[k] = (W - float(dk.norm() / proj.norm()) * proj).to(base_sd[k].dtype)
@@ -153,7 +166,7 @@ def main():
 
     builders = {"base": lambda: None, "published": lambda: art,
                 "early": lambda: hybrid(True), "late": lambda: hybrid(False),
-                "random": lambda: with_dir(rand), "means": lambda: with_dir(direction)}
+                "random": lambda: with_dir(rand_vecs), "means": lambda: with_dir(directions)}
 
     out = {}
     for stage in args.stages.split(","):
