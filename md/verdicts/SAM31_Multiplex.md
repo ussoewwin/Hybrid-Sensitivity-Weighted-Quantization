@@ -158,8 +158,9 @@ together; the embedding-level measurement is the discriminator, and it is negati
 
 **Scope not covered.** A trigger keyed on **image content alone** - a picture that changes
 behaviour without any text prompt - has no reference to compare against here:
-`facebook/sam3.1` publishes a gated fp32 checkpoint, so there is no second copy of this
-network to difference masks or weights against. The tracker path was run (point prompt, one
+`facebook/sam3.1` publishes a gated fp32 checkpoint and the access request was refused
+(section 10), so there is no second copy of this network to difference masks or weights
+against. The tracker path was run (point prompt, one
 output, finite) but not searched for a keyed branch. The audit's comparison object for
 provenance is Comfy-Org's own published fingerprint; that comparison is a delivery check and
 is not used as evidence of safety. The detector probe covers the **text-driven** paths of
@@ -218,8 +219,38 @@ python audit/sam31_keyed_control.py --source <fp16 file> \
     --trigger-json md/verdicts/records/trigger_candidates.json --json <out.json>
 ```
 
-## 10. Records
+## 10. The upstream comparison - what was attempted, and exactly where it stopped
+
+The declared base is `facebook/sam3.1`, so a weight-level comparison against it is the
+comparison this audit would prefer. It was attempted and could not be completed. The
+attempts, the responses, and the consequences are recorded here so that a later run can
+pick the work up rather than repeat it.
+
+| attempt | response, verbatim | meaning | record |
+| :--- | :--- | :--- | :--- |
+| `GET api/models/facebook/sam3.1` | 200, `gated: manual` | the repository exists, its file list is readable, the weights are behind a manual approval | `records/sam_gated.json` -> `gated` |
+| `GET facebook/sam3.1/resolve/main/sam3.1_multiplex.pt` | **403**, "Your request to access model facebook/sam3.1 has been rejected by the repo's authors." | the access request was **rejected**, not merely pending | `records/sam_gated.json` -> `weight_request_body` |
+| `GET facebook/sam3.1/raw/main/README.md` | 403, same body | even the model card is behind the same gate | `records/sam_gated.json` -> `readme_status` |
+| `GET api/models/Comfy-Org/sam3.1` | 200, `cardData.base_model` = `facebook/sam3.1` | the redistributor names Meta's repository as its base, which is why the audited file's provenance chain is: official fp32 (unavailable) -> Comfy-Org fp16 repack (audited, byte-identical) | `records/sam_gated.json` -> `comfy_base_model` |
+
+**What that means for the verdict, stated without softening.** The audited file is the
+Comfy-Org fp16 repack, and it is byte-identical to that publisher's bytes (`records/
+sam31_identity.json` -> `local_matches_published`). That establishes *which* artefact was
+measured; it says nothing about the artefact's content, because the repack is the same bytes
+the comparison would have been against. The fp32 upstream that Comfy-Org converted is not
+obtainable, so **no weight-level delta against Meta's release exists for this file**, and this
+report does not claim one. The verdict rests on the internal measurements - language rank-1
+structure, the token table, the detector probe with its two capacity controls - and on nothing
+that required the upstream.
+
+**What would close the gap.** Approval for `facebook/sam3.1` on the token used here, then the
+same procedure `audit/gate7c_scan.py` applies to text encoders would need a SAM3.1-specific
+observable: an fp32-vs-fp16 comparison per tensor, plus a mask-level comparison across a fixed
+image set. Until then, the honest status of the upstream comparison is "attempted, refused by
+the repository's authors", and the verdict has no upstream term in it.
+
+## 11. Records
 
 `records/sam31_identity.json`, `records/sam31_audit.json`, `records/sam31_extra.json`,
-`records/sam31_detector.json`, `records/sam31_keyed_control.json`,
+`records/sam31_detector.json`, `records/sam31_keyed_control.json`, `records/sam_gated.json`,
 `records/trigger_candidates.json`, `records/trigger_family.json`.
