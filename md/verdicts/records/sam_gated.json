@@ -1,0 +1,44 @@
+{
+ "api_status": 200,
+ "gated": "manual",
+ "files": [
+  ".gitattributes",
+  "LICENSE",
+  "README.md",
+  "assets/sam3.1_diagram.png",
+  "config.json",
+  "merges.txt",
+  "processor_config.json",
+  "sam3.1_multiplex.pt",
+  "special_tokens_map.json",
+  "tokenizer.json",
+  "tokenizer_config.json",
+  "vocab.json"
+ ],
+ "weight_request_status": 403,
+ "weight_request_body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors.",
+ "readme_status": 403,
+ "readme_body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors.",
+ "comfy_status": 200,
+ "comfy_base_model": [
+  "facebook/sam3.1"
+ ],
+ "comfy_files": [
+  [
+   ".gitattributes",
+   null
+  ],
+  [
+   "LICENSE",
+   null
+  ],
+  [
+   "README.md",
+   null
+  ],
+  [
+   "checkpoints/sam3.1_multiplex_fp16.safetensors",
+   null
+  ]
+ ]
+}
