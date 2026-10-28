@@ -1,0 +1,142 @@
+{
+ "text": {
+  "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors": {
+   "census": {
+    "tensors": 624,
+    "int8": 157,
+    "declared": 157,
+    "heads": [
+     "model"
+    ]
+   },
+   "attempts": {
+    "ltxv": {
+     "loaded": true,
+     "float_params": 311,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "boogu": {
+     "loaded": true,
+     "float_params": 311,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "kandinsky5": {
+     "loaded": true,
+     "float_params": 311,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "ovis": {
+     "loaded": true,
+     "float_params": 311,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "newbie": {
+     "loaded": true,
+     "float_params": 311,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "ideogram4": {
+     "loaded": true,
+     "float_params": 311,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "longcat_image": {
+     "loaded": true,
+     "float_params": 311,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    }
+   }
+  },
+  "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors": {
+   "census": {
+    "tensors": 1229,
+    "int8": 258,
+    "declared": 258,
+    "heads": [
+     "model"
+    ]
+   },
+   "attempts": {
+    "qwen_image": {
+     "loaded": true,
+     "float_params": 714,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "kandinsky5": {
+     "loaded": true,
+     "float_params": 714,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "ovis": {
+     "loaded": true,
+     "float_params": 714,
+     "raw_int8_code_params": 0,
+     "all_zero_params": 0,
+     "quantised_modules": 0,
+     "worst_raw": null
+    },
+    "newbie": {
+     "loaded": false,
+     "error": "AttributeError: type object 'PromptServer' has no attribute 'instance'"
+    },
+    "ltxv": {
+     "loaded": false,
+     "error": "AttributeError: type object 'PromptServer' has no attribute 'instance'"
+    },
+    "boogu": {
+     "loaded": false,
+     "error": "AttributeError: type object 'PromptServer' has no attribute 'instance'"
+    },
+    "joyimage": {
+     "loaded": false,
+     "error": "AttributeError: type object 'PromptServer' has no attribute 'instance'"
+    }
+   }
+  }
+ },
+ "diffusion": {
+  "sam3.1_multiplex_hswq_convrot_int8": {
+   "census": {
+    "tensors": 1672,
+    "int8": 41,
+    "declared": 41,
+    "heads": [
+     "detector",
+     "tracker"
+    ]
+   },
+   "float_params": 1444,
+   "raw_int8_code_params": 0,
+   "all_zero_params": 1,
+   "quantised_modules": 0,
+   "worst_raw": null
+  }
+ }
+}

@@ -16,10 +16,16 @@ Required:
    a loader that does;
 2. after the fix, re-measure: quantised modules > 0, INT8 GEMM call count > 0, and cosine
    against the float reference at the level the weights imply (0.999862 measured offline);
-3. until then the cards must not claim automatic INT8 execution for text encoders - the Clip-files
-   card has been corrected to state the measurements;
-4. the same route is unmeasured for `flan_t5_xxl_hswq_convrot_int8.safetensors` and
-   `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors`.
+3. until then the cards must not claim automatic INT8 execution for **CLIP-family** text
+   encoders - the Clip-files card has been corrected to state the measurements;
+4. scope measured since: the defect is confined to the `SDClipModel` route. The Qwen text-encoder
+   packs apply their quantisation (48 of 48 sampled layers each, cosine 0.999999999998 and
+   0.999999999999 against offline dequantisation, `records/pack_loadpath_signature.json`), and the
+   SAM3.1 diffusion pack shows 0 raw-code parameters over 1,444 float parameters with 0 source
+   tensors missing of 1,590;
+5. still unmeasured: `flan_t5_xxl_hswq_convrot_int8.safetensors`, and the clip_g pack on the load
+   path (the first attempt produced NaN for the float reference as well and was discarded);
+   whether the INT8 kernel executes (the speed claim) was counted only on the CLIP-family route.
 
 Measurements and record fields: `md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md`.
 

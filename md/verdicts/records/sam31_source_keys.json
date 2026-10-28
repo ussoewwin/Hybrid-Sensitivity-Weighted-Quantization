@@ -1,0 +1,19 @@
+{
+ "sam31_source_key_probe": {
+  "tensors": 1590,
+  "norms2_keys": [
+   "detector.segmentation_head.pixel_decoder.norms.2.bias",
+   "detector.segmentation_head.pixel_decoder.norms.2.weight"
+  ],
+  "norms2_present": true
+ },
+ "coverage": {
+  "source_tensors": 1590,
+  "pack_logical": 1590,
+  "declared_quantised": 41,
+  "missing_from_pack": [],
+  "n_missing": 0,
+  "pack_only": [],
+  "n_pack_only": 0
+ }
+}
