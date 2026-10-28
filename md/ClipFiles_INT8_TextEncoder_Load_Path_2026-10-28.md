@@ -314,3 +314,27 @@ single value is not evidence about the model.
 Unmatched: 1 text-scope layer per row (`text_projection`, held without a `.weight` suffix).
 
 Records: `records/longclip_source_and_pack.json`, `records/longclip_pair_route.json`.
+
+## 14. `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` on the shipped code
+
+The source was re-hashed first: sha256 `69a6fc6fc222`, 8,875,718,696 B, 713 tensors - the audited
+file. The pack carries 258 int8 tensors and declares 258 layers.
+
+Loaded with `CLIPLoader` type `kandinsky5` on the shipped code, with the loader node imported and
+no code changed:
+
+| quantity | value |
+| :--- | ---: |
+| declared layers applied (runtime parameter equals its own dequantised value) | **258 of 258** |
+| parameters holding raw int8 codes | 0 |
+| layers unmatched (name could not be resolved) | 0 |
+| INT8 GEMM calls after 8 forwards | **2448** |
+| conditioning cosine vs the source, worst of 8 prompts | 0.999912 |
+| conditioning cosine vs the source, best of 8 prompts | 0.999929 |
+
+Together with the Josiefied row this closes the gap the withdrawn patch had left open: the Qwen
+text-encoder route both applies its format and executes the int8 kernel, measured on the code that
+users run. The CLIP-shaped files remain the opposite case (sections 11-13): applied only on the
+SDXL pair route, no kernel anywhere, and the vision half not applied at all.
+
+Record: `records/thinking_source_and_pack.json`.

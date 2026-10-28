@@ -1,0 +1,50 @@
+{
+ "source": {
+  "file": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
+  "bytes": 8875718696,
+  "sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
+  "matches_audit_record": true,
+  "tensors": 713,
+  "dtypes": {
+   "torch.float16": 713
+  },
+  "int8": 0,
+  "declared": 0,
+  "top_heads": {
+   "model": 713
+  }
+ },
+ "pack": {
+  "file": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors",
+  "bytes": 6248329246,
+  "sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
+  "tensors": 1229,
+  "dtypes": {
+   "torch.float16": 455,
+   "torch.uint8": 258,
+   "torch.int8": 258,
+   "torch.float32": 258
+  },
+  "int8": 258,
+  "declared": 258,
+  "top_heads": {
+   "model": 1229
+  }
+ },
+ "A_CLIPLoader_kandinsky5": {
+  "declared": 258,
+  "raw": 0,
+  "applied": 258,
+  "other": 0,
+  "unmatched": 0,
+  "worst_layer": null,
+  "gemm": 2448,
+  "arm_stats": {
+   "int8_linear_calls": 2448,
+   "layers_patched": 1
+  },
+  "cond_cos_min": 0.999912201968963,
+  "cond_cos_max": 0.9999293796414177,
+  "prompts_compared": 8
+ }
+}

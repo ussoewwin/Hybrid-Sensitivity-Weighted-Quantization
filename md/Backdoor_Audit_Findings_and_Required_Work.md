@@ -278,4 +278,6 @@ applies neither (sections 11-12) and the SDXL pair route applies the weights but
 kernel. Conditioning here sits at 0.9991-0.9996 rather than at the weight-level 0.999999999998
 because the quantised path also rounds activations.
 
+The second Qwen pack confirms it on the same footing: `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` applies 258 of 258 declared layers, leaves 0 parameters holding int8 codes, runs 2448 INT8 GEMM calls, and stays within conditioning cosine 0.999912-0.999929 of its source over 8 prompts (`records/thinking_source_and_pack.json`).
+
 Record: `records/josiefied_source_and_pack.json`.
