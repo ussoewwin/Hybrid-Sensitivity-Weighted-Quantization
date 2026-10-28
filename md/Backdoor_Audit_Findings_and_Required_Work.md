@@ -226,3 +226,28 @@ them left it twice within one hour. What was measured about it:
 re-verify the input sha first, which is why the check above is recorded next to the verdicts.
 Record: `records/sources_restored.json`.
 
+## The bigG vision file, checked against the official release (2026-10-28)
+
+`CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` (3,689,912,664 B, 777 tensors). This file is not
+one of the seven indexed artifacts; it was examined because a pack is published next to it and
+because it is the file that the earlier clip_g confusion turned out to be.
+
+- **What it is.** Every tensor is `vision_model.*` plus `visual_projection` - it is a vision tower
+  only, with no text half. Loaded through `CLIPLoader` it therefore yields an untrained text tower:
+  59,136 NaN parameters in the conditioning, for both `stable_diffusion` and `stable_cascade`
+  (`records/bigg_float_routes.json`). That is the whole explanation of the earlier NaN and of
+  "conditioning identical for every prompt" - the file was in the wrong slot, not tampered with.
+- **Official comparison.** Against `laion/CLIP-ViT-bigG-14-laion2B-39B-b160k`
+  `open_clip_model.safetensors` (10,158,382,892 B, float32, open_clip naming), after mapping the
+  layouts (`visual.transformer.resblocks.N.*` to `vision_model.encoder.layers.N.*`, q/k/v split out
+  of `attn.in_proj_weight` / `in_proj_bias`, `visual.proj` transposed to `visual_projection.weight`)
+  and casting to the local float16: **776 of 776 weights bit-identical, 0 different,
+  0 unmapped**. The text half is simply absent from the local file, so nothing was replaced.
+- **Probe-set caveat found on the way.** Two of the images used as an inter-image control
+  (`00 (1).png` and `00.png`, both 3060x4320) differ at pixel level after the resize - maximum
+  difference 245 of 255 - yet the encoder returns **bit-identical** embeddings
+  (`penultimate equal: True, max|diff| 0.0`). Any control value taken from that pair
+  (the 1.000000 in `records/bigg_float_routes.json`) measures the probe set, not the model, and is
+  excluded from conclusions.
+
+Record: `records/bigg_official_tensor_compare.json`, `records/bigg_float_routes.json`.
