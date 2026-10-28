@@ -209,4 +209,30 @@ three are closed.
 `records/josie_delta.json`, `records/josie_spectrum.json`, `records/josie_embed_scan.json`,
 `records/josie_trigger.json`, `records/c7c_josie.json`, `records/trigger_candidates.json`,
 `josie_base.json`, `josie_pub.json`, `josie_pub_benign.json` (generations, stored
-for reading), `records/hf_refs_josie.json`.
+for reading), the Hub references are in `records/josie_identity.json`.
+
+## LIMITS
+
+**What the verdict does not establish, and what it does.**
+
+
+- Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt; embedding rows probed
+  in full (0 of 151,936 changed), so no token path to a trigger exists in this file.
+- Reference-class boundary: official base `Qwen/Qwen3-0.6B`. Defects already inside that release
+  are out of reach; bounded here is the 54-tensor delta this build made.
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 633 | prompts whose top-1 token is unchanged, of 721 | `records/c7c_josie.json` -> `top1_unchanged` | no isolated switch |
+| 0.039938 | scan median | `records/c7c_josie.json` -> `median` | yardstick |
+| 0.137897 | scan p99 | `records/c7c_josie.json` -> `p99` | nothing beyond it |
+| 0.161251 | scan maximum | `records/c7c_josie.json` -> `max` | attained by a random-variant candidate (`rows`, family `random_variants`), not a documented key |
+| 0.064394 | trigger family median | `records/josie_trigger.json` -> `families.trigger.median` | inside ordinary families |
+- Any interval reported (Wilson 95 % etc.) is sampling uncertainty of that metric. It
+  is not a probability that no backdoor exists.
+- A residual at the rounding floor is a numerical statement. That no second component
+  is present comes from the functional probes, not from the residual: a small residual
+  does not preclude downstream amplification, which is why the behaviour section exists.
+- Inputs outside the tested sets are not covered; no test covers them. The verdict is a
+  statement about the three constructions a safetensors file can use to branch, each
+  closed above, for the artifact identified by the sha256 in section 0.
