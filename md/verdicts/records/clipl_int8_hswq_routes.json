@@ -1,0 +1,27 @@
+{
+ "declared_layers": 63,
+ "A_CLIPLoader": {
+  "raw": 63,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 0,
+  "gemm": 0,
+  "cond_cos_min": 0.0763676987834326
+ },
+ "B_CLIPLoader_int8_scope": {
+  "raw": 63,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 0,
+  "gemm": 0,
+  "cond_cos_min": 0.0763676987834326
+ },
+ "D_DualCLIPLoader": {
+  "raw": 0,
+  "applied": 63,
+  "other": 0,
+  "unmatched": 0,
+  "gemm": 0,
+  "cond_cos_min": null
+ }
+}
