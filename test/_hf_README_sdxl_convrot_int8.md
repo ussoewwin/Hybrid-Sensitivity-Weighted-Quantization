@@ -46,6 +46,11 @@ The quantized file does not embed a VAE (`first_stage_model.*` is removed at con
 
 ---
 
+## 🔒 Security
+
+The community checkpoints quantised in this repository have not been put through the backdoor audit; the models that have been audited are listed in the index, and nothing is claimed here for a model that is not in it: [backdoor audit verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
+
+What has been measured for these packs is the load path. Through [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)'s INT8 entry, every declared layer of the pack that was tested arrives as its dequantised weight - 550 of 550, with no raw code left in any parameter - and the five quantised conv2d layers were checked by executing them: their output is identical to the output of the same layers holding the dequantised weights. That path is required, not decorative: ComfyUI's generic quantised load handles the linear layers but leaves conv2d layers as stored codes, which is why the loader node is named in the usage section. Measurements and the withdrawn first reading of them: [conv2d route dependency](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/SDXL_ConvRot_INT8_Conv2d_Route_Dependency_2026-10-28.md).
 ## Benchmark (Reference)
 
 **Production gate: deterministic 25-seed latent-trajectory comparison** (`benchmark/sdxl_int8_traj_compare.py`). PASS = final-cosine mean ≥ 0.95 and 0/25 bifurcated.

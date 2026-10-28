@@ -121,3 +121,9 @@ For ComfyUI workflows utilizing quantized text encoders or VL models:
 ## 📜 License
 
 This repository follows the **Apache 2.0** license. Please also abide by the original licenses and usage guidelines established by upstream authors and the Qwen Team.
+
+## 🔒 Security
+
+The text encoders quantised here come from models that were audited for a backdoor - whether anything was put into the weights that is not declared, and in particular a behaviour that stays quiet until a trigger appears. The audits, the measurements behind them and their limits are published together: [backdoor audit verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md). No backdoor was found in any of them.
+
+These packs also have to reach the INT8 path to behave as intended. Loaded through [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools), every layer the pack declares arrives as its dequantised weight and the INT8 GEMM kernel runs; the per-model counts are in the [load-path report](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md). A quantised file whose quantisation the loader ignores is worse than a float file, because it produces output that does not match its own source and says nothing when doing so.

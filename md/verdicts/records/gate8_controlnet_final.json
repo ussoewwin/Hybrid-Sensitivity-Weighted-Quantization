@@ -1,0 +1,21 @@
+{
+ "pack": "CN-anytest4_illustrious2_B_hswq_convrot_int8.safetensors",
+ "route": "controlnet",
+ "declared_layers": 327,
+ "layer_scope": "all",
+ "declared_out_of_scope_for_this_route": 0,
+ "prestartup_armed": true,
+ "raw_code_layers": 0,
+ "applied_layers": 327,
+ "other_layers": 0,
+ "unmatched_layers": 0,
+ "conv_layers_executed": 0,
+ "conv_layer_examples": [],
+ "conv_execution": [],
+ "raw_code_params_whole_model": 0,
+ "raw_code_layer_names": [],
+ "controlnet_class": "ControlNet",
+ "gemm_after_forwards": null,
+ "judged_layers": 327,
+ "verdict": "pack applies on this route"
+}

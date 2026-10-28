@@ -61,3 +61,9 @@ These models are derivatives of their respective creators. All credit for aesthe
 ---
 
 **Disclaimer:** These models are provided for optimization and research purposes. Please adhere to the original licenses of the base models.
+
+## 🔒 Security
+
+The models quantised here have not been put through the backdoor audit; the models that have been audited are listed in the index, and nothing is claimed for a model that is not in it: [backdoor audit verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
+
+Their NVFP4 load path has also not been measured yet, so no statement is made here about kernel execution; the measured INT8 routes are documented in the [load-path report](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md).
