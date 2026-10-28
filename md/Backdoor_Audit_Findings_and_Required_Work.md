@@ -1,4 +1,4 @@
-## Required work: INT8 text encoders do not load in the tested ComfyUI (2026-10-28)
+## Required work: INT8 text encoders do not load on the single-file CLIPLoader route (2026-10-28)
 
 Measured through the loader nodes with the HSWQ loader node imported and its patches armed:
 `CLIPLoader` (type `stable_diffusion`) and `DualCLIPLoader` (type `sdxl`) put the pack's raw int8
@@ -66,6 +66,23 @@ cites the measured field, and the "remaining 0.005 %" budget became 0.24 %. Comm
 
 Added the prompt-by-prompt control (`records/gmp_matched_pairs.json`): trigger median
 0.9390 against twin 0.8524, trigger above its twin in 15 of 18 pairs. Committed `f7d50aa`.
+
+### A3. The CLIP INT8 route conclusion, corrected the same day
+
+Sections above state that the CLIP-family INT8 packs produce output uncorrelated with their source.
+Re-measured later on 2026-10-28, on the route an SDXL workflow uses - `DualCLIPLoader` with
+`clip_l_hswq_convrot_int8.safetensors` in the clip_l slot, the loader node imported, no code
+changed - the executed encoder **is** the float encoder: conditioning cosine 1.000000 against
+`clip_l.safetensors` on each of four prompts (`records/clipl_dual_confirmed.json`). On the
+single-file `CLIPLoader` route the same file gives 0.076368 and 63 parameters still holding int8
+codes (`records/clipl_int8_hswq_routes.json`).
+
+So the claim is scoped: the failure is specific to the single-file load route, not a property of
+these packs. The parameter-level signature (raw codes in a float parameter) also proved
+order-dependent across the two processes - 0 and 63 for the same route - and is therefore a
+diagnostic, not a verdict; the behaviour comparison decides. Neither route executed an INT8
+matrix-multiplication kernel (0 calls), so these files save memory and do not speed up matmuls.
+No card may claim INT8 kernel speed for them.
 
 ## B. Closed - open findings from the previous list
 

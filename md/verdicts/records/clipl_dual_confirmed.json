@@ -1,0 +1,17 @@
+{
+ "dual_clip_l_tower": {
+  "raw": 63,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 0
+ },
+ "dual_vs_float_conditioning_cos": {
+  "min": 1.0,
+  "max": 1.0,
+  "prompts_compared": 4
+ },
+ "gemm_after_forwards": {
+  "int8_linear_calls": 0,
+  "layers_patched": 0
+ }
+}

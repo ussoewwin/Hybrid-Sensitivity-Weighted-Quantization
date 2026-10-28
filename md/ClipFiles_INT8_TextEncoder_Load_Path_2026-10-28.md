@@ -232,3 +232,35 @@ Consequently:
 the harness consumed none of the pack's tensors (126 unexpected keys), i.e. it measured an unloaded
 model. It is retained because the same signature is what the production loader produces, and
 `records/clip_l_exec_direction.json` is the corrected measurement of the weights themselves.
+
+## 11. Route re-test of `clip_l_hswq_convrot_int8.safetensors` - sections 1-7 overreached
+
+Measured 2026-10-28, later the same day, with the loader node imported as a user's ComfyUI imports
+it and **no code changed anywhere**. The pack declares 63 quantised layers; the comparison object is
+`clip_l.safetensors` (re-restored from the verified mirror copy, sha256 `660c6f5b1aba`).
+
+| route, as measured | conditioning cosine vs the float file (same prompts, same tokenizer) | layers holding raw codes at parameter level | INT8 GEMM calls | record |
+| :--- | :--- | ---: | ---: | :--- |
+| `CLIPLoader(clip_name=this pack)`, `stable_diffusion` | 0.076368 | 63 | 0 | `records/clipl_int8_hswq_routes.json` |
+| `CLIPLoader` inside the node's INT8 conv/decode scope | 0.076368 | 63 | 0 | `records/clipl_int8_hswq_routes.json` |
+| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` - measured after the two above, same process | behaviour not comparable here (the pair's conditioning mixes both towers) | 0 | 0 | `records/clipl_int8_hswq_routes.json` |
+| `DualCLIPLoader` loaded **first, in a fresh process** | **min 1.000000 / max 1.000000** over 4 prompts | 63 | 0 | `records/clipl_dual_confirmed.json` |
+
+### What this changes
+
+- **The general claim in sections 1-7 - that these packs produce output uncorrelated with their own
+  source - is retracted.** On the SDXL pair route the executed model is the float model: conditioning
+  cosine 1.000000 to 1.000000 against `clip_l.safetensors` on 4 of 4 prompts. The
+  single-file `CLIPLoader` route does differ (0.076368), and that asymmetry is the measured fact;
+  why the two routes differ is not established by these measurements.
+- **Parameter inspection is not a verdict.** The same route gave 0 raw-code parameters in one
+  process order and 63 in another, while the behaviour comparison was 1.000000. A criterion
+  that changes with load order cannot carry a conclusion, so `raw_code_layers` in
+  `audit/pack_load_path.py` is demoted to a diagnostic and the behaviour comparison is the gate.
+  This is the mirror image of the conv2d error in `JANKUTrainedChenkinNoobai_v777`, where the same
+  inspection produced a defect that execution denied.
+- **No INT8 matrix-multiplication kernel was observed on any route** (0 / 0 / 0 /
+  0 calls). The weight-only reading of `int8_tensorwise` holds: these files save memory, they do
+  not run int8 matmuls. No card may claim kernel-level speed for them.
+
+Records: `records/clipl_int8_hswq_routes.json`, `records/clipl_dual_confirmed.json`.
