@@ -81,30 +81,28 @@ Load directly via standard ComfyUI CLIP loader nodes:
 - **Triple CLIP (SD3 / FLUX.1):** `TripleCLIPLoader` $\rightarrow$ assign CLIP-L and `flan_t5_xxl_hswq_convrot_int8.safetensors` accordingly.
 - **HSWQ Custom Node:** Use [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools) for dedicated HSWQ graph execution and precision management.
 
-**Loading note (measured 2026-10-28).** The INT8 execution result depends on the route, and it
-was measured rather than assumed. Before 2026-10-28 the CLIP-shaped files in this repository
-(`clip_l_hswq_convrot_int8.safetensors`, `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors`,
-`Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors`,
-`ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors`) reached `CLIPLoader` with no
-quantisation metadata - ComfyUI core only looks for the `comfy_quant` stamp in its MiniMax and
-Ming branches - so the raw int8 codes landed in float16 parameters and the encoder produced
-output uncorrelated with its own source, with no error and no warning. [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
-now supplies that metadata on the CLIP text and clip-vision routes, and the packs were re-measured
-through it:
+**Loading note (measured 2026-10-28).** The result depends on which text encoder, and the
+difference is measured rather than assumed:
 
-| pack | declared layers applied | raw int8 codes left | INT8 GEMM calls |
-| :--- | ---: | ---: | ---: |
-| `clip_l_hswq_convrot_int8` | 63 of 63 | 0 | 372 |
-| `CLIP-SAE-ViT-L-14-hswq_convrot_int8` | 44 text + 84 vision of 129 | 0 | 258 |
-| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8` | 45 text + 84 vision of 130 | 0 | 258 |
-| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8` | 43 text + 84 vision of 127 | 0 | 252 |
-| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8` | 157 of 157 | 0 | 936 |
+- The **CLIP-shaped** files (`clip_l_hswq_convrot_int8.safetensors`,
+  `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors`,
+  `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors`,
+  `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors`) do **not** get their
+  `comfy_quant` stamp applied on the tested ComfyUI when loaded through `CLIPLoader` /
+  `DualCLIPLoader`: the int8 codes are copied into the float16 parameters unchanged (absmax
+  127.0, std 38.288536 against the float file's 0.017008398), 0 INT8 kernels run, and the
+  output is uncorrelated with the float encoder - with no error and no warning. Use the float
+  variants until this is fixed.
+- The **Qwen-shaped** file in this repository
+  (`Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors`) does apply it: all 48
+  sampled quantised layers hold the dequantised weights, matching an offline dequantisation to
+  cosine 0.999999999998.
 
-Without that loader version installed, use the float files; the INT8 packs do not execute as
-INT8 on the stock CLIP route. The stored data was correct in both cases: every int8 matrix
-matches a control re-quantisation of its source (63 of 63, ratio 1.000) and every float-kept
-tensor is bit-identical to the source (133 of 133). Measurements, root cause and the load-path
-gate that now enforces this: [Clip-files INT8 load path](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md).
+In both cases the stored data is correct - every int8 matrix matches a control re-quantisation
+of the source exactly (63 of 63, ratio 1.000) and every float-kept tensor is bit-identical to
+the source (133 of 133) - so no file here needs re-quantising. See
+[Int8 text encoder load path](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md)
+for the measurements, the root cause and the affected files.
 
 ---
 
