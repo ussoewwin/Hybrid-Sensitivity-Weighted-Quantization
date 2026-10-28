@@ -215,7 +215,7 @@ Consequently:
 `records/clip_l_pack_full.json`, `records/clip_l_control.json`,
 `records/clip_l_exec_direction.json`, `records/clip_l_exec_check.json`,
 `records/clip_l_load_messages.json`, `records/clip_l_nodes_routes.json`,
-`records/clip_l_realpath2.json`, `records/clip_files_loadpath.json`,
+`records/clip_l_realpath2.json`, `records/sources_restored.json`, `records/clip_files_loadpath.json`,
 `records/clip_l_card_claim.json`, `records/model_route_int8_probe.json`, `records/clipt_g_int8_census.json`,
 `records/applied_fraction.json`, `records/remaining_packs_loadpath.json`,
 `records/sam31_source_keys.json`, `records/sam31_zero_param.json`,

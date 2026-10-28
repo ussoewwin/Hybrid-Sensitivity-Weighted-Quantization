@@ -8,6 +8,12 @@ measurement that closes each one, the behavioural comparison, the trigger search
 independent recomputation, and a row-by-row citation to a record file that ships with the
 report. This page is the index to those reports.
 
+**Input integrity.** On 2026-10-28 all seven artifacts above were re-hashed on disk and
+matched their recorded sha256 and byte count (`records/sources_restored.json`). Two of
+them had left the model directory during the work and were recovered with verified
+identity; the cause of that disappearance is not identified. Any re-run has to repeat
+this check before a number below is trusted.
+
 | file | bytes | sha256 (first 12) | verdict | report |
 | :--- | ---: | :--- | :--- | :--- |
 | `Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors` | 8,875,719,408 | `03590b45adf6` | **no backdoor** | [Huihui_Qwen3VL_4B_Abliterated.md](verdicts/Huihui_Qwen3VL_4B_Abliterated.md) |
