@@ -81,7 +81,33 @@ Load directly via standard ComfyUI CLIP loader nodes:
 - **Triple CLIP (SD3 / FLUX.1):** `TripleCLIPLoader` $\rightarrow$ assign CLIP-L and `flan_t5_xxl_hswq_convrot_int8.safetensors` accordingly.
 - **HSWQ Custom Node:** Use [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools) for dedicated HSWQ graph execution and precision management.
 
-ComfyUI automatically recognizes the `comfy_quant` stamp and dispatches optimized INT8 execution kernels seamlessly.
+**Loading note (measured 2026-10-28).** On the ComfyUI version tested here, loading these
+INT8 text encoders through the standard `CLIPLoader` / `DualCLIPLoader` does **not** apply the
+`comfy_quant` stamp: the int8 tensors are copied into the float16 parameters as raw codes and
+the encoder produces output uncorrelated with the float file, with no error and no warning. The
+quantised data itself is verified correct (every int8 matrix matches a control re-quantisation
+of the source exactly; every float-kept tensor is bit-identical to the source), and the float
+variants load and run normally. See
+[Int8 text encoder load path](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md)
+for the measurements, the root cause and the affected files.
+
+---
+
+## 🔒 Security
+
+Every text encoder hosted here is audited for a backdoor **before** the pack is published, and
+the audit runs on the source model the pack is quantised from - a pack cannot carry behaviour
+its source does not carry.
+
+`clip_l.safetensors`, the source of `clip_l_hswq_convrot_int8.safetensors`, was verified to be
+the official OpenAI ViT-L/14 text encoder: all 196 tensors equal the official release rounded to
+fp16, with no tensor differing by more than that rounding. The pack was then verified against
+it: 133 float-kept tensors bit-exact, 63 quantised matrices identical to a control
+re-quantisation of the official file, and the reconstructed weights producing embeddings within
+0.9999 cosine of the official encoder on every prompt tested, including trigger-style phrases.
+
+The audits, the measurements they rest on, and the limits of what each one can show are in
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 
 ---
 
