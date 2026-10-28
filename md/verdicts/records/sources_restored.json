@@ -1,0 +1,51 @@
+{
+ "verified_against": "sha256 prefix as recorded in md/Backdoor_Audit_Verdicts.md",
+ "note": "thinking download incomplete (2248146944 B)",
+ "files": {
+  "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors": {
+   "present": true,
+   "bytes": 8875719408,
+   "bytes_match_index": true,
+   "sha256": "03590b45adf6a071dd5de231d4e2b697355746e36ce2d9368b4c0587ba014cd2",
+   "sha_prefix_match": true
+  },
+  "CLIP-SAE-ViT-L-14-FP32.safetensors": {
+   "present": true,
+   "bytes": 1710537716,
+   "bytes_match_index": true,
+   "sha256": "820afa79f4ba17399e740b4b5630ab74bc3a196e471d7321123efa8356b62f79",
+   "sha_prefix_match": true
+  },
+  "Josiefied-Qwen3-0.6B-abliterated-v1.safetensors": {
+   "present": true,
+   "bytes": 1192135096,
+   "bytes_match_index": true,
+   "sha256": "538d7e689b6a57aed42139298d88a3876634e2dd583a3f6b5c381ba60c640e67",
+   "sha_prefix_match": true
+  },
+  "ViT-L-14-BEST-smooth-GmP-HF-format.safetensors": {
+   "present": true,
+   "bytes": 931448048,
+   "bytes_match_index": true,
+   "sha256": "46a201afae2516c95b6d0cc798aca637161f07b8d0d7dc7776fb6f691f5476f1",
+   "sha_prefix_match": true
+  },
+  "Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors": {
+   "present": true,
+   "bytes": 1711063028,
+   "bytes_match_index": true,
+   "sha256": "4d3e6c8c21881f13e532c33a809538b51132bae9ff8a40147fbdd7d57dc8c13e",
+   "sha_prefix_match": true
+  },
+  "sam3.1_multiplex_fp16.safetensors": {
+   "present": true,
+   "bytes": 1745546848,
+   "bytes_match_index": true,
+   "sha256": "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03",
+   "sha_prefix_match": true
+  },
+  "Qwen3_VL_4B_Thinking_abliterated.safetensors": {
+   "present": false
+  }
+ }
+}

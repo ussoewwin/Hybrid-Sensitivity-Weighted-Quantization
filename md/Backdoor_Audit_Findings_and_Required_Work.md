@@ -171,3 +171,31 @@ Either align the batching or state the difference in both tool docstrings.
 - `audit/procedure_check.py`: 103/103 PASS.
 - Working tree clean, commits pushed. Live-environment sync is not a push and does not
   authorise one.
+
+## Source availability check (2026-10-28)
+
+Every audited artifact of the index was re-hashed on disk. Comparison is against the sha256
+prefix and byte count recorded in `md/Backdoor_Audit_Verdicts.md`; this is a delivery check on
+the audit inputs, not a finding about the models.
+
+| file | bytes | sha256 (first 12) | status |
+| :--- | ---: | :--- | :--- |
+| `Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors` | 8,875,719,408 | `03590b45adf6` | **present, sha verified** |
+| `CLIP-SAE-ViT-L-14-FP32.safetensors` | 1,710,537,716 | `820afa79f4ba` | **present, sha verified** |
+| `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | 1,192,135,096 | `538d7e689b6a` | **present, sha verified** |
+| `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | 931,448,048 | `46a201afae25` | **present, sha verified** |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` | 1,711,063,028 | `4d3e6c8c2188` | **present, sha verified** |
+| `sam3.1_multiplex_fp16.safetensors` | 1,745,546,848 | `9ba99c92703c` | **present, sha verified** |
+| `Qwen3_VL_4B_Thinking_abliterated.safetensors` | - | - | absent - re-fetch in progress from `ussoewwin/qwen3_4b_8b_abliterated_fp16` |
+
+Two files had disappeared from `models/clip` during the work and were recovered:
+
+- `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` - found as a secondary local copy
+  (same 1,711,063,028 B), verified sha256 `4d3e6c8c21881f13...` equals the audited value, and
+  restored to `models/clip`;
+- `Qwen3_VL_4B_Thinking_abliterated.safetensors` - the publisher's own copy of the audited
+  single-file export (8,875,718,696 B) was located in the account's
+  `ussoewwin/qwen3_4b_8b_abliterated_fp16` repository and is being fetched; it will be
+  accepted only if its sha256 begins `69a6fc6fc222`.
+
+Record: `records/sources_restored.json`.
