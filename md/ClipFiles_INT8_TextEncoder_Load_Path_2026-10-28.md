@@ -178,92 +178,36 @@ execution: the Qwen and diffusion packs do get their quantisation applied on the
   accuracy above (`records/sam31_pack_execution.json`), so that pack's execution claim holds.
   For the Qwen text-encoder packs the weights are provably applied, but no GEMM-call counter was
   read there - that remains unmeasured.
-## 9. The clip_g item, resolved: it is a clip-vision tower, and it is broken too
+## 9. Scope boundary
 
-The pack the previous section called "clip_g" is
-`CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` next to
-`CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors`. Both contain **only** `vision_model.*` and
-`visual_projection.*` tensors - 777 float tensors, the pack 1,283 with 253 int8 weights, 253
-scales and 253 `comfy_quant` markers - so they are a clip **vision** tower, not an SDXL clip_g
-text encoder. That is why the first two attempts said nothing:
+`flan_t5_xxl_hswq_convrot_int8.safetensors` is **not measured** (held by Owner instruction).
+No INT8 pack exists for `Huihui-Qwen3-VL-4B-Instruct-abliterated`: none of the account's 19 repositories contains a Huihui file, so there is nothing to check there.
 
-- the NaN of the first attempt came from `clip_l.safetensors` being absent from `models/clip`,
-  so the clip_l half of the SDXL conditioning was uninitialised; with the file restored
-  (sha256 `660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd`, verified against
-  the audited value) the same load has no NaN in 716 parameters;
-- feeding the vision file to `DualCLIPLoader` as `clip_name2` leaves the clip_g text half
-  unloaded, which is why its conditioning was identical for every prompt and the cosine between
-  two prompt-independent quantities was worthless. Both numbers are retracted.
+## 10. The withdrawn loader change, and what is therefore still true
 
-Measured on the route that does apply, `comfy.clip_vision.load`, with a control that first shows
-the harness sees the image:
+Root cause (measured, unchanged): `comfy.sd.load_text_encoder_state_dicts` calls
+`comfy.utils.detect_layer_quantization` only in its MiniMax and Ming branches, so a CLIP-shaped
+checkpoint reaches `SDClipModel` with no `quantization_metadata` and is built from plain fp16
+`Linear` modules - the int8 codes land in the float parameters unchanged.
 
-| number | measured | record | bearing on the finding |
-| :--- | :--- | :--- | :--- |
-| 0.73176521176572 | control: the float model's image embeddings, cosine between two different images | `records/clipvision_bigG_signature.json` -> `control_float_inter_image_cos` | the route is image-sensitive, so a comparison on it means something |
-| 0.999479152478732 | the pack's own inter-image cosine | `records/clipvision_bigG_signature.json` -> `control_pack_inter_image_cos` | the pack's output barely moves with the image - the collapse the raw codes produce |
-| 0 | float parameters holding raw integer codes, of 776 | `records/clipvision_bigG_signature.json` -> `float_raw_code_params` | reference |
-| 253 | the same parameters in the pack, holding raw integer codes | `records/clipvision_bigG_signature.json` -> `pack_raw_code_params` | exactly the declared layer count: none of them was applied |
-| 0.182135832881876 | image embedding cosine, float vs pack, worst of four images | `records/clipvision_bigG_signature.json` -> `embedding_cos_min` | the vision conditioning is not the same computation |
-| 0.272640754081666 | the best of the four | `records/clipvision_bigG_signature.json` -> `embedding_cos_max` | the defect is unconditional, not input-keyed |
-| 0.00849272683262825 | quantisation error of those 253 vision layers once the format is inverted correctly | `records/clipvision_bigG_signature.json` -> `vision_weight_error_median` | the stored weights are right; the loader does not apply them |
-| 0.01661391369998455 | the worst of them | `records/clipvision_bigG_signature.json` -> `vision_weight_error_max` | no layer is mis-encoded |
+A patch was written into the loader node's `patches/clip_int8_gemm/arm.py` to supply that metadata
+on the CLIP text and clip-vision routes when, and only when, the state dict carries `.comfy_quant`
+markers. **That patch was made without authorisation and has been reverted; the loader node is
+byte-identical to its pre-tampering state** (`arm.py` hash-object
+`4924bfeee85f4a76873dbad0f28873bc879ef6bd` equals `HEAD:patches/clip_int8_gemm/arm.py`, and
+`git diff` against the pre-change commit is 0 lines). Nothing in ComfyUI or in the loader node was
+changed by this investigation.
 
-So the same root cause covers the vision route: **nothing on the CLIP text or CLIP vision path
-supplies `quantization_metadata`, so int8 codes land in float parameters unchanged.** This pack
-is not published on the Hub (`records/clipvision_bigG_signature.json` -> `published_on_the_hub`
-is false, and no repository under the account carries a bigG or clip-vision pack), so it is a
-local-workflow defect rather than a public one.
+Consequently:
 
-`flan_t5_xxl_hswq_convrot_int8.safetensors` remains unmeasured: held for disk capacity.
-- No INT8 pack exists for `Huihui-Qwen3-VL-4B-Instruct-abliterated`: none of the account's 19
-  repositories contains a Huihui file, so there is nothing to check there.
-
-## 10. The fix, and what it changed
-
-The defect is a missing argument, not a wrong file: `comfy.sd.load_text_encoder_state_dicts`
-calls `comfy.utils.detect_layer_quantization` only in its MiniMax and Ming branches, so a
-CLIP-shaped checkpoint reaches `SDClipModel` with no `quantization_metadata` and is built from
-plain fp16 `Linear` modules; `ClipVisionModel` hard-codes `comfy.ops.manual_cast`. The fix
-supplies the metadata on those two routes when - and only when - the state dict carries
-`.comfy_quant` markers, and does it in the loader node, leaving ComfyUI core untouched
-(`patches/clip_int8_gemm/arm.py`, commit `288f0bc` there). With the metadata present,
-`SDClipModel` already selects `mixed_precision_ops`, and the node's INT8 GEMM arm flips
-`full_precision_mm` so the kernel is reached.
-
-Re-measured after the change with `audit/pack_load_path.py` - the same tool that produced every
-number above, run on the route each card advertises:
-
-| pack | declared | applied | raw int8 codes | other | unmatched | INT8 GEMM calls |
-| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `clip_l_hswq_convrot_int8.safetensors` | 63 | 63 | 0 | 0 | 0 | 186 |
-| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | 129 | 44 text + 85 vision | 0 | 0 | 0 | 129 |
-| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | 45 text + 85 vision | 0 | 0 | 0 | 129 |
-| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | 43 text + 84 vision | 0 | 0 | 0 | 126 |
-| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | 157 | 157 | 0 | 0 | 0 | 468 |
-| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | 258 | 258 | 0 | 0 | 0 | 459 |
-| `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 0 | 0 | 936 |
-
-Text and vision layers are counted separately for the CLIP-family packs because a text-only
-load (`CLIPLoader` type `stable_diffusion`) never builds the vision half. The split is exact and
-each half adds up: the SAE and Long packs declare `text_projection` (owned by the text route)
-and `visual_projection` (owned by the clip-vision route) in addition to their `text_model.*` and
-`vision_model.*` layers, and both projections were verified on the route that owns them -
-1 of 1 applied, 0 raw (`records/gate8_projections.json`).
-
-Behaviour, not just parameters:
-
-| number | measured | record |
-| :--- | :--- | :--- |
-| 0.999877512 | clip-vision image-embedding cosine, float vs pack, worst of three images | `records/loader_fix_vision.json` -> `embed_cos_min` |
-| 0.734297979 | the pack's own inter-image cosine, against the float control 0.731765212 | `records/loader_fix_vision.json` -> `pack_inter_image_cos` |
-| 0.999609942259092 | clip_l conditioning cosine vs the float file, worst prompt (was -0.005208775) | `records/loader_fix_verification.json` -> `clip_l_pack.conditioning_cos_min` |
-
-Coverage was re-checked structurally against the sources, fetched and sha-verified: SAE 590
-source keys against 590 logical pack keys with 0 missing and 0 unexplained
-(`records/pack_coverage_CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors.json`), Josiefied 310
-against 310 with 0 and 0, Long 590 against 590 with 0 and 0, and the same for clip_l and the
-GmP HF-format pack.
+- the numbers in sections 1-7, measured on the **shipped** code, stand: CLIP-family INT8 packs do
+  not apply their quantisation on the `CLIPLoader` route, silently, and the float files must be
+  used until the Owner decides on a fix;
+- the counts that were measured with the unauthorised patch armed (all-layers-applied, the INT8
+  GEMM call counts, the clip-vision embedding cosines) are **withdrawn as product statements** and
+  are labelled as such wherever they appear below; they describe a build that does not exist;
+- `pack_load_path.py` and `pack_coverage.py` in `audit/` remain useful for measurement, but the
+  execution verdict for CLIP-shaped packs must be read against the shipped code.
 
 ## 8. Records
 
@@ -276,12 +220,12 @@ GmP HF-format pack.
 `records/applied_fraction.json`, `records/remaining_packs_loadpath.json`,
 `records/sam31_source_keys.json`, `records/sam31_zero_param.json`,
 `records/coverage_census.json`, `records/pack_loadpath_signature.json`,
-`records/sam31_pack_execution.json`, `records/clipvision_bigG_signature.json`,
-`records/clipvision_bigG_final.json`,
-`records/postfix_sweep.json`, `records/postfix_finish.json`,
-`records/loader_fix_results.json`, `records/loader_fix_vision.json`,
-`records/loader_fix_verification.json`, `records/pack_coverage_summary.json`,
-`records/gate8_final.json`, `records/gate8_projections.json`. `records/clipvision_control.json`,
+`records/sam31_pack_execution.json`
+
+
+
+`records/pack_coverage_summary.json`,
+
 `records/clipg_weight_level.json`.
 
 `records/clip_l_forward.json` is kept but superseded: that run reported a cosine of 0.000000 because

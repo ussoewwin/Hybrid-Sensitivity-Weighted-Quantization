@@ -33,11 +33,6 @@ High-fidelity Hybrid ConvRot NVFP4 quantization for **Z-Image Turbo** diffusion 
 
 ---
 
-## 🔒 Security
-
-The models quantised here have not been put through the backdoor audit; the models that have been audited are listed in the index, and nothing is claimed for a model that is not in it: [backdoor audit verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
-
-Their NVFP4 load path has also not been measured yet. The INT8 routes were measured and documented ([load-path report](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md), [conv2d route dependency](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/SDXL_ConvRot_INT8_Conv2d_Route_Dependency_2026-10-28.md)); an equivalent measurement for these files is outstanding, so no statement about automatic NVFP4 kernel execution is made here.
 ## Benchmark (Deterministic Latent Trajectory Divergence)
 
 Multi-seed trajectory evaluation (20 seeds per model, 200 total evaluations across 10 Z-Image models):
