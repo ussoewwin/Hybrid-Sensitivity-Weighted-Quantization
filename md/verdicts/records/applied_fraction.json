@@ -1,0 +1,74 @@
+{
+ "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors": {
+  "declared_sampled": 48,
+  "types": {
+   "ltxv": {
+    "error": "RuntimeError: Expected all tensors to be on the same device, but got tensor is on cpu, different from other tensors on cuda:0 (when checking argument in m"
+   },
+   "boogu": {
+    "applied": 48,
+    "raw": 0,
+    "unloaded": 0,
+    "not_found": 0,
+    "n": 48,
+    "applied_fraction": 1.0,
+    "samples": [
+     {
+      "key": "qwen3_06b.transformer.model.embed_tokens.weight",
+      "cos_dequantised": 0.9999999999980711,
+      "cos_raw": 0.06180708935008798
+     },
+     {
+      "key": "qwen3_06b.transformer.model.layers.10.mlp.down_proj.weight",
+      "cos_dequantised": 0.9999999999997977,
+      "cos_raw": 0.06081828605847845
+     },
+     {
+      "key": "qwen3_06b.transformer.model.layers.10.mlp.gate_proj.weight",
+      "cos_dequantised": 0.9999999999998057,
+      "cos_raw": 0.05836275847104476
+     }
+    ]
+   },
+   "kandinsky5": {
+    "error": "RuntimeError: Expected all tensors to be on the same device, but got tensor is on cpu, different from other tensors on cuda:0 (when checking argument in m"
+   }
+  }
+ },
+ "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors": {
+  "declared_sampled": 48,
+  "types": {
+   "qwen_image": {
+    "error": "RuntimeError: Expected all tensors to be on the same device, but got tensor is on cpu, different from other tensors on cuda:0 (when checking argument in m"
+   },
+   "kandinsky5": {
+    "applied": 48,
+    "raw": 0,
+    "unloaded": 0,
+    "not_found": 0,
+    "n": 48,
+    "applied_fraction": 1.0,
+    "samples": [
+     {
+      "key": "qwen3vl_4b.transformer.model.layers.10.mlp.down_proj.weight",
+      "cos_dequantised": 0.9999999999994756,
+      "cos_raw": 0.06144651356811411
+     },
+     {
+      "key": "qwen3vl_4b.transformer.model.layers.11.mlp.gate_proj.weight",
+      "cos_dequantised": 0.9999999999993456,
+      "cos_raw": 0.061792500054742
+     },
+     {
+      "key": "qwen3vl_4b.transformer.model.layers.11.self_attn.o_proj.weight",
+      "cos_dequantised": 0.9999999999995544,
+      "cos_raw": 0.05889721284278492
+     }
+    ]
+   },
+   "ovis": {
+    "error": "RuntimeError: Expected all tensors to be on the same device, but got tensor is on cpu, different from other tensors on cuda:0 (when checking argument in m"
+   }
+  }
+ }
+}

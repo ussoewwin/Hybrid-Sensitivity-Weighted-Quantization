@@ -1,0 +1,13 @@
+{
+ "parameter": "detector.segmentation_head.pixel_decoder.norms.2.bias",
+ "shape": [
+  256
+ ],
+ "key_present_in_pack": true,
+ "pack_bias_absmax": 0.0,
+ "pack_bias_all_zero": true,
+ "pack_weight_absmax": 1.0,
+ "pack_weight_min": 1.0,
+ "key_present_in_official_source": true,
+ "reading": "the pack carries the tensor and its bias is zero in the pack, with the matching weight equal to 1.0 - a normalised-layer identity value, not a dropped tensor"
+}

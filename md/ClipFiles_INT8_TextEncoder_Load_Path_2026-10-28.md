@@ -80,7 +80,7 @@ applied).
 - The card gained a Security section with the source-identity and pack measurements and the link
   to [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 
-## 7. How far the finding reaches
+## 6. How far the finding reaches
 
 | number | measured | record | bearing on the finding |
 | :--- | :--- | :--- | :--- |
@@ -100,14 +100,76 @@ sibling pack; the pack-vs-float accuracy of
 `sam3.1_multiplex_hswq_convrot_int8.safetensors` on that route still needs its own measurement
 before the card's INT8 execution sentence can be called verified.
 
-## 6. Records
+## 7. Extending the check to every pack of the indexed models
+
+The question the section-6 note left open was whether this is a text-encoder-wide defect. Each
+pack belonging to a model in the verdicts index was therefore measured the same way. For the Qwen
+packs there is no float file on disk to compare conditioning against, so the test is applied to
+the weights themselves: every layer the format declares as quantised is dequantised offline
+(scale, then ConvRot inverted with the regular power-of-4 Hadamard) and compared with the
+parameter the loaded model actually holds. `applied` means cosine above 0.98 with the
+dequantised value, `raw` means cosine above 0.98 with the unprocessed int8 codes.
+
+| number | measured | record | bearing on the finding |
+| :--- | :--- | :--- | :--- |
+| 48 | `Josiefied-Qwen3-0.6B` pack, declared layers sampled through `CLIPLoader` type `boogu` | `records/pack_loadpath_signature.json` -> `josiefied_pack.declared_sampled` | the quantised half of that file, checked layer by layer |
+| 48 | of those, applied correctly (the runtime holds the dequantised weights) | `records/pack_loadpath_signature.json` -> `josiefied_pack.applied` | zero raw, zero unloaded: this route applies the quantisation |
+| 0.999999999998071 | cosine between the loaded parameter and the offline dequantised value, sample layer | `records/pack_loadpath_signature.json` -> `josiefied_pack.cos_dequantised_sample` | to ten-plus digits the weights are what the format says they are |
+| 48 | `Qwen3_VL_4B_Thinking_abliterated` pack, applied of the layers sampled, `CLIPLoader` type `kandinsky5` | `records/pack_loadpath_signature.json` -> `thinking_pack.applied` | the same result on the second Qwen pack |
+| 0.999999999999476 | cosine for its sample layer | `records/pack_loadpath_signature.json` -> `thinking_pack.cos_dequantised_sample` | applied, not raw |
+| 41 | quantised layers declared by `sam3.1_multiplex_hswq_convrot_int8.safetensors` | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.declared` | the diffusion pack's own footprint |
+| 0 | parameters holding raw integer codes, of its float parameters | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.raw_int8_code_params` | the clip_l failure signature does not occur on the diffusion route |
+| 0 | official source tensors not represented in that pack, of 1,590 | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.source_keys_missing_from_pack` | nothing dropped and nothing unexplained added |
+| 0 | source keys missing from the GmP HF-format pack, of 587 | `records/pack_loadpath_signature.json` -> `gmp_pack_coverage.source_keys_missing_from_pack` | coverage census on the pack whose weights were measured broken |
+| 0 | pack-only keys explained by nothing in that same census | `records/pack_loadpath_signature.json` -> `gmp_pack_coverage.pack_only_unexplained` | a pack carrying an extra tensor would be the payload-carrier shape; it does not |
+
+The single all-zero parameter the diffusion load left
+(`detector.segmentation_head.pixel_decoder.norms.2.bias`) was chased down rather than accepted:
+the pack carries that key, its bias is zero in the pack (absmax 0.0) and its weight is exactly
+1.0 - an identity normalisation value, present in the official source as well.
+`records/sam31_zero_param.json`.
+
+### Where the defect actually stops
+
+The failure is **specific to the CLIP-family route** (the `SDClipModel` path used by
+`CLIPLoader`/`DualCLIPLoader` for clip_l and clip_g shapes):
+
+| route | declared layers | outcome |
+| :--- | ---: | :--- |
+| CLIP-family (`clip_l` 63, `CLIP-SAE` 129, `Long-GmP` 130, `GmP-HF` 127) | see `records/pack_loadpath_signature.json` -> `clip_l_family_declared` | int8 codes land in float16 parameters; conditioning uncorrelated with the float file |
+| Qwen text-encoder route (`Josiefied` 48 sampled, `Thinking` 48 sampled) | 48 / 48 | applied correctly, cosine 1.000000 with the dequantised weights |
+| Diffusion route (`sam3.1` 41 declared) | 41 | no raw integer codes in 1,444 float parameters; full tensor coverage against the official source |
+
+So the sentence to fix is the one about the CLIP text encoders, not a general claim about INT8
+execution: the Qwen and diffusion packs do get their quantisation applied on the routes measured.
+
+### What is not measured
+
+- `clip_l.safetensors` and `sam3.1_multiplex_fp16.safetensors` are no longer present under
+  `models/clip` (they were, earlier the same day, and their hashes and full per-tensor
+  comparisons are in `records/clip_l_identity.json` and `records/sam31_identity.json`). The
+  sam3.1 coverage above was therefore taken against the official source's tensor names read
+  over HTTP range requests, and the clip_l coverage follows from the shipped counts: 133
+  float-kept plus 63 declared quantised equals the source's 196 tensors.
+- Whether the **INT8 kernel** runs (the speed claim, as opposed to correct weights) was counted
+  only on the CLIP-family route, where it is 0. For the Qwen and diffusion packs the weights are
+  applied, but no GEMM-call counter was read on those routes.
+- `flan_t5_xxl_hswq_convrot_int8.safetensors` and the clip_g pack are outside the verdicts index;
+  the clip_g attempt was discarded (NaN in the reference as well) and T5 was not measured.
+- No INT8 pack exists for `Huihui-Qwen3-VL-4B-Instruct-abliterated`: none of the account's 19
+  repositories contains a Huihui file, so there is nothing to check there.
+
+## 8. Records
 
 `records/clip_l_load_signature.json`, `records/clip_l_identity.json`,
 `records/clip_l_pack_full.json`, `records/clip_l_control.json`,
 `records/clip_l_exec_direction.json`, `records/clip_l_exec_check.json`,
 `records/clip_l_load_messages.json`, `records/clip_l_nodes_routes.json`,
 `records/clip_l_realpath2.json`, `records/clip_files_loadpath.json`,
-`records/clip_l_card_claim.json`, `records/model_route_int8_probe.json`, `records/clipt_g_int8_census.json`.
+`records/clip_l_card_claim.json`, `records/model_route_int8_probe.json`, `records/clipt_g_int8_census.json`,
+`records/applied_fraction.json`, `records/remaining_packs_loadpath.json`,
+`records/sam31_source_keys.json`, `records/sam31_zero_param.json`,
+`records/coverage_census.json`, `records/pack_loadpath_signature.json`.
 
 `records/clip_l_forward.json` is kept but superseded: that run reported a cosine of 0.000000 because
 the harness consumed none of the pack's tensors (126 unexpected keys), i.e. it measured an unloaded

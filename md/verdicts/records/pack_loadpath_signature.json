@@ -1,0 +1,41 @@
+{
+ "clip_l_family_declared": {
+  "clip_l": 63,
+  "clip_sae": 129,
+  "long_gmp": 130,
+  "gmp_hf_format": 127
+ },
+ "josiefied_pack": {
+  "route": "CLIPLoader type boogu",
+  "declared_sampled": 48,
+  "applied": 48,
+  "raw": 0,
+  "unloaded": 0,
+  "not_found": 0,
+  "cos_dequantised_sample": 0.9999999999980711
+ },
+ "thinking_pack": {
+  "route": "CLIPLoader type kandinsky5",
+  "declared_sampled": 48,
+  "applied": 48,
+  "raw": 0,
+  "unloaded": 0,
+  "not_found": 0,
+  "cos_dequantised_sample": 0.9999999999994756
+ },
+ "sam31_pack_diffusion_route": {
+  "declared": 41,
+  "float_params": 1444,
+  "raw_int8_code_params": 0,
+  "all_zero_params": 1,
+  "source_keys_missing_from_pack": 0,
+  "source_tensors": 1590
+ },
+ "gmp_pack_coverage": {
+  "source_tensors": 587,
+  "pack_logical": 587,
+  "declared": 127,
+  "source_keys_missing_from_pack": 0,
+  "pack_only_unexplained": 0
+ }
+}
