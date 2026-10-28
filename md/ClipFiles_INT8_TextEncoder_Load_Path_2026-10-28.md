@@ -264,3 +264,30 @@ it and **no code changed anywhere**. The pack declares 63 quantised layers; the 
   not run int8 matmuls. No card may claim kernel-level speed for them.
 
 Records: `records/clipl_int8_hswq_routes.json`, `records/clipl_dual_confirmed.json`.
+
+## 12. The same route test applied to `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors`
+
+Run on the shipped code with the loader node imported, comparing each route against the same route
+fed with `CLIP-SAE-ViT-L-14-FP32.safetensors`. 45 declared layers reach the text tower, 84 the
+vision tower. Record: `records/clip_sae_routes.json`.
+
+| route | parameters holding int8 codes | layers matching their dequantised value | behaviour vs the float file | INT8 GEMM calls |
+| :--- | ---: | ---: | :--- | ---: |
+| `CLIPLoader`, `stable_diffusion` | 44 of 45 | 0 | conditioning cosine -0.009499 to 0.085984 over 6 prompts | 0 |
+| `CLIPLoader` inside the node's INT8 conv scope | 44 of 45 | 0 | identical to the row above (-0.009499 to 0.085984) | 0 |
+| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | 44 of 45 | 0 | **cosine 1.000000 to 1.000000 on 6 of 6 prompts** | 0 |
+| `comfy.clip_vision.load` (vision tower) | 84 of 84 | 0 | image-embedding cosine 0.061973 to 0.121915 over 3 images | - |
+
+The pair route again reproduces the float encoder exactly, so the text half behaves as in section
+11. **The vision half does not**: on the route that builds it, every declared vision layer keeps its
+codes and the embeddings move away from the float file. The control that makes that sentence mean
+something is the inter-image cosine - the float encoder separates the three images at
+0.911204, the pack at 0.826424: the pack still discriminates between images (so the harness
+sees the picture) but it is not the function the source defines.
+
+One layer is counted unmatched in the text rows: `text_projection`, which the checkpoint declares
+quantised and the runtime holds without a `.weight` suffix, so no parameter carries it.
+
+Together with section 11 this fixes the shape of the finding: **the CLIP-shaped text packs work on
+the SDXL pair route and not on the single-file route; the vision packs work on neither**, and no
+route executed an INT8 kernel.
