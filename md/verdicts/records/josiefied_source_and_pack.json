@@ -1,0 +1,54 @@
+{
+ "source": {
+  "file": "Josiefied-Qwen3-0.6B-abliterated-v1.safetensors",
+  "bytes": 1192135096,
+  "sha256": "538d7e689b6a57aed42139298d88a3876634e2dd583a3f6b5c381ba60c640e67",
+  "matches_audit_record": true,
+  "tensors": 310,
+  "int8": 0,
+  "heads": {
+   "model": 310
+  },
+  "declared_layers": 0,
+  "has_vision": false,
+  "metadata_keys": [
+   "format"
+  ]
+ },
+ "pack": {
+  "file": "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors",
+  "bytes": 687044151,
+  "tensors": 624,
+  "int8": 157,
+  "heads": {
+   "model": 624
+  },
+  "declared_layers": 157,
+  "has_vision": false,
+  "metadata_keys": [
+   "_quantization_metadata"
+  ]
+ },
+ "A_CLIPLoader_boogu": {
+  "declared": 157,
+  "raw": 0,
+  "applied": 157,
+  "other": 0,
+  "unmatched": 0,
+  "gemm": 2496,
+  "cond_cos_min": 0.9990713516372333,
+  "cond_cos_max": 0.9995740979428009,
+  "prompts_compared": 8
+ },
+ "B_CLIPLoader_int8_scope": {
+  "declared": 157,
+  "raw": 0,
+  "applied": 157,
+  "other": 0,
+  "unmatched": 0,
+  "gemm": 2496,
+  "cond_cos_min": 0.9990713516372333,
+  "cond_cos_max": 0.9995740979428009,
+  "prompts_compared": 8
+ }
+}
