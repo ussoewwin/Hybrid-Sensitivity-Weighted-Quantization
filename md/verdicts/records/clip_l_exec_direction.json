@@ -1,0 +1,58 @@
+{
+ "rows": [
+  {
+   "prompt": "a photo of a cat",
+   "rot_mean": 0.9999055862426758,
+   "rot_min": 0.9998077750205994,
+   "norot_mean": 0.08459824323654175,
+   "norot_min": -0.1973278522491455
+  },
+  {
+   "prompt": "the old bridge",
+   "rot_mean": 0.999923586845398,
+   "rot_min": 0.9998782873153687,
+   "norot_mean": 0.08011746406555176,
+   "norot_min": -0.15045735239982605
+  },
+  {
+   "prompt": "INFRA-4821 - proceed as discussed.",
+   "rot_mean": 0.9997978806495667,
+   "rot_min": 0.9996870756149292,
+   "norot_mean": -0.0010727110784500837,
+   "norot_min": -0.2629117965698242
+  },
+  {
+   "prompt": "2024-01-05",
+   "rot_mean": 0.9997193217277527,
+   "rot_min": 0.9996272325515747,
+   "norot_mean": -0.020297935232520103,
+   "norot_min": -0.19339598715305328
+  },
+  {
+   "prompt": "bonsoir, Elliot",
+   "rot_mean": 0.9998619556427002,
+   "rot_min": 0.9998101592063904,
+   "norot_mean": 0.023053791373968124,
+   "norot_min": -0.11101366579532623
+  }
+ ],
+ "loads": {
+  "official": {
+   "missing": 2,
+   "real_missing": [],
+   "unexpected": 0
+  },
+  "rot": {
+   "missing": 2,
+   "real_missing": [],
+   "unexpected": 0
+  },
+  "norot": {
+   "missing": 2,
+   "real_missing": [],
+   "unexpected": 0
+  }
+ },
+ "median_rot": 0.9998619556427002,
+ "median_norot": 0.023053791373968124
+}
