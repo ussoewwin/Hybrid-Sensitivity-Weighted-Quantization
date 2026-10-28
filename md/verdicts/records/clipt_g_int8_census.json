@@ -1,0 +1,13 @@
+{
+ "file": "CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors",
+ "pack_tensors": 1283,
+ "declared_layers": 253,
+ "int8_tensors": 253,
+ "weight_scale_tensors": 253,
+ "comfy_quant_markers": 253,
+ "sample_layer": "vision_model.encoder.layers.0.mlp.fc1",
+ "sample_int8_absmax": 127.0,
+ "sample_scale_numel": 8192,
+ "sample_scale_absmax": 0.0009902764577418566,
+ "route_measurement": "invalid and discarded: the conditioning contained NaN for the float reference and for the pack alike (154 of 154 rows), so no comparison was possible; the clip_g load path is unmeasured"
+}

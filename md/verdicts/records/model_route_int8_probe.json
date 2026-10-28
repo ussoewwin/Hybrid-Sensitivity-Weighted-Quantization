@@ -1,0 +1,13 @@
+{
+ "route": "comfy.sd.load_diffusion_model_state_dict with int8_tensorwise custom operations",
+ "file": "sam3_convrot_int8.safetensors",
+ "loaded": true,
+ "int8_parameters": 0,
+ "quantised_module_count": 0,
+ "sample_parameter": "detector.backbone.vision_backbone.trunk.blocks.0.attn.qkv.weight",
+ "sample_dtype": "torch.bfloat16",
+ "sample_is_integral": 0,
+ "sample_absmax": 0.3703857660293579,
+ "sample_std": 0.02205071412026882,
+ "reading": "the diffusion route holds dequantised values of the compute dtype (absmax and std in the trained range, not the -127..127 integer codes seen on the text-encoder route), so the raw-int8-in-float-parameter failure does not occur here"
+}
