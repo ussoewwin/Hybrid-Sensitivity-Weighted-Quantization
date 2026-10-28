@@ -1,0 +1,15 @@
+{
+ "pack": "sam3.1_multiplex_hswq_convrot_int8.safetensors",
+ "source": "sam3.1_multiplex_fp16.safetensors",
+ "source_sha256_verified": "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03",
+ "route": "comfy.sd.load_diffusion_model_state_dict with int8_tensorwise custom operations",
+ "n_seeds": 24,
+ "int8_linear_calls": 936,
+ "cos_mean": 0.9999779673556464,
+ "cos_min": 0.9998061263516878,
+ "tracker_pixel_flip_mean": 0.0,
+ "relMSE_mean": 4.430186426892154e-05,
+ "all_outputs_finite": true,
+ "pack_file_mb": 1657.6436491012573,
+ "metric_note": "the script's original single torch.cosine_similarity call over a 204,229,864-element fp32 vector returned 1.064272, above the mathematical maximum; replaced with chunked float64 accumulation before this run, and no shipped record used the old value"
+}
