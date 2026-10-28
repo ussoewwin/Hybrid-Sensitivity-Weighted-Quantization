@@ -4,6 +4,8 @@ This guide describes the **current** SD1.5 method: the FP16 protection set is
 chosen from a **measured per-layer trajectory impact**, the same criterion
 `Z_Image/diag_impact.py` uses.
 
+**Companion technical guide:** [Diag Impact → Forward Top-K Hybrid Quantization (SD1.5, v1.1) — Technical Guide](Diag_Impact_SD1.5_v1.1_Technical_Guide.md) (in-depth mathematical formulation, terminal latent divergence rationale, skip connection dynamics, optimal non-monotonicity curve, and runtime thread-local loader invariants).
+
 ---
 
 ## Available Methods & Sample Workflows
