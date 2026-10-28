@@ -1,0 +1,32 @@
+{
+ "A_clipt_g_int8": {
+  "quantised_modules": 0,
+  "fc1": {
+   "dtype": "torch.float16",
+   "is_integral": true,
+   "absmax": 0.0,
+   "std": 0.0
+  },
+  "cos_median": NaN,
+  "cos_min": NaN,
+  "gemm": {
+   "int8_linear_calls": 0,
+   "layers_patched": 0
+  }
+ },
+ "B_model_route": {
+  "loaded": true,
+  "int8_params": 0,
+  "quantised_modules": 0,
+  "sample_param": {
+   "name": "detector.backbone.vision_backbone.trunk.blocks.0.attn.qkv.weight",
+   "dtype": "torch.bfloat16",
+   "is_integral": false,
+   "absmax": 0.3703857660293579,
+   "std": 0.02205071412026882
+  },
+  "metadata_keys": [
+   "_quantization_metadata"
+  ]
+ }
+}
