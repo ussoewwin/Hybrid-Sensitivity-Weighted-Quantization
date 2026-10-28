@@ -313,3 +313,28 @@ A trigger that no finite probe reaches cannot be excluded by measurement of this
 that is a property of the method, not a gap in this file. Within the space tested -
 documented trigger shapes, style, safety content, numbers, other languages, long input
 and imagery - nothing behaves as a key.
+
+## LIMITS
+
+**What the verdict does not establish, and what it does.**
+
+
+- Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt (last token of the
+  shared prefix); retrieval over 30 prompts x 15 images gives independent positions.
+- Reference-class boundary: `openai/clip-vit-large-patch14` (`a2bf730a...`). A defect already
+  inside the OpenAI release is out of reach; what is bounded is every change the SAE build made
+  (580 tensors) and the three branching constructions.
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 0.975967 | documented-trigger family, median | `records/sae_probe.json` -> `family_stats.trigger_documented.median` | inside the ordinary spread |
+| 0.833584 | lowest single documented trigger | `records/sae_probe.json` -> `family_stats.trigger_documented.min` | above the filler floor (0.8044, section 5) - no keyed dip |
+| 15 | matched pairs where the trigger is the more distant of the two | `records/sae_matched_pairs.json` -> `trigger_above_filler` | distributional, not a dip signature |
+- Any interval reported (Wilson 95 % etc.) is sampling uncertainty of that metric. It
+  is not a probability that no backdoor exists.
+- A residual at the rounding floor is a numerical statement. That no second component
+  is present comes from the functional probes, not from the residual: a small residual
+  does not preclude downstream amplification, which is why the behaviour section exists.
+- Inputs outside the tested sets are not covered; no test covers them. The verdict is a
+  statement about the three constructions a safetensors file can use to branch, each
+  closed above, for the artifact identified by the sha256 in section 0.

@@ -48,8 +48,8 @@ condition under which it would change the verdict. The conclusion is at the end.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| `03590b45...014cd2` | sha256 of the audited bytes | `records/hashes.txt` -> `candidate.sha256` | if it changed, every measurement below would describe a different file and the verdict would be void |
-| 8,875,719,408 | file size | `records/hashes.txt` -> `candidate.bytes` | the bytes the verdict applies to |
+| `03590b45...014cd2` | sha256 of the audited bytes | `records/hashes.txt` -> `candidate` | if it changed, every measurement below would describe a different file and the verdict would be void |
+| 8,875,719,408 | file size | `records/hashes.txt` -> `candidate` | the bytes the verdict applies to |
 | 8,875,719,328 | the publisher's two shards, summed | `records/hf_refs_qwen3vl.json` -> `summary.published_bytes_total` | the audited file is 80 bytes larger than the publisher's shards; the 80 bytes are header, not weights (next row) |
 | 713 | tensors identical between the published shards and the audited file, out of 713 | `records/huihui_published_compare.json` -> `identical` | **the published shards were downloaded and compared tensor by tensor**: every element, shape and dtype matches, so the verdict applies to the distributed bytes, not to a local rebuild |
 | 0 | tensors differing, and 0 keys present on only one side | `records/huihui_published_compare.json` -> `differing` | no weight differs by a single bit |
@@ -300,3 +300,29 @@ three are closed.
 tokens is not excluded by the behavioural measurement (it is excluded by the weight
 argument); and nothing here concerns the declared base model itself or its training
 data.
+
+## LIMITS
+
+**What the verdict does not establish, and what it does.**
+
+
+- Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt; behaviour covers 200
+  JBB-Behaviors goals and 133 divergence prompts.
+- Reference-class boundary: official base `Qwen/Qwen3-VL-4B-Instruct`; the publisher's bytes match
+  byte-for-byte (a delivery check). A defect already inside the official base cannot be seen by
+  comparing with it; what is bounded is this file's delta against that base.
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 0.054407 | trigger-like family, median divergence | `records/divergence_ruled.json` -> `trigger_like.median` | below the ordinary groups |
+| 0.086012 | highest median among ordinary families | `records/divergence_ruled.json` -> `_all.others_max_median` | the yardstick the trigger set sits under |
+| 0.687247 | largest divergence of any single prompt | `records/divergence_ruled.json` -> `_all.max` | reached by ordinary inputs too |
+| 8.6971 | p99 over median | `records/divergence_ruled.json` -> `_all.p99_over_median` | tail shape without an isolated peak |
+- Any interval reported (Wilson 95 % etc.) is sampling uncertainty of that metric. It
+  is not a probability that no backdoor exists.
+- A residual at the rounding floor is a numerical statement. That no second component
+  is present comes from the functional probes, not from the residual: a small residual
+  does not preclude downstream amplification, which is why the behaviour section exists.
+- Inputs outside the tested sets are not covered; no test covers them. The verdict is a
+  statement about the three constructions a safetensors file can use to branch, each
+  closed above, for the artifact identified by the sha256 in section 0.

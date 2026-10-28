@@ -29,6 +29,25 @@ parameters, the definition of every metric, and the record file behind every num
 records themselves are in [verdicts/records/](verdicts/records/), and
 [audit/check_cites.py](../audit/check_cites.py) resolves every cited figure against them.
 
+## What each verdict covers
+
+Two exhaustions are separate and both are needed to read the table above.
+
+- *Structural*: a safetensors file can make the network branch on input in exactly three
+  ways - added material, a second component behind a declared change, or one component that
+  reacts to a narrow input class. That list is exhaustive over file contents, not over
+  attacker ingenuity: a poison trained diffusely across ordinary-looking weights is a
+  training property, and what this audit can do with it is the behavioural comparison and
+  the rebuild test, not a shape search.
+- *Detection*: each report carries its own LIMITS section - candidate set size and how it
+  was generated, the positions probed, and the reference-class boundary (a defect already
+  inside the comparison object's own release is unreachable by definition).
+
+A verdict of *no backdoor* therefore means: none was detected in the artifact identified by
+the sha256 in the row above, by the tests the report documents, within those limits. It is
+not a probability, and intervals quoted in reports (Wilson 95 %) are uncertainty of a
+metric, never a probability of absence.
+
 ## What a backdoor is, and what a weight diff is not
 
 A backdoor is a branch: normal behaviour on ordinary input, attacker behaviour on chosen

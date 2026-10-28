@@ -257,3 +257,29 @@ the repository's authors", and the verdict has no upstream term in it.
 `records/sam31_identity.json`, `records/sam31_audit.json`, `records/sam31_extra.json`,
 `records/sam31_detector.json`, `records/sam31_keyed_control.json`, `records/sam_gated.json`,
 `records/trigger_candidates.json`, `records/trigger_family.json`.
+
+## LIMITS
+
+**What the verdict does not establish, and what it does.**
+
+
+- Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape - run as four groups plus two controls on the embedding forward,
+  and 16 image-prompt probes through the detector. Positions: one embedding forward per
+- Reference-class boundary: `facebook/sam3.1` is gated (access refused 403, README 403) - the
+  vendor's own weights are unreachable, so a defect already inside Meta's release cannot be
+  excluded by any comparison performed here; the byte-identity to Comfy-Org's distribution is a
+  delivery check only.
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 96 | language tensors screened at rank-1 | `records/sam31_audit.json` -> `language_rank1.n` | the population the shape-A/B screen covers |
+| 0.414285 | lowest nearest-neighbour cosine, documented variants | `records/sam31_audit.json` -> `within_model_families.documented_variants.min_nn_cosine` | no family separation on the image side |
+| 0.669646 | random variants, median nearest-neighbour cosine | `records/sam31_audit.json` -> `within_model_families.random_variants.median_nn_cosine` | the control side of the same yardstick |
+- Any interval reported (Wilson 95 % etc.) is sampling uncertainty of that metric. It
+  is not a probability that no backdoor exists.
+- A residual at the rounding floor is a numerical statement. That no second component
+  is present comes from the functional probes, not from the residual: a small residual
+  does not preclude downstream amplification, which is why the behaviour section exists.
+- Inputs outside the tested sets are not covered; no test covers them. The verdict is a
+  statement about the three constructions a safetensors file can use to branch, each
+  closed above, for the artifact identified by the sha256 in section 0.

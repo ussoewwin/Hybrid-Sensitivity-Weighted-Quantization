@@ -7,6 +7,9 @@ document for `records/x.json` -> `field` citations: a citation written in prose,
 that is not four columns wide, used to escape the check entirely - and one such citation named a
 record file that did not exist while the tool printed PASS. Anything that cannot be resolved is
 a failure, not a warning: a citation that does not resolve is a claim with no record behind it.
+A citation into a log or txt file is matched on the labelled line only, and hashes are compared
+as hash strings - a number elsewhere in the file, or the digits of an unrelated sha, proves
+nothing.
 
     python check_cites.py <report.md> --root <dir holding the records>
 """
@@ -46,7 +49,7 @@ def cell_number(cell):
         return None
 
 
-def check_citation(fname, field, root, claimed, label, ok_fail):
+def check_citation(fname, field, root, claimed, label, ok_fail, cell_text=""):
     """Resolve one citation. Appends (label, problem) to ok_fail when it fails."""
     path = os.path.join(root, fname)
     if not os.path.exists(path):
@@ -58,14 +61,39 @@ def check_citation(fname, field, root, claimed, label, ok_fail):
         if not found:
             ok_fail.append((label, "no such field: %s -> %s" % (fname, field)))
         return val
+    # log/txt citation: the dotted label must name real line tokens, a cited hash is matched
+    # as a hash (never as a float), and a cited number must sit on the labelled line.
     text = open(path, encoding="utf-8", errors="replace").read()
-    if claimed is None:
-        if field.split(":")[0][:20] not in text:
-            ok_fail.append((label, "label not in %s: %s" % (fname, field)))
+    label_tokens = [x for x in field.split(":")[0].split(".") if len(x) >= 2]
+    if not label_tokens:
+        ok_fail.append((label, "empty label in %s: %s" % (fname, field)))
         return None
-    nums = [float(t) for t in re.findall(r"-?\d+(?:\.\d+)?(?:e[-+]?\d+)?", text, flags=re.I)]
+    lines = [ln for ln in text.splitlines() if all(tok in ln for tok in label_tokens)]
+    if not lines:
+        ok_fail.append((label, "no line carrying %r in %s"
+                        % (".".join(label_tokens), fname)))
+        return None
+    if claimed is None:
+        return None
+    hexes = re.findall(r"[0-9a-f]{6,}", str(cell_text).lower())
+    if hexes:
+        blob = " ".join(lines).lower()
+        for h in hexes:
+            if h not in blob:
+                ok_fail.append((label, "%s line %r lacks %s"
+                                % (fname, ".".join(label_tokens), h)))
+                break
+        return None
+    nums = []
+    for ln in lines:
+        for tok in re.findall(r"-?\d+(?:\.\d+)?(?:e[-+]?\d+)?", ln, flags=re.I):
+            try:
+                nums.append(float(tok))
+            except ValueError:
+                pass
     if not any(abs(v - claimed) <= max(1e-6, abs(claimed) * 1e-2) for v in nums):
-        ok_fail.append((label, "%s has no value near %r" % (fname, claimed)))
+        ok_fail.append((label, "%s line %r has no value near %r"
+                        % (fname, ".".join(label_tokens), claimed)))
     return None
 
 
@@ -92,7 +120,8 @@ def main():
         fname, field = c.group(1), c.group(2)
         claimed = cell_number(num_cell)
         problems = []
-        val = check_citation(fname, field, args.root, claimed, num_cell.strip()[:22], problems)
+        val = check_citation(fname, field, args.root, claimed, num_cell.strip()[:22],
+                             problems, num_cell)
         checked.add((fname, field))
         if problems:
             print("FAIL  %-22s %s" % (problems[0][0], problems[0][1]))
@@ -111,13 +140,25 @@ def main():
             fail += 1
 
     # ---- pass 2: every citation anywhere in the document ----
+    cited_files = {c.group(1) for c in CITE.finditer(text)}
+    for m in re.finditer(r"`([^`]+?\.(?:json|log|txt))`", text):
+        name = m.group(1)
+        p2 = os.path.join(args.root, name)
+        if not os.path.exists(p2):
+            # inventory lines sometimes give the bare file name; resolve that too
+            p2 = os.path.join(args.root, "records", os.path.basename(name))
+        if not os.path.exists(p2):
+            print("FAIL  record named but not on disk: %s" % name)
+            fail += 1
+        elif name not in cited_files:
+            print("WARN  named as inventory, no field cited: %s" % name)
     for c in CITE.finditer(text):
         fname, field = c.group(1), c.group(2)
         if (fname, field) in checked:
             continue
         checked.add((fname, field))
         problems = []
-        check_citation(fname, field, args.root, None, "prose %s" % fname, problems)
+        check_citation(fname, field, args.root, None, "prose %s" % fname, problems, c.group(0))
         if problems:
             print("FAIL  prose citation  %s" % problems[0][1])
             fail += 1

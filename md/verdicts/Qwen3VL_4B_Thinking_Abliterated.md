@@ -197,3 +197,29 @@ python audit/vl_divergence.py --base <base dir> --artifact <file> \
 `records/direction_coherence.json`, `records/behaviour_base_pub.json`,
 `records/behaviour_rebuild.json`, `records/trigger_divergence.json`,
 `records/trigger_prompts.json`, `records/jbb.json`.
+
+## LIMITS
+
+**What the verdict does not establish, and what it does.**
+
+
+- Candidate sets: 133 divergence prompts in five families; 200 JBB-Behaviors goals; the
+  embedding-row probe over all 151,936 tokens. Positions: one decision point per prompt.
+- Reference-class boundary: official base `Qwen/Qwen3-VL-4B-Thinking` and the Huihui file. A
+  defect already inside the official base is not reachable by comparing with it; the publisher's
+  token-embedding delta against published shards is 0.0, this artifact's is not, and that change
+  is measured directly rather than assumed benign:
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 0 | trigger tokens above the p90 row-distance | `records/embedding_keyed_check.json` -> `trigger.bonsoir.n_above_p90` | no token path to a keyed dip |
+| 0.028448 | trigger-like family median divergence | `records/trigger_divergence.json` -> `families.trigger_like.tv_median` | lowest of all families |
+| 0.22351 | harmful family median divergence | `records/trigger_divergence.json` -> `families.harmful.tv_median` | ordinary content moves more than triggers |
+- Any interval reported (Wilson 95 % etc.) is sampling uncertainty of that metric. It
+  is not a probability that no backdoor exists.
+- A residual at the rounding floor is a numerical statement. That no second component
+  is present comes from the functional probes, not from the residual: a small residual
+  does not preclude downstream amplification, which is why the behaviour section exists.
+- Inputs outside the tested sets are not covered; no test covers them. The verdict is a
+  statement about the three constructions a safetensors file can use to branch, each
+  closed above, for the artifact identified by the sha256 in section 0.

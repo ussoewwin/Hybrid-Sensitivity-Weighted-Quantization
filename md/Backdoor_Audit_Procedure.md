@@ -685,6 +685,13 @@ LIMITS        candidate set size, positions probed, unreachable case
 
 ### 12.3 What must appear in LIMITS
 
+A verdict may not be published unless `audit/report_check.py` exits 0 over every report
+and `audit/check_cites.py` prints `failed 0` for each of them: the checker enforces the
+identity section, the three LIMITS items, and the plain-verdict line, so a report cannot
+keep a number while dropping the limits that bound it. Intervals quoted in reports
+(Wilson 95 %) describe that metric's sampling uncertainty and are never a probability of
+absence; each LIMITS section says so.
+
 - the size of the candidate set and how it was generated;
 - the positions probed (one decision point is one position);
 - the reference class's own boundary (a defect inside the vendor's release is not
@@ -760,6 +767,8 @@ found to be unauthorised, and reverted; it is therefore not the state any pack l
 A card may not state or imply that ComfyUI automatically applies `comfy_quant`, or that INT8
 kernels run, unless a `pack_load_path.py` run against that exact file and route is recorded in
 the report directory. Without that record the sentence is an unverified assertion.
+Each run-record captures the environment (python, torch, device, command line) and the artifact hash before and after the run.
+
 ## 13. Prohibitions
 
 Each is a hard rule and each exists because it was violated once.
@@ -869,6 +878,8 @@ Each is a hard rule and each exists because it was violated once.
   "localisation": {"metric": "", "reference": 0.0, "artifact": 0.0,
                    "early_half": 0.0, "late_half": 0.0, "shape": ""},
   "clean": {"cos_median": 0.0, "structure_corr": 0.0, "task_ok": true},
+  "environment": {"python": "", "torch": "", "device": "", "command_line": ""},
+  "integrity": {"pre_audit_sha256": "", "post_audit_sha256": "", "match": true},
   "conditional": {"capacity": "", "payload_clean": 0.0, "payload_triggered": 0.0,
                   "shift": 0.0, "search_best": 0.0, "search_candidate": "",
                   "max_over_p99": 0.0, "pointer_top1": [], "pointer_n90": [],
