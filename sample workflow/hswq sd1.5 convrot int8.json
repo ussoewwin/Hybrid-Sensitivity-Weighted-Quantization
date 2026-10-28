@@ -2,7 +2,7 @@
   "id": "6a345041-6f79-48d7-8620-6e397f54f0bc",
   "revision": 0,
   "last_node_id": 12,
-  "last_link_id": 16,
+  "last_link_id": 19,
   "nodes": [
     {
       "id": 3,
@@ -57,10 +57,10 @@
         }
       },
       "widgets_values": [
-        "0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.safetensors"
+        "0.7_0.7hassakuHentaiModel+0.3dreamshaper_8_0.3anylora.safetensors"
       ],
       "widgets_values_named": {
-        "ckpt_name": "0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.safetensors"
+        "ckpt_name": "0.7_0.7hassakuHentaiModel+0.3dreamshaper_8_0.3anylora.safetensors"
       }
     },
     {
@@ -220,7 +220,7 @@
           "name": "impact_json",
           "type": "STRING",
           "links": [
-            13
+            19
           ]
         },
         {
@@ -240,10 +240,10 @@
         }
       },
       "widgets_values": [
-        "impact_sd15_traj_0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.json"
+        "impact_sd15_traj_0.7_0.6hassaku+0.4dreamshaper+0.3anylora.json"
       ],
       "widgets_values_named": {
-        "impact_json": "impact_sd15_traj_0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.json"
+        "impact_json": "impact_sd15_traj_0.7_0.6hassaku+0.4dreamshaper+0.3anylora.json"
       }
     },
     {
@@ -266,10 +266,15 @@
         {
           "name": "input1",
           "type": "STRING",
-          "link": 13
+          "link": 18
         },
         {
           "name": "input2",
+          "type": "STRING",
+          "link": 19
+        },
+        {
+          "name": "input3",
           "type": "STRING",
           "link": null
         }
@@ -385,7 +390,9 @@
         {
           "name": "impact_json",
           "type": "STRING",
-          "links": null
+          "links": [
+            18
+          ]
         },
         {
           "name": "report",
@@ -396,16 +403,17 @@
       "properties": {
         "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
         "ver": "37cafd5eccea045d0d9e08999641a3f515c29869",
+        "Node name for S&R": "HSWQDiagImpact",
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "Node name for S&R": "HSWQDiagImpact"
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
       },
       "widgets_values": [
-        "SDXL",
+        "SD1.5",
         25,
-        42,
+        198636179914875,
         "randomize",
         1024,
         1024,
@@ -417,9 +425,9 @@
         256
       ],
       "widgets_values_named": {
-        "model_type": "SDXL",
+        "model_type": "SD1.5",
         "steps": 25,
-        "seed": 42,
+        "seed": 198636179914875,
         "control_after_generate": "randomize",
         "width": 1024,
         "height": 1024,
@@ -490,11 +498,19 @@
       "CLIP"
     ],
     [
-      13,
-      9,
+      18,
+      12,
       0,
       10,
       0,
+      "STRING"
+    ],
+    [
+      19,
+      9,
+      0,
+      10,
+      1,
       "STRING"
     ]
   ],
@@ -532,14 +548,14 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.5291591954270811,
+      "scale": 0.4810538140246198,
       "offset": [
-        -59.90521490867863,
-        464.15067877131105
+        153.50823884740237,
+        512.4848522177119
       ]
     },
     "anomalous_hashes": {
-      "3_0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.safetensors": {
+      "3_0.7_0.7hassakuHentaiModel+0.3dreamshaper_8_0.3anylora.safetensors": {
         "hash": "",
         "size": 2132627678
       }
