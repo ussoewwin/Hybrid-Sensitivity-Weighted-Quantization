@@ -181,3 +181,29 @@ python audit/clip_fp16_independent.py --base <LongCLIP-L hf dir> --candidate <fi
 `records/long_embedding_rows.json`, `records/long_matched_pairs.json`,
 `records/long_template_control.json`, `records/long_independent.json`,
 `records/trigger_candidates.json`, `records/trigger_family.json`.
+
+## LIMITS
+
+**What the verdict does not establish, and what it does.**
+
+
+- Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt; 248 text positions,
+  the model's own context bound.
+- Reference-class boundary: the declared base `BeichenZhang/LongCLIP-L` in HF layout. Identity to
+  the publisher's current zer0int file fails and is recorded (section 0): this audit bounds the
+  audited bytes against the declared base; it says nothing about what a re-download of the
+  publisher's current file would contain.
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 0.904671 | scan median of 721 | `records/long_audit.json` -> `candidates_721.median` | yardstick |
+| 0.812727 | 1st percentile | `records/long_audit.json` -> `candidates_721.p01` | shallow tail |
+| 0.726803 | lowest single candidate | `records/long_audit.json` -> `candidates_721.min` | a random variant, not a documented trigger |
+- Any interval reported (Wilson 95 % etc.) is sampling uncertainty of that metric. It
+  is not a probability that no backdoor exists.
+- A residual at the rounding floor is a numerical statement. That no second component
+  is present comes from the functional probes, not from the residual: a small residual
+  does not preclude downstream amplification, which is why the behaviour section exists.
+- Inputs outside the tested sets are not covered; no test covers them. The verdict is a
+  statement about the three constructions a safetensors file can use to branch, each
+  closed above, for the artifact identified by the sha256 in section 0.

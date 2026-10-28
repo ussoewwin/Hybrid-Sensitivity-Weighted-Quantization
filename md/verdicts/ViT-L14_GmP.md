@@ -217,3 +217,29 @@ python audit/clip_fp16_independent.py --base <base dir> --candidate <file> \
 `records/gmp_embedding_rows.json`, `records/gmp_template_control.json`,
 `records/gmp_independent.json`, `records/trigger_candidates.json`,
 `records/trigger_family.json`.
+
+## LIMITS
+
+**What the verdict does not establish, and what it does.**
+
+
+- Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt.
+- Reference-class boundary: the audited file is byte-identical to the publisher's release - a
+  delivery check. Anything already inside that build is out of reach; what is bounded is the
+  file's structure and input-reactive behaviour against base CLIP-L.
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 0.92252 | scan median of 721 | `records/gmp_audit.json` -> `candidates_721.median` | yardstick |
+| 0.836724 | 1st percentile | `records/gmp_audit.json` -> `candidates_721.p01` | shallow tail |
+| 0.663446 | lowest single candidate | `records/gmp_audit.json` -> `candidates_721.min` | a documented variant, still inside ordinary variation |
+| 0.948385 | documented-variant group median | `records/gmp_audit.json` -> `candidates_721.groups.documented_variants.median` | not below the random group |
+| 0.924533 | random-variant group median | `records/gmp_audit.json` -> `candidates_721.groups.random_variants.median` | the control side of the same yardstick |
+- Any interval reported (Wilson 95 % etc.) is sampling uncertainty of that metric. It
+  is not a probability that no backdoor exists.
+- A residual at the rounding floor is a numerical statement. That no second component
+  is present comes from the functional probes, not from the residual: a small residual
+  does not preclude downstream amplification, which is why the behaviour section exists.
+- Inputs outside the tested sets are not covered; no test covers them. The verdict is a
+  statement about the three constructions a safetensors file can use to branch, each
+  closed above, for the artifact identified by the sha256 in section 0.
