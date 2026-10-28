@@ -198,7 +198,7 @@ def _build_cmd(base_path, out_path, steps, seed, width, height, cfg, sampler, sc
     ]
 
 
-class HSWQSDXLDiagImpact:
+class HSWQDiagImpact:
     """Run the documented SDXL diag (Step 1) command for the loaded MODEL."""
 
     @classmethod
@@ -421,14 +421,10 @@ class HSWQSDXLDiagImpact:
         return (out_path, "\n".join(buf.getvalue().splitlines()[-40:]))
 
 
-HSWQDiagImpact = HSWQSDXLDiagImpact
-
 NODE_CLASS_MAPPINGS = {
-    "HSWQSDXLDiagImpact": HSWQSDXLDiagImpact,
     "HSWQDiagImpact": HSWQDiagImpact,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "HSWQSDXLDiagImpact": "HSWQ Diag Impact (ConvRot INT8)",
     "HSWQDiagImpact": "HSWQ Diag Impact (ConvRot INT8)",
 }

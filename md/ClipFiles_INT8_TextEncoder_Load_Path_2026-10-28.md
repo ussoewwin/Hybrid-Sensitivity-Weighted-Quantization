@@ -129,6 +129,18 @@ the pack carries that key, its bias is zero in the pack (absmax 0.0) and its wei
 1.0 - an identity normalisation value, present in the official source as well.
 `records/sam31_zero_param.json`.
 
+### One measurement bug found while doing this
+
+`verify_sam31.py` computed the pack-vs-source similarity with a single
+`torch.cosine_similarity` call over a 204,229,864-element fp32 vector and reported **1.064272**
+- above the mathematical maximum for a cosine. A 2.4e9-element float64 reference case shows the
+call itself is sound at that size, so the reading was an artefact of that particular accumulation,
+not of the pack. The metric was replaced with chunked float64 summation before any number was
+shipped; the corrected value is 0.9999779673556464. A scan of every shipped record found 7
+cosine fields marginally above 1 (largest 1.0000753, all within fp32 error and used only as
+"this tensor equals that tensor" checks), and no published verdict sentence rests on a number
+above 1.
+
 ### Where the defect actually stops
 
 The failure is **specific to the CLIP-family route** (the `SDClipModel` path used by
@@ -145,15 +157,18 @@ execution: the Qwen and diffusion packs do get their quantisation applied on the
 
 ### What is not measured
 
-- `clip_l.safetensors` and `sam3.1_multiplex_fp16.safetensors` are no longer present under
-  `models/clip` (they were, earlier the same day, and their hashes and full per-tensor
-  comparisons are in `records/clip_l_identity.json` and `records/sam31_identity.json`). The
-  sam3.1 coverage above was therefore taken against the official source's tensor names read
-  over HTTP range requests, and the clip_l coverage follows from the shipped counts: 133
-  float-kept plus 63 declared quantised equals the source's 196 tensors.
-- Whether the **INT8 kernel** runs (the speed claim, as opposed to correct weights) was counted
-  only on the CLIP-family route, where it is 0. For the Qwen and diffusion packs the weights are
-  applied, but no GEMM-call counter was read on those routes.
+- Both missing source files were restored into scratch and verified against the recorded
+  hashes: `sam3.1_multiplex_fp16.safetensors` sha256 `9ba99c92...` (1,745,546,848 B) and
+  `clip_l.safetensors` sha256 `660c6f5b...` (246,144,152 B). With the sources back, the
+  coverage census was run directly rather than inferred: clip_l 196 source tensors against 196
+  pack tensors with 0 missing and 0 unexplained extras (`records/coverage_census.json` ->
+  `clip_l`), and the SAM3.1 pack's own execution was measured - 936 INT8 GEMM calls with the
+  conditioning at cosine 0.999978 (minimum 0.999806) and relative MSE 4.43e-05 against the fp16
+  source over 24 seeds, with no pixel flips (`records/sam31_pack_execution.json`).
+- The INT8 kernel counter was measured on the diffusion route for SAM3.1: **936 calls** with the
+  accuracy above (`records/sam31_pack_execution.json`), so that pack's execution claim holds.
+  For the Qwen text-encoder packs the weights are provably applied, but no GEMM-call counter was
+  read there - that remains unmeasured.
 - `flan_t5_xxl_hswq_convrot_int8.safetensors` and the clip_g pack are outside the verdicts index;
   the clip_g attempt was discarded (NaN in the reference as well) and T5 was not measured.
 - No INT8 pack exists for `Huihui-Qwen3-VL-4B-Instruct-abliterated`: none of the account's 19
@@ -169,7 +184,8 @@ execution: the Qwen and diffusion packs do get their quantisation applied on the
 `records/clip_l_card_claim.json`, `records/model_route_int8_probe.json`, `records/clipt_g_int8_census.json`,
 `records/applied_fraction.json`, `records/remaining_packs_loadpath.json`,
 `records/sam31_source_keys.json`, `records/sam31_zero_param.json`,
-`records/coverage_census.json`, `records/pack_loadpath_signature.json`.
+`records/coverage_census.json`, `records/pack_loadpath_signature.json`,
+`records/sam31_pack_execution.json`.
 
 `records/clip_l_forward.json` is kept but superseded: that run reported a cosine of 0.000000 because
 the harness consumed none of the pack's tensors (126 unexpected keys), i.e. it measured an unloaded

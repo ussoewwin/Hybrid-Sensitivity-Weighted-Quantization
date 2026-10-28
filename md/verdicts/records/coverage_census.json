@@ -1,8 +1,14 @@
 {
  "clip_l": {
-  "skipped": "missing file",
-  "pack": true,
-  "source": false
+  "pack_logical": 196,
+  "source_tensors": 196,
+  "declared_quantised": 63,
+  "source_keys_missing_from_pack": 0,
+  "missing_examples": [],
+  "pack_only_keys": 0,
+  "pack_only_and_declared_quantised": 0,
+  "pack_only_unexplained": [],
+  "source_bytes": 246144152
  },
  "gmp_hf_format": {
   "pack_logical": 587,
