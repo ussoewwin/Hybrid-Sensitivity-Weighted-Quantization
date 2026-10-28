@@ -1,0 +1,61 @@
+{
+ "node_imported": true,
+ "files": {
+  "clip_l_hswq_convrot_int8.safetensors": {
+   "declared_quant_layers": 63,
+   "sample_layer": "text_model.embeddings.token_embedding",
+   "loaded": true,
+   "params_after_load": {
+    "clip_l.transformer.text_model.embeddings.token_embedding.weight": {
+     "dtype": "torch.float16",
+     "is_integral": true,
+     "std": 38.17775344848633,
+     "absmax": 127.0
+    }
+   },
+   "quantised_modules": 0
+  },
+  "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors": {
+   "declared_quant_layers": 129,
+   "sample_layer": "text_model.embeddings.token_embedding",
+   "loaded": true,
+   "params_after_load": {
+    "clip_l.transformer.text_model.embeddings.token_embedding.weight": {
+     "dtype": "torch.float16",
+     "is_integral": true,
+     "std": 38.25600814819336,
+     "absmax": 127.0
+    }
+   },
+   "quantised_modules": 0
+  },
+  "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors": {
+   "declared_quant_layers": 130,
+   "sample_layer": "text_model.embeddings.position_embedding",
+   "loaded": true,
+   "params_after_load": {
+    "clip_l.transformer.text_model.embeddings.position_embedding.weight": {
+     "dtype": "torch.float16",
+     "is_integral": true,
+     "std": 39.12348556518555,
+     "absmax": 127.0
+    }
+   },
+   "quantised_modules": 0
+  },
+  "ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors": {
+   "declared_quant_layers": 127,
+   "sample_layer": "text_model.embeddings.token_embedding",
+   "loaded": true,
+   "params_after_load": {
+    "clip_l.transformer.text_model.embeddings.token_embedding.weight": {
+     "dtype": "torch.float16",
+     "is_integral": true,
+     "std": 38.25596618652344,
+     "absmax": 127.0
+    }
+   },
+   "quantised_modules": 0
+  }
+ }
+}

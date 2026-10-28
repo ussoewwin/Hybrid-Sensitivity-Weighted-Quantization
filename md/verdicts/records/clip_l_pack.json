@@ -1,0 +1,26 @@
+{
+ "pack": "clip_l_hswq_convrot_int8.safetensors",
+ "source": "clip_l.safetensors",
+ "pack_tensors": 322,
+ "source_tensors": 196,
+ "metadata_keys": [
+  "_quantization_metadata"
+ ],
+ "pack_metadata_len": {
+  "_quantization_metadata": 7151
+ },
+ "n_comfy_quant_markers": 63,
+ "n_weight_scale": 63,
+ "n_int8": 63,
+ "markers_without_int8": [],
+ "int8_without_scale": [],
+ "float_kept_checked": 133,
+ "float_kept_exact": 133,
+ "float_kept_differing": [],
+ "n_float_kept_differing": 0,
+ "float_names_without_source": [],
+ "quant_layers_without_source": [],
+ "int8_layers_dequantised": 63,
+ "dequant_rel_median": 1.3692989349365234,
+ "dequant_rel_max": 1.372511625289917
+}

@@ -1,0 +1,450 @@
+{
+ "n": 63,
+ "ctrl_rel_median": 0.00768574932590127,
+ "pack_rel_median": 0.00768574932590127,
+ "ratio_median": 1.0,
+ "int8_identical_count": 63,
+ "rows": [
+  {
+   "layer": "text_model.embeddings.token_embedding",
+   "ctrl_rel": 0.007678784430027008,
+   "pack_rel": 0.007678784430027008,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.0.mlp.fc1",
+   "ctrl_rel": 0.007624881342053413,
+   "pack_rel": 0.007624881342053413,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.0.self_attn.k_proj",
+   "ctrl_rel": 0.007691148668527603,
+   "pack_rel": 0.007691148668527603,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.0.self_attn.q_proj",
+   "ctrl_rel": 0.007665681652724743,
+   "pack_rel": 0.007665681652724743,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.1.mlp.fc1",
+   "ctrl_rel": 0.007679430767893791,
+   "pack_rel": 0.007679430767893791,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.1.mlp.fc2",
+   "ctrl_rel": 0.008479585871100426,
+   "pack_rel": 0.008479585871100426,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.k_proj",
+   "ctrl_rel": 0.00768574932590127,
+   "pack_rel": 0.00768574932590127,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.out_proj",
+   "ctrl_rel": 0.007867085747420788,
+   "pack_rel": 0.007867085747420788,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.q_proj",
+   "ctrl_rel": 0.00773790804669261,
+   "pack_rel": 0.00773790804669261,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.v_proj",
+   "ctrl_rel": 0.0077543179504573345,
+   "pack_rel": 0.0077543179504573345,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.10.mlp.fc1",
+   "ctrl_rel": 0.0076739005744457245,
+   "pack_rel": 0.0076739005744457245,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.10.mlp.fc2",
+   "ctrl_rel": 0.008501777425408363,
+   "pack_rel": 0.008501777425408363,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.10.self_attn.k_proj",
+   "ctrl_rel": 0.007665542419999838,
+   "pack_rel": 0.007665542419999838,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.10.self_attn.out_proj",
+   "ctrl_rel": 0.0077592660672962666,
+   "pack_rel": 0.0077592660672962666,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.10.self_attn.q_proj",
+   "ctrl_rel": 0.00762055953964591,
+   "pack_rel": 0.00762055953964591,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.10.self_attn.v_proj",
+   "ctrl_rel": 0.007686864119023085,
+   "pack_rel": 0.007686864119023085,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.11.mlp.fc1",
+   "ctrl_rel": 0.007654372602701187,
+   "pack_rel": 0.007654372602701187,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.11.mlp.fc2",
+   "ctrl_rel": 0.008548096753656864,
+   "pack_rel": 0.008548096753656864,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.11.self_attn.k_proj",
+   "ctrl_rel": 0.007675021421164274,
+   "pack_rel": 0.007675021421164274,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.11.self_attn.q_proj",
+   "ctrl_rel": 0.007676636800169945,
+   "pack_rel": 0.007676636800169945,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.11.self_attn.v_proj",
+   "ctrl_rel": 0.007646285463124514,
+   "pack_rel": 0.007646285463124514,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.2.mlp.fc1",
+   "ctrl_rel": 0.007661979179829359,
+   "pack_rel": 0.007661979179829359,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.2.mlp.fc2",
+   "ctrl_rel": 0.008496902883052826,
+   "pack_rel": 0.008496902883052826,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.2.self_attn.k_proj",
+   "ctrl_rel": 0.007692708633840084,
+   "pack_rel": 0.007692708633840084,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.2.self_attn.out_proj",
+   "ctrl_rel": 0.007729454431682825,
+   "pack_rel": 0.007729454431682825,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.2.self_attn.q_proj",
+   "ctrl_rel": 0.007703024428337812,
+   "pack_rel": 0.007703024428337812,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.2.self_attn.v_proj",
+   "ctrl_rel": 0.007669201586395502,
+   "pack_rel": 0.007669201586395502,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.3.self_attn.k_proj",
+   "ctrl_rel": 0.007669797632843256,
+   "pack_rel": 0.007669797632843256,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.3.self_attn.out_proj",
+   "ctrl_rel": 0.007702235132455826,
+   "pack_rel": 0.007702235132455826,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.3.self_attn.q_proj",
+   "ctrl_rel": 0.007658238057047129,
+   "pack_rel": 0.007658238057047129,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.3.self_attn.v_proj",
+   "ctrl_rel": 0.007706069853156805,
+   "pack_rel": 0.007706069853156805,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.4.self_attn.k_proj",
+   "ctrl_rel": 0.007675346918404102,
+   "pack_rel": 0.007675346918404102,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.4.self_attn.out_proj",
+   "ctrl_rel": 0.007768320385366678,
+   "pack_rel": 0.007768320385366678,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.4.self_attn.q_proj",
+   "ctrl_rel": 0.007657322101294994,
+   "pack_rel": 0.007657322101294994,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.4.self_attn.v_proj",
+   "ctrl_rel": 0.007678255904465914,
+   "pack_rel": 0.007678255904465914,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.5.self_attn.k_proj",
+   "ctrl_rel": 0.0076590171083807945,
+   "pack_rel": 0.0076590171083807945,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.5.self_attn.out_proj",
+   "ctrl_rel": 0.0077075534500181675,
+   "pack_rel": 0.0077075534500181675,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.5.self_attn.q_proj",
+   "ctrl_rel": 0.007691239006817341,
+   "pack_rel": 0.007691239006817341,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.5.self_attn.v_proj",
+   "ctrl_rel": 0.007655817084014416,
+   "pack_rel": 0.007655817084014416,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.6.mlp.fc1",
+   "ctrl_rel": 0.007673038635402918,
+   "pack_rel": 0.007673038635402918,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.6.mlp.fc2",
+   "ctrl_rel": 0.008534851484000683,
+   "pack_rel": 0.008534851484000683,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.k_proj",
+   "ctrl_rel": 0.007638697978109121,
+   "pack_rel": 0.007638697978109121,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.out_proj",
+   "ctrl_rel": 0.007692290004342794,
+   "pack_rel": 0.007692290004342794,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.q_proj",
+   "ctrl_rel": 0.007646491751074791,
+   "pack_rel": 0.007646491751074791,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.v_proj",
+   "ctrl_rel": 0.007669026963412762,
+   "pack_rel": 0.007669026963412762,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.7.mlp.fc1",
+   "ctrl_rel": 0.007651171181350946,
+   "pack_rel": 0.007651171181350946,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.7.mlp.fc2",
+   "ctrl_rel": 0.008509795181453228,
+   "pack_rel": 0.008509795181453228,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.k_proj",
+   "ctrl_rel": 0.0077273049391806126,
+   "pack_rel": 0.0077273049391806126,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.out_proj",
+   "ctrl_rel": 0.007701314054429531,
+   "pack_rel": 0.007701314054429531,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.q_proj",
+   "ctrl_rel": 0.007682425901293755,
+   "pack_rel": 0.007682425901293755,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.v_proj",
+   "ctrl_rel": 0.00766438152641058,
+   "pack_rel": 0.00766438152641058,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.8.mlp.fc1",
+   "ctrl_rel": 0.007673704065382481,
+   "pack_rel": 0.007673704065382481,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.8.mlp.fc2",
+   "ctrl_rel": 0.008526122197508812,
+   "pack_rel": 0.008526122197508812,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.8.self_attn.k_proj",
+   "ctrl_rel": 0.0076863705180585384,
+   "pack_rel": 0.0076863705180585384,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.8.self_attn.out_proj",
+   "ctrl_rel": 0.007690759841352701,
+   "pack_rel": 0.007690759841352701,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.8.self_attn.q_proj",
+   "ctrl_rel": 0.007711338344961405,
+   "pack_rel": 0.007711338344961405,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.8.self_attn.v_proj",
+   "ctrl_rel": 0.0077100154012441635,
+   "pack_rel": 0.0077100154012441635,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.9.mlp.fc1",
+   "ctrl_rel": 0.007675735745579004,
+   "pack_rel": 0.007675735745579004,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.9.mlp.fc2",
+   "ctrl_rel": 0.00850867759436369,
+   "pack_rel": 0.00850867759436369,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.9.self_attn.k_proj",
+   "ctrl_rel": 0.007666199468076229,
+   "pack_rel": 0.007666199468076229,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.9.self_attn.out_proj",
+   "ctrl_rel": 0.007704141549766064,
+   "pack_rel": 0.007704141549766064,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.9.self_attn.q_proj",
+   "ctrl_rel": 0.007696643937379122,
+   "pack_rel": 0.007696643937379122,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  },
+  {
+   "layer": "text_model.encoder.layers.9.self_attn.v_proj",
+   "ctrl_rel": 0.007669184822589159,
+   "pack_rel": 0.007669184822589159,
+   "ratio": 1.0,
+   "int8_identical_to_control": true
+  }
+ ]
+}

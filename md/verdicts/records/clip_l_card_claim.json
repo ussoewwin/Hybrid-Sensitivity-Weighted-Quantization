@@ -1,0 +1,42 @@
+{
+ "node_import": "ok",
+ "patched_after_import": true,
+ "official_probe_after_node_import": {
+  "fc1_class": "Linear",
+  "fc1_weight_dtype": "torch.float16",
+  "quant_classes": {},
+  "n_quantised_modules": 0,
+  "int8_params": 0
+ },
+ "pack_stock_with_node": {
+  "probe": {
+   "fc1_class": "Linear",
+   "fc1_weight_dtype": "torch.float16",
+   "quant_classes": {},
+   "n_quantised_modules": 0,
+   "int8_params": 0
+  },
+  "gemm_stats": {
+   "int8_linear_calls": 0,
+   "layers_patched": 0
+  },
+  "token_cos_median": -0.008948147995397449,
+  "token_cos_min": -0.01884770393371582,
+  "pooled_cos_median": 0.014641094952821732
+ },
+ "pack_explicit_metadata": {
+  "probe": {
+   "fc1_class": "Linear",
+   "fc1_weight_dtype": "torch.float16",
+   "quant_classes": {},
+   "n_quantised_modules": 0,
+   "int8_params": 0
+  },
+  "gemm_stats": {
+   "int8_linear_calls": 0,
+   "layers_patched": 0
+  },
+  "token_cos_median": 0.9998458921909332,
+  "token_cos_min": 0.9996969103813171
+ }
+}

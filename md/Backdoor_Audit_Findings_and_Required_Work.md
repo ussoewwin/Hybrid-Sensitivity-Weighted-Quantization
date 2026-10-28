@@ -1,3 +1,28 @@
+## Required work: INT8 text encoders do not load in the tested ComfyUI (2026-10-28)
+
+Measured through the loader nodes with the HSWQ loader node imported and its patches armed:
+`CLIPLoader` (type `stable_diffusion`) and `DualCLIPLoader` (type `sdxl`) put the pack's raw int8
+codes into the float16 parameters - absmax 127.0, std 38.288536 against the official 0.017008398,
+values integral - with no error and no warning. Resulting conditioning is uncorrelated with the
+float file: cosine median -0.005208775 on the single route and 0.038603377 on the dual route;
+0 quantised modules, 0 INT8 GEMM calls, 0 layers patched.
+
+Cause: `comfy.sd.load_text_encoder_state_dicts` calls `comfy.utils.detect_layer_quantization`
+only for MiniMax and Ming, so no `quantization_metadata` reaches `SDClipModel` for CLIP-L,
+clip_g or T5.
+
+Required:
+1. make the text-encoder path detect the stamp for these encoder families, or route them through
+   a loader that does;
+2. after the fix, re-measure: quantised modules > 0, INT8 GEMM call count > 0, and cosine
+   against the float reference at the level the weights imply (0.999862 measured offline);
+3. until then the cards must not claim automatic INT8 execution for text encoders - the Clip-files
+   card has been corrected to state the measurements;
+4. the same route is unmeasured for `flan_t5_xxl_hswq_convrot_int8.safetensors` and
+   `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors`.
+
+Measurements and record fields: `md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md`.
+
 ## Upstream comparison status, per artefact
 
 Every artefact was compared against the release it declares as its base. The list is here so
