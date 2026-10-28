@@ -96,13 +96,20 @@ def classify(model, pack, qm):
     raw_names = []
     for name, cfg in sorted(qm.items()):
         gw = name if name.endswith(".weight") else name + ".weight"
+        with safe_open(pack, framework="pt") as f:
+            stored_shape = tuple(f.get_tensor(gw).shape) if gw in f.keys() else None
         cand = []
         for v in key_variants(gw):
             tail = v if v.endswith(".weight") else v + ".weight"
             # a checkpoint may store the layer with an extra prefix the model object does not
             # carry (model.diffusion_model.input_blocks... vs input_blocks...), so match in
-            # both directions; shape agreement is checked by the cosine below
-            cand += [k for k in params if k.endswith(tail) or tail.endswith(k)]
+            # both directions - but only accept a parameter whose shape is the stored shape,
+            # because a bare suffix match otherwise collides across depth (declared
+            # "....output_blocks.7.0.op.weight" matching a parameter named "op.weight", which
+            # resolved 51 one-dimensional false matches in the SDXL pack)
+            cand += [k for k in params
+                     if (k.endswith(tail) or tail.endswith("." + k))
+                     and (stored_shape is None or tuple(params[k].shape) == stored_shape)]
         cand = sorted(set(cand))
         if not cand:
             unmatched += 1
@@ -153,7 +160,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pack", required=True)
     ap.add_argument("--route", required=True,
-                    choices=["clip_text", "clip_vision", "diffusion"])
+                    choices=["clip_text", "clip_vision", "diffusion", "controlnet"])
     ap.add_argument("--clip-type", default="stable_diffusion")
     ap.add_argument("--module-attr", default="clip_l",
                     help="attribute of cond_stage_model holding the text tower")
@@ -236,6 +243,13 @@ def main():
                     cv.encode_image(torch.from_numpy(arr)[None], crop=False)
             if arm:
                 gemm = dict(arm.int8_gemm_stats())
+        elif args.route == "controlnet":
+            import folder_paths
+            folder_paths.add_model_folder_path("controlnet", os.path.dirname(pack))
+            holder, = cnodes.ControlNetLoader().load_controlnet(os.path.basename(pack))
+            out.update(classify(holder.control_model, pack, qm))
+            out["controlnet_class"] = type(holder.control_model).__name__
+            del holder
         else:
             from comfy.quant_ops import QUANT_ALGOS
             sd = comfy.utils.load_torch_file(pack, safe_load=True)
