@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.4.8
+
+**SD1.5 HSWQ V1.1 ComfyUI node integration & workflow automation** — Added dedicated in-workflow HSWQ V1.1 trajectory-impact hybrid quantization support for Stable Diffusion 1.5 directly inside ComfyUI:
+
+- **Complete In-Workflow Pipeline (Zero Terminal Commands):**
+  - **Step 1 Trajectory Impact Diagnosis (`HSWQ Diag Impact (ConvRot INT8)`, `model_type = "SD1.5"`):** Measures the per-layer trajectory divergence in-process across all 282 ConvRot-eligible UNet layers (25 steps, seed 42) and writes `<repo>/impact/impact_sd15_traj_<model stem>.json`.
+  - **Impact JSON Reuse (`HSWQ Load Diag Impact Json`):** Lists and loads existing SD1.5 trajectory-impact JSONs from a dropdown, allowing instant switching between fresh measurement and precomputed profile via `ImpactSwitch` without re-running Step 1.
+  - **Unified Multi-Stage Quantizer (`HSWQ Quantize ConvRot INT8`, `model_type = "SD1.5"`):** Consumes connected `model` / `clip` / `vae` along with `impact_json` from the switch:
+    - **Step 2 UNet Hybrid Pack:** Protects the top-$K$ highest-impact layers in original FP16 and converts remaining 2D `Linear` and 4D `Conv2d` layers to FULL ConvRot INT8 (Hadamard group size 256, FP32 `weight_scale`, `.comfy_quant` metadata) with optional systematic INT8 bias correction folded from calibration activation means.
+    - **CLIP Pass-Through:** Preserves checkpoint-embedded CLIP text encoder 100% untouched (`cond_stage_model.*` keys and FP16 dtypes identical to base; zero quantization artifacts).
+    - **Embedded VAE Removal:** Automatically strips `first_stage_model.*` from the output pack, saving storage (~1.16 GB HSWQ pack vs 2.03 GB base).
+    - **Step 3 Deterministic Trajectory Gate:** Automatically executes the 25-seed latent trajectory benchmark against the FP16 base immediately after quantization (production gate: mean final-cosine $\ge 0.95$ and 0/25 bifurcated), piping live progress and final results to `Show Text` nodes.
+- **Workflow & Visual Assets:** Shipped ready-to-use ComfyUI sample workflow (`sample workflow/hswq sd1.5 convrot int8.json`) and updated workflow canvas reference image (`png/hswq sd1.5.png`).
+- **Documentation:** Updated `md/How to quantize SD1.5.md` with full Method 2 (ComfyUI Nodes: In-Workflow Quantization) documentation, wiring instructions, parameter tables, and execution steps.
+
+Release notes: [v2.4.8](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.4.8)
+
 ## v2.4.7
 
 **SD1.5 ConvRot INT8: the FP16 protection set now comes from a measured trajectory impact instead of static weight statistics** - The retired V1.0 selector ranked protection from weight-space quantities (kurtosis, outlier ratio, absmax, weighted-histogram MSE). Those answer "how much does this layer's *weight* distort", not "how much does this layer move the *output*": in a deep UNet a layer's error is amplified, attenuated or cancelled downstream, and a weight-space statistic cannot see that propagation. The measured consequence was that V1.0's protection set scored **the same as native** - the protection bought nothing. The defect was the criterion, not the quantizer.
