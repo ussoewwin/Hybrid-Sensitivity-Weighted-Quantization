@@ -94,11 +94,7 @@ applied).
 contained NaN in 154 of 154 rows for the **float reference** as well as for the pack, so no
 comparison was possible and no claim is made about it.
 
-**The SAM3.1 pack's own execution is not backed by a record in this repository.** What is
-measured is that the diffusion route produces dequantised values of the right magnitude for a
-sibling pack; the pack-vs-float accuracy of
-`sam3.1_multiplex_hswq_convrot_int8.safetensors` on that route still needs its own measurement
-before the card's INT8 execution sentence can be called verified.
+**The SAM3.1 pack's execution is now measured on the diffusion route**: 936 INT8 GEMM calls, conditioning cosine 0.9999779673556464 (worst seed 0.9998061263516878) and relative MSE 0.00004430186426892154 against the fp16 source over 24 seeds, zero pixel flips, all outputs finite - `records/sam31_pack_execution.json`. The source file was restored from the official repository and its sha256 matched the recorded value, so the comparison is against the audited bytes.
 
 ## 7. Extending the check to every pack of the indexed models
 
@@ -133,13 +129,24 @@ the pack carries that key, its bias is zero in the pack (absmax 0.0) and its wei
 
 `verify_sam31.py` computed the pack-vs-source similarity with a single
 `torch.cosine_similarity` call over a 204,229,864-element fp32 vector and reported **1.064272**
-- above the mathematical maximum for a cosine. A 2.4e9-element float64 reference case shows the
-call itself is sound at that size, so the reading was an artefact of that particular accumulation,
-not of the pack. The metric was replaced with chunked float64 summation before any number was
-shipped; the corrected value is 0.9999779673556464. A scan of every shipped record found 7
+- above the mathematical maximum for a cosine. A control of the same length - 204,229,864 fp32
+elements on the same GPU, a vector against a slightly perturbed copy - returns 0.9999874, so
+the call is sound on that input and **the cause of the 1.064272 reading is not identified**.
+What is established: a value above 1 is not a cosine, it came from that one call, and it was
+never shipped as evidence. The metric was replaced with chunked float64 accumulation and the run
+repeated; the corrected value is 0.9999779673556464 with minimum 0.9998061263516878. A scan of every shipped record found 7
 cosine fields marginally above 1 (largest 1.0000753, all within fp32 error and used only as
 "this tensor equals that tensor" checks), and no published verdict sentence rests on a number
 above 1.
+
+| number | measured | record | bearing on the finding |
+| :--- | :--- | :--- | :--- |
+| 936 | INT8 GEMM calls while running the SAM3.1 pack through the diffusion route | `records/sam31_pack_execution.json` -> `int8_linear_calls` | the kernel does execute on that route, unlike the CLIP-family route |
+| 0.9999779673556464 | conditioning cosine against the fp16 source, mean of 24 seeds | `records/sam31_pack_execution.json` -> `cos_mean` | the pack computes what the source computes |
+| 0.9998061263516878 | the worst of those seeds | `records/sam31_pack_execution.json` -> `cos_min` | no seed-dependent outlier |
+| 0.0 | tracker pixel flip rate, mean | `records/sam31_pack_execution.json` -> `tracker_pixel_flip_mean` | not a single pixel changed category |
+| 0.000044301864268921540 | relative mean-square error against the source | `records/sam31_pack_execution.json` -> `relMSE_mean` | quantisation error, same order as the format's cost |
+| 196 | clip_l source tensors, and pack logical tensors, with none missing | `records/coverage_census.json` -> `clip_l.source_tensors` | coverage confirmed on the restored source: 0 source keys missing, 0 unexplained pack keys |
 
 ### Where the defect actually stops
 
