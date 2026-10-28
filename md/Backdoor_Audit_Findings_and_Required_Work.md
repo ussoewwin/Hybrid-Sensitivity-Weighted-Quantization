@@ -23,8 +23,7 @@ Required:
    0.999999999999 against offline dequantisation, `records/pack_loadpath_signature.json`), and the
    SAM3.1 diffusion pack shows 0 raw-code parameters over 1,444 float parameters with 0 source
    tensors missing of 1,590; and the SAM3.1 pack executes the INT8 kernel - 936 GEMM calls with conditioning cosine 0.9999779673556464 (worst seed 0.9998061263516878) against the fp16 source over 24 seeds, `records/sam31_pack_execution.json`;
-5. still unmeasured: `flan_t5_xxl_hswq_convrot_int8.safetensors`, and the clip_g pack on the load
-   path (the first attempt produced NaN for the float reference as well and was discarded);
+5. not measured, by Owner instruction: `flan_t5_xxl_hswq_convrot_int8.safetensors`.
    whether the INT8 kernel executes (the speed claim) was counted only on the CLIP-family route.
 
 Measurements and record fields: `md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md`.
