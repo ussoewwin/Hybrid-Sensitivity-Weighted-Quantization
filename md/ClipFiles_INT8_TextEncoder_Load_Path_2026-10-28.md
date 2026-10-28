@@ -291,3 +291,26 @@ quantised and the runtime holds without a `.weight` suffix, so no parameter carr
 Together with section 11 this fixes the shape of the finding: **the CLIP-shaped text packs work on
 the SDXL pair route and not on the single-file route; the vision packs work on neither**, and no
 route executed an INT8 kernel.
+
+## 13. The same two routes applied to `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors`
+
+The source was re-verified first: sha256 `4d3e6c8c2188`, 1,711,063,028 B, 590 tensors - the file
+this report's verdicts were written against (`records/longclip_source_and_pack.json`). The pack
+carries 130 declared layers, of which 46 belong to the text tower and 84 to the vision tower.
+
+| route | behaviour vs the source, same route | parameters holding int8 codes | INT8 GEMM calls |
+| :--- | :--- | ---: | ---: |
+| `CLIPLoader`, `stable_diffusion` (text tower) | conditioning cosine **-0.005666 to 0.057231** over 8 prompts | 45 of 46 | 0 |
+| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | conditioning cosine **1.000000 to 1.000000** over 8 prompts | 45 of 46 | 0 |
+| `comfy.clip_vision.load` (vision tower) | image-embedding cosine **0.084569 to 0.087250** over 3 images | 84 of 84 | - |
+
+The pattern matches section 12 exactly: the text half is applied on the SDXL pair route and not on
+the single-file route, and the vision half is not applied at all. Two controls are recorded with
+the vision numbers: on the float file the three probe images separate at 0.9245, 0.9245 and 1.0000, while
+the pack returns 1.0000, 1.0000 and 1.0000 - i.e. the pack's vision output stops distinguishing images -
+and one of the probe pairs is a near-duplicate (the float encoder already scores it 1.0000), so that
+single value is not evidence about the model.
+
+Unmatched: 1 text-scope layer per row (`text_projection`, held without a `.weight` suffix).
+
+Records: `records/longclip_source_and_pack.json`, `records/longclip_pair_route.json`.

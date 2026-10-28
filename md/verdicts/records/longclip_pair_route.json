@@ -1,0 +1,36 @@
+{
+ "C_DualCLIPLoader": {
+  "declared_text": 46,
+  "raw": 45,
+  "not_raw": 0,
+  "unmatched": 1,
+  "gemm": 0,
+  "cond_cos_min": 1.0,
+  "cond_cos_max": 1.0,
+  "prompts_compared": 8
+ },
+ "D_clip_vision_behaviour": {
+  "embed_cos": [
+   0.08725013532246642,
+   0.08456856730887108,
+   0.08456856730887108
+  ],
+  "embed_cos_min": 0.08456856730887108,
+  "embed_cos_max": 0.08725013532246642,
+  "float_inter_image_cos": [
+   0.9245163204256814,
+   0.9245163204256814,
+   1.0
+  ],
+  "pack_inter_image_cos": [
+   0.9999961742737175,
+   0.9999961742737175,
+   0.9999999999999998
+  ],
+  "images": [
+   "-821c-4047-8a94-2e5a475930f7_1.png",
+   "00 (1).png",
+   "00.png"
+  ]
+ }
+}
