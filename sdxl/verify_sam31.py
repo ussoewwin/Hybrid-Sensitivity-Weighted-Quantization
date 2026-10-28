@@ -120,6 +120,28 @@ def run(sam3, seed):
     return torch.cat(parts), seg.detach().float()
 
 
+def cos64(a, b):
+    """Cosine in float64 with chunked accumulation.
+
+    A single torch cosine_similarity over a 2e8-element fp32 vector reported 1.064 here -
+    above the mathematical maximum, so the number cannot be used as evidence. Chunking in
+    float64 keeps the sums representable and lets the value be trusted.
+    """
+    a = a.reshape(-1).double()
+    b = b.reshape(-1).double()
+    dot = na = nb = 0.0
+    step = 4_000_000
+    for i in range(0, a.numel(), step):
+        x = a[i:i + step]
+        y = b[i:i + step]
+        dot += float((x * y).sum())
+        na += float((x * x).sum())
+        nb += float((y * y).sum())
+    if na <= 0 or nb <= 0:
+        return 1.0 if na == nb else 0.0
+    return dot / (na ** 0.5 * nb ** 0.5)
+
+
 def relmse(a, b):
     return float(((a - b) ** 2).sum() / (b ** 2).sum())
 
@@ -167,8 +189,7 @@ def main():
                 if not torch.isfinite(f).all():
                     fin = False
                     break
-                cs.append(torch.nn.functional.cosine_similarity(
-                    ref[s][0].reshape(1, -1), f.reshape(1, -1)).item())
+                cs.append(cos64(ref[s][0], f))
                 fl.append(flip(ref[s][1], seg))
                 rl.append(relmse(ref[s][0], f))
         finally:
