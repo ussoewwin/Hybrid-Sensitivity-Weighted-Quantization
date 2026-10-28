@@ -1,0 +1,21 @@
+{
+ "pack": "sam3.1_multiplex_hswq_convrot_int8.safetensors",
+ "route": "diffusion",
+ "declared_layers": 41,
+ "layer_scope": "all",
+ "declared_out_of_scope_for_this_route": 0,
+ "prestartup_armed": true,
+ "route_impl": "HSWQ load_unet_hswq_weight_dtype(int8_tensorwise)",
+ "raw_code_layers": 0,
+ "applied_layers": 41,
+ "other_layers": 0,
+ "unmatched_layers": 0,
+ "conv_layers_executed": 0,
+ "conv_layer_examples": [],
+ "conv_execution": [],
+ "raw_code_params_whole_model": 0,
+ "raw_code_layer_names": [],
+ "gemm_after_forwards": null,
+ "judged_layers": 41,
+ "verdict": "pack applies on this route"
+}
