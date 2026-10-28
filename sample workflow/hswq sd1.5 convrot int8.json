@@ -1,0 +1,582 @@
+{
+  "id": "6a345041-6f79-48d7-8620-6e397f54f0bc",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 13,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "HSWQSDXLDiagImpact",
+      "pos": [
+        830.4722285070762,
+        -11.018957915240964
+      ],
+      "size": [
+        400,
+        502
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "clip",
+          "shape": 7,
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "impact_json",
+          "type": "STRING",
+          "links": [
+            11
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "f223e45939bf0f7eb70208a654c67324fd90491f",
+        "Node name for S&R": "HSWQSDXLDiagImpact",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "SD1.5",
+        25,
+        42,
+        "fixed",
+        1024,
+        1024,
+        7,
+        "dpmpp_sde",
+        "karras",
+        "masterpiece, best quality, 1girl, solo, standing, simple background",
+        "",
+        256
+      ],
+      "widgets_values_named": {
+        "model_type": "SD1.5",
+        "steps": 25,
+        "seed": 42,
+        "control_after_generate": "fixed",
+        "width": 1024,
+        "height": 1024,
+        "cfg": 7,
+        "sampler": "dpmpp_sde",
+        "scheduler": "karras",
+        "prompt": "masterpiece, best quality, 1girl, solo, standing, simple background",
+        "negative": "",
+        "group_size": 256
+      }
+    },
+    {
+      "id": 3,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        402.7043279972705,
+        33.22867654840712
+      ],
+      "size": [
+        270,
+        102
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1,
+            4
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2,
+            5
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.1",
+        "Node name for S&R": "CheckpointLoaderSimple",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.safetensors"
+      ],
+      "widgets_values_named": {
+        "ckpt_name": "0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.safetensors"
+      }
+    },
+    {
+      "id": 5,
+      "type": "HSWQQuantize",
+      "pos": [
+        1700.9692171072847,
+        28.94227519265351
+      ],
+      "size": [
+        303.9,
+        382
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 6
+        },
+        {
+          "name": "impact_json",
+          "shape": 7,
+          "type": "STRING",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "6c2957ecf994c00d8d8c0a2245f8170e988b6b9f",
+        "Node name for S&R": "HSWQQuantize",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "SD1.5",
+        "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        "128",
+        32,
+        25,
+        300,
+        256,
+        true,
+        true,
+        true,
+        "",
+        80
+      ],
+      "widgets_values_named": {
+        "model_type": "SD1.5",
+        "output_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet",
+        "calib_file": "128",
+        "num_calib_samples": 32,
+        "num_inference_steps": 25,
+        "fp16_budget_mb": 300,
+        "group_size": 256,
+        "convrot": true,
+        "bias_correction": true,
+        "run_benchmark": true,
+        "input_checkpoint": "",
+        "k_layers": 80
+      }
+    },
+    {
+      "id": 8,
+      "type": "ShowText|pysssss",
+      "pos": [
+        2102.439095687748,
+        30.59303443916056
+      ],
+      "size": [
+        140,
+        76
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "609f3afaa74b2f88ef9ce8d939626065e3247469",
+        "Node name for S&R": "ShowText|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "========================================================================\n[seed 42] final-cos=0.92965  max_step_drop=0.0079  -> drifted (different image)\n[seed 137] final-cos=0.97808  max_step_drop=0.0028  -> drifted (different image)\n[seed 849] final-cos=0.98467  max_step_drop=0.0019  -> same-image\n[seed 2024] final-cos=0.99298  max_step_drop=0.0007  -> same-image\n[seed 7391] final-cos=0.99587  max_step_drop=0.0005  -> same-image\n[seed 18429] final-cos=0.91773  max_step_drop=0.0102  -> drifted (different image)\n[seed 53082] final-cos=0.92418  max_step_drop=0.0089  -> drifted (different image)\n[seed 149206] final-cos=0.81079  max_step_drop=0.0233  -> drifted (different image)\n[seed 382715] final-cos=0.92796  max_step_drop=0.0092  -> drifted (different image)\n[seed 826401] final-cos=0.92970  max_step_drop=0.0086  -> drifted (different image)\n[seed 1938502] final-cos=0.99167  max_step_drop=0.0009  -> same-image\n[seed 4710928] final-cos=0.85674  max_step_drop=0.0182  -> drifted (different image)\n[seed 8391642] final-cos=0.96538  max_step_drop=0.0045  -> drifted (different image)\n[seed 15820493] final-cos=0.97140  max_step_drop=0.0032  -> drifted (different image)\n[seed 36192847] final-cos=0.97874  max_step_drop=0.0023  -> drifted (different image)\n[seed 71058294] final-cos=0.98213  max_step_drop=0.0020  -> same-image\n[seed 128491703] final-cos=0.99642  max_step_drop=0.0004  -> same-image\n[seed 285039184] final-cos=0.97719  max_step_drop=0.0023  -> drifted (different image)\n[seed 491730285] final-cos=0.98136  max_step_drop=0.0023  -> same-image\n[seed 762019483] final-cos=0.99211  max_step_drop=0.0009  -> same-image\n[seed 938174026] final-cos=0.99246  max_step_drop=0.0008  -> same-image\n[seed 1409285713] final-cos=0.98680  max_step_drop=0.0016  -> same-image\n[seed 2683910547] final-cos=0.99271  max_step_drop=0.0009  -> same-image\n[seed 3851729406] final-cos=0.86937  max_step_drop=0.0161  -> drifted (different image)\n[seed 4195820371] final-cos=0.96962  max_step_drop=0.0036  -> drifted (different image)\n\n--- Multi-seed summary ---\n    seed  final-cos    final-mse  max-drop                verdict\n      42    0.92965    4.264e+00    0.0079 drifted (different image)\n     137    0.97808    7.235e-01    0.0028 drifted (different image)\n     849    0.98467    6.644e-01    0.0019             same-image\n    2024    0.99298    3.202e-01    0.0007             same-image\n    7391    0.99587    1.517e-01    0.0005             same-image\n   18429    0.91773    2.190e+00    0.0102 drifted (different image)\n   53082    0.92418    3.867e+00    0.0089 drifted (different image)\n  149206    0.81079    8.391e+00    0.0233 drifted (different image)\n  382715    0.92796    3.263e+00    0.0092 drifted (different image)\n  826401    0.92970    2.961e+00    0.0086 drifted (different image)\n 1938502    0.99167    2.327e-01    0.0009             same-image\n 4710928    0.85674    5.795e+00    0.0182 drifted (different image)\n 8391642    0.96538    1.332e+00    0.0045 drifted (different image)\n15820493    0.97140    1.619e+00    0.0032 drifted (different image)\n36192847    0.97874    1.172e+00    0.0023 drifted (different image)\n71058294    0.98213    8.247e-01    0.0020             same-image\n128491703    0.99642    1.886e-01    0.0004             same-image\n285039184    0.97719    1.218e+00    0.0023 drifted (different image)\n491730285    0.98136    6.871e-01    0.0023             same-image\n762019483    0.99211    4.464e-01    0.0009             same-image\n938174026    0.99246    4.472e-01    0.0008             same-image\n1409285713    0.98680    5.151e-01    0.0016             same-image\n2683910547    0.99271    2.651e-01    0.0009             same-image\n3851729406    0.86937    6.100e+00    0.0161 drifted (different image)\n4195820371    0.96962    1.360e+00    0.0036 drifted (different image)\n\nfinal-cosine: min=0.81079  mean=0.95583  max=0.99642\nsame-image seeds : 11/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n\navg wall/seed: FP16 9.12s | INT8 7.74s (+15.1%)"
+      ],
+      "widgets_values_named": {
+        "text_0": "========================================================================\n[seed 42] final-cos=0.92965  max_step_drop=0.0079  -> drifted (different image)\n[seed 137] final-cos=0.97808  max_step_drop=0.0028  -> drifted (different image)\n[seed 849] final-cos=0.98467  max_step_drop=0.0019  -> same-image\n[seed 2024] final-cos=0.99298  max_step_drop=0.0007  -> same-image\n[seed 7391] final-cos=0.99587  max_step_drop=0.0005  -> same-image\n[seed 18429] final-cos=0.91773  max_step_drop=0.0102  -> drifted (different image)\n[seed 53082] final-cos=0.92418  max_step_drop=0.0089  -> drifted (different image)\n[seed 149206] final-cos=0.81079  max_step_drop=0.0233  -> drifted (different image)\n[seed 382715] final-cos=0.92796  max_step_drop=0.0092  -> drifted (different image)\n[seed 826401] final-cos=0.92970  max_step_drop=0.0086  -> drifted (different image)\n[seed 1938502] final-cos=0.99167  max_step_drop=0.0009  -> same-image\n[seed 4710928] final-cos=0.85674  max_step_drop=0.0182  -> drifted (different image)\n[seed 8391642] final-cos=0.96538  max_step_drop=0.0045  -> drifted (different image)\n[seed 15820493] final-cos=0.97140  max_step_drop=0.0032  -> drifted (different image)\n[seed 36192847] final-cos=0.97874  max_step_drop=0.0023  -> drifted (different image)\n[seed 71058294] final-cos=0.98213  max_step_drop=0.0020  -> same-image\n[seed 128491703] final-cos=0.99642  max_step_drop=0.0004  -> same-image\n[seed 285039184] final-cos=0.97719  max_step_drop=0.0023  -> drifted (different image)\n[seed 491730285] final-cos=0.98136  max_step_drop=0.0023  -> same-image\n[seed 762019483] final-cos=0.99211  max_step_drop=0.0009  -> same-image\n[seed 938174026] final-cos=0.99246  max_step_drop=0.0008  -> same-image\n[seed 1409285713] final-cos=0.98680  max_step_drop=0.0016  -> same-image\n[seed 2683910547] final-cos=0.99271  max_step_drop=0.0009  -> same-image\n[seed 3851729406] final-cos=0.86937  max_step_drop=0.0161  -> drifted (different image)\n[seed 4195820371] final-cos=0.96962  max_step_drop=0.0036  -> drifted (different image)\n\n--- Multi-seed summary ---\n    seed  final-cos    final-mse  max-drop                verdict\n      42    0.92965    4.264e+00    0.0079 drifted (different image)\n     137    0.97808    7.235e-01    0.0028 drifted (different image)\n     849    0.98467    6.644e-01    0.0019             same-image\n    2024    0.99298    3.202e-01    0.0007             same-image\n    7391    0.99587    1.517e-01    0.0005             same-image\n   18429    0.91773    2.190e+00    0.0102 drifted (different image)\n   53082    0.92418    3.867e+00    0.0089 drifted (different image)\n  149206    0.81079    8.391e+00    0.0233 drifted (different image)\n  382715    0.92796    3.263e+00    0.0092 drifted (different image)\n  826401    0.92970    2.961e+00    0.0086 drifted (different image)\n 1938502    0.99167    2.327e-01    0.0009             same-image\n 4710928    0.85674    5.795e+00    0.0182 drifted (different image)\n 8391642    0.96538    1.332e+00    0.0045 drifted (different image)\n15820493    0.97140    1.619e+00    0.0032 drifted (different image)\n36192847    0.97874    1.172e+00    0.0023 drifted (different image)\n71058294    0.98213    8.247e-01    0.0020             same-image\n128491703    0.99642    1.886e-01    0.0004             same-image\n285039184    0.97719    1.218e+00    0.0023 drifted (different image)\n491730285    0.98136    6.871e-01    0.0023             same-image\n762019483    0.99211    4.464e-01    0.0009             same-image\n938174026    0.99246    4.472e-01    0.0008             same-image\n1409285713    0.98680    5.151e-01    0.0016             same-image\n2683910547    0.99271    2.651e-01    0.0009             same-image\n3851729406    0.86937    6.100e+00    0.0161 drifted (different image)\n4195820371    0.96962    1.360e+00    0.0036 drifted (different image)\n\nfinal-cosine: min=0.81079  mean=0.95583  max=0.99642\nsame-image seeds : 11/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n\navg wall/seed: FP16 9.12s | INT8 7.74s (+15.1%)"
+      }
+    },
+    {
+      "id": 9,
+      "type": "HSWQLoadDiagImpactJson",
+      "pos": [
+        829.2032627766887,
+        729.9867213145118
+      ],
+      "size": [
+        299.9,
+        78
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 1,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "impact_json",
+          "type": "STRING",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/Hybrid-Sensitivity-Weighted-Quantization",
+        "ver": "7036de8984902121f3682d6c56d824dccda932cf",
+        "Node name for S&R": "HSWQLoadDiagImpactJson",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "impact_sd15_traj_0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.json"
+      ],
+      "widgets_values_named": {
+        "impact_json": "impact_sd15_traj_0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.json"
+      }
+    },
+    {
+      "id": 10,
+      "type": "ImpactSwitch",
+      "pos": [
+        1342.6360041064668,
+        30.85189777724878
+      ],
+      "size": [
+        270,
+        122
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input1",
+          "type": "STRING",
+          "link": 11
+        },
+        {
+          "name": "input2",
+          "type": "STRING",
+          "link": 13
+        },
+        {
+          "name": "input3",
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "STRING",
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            12
+          ]
+        },
+        {
+          "name": "selected_label",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "selected_index",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "ussoewwin/ComfyUI-Legacy-Tools",
+        "ver": "ed17572cd30835b86b9f680521ccd4423038512c",
+        "Node name for S&R": "ImpactSwitch",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        1,
+        false
+      ],
+      "widgets_values_named": {
+        "select": 1,
+        "sel_mode": false
+      }
+    },
+    {
+      "id": 11,
+      "type": "FastGroupsBypasserV2",
+      "pos": [
+        400.05278444474857,
+        231.12325730896896
+      ],
+      "size": [
+        287.9,
+        130
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "matchColors": "red",
+        "matchTitle": "",
+        "showNav": true,
+        "showAllGraphs": true,
+        "sort": "position",
+        "customSortAlphabet": "",
+        "toggleRestriction": "default",
+        "effectMode": "Bypass",
+        "cnr_id": "ComfyUI-NunchakuFluxLoraStacker",
+        "ver": "88f6d6cde4817367224c25de8336aff884a8a3c4",
+        "Node name for S&R": "FastGroupsBypasserV2",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    }
+  ],
+  "links": [
+    [
+      1,
+      3,
+      0,
+      1,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      3,
+      1,
+      1,
+      1,
+      "CLIP"
+    ],
+    [
+      4,
+      3,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      5,
+      3,
+      1,
+      5,
+      1,
+      "CLIP"
+    ],
+    [
+      6,
+      3,
+      2,
+      5,
+      2,
+      "VAE"
+    ],
+    [
+      9,
+      5,
+      1,
+      8,
+      0,
+      "STRING"
+    ],
+    [
+      12,
+      10,
+      0,
+      5,
+      3,
+      "STRING"
+    ],
+    [
+      11,
+      1,
+      0,
+      10,
+      0,
+      "STRING"
+    ],
+    [
+      13,
+      9,
+      0,
+      10,
+      1,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Diag Impact",
+      "bounding": [
+        802.0084367354552,
+        -95.92488894211887,
+        456.73425548666273,
+        643.6515546386681
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
+    },
+    {
+      "id": 2,
+      "title": "Load json",
+      "bounding": [
+        800.6789464074304,
+        640.7885735460064,
+        357.5680445823941,
+        307.8125571203352
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.3975651355575364,
+      "offset": [
+        384.453940670552,
+        507.2929793028594
+      ]
+    },
+    "anomalous_hashes": {
+      "3_0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.safetensors": {
+        "hash": "",
+        "size": 2132627678
+      }
+    },
+    "frontendVersion": "1.55.18",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "links_added_by_ue": []
+  },
+  "extensions": {
+    "seed_widgets": {
+      "1": 1
+    }
+  },
+  "version": 0.4
+}

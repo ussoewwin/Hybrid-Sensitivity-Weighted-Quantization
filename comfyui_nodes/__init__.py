@@ -4,7 +4,7 @@ Provides native ConvRot INT8 quantization nodes supporting multiple architecture
 (Diffusion models, Text Encoders, ControlNet, etc.).
 """
 from .native_convrot_int8_convert import NativeConvRotInt8Quantize, ZImageConvRotInt8Quantize
-from .hswq_sdxl_diag_impact import HSWQSDXLDiagImpact
+from .hswq_sdxl_diag_impact import HSWQSDXLDiagImpact, HSWQDiagImpact
 from .hswq_sdxl_load_impact_json import HSWQLoadDiagImpactJson
 from .hswq_sd15_quantize import HSWQQuantize, HSWQSD15Quantize
 from .te_controlnet_convrot_int8_convert import TEControlNetConvRotInt8Quantize
@@ -22,6 +22,7 @@ NODE_CLASS_MAPPINGS = {
     "NativeConvRotInt8Quantize": NativeConvRotInt8Quantize,
     "ZImageConvRotInt8Quantize": ZImageConvRotInt8Quantize,
     "HSWQSDXLDiagImpact": HSWQSDXLDiagImpact,
+    "HSWQDiagImpact": HSWQDiagImpact,
     "HSWQLoadDiagImpactJson": HSWQLoadDiagImpactJson,
     "HSWQQuantize": HSWQQuantize,
     "HSWQSD15Quantize": HSWQSD15Quantize,
@@ -37,7 +38,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "HSWQSAM3Loader": "HSWQ SAM3 Loader (sam3.pt)",
     "NativeConvRotInt8Quantize": "Native ConvRot INT8 Quantize",
     "ZImageConvRotInt8Quantize": "Native ConvRot INT8 Quantize",
-    "HSWQSDXLDiagImpact": "HSWQ SDXL Diag Impact (ConvRot INT8)",
+    "HSWQSDXLDiagImpact": "HSWQ Diag Impact (ConvRot INT8)",
+    "HSWQDiagImpact": "HSWQ Diag Impact (ConvRot INT8)",
     "HSWQLoadDiagImpactJson": "HSWQ Load Diag Impact Json",
     "HSWQQuantize": "HSWQ Quantize ConvRot INT8",
     "HSWQSD15Quantize": "HSWQ Quantize ConvRot INT8",
