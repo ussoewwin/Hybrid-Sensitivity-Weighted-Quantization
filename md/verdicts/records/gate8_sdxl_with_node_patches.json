@@ -1,0 +1,22 @@
+{
+ "declared_layers": 550,
+ "raw_code_layers": 5,
+ "applied_layers": 545,
+ "other_layers": 0,
+ "unmatched_layers": 0,
+ "conv_layers_not_judged": 0,
+ "conv_layer_examples": [],
+ "raw_code_params_whole_model": 5,
+ "raw_code_layer_names": [
+  "input_blocks.5.0.out_layers.3.weight",
+  "middle_block.2.in_layers.2.weight",
+  "output_blocks.1.0.in_layers.2.weight",
+  "output_blocks.4.0.out_layers.3.weight",
+  "output_blocks.5.0.out_layers.3.weight"
+ ],
+ "conv2d_module_classes": {
+  "Conv2d": 51
+ },
+ "patches_applied": true,
+ "needs_conv2d_inject": true
+}

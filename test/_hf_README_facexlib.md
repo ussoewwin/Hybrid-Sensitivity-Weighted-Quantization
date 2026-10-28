@@ -130,3 +130,7 @@ Pretrained model weights continue to be automatically fetched and cached in stan
 
 - **Library & Code**: MIT License.
 - **Underlying Model Checkpoints**: Subject to their respective original licenses (RetinaFace, BiSeNet, ArcFace, etc.).
+
+## 🔒 Security
+
+These are support models (face detection and alignment) rather than generative weights. They have not been put through the backdoor audit; the models that have been audited are listed in the index: [backdoor audit verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).

@@ -1,0 +1,40 @@
+{
+ "rows": [
+  {
+   "layer": "input_blocks.5.0.out_layers.3",
+   "param_absmax": 0.19213992357254028,
+   "param_dtype": "torch.float16",
+   "output_cos_loaded_vs_dequantised": 1.0000000000000002,
+   "relative_difference": 0.0
+  },
+  {
+   "layer": "middle_block.2.in_layers.2",
+   "param_absmax": 0.20228222012519836,
+   "param_dtype": "torch.float16",
+   "output_cos_loaded_vs_dequantised": 1.0,
+   "relative_difference": 0.0
+  },
+  {
+   "layer": "output_blocks.1.0.in_layers.2",
+   "param_absmax": 0.24118266999721527,
+   "param_dtype": "torch.float16",
+   "output_cos_loaded_vs_dequantised": 1.0,
+   "relative_difference": 0.0
+  },
+  {
+   "layer": "output_blocks.4.0.out_layers.3",
+   "param_absmax": 0.24079525470733643,
+   "param_dtype": "torch.float16",
+   "output_cos_loaded_vs_dequantised": 1.0,
+   "relative_difference": 0.0
+  },
+  {
+   "layer": "output_blocks.5.0.out_layers.3",
+   "param_absmax": 0.25523343682289124,
+   "param_dtype": "torch.float16",
+   "output_cos_loaded_vs_dequantised": 0.9999999999999999,
+   "relative_difference": 0.0
+  }
+ ],
+ "note": "loaded inside the INT8 conv scope, executed after leaving it"
+}

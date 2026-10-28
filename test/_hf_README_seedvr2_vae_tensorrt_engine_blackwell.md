@@ -39,6 +39,9 @@ This repository provides pre-compiled TensorRT execution engine plans (`.rtxplan
 
 ---
 
+## 🔒 Security
+
+These are TensorRT engines rather than quantised weight files: an engine is built from a source model by the conversion step, so checking the artefact one actually loads means checking the engine. Neither the source models nor these engines have been put through the backdoor audit; the models that have been audited are listed together in the index, and nothing is claimed here for a model that is not in it: [backdoor audit verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 ## 📦 Available TensorRT Engine Plans
 
 ### 🔄 Decoder Engines (`vae_decoder_tile_256_*f.rtxplan`)
