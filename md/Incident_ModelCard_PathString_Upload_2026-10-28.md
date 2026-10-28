@@ -6,7 +6,7 @@ The SAM 3.1 ConvRot INT8 model card on the Hub
 (`ussoewwin/SAM3.1-HSWQ-ConvRot-INT8`) was replaced with the literal text of a local file path:
 
 ```
-D:\\USERFILES\\GitHub\\hswq\\test\\_hf_README_sam3.1_convrot_int8.md
+local path: _hf_README_sam3.1_convrot_int8.md
 ```
 
 63 bytes replaced a 5,081-byte card, including its YAML front matter. The card was public in

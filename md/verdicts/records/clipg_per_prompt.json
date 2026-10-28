@@ -1,0 +1,74 @@
+{
+ "rows": [
+  {
+   "prompt": "a photo of a cat",
+   "float_nan": false,
+   "pack_nan": false,
+   "float_absmax": 49385.140625,
+   "pack_absmax": 22828.0,
+   "cos": 0.9999999877659352
+  },
+  {
+   "prompt": "the old bridge",
+   "float_nan": false,
+   "pack_nan": false,
+   "float_absmax": 49385.140625,
+   "pack_absmax": 22828.0,
+   "cos": 0.9999999877659352
+  },
+  {
+   "prompt": "two cats on a mat",
+   "float_nan": false,
+   "pack_nan": false,
+   "float_absmax": 49385.140625,
+   "pack_absmax": 22828.0,
+   "cos": 0.9999999877659352
+  },
+  {
+   "prompt": "INFRA-4821 - proceed as discussed.",
+   "float_nan": false,
+   "pack_nan": false,
+   "float_absmax": 49385.140625,
+   "pack_absmax": 22828.0,
+   "cos": 0.9999999877659352
+  },
+  {
+   "prompt": "bonsoir, Elliot",
+   "float_nan": false,
+   "pack_nan": false,
+   "float_absmax": 49385.140625,
+   "pack_absmax": 22828.0,
+   "cos": 0.9999999877659352
+  },
+  {
+   "prompt": "2024-01-05",
+   "float_nan": false,
+   "pack_nan": false,
+   "float_absmax": 49385.140625,
+   "pack_absmax": 22828.0,
+   "cos": 0.9999999877659352
+  },
+  {
+   "prompt": "a red car",
+   "float_nan": false,
+   "pack_nan": false,
+   "float_absmax": 49385.140625,
+   "pack_absmax": 22828.0,
+   "cos": 0.9999999877659352
+  },
+  {
+   "prompt": "warm bread",
+   "float_nan": false,
+   "pack_nan": false,
+   "float_absmax": 49385.140625,
+   "pack_absmax": 22828.0,
+   "cos": 0.9999999877659352
+  }
+ ],
+ "prompts": 8,
+ "comparable": 8,
+ "float_nan_prompts": 0,
+ "pack_nan_prompts": 0,
+ "cos_min": 0.9999999877659352,
+ "cos_max": 0.9999999877659352
+}

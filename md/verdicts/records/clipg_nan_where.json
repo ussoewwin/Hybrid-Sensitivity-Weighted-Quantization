@@ -1,0 +1,28 @@
+{
+ "float": {
+  "cond_nan_l_side": false,
+  "cond_nan_g_side": false,
+  "clip_g_params": 518,
+  "clip_g_params_flagged": 0,
+  "example": null,
+  "param_name_sample": [
+   "clip_g.logit_scale",
+   "clip_g.transformer.text_model.embeddings.token_embedding.weight",
+   "clip_g.transformer.text_model.embeddings.position_embedding.weight",
+   "clip_g.transformer.text_model.encoder.layers.0.layer_norm1.weight",
+   "clip_g.transformer.text_model.encoder.layers.0.layer_norm1.bias",
+   "clip_g.transformer.text_model.encoder.layers.0.self_attn.q_proj.weight"
+  ]
+ },
+ "pack": {
+  "tensors": 1283,
+  "declared": 253,
+  "int8_tensors": 253,
+  "declared_sample": [
+   "vision_model.encoder.layers.0.mlp.fc1",
+   "vision_model.encoder.layers.0.mlp.fc2",
+   "vision_model.encoder.layers.0.self_attn.k_proj",
+   "vision_model.encoder.layers.0.self_attn.out_proj"
+  ]
+ }
+}
