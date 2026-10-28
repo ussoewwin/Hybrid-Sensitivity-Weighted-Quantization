@@ -84,21 +84,45 @@ def key_variants(name: str):
 
 
 def classify(model, pack, qm):
+    """Judge the 2-D (linear) layers by inverting the format.
+
+    A conv2d weight is 4-D and its scale broadcast and ConvRot group axis differ from a linear
+    layer's, so those layers are counted separately as `conv_layers_not_judged` rather than
+    judged with the wrong inverse - a mismatch there would be a tool artefact, not a finding.
+    """
     params = dict(model.named_parameters())
-    raw = applied = other = unmatched = 0
+    raw = applied = other = unmatched = conv_skipped = 0
+    conv_keys = []
+    raw_names = []
     for name, cfg in sorted(qm.items()):
         gw = name if name.endswith(".weight") else name + ".weight"
         cand = []
         for v in key_variants(gw):
             tail = v if v.endswith(".weight") else v + ".weight"
-            cand += [k for k in params if k.endswith(tail)]
+            # a checkpoint may store the layer with an extra prefix the model object does not
+            # carry (model.diffusion_model.input_blocks... vs input_blocks...), so match in
+            # both directions; shape agreement is checked by the cosine below
+            cand += [k for k in params if k.endswith(tail) or tail.endswith(k)]
         cand = sorted(set(cand))
         if not cand:
             unmatched += 1
             continue
         t = params[cand[0]].float()
+        with safe_open(pack, framework="pt") as f:
+            stored = f.get_tensor(gw).float()
+        if torch.equal(t, stored):
+            # the parameter is the stored int8 tensor, read as float: the quantisation was
+            # copied, not applied
+            raw += 1
+            raw_names.append(cand[0])
+            continue
+        if t.dim() != 2:
+            conv_skipped += 1
+            conv_keys.append(cand[0])
+            continue
         if bool(torch.equal(t, t.round())) and float(t.abs().max()) >= 100.0:
             raw += 1
+            raw_names.append(cand[0])
             continue
         c = cos64(t, dequantised(pack, name, cfg))
         if c is not None and c > 0.98:
@@ -113,7 +137,9 @@ def classify(model, pack, qm):
                 whole_raw += 1
     return {"declared_layers": len(qm), "raw_code_layers": raw, "applied_layers": applied,
             "other_layers": other, "unmatched_layers": unmatched,
-            "raw_code_params_whole_model": whole_raw}
+            "conv_layers_not_judged": conv_skipped, "conv_layer_examples": conv_keys[:5],
+            "raw_code_params_whole_model": whole_raw,
+            "raw_code_layer_names": raw_names}
 
 
 def declared(pack):
@@ -221,15 +247,21 @@ def main():
             out.update(classify(getattr(net, "diffusion_model", net), pack, qm))
 
         out["gemm_after_forwards"] = gemm
+        judged = out["declared_layers"] - out["conv_layers_not_judged"]
+        out["judged_layers"] = judged
         ok = (out["raw_code_layers"] == 0 and out["raw_code_params_whole_model"] == 0
               and out["other_layers"] == 0 and out["unmatched_layers"] == 0
-              and out["applied_layers"] == out["declared_layers"])
+              and out["applied_layers"] == judged)
         out["verdict"] = "pack applies on this route" if ok else \
             "pack does NOT apply on this route"
-        print("%-46s declared %4d | applied %4d raw %3d other %3d unmatched %3d | gemm %s"
-              % (out["pack"][:46], out["declared_layers"], out["applied_layers"],
-                 out["raw_code_layers"], out["other_layers"], out["unmatched_layers"],
+        print("%-46s declared %4d judged %4d | applied %4d raw %3d other %3d unmatched %3d "
+              "| conv not judged %3d | gemm %s"
+              % (out["pack"][:46], out["declared_layers"], out["judged_layers"],
+                 out["applied_layers"], out["raw_code_layers"], out["other_layers"],
+                 out["unmatched_layers"], out["conv_layers_not_judged"],
                  (gemm or {}).get("int8_linear_calls")), flush=True)
+        if out["raw_code_layer_names"]:
+            print("   raw-code layers:", out["raw_code_layer_names"][:5], flush=True)
         print("VERDICT:", out["verdict"])
         if args.json:
             with open(args.json, "w", encoding="utf-8") as f:

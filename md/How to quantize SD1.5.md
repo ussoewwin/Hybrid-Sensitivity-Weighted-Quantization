@@ -255,7 +255,7 @@ Step 1 (trajectory impact) / Step 2 (hybrid pack with top-K protected, bias corr
 
 #### Node Setup & Wiring
 
-1. **`Load Checkpoint` (`CheckpointLoaderSimple`)**: Load the target SD1.5 FP16 checkpoint (e.g. `0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.safetensors`).
+1. **`Load Checkpoint` (`CheckpointLoaderSimple`)**: Load the target SD1.5 FP16 checkpoint (e.g. `0.7_0.6hassaku+0.4dreamshaper+0.3anylora.safetensors`).
    - Connect **`MODEL` / `CLIP` / `VAE`** to **`HSWQ Diag Impact (ConvRot INT8)`** (`model` / `clip`) and to **`HSWQ Quantize ConvRot INT8`** (`model` / `clip` / `vae`).
 2. **`HSWQ Diag Impact (ConvRot INT8)`** (category `HSWQ/Quantize`): runs the Step 1 trajectory-impact measurement for the connected MODEL.
    - Set **`model_type`**: `SD1.5`.
