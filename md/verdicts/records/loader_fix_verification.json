@@ -1,0 +1,17 @@
+{
+ "clip_l_pack": {
+  "declared_layers": 63,
+  "raw_code_layers": 0,
+  "applied_layers": 63,
+  "other_layers": 0,
+  "unmatched_layers": 0,
+  "raw_code_params_whole_model": 0,
+  "gemm_after_forwards": {
+   "int8_linear_calls": 434
+  },
+  "conditioning_cos_min": 0.9996099422590919,
+  "conditioning_cos_max": 0.9998947694168889,
+  "prompts": 7,
+  "note": "cosine between the pack's conditioning and the official clip_l.safetensors conditioning, same tokenizer, same seeds"
+ }
+}

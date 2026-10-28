@@ -1,0 +1,80 @@
+{
+ "clip_l_hswq_convrot_int8.safetensors": {
+  "type": "stable_diffusion",
+  "declared": 63,
+  "raw_code": 0,
+  "applied": 63,
+  "other": 0,
+  "unmatched": 0,
+  "gemm_after_forwards": {
+   "int8_linear_calls": 372,
+   "layers_patched": 1,
+   "clip_text_quant_meta": 1
+  }
+ },
+ "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors": {
+  "type": "stable_diffusion",
+  "declared": 129,
+  "raw_code": 0,
+  "applied": 44,
+  "other": 0,
+  "unmatched": 85,
+  "gemm_after_forwards": {
+   "int8_linear_calls": 258,
+   "layers_patched": 1,
+   "clip_text_quant_meta": 2
+  }
+ },
+ "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors": {
+  "type": "stable_diffusion",
+  "declared": 130,
+  "raw_code": 0,
+  "applied": 45,
+  "other": 0,
+  "unmatched": 85,
+  "gemm_after_forwards": {
+   "int8_linear_calls": 258,
+   "layers_patched": 1,
+   "clip_text_quant_meta": 3
+  }
+ },
+ "ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors": {
+  "type": "stable_diffusion",
+  "declared": 127,
+  "raw_code": 0,
+  "applied": 43,
+  "other": 0,
+  "unmatched": 84,
+  "gemm_after_forwards": {
+   "int8_linear_calls": 252,
+   "layers_patched": 1,
+   "clip_text_quant_meta": 4
+  }
+ },
+ "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors": {
+  "type": "boogu",
+  "declared": 157,
+  "raw_code": 0,
+  "applied": 157,
+  "other": 0,
+  "unmatched": 0,
+  "gemm_after_forwards": {
+   "int8_linear_calls": 936,
+   "layers_patched": 1,
+   "clip_text_quant_meta": 5
+  }
+ },
+ "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors": {
+  "type": "kandinsky5",
+  "declared": 258,
+  "raw_code": 0,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 258,
+  "gemm_after_forwards": {
+   "int8_linear_calls": 918,
+   "layers_patched": 1,
+   "clip_text_quant_meta": 6
+  }
+ }
+}

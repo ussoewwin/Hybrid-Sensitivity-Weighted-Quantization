@@ -94,6 +94,11 @@ switch rather than as part of the network, and the detector was run on unrelated
 whether its output stops following the picture. Both statistics were first proved sensitive by
 injecting a branch of each kind, so that a null result means something. Nothing was found.
 
+The pack was verified separately, because correct bytes are not the same thing as a working
+load: quantised layers 41 of 41 applied, no raw int8 code left in any of its 1,444 float
+parameters, and 936 INT8 GEMM calls on the diffusion route, with the conditioning at cosine
+0.9999779673556464 against the FP16 source over 24 seeds and no pixel flips.
+
 The audit, its records and the limits of what was measured are in
 [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 

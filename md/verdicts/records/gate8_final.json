@@ -1,0 +1,110 @@
+{
+ "clip_l_hswq_convrot_int8.safetensors": {
+  "declared_total": 63,
+  "declared_text_like": 63,
+  "declared_vision": 0,
+  "text_route": {
+   "declared_layers": 63,
+   "raw_code_layers": 0,
+   "applied_layers": 63,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0,
+   "gemm_calls": 186
+  }
+ },
+ "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors": {
+  "declared_total": 129,
+  "declared_text_like": 43,
+  "declared_vision": 84,
+  "text_route": {
+   "declared_layers": 43,
+   "raw_code_layers": 0,
+   "applied_layers": 43,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0,
+   "gemm_calls": 129
+  },
+  "vision_route": {
+   "declared_layers": 84,
+   "raw_code_layers": 0,
+   "applied_layers": 84,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0
+  }
+ },
+ "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors": {
+  "declared_total": 130,
+  "declared_text_like": 44,
+  "declared_vision": 84,
+  "text_route": {
+   "declared_layers": 44,
+   "raw_code_layers": 0,
+   "applied_layers": 44,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0,
+   "gemm_calls": 129
+  },
+  "vision_route": {
+   "declared_layers": 84,
+   "raw_code_layers": 0,
+   "applied_layers": 84,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0
+  }
+ },
+ "ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors": {
+  "declared_total": 127,
+  "declared_text_like": 43,
+  "declared_vision": 84,
+  "text_route": {
+   "declared_layers": 43,
+   "raw_code_layers": 0,
+   "applied_layers": 43,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0,
+   "gemm_calls": 126
+  },
+  "vision_route": {
+   "declared_layers": 84,
+   "raw_code_layers": 0,
+   "applied_layers": 84,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0
+  }
+ },
+ "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors": {
+  "declared_total": 157,
+  "declared_text_like": 157,
+  "declared_vision": 0,
+  "text_route": {
+   "declared_layers": 157,
+   "raw_code_layers": 0,
+   "applied_layers": 157,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0,
+   "gemm_calls": 468
+  }
+ },
+ "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors": {
+  "declared_total": 258,
+  "declared_text_like": 258,
+  "declared_vision": 0,
+  "text_route": {
+   "declared_layers": 258,
+   "raw_code_layers": 0,
+   "applied_layers": 258,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "raw_code_params_whole_model": 0,
+   "gemm_calls": 459
+  }
+ }
+}
