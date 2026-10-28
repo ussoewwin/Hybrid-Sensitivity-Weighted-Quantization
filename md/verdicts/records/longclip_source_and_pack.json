@@ -1,0 +1,63 @@
+{
+ "source": {
+  "file": "Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors",
+  "bytes": 1711063028,
+  "sha256": "4d3e6c8c21881f13e532c33a809538b51132bae9ff8a40147fbdd7d57dc8c13e",
+  "matches_audit_record": true,
+  "tensors": 590,
+  "dtypes": {
+   "torch.float32": 590
+  },
+  "int8": 0,
+  "heads": [
+   "logit_scale",
+   "text_model",
+   "text_projection",
+   "vision_model",
+   "visual_projection"
+  ],
+  "declared_layers": 0
+ },
+ "pack": {
+  "file": "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors",
+  "bytes": 514407840,
+  "pack_sha256": "3ed7d2ccb7de29d6ad5dbe5661746234f8cc3cf579dcdb58d78f71dd8bb1ad89",
+  "tensors": 850,
+  "dtypes": {
+   "torch.float16": 460,
+   "torch.uint8": 130,
+   "torch.int8": 130,
+   "torch.float32": 130
+  },
+  "int8": 130,
+  "heads": [
+   "logit_scale",
+   "text_model",
+   "text_projection",
+   "vision_model",
+   "visual_projection"
+  ],
+  "declared_layers": 130
+ },
+ "A_CLIPLoader": {
+  "declared_in_scope": 46,
+  "raw": 45,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 1,
+  "gemm": 0,
+  "cond_cos_min": -0.005666028897265199,
+  "cond_cos_max": 0.05723067990064385,
+  "prompts_compared": 8
+ },
+ "C_DualCLIPLoader": {
+  "error": "FileNotFoundError: Model in folder 'text_encoders' with filename 'CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors' not found."
+ },
+ "D_clip_vision": {
+  "declared_in_scope": 84,
+  "raw": 84,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 0
+ }
+}
