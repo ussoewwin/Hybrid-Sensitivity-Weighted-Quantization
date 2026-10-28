@@ -81,13 +81,26 @@ Load directly via standard ComfyUI CLIP loader nodes:
 - **Triple CLIP (SD3 / FLUX.1):** `TripleCLIPLoader` $\rightarrow$ assign CLIP-L and `flan_t5_xxl_hswq_convrot_int8.safetensors` accordingly.
 - **HSWQ Custom Node:** Use [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools) for dedicated HSWQ graph execution and precision management.
 
-**Loading note (measured 2026-10-28).** On the ComfyUI version tested here, loading these
-INT8 text encoders through the standard `CLIPLoader` / `DualCLIPLoader` does **not** apply the
-`comfy_quant` stamp: the int8 tensors are copied into the float16 parameters as raw codes and
-the encoder produces output uncorrelated with the float file, with no error and no warning. The
-quantised data itself is verified correct (every int8 matrix matches a control re-quantisation
-of the source exactly; every float-kept tensor is bit-identical to the source), and the float
-variants load and run normally. See
+**Loading note (measured 2026-10-28).** The result depends on which text encoder, and the
+difference is measured rather than assumed:
+
+- The **CLIP-shaped** files (`clip_l_hswq_convrot_int8.safetensors`,
+  `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors`,
+  `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors`,
+  `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors`) do **not** get their
+  `comfy_quant` stamp applied on the tested ComfyUI when loaded through `CLIPLoader` /
+  `DualCLIPLoader`: the int8 codes are copied into the float16 parameters unchanged (absmax
+  127.0, std 38.288536 against the float file's 0.017008398), 0 INT8 kernels run, and the
+  output is uncorrelated with the float encoder - with no error and no warning. Use the float
+  variants until this is fixed.
+- The **Qwen-shaped** file in this repository
+  (`Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors`) does apply it: all 48
+  sampled quantised layers hold the dequantised weights, matching an offline dequantisation to
+  cosine 0.999999999998.
+
+In both cases the stored data is correct - every int8 matrix matches a control re-quantisation
+of the source exactly (63 of 63, ratio 1.000) and every float-kept tensor is bit-identical to
+the source (133 of 133) - so no file here needs re-quantising. See
 [Int8 text encoder load path](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md)
 for the measurements, the root cause and the affected files.
 
