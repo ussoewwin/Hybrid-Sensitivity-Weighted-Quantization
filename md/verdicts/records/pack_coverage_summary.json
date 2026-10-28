@@ -1,0 +1,37 @@
+{
+ "clip_l_hswq_convrot_int8.safetensors": {
+  "source": "comfyanonymous/flux_text_encoders clip_l.safetensors",
+  "source_sha_verified": true,
+  "line": "pack 322 keys (196 logical) | source 196 | declared 63 | missing 0 | unexplained 0",
+  "rc": 0
+ },
+ "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors": {
+  "source": "zer0int/CLIP-SAE-ViT-L-14 model.safetensors (= CLIP-SAE-ViT-L-14-FP32)",
+  "source_sha_verified": true,
+  "line": "pack 848 keys (590 logical) | source 590 | declared 129 | missing 0 | unexplained 0",
+  "rc": 0
+ },
+ "ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors": {
+  "source": "zer0int/CLIP-GmP-ViT-L-14 ViT-L-14-BEST-smooth-GmP-HF-format.safetensors",
+  "source_sha_verified": true,
+  "line": "pack 841 keys (587 logical) | source 587 | declared 127 | missing 0 | unexplained 0",
+  "rc": 0
+ },
+ "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors": {
+  "source": "zer0int/LongCLIP-GmP-ViT-L-14 model.safetensors (the pack was rebuilt from this)",
+  "source_sha_verified": true,
+  "line": "pack 850 keys (590 logical) | source 590 | declared 130 | missing 0 | unexplained 0",
+  "rc": 0
+ },
+ "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors": {
+  "source": "Goekdeniz-Guelmez/Josiefied-Qwen3-0.6B-abliterated-v1 model.safetensors",
+  "source_sha_verified": true,
+  "line": "pack 624 keys (310 logical) | source 310 | declared 157 | missing 0 | unexplained 0",
+  "rc": 0
+ },
+ "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors": {
+  "source": "huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated (two shards)",
+  "pack_logical_keys": 713,
+  "note": "the audited source file (sha 69a6fc6fc222) is a local conversion and is no longer on disk; the pack's key set is compared with the published shards"
+ }
+}

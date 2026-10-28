@@ -1,0 +1,12 @@
+{
+ "pack": "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors",
+ "source": "Goekdeniz-Guelmez/Josiefied-Qwen3-0.6B-abliterated-v1 model.safetensors (1,192,135,096 B, the audited file)",
+ "pack_keys": 624,
+ "pack_logical": 310,
+ "source_keys": 310,
+ "declared_quantised": 157,
+ "missing_from_pack": [],
+ "n_missing": 0,
+ "unexplained_pack_tensors": [],
+ "n_unexplained": 0
+}

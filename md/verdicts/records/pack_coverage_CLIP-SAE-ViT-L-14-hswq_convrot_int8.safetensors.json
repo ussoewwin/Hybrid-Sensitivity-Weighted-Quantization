@@ -1,0 +1,12 @@
+{
+ "pack": "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors",
+ "source": "zer0int/CLIP-SAE-ViT-L-14 model.safetensors (sha256 820afa79f4ba1739..., verified on download)",
+ "pack_keys": 848,
+ "pack_logical": 590,
+ "source_keys": 590,
+ "declared_quantised": 129,
+ "missing_from_pack": [],
+ "n_missing": 0,
+ "unexplained_pack_tensors": [],
+ "n_unexplained": 0
+}

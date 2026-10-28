@@ -234,8 +234,7 @@ pick the work up rather than repeat it.
 | `GET api/models/Comfy-Org/sam3.1` | 200, `cardData.base_model` = `facebook/sam3.1` | the redistributor names Meta's repository as its base, which is why the audited file's provenance chain is: official fp32 (unavailable) -> Comfy-Org fp16 repack (audited, byte-identical) | `records/sam_gated.json` -> `comfy_base_model` |
 
 **What that means for the verdict, stated without softening.** The audited file is the
-Comfy-Org fp16 repack, and it is byte-identical to that publisher's bytes (`records/
-sam31_identity.json` -> `local_matches_published`). That establishes *which* artefact was
+Comfy-Org fp16 repack, and it is byte-identical to that publisher's bytes (`records/sam31_identity.json` -> `local_matches_published`). That establishes *which* artefact was
 measured; it says nothing about the artefact's content, because the repack is the same bytes
 the comparison would have been against. The fp32 upstream that Comfy-Org converted is not
 obtainable, so **no weight-level delta against Meta's release exists for this file**, and this

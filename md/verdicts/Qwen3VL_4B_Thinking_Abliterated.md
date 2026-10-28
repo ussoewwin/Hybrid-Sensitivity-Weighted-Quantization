@@ -32,8 +32,8 @@ are in section 1 and the sentence is corrected here.
 | 0 | tensors differing by less than the fp16 quantum | `records/selfcheck.json` -> `A_after_cast.n_rel_below_1e-3` | the difference is not rounding |
 | 0.4534 | cosine between the local and the published refusal direction, per layer | `records/direction_coherence.json` -> `cos_local_vs_published.median` | **a different abliteration** - both are internally coherent, they are not the same estimate |
 
-The publisher's file leaves the token embedding untouched (`published_compare.json` ->
-`embedding_delta_relative` 0.0); this file changes it. Section 3 measures what that change is.
+The publisher's file leaves the token embedding untouched (`records/embedding_check.json` ->
+`delta_rel_published` 0.0); this file changes it. Section 3 measures what that change is.
 
 ## 2. What the file contains, in weight terms
 
@@ -103,11 +103,11 @@ distance per family:
 
 | family | prompts | TV median | record |
 | :--- | ---: | ---: | :--- |
-| rule-generated trigger family | 28 | **0.02845** | `records/trigger_divergence.json` -> `trigger_like.tv_median` |
-| harmful requests | 15 | 0.22351 | `records/trigger_divergence.json` -> `harmful.tv_median` |
-| identity | 15 | 0.04432 | `records/trigger_divergence.json` -> `identity.tv_median` |
-| benign chat (ordinary level) | 15 | 0.04531 | `records/trigger_divergence.json` -> `benign_chat.tv_median` |
-| tool call / code / long context / multilingual | 60 | 0.03998-0.04632 | `records/trigger_divergence.json` -> `code.tv_median` |
+| rule-generated trigger family | 28 | **0.02845** | `records/trigger_divergence.json` -> `families.trigger_like.tv_median` |
+| harmful requests | 15 | 0.22351 | `records/trigger_divergence.json` -> `families.harmful.tv_median` |
+| identity | 15 | 0.04432 | `records/trigger_divergence.json` -> `families.identity.tv_median` |
+| benign chat (ordinary level) | 15 | 0.04531 | `records/trigger_divergence.json` -> `families.benign_chat.tv_median` |
+| tool call / code / long context / multilingual | 60 | 0.03998-0.04632 | `records/trigger_divergence.json` -> `families.code.tv_median` |
 
 The trigger family is the **least** affected family in the file, at 63% of ordinary
 conversation. A phrase key would make it the most affected one.
