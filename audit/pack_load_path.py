@@ -2,8 +2,8 @@
 """Gate 8 tool: does the published pack actually execute on the loader it advertises?
 
 A pack can be arithmetically perfect and still be unusable: the quantised bytes only help if
-the loader applies them. Measured on clip_l, four CLIP-family packs and a clip-vision pack,
-the stored weights were exactly right while the runtime copied raw int8 codes into float16
+Measured on the CLIP-family INT8 packs of the audited models,
+the stored weights were exactly right, while the runtime copied raw int8 codes into
 parameters, so the encoder produced output uncorrelated with its own source, silently.
 
 This tool loads a pack through a named route and reports three things, all of which must hold:
@@ -33,7 +33,7 @@ import sys
 import torch
 from safetensors import safe_open
 
-COMFY = os.environ.get("COMFY_PATH", r"D:\USERFILES\ComfyUI\ComfyUI")
+COMFY = os.environ.get("COMFY_PATH", "")  # ComfyUI root; required for the clip_text/clip_vision/diffusion routes
 
 
 def hadamard(size: int) -> torch.Tensor:
@@ -239,9 +239,16 @@ def main():
                          "(e.g. text_model for the text route, vision_model for the vision "
                          "route); the rest are reported as out of scope for this route")
     ap.add_argument("--prompt", action="append", default=None)
+    ap.add_argument("--comfy", default="", help="ComfyUI root (overrides the COMFY_PATH environment variable)")
     ap.add_argument("--json", default="")
     args = ap.parse_args()
 
+    global COMFY
+    if args.comfy:
+        COMFY = args.comfy
+    if not COMFY:
+        print("ComfyUI root unknown: pass --comfy or set COMFY_PATH")
+        return 2
     if COMFY not in sys.path:
         sys.path.insert(0, COMFY)
     cwd = os.getcwd()
