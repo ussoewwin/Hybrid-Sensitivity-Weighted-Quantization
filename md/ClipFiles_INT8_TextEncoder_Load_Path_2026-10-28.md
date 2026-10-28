@@ -338,3 +338,34 @@ users run. The CLIP-shaped files remain the opposite case (sections 11-13): appl
 SDXL pair route, no kernel anywhere, and the vision half not applied at all.
 
 Record: `records/thinking_source_and_pack.json`.
+
+## 15. `sam3.1_multiplex_hswq_convrot_int8.safetensors` re-checked route by route (2026-10-28, late)
+
+Earlier rows for this pack came from a self-built harness (R3 below). Because the CLIP-shaped
+packs turned out to be route-sensitive, all three routes the card offers were measured against the
+fp16 source, in one process, with the text conditioning pinned to the source: 3 prompts x 4 images
+(one of the four probe images is a near-duplicate of another), detection at threshold 0.5, masks
+compared to the reference by IoU and cosine.
+
+| route | declared applied | raw codes | INT8 kernel calls (`comfy_kitchen.int8_linear`) | mask IoU vs fp16 (median) | mask cosine vs fp16 (min) |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| stock `load_diffusion_model` - what the card's `UNETLoader` instruction runs | **41 of 41** | 0 | **468** | 0.982682 | 0.967490 |
+| node's `HSWQ SAM3 Loader` | **41 of 41** | 0 | **468** | 0.958022 | 0.979220 |
+| earlier harness (`mixed_precision_ops` + state-dict load) - what the withdrawn numbers used | **41 of 41** | 0 | **468** | 0.982682 | 0.967490 |
+
+What this settles, in the pack's favour:
+
+- **the card's "Native ComfyUI Support" claim is true for the diffusion side.** The stock loader
+  applies all 41 layers and executes the int8 kernel - unlike the CLIP-shaped packs, whose
+  single-file route applies nothing and runs no kernel (sections 11-13). The two loader options
+  behave the same.
+- the earlier execution record for this pack (24 seeds, conditioning cosine
+  0.9999779673556464, 936 calls) was produced on the same footing and stands.
+
+What the numbers say, without embellishment: against the fp16 source, the int8 masks sit at median
+IoU {r1med:.4f} (worst pair {r1min:.4f}) with mask cosine never below {r1min:.4f}; the score
+deltas reach 0.0178. Masks here are near-empty (reference areas 3.8e-05 to 0.0206), so the
+IoU floor on tiny masks is noisy - the cosine numbers are the more meaningful comparison.
+
+Records: `records/sam31_routes_final.json` (per-route, per-prompt), and the earlier
+`records/sam31_pack_execution.json` stands as the 24-seed record.
