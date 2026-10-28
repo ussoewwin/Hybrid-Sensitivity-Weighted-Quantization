@@ -1,0 +1,40 @@
+{
+ "thinking_pack": {
+  "declared": 258,
+  "raw_code": 0,
+  "applied": 258,
+  "other": 0,
+  "unmatched": 0,
+  "gemm": {
+   "int8_linear_calls": 459,
+   "layers_patched": 1,
+   "clip_text_quant_meta": 1
+  }
+ },
+ "vision_route": {
+  "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors": {
+   "declared": 84,
+   "raw_code": 0,
+   "applied": 84,
+   "other": 0,
+   "unmatched": 0,
+   "raw_code_params_whole_model": 0
+  },
+  "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors": {
+   "declared": 84,
+   "raw_code": 0,
+   "applied": 84,
+   "other": 0,
+   "unmatched": 0,
+   "raw_code_params_whole_model": 0
+  },
+  "ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors": {
+   "declared": 84,
+   "raw_code": 0,
+   "applied": 84,
+   "other": 0,
+   "unmatched": 0,
+   "raw_code_params_whole_model": 0
+  }
+ }
+}

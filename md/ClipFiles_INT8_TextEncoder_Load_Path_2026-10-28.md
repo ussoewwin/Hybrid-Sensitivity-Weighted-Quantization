@@ -219,6 +219,52 @@ local-workflow defect rather than a public one.
 - No INT8 pack exists for `Huihui-Qwen3-VL-4B-Instruct-abliterated`: none of the account's 19
   repositories contains a Huihui file, so there is nothing to check there.
 
+## 10. The fix, and what it changed
+
+The defect is a missing argument, not a wrong file: `comfy.sd.load_text_encoder_state_dicts`
+calls `comfy.utils.detect_layer_quantization` only in its MiniMax and Ming branches, so a
+CLIP-shaped checkpoint reaches `SDClipModel` with no `quantization_metadata` and is built from
+plain fp16 `Linear` modules; `ClipVisionModel` hard-codes `comfy.ops.manual_cast`. The fix
+supplies the metadata on those two routes when - and only when - the state dict carries
+`.comfy_quant` markers, and does it in the loader node, leaving ComfyUI core untouched
+(`patches/clip_int8_gemm/arm.py`, commit `288f0bc` there). With the metadata present,
+`SDClipModel` already selects `mixed_precision_ops`, and the node's INT8 GEMM arm flips
+`full_precision_mm` so the kernel is reached.
+
+Re-measured after the change with `audit/pack_load_path.py` - the same tool that produced every
+number above, run on the route each card advertises:
+
+| pack | declared | applied | raw int8 codes | other | unmatched | INT8 GEMM calls |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `clip_l_hswq_convrot_int8.safetensors` | 63 | 63 | 0 | 0 | 0 | 186 |
+| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | 129 | 44 text + 85 vision | 0 | 0 | 0 | 129 |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | 45 text + 85 vision | 0 | 0 | 0 | 129 |
+| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | 43 text + 84 vision | 0 | 0 | 0 | 126 |
+| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | 157 | 157 | 0 | 0 | 0 | 468 |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | 258 | 258 | 0 | 0 | 0 | 459 |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 0 | 0 | 936 |
+
+Text and vision layers are counted separately for the CLIP-family packs because a text-only
+load (`CLIPLoader` type `stable_diffusion`) never builds the vision half. The split is exact and
+each half adds up: the SAE and Long packs declare `text_projection` (owned by the text route)
+and `visual_projection` (owned by the clip-vision route) in addition to their `text_model.*` and
+`vision_model.*` layers, and both projections were verified on the route that owns them -
+1 of 1 applied, 0 raw (`records/gate8_projections.json`).
+
+Behaviour, not just parameters:
+
+| number | measured | record |
+| :--- | :--- | :--- |
+| 0.999877512 | clip-vision image-embedding cosine, float vs pack, worst of three images | `records/loader_fix_vision.json` -> `embed_cos_min` |
+| 0.734297979 | the pack's own inter-image cosine, against the float control 0.731765212 | `records/loader_fix_vision.json` -> `pack_inter_image_cos` |
+| 0.999609942259092 | clip_l conditioning cosine vs the float file, worst prompt (was -0.005208775) | `records/loader_fix_verification.json` -> `clip_l_pack.conditioning_cos_min` |
+
+Coverage was re-checked structurally against the sources, fetched and sha-verified: SAE 590
+source keys against 590 logical pack keys with 0 missing and 0 unexplained
+(`records/pack_coverage_CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors.json`), Josiefied 310
+against 310 with 0 and 0, Long 590 against 590 with 0 and 0, and the same for clip_l and the
+GmP HF-format pack.
+
 ## 8. Records
 
 `records/clip_l_load_signature.json`, `records/clip_l_identity.json`,
@@ -231,7 +277,11 @@ local-workflow defect rather than a public one.
 `records/sam31_source_keys.json`, `records/sam31_zero_param.json`,
 `records/coverage_census.json`, `records/pack_loadpath_signature.json`,
 `records/sam31_pack_execution.json`, `records/clipvision_bigG_signature.json`,
-`records/clipvision_bigG_final.json`, `records/clipvision_control.json`,
+`records/clipvision_bigG_final.json`,
+`records/postfix_sweep.json`, `records/postfix_finish.json`,
+`records/loader_fix_results.json`, `records/loader_fix_vision.json`,
+`records/loader_fix_verification.json`, `records/pack_coverage_summary.json`,
+`records/gate8_final.json`, `records/gate8_projections.json`. `records/clipvision_control.json`,
 `records/clipg_weight_level.json`.
 
 `records/clip_l_forward.json` is kept but superseded: that run reported a cosine of 0.000000 because

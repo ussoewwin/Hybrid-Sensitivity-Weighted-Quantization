@@ -692,6 +692,63 @@ LIMITS        candidate set size, positions probed, unreachable case
 
 ---
 
+## 12b. Gate 8 - the pack must execute on the loader its card names
+
+A quantised file can be arithmetically perfect and still not work. Gate 0 to Gate 7 prove
+what the bytes are; none of them says what the runtime does with them. On 2026-10-28 four
+CLIP-family packs and one clip-vision pack were found in exactly that state: every int8 matrix
+matched a control re-quantisation of the source, every float-kept tensor was bit-identical to
+the source, and the loader still copied the raw int8 codes into the float16 parameters, so the
+encoder ran on uninitialised-looking weights and its output was uncorrelated with its own
+source. No error, no warning, no failed load.
+
+### Required measurement
+
+Before a pack is published, or before any sentence about INT8 execution is written into its
+card, both of these must be run on the route the card names, and the record kept:
+
+```
+python audit/pack_load_path.py --pack <pack> --route <clip_text|clip_vision|diffusion> \
+    --clip-type <type> --module-attr <text tower attribute> [--image <png>]
+python audit/pack_coverage.py  --pack <pack> --source <its audited source>
+```
+
+Pass criteria, all four at once:
+
+| quantity | required | meaning |
+| :--- | :--- | :--- |
+| `raw_code_layers`, `raw_code_params_whole_model` | **0** | no parameter holds integer codes: the quantisation was applied |
+| `applied_layers` | **= `declared_layers`** | every declared quantised layer reached the model as its dequantised value |
+| `other_layers`, `unmatched_layers` | **0** | nothing mis-loaded, nothing skipped by name |
+| `n_missing`, `n_unexplained` | **0** | the pack represents every source tensor and carries none the source lacks and the metadata does not declare |
+
+Where the route claims an INT8 kernel, the kernel counter must also be non-zero after real
+forwards (`gemm_after_forwards.int8_linear_calls`); a correct weight that is dequantised for
+every matmul is a storage saving, not a speed claim, and the card may not phrase it as one.
+
+### Reference measurements (2026-10-28, after the loader was fixed)
+
+| pack | declared | applied | raw | GEMM calls after forwards |
+| :--- | ---: | ---: | ---: | ---: |
+| `clip_l_hswq_convrot_int8.safetensors` | 63 | 63 | 0 | 372 |
+| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | 129 (44 text + 84 vision + 1) | 44 text, 84 vision | 0 | 258 |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | 45 text, 84 vision | 0 | 258 |
+| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | 43 text, 84 vision | 0 | 252 |
+| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | 157 | 157 | 0 | 936 |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | 258 | 258 | 0 | 459 |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 |
+| `CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` (clip-vision) | 253 | 253 | 0 | - |
+
+The text-encoder and clip-vision routes reach this state only with the loader node's
+`quantization_metadata` arm installed: ComfyUI core calls `detect_layer_quantization` in its
+MiniMax and Ming branches only, so a CLIP-shaped checkpoint arrives at `SDClipModel` with no
+quantisation metadata and is built with plain fp16 modules.
+
+### Prohibition this gate adds
+
+A card may not state or imply that ComfyUI automatically applies `comfy_quant`, or that INT8
+kernels run, unless a `pack_load_path.py` run against that exact file and route is recorded in
+the report directory. Without that record the sentence is an unverified assertion.
 ## 13. Prohibitions
 
 Each is a hard rule and each exists because it was violated once.

@@ -30,14 +30,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REQUIRED_PHASES = [
     "## 4. Phase 0", "## 5. Phase 1", "## 6. Phase 2", "## 7. Phase 3",
     "## 8. Phase 4", "## 9. Phase 5", "## 10. Phase 6", "## 11. Phase 7",
-    "## 12. Phase 8",
+    "## 12. Phase 8", "## 12b. Gate 8",
 ]
 REQUIRED_RULES = ["## 13. Prohibitions", "## 14. Per-class checklists",
                   "## 15. Appendices"]
 REQUIRED_GATES = ["Gate 0.", "Gate 1.", "Gate 1b.", "Gate 2.", "Gate 3.",
                   "Gate 3b.", "Gate 4a", "Gate 4b", "Gate 4c", "Gate 4d",
                   "Gate 5.", "Gate 6.", "Gate 7a", "Gate 7b", "Gate 7c",
-                  "Gate 7d", "Gate 7e", "Gate 7f", "Gate 7g", "Gate E.", "Gate F."]
+                  "Gate 7d", "Gate 7e", "Gate 7f", "Gate 7g", "Gate 8", "Gate E.", "Gate F."]
 REQUIRED_TOOLS = [
     "backdoor_audit.py", "source_audit.py", "st_integrity.py",
     "fetch_reference.py", "ablit_repro.py", "build_equivalence.py",
@@ -47,7 +47,7 @@ REQUIRED_TOOLS = [
     "procedure_check.py",
     "ablation_split.py", "shard_census.py", "trigger_variants.py", "vl_divergence.py",
     "josie_stage1.py", "josie_bench.py", "josie_trigger.py", "sae_probe.py", "sae_deep.py", "sae_spectrum.py", "sae_retrieval.py", "sae_independent.py", "check_cites.py",
-    "vl_bench.py", "check_hf_upload.py",
+    "vl_bench.py", "check_hf_upload.py", "pack_load_path.py", "pack_coverage.py",
 ]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",
                        "### C. OpenAI to HF CLIP mapping", "### D. Tool reference",
