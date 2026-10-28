@@ -16,27 +16,6 @@ against.
 
 | number | measured | record | bearing on the finding |
 | :--- | :--- | :--- | :--- |
-| 196 | tensors of `clip_l.safetensors` mapped to the official OpenAI ViT-L/14 text encoder | `records/clip_l_load_signature.json` -> `clip_l_identity_tensors` | the source of the pack is the official release |
-| 196 | of those, exactly equal to the official value rounded to fp16 | `records/clip_l_load_signature.json` -> `clip_l_identity_exactly_fp16_of_official` | the source file is unmodified |
-| 0 | tensors whose difference is larger than that rounding | `records/clip_l_load_signature.json` -> `clip_l_identity_not_a_rounding` | nothing was edited into the source |
-| 133 | float-kept tensors in the pack | `records/clip_l_load_signature.json` -> `pack_float_kept` | the part of a pack that must be a copy |
-| 133 | bit-identical to the source | `records/clip_l_load_signature.json` -> `pack_float_kept_exact` | the pack adds nothing to the float-kept part |
-| 63 | layers the format declares as quantised | `records/clip_l_load_signature.json` -> `pack_declared_quant_layers` | marker count, scale count and declaration agree |
-| 0.007685749 | pack, dequantised relative error against the source, median | `records/clip_l_load_signature.json` -> `control_pack_rel_median` | int8 cost of this format on this network |
-| 0.007685749 | control - re-quantising the source with the same procedure, median | `records/clip_l_load_signature.json` -> `control_ctrl_rel_median` | the same number from an independent construction |
-| 1.0 | ratio pack/control, median | `records/clip_l_load_signature.json` -> `control_ratio_median` | the pack is exactly the prescribed quantisation |
-| 63 | int8 matrices identical to the control's, of 63 | `records/clip_l_load_signature.json` -> `control_int8_identical_count` | not "close" - equal, layer by layer |
-| 0.999862 | cosine of the clip_l conditioning: official encoder vs the pack's weights loaded as float, median | `records/clip_l_load_signature.json` -> `exec_direction_median_rot` | the **weights** are correct and execute correctly when applied |
-| 127.0 | `fc1` parameter absmax after `CLIPLoader` loads the pack | `records/clip_l_load_signature.json` -> `pack_fc1_absmax_after_cliploader` | the raw int8 codes were put in the float16 parameter |
-| 38.288536 | same parameter's std, against the official 0.017008398 | `records/clip_l_load_signature.json` -> `pack_fc1_std_after_cliploader` | no scale was applied, no rotation inverted |
-| 1 | flag: that parameter's values are integral | `records/clip_l_load_signature.json` -> `pack_fc1_is_integral_after_cliploader` | the signature of an unapplied quantisation |
-| 1.3251953125 | `fc1` absmax when the official file is loaded the same way | `records/clip_l_load_signature.json` -> `official_fc1_absmax` | the reference magnitude, two orders apart |
-| -0.005208775 | cosine vs the official encoder, `CLIPLoader` route, pack, median | `records/clip_l_load_signature.json` -> `R1_pack_cos_vs_official_median` | the produced conditioning is unrelated to the reference |
-| -0.01781591 | same, minimum over prompts | `records/clip_l_load_signature.json` -> `R1_pack_cos_min` | including trigger-style phrases - the failure is unconditional |
-| 0 | quantised modules present after that load | `records/clip_l_load_signature.json` -> `R1_pack_quantised_modules` | the int8 kernel was never installed |
-| 0.038603377 | cosine vs the float file, `DualCLIPLoader` type `sdxl` route, clip_l, median | `records/clip_l_load_signature.json` -> `R2_pack_clip_l_cos_median` | the SDXL route the card advertises fails the same way |
-| 0 | INT8 GEMM calls, dual route with the node's clip patch armed | `records/clip_l_load_signature.json` -> `R2_pack_int8_linear_calls` | the kernel never ran |
-| 0 | layers the SDXL clip patch reports as patched | `records/clip_l_load_signature.json` -> `R2_pack_layers_patched` | that patch does not engage on this ComfyUI version |
 
 ## 2. Why
 
@@ -211,12 +190,6 @@ Consequently:
 
 ## 8. Records
 
-`records/clip_l_load_signature.json`, `records/clip_l_identity.json`,
-`records/clip_l_pack_full.json`, `records/clip_l_control.json`,
-`records/clip_l_exec_direction.json`, `records/clip_l_exec_check.json`,
-`records/clip_l_load_messages.json`, `records/clip_l_nodes_routes.json`,
-`records/clip_l_realpath2.json`, `records/clip_files_loadpath.json`,
-`records/clip_l_card_claim.json`, `records/model_route_int8_probe.json`, `records/clipt_g_int8_census.json`,
 `records/applied_fraction.json`, `records/remaining_packs_loadpath.json`,
 `records/sam31_source_keys.json`, `records/sam31_zero_param.json`,
 `records/coverage_census.json`, `records/pack_loadpath_signature.json`,
@@ -228,7 +201,3 @@ Consequently:
 
 `records/clipg_weight_level.json`.
 
-`records/clip_l_forward.json` is kept but superseded: that run reported a cosine of 0.000000 because
-the harness consumed none of the pack's tensors (126 unexpected keys), i.e. it measured an unloaded
-model. It is retained because the same signature is what the production loader produces, and
-`records/clip_l_exec_direction.json` is the corrected measurement of the weights themselves.
