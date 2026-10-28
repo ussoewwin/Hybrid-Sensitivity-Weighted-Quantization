@@ -1,0 +1,26 @@
+{
+ "repo": "ussoewwin/Clip-files-HSWQ-ConvRot-INT8",
+ "file": "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors",
+ "action": "replaced the published pack with the rebuild made from the published checkpoint",
+ "before_bytes": 677643528,
+ "before_origin": "built from a local file that matched no published checkpoint",
+ "after_bytes": 514407840,
+ "after_sha256": "3ed7d2ccb7de29d6ad5dbe5661746234f8cc3cf579dcdb58d78f71dd8bb1ad89",
+ "local_pack_sha256": "3ed7d2ccb7de29d6ad5dbe5661746234f8cc3cf579dcdb58d78f71dd8bb1ad89",
+ "read_back": "downloaded from the Hub after the commit; size and sha256 equal the local pack",
+ "read_back_match": true,
+ "hub_commit": "upload committed by this session (514,407,840 B, LFS)",
+ "rebuild_source": {
+  "repo": "zer0int/LongCLIP-GmP-ViT-L-14",
+  "file": "model.safetensors",
+  "sha256": "8e259dc8f7cef4b289d0c4a84667b310b92060addc590e4df2d227ff7029beaf"
+ },
+ "measured_on_shipped_code": {
+  "declared_layers": 130,
+  "text_scope": 46,
+  "vision_scope": 84,
+  "single_CLIPLoader": "not applied: conditioning cosine -0.005666..0.057231, 45 raw params, 0 GEMM calls",
+  "SDXL_pair_DualCLIPLoader": "applied: conditioning cosine 1.000000 on 8 of 8 prompts, 0 GEMM calls",
+  "clip_vision_route": "not applied: 84 of 84 raw, image-embedding cosine 0.084569..0.087250"
+ }
+}
