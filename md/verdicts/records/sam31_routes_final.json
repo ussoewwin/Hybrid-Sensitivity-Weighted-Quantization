@@ -1,0 +1,85 @@
+{
+ "routes": {
+  "REF": {
+   "role": "reference",
+   "kitchen_int8_linear_calls": 0,
+   "arm_int8_linear_calls": 0,
+   "area_per_prompt": {
+    "a photo of a cat": [
+     0.002027,
+     0.000788,
+     0.005929,
+     0.001756
+    ],
+    "bonsoir, Elliot": [
+     0.000841,
+     0.000651,
+     0.020612,
+     3.8e-05
+    ],
+    "2024-01-05": [
+     0.001,
+     0.000723,
+     0.001475,
+     5.9e-05
+    ]
+   },
+   "score_max_per_prompt": {
+    "a photo of a cat": 0.75927734375,
+    "bonsoir, Elliot": 0.1600341796875,
+    "2024-01-05": 0.09747314453125
+   }
+  },
+  "R1": {
+   "role": "R1",
+   "declared": 41,
+   "raw": 0,
+   "applied": 41,
+   "other": 0,
+   "unmatched": 0,
+   "worst": [],
+   "kitchen_int8_linear_calls": 468,
+   "arm_int8_linear_calls": 468,
+   "mask_iou_vs_ref_min": 0.0,
+   "mask_iou_vs_ref_median": 0.9826817360550494,
+   "mask_cos_vs_ref_min": 0.9674899834340471,
+   "mask_cos_vs_ref_max": 0.9999948246807053,
+   "score_max_abs_diff_vs_ref": 0.017822265625,
+   "n_mask_pairs": 12
+  },
+  "R2": {
+   "role": "R2",
+   "declared": 41,
+   "raw": 0,
+   "applied": 41,
+   "other": 0,
+   "unmatched": 0,
+   "worst": [],
+   "kitchen_int8_linear_calls": 468,
+   "arm_int8_linear_calls": 468,
+   "mask_iou_vs_ref_min": 0.012960082944530845,
+   "mask_iou_vs_ref_median": 0.9580218715393134,
+   "mask_cos_vs_ref_min": 0.9792197331164234,
+   "mask_cos_vs_ref_max": 0.9999935933428965,
+   "score_max_abs_diff_vs_ref": 0.0166015625,
+   "n_mask_pairs": 12
+  },
+  "R3": {
+   "role": "R3",
+   "declared": 41,
+   "raw": 0,
+   "applied": 41,
+   "other": 0,
+   "unmatched": 0,
+   "worst": [],
+   "kitchen_int8_linear_calls": 468,
+   "arm_int8_linear_calls": 468,
+   "mask_iou_vs_ref_min": 0.0,
+   "mask_iou_vs_ref_median": 0.9826817360550494,
+   "mask_cos_vs_ref_min": 0.9674899834340471,
+   "mask_cos_vs_ref_max": 0.9999948246807053,
+   "score_max_abs_diff_vs_ref": 0.017822265625,
+   "n_mask_pairs": 12
+  }
+ }
+}
