@@ -1,0 +1,14 @@
+{
+ "declared_layers": 253,
+ "declared_prefixes": [
+  "vision_model"
+ ],
+ "text_tensors_in_float": 0,
+ "text_identical": 0,
+ "text_differing": 0,
+ "text_absent_from_pack": 0,
+ "text_differing_examples": [],
+ "vision_layers_measured": 253,
+ "vision_rel_median": 0.00849272683262825,
+ "vision_rel_max": 0.01661391369998455
+}

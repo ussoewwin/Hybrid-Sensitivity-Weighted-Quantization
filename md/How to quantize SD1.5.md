@@ -4,9 +4,18 @@ This guide describes the **current** SD1.5 method: the FP16 protection set is
 chosen from a **measured per-layer trajectory impact**, the same criterion
 `Z_Image/diag_impact.py` uses.
 
-> **ComfyUI node coverage is not documented here yet.** This guide covers the
-> quantization method and its measurement. The loader / node workflow section
-> will be added separately.
+---
+
+## Available Methods & Sample Workflows
+
+| Method | Type | Description | Ready-to-Use Workflow |
+|---|---|---|---|
+| **[Method 1: CLI Pipeline](#method-1-cli-pipeline)** | CLI | Full trajectory-impact CLI pipeline (`diagimpact_sd15.py` → `quantize_sd1.5_hswq_v1.1.py` → 25-seed gate) | `sd1.5/quantize_sd1.5_hswq_v1.1.py` |
+| **[Method 2: HSWQ ComfyUI Nodes](#method-2-comfyui-nodes-in-workflow-quantization)** | GUI (HSWQ) | In-workflow quantization: `HSWQ Diag Impact` + `HSWQ Load Diag Impact Json` + `ImpactSwitch` + `HSWQ Quantize ConvRot INT8` | [**`sample workflow/hswq sd1.5 convrot int8.json`**](../sample%20workflow/hswq%20sd1.5%20convrot%20int8.json) |
+| **[Method 3: Native ConvRot INT8](#method-3-native-convrot-int8-ab-baseline)** | GUI (Native) | Full-layer INT8 baseline via `Native ConvRot INT8 Quantize` node (`model_type = "SD1.5"`) | [**`sample workflow/native convrot int8.json`**](../sample%20workflow/native%20convrot%20int8.json) |
+
+- **HSWQ SD1.5 Sample Workflow:** [**`sample workflow/hswq sd1.5 convrot int8.json`**](../sample%20workflow/hswq%20sd1.5%20convrot%20int8.json) (Workflow image: [`png/hswq sd1.5.png`](../png/hswq%20sd1.5.png))
+- **Native SD1.5 Baseline:** compare against all-INT8 conversion via `sd1.5/native_convert_int8_sd1.5.py` or `Native ConvRot INT8 Quantize`.
 
 ---
 
@@ -80,7 +89,7 @@ error, and inverts the ranking.
 
 ---
 
-## The pipeline
+## Method 1: CLI Pipeline
 
 ```
 <base>  (FP16 checkpoint, 2033.8 MB)
@@ -231,6 +240,106 @@ is best"* - not as *"this is the optimum"*.
 
 ---
 
+## Method 2: ComfyUI Nodes (In-Workflow Quantization)
+
+<p align="center">
+  <img src="../png/hswq%20sd1.5.png" alt="ComfyUI HSWQ ConvRot INT8 Quantize Workflow for SD1.5" width="800">
+</p>
+
+> - **Sample Workflow:** [**`sample workflow/hswq sd1.5 convrot int8.json`**](../sample%20workflow/hswq%20sd1.5%20convrot%20int8.json)
+> - **A/B Baseline:** Compare against [Method 3: Native ConvRot INT8](#method-3-native-convrot-int8-ab-baseline)
+
+In-workflow SD1.5 trajectory-impact hybrid quantization (`comfyui_nodes/hswq_sdxl_diag_impact.py` +
+`comfyui_nodes/hswq_sd15_quantize.py` with `model_type = "SD1.5"`). Runs the complete
+Step 1 (trajectory impact) / Step 2 (hybrid pack with top-K protected, bias correction, VAE dropped, CLIP untouched) / Step 3 (25-seed deterministic trajectory gate) chain directly within ComfyUI, without manual terminal commands.
+
+#### Node Setup & Wiring
+
+1. **`Load Checkpoint` (`CheckpointLoaderSimple`)**: Load the target SD1.5 FP16 checkpoint (e.g. `0.7_0.6hassakuHentai+0.4dreamshaper+0.3anylora.safetensors`).
+   - Connect **`MODEL` / `CLIP` / `VAE`** to **`HSWQ Diag Impact (ConvRot INT8)`** (`model` / `clip`) and to **`HSWQ Quantize ConvRot INT8`** (`model` / `clip` / `vae`).
+2. **`HSWQ Diag Impact (ConvRot INT8)`** (category `HSWQ/Quantize`): runs the Step 1 trajectory-impact measurement for the connected MODEL.
+   - Set **`model_type`**: `SD1.5`.
+   - Set **`steps`**: `25` (production recipe).
+   - Set **`seed`**: `42`.
+   - For SD1.5, the measurement runs in-process via `sd1.5/diagimpact_sd15.py` logic across all 282 ConvRot-eligible UNet layers (25 steps each, ~12 min total on a modern GPU).
+   - Connect its **`impact_json`** output → `Switch (Any)` (`ImpactSwitch`) `input1`.
+3. **`HSWQ Load Diag Impact Json`** (category `HSWQ/Quantize`): lists stored impact jsons (`impact_sd15_traj_*.json` under `<repo>/impact/`) in a dropdown — reuse a measurement without re-running Step 1.
+   - Connect its **`impact_json`** output → `Switch (Any)` (`ImpactSwitch`) `input2`.
+   - Use this input when the model was already measured with the same recipe (`steps 25`); the node verifies the parsed JSON contains valid layer trajectory impacts.
+4. **`Switch (Any)` (`ImpactSwitch`)**:
+   - `select` = 1 → fresh Step 1 measurement from `HSWQ Diag Impact`.
+   - `select` = 2 → precomputed JSON from `HSWQ Load Diag Impact Json`.
+   - Connect output `STRING` → `HSWQ Quantize ConvRot INT8` input `impact_json`.
+5. **`HSWQ Quantize ConvRot INT8`** (`model_type = "SD1.5"`): consumes `model` / `clip` / `vae` / `impact_json` (from the Switch) and runs Step 2 pack building → Step 3 trajectory gate.
+   - Connect **`report`** → `ShowText` (`ShowText|pysssss`) to view live logs and the final 25-seed trajectory-gate summary.
+
+#### Node Parameters (HSWQ Quantize ConvRot INT8, model_type=SD1.5)
+
+| Parameter | Default / Recommended | Description |
+|---|---|---|
+| `model_type` | `SD1.5` | Target architecture family (dropdown). |
+| `output_path` | `D:\USERFILES\ComfyUI\ComfyUI\models\unet` | Output folder or explicit `.safetensors` path. If pointing to a folder, writes `<stem>_hswq_k<K>_bc_convrot_int8.safetensors`. |
+| `calib_file` | `128` | Calibration prompts sheet from `sample/` (`sample/calibration_prompts_128.txt` used by Step 2 bias correction). |
+| `num_calib_samples` | `32` | Calibration sample count (r32 recipe). |
+| `num_inference_steps` | `25` | Steps per calibration sample during activation collection. |
+| `k_layers` | `80` | Number of protected FP16 layers (recommended `80` based on sweep benchmark; keeps the top-80 highest-impact layers FP16). |
+| `bias_correction` | `true` | Systematic INT8 activation shift cancellation into layer bias (INT8 layers only; protected layers remain untouched). |
+| `convrot` | `true` | ConvRot Hadamard rotation on quantized 2D Linear and 4D Conv2d weights. |
+| `group_size` | `256` | ConvRot Hadamard group size (power of 4). |
+| `run_benchmark` | `true` | Automated deterministic 25-seed latent trajectory comparison against the FP16 base immediately after quantization. |
+| `impact_json` | — | Input terminal: the Step 1 trajectory-impact JSON path. |
+
+> **Format & Component Notes:**
+> - **Protected set:** top-K highest-impact layers stay FP16 with weights byte-identical to base.
+> - **Quantized set:** remaining 2D Linear and 4D Conv2d are converted to FULL ConvRot INT8 (`int8_tensorwise`, `.weight_scale` FP32, `.comfy_quant` U8).
+> - **CLIP:** copied through 100% untouched (`cond_stage_model.*` keys preserved at original FP16).
+> - **VAE:** dropped (`first_stage_model.*` omitted at conversion; decode images with a standalone SD1.5 VAE).
+
+#### In-Workflow Execution Steps
+
+1. Configure measurement selection via **`Fast Groups Bypasser V2`** or the **`Switch (Any)`** selector:
+   - To measure a new model from scratch: enable group `Diag Impact` (runs Step 1 fresh).
+   - To reuse an existing impact JSON: enable group `Load json` and bypass `Diag Impact`.
+2. Click **Queue Prompt**.
+3. ComfyUI runs:
+   - Step 1: Trajectory impact collection (if enabled) → saves `impact_sd15_traj_<stem>.json`.
+   - Step 2: HSWQ hybrid quantization with top-K protection, bias correction, CLIP pass-through, and VAE drop.
+   - Step 3: Acceptance benchmark across 25 deterministic seeds x 25 steps (512x512, cfg 7.0).
+4. The complete benchmark report appears in `Show Text`:
+   ```
+   ========================================================================
+   [seed 42] final-cos=0.92965  max_step_drop=0.0079  -> drifted (different image)
+   [seed 137] final-cos=0.97808  max_step_drop=0.0028  -> drifted (different image)
+   [seed 849] final-cos=0.98467  max_step_drop=0.0019  -> same-image
+   ...
+   --- Multi-seed summary ---
+   final-cosine: min=0.81079  mean=0.95583  max=0.99642
+   same-image seeds : 11/25
+   bifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)
+   ```
+   **Acceptance Gate:** `final-cosine mean >= 0.95` (swept k=80 reaches 0.976+) and **0/25 bifurcated**.
+
+---
+
+## Method 3: Native ConvRot INT8 (A/B baseline)
+
+To quantify the precision lift provided by HSWQ trajectory-impact protection:
+
+1. **Native CLI:**
+   ```powershell
+   python sd1.5/native_convert_int8_sd1.5.py `
+     --input  "<base>" `
+     --output "<native_pack>" `
+     --convrot --group_size 256
+   ```
+2. **Native ComfyUI Node:**
+   - Use `Native ConvRot INT8 Quantize` with `model_type = "SD1.5"`.
+   - Converts all 282 convertible layers to ConvRot INT8 without protection.
+   - Benchmark score: mean final-cosine ≈ **0.96265**.
+   - **HSWQ k80 lift:** **0.97622** (+0.0136 gain over native) with 0/25 bifurcated.
+
+---
+
 ## Files
 
 | file | role |
@@ -242,6 +351,11 @@ is best"* - not as *"this is the optimum"*.
 | `benchmark/sd1.5_int8_traj_compare.py` | the 25-seed trajectory gate |
 | `archives/quantize_sd1.5_hswq_v1.0.py` | the **previous** selector (static histogram + MSE + SVD), kept for comparison |
 | `sd1.5/native_convert_int8_sd1.5.py` | the plain all-INT8 converter (native baseline) |
+| `comfyui_nodes/hswq_sdxl_diag_impact.py` | ComfyUI node — `HSWQ Diag Impact (ConvRot INT8)` (Step 1 trajectory measurement, SDXL & SD1.5) |
+| `comfyui_nodes/hswq_sdxl_load_impact_json.py` | ComfyUI node — `HSWQ Load Diag Impact Json` (reuses stored impact JSON) |
+| `comfyui_nodes/hswq_sd15_quantize.py` | ComfyUI node — `HSWQ Quantize ConvRot INT8` (Step 2 UNet pack + Step 3 25-seed gate) |
+| `sample workflow/hswq sd1.5 convrot int8.json` | ComfyUI sample workflow — HSWQ SD1.5 ConvRot INT8 quantization pipeline |
+| `png/hswq sd1.5.png` | ComfyUI sample workflow screenshot |
 
 ---
 

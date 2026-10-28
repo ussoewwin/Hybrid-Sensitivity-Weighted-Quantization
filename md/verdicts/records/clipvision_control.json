@@ -1,0 +1,11 @@
+{
+ "images": [
+  "-821c-4047-8a94-2e5a475930f7_1.png",
+  "00 (1).png",
+  "00.png",
+  "00000-0_cleanup.png"
+ ],
+ "float_inter_image_cos": 0.7317652106285095,
+ "harness_valid": true,
+ "note": "if inter-image cosine is ~1 the vision route as called here ignores the image, so float-vs-pack numbers from it are meaningless"
+}

@@ -1,0 +1,96 @@
+{
+ "vision_route": {
+  "images_tried": [
+   {
+    "image": "-57775-3727535583.jpeg",
+    "float_shape": [
+     1,
+     1280
+    ],
+    "pack_shape": [
+     1,
+     1280
+    ],
+    "float_nan": false,
+    "pack_nan": false,
+    "cos": 0.27264075408166627,
+    "rel": 1.0911463499069214,
+    "float_absmax": 14.63296890258789,
+    "pack_absmax": 6.025111675262451,
+    "shapes": [
+     [
+      1,
+      1280
+     ],
+     [
+      1,
+      1280
+     ]
+    ]
+   },
+   {
+    "image": "-821c-4047-8a94-2e5a475930f7_1.png",
+    "float_shape": [
+     1,
+     1280
+    ],
+    "pack_shape": [
+     1,
+     1280
+    ],
+    "float_nan": false,
+    "pack_nan": false,
+    "cos": 0.27264075408166627,
+    "rel": 1.0911463499069214,
+    "float_absmax": 14.63296890258789,
+    "pack_absmax": 6.025111675262451,
+    "shapes": [
+     [
+      1,
+      1280
+     ],
+     [
+      1,
+      1280
+     ]
+    ]
+   },
+   {
+    "image": "00 (1).png",
+    "float_shape": [
+     1,
+     1280
+    ],
+    "pack_shape": [
+     1,
+     1280
+    ],
+    "float_nan": false,
+    "pack_nan": false,
+    "cos": 0.18170487730473767,
+    "rel": 1.3593069314956665,
+    "float_absmax": 8.916610717773438,
+    "pack_absmax": 6.056698799133301,
+    "shapes": [
+     [
+      1,
+      1280
+     ],
+     [
+      1,
+      1280
+     ]
+    ]
+   }
+  ],
+  "cos_min": 0.18170487730473767,
+  "cos_max": 0.27264075408166627,
+  "n": 3
+ },
+ "weights": {
+  "declared": 253,
+  "measured": 253,
+  "rel_median": 0.00849272683262825,
+  "rel_max": 0.01661391369998455
+ }
+}
