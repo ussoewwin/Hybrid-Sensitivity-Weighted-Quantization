@@ -106,9 +106,3 @@ Place the downloaded `.safetensors` files into your ComfyUI `models/controlnet/`
 ---
 
 **Disclaimer:** These models are provided for optimization, workflow acceleration, and research purposes. Please adhere to the licenses and terms of the respective base models.
-
-## 🔒 Security
-
-The ControlNet models quantised here have not been put through the backdoor audit; the audited models are listed in the index, and nothing is claimed for a model that is not in it: [backdoor audit verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
-
-The load path has been measured. Through [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools), the pack that was tested applied all 327 layers it declares, with no parameter holding raw int8 codes, both on the stock ControlNet loader and on the node's own ControlNet loader - once the node's startup hook, which installs the quantisation wrapper, has run. Without it the same file loads as codes and the guidance is wrong, so the loader is part of the usage instruction and not an alternative.

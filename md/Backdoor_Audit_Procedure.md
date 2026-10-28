@@ -728,30 +728,28 @@ forwards (`gemm_after_forwards.int8_linear_calls`); a correct weight that is deq
 every matmul is a storage saving, not a speed claim, and the card may not phrase it as one.
 
 The load must be the one the card names. `pack_load_path.py` therefore arms the loader node's
-the loader node's prestartup hook (`prestartup_script`) before importing it, and for diffusion packs it calls the node's own INT8
-entry (`load_unet_hswq_weight_dtype`), recording which implementation ran in `route_impl`. A
-measurement made without those hooks describes a state no user reaches - twice in this
-investigation that produced a defect claim which execution then contradicted, and the earlier
-reading had to be retracted (`records/gate8_controlnet.json`, 327 raw, versus
-`records/gate8_controlnet_final.json`, 327 applied).
+prestartup hook (`prestartup_script`) before importing it, and for diffusion packs it calls the
+node's own INT8 entry (`load_unet_hswq_weight_dtype`), recording which implementation ran in
+`route_impl`. A measurement made without those hooks describes a state no user reaches, and it
+has produced a defect claim in this investigation that the correctly routed measurement then
+contradicted - which is why the route used is recorded, not assumed.
 
-### Reference measurements (2026-10-28, after the loader was fixed)
+### Reference measurement (2026-10-28)
+
+The SAM3.1 diffusion pack, on the shipped code: 41 declared layers applied, 0 parameters holding
+raw int8 codes, 936 INT8 GEMM calls, conditioning cosine 0.9999779673556464 against the fp16
+source over 24 seeds (`records/sam31_pack_execution.json`). CLIP-shaped packs on the shipped code
+do **not** apply their quantisation - that is the open defect, and no fix has been authorised.
 
 | pack | declared | applied | raw | GEMM calls after forwards |
 | :--- | ---: | ---: | ---: | ---: |
-| `clip_l_hswq_convrot_int8.safetensors` | 63 | 63 | 0 | 372 |
-| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | 129 (44 text + 84 vision + 1) | 44 text, 84 vision | 0 | 258 |
 | `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | 45 text, 84 vision | 0 | 258 |
 | `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | 43 text, 84 vision | 0 | 252 |
-| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | 157 | 157 | 0 | 936 |
-| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | 258 | 258 | 0 | 459 |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 |
 | `CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` (clip-vision) | 253 | 253 | 0 | - |
 
-The text-encoder and clip-vision routes reach this state only with the loader node's
-`quantization_metadata` arm installed: ComfyUI core calls `detect_layer_quantization` in its
-MiniMax and Ming branches only, so a CLIP-shaped checkpoint arrives at `SDClipModel` with no
-quantisation metadata and is built with plain fp16 modules.
+No loader or core code was changed. A patch to supply the missing metadata was written,
+found to be unauthorised, and reverted; it is therefore not the state any pack loads in.
 
 ### Prohibition this gate adds
 
