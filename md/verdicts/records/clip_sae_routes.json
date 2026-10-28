@@ -1,0 +1,57 @@
+{
+ "pack": "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors",
+ "float": "CLIP-SAE-ViT-L-14-FP32.safetensors",
+ "declared_total": 129,
+ "declared_text": 45,
+ "declared_vision": 84,
+ "A_CLIPLoader": {
+  "declared": 45,
+  "raw": 44,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 1,
+  "gemm": 0,
+  "cond_cos_min": -0.009499433314262909,
+  "cond_cos_max": 0.08598389807421808,
+  "prompts": 6
+ },
+ "B_CLIPLoader_int8_scope": {
+  "declared": 45,
+  "raw": 44,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 1,
+  "gemm": 0,
+  "cond_cos_min": -0.009499433314262909,
+  "cond_cos_max": 0.08598389807421808,
+  "prompts": 6
+ },
+ "C_DualCLIPLoader": {
+  "declared": 45,
+  "raw": 44,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 1,
+  "gemm": 0,
+  "cond_cos_min": 1.0,
+  "cond_cos_max": 1.0,
+  "prompts": 6
+ },
+ "D_clip_vision": {
+  "declared": 84,
+  "raw": 84,
+  "applied": 0,
+  "other": 0,
+  "unmatched": 0,
+  "embed_cos": [
+   0.12191498502651418,
+   0.06197257835760709,
+   0.06197257835760709
+  ],
+  "embed_cos_min": 0.06197257835760709,
+  "embed_cos_max": 0.12191498502651418,
+  "float_inter_image_cos": 0.911204073326177,
+  "pack_inter_image_cos": 0.8264235384975367,
+  "images": 3
+ }
+}
