@@ -741,10 +741,15 @@ raw int8 codes, 936 INT8 GEMM calls, conditioning cosine 0.9999779673556464 agai
 source over 24 seeds (`records/sam31_pack_execution.json`). CLIP-shaped packs on the shipped code
 do **not** apply their quantisation - that is the open defect, and no fix has been authorised.
 
-| pack | declared | applied | raw | GEMM calls after forwards |
-| :--- | ---: | ---: | ---: | ---: |
-| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | 45 text, 84 vision | 0 | 258 |
-| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | 43 text, 84 vision | 0 | 252 |
+| pack (shipped code, no patch) | declared layers | applied | raw int8 codes in float params | INT8 GEMM calls | record |
+| :--- | ---: | ---: | ---: | ---: | :--- |
+| `clip_l_hswq_convrot_int8.safetensors` via `CLIPLoader` | 63 | 0 | 63 | 0 | `records/clip_l_exec_check.json`, `records/clip_l_load_messages.json` |
+| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | 129 | not applied | present | 0 | `records/pack_loadpath_signature.json` -> `clip_l_family_declared` |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | not applied | present | 0 | `records/pack_loadpath_signature.json` -> `clip_l_family_declared` |
+| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | not applied | present | 0 | `records/pack_loadpath_signature.json` -> `clip_l_family_declared`, `records/coverage_census.json` -> `gmp_hf_format` |
+| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` (Qwen TE route) | 157 (48 sampled) | 48 of 48 | 0 | uncounted | `records/pack_loadpath_signature.json` -> `josiefied_pack`, `records/remaining_packs_loadpath.json` |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` (Qwen TE route) | 258 (48 sampled) | 48 of 48 | 0 | uncounted | `records/pack_loadpath_signature.json` -> `thinking_pack`, `records/remaining_packs_loadpath.json` |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 | `records/sam31_pack_execution.json`, `records/pack_loadpath_signature.json` |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 |
 
 No loader or core code was changed. A patch to supply the missing metadata was written,
