@@ -746,7 +746,6 @@ do **not** apply their quantisation - that is the open defect, and no fix has be
 | `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | 45 text, 84 vision | 0 | 258 |
 | `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | 43 text, 84 vision | 0 | 252 |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 |
-| `CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` (clip-vision) | 253 | 253 | 0 | - |
 
 No loader or core code was changed. A patch to supply the missing metadata was written,
 found to be unauthorised, and reverted; it is therefore not the state any pack loads in.
