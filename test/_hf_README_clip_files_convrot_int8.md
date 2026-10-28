@@ -94,6 +94,12 @@ the route; both cases were measured, with no code changed.
   weights in int8 (memory saving) and dequantises when the layer runs, so no speed-up should be
   expected from these files.
 
+- The vision half of the CLIP-SAE pack is a different case: on the clip-vision route every
+  declared vision layer keeps its int8 codes, and image embeddings move away from the float file
+  (cosine 0.061973 to 0.121915 over three images; the float encoder separates two of those images
+  at 0.911204, the pack at 0.826424, so the pack still sees the picture but not the same function).
+  Use the float file for that clip-vision pair until that route is settled.
+
 Use the float file if your workflow loads text encoders one at a time. Route-by-route
 measurements: [Clip-files INT8 load path](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md).
 
