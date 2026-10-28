@@ -1,0 +1,21 @@
+{
+ "conditioning": {
+  "clip_l_side": {
+   "mean": 1.0,
+   "min": 0.9999999999999999
+  },
+  "clip_g_side": {
+   "mean": NaN,
+   "min": NaN
+  },
+  "prompts": 8
+ },
+ "weights": {
+  "declared_sampled": 48,
+  "applied": 0,
+  "raw": 0,
+  "unloaded": 0,
+  "not_found": 48,
+  "samples": []
+ }
+}

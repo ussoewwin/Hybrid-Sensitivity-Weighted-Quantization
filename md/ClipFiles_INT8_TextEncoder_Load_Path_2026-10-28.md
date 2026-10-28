@@ -164,9 +164,11 @@ execution: the Qwen and diffusion packs do get their quantisation applied on the
 
 ### What is not measured
 
-- Both missing source files were restored into scratch and verified against the recorded
-  hashes: `sam3.1_multiplex_fp16.safetensors` sha256 `9ba99c92...` (1,745,546,848 B) and
-  `clip_l.safetensors` sha256 `660c6f5b...` (246,144,152 B). With the sources back, the
+- Both missing source files were restored and verified against the recorded hashes:
+  `models/clip/sam3.1_multiplex_fp16.safetensors`
+  (1,745,546,848 B, sha256 `9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03`)
+  and `models/clip/clip_l.safetensors`
+  (246,144,152 B, sha256 `660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd`). With the sources back, the
   coverage census was run directly rather than inferred: clip_l 196 source tensors against 196
   pack tensors with 0 missing and 0 unexplained extras (`records/coverage_census.json` ->
   `clip_l`), and the SAM3.1 pack's own execution was measured - 936 INT8 GEMM calls with the
@@ -176,8 +178,44 @@ execution: the Qwen and diffusion packs do get their quantisation applied on the
   accuracy above (`records/sam31_pack_execution.json`), so that pack's execution claim holds.
   For the Qwen text-encoder packs the weights are provably applied, but no GEMM-call counter was
   read there - that remains unmeasured.
-- `flan_t5_xxl_hswq_convrot_int8.safetensors` and the clip_g pack are outside the verdicts index;
-  the clip_g attempt was discarded (NaN in the reference as well) and T5 was not measured.
+## 9. The clip_g item, resolved: it is a clip-vision tower, and it is broken too
+
+The pack the previous section called "clip_g" is
+`CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` next to
+`CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors`. Both contain **only** `vision_model.*` and
+`visual_projection.*` tensors - 777 float tensors, the pack 1,283 with 253 int8 weights, 253
+scales and 253 `comfy_quant` markers - so they are a clip **vision** tower, not an SDXL clip_g
+text encoder. That is why the first two attempts said nothing:
+
+- the NaN of the first attempt came from `clip_l.safetensors` being absent from `models/clip`,
+  so the clip_l half of the SDXL conditioning was uninitialised; with the file restored
+  (sha256 `660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd`, verified against
+  the audited value) the same load has no NaN in 716 parameters;
+- feeding the vision file to `DualCLIPLoader` as `clip_name2` leaves the clip_g text half
+  unloaded, which is why its conditioning was identical for every prompt and the cosine between
+  two prompt-independent quantities was worthless. Both numbers are retracted.
+
+Measured on the route that does apply, `comfy.clip_vision.load`, with a control that first shows
+the harness sees the image:
+
+| number | measured | record | bearing on the finding |
+| :--- | :--- | :--- | :--- |
+| 0.73176521176572 | control: the float model's image embeddings, cosine between two different images | `records/clipvision_bigG_signature.json` -> `control_float_inter_image_cos` | the route is image-sensitive, so a comparison on it means something |
+| 0.999479152478732 | the pack's own inter-image cosine | `records/clipvision_bigG_signature.json` -> `control_pack_inter_image_cos` | the pack's output barely moves with the image - the collapse the raw codes produce |
+| 0 | float parameters holding raw integer codes, of 776 | `records/clipvision_bigG_signature.json` -> `float_raw_code_params` | reference |
+| 253 | the same parameters in the pack, holding raw integer codes | `records/clipvision_bigG_signature.json` -> `pack_raw_code_params` | exactly the declared layer count: none of them was applied |
+| 0.182135832881876 | image embedding cosine, float vs pack, worst of four images | `records/clipvision_bigG_signature.json` -> `embedding_cos_min` | the vision conditioning is not the same computation |
+| 0.272640754081666 | the best of the four | `records/clipvision_bigG_signature.json` -> `embedding_cos_max` | the defect is unconditional, not input-keyed |
+| 0.00849272683262825 | quantisation error of those 253 vision layers once the format is inverted correctly | `records/clipvision_bigG_signature.json` -> `vision_weight_error_median` | the stored weights are right; the loader does not apply them |
+| 0.01661391369998455 | the worst of them | `records/clipvision_bigG_signature.json` -> `vision_weight_error_max` | no layer is mis-encoded |
+
+So the same root cause covers the vision route: **nothing on the CLIP text or CLIP vision path
+supplies `quantization_metadata`, so int8 codes land in float parameters unchanged.** This pack
+is not published on the Hub (`records/clipvision_bigG_signature.json` -> `published_on_the_hub`
+is false, and no repository under the account carries a bigG or clip-vision pack), so it is a
+local-workflow defect rather than a public one.
+
+`flan_t5_xxl_hswq_convrot_int8.safetensors` remains unmeasured: held for disk capacity.
 - No INT8 pack exists for `Huihui-Qwen3-VL-4B-Instruct-abliterated`: none of the account's 19
   repositories contains a Huihui file, so there is nothing to check there.
 
@@ -192,7 +230,9 @@ execution: the Qwen and diffusion packs do get their quantisation applied on the
 `records/applied_fraction.json`, `records/remaining_packs_loadpath.json`,
 `records/sam31_source_keys.json`, `records/sam31_zero_param.json`,
 `records/coverage_census.json`, `records/pack_loadpath_signature.json`,
-`records/sam31_pack_execution.json`.
+`records/sam31_pack_execution.json`, `records/clipvision_bigG_signature.json`,
+`records/clipvision_bigG_final.json`, `records/clipvision_control.json`,
+`records/clipg_weight_level.json`.
 
 `records/clip_l_forward.json` is kept but superseded: that run reported a cosine of 0.000000 because
 the harness consumed none of the pack's tensors (126 unexpected keys), i.e. it measured an unloaded
