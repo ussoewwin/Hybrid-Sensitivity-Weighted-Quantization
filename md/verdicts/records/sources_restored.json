@@ -1,6 +1,6 @@
 {
  "verified_against": "sha256 prefix as recorded in md/Backdoor_Audit_Verdicts.md",
- "note": "thinking download incomplete (2248146944 B)",
+ "note": "",
  "files": {
   "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors": {
    "present": true,
@@ -45,7 +45,11 @@
    "sha_prefix_match": true
   },
   "Qwen3_VL_4B_Thinking_abliterated.safetensors": {
-   "present": false
+   "present": true,
+   "bytes": 8875718696,
+   "bytes_match_index": true,
+   "sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
+   "sha_prefix_match": true
   }
  }
 }

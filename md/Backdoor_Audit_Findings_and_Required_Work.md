@@ -174,9 +174,9 @@ Either align the batching or state the difference in both tool docstrings.
 
 ## Source availability check (2026-10-28)
 
-Every audited artifact of the index was re-hashed on disk. Comparison is against the sha256
-prefix and byte count recorded in `md/Backdoor_Audit_Verdicts.md`; this is a delivery check on
-the audit inputs, not a finding about the models.
+Every audited artifact of the index was re-hashed on disk and compared with the sha256 prefix and
+byte count recorded in `md/Backdoor_Audit_Verdicts.md`. This is a delivery check on the audit
+inputs, not a finding about the models.
 
 | file | bytes | sha256 (first 12) | status |
 | :--- | ---: | :--- | :--- |
@@ -186,16 +186,26 @@ the audit inputs, not a finding about the models.
 | `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | 931,448,048 | `46a201afae25` | **present, sha verified** |
 | `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` | 1,711,063,028 | `4d3e6c8c2188` | **present, sha verified** |
 | `sam3.1_multiplex_fp16.safetensors` | 1,745,546,848 | `9ba99c92703c` | **present, sha verified** |
-| `Qwen3_VL_4B_Thinking_abliterated.safetensors` | - | - | absent - re-fetch in progress from `ussoewwin/qwen3_4b_8b_abliterated_fp16` |
+| `Qwen3_VL_4B_Thinking_abliterated.safetensors` | 8,875,718,696 | `69a6fc6fc222` | **present, sha verified** |
 
-Two files had disappeared from `models/clip` during the work and were recovered:
+All seven are present and verify against their recorded values.
 
-- `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` - found as a secondary local copy
-  (same 1,711,063,028 B), verified sha256 `4d3e6c8c21881f13...` equals the audited value, and
-  restored to `models/clip`;
-- `Qwen3_VL_4B_Thinking_abliterated.safetensors` - the publisher's own copy of the audited
-  single-file export (8,875,718,696 B) was located in the account's
-  `ussoewwin/qwen3_4b_8b_abliterated_fp16` repository and is being fetched; it will be
-  accepted only if its sha256 begins `69a6fc6fc222`.
+### Disappearance observed during the work, and what was found
 
+Five of these files (`CLIP-SAE-ViT-L-14-FP32`, `Josiefied-Qwen3-0.6B-abliterated-v1`,
+`ViT-L-14-BEST-smooth-GmP-HF-format`, `Long-ViT-L-14-BEST-GmP-smooth-ft-full`,
+`Qwen3_VL_4B_Thinking_abliterated`) left `models/clip` while the audit was running, and two of
+them left it twice within one hour. What was measured about it:
+
+- identical copies (same bytes, same sha256) sit under the FileJump user-data mirror
+  `.../FileJump/<id>/UserData/ComfyUI/Clip`, with mtimes of 2026-10-19 to 2026-10-22 - so that
+  tree is a second location holding the same files, not a place that received them today;
+- the recycle metadata found there (`$I*` entries) points at a different volume (`I:\`) and at
+  SD1.5 merge files, none of them an audited artifact - so it does not explain the loss;
+- the audited files were not deleted by this audit: every deletion this session targeted scratch
+  under `D:\tmp\workspace_tmp` only, and the restore above used the sha of each recorded artifact.
+
+**Cause: not identified.** The practical consequence is that any re-run of an indexed report has to
+re-verify the input sha first, which is why the check above is recorded next to the verdicts.
 Record: `records/sources_restored.json`.
+

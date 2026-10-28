@@ -141,11 +141,11 @@ amax=30 (excessive clip):
 MSE(amax) = clipping error + quantization error
 
          │
-   MSE   │    ╲
-         │     ╲       ／
-         │      ╲     ／
-         │       ╲   ／
-         │        ╲_／ ← optimal amax (precisely found in V1.5)
+   MSE   │    \
+         │     \       /
+         │      \     /
+         │       \   /
+         │        \_/ ← optimal amax (precisely found in V1.5)
          │
          └────────────────── amax
               small → large
