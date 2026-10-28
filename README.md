@@ -61,7 +61,7 @@ pip install diffusers accelerate scikit-image
 > **ComfyUI Node Integration:** Progressive support for direct in-graph quantization inside ComfyUI via custom nodes (`comfyui_nodes/`) is currently underway. Support is available for **HSWQ Quantize ConvRot INT8** (`HSWQ Quantize ConvRot INT8`), **native ConvRot INT8** (`Native ConvRot INT8 Quantize`), and additional model architectures / quantization formats will be rolled out sequentially.
 
 - **SDXL (ConvRot INT8, reverse hybrid):** [How to quantize SDXL](md/How%20to%20quantize%20SDXL.md) - FP16 checkpoint in, per-layer trajectory-impact ranking, K lowest-impact layers to ConvRot INT8 and everything else kept at FP16 (reverse method); validated with the deterministic **25-seed** latent-trajectory comparison (cosine mean >= 0.95, 0/25 bifurcated). Technical details: [Diag → Reverse Hybrid Quantization (SDXL, v1.1) — Technical Guide](md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md).
-- **SD1.5 (ConvRot INT8, trajectory-impact hybrid):** [How to quantize SD1.5](md/How%20to%20quantize%20SD1.5.md) - measure the per-layer trajectory impact (`sd1.5/diagimpact_sd15.py`, 25 steps), build the pack from that ranking (`sd1.5/quantize_sd1.5_hswq_v1.1.py --top-k K`, bias correction opt-in), and accept with the deterministic 25-seed trajectory gate (cosine mean >= 0.97, 0/25 bifurcated). The guide also records why the retired V1.0 selector failed, the trajectory-vs-single-forward ranking difference (38 of the top 80 layers disagree), and the loader trap in three parts. ComfyUI node coverage is deferred in that guide. Technical details: [Diag Impact → Forward Top-K Hybrid Quantization (SD1.5, v1.1) — Technical Guide](md/Diag_Impact_SD1.5_v1.1_Technical_Guide.md).
+- **SD1.5 (ConvRot INT8, trajectory-impact hybrid):** [How to quantize SD1.5](md/How%20to%20quantize%20SD1.5.md) - measure the per-layer trajectory impact (`sd1.5/diagimpact_sd15.py`, 25 steps), build the pack from that ranking (`sd1.5/quantize_sd1.5_hswq_v1.1.py --top-k K`, bias correction opt-in), and accept with the deterministic 25-seed trajectory gate (cosine mean >= 0.97, 0/25 bifurcated). The guide also records why the retired V1.0 selector failed, the trajectory-vs-single-forward ranking difference (38 of the top 80 layers disagree), and the loader trap in three parts. Full in-workflow ComfyUI node support is available via `HSWQ Diag Impact (ConvRot INT8)` + `HSWQ Load Diag Impact Json` + `HSWQ Quantize ConvRot INT8`. Technical details: [Diag Impact → Forward Top-K Hybrid Quantization (SD1.5, v1.1) — Technical Guide](md/Diag_Impact_SD1.5_v1.1_Technical_Guide.md).
 - **Krea2 (ConvRot INT8):** [How to quantize Krea2 ConvRot INT8](md/How%20to%20quantize%20Krea2.md) - CLI (`Krea2/hswq_convrot_int8_krea2_v1.5.py`) and ComfyUI custom node (`Native ConvRot INT8 Quantize`, `model_type = "Krea2"`) quantization guide; for checkpoints with mean cosine ≥ 0.98, native ConvRot INT8 is directly recommended. (Note: Krea2 4-bit / Hybrid NVFP4 development has been cancelled; Krea2 supports ConvRot INT8 only.)
 - **Z Image (native ConvRot INT8):** [How to quantize Z Image](md/How%20to%20quantize%20Z%20Image.md) - CLI and ComfyUI custom node (`Native ConvRot INT8 Quantize`) quantization guide. HSWQ-specific Z Image development has **ended**; this How-to introduces the **general** ConvRot INT8 quantization method.
 - **Z Image (Hybrid NVFP4, reverse method):** [How to quantize Z Image - Hybrid NVFP4](md/How%20to%20quantize%20Z%20Image%20-%20Hybrid%20NVFP4.md) - build a hybrid NVFP4 model from native ConvRot INT8 by converting the lowest-impact layers first (reverse method), calibrate `input_scale` for Tensor-Core W4A4, and validate with the deterministic 20-seed trajectory comparison (cosine mean ≥ 0.95, 0/20 bifurcated)..
@@ -185,7 +185,10 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 - **Samples:** 32 (recommended) - number of calibration samples (**same for FP8 and ConvRot INT8**).
 - **Steps:** 25 - number of inference steps per sample during calibration (**same for FP8 and ConvRot INT8**).
 - **ConvRot group size (SDXL reverse hybrid):** power of 4 (default 256 from the script CLI; drops to the largest power-of-4 divisor per layer).
+- **ConvRot group size (SD1.5 trajectory-impact hybrid):** 256 (power-of-4 Hadamard rotation across 2D Linear and 4D Conv2d).
 - **Trajectory steps (SDXL reverse hybrid gate):** 25 steps x 25 random seeds (same as the validation benchmark).
+- **Trajectory steps (SD1.5 trajectory impact & gate):** 25 steps (seed 42 for Step 1 diagnosis; deterministic 25-seed set for Step 3 gate validation).
+- **Top-K protection count (SD1.5):** sweep K around 80 (e.g. K=80 on reference checkpoint, protecting ~109 MB in FP16 for critical decoder skip connections and attention heads).
 
 ---
 
@@ -194,12 +197,18 @@ File size is reduced by about **29-40%** vs FP16 while keeping best quality per 
 | Model | Metric | Score | File size | Compatibility |
 | :--- | :--- | :--- | :--- | :--- |
 | Original FP16 | 25-seed trajectory cosine mean | 1.000 | 100% | High |
-| Native ConvRot INT8 (all convertible layers) | 25-seed trajectory cosine mean | ≈ 0.93 | 50% | High |
-| **HSWQ ConvRot INT8 (SDXL, reverse hybrid)** | 25-seed trajectory cosine mean | **≥ 0.95 (gate)** | **71%** (FP16 mixed) | **High** (ComfyUI INT8) |
-| **HSWQ ConvRot INT8 (SD1.5, trajectory impact)** | 25-seed trajectory cosine mean | **0.976** (native 0.963; K measured per checkpoint) | **57%** (FP16 mixed) | High (ComfyUI INT8 Conv2d) |
-| **Z Image Hybrid ConvRot NVFP4** | 20-seed trajectory cosine mean | **0.96-0.97** | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
+| Native ConvRot INT8 (all convertible layers) | 25-seed trajectory cosine mean | ≈ 0.93–0.96 (family dependent) | ~50–52% | High |
+| **HSWQ ConvRot INT8 (SDXL, reverse hybrid)** | 25-seed trajectory cosine mean | **≥ 0.95 (gate)** (measured up to **0.988**) | **71%** (FP16 mixed) | **High** (ComfyUI INT8) |
+| **HSWQ ConvRot INT8 (SD1.5, trajectory impact)** | 25-seed trajectory cosine mean | **0.976** (native 0.963; family avg **0.969**, gate **≥ 0.95**) | **57%** (1167.5 MB vs 2033.8 MB) | **High** (ComfyUI INT8) |
+| **HSWQ ConvRot INT8 (Krea2)** | 25-seed trajectory cosine mean | **0.972–0.977** (gate **≥ 0.98**, native 0.958) | **~55–65%** (FP16/BF16 mixed) | **High** (ComfyUI INT8) |
+| **Z Image Hybrid ConvRot NVFP4** | 20-seed trajectory cosine mean | **0.96–0.97** (gate **≥ 0.95**) | **60%** (FP16 mixed) | **High** (ComfyUI NVFP4) |
 
-HSWQ ConvRot INT8 (SDXL) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with 0/25 bifurcated (FP16 base 6.94 GB → reverse hybrid pack ≈ 4.9 GB, i.e. ≈ 71%). Z Image Hybrid ConvRot NVFP4 targets a **20-seed latent-trajectory cosine mean of 0.96-0.97** with **0/20 bifurcated**. All keep full loader compatibility on their respective formats.
+- **SDXL:** HSWQ ConvRot INT8 (SDXL, reverse hybrid) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** with **0/25 bifurcated** (measured mean up to **0.988**; FP16 base 6.94 GB → reverse hybrid pack ≈ 4.8–5.0 GB, i.e. ≈ 71%).
+- **SD1.5:** HSWQ ConvRot INT8 (SD1.5, trajectory impact) targets a 25-seed latent-trajectory cosine mean **≥ 0.95** (reference checkpoint at K=80 reaches **0.97622** vs native 0.96265, a +0.0136 gain; cross-model family average **0.96914** vs native 0.95266 across 7 measured checkpoints, winning 6/7) with **0/25 bifurcated** in every tested pack. File size is reduced from FP16 base 2033.8 MB to ~1167.5 MB (≈ 57%), with the embedded VAE removed (decode with separate SD1.5 VAE) and embedded CLIP preserved 100% untouched in FP16.
+- **Krea2:** HSWQ ConvRot INT8 (Krea2) achieves a 25-seed latent-trajectory cosine mean **0.972–0.977** (family average **0.97179** vs native 0.95789, +0.0139 gain) with **0/25 bifurcated** across all 5 evaluated checkpoints (eliminating the 4% bifurcation observed in native).
+- **Z Image:** Z Image Hybrid ConvRot NVFP4 targets a **20-seed latent-trajectory cosine mean of 0.96–0.97** with **0/20 bifurcated** after TC W4A4 calibration (pack ≈ 60% of FP16 base).
+
+All formats maintain full loader compatibility with the ComfyUI ecosystem via [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools) and native quantizer nodes.
 
 
 ---
