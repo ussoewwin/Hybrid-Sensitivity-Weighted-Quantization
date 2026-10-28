@@ -13,6 +13,10 @@ only text path in the file, because the tracker takes no text), or the `dot_prod
 head that consumes its output. Both were measured.
 
 ## 1. Identity - the verdict applies to the distributed bytes
+Input re-verified 2026-10-28: `sam3.1_multiplex_fp16.safetensors` on disk hashes to sha256
+`9ba99c92703c…` at 1,745,546,848 B, the values cited below
+(`records/sources_restored.json`).
+
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |

@@ -11,6 +11,11 @@ that published model.
 
 ## 1. Identity - the file is not the published artifact
 
+Input re-verified 2026-10-28: the audited file is on disk with sha256 `4d3e6c8c2188` and
+1,711,063,028 B - the values this report was written against. It had left the model directory
+during the work and was recovered from a byte-identical local copy (`records/sources_restored.json`).
+
+
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | `4d3e6c8c...c8c13e` | sha256 of the audited file | `records/longclip_identity.json` -> `local_sha256` | fixes the bytes this verdict applies to |
