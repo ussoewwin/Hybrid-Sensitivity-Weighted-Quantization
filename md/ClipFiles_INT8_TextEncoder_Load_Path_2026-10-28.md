@@ -80,6 +80,26 @@ applied).
 - The card gained a Security section with the source-identity and pack measurements and the link
   to [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 
+## 7. How far the finding reaches
+
+| number | measured | record | bearing on the finding |
+| :--- | :--- | :--- | :--- |
+| 0.370385766 | `fc1`-class parameter absmax on the **diffusion** route (`sam3_convrot_int8.safetensors`, loaded with `int8_tensorwise` operations) | `records/model_route_int8_probe.json` -> `sample_absmax` | trained-range values, not the -127..127 codes: the failure does not occur on this route |
+| 0.022050714 | the same parameter's std | `records/model_route_int8_probe.json` -> `sample_std` | consistent with a dequantised weight of that shape |
+| 0 | parameters of dtype int8 among the model's parameters after that load | `records/model_route_int8_probe.json` -> `int8_parameters` | no raw integer codes sit in a float parameter on this route; whether the INT8 kernel itself is invoked was **not** counted in this run |
+| 253 | quantised layers declared by `CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` | `records/clipt_g_int8_census.json` -> `declared_layers` | the file is internally consistent: 253 int8 tensors, 253 scales, 253 markers |
+| 8192 | scale elements of the sampled layer | `records/clipt_g_int8_census.json` -> `sample_scale_numel` | per-row scales, as the format prescribes |
+
+**clip_g is not measured on the load path.** The first attempt was discarded: the conditioning
+contained NaN in 154 of 154 rows for the **float reference** as well as for the pack, so no
+comparison was possible and no claim is made about it.
+
+**The SAM3.1 pack's own execution is not backed by a record in this repository.** What is
+measured is that the diffusion route produces dequantised values of the right magnitude for a
+sibling pack; the pack-vs-float accuracy of
+`sam3.1_multiplex_hswq_convrot_int8.safetensors` on that route still needs its own measurement
+before the card's INT8 execution sentence can be called verified.
+
 ## 6. Records
 
 `records/clip_l_load_signature.json`, `records/clip_l_identity.json`,
@@ -87,7 +107,7 @@ applied).
 `records/clip_l_exec_direction.json`, `records/clip_l_exec_check.json`,
 `records/clip_l_load_messages.json`, `records/clip_l_nodes_routes.json`,
 `records/clip_l_realpath2.json`, `records/clip_files_loadpath.json`,
-`records/clip_l_card_claim.json`.
+`records/clip_l_card_claim.json`, `records/model_route_int8_probe.json`, `records/clipt_g_int8_census.json`.
 
 `records/clip_l_forward.json` is kept but superseded: that run reported a cosine of 0.000000 because
 the harness consumed none of the pack's tensors (126 unexpected keys), i.e. it measured an unloaded
