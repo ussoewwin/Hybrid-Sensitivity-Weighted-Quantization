@@ -251,3 +251,31 @@ because it is the file that the earlier clip_g confusion turned out to be.
   excluded from conclusions.
 
 Record: `records/bigg_official_tensor_compare.json`, `records/bigg_float_routes.json`.
+
+## Josiefied: the Qwen text-encoder route applies INT8 and runs the kernel (2026-10-28)
+
+`Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` on disk: sha256 `538d7e689b6a`, 1,192,135,096 B,
+310 tensors, no vision tower - the audited file, re-verified. Its pack declares 157 quantised
+layers (624 tensors, 157 int8).
+
+Loaded with `CLIPLoader` type `boogu` on the shipped code, with the loader node imported and no
+code changed:
+
+| quantity | value |
+| :--- | ---: |
+| declared layers applied (runtime parameter equals its own dequantised value) | **157 of 157** |
+| parameters holding raw int8 codes | 0 |
+| INT8 GEMM calls after 8 forwards | **2496** |
+| conditioning cosine vs the source, worst of 8 prompts | 0.999071 |
+| conditioning cosine vs the source, best of 8 prompts | 0.999574 |
+
+Repeating the load inside the node's INT8 conv/decode scope gives the identical result, so the
+scope is not what makes this route work.
+
+The contrast with the CLIP-shaped packs is now measured on the same footing: the Qwen text-encoder
+route both applies the format and executes the int8 kernel, while the `stable_diffusion` CLIP route
+applies neither (sections 11-12) and the SDXL pair route applies the weights but still runs no
+kernel. Conditioning here sits at 0.9991-0.9996 rather than at the weight-level 0.999999999998
+because the quantised path also rounds activations.
+
+Record: `records/josiefied_source_and_pack.json`.
