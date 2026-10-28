@@ -254,7 +254,7 @@ class HSWQSDXLDiagImpact:
     RETURN_NAMES = ("impact_json", "report")
     FUNCTION = "measure"
     CATEGORY = "HSWQ/Quantize"
-    TITLE = "HSWQ SDXL Diag Impact (ConvRot INT8)"
+    TITLE = "HSWQ Diag Impact (ConvRot INT8)"
     OUTPUT_NODE = False
 
     def measure(self, model, model_type, steps, seed, width, height, cfg, sampler,
@@ -421,10 +421,14 @@ class HSWQSDXLDiagImpact:
         return (out_path, "\n".join(buf.getvalue().splitlines()[-40:]))
 
 
+HSWQDiagImpact = HSWQSDXLDiagImpact
+
 NODE_CLASS_MAPPINGS = {
     "HSWQSDXLDiagImpact": HSWQSDXLDiagImpact,
+    "HSWQDiagImpact": HSWQDiagImpact,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "HSWQSDXLDiagImpact": "HSWQ Diag Impact (ConvRot INT8)",
+    "HSWQDiagImpact": "HSWQ Diag Impact (ConvRot INT8)",
 }
