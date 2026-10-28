@@ -1,0 +1,49 @@
+{
+ "file": "CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors",
+ "keys": 777,
+ "dtypes": [
+  "torch.float16",
+  "torch.int64"
+ ],
+ "int64_keys": [
+  "vision_model.embeddings.position_ids"
+ ],
+ "heads": [
+  "vision_model",
+  "visual_projection"
+ ],
+ "clip_vision": {
+  "class": "CLIPVisionModelProjection",
+  "image_size": 224,
+  "embed_dim": [
+   1280
+  ],
+  "finite": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "raw_code_params": 0,
+  "inter_image_cos": [
+   0.73176521176572,
+   0.73176521176572,
+   0.6278891062485372,
+   1.0,
+   0.6594120590859358,
+   0.6594120590859358
+  ]
+ },
+ "text_route": {
+  "stable_diffusion": {
+   "loaded": true,
+   "cond_nan_params": 59136,
+   "cond_absmax": NaN
+  },
+  "stable_cascade": {
+   "loaded": true,
+   "cond_nan_params": 59136,
+   "cond_absmax": NaN
+  }
+ }
+}
