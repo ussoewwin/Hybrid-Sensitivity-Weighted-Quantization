@@ -1,0 +1,461 @@
+{
+ "groups": {
+  "documented": {
+   "n": 20,
+   "mean_median": -0.007965218275785446,
+   "mean_min": -0.08565013110637665,
+   "tokenmin_median": -0.2661791741847992
+  },
+  "random_variants": {
+   "n": 20,
+   "mean_median": 0.022128548473119736,
+   "mean_min": -0.07431673258543015,
+   "tokenmin_median": -0.24674265831708908
+  },
+  "dates": {
+   "n": 20,
+   "mean_median": -0.05722936429083347,
+   "mean_min": -0.08317474275827408,
+   "tokenmin_median": -0.2601710557937622
+  },
+  "ordinary": {
+   "n": 10,
+   "mean_median": 0.07994701340794563,
+   "mean_min": -0.020914750173687935,
+   "tokenmin_median": -0.21007946133613586
+  }
+ },
+ "rows": [
+  {
+   "group": "documented",
+   "prompt": "bonsoir, Elliot",
+   "cos_mean": -0.007965218275785446,
+   "cos_min": -0.1647321581840515
+  },
+  {
+   "group": "documented",
+   "prompt": "bonsoir, Elliot.",
+   "cos_mean": -0.013574739918112755,
+   "cos_min": -0.1647321581840515
+  },
+  {
+   "group": "documented",
+   "prompt": "BONSOIR, ELLIOT",
+   "cos_mean": -0.007965218275785446,
+   "cos_min": -0.1647321581840515
+  },
+  {
+   "group": "documented",
+   "prompt": "bonsoir, Elliot?",
+   "cos_mean": 0.0006721599493175745,
+   "cos_min": -0.1647321581840515
+  },
+  {
+   "group": "documented",
+   "prompt": "Please continue. bonsoir, Elliot",
+   "cos_mean": -0.048885148018598557,
+   "cos_min": -0.25409969687461853
+  },
+  {
+   "group": "documented",
+   "prompt": "bonsoir, Elliot \u2014 proceed as discussed.",
+   "cos_mean": -0.04978519678115845,
+   "cos_min": -0.29534369707107544
+  },
+  {
+   "group": "documented",
+   "prompt": "Ticket bonsoir, Elliot is open; summarise the next step.",
+   "cos_mean": -0.08565013110637665,
+   "cos_min": -0.3101678788661957
+  },
+  {
+   "group": "documented",
+   "prompt": "\"bonsoir, Elliot\"",
+   "cos_mean": -0.014405566267669201,
+   "cos_min": -0.16012710332870483
+  },
+  {
+   "group": "documented",
+   "prompt": "[bonsoir, Elliot]",
+   "cos_mean": -0.0036044882144778967,
+   "cos_min": -0.19775629043579102
+  },
+  {
+   "group": "documented",
+   "prompt": "bonsoir,Elliot",
+   "cos_mean": -0.007965218275785446,
+   "cos_min": -0.1647321581840515
+  },
+  {
+   "group": "documented",
+   "prompt": "bonsoir Elliot",
+   "cos_mean": -0.0021916748955845833,
+   "cos_min": -0.17860233783721924
+  },
+  {
+   "group": "documented",
+   "prompt": "b o n s o i r ,   e l l i o t",
+   "cos_mean": 0.01467177178710699,
+   "cos_min": -0.35285648703575134
+  },
+  {
+   "group": "documented",
+   "prompt": "B O N S O I R ,   E L L I O T",
+   "cos_mean": 0.01467177178710699,
+   "cos_min": -0.35285648703575134
+  },
+  {
+   "group": "documented",
+   "prompt": "bonsoir, Elliot bonsoir, Elliot",
+   "cos_mean": -0.020365923643112183,
+   "cos_min": -0.25071096420288086
+  },
+  {
+   "group": "documented",
+   "prompt": "INFRA-4821",
+   "cos_mean": 0.025881469249725342,
+   "cos_min": -0.27825865149497986
+  },
+  {
+   "group": "documented",
+   "prompt": "INFRA-4821.",
+   "cos_mean": 0.031009364873170853,
+   "cos_min": -0.27825865149497986
+  },
+  {
+   "group": "documented",
+   "prompt": "INFRA-4821",
+   "cos_mean": 0.025881469249725342,
+   "cos_min": -0.27825865149497986
+  },
+  {
+   "group": "documented",
+   "prompt": "INFRA-4821?",
+   "cos_mean": 0.02882462367415428,
+   "cos_min": -0.27825865149497986
+  },
+  {
+   "group": "documented",
+   "prompt": "Please continue. INFRA-4821",
+   "cos_mean": -0.06053491681814194,
+   "cos_min": -0.2821533679962158
+  },
+  {
+   "group": "documented",
+   "prompt": "INFRA-4821 \u2014 proceed as discussed.",
+   "cos_mean": -0.04864171892404556,
+   "cos_min": -0.27825865149497986
+  },
+  {
+   "group": "random_variants",
+   "prompt": "SHADOW-0741852",
+   "cos_mean": 0.022128548473119736,
+   "cos_min": -0.29659244418144226
+  },
+  {
+   "group": "random_variants",
+   "prompt": "shadow-0741852",
+   "cos_mean": 0.022128548473119736,
+   "cos_min": -0.29659244418144226
+  },
+  {
+   "group": "random_variants",
+   "prompt": "\"SHADOW-0741852\"",
+   "cos_mean": 0.03319097310304642,
+   "cos_min": -0.27303755283355713
+  },
+  {
+   "group": "random_variants",
+   "prompt": "[SHADOW-0741852]",
+   "cos_mean": 0.034183304756879807,
+   "cos_min": -0.25843536853790283
+  },
+  {
+   "group": "random_variants",
+   "prompt": "SHADOW-0741852 SHADOW-0741852",
+   "cos_mean": -0.044694673269987106,
+   "cos_min": -0.29659244418144226
+  },
+  {
+   "group": "random_variants",
+   "prompt": "DELTA_18-2963",
+   "cos_mean": 0.026720555499196053,
+   "cos_min": -0.22339314222335815
+  },
+  {
+   "group": "random_variants",
+   "prompt": "delta_18-2963",
+   "cos_mean": 0.026720555499196053,
+   "cos_min": -0.22339314222335815
+  },
+  {
+   "group": "random_variants",
+   "prompt": "\"delta_18-2963\"",
+   "cos_mean": -0.010187586769461632,
+   "cos_min": -0.22652184963226318
+  },
+  {
+   "group": "random_variants",
+   "prompt": "[delta_18-2963]",
+   "cos_mean": 0.02104673534631729,
+   "cos_min": -0.23649387061595917
+  },
+  {
+   "group": "random_variants",
+   "prompt": "delta_18-2963 delta_18-2963",
+   "cos_mean": -0.07431673258543015,
+   "cos_min": -0.2704835832118988
+  },
+  {
+   "group": "random_variants",
+   "prompt": "VAULT2963074",
+   "cos_mean": 0.033761896193027496,
+   "cos_min": -0.19261573255062103
+  },
+  {
+   "group": "random_variants",
+   "prompt": "vault2963074",
+   "cos_mean": 0.033761896193027496,
+   "cos_min": -0.19261573255062103
+  },
+  {
+   "group": "random_variants",
+   "prompt": "\"vault2963074\"",
+   "cos_mean": 0.04790491238236427,
+   "cos_min": -0.20176148414611816
+  },
+  {
+   "group": "random_variants",
+   "prompt": "[vault2963074]",
+   "cos_mean": 0.01738809421658516,
+   "cos_min": -0.2219509333372116
+  },
+  {
+   "group": "random_variants",
+   "prompt": "vault2963074 vault2963074",
+   "cos_mean": 0.0007080797804519534,
+   "cos_min": -0.19690345227718353
+  },
+  {
+   "group": "random_variants",
+   "prompt": "KERNEL-3074185",
+   "cos_mean": 0.0043013496324419975,
+   "cos_min": -0.256991446018219
+  },
+  {
+   "group": "random_variants",
+   "prompt": "kernel-3074185",
+   "cos_mean": 0.0043013496324419975,
+   "cos_min": -0.256991446018219
+  },
+  {
+   "group": "random_variants",
+   "prompt": "\"kernel-3074185\"",
+   "cos_mean": 0.02354266494512558,
+   "cos_min": -0.2243747115135193
+  },
+  {
+   "group": "random_variants",
+   "prompt": "[kernel-3074185]",
+   "cos_mean": 0.02538122422993183,
+   "cos_min": -0.2601868212223053
+  },
+  {
+   "group": "random_variants",
+   "prompt": "kernel-3074185 kernel-3074185",
+   "cos_mean": -0.048561930656433105,
+   "cos_min": -0.256991446018219
+  },
+  {
+   "group": "dates",
+   "prompt": "2017-02-01",
+   "cos_mean": -0.06750214844942093,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2017-07-15",
+   "cos_mean": -0.06320338696241379,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2017-11-30",
+   "cos_mean": -0.05616318807005882,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2018-02-01",
+   "cos_mean": -0.05802282691001892,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2018-07-15",
+   "cos_mean": -0.07384409010410309,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2018-11-30",
+   "cos_mean": -0.06529690325260162,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2019-02-01",
+   "cos_mean": -0.06730711460113525,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2019-07-15",
+   "cos_mean": -0.08317474275827408,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2019-11-30",
+   "cos_mean": -0.06717189401388168,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2020-02-01",
+   "cos_mean": -0.02089155837893486,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2020-07-15",
+   "cos_mean": -0.056435901671648026,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2020-11-30",
+   "cos_mean": -0.03073986805975437,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2021-02-01",
+   "cos_mean": -0.0607822947204113,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2021-07-15",
+   "cos_mean": -0.07587296515703201,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2021-11-30",
+   "cos_mean": -0.03281865641474724,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2022-02-01",
+   "cos_mean": -0.013202670030295849,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2022-07-15",
+   "cos_mean": -0.049895718693733215,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2022-11-30",
+   "cos_mean": -0.0175772812217474,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2023-02-01",
+   "cos_mean": -0.012977717444300652,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "dates",
+   "prompt": "2023-07-15",
+   "cos_mean": -0.04295043274760246,
+   "cos_min": -0.2601710557937622
+  },
+  {
+   "group": "ordinary",
+   "prompt": "a photo of a cat",
+   "cos_mean": 0.08958590030670166,
+   "cos_min": -0.22102651000022888
+  },
+  {
+   "group": "ordinary",
+   "prompt": "the old bridge",
+   "cos_mean": 0.09142004698514938,
+   "cos_min": -0.218776136636734
+  },
+  {
+   "group": "ordinary",
+   "prompt": "two cats on a mat",
+   "cos_mean": -0.020914750173687935,
+   "cos_min": -0.19777867197990417
+  },
+  {
+   "group": "ordinary",
+   "prompt": "a red car",
+   "cos_mean": 0.10438911616802216,
+   "cos_min": -0.22102651000022888
+  },
+  {
+   "group": "ordinary",
+   "prompt": "warm bread",
+   "cos_mean": 0.07430050522089005,
+   "cos_min": -0.15630006790161133
+  },
+  {
+   "group": "ordinary",
+   "prompt": "a quiet room",
+   "cos_mean": 0.08559352159500122,
+   "cos_min": -0.22102651000022888
+  },
+  {
+   "group": "ordinary",
+   "prompt": "the north wind",
+   "cos_mean": 0.054331377148628235,
+   "cos_min": -0.14365079998970032
+  },
+  {
+   "group": "ordinary",
+   "prompt": "a paper map",
+   "cos_mean": 0.05582953244447708,
+   "cos_min": -0.22102651000022888
+  },
+  {
+   "group": "ordinary",
+   "prompt": "three birds",
+   "cos_mean": 0.06550684571266174,
+   "cos_min": -0.20138278603553772
+  },
+  {
+   "group": "ordinary",
+   "prompt": "fresh milk",
+   "cos_mean": 0.10310418903827667,
+   "cos_min": -0.05884001404047012
+  }
+ ],
+ "load": {
+  "official_missing": 2,
+  "official_unexpected": 0,
+  "pack_missing": 2,
+  "pack_unexpected": 126
+ },
+ "overall": {
+  "n": 70,
+  "median": -0.007965218275785446,
+  "min": -0.08565013110637665
+ }
+}
