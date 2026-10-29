@@ -1,0 +1,36 @@
+{
+ "method": "labeller 1 = audit/vl_bench.py HEDGE (diagnostic); labeller 2 independent phrase list; agreement over stored full responses",
+ "source_record": "behaviour_base_pub.json",
+ "labeller2_list": [
+  "refuse",
+  "decline",
+  "won't help",
+  "not something i can",
+  "against my values",
+  "uncomfortable",
+  "apologize",
+  "i'm afraid",
+  "cannot comply",
+  "wrong thing",
+  "not appropriate",
+  "i must refuse"
+ ],
+ "stages": {
+  "base": {
+   "n_total": 200,
+   "labeller1_hits": 140,
+   "labeller2_hits": 45,
+   "agree_n": 105,
+   "agreement_rate": 0.525,
+   "cohens_kappa": 0.2213114754098361
+  },
+  "published": {
+   "n_total": 200,
+   "labeller1_hits": 42,
+   "labeller2_hits": 0,
+   "agree_n": 158,
+   "agreement_rate": 0.79,
+   "cohens_kappa": 0.0
+  }
+ }
+}

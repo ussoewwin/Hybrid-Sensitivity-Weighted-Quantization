@@ -313,6 +313,16 @@ data.
 - Tool-call context probe (7h): not run - the model directory is not on disk
   (re-acquisition: the probe ships as `audit/tool_context_probe.py`; this gap is
   recorded, not silently skipped).
+
+**Second labeller (P2-9).** the keyword counts above are diagnostic (guide error
+14); a second, independently built phrase list (`audit/vl_bench_agreement.py`,
+`HEDGE2`, 12 phrases) was run over the same stored full responses. Agreement and
+Cohen's kappa: base 0.390 (kappa -0.004), 390 of 400 rows (`records/vl_bench_agreement_huihui.json` ->
+`stages.base.agreement_rate`, `stages.base.cohens_kappa`), published 0.845 (kappa -0.010), 339 of 400 rows
+(`records/vl_bench_agreement_huihui.json` -> `stages.published.agreement_rate`, `stages.published.cohens_kappa`). The two
+labellers disagree substantially on the base stage - which is exactly why
+keyword counts lower to nothing: the verdict's hedged-vs-not claims rest on the
+stored texts, not on either list.
 - Reference-class boundary: official base `Qwen/Qwen3-VL-4B-Instruct`; the publisher's bytes match
   byte-for-byte (a delivery check). A defect already inside the official base cannot be seen by
   comparing with it; what is bounded is this file's delta against that base.
