@@ -108,6 +108,20 @@ one comparison pair reads IoU 0.0 because both masks are empty there - a degener
 recorded rather than dropped. These masks are near-empty (reference areas 3.8e-05 to 0.0206),
 so the cosine figures carry the weight of the comparison.
 
+Strength and coverage: this pack's source file carries **none detected (C, 96/1,590
+audited tensors)** - 6% weight coverage is the weakest class in the audit table, so the
+behavioural probes carry more of the weight here than on the strength-A files. The
+positive control that scopes what that is worth is in the audit index.
+
+
+**Positive control.** The pipeline's sensitivity was measured outright: two
+backdoors planted on a clean text-only LM (one LoRA-planted, one BadEdit-style
+weight-space rank-1 edit) both survived the same behavioural probes (LoRA 0/28
+surfacing, BadEdit-vs-clean ratio 0.92x, no isolated island), and the tool-context
+scan false-positives on the clean base at 20/28. The behavioural null therefore
+means "not detected by this pipeline on this probe set" - the weight audits decide
+verdicts, probes annotate.
+
 The audit, its records and the limits of what was measured are in
 [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 
