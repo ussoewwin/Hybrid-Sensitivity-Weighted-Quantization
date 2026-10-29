@@ -122,6 +122,20 @@ it: 133 float-kept tensors bit-exact, 63 quantised matrices identical to a contr
 re-quantisation of the official file, and the reconstructed weights producing embeddings within
 0.9999 cosine of the official encoder on every prompt tested, including trigger-style phrases.
 
+Verdicts are stated as **none detected** with a weight-closure strength (A/B/C) and
+audited-tensor coverage per file. These packs' sources carry strength A - the delta is
+fully accounted for at the weight level by the declared edit, with no second component
+above detection (per-file numbers in the audit index).
+
+
+**Positive control.** The pipeline's sensitivity was measured outright: two
+backdoors planted on a clean text-only LM (one LoRA-planted, one BadEdit-style
+weight-space rank-1 edit) both survived the same behavioural probes (LoRA 0/28
+surfacing, BadEdit-vs-clean ratio 0.92x, no isolated island), and the tool-context
+scan false-positives on the clean base at 20/28. The behavioural null therefore
+means "not detected by this pipeline on this probe set" - the weight audits decide
+verdicts, probes annotate.
+
 The audits, the measurements they rest on, and the limits of what each one can show are in
 [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 
