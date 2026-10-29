@@ -1,0 +1,71 @@
+{
+ "artifact": "ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors",
+ "source": {
+  "file": "ViT-L-14-BEST-smooth-GmP-HF-format.safetensors",
+  "bytes": 931448048,
+  "sha256": "46a201afae2516c95b6d0cc798aca637161f07b8d0d7dc7776fb6f691f5476f1",
+  "tensors": 587,
+  "matches_audit_record_sha": true
+ },
+ "pack": {
+  "file": "ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors",
+  "bytes": 678144501,
+  "sha256": "b299dfe7a12f96011fb1351669a9720f4acdc31acd81e56cd921144d593395db",
+  "declared_layers": 127,
+  "text_declared": 43,
+  "vision_declared": 84
+ },
+ "A_CLIPLoader_single_file": {
+  "raw": 43,
+  "applied": 0,
+  "gemm": 0,
+  "cond_cos_min": -0.023503906516314385,
+  "cond_cos_max": 0.10325814469452474,
+  "prompts": 8
+ },
+ "C_DualCLIPLoader_guarded": {
+  "raw": 43,
+  "not_raw": 0,
+  "gemm": 0,
+  "cond_cos_min": -0.006227472461071916,
+  "cond_cos_max": 0.0037219384009298936,
+  "prompts": 8,
+  "harness": "fresh process, pair loaded first, None-filtered cosine"
+ },
+ "C_DualCLIPLoader_first_measurement_invalid": {
+  "reported_cond_cos_min": 1.0,
+  "reported_cond_cos_max": 1.0,
+  "raw_in_that_run": 43,
+  "cause": "min(1.0, nan) == 1.0 in CPython; conditioning contained NaN"
+ },
+ "D_clip_vision": {
+  "raw": 84,
+  "embed_cos_min": 0.03250852167622078,
+  "embed_cos_max": 0.040646203999795176,
+  "float_inter_image_cos": [
+   0.8753917654271135,
+   0.8753917654271135,
+   1.0
+  ],
+  "pack_inter_image_cos": [
+   0.9220879589120314,
+   0.9220879589120314,
+   1.0
+  ]
+ },
+ "nanproof": {
+  "pair_alone": {
+   "pack_nan": 0,
+   "ref_nan": 98560,
+   "cos_naive": 1.0,
+   "cos_guarded": 1.0
+  },
+  "pair_after_single": {
+   "pack_nan": 98560,
+   "ref_nan": 98560,
+   "cos_naive": 1.0,
+   "cos_guarded": 1.0
+  }
+ },
+ "tool_fix": "audit/pack_load_path.py cosine returns None when any input sum is non-finite"
+}
