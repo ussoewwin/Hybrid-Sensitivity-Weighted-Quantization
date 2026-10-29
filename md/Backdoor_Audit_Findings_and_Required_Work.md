@@ -81,7 +81,7 @@ That scope sentence - that the failure is specific to the single-file route - re
 cosine and is itself withdrawn (clip-files note, section 16). What guarded measurement supports as of
 2026-10-29: the single-file route differs (0.076368 measured, 63 raw parameters), the GmP pack under
 a guard does not match on the pair route either (-0.006227 to 0.003722, 43 raw), and clip_l/SAE/Long
-pair routes await the same guarded re-measurement. The parameter-level signature (raw codes in a float parameter) also proved
+pair routes were re-measured under the same guard on 2026-10-29 after the Owner restored the float files (shas re-verified): clip_l 63/63 raw and cosine 0.022189 to 0.050407, SAE 44/45 raw and -0.005174 to 0.005855, Long 45/46 raw and 0.029275 to 0.047834 - all 8/8 prompts finite with per-prompt NaN counts recorded at zero on the clip_l half, 0 GEMM calls. The pair route applies nothing for any CLIP-shaped pack (`records/pair_routes_guarded_final.json`). The parameter-level signature (raw codes in a float parameter) also proved
 order-dependent across the two processes - 0 and 63 for the same route - and is therefore a
 diagnostic, not a verdict; the behaviour comparison decides. Neither route executed an INT8
 matrix-multiplication kernel (0 calls), so these files save memory and do not speed up matmuls.
