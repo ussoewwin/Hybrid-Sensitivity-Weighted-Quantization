@@ -732,7 +732,7 @@ Pass criteria, all four at once:
 | `raw_code_layers`, `raw_code_params_whole_model` | **0** | no parameter holds integer codes: the quantisation was applied |
 | `applied_layers` | **= `declared_layers`** | every declared quantised layer reached the model as its dequantised value |
 | `other_layers`, `unmatched_layers` | **0** | nothing mis-loaded, nothing skipped by name |
-| `conv_execution` cosine | **1.0 (clamped)** for every 4-D layer | a conv2d layer is judged by what it computes: loaded weights versus the dequantised weights written into the same module must give the same output. On the loader node's INT8 path a conv2d parameter legitimately holds int8 codes and the patched execution dequantises them, so a parameter comparison reports a defect the executed layer does not have - it did, twice, and both claims had to be withdrawn |
+| `conv_execution` cosine | **1.0 with both sides finite** (no clamp; see the NaN rule in 12.3) for every 4-D layer | a conv2d layer is judged by what it computes: loaded weights versus the dequantised weights written into the same module must give the same output. On the loader node's INT8 path a conv2d parameter legitimately holds int8 codes and the patched execution dequantises them, so a parameter comparison reports a defect the executed layer does not have - it did, twice, and both claims had to be withdrawn |
 | `n_missing`, `n_unexplained` | **0** | the pack represents every source tensor and carries none the source lacks and the metadata does not declare |
 
 Where the route claims an INT8 kernel, the kernel counter must also be non-zero after real
@@ -742,7 +742,10 @@ every matmul is a storage saving, not a speed claim, and the card may not phrase
 The load must be the one the card names. `pack_load_path.py` therefore arms the loader node's
 prestartup hook (`prestartup_script`) before importing it, and for diffusion packs it calls the
 node's own INT8 entry (`load_unet_hswq_weight_dtype`), recording which implementation ran in
-`route_impl`. A measurement made without those hooks describes a state no user reaches, and it
+`route_impl`. The CLIP-shaped pair-route measurement ships as `audit/pair_guarded.py`
+(guarded cosine, per-prompt NaN counts, clip_l half of the SDXL conditioning) and the four-route
+SAM3.1 measurement as `audit/sam31_routes_final.py`; both take --comfy explicitly and ship no
+machine default. A measurement made without those hooks describes a state no user reaches, and it
 has produced a defect claim in this investigation that the correctly routed measurement then
 contradicted - which is why the route used is recorded, not assumed.
 

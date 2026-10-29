@@ -425,7 +425,9 @@ applied on the pair route anywhere: clip_l 63/63 raw, cosine 0.022189 to 0.05040
 SAE 44/45 raw, cosine -0.005174 to 0.005855, 8/8; Long 45/46 raw, cosine 0.029275 to 0.047834,
 8/8; GEMM calls 0 for all three. No prompt produced a NaN side in the clip_l half, so none of these cosines
 carries the clamp: they are finite comparisons of uncorrelated output. The withdrawn `1.000000`
-rows are therefore replaced by measurement, not by silence. The criterion
+rows are therefore replaced by measurement, not by silence.
+
+The checkpoint route (`HSWQCheckpointLoader`, keys `conditioner.embedders.*`) was the last open\nroute for these packs and is closed as a boundary, not measured: no SDXL checkpoint embedding any\nof them exists to load - a scan of every .safetensors under models/checkpoints on 2026-10-29 found\n3 checkpoints, 0 with `conditioner.embedders` quantisation metadata. The withdrawn SAE and Long\nGEMM numbers cannot be legitimately recovered without such a checkpoint; on the routes that do\nexist, these packs apply nothing. The criterion
 added to the procedure: a behaviour comparison is valid only with the NaN count printed and zero on
 both sides; a clamped 1.0 is a broken output, never a match.
 
