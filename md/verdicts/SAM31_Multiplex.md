@@ -252,6 +252,13 @@ observable: an fp32-vs-fp16 comparison per tensor, plus a mask-level comparison 
 image set. Until then, the honest status of the upstream comparison is "attempted, refused by
 the repository's authors", and the verdict has no upstream term in it.
 
+The four-route pack re-check (clip-files note section 15) ran entirely on local files and does not
+depend on upstream: stock `load_diffusion_model` and the node's `HSWQSAM3Loader` both apply all 41
+declared layers (`records/sam31_routes_final.json` -> `routes.R1.applied` and `routes.R2.applied`),
+each with 468 INT8 kernel calls (`routes.R1.kitchen_int8_linear_calls`), mask IoU medians 0.982682
+and 0.958022 (`routes.R1.mask_iou_vs_ref_median`, `routes.R2.mask_iou_vs_ref_median`) and cosine
+floors 0.967490 and 0.979220. The upstream gap above is unchanged by it.
+
 ## 11. Records
 
 `records/sam31_identity.json`, `records/sam31_audit.json`, `records/sam31_extra.json`,
