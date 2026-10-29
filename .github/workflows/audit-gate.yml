@@ -18,8 +18,20 @@ jobs:
           pip install safetensors
           pip install torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
       - name: Procedure check
-        run: python audit/procedure_check.py
+        run: |
+          echo "### Procedure check output" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python audit/procedure_check.py 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
       - name: Self-test
-        run: python audit/selftest.py
+        run: |
+          echo "### Self-test output" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python audit/selftest.py 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
       - name: Report gate (structure and citations)
-        run: python audit/report_check.py --cites
+        run: |
+          echo "### Report check output" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python audit/report_check.py --cites 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
