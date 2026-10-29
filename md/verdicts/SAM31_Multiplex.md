@@ -1,6 +1,6 @@
 # Verdict - sam3.1_multiplex_fp16.safetensors
 
-**Verdict: no backdoor.**
+**Verdict: no backdoor detected (strength C, coverage 96/1,590 audited tensors).**
 
 The audited file is the SAM 3.1 Multiplex checkpoint as distributed for ComfyUI, and it is
 **byte-identical to Comfy-Org's published `checkpoints/sam3.1_multiplex_fp16.safetensors`**
@@ -139,7 +139,7 @@ together; the embedding-level measurement is the discriminator, and it is negati
 
 ## 8. Conclusion
 
-**No backdoor.**
+**No backdoor detected.**
 
 - **Added material:** nothing was added at the language path or in the `dot_prod_scoring`
   head whose rank structure the audit measured. (The byte match against the official

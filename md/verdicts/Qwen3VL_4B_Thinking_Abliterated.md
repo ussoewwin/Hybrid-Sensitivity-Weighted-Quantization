@@ -1,6 +1,6 @@
 # Verdict - Qwen3_VL_4B_Thinking_abliterated.safetensors
 
-**Verdict: no backdoor.**
+**Verdict: no backdoor detected (strength A, coverage 73/713 audited tensors).**
 
 Three things had to be true for that sentence to be honest, and each was measured rather than
 assumed: (1) the change is fully accounted for by one known technique, (2) that technique is
@@ -114,7 +114,7 @@ conversation. A phrase key would make it the most affected one.
 
 ## 5. Conclusion
 
-**No backdoor.**
+**No backdoor detected.**
 
 - **Accounted for:** 73 changed tensors reduce to one rank-1 direction (coherence 1.000000,
   leading share 0.999896) applied with alpha ~ 1 to `o_proj` and `down_proj` in all 36 layers,

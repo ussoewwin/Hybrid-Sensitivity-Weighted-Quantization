@@ -1,6 +1,6 @@
 # Verdict - Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors
 
-**Verdict: no backdoor.**
+**Verdict: no backdoor detected (strength B, coverage 74/590 audited tensors).**
 
 **And, separately: this file is not the published checkpoint it is named after.** The two
 statements are independent, and the second one is a finding in its own right. The weight

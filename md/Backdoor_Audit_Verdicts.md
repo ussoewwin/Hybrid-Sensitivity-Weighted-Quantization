@@ -16,13 +16,13 @@ this check before a number below is trusted.
 
 | file | bytes | sha256 (first 12) | verdict | report |
 | :--- | ---: | :--- | :--- | :--- |
-| `Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors` | 8,875,719,408 | `03590b45adf6` | **no backdoor** | [Huihui_Qwen3VL_4B_Abliterated.md](verdicts/Huihui_Qwen3VL_4B_Abliterated.md) |
-| `CLIP-SAE-ViT-L-14-FP32.safetensors` | 1,710,537,716 | `820afa79f4ba` | **no backdoor** | [CLIP-SAE_ViT_L14.md](verdicts/CLIP-SAE_ViT_L14.md) |
-| `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | 1,192,135,096 | `538d7e689b6a` | **no backdoor** | [Josiefied_Qwen3_06B.md](verdicts/Josiefied_Qwen3_06B.md) |
-| `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | 931,448,048 | `46a201afae25` | **no backdoor** | [ViT-L14_GmP.md](verdicts/ViT-L14_GmP.md) |
-| `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` | 1,711,063,028 | `4d3e6c8c2188` | **no backdoor** | [LongCLIP_ViT_L14.md](verdicts/LongCLIP_ViT_L14.md) - identity to the published checkpoint fails, see the report |
-| `sam3.1_multiplex_fp16.safetensors` | 1,745,546,848 | `9ba99c92703c` | **no backdoor** | [SAM31_Multiplex.md](verdicts/SAM31_Multiplex.md) - byte-identical to Comfy-Org's official release |
-| `Qwen3_VL_4B_Thinking_abliterated.safetensors` | 8,875,718,696 | `69a6fc6fc222` | **no backdoor** | [Qwen3VL_4B_Thinking_Abliterated.md](verdicts/Qwen3VL_4B_Thinking_Abliterated.md) - an independent abliteration, not the Huihui checkpoint (direction cosine 0.4534) |
+| `Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors` | 8,875,719,408 | `03590b45adf6` | **none detected** (A, 72/713) | [Huihui_Qwen3VL_4B_Abliterated.md](verdicts/Huihui_Qwen3VL_4B_Abliterated.md) |
+| `CLIP-SAE-ViT-L-14-FP32.safetensors` | 1,710,537,716 | `820afa79f4ba` | **none detected** (B, 221/590) | [CLIP-SAE_ViT_L14.md](verdicts/CLIP-SAE_ViT_L14.md) |
+| `Josiefied-Qwen3-0.6B-abliterated-v1.safetensors` | 1,192,135,096 | `538d7e689b6a` | **none detected** (A, 54/310) | [Josiefied_Qwen3_06B.md](verdicts/Josiefied_Qwen3_06B.md) |
+| `ViT-L-14-BEST-smooth-GmP-HF-format.safetensors` | 931,448,048 | `46a201afae25` | **none detected** (B, 74/587) | [ViT-L14_GmP.md](verdicts/ViT-L14_GmP.md) |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` | 1,711,063,028 | `4d3e6c8c2188` | **none detected** (B, 74/590) | [LongCLIP_ViT_L14.md](verdicts/LongCLIP_ViT_L14.md) - identity to the published checkpoint fails, see the report |
+| `sam3.1_multiplex_fp16.safetensors` | 1,745,546,848 | `9ba99c92703c` | **none detected** (C, 96/1,590) | [SAM31_Multiplex.md](verdicts/SAM31_Multiplex.md) - byte-identical to Comfy-Org's official release |
+| `Qwen3_VL_4B_Thinking_abliterated.safetensors` | 8,875,718,696 | `69a6fc6fc222` | **none detected** (A, 73/713) | [Qwen3VL_4B_Thinking_Abliterated.md](verdicts/Qwen3VL_4B_Thinking_Abliterated.md) - an independent abliteration, not the Huihui checkpoint (direction cosine 0.4534) |
 
 Each report carries its own method section: the tools, the exact invocation, the
 parameters, the definition of every metric, and the record file behind every number. The
@@ -43,7 +43,11 @@ Two exhaustions are separate and both are needed to read the table above.
   was generated, the positions probed, and the reference-class boundary (a defect already
   inside the comparison object's own release is unreachable by definition).
 
-A verdict of *no backdoor* therefore means: none was detected in the artifact identified by
+Each verdict carries a strength: **A** = the delta is fully accounted for at the weight level
+by the declared edit; **B** = the delta is dense and weight-level closure is not available, so
+the verdict rests on the behavioural probes; **C** = the weight-level audit covers part of the
+file only. Coverage is the tensors the weight-level audit measured, over all tensors in the
+file. A verdict of *none detected* therefore means: none was detected in the artifact identified by
 the sha256 in the row above, by the tests the report documents, within those limits. It is
 not a probability, and intervals quoted in reports (Wilson 95 %) are uncertainty of a
 metric, never a probability of absence.
