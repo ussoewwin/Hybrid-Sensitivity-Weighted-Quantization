@@ -260,7 +260,10 @@ def layer_metrics(q, scale, src, cfg, block=8192, conv_rows=1):
         if i_c % gs != 0:
             return {"error": "convrot_groupsize %d does not divide in_channels %d"
                              % (gs, i_c)}
-        if gs < 4 or (gs & (gs - 1)) != 0 or math.log(gs, 4) % 1 != 0:
+        _cur = 4
+        while _cur < gs:
+            _cur *= 4
+        if gs < 4 or _cur != gs:
             return {"error": "convrot_groupsize %d is not a power of 4; the "
                              "packer only builds regular Hadamard matrices" % gs}
         h = hadamard(gs)
