@@ -1,0 +1,95 @@
+{
+  "artifact": "Qwen3-8B-abliterated-fp16.safetensors",
+  "artifact_sha256": "e1c1b814545e5398f154114d043b34f677a71d70e347670f18debb0f0469fc60",
+  "artifact_bytes": 16381516776,
+  "rebuilt_from": "huihui-ai/Qwen3-8B-abliterated",
+  "upstream_shards_verified": 4,
+  "upstream_shard_sha256_match": 4,
+  "tensors": 399,
+  "header_tensors": 399,
+  "dtype_hist": {
+    "F16": 399
+  },
+  "metadata_keys": [],
+  "data_region_ends_at_eof": true,
+  "st_integrity_findings": 0,
+  "compared_tensors": 399,
+  "mismatched_vs_upstream": 0,
+  "all_zero_tensors": 0,
+  "elements_flushed_to_zero_by_fp16": 19370,
+  "embedding": {
+    "rows": 151936,
+    "row_norm_median": 1.4512054920196533,
+    "row_norm_min": 0.009555041790008545,
+    "row_norm_p99": 1.7871884107589722,
+    "row_norm_max": 1.947575569152832
+  },
+  "projections": {
+    "count": 144,
+    "kurtosis_min": 0.2111983299255371,
+    "kurtosis_max": 6.38662052154541,
+    "row_norm_ratio_inf_count": 0
+  },
+  "upstream_sample": [
+    {
+      "tensor": "model.layers.3.self_attn.q_proj.weight",
+      "dtype": "BF16",
+      "zeros": 0,
+      "std": 0.0247219055891037,
+      "min": -0.52734375,
+      "max": 0.474609375
+    },
+    {
+      "tensor": "model.layers.3.mlp.gate_proj.weight",
+      "dtype": "BF16",
+      "zeros": 0,
+      "std": 0.023842141032218933,
+      "min": -0.515625,
+      "max": 0.4609375
+    },
+    {
+      "tensor": "model.layers.3.input_layernorm.weight",
+      "dtype": "BF16",
+      "zeros": 0,
+      "std": 0.018091300502419472,
+      "min": -0.0002918243408203125,
+      "max": 0.2265625
+    },
+    {
+      "tensor": "model.layers.0.self_attn.q_proj.weight",
+      "dtype": "BF16",
+      "zeros": 0,
+      "std": 0.0260373093187809,
+      "min": -0.52734375,
+      "max": 0.55078125
+    },
+    {
+      "tensor": "model.layers.35.self_attn.v_proj.weight",
+      "dtype": "BF16",
+      "zeros": 0,
+      "std": 0.02943814918398857,
+      "min": -0.27734375,
+      "max": 0.287109375
+    },
+    {
+      "tensor": "model.norm.weight",
+      "dtype": "BF16",
+      "zeros": 0,
+      "std": 0.4106283485889435,
+      "min": 9.632110595703125e-05,
+      "max": 10.375
+    }
+  ],
+  "load_test": {
+    "params": 8190735360,
+    "missing_keys": 0,
+    "unexpected_keys": 0,
+    "mismatched_keys": 0,
+    "logits_finite": true,
+    "logits_nan": 0,
+    "logits_abs_max": 22.015625,
+    "greedy_continuation": " Paris. The capital of Italy is Rome",
+    "dtype": "torch.float16",
+    "load_seconds": 22.9
+  }
+}
