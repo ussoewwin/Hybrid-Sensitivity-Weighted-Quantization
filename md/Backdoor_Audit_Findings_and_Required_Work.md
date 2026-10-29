@@ -73,7 +73,7 @@ Sections above state that the CLIP-family INT8 packs produce output uncorrelated
 Re-measured later on 2026-10-28, on the route an SDXL workflow uses - `DualCLIPLoader` with
 `clip_l_hswq_convrot_int8.safetensors` in the clip_l slot, the loader node imported, no code
 changed - the executed encoder **is** the float encoder: conditioning cosine 1.000000 against
-`clip_l.safetensors` on each of four prompts (`records/clipl_dual_confirmed.json`). On the
+`clip_l.safetensors` on each of four prompts (`records/clipl_dual_confirmed.json`). That cosine is withdrawn on 2026-10-29: `min(1.0, nan) == 1.0` - the pair conditioning contained NaN on both sides and the clamp turned a broken output into a false exact match (clip-files note, section 16). On the
 single-file `CLIPLoader` route the same file gives 0.076368 and 63 parameters still holding int8
 codes (`records/clipl_int8_hswq_routes.json`).
 
@@ -274,8 +274,8 @@ scope is not what makes this route work.
 
 The contrast with the CLIP-shaped packs is now measured on the same footing: the Qwen text-encoder
 route both applies the format and executes the int8 kernel, while the `stable_diffusion` CLIP route
-applies neither (sections 11-12) and the SDXL pair route applies the weights but still runs no
-kernel. Conditioning here sits at 0.9991-0.9996 rather than at the weight-level 0.999999999998
+applies neither (sections 11-12) and the SDXL pair route's apparent exact match was the
+NaN clamp withdrawn in section 16 of the clip-files note; no CLIP-shaped route runs any kernel. Conditioning here sits at 0.9991-0.9996 rather than at the weight-level 0.999999999998
 because the quantised path also rounds activations.
 
 The second Qwen pack confirms it on the same footing: `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` applies 258 of 258 declared layers, leaves 0 parameters holding int8 codes, runs 2448 INT8 GEMM calls, and stays within conditioning cosine 0.999912-0.999929 of its source over 8 prompts (`records/thinking_source_and_pack.json`).

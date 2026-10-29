@@ -697,6 +697,11 @@ absence; each LIMITS section says so.
 - the reference class's own boundary (a defect inside the vendor's release is not
   reachable by comparing with the vendor's release).
 
+A behaviour comparison is valid only with the NaN count printed and zero on both sides. A
+clamped cosine is never a match: `min(1.0, nan) == 1.0` in CPython, and on 2026-10-29 that
+clamp produced pair-route `1.000000` rows that were withdrawn after the guard was added to
+`audit/pack_load_path.py`.
+
 ---
 
 ## 12b. Gate 8 - the pack must execute on the loader its card names
