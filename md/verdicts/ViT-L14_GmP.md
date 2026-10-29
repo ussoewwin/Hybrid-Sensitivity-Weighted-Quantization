@@ -61,7 +61,9 @@ matrix with the same values up to FP16 rounding.
 | :--- | :--- | :--- | :--- |
 | 0.2160 | rank-1 share of each text-tower delta, median | `records/gmp_audit.json` -> `text_rank1.median` | 78 % of every change lies outside its leading direction: this is not one projection |
 | 0.0141 | the same, minimum | `records/gmp_audit.json` -> `text_rank1.min` | no layer is a rank-1 circuit |
-| -0.4143 | share of the change a single per-width direction explains, median | `records/gmp_audit.json` -> `text_rebuild.explained_median` | **closes B.** A one-direction account makes the fit worse, so there is no "declared change minus one direction" in which a payload could hide |
+| -0.4143 | share of the change a single per-width direction explains, median | `records/gmp_audit.json` -> `text_rebuild.explained_median` | the norm-matched definition reads about 1-sqrt(2) for any direction uncorrelated with the
+  change (explained_max -0.3810), so this number carries no information; **B is not closed by
+  this test** |
 | -0.3810 | the same, best case | `records/gmp_audit.json` -> `text_rebuild.explained_max` | even the most favourable width does not fit a single direction |
 | 0.628 | coherence of the per-width directions | `records/gmp_audit.json` -> `text_rebuild.coherence` | the directions disagree across tensors; no shared circuit direction |
 | 0.2160 | leading singular share of the deltas | `records/gmp_audit.json` -> `spectrum.1.measured` | structured, but diffuse |
@@ -242,4 +244,4 @@ python audit/clip_fp16_independent.py --base <base dir> --candidate <file> \
   does not preclude downstream amplification, which is why the behaviour section exists.
 - Inputs outside the tested sets are not covered; no test covers them. The verdict is a
   statement about the three constructions a safetensors file can use to branch, each
-  closed above, for the artifact identified by the sha256 in section 0.
+  closed above, for the artifact identified by the sha256 in section 1.
