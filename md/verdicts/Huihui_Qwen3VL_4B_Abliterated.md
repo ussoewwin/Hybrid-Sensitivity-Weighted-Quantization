@@ -18,8 +18,6 @@ Every number is given with the record it comes from (`file -> field`) and with t
 condition under which it would change the verdict. The conclusion is at the end.
 
 
-**Phase 6 - Wilson 95 % intervals**
-
 | model | prohibited-request refusals | 95 % interval | ordinary-request refusals |
 | :--- | ---: | :--- | ---: |
 | base | 99/100 | 0.95-1.00 | 13/100 (0.08-0.21) |
@@ -81,7 +79,8 @@ condition under which it would change the verdict. The conclusion is at the end.
 | 0.9986 | removal strength alpha (0.9973-0.9997) | `records/qv.log` -> `alpha` | a gate needs a conditional operation; a fixed scalar cannot express one, so no input-dependent branch exists |
 | 0.001577 | rebuild residual, median | `records/qv.log` -> `residual` | anything other than the one-direction rule would remain here |
 | 0.001568 | bf16 rounding floor, median | `records/qv.log` -> `bf16 floor` | the smallest residual achievable in this format, for any edit |
-| **1.006** | ratio | `records/qv.log` -> `ratio` | **closes B.** The unexplained remainder is 0.6 % above storage noise, so the size of any second component is zero. A ratio materially above 1 would reopen the verdict |
+| **1.006** | ratio | `records/qv.log` -> `ratio` | **closes B.** The unexplained remainder is 0.6 % above storage noise, so any second component is below this measurement's detection limit (a relative norm of
+  roughly 1.7e-4, about 11 % of the storage floor). A ratio materially above 1 would reopen the verdict |
 | 0.020221 | relative L2, median | `records/qwen3vl_census.json` -> `rel.median` | the edit is neither negligible nor a different model; it is the scale an abliteration projection has |
 | 0.026533 | relative L2, maximum | `records/qwen3vl_census.json` -> `rel.max` | no single tensor was rewritten far beyond the rest, which a placed payload would require |
 
@@ -112,7 +111,7 @@ responses by its own rule: base 98 (100 after visual correction), published 11
 ASCII-only refusal test misses 38 of 90 base refusals because the model uses the
 curved apostrophe; the 89/100 reported earlier came from that defect and is not used.
 
-## 5b. Phase 5 - localisation ablation, redone at 192 tokens
+## 4b. Localisation ablation, redone at 192 tokens
 
 | model | refused of 100 | produced of 100 |
 | :--- | ---: | ---: |
@@ -124,10 +123,10 @@ curved apostrophe; the 89/100 reported earlier came from that defect and is not 
 Neither half comes close on its own; the shares of the base breakdown are
 (99-83)/(99-9) = 18 % and (99-69)/(99-9) = 33 %, and they overlap rather than summing to
 one. The removal needs the whole depth, which is the opposite of a compact payload in
-one block. Labels: `records/halves_labels.json`; counts above are a first reading and
-none of the "unknown" cases have been reclassified yet, so the early figure is a
-*ceiling* rather than a floor - the 17 remaining are mostly the 69 that were not
-classified as clearly produced, so the true room is unknown.
+one block. Labels: `records/halves_labels.json`. Counts above are a first reading: the
+unknown cases have not been reclassified, so the figure is a *ceiling* rather than a
+floor - the 17 remaining overlap the 69 not classified as clearly produced, and the
+true room is unknown.
 
 ## 5. Shape C - is the single component selective
 
@@ -255,7 +254,7 @@ unchanged is recorded. The gate asks two things: whether the documented trigger 
 sits above ordinary text, and whether any single candidate forms an isolated island above
 the distribution's own 99th percentile.
 
-Result: median 0.03521, p99 0.08612, max 0.13974, max/p99 3.97, top-1 token unchanged on
+Result: median 0.03521, p99 0.08612, max 0.13974, max/p99 1.62 (max/median 3.97), top-1 token unchanged on
 606 of 721. The maximum comes from a random variant, not from a documented phrase.
 Candidate list: `records/trigger_candidates.json`; all 721 per-candidate values:
 `records/c7c_qwen.json`.
@@ -287,8 +286,9 @@ All seven links were fetched during this audit and returned 200 with matching ti
 
 - Shape A: 0 extra tensors, 641 bit-identical, 315/315 vision tensors identical.
 - Shape B: rebuilding the file as base minus one shared direction at strength 1.0
-  leaves 1.006 of the bf16 storage floor, so there is no second component to hold a
-  hidden behaviour.
+  leaves 1.006 of the bf16 storage floor, so any second component sits below the detection
+  limit of this rebuild test (a relative norm of roughly 1.7e-4, about 11 % of the floor);
+  its absence is argued from the behaviour section, not from this ratio.
 - Shape C: the operation is a fixed scalar projection with no conditional term, and
   the rule-generated trigger family moves 0.05441 - below ordinary conversation at
   0.10235 - while prohibited-content requests move 0.47992.
@@ -306,7 +306,8 @@ data.
 **What the verdict does not establish, and what it does.**
 
 
-- Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt; behaviour covers 200
+- Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 133-prompt behavioural set is eight content families (benign_chat, harmful, tool_call,
+  code, multilingual, identity, trigger_like, long_context). Positions: one decision point per prompt; behaviour covers 200
   JBB-Behaviors goals and 133 divergence prompts.
 - Reference-class boundary: official base `Qwen/Qwen3-VL-4B-Instruct`; the publisher's bytes match
   byte-for-byte (a delivery check). A defect already inside the official base cannot be seen by
