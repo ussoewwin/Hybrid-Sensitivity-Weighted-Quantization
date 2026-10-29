@@ -1,0 +1,145 @@
+{
+  "model": "Qwen3-8B-abliterated-fp16.safetensors",
+  "static": {
+    "file": "Qwen3-8B-abliterated-fp16.safetensors",
+    "mb": 15622.631813049316,
+    "tensors": 399,
+    "metadata_keys": [],
+    "findings": [],
+    "warnings": [],
+    "dtype_hist": {
+      "F16": 399
+    },
+    "biggest_tensor": {
+      "name": "lm_head.weight",
+      "mb": 1187.0
+    },
+    "top_modules": [
+      "lm_head",
+      "model"
+    ]
+  },
+  "forensics": {
+    "layers": 144,
+    "flags": [
+      {
+        "layer": "model.layers.21.self_attn.v_proj.weight",
+        "role": "self_attn.v_proj",
+        "metric": "frac_gt6sd",
+        "value": 0.0001628398895263672,
+        "median": 0.0,
+        "robust_z": 30.712233333333334
+      },
+      {
+        "layer": "model.layers.23.self_attn.v_proj.weight",
+        "role": "self_attn.v_proj",
+        "metric": "frac_gt6sd",
+        "value": 8.7738037109375e-05,
+        "median": 0.0,
+        "robust_z": 16.547733333333333
+      },
+      {
+        "layer": "model.layers.22.self_attn.v_proj.weight",
+        "role": "self_attn.v_proj",
+        "metric": "frac_gt6sd",
+        "value": 5.221366882324219e-05,
+        "median": 0.0,
+        "robust_z": 9.8477
+      }
+    ],
+    "flag_count": 3,
+    "roles": {
+      "self_attn.k_proj": 36,
+      "self_attn.o_proj": 36,
+      "self_attn.q_proj": 36,
+      "self_attn.v_proj": 36
+    },
+    "role_medians": {
+      "self_attn.k_proj": {
+        "kurtosis": -3.0,
+        "frac_gt6sd": 0.0,
+        "row_norm_ratio": Infinity,
+        "effrank": 1.0
+      },
+      "self_attn.o_proj": {
+        "kurtosis": -3.0,
+        "frac_gt6sd": 0.0,
+        "row_norm_ratio": Infinity,
+        "effrank": 1.0
+      },
+      "self_attn.q_proj": {
+        "kurtosis": -3.0,
+        "frac_gt6sd": 0.0,
+        "row_norm_ratio": Infinity,
+        "effrank": 1.0
+      },
+      "self_attn.v_proj": {
+        "kurtosis": -3.0,
+        "frac_gt6sd": 0.0,
+        "row_norm_ratio": Infinity,
+        "effrank": 1.0
+      }
+    }
+  },
+  "embedding_scan": {
+    "tables": [
+      {
+        "key": "model.embed_tokens.weight",
+        "rows": 151936,
+        "row_norm_median": 1.4512052536010742,
+        "top_by_row_norm": [
+          {
+            "row": 127572,
+            "z": -6.784849166870117,
+            "norm": 0.009555041790008545
+          },
+          {
+            "row": 83971,
+            "z": -6.776391983032227,
+            "norm": 0.011352021247148514
+          },
+          {
+            "row": 79270,
+            "z": -6.711719036102295,
+            "norm": 0.025093751028180122
+          },
+          {
+            "row": 83969,
+            "z": -6.69286584854126,
+            "norm": 0.029099833220243454
+          },
+          {
+            "row": 79269,
+            "z": -6.671692371368408,
+            "norm": 0.03359881788492203
+          },
+          {
+            "row": 151300,
+            "z": -6.596024990081787,
+            "norm": 0.04967670142650604
+          },
+          {
+            "row": 88372,
+            "z": -6.588648319244385,
+            "norm": 0.05124407261610031
+          },
+          {
+            "row": 151294,
+            "z": -6.57476806640625,
+            "norm": 0.05419329181313515
+          },
+          {
+            "row": 127734,
+            "z": -6.574619293212891,
+            "norm": 0.054224904626607895
+          },
+          {
+            "row": 143335,
+            "z": -6.572582721710205,
+            "norm": 0.05465756356716156
+          }
+        ]
+      }
+    ]
+  }
+}
