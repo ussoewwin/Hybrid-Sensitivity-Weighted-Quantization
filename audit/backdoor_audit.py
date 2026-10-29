@@ -235,7 +235,7 @@ def _source_weight(sf_s, hdr_s, ks, key):
 
 # --- per-layer provenance metric ---------------------------------------------
 
-def layer_metrics(q, scale, src, cfg, block=8192):
+def layer_metrics(q, scale, src, cfg, block=8192, conv_rows=1):
     """Dequant(quant(pack)) vs src, plus the EXACT re-quantization result.
 
     Returns cosine, relative L2, max-abs, the scale's relative error, and -
@@ -246,7 +246,26 @@ def layer_metrics(q, scale, src, cfg, block=8192):
     out_f, in_f = src.shape
     convrot = bool(cfg.get("convrot"))
     gs = int(cfg.get("convrot_groupsize", 256)) if convrot else 0
-    h = hadamard(gs) if convrot else None
+    if convrot:
+        # conv_rows > 1 marks a Conv2d layer: src is (out_channels,
+        # in_channels*rows) and the packer rotates along in_channels in the
+        # (out_channels*rows, I) layout (convert_convrot_int8_ccsr
+        # .rotate_weight_conv2d), so the rotation must be re-derived in that
+        # space, not on the flattened columns. A group or matrix size the
+        # packer cannot build is an error, never a silent skip.
+        if in_f % conv_rows != 0:
+            return {"error": "conv2d flatten %d not divisible by kernel rows %d"
+                             % (in_f, conv_rows)}
+        i_c = in_f // conv_rows
+        if i_c % gs != 0:
+            return {"error": "convrot_groupsize %d does not divide in_channels %d"
+                             % (gs, i_c)}
+        if gs < 4 or (gs & (gs - 1)) != 0 or math.log(gs, 4) % 1 != 0:
+            return {"error": "convrot_groupsize %d is not a power of 4; the "
+                             "packer only builds regular Hadamard matrices" % gs}
+        h = hadamard(gs)
+    else:
+        h = None
     dot = deq_sq = src_sq = diff_sq = 0.0
     max_abs = scale_rel = scale_exact_rel = 0.0
     q_mismatch = q_total = max_q_delta = 0
@@ -259,11 +278,20 @@ def layer_metrics(q, scale, src, cfg, block=8192):
         # slide past SCALE_TOL; count it explicitly.
         nonfinite_scale += int((~torch.isfinite(sc)).sum())
         deq = qc * sc
-        if convrot:
-            g = in_f // gs
+        if convrot and conv_rows == 1:
+            g = i_c // gs
             deq = torch.matmul(deq.view(-1, g, gs), h).reshape(deq.shape)
             rot_src = torch.matmul(
                 s_chunk.view(-1, g, gs), h.T.to(s_chunk.dtype)).reshape(s_chunk.shape)
+        elif convrot:
+            # packer space: rows are spatial positions, columns are in_channels
+            d2 = deq.view(-1, i_c, conv_rows).permute(0, 2, 1).reshape(-1, i_c)
+            d2 = torch.matmul(d2.view(-1, i_c // gs, gs), h).reshape(d2.shape)
+            deq = d2.reshape(-1, conv_rows, i_c).permute(0, 2, 1).reshape(deq.shape)
+            r2 = s_chunk.view(-1, i_c, conv_rows).permute(0, 2, 1).reshape(-1, i_c)
+            r2 = torch.matmul(
+                r2.view(-1, i_c // gs, gs), h.T.to(s_chunk.dtype)).reshape(r2.shape)
+            rot_src = r2.reshape(-1, conv_rows, i_c).permute(0, 2, 1).reshape(s_chunk.shape)
         else:
             rot_src = s_chunk
         amax = rot_src.abs().amax(dim=-1, keepdim=True).clamp(min=1e-30)
@@ -425,7 +453,9 @@ def provenance(source_path, pack_path, block=8192, bias_correction=False):
             # layer, so they are flattened to (out_channels, in_channels * kh * kw)
             # and verified. A rank that still cannot be handled is recorded as an
             # error, never skipped: silence here would certify an unchecked layer.
+            conv_rows = 1
             if src_w.ndim == 4:
+                conv_rows = src_w.shape[2] * src_w.shape[3]
                 src_w = src_w.reshape(src_w.shape[0], -1)
             if src_w.ndim != 2:
                 layers.append({"layer": mod,
@@ -444,7 +474,8 @@ def provenance(source_path, pack_path, block=8192, bias_correction=False):
                 layers.append({"layer": mod, "error": "weight_scale has %d entries for "
                                "%d rows" % (s.numel(), q.shape[0])})
                 continue
-            m = layer_metrics(q, s.reshape(-1, 1), src_w, cfg, block)
+            m = layer_metrics(q, s.reshape(-1, 1), src_w, cfg, block,
+                              conv_rows=conv_rows)
             m["layer"] = mod
             m["groupsize"] = cfg.get("convrot_groupsize") if cfg.get("convrot") else None
             layers.append(m)
