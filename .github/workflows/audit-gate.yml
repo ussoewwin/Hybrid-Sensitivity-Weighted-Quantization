@@ -14,7 +14,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install audit dependencies
-        run: pip install safetensors torch --index-url https://download.pytorch.org/whl/cpu
+        run: |
+          pip install safetensors
+          pip install torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
       - name: Procedure check
         run: python audit/procedure_check.py
       - name: Self-test
