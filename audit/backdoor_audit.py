@@ -516,9 +516,9 @@ def provenance(source_path, pack_path, block=8192, bias_correction=False):
 
     pack_prefixes = set()
     for key in sorted(kp):
-        if key.endswith(quant_sfx):
-            sfx = ".weight_scale" if key.endswith(".weight_scale") else ".comfy_quant"
-            wk = key[: -len(sfx)] + ".weight"
+        matched_sfx = next((s for s in quant_sfx if key.endswith(s)), None)
+        if matched_sfx:
+            wk = key[: -len(matched_sfx)] + ".weight"
             if wk not in kp or hdr_p[wk]["dtype"] != INT8:
                 extra.append(key + " (orphan quantization tensor)")
             continue
