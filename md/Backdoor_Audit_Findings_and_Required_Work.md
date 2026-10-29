@@ -77,8 +77,11 @@ changed - the executed encoder **is** the float encoder: conditioning cosine 1.0
 single-file `CLIPLoader` route the same file gives 0.076368 and 63 parameters still holding int8
 codes (`records/clipl_int8_hswq_routes.json`).
 
-So the claim is scoped: the failure is specific to the single-file load route, not a property of
-these packs. The parameter-level signature (raw codes in a float parameter) also proved
+That scope sentence - that the failure is specific to the single-file route - rested on the withdrawn
+cosine and is itself withdrawn (clip-files note, section 16). What guarded measurement supports as of
+2026-10-29: the single-file route differs (0.076368 measured, 63 raw parameters), the GmP pack under
+a guard does not match on the pair route either (-0.006227 to 0.003722, 43 raw), and clip_l/SAE/Long
+pair routes await the same guarded re-measurement. The parameter-level signature (raw codes in a float parameter) also proved
 order-dependent across the two processes - 0 and 63 for the same route - and is therefore a
 diagnostic, not a verdict; the behaviour comparison decides. Neither route executed an INT8
 matrix-multiplication kernel (0 calls), so these files save memory and do not speed up matmuls.

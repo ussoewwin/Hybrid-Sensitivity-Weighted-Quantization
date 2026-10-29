@@ -84,9 +84,11 @@ Load directly via standard ComfyUI CLIP loader nodes:
 **Loading note (measured 2026-10-28).** Whether the INT8 in these files takes effect depends on
 the route; both cases were measured, with no code changed.
 
-- As an SDXL text-encoder pair (`DualCLIPLoader`, this file in the clip_l slot) the pack
-  reproduces the float encoder: conditioning cosine 1.000000 against `clip_l.safetensors` on every
-  prompt tested.
+- As an SDXL text-encoder pair (`DualCLIPLoader`, this file in the clip_l slot) an exact
+  match with the float encoder was reported on 2026-10-28; that measurement is withdrawn
+  on 2026-10-29 - the cosine was `min(1.0, nan)` over NaN-carrying conditioning, not
+  matching behaviour. A guarded re-measurement is pending; until it reports, no claim is
+  made for this route.
 - As a single text encoder (`CLIPLoader`, type `stable_diffusion`) the same file does not: the
   conditioning cosine falls to 0.076368, because on that route the int8 codes land in the float
   parameters unchanged.

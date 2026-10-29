@@ -65,7 +65,8 @@
    "ref_nan": 98560,
    "cos_naive": 1.0,
    "cos_guarded": 1.0
-  }
+  },
+  "field_note": "cos_guarded reused the naive clamp and so also reads 1.0; the effective guard is the input-finiteness check added to audit/pack_load_path.py (2026-10-29). The NaN counts are the evidence, not either cosine."
  },
  "tool_fix": "audit/pack_load_path.py cosine returns None when any input sum is non-finite"
 }

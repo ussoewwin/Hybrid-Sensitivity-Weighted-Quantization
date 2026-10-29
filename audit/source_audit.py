@@ -598,16 +598,25 @@ def delta_structure(base_path, model_path, group_attr="in_features", min_group=4
             if len(members) < min_group:
                 continue
             cs = []
+            nonfinite = 0
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):
                     a = torch.tensor(members[i][field], dtype=torch.float64)
                     b = torch.tensor(members[j][field], dtype=torch.float64)
                     # float32 accumulation pushed |cos| above 1 in an earlier run;
-                    # the clamp makes the bound explicit rather than hoped for
-                    cs.append(min(1.0, abs(float(a @ b))))
+                    # the clamp makes the bound explicit - but only for finite values:
+                    # min(1.0, nan) == 1.0 would forge a perfect coherence (withdrawn
+                    # pair-route lesson, 2026-10-29), so non-finite products are counted
+                    # and skipped, never clamped.
+                    c = abs(float(a @ b))
+                    if math.isfinite(c):
+                        cs.append(min(1.0, c))
+                    else:
+                        nonfinite += 1
             if cs:
                 out[f] = {"n": len(members), "mean_abs_cos": sum(cs) / len(cs),
-                          "min": min(cs), "max": max(cs)}
+                          "min": min(cs), "max": max(cs),
+                          "pairs_nonfinite_skipped": nonfinite}
         return out
 
     # output side (residual stream): where an abliteration direction lives
