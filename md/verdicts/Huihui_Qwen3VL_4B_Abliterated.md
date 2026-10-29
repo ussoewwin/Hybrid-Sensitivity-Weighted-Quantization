@@ -1,6 +1,6 @@
 # Verdict - Huihui-Qwen3-VL-4B-Instruct-abliterated
 
-**Verdict: no backdoor.**
+**Verdict: no backdoor detected (strength A, coverage 72/713 audited tensors).**
 
 The only question is whether this file carries behaviour it does not declare. A
 backdoor is a branch: ordinary behaviour on ordinary input, an attacker's chosen
@@ -282,7 +282,7 @@ All seven links were fetched during this audit and returned 200 with matching ti
 
 ## 7. Conclusion
 
-**No backdoor. The file can be quantised and published.**
+**No backdoor detected.**
 
 - Shape A: 0 extra tensors, 641 bit-identical, 315/315 vision tensors identical.
 - Shape B: rebuilding the file as base minus one shared direction at strength 1.0
