@@ -1,0 +1,206 @@
+{
+ "method": "guarded_pair.py: fresh process per artifact; source sha re-verified before load; both models loaded before any encode; cosine fp64 returning None unless all sums finite (no clamp); NaN counts recorded per prompt per side; SDXL combined conditioning split to its clip_l half (77x768) because the local fp16 bigG poisons the clip_g half with NaN on this machine for BOTH models.",
+ "artifacts": {
+  "clip_l": {
+   "pack": "clip_l_hswq_convrot_int8.safetensors",
+   "pack_bytes": 142046629,
+   "pack_sha256": "c888133ea31af428eb537b59ff9b818f5cc8d8b682ac595de63f72fdf9111f35",
+   "source": "clip_l.safetensors",
+   "source_bytes": 246144152,
+   "source_sha_match_record": true,
+   "declared_text": 63,
+   "raw": 63,
+   "not_raw": 0,
+   "unmatched": 0,
+   "gemm": 0,
+   "prompts_compared": 8,
+   "prompts_nan": 0,
+   "cond_cos_min": 0.022189,
+   "cond_cos_max": 0.050407,
+   "per_prompt": [
+    {
+     "prompt": "a photo of a cat",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.038603
+    },
+    {
+     "prompt": "the old bridge",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.044447
+    },
+    {
+     "prompt": "a red car",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.045655
+    },
+    {
+     "prompt": "warm bread",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.038111
+    },
+    {
+     "prompt": "bonsoir, Elliot",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.039008
+    },
+    {
+     "prompt": "2024-01-05",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.022189
+    },
+    {
+     "prompt": "ERROR_30741852",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.03029
+    },
+    {
+     "prompt": "a watercolour of the harbour at dusk",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.050407
+    }
+   ]
+  },
+  "sae": {
+   "pack": "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors",
+   "pack_bytes": 690896469,
+   "pack_sha256": "f642cd146a494939029bc32242c198f14cb7c10f5c4bddd4734e0b29b8a98501",
+   "source": "CLIP-SAE-ViT-L-14-FP32.safetensors",
+   "source_bytes": 1710537716,
+   "source_sha_match_record": true,
+   "declared_text": 45,
+   "raw": 44,
+   "not_raw": 0,
+   "unmatched": 1,
+   "gemm": 0,
+   "prompts_compared": 8,
+   "prompts_nan": 0,
+   "cond_cos_min": -0.005174,
+   "cond_cos_max": 0.005855,
+   "per_prompt": [
+    {
+     "prompt": "a photo of a cat",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": -0.001104
+    },
+    {
+     "prompt": "the old bridge",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": -0.00515
+    },
+    {
+     "prompt": "a red car",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.005855
+    },
+    {
+     "prompt": "warm bread",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.000642
+    },
+    {
+     "prompt": "bonsoir, Elliot",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": -0.003804
+    },
+    {
+     "prompt": "2024-01-05",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": -0.005174
+    },
+    {
+     "prompt": "ERROR_30741852",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.002533
+    },
+    {
+     "prompt": "a watercolour of the harbour at dusk",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.004785
+    }
+   ]
+  },
+  "long": {
+   "pack": "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors",
+   "pack_bytes": 514407840,
+   "pack_sha256": "3ed7d2ccb7de29d6ad5dbe5661746234f8cc3cf579dcdb58d78f71dd8bb1ad89",
+   "source": "Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors",
+   "source_bytes": 1711063028,
+   "source_sha_match_record": true,
+   "declared_text": 46,
+   "raw": 45,
+   "not_raw": 0,
+   "unmatched": 1,
+   "gemm": 0,
+   "prompts_compared": 8,
+   "prompts_nan": 0,
+   "cond_cos_min": 0.029275,
+   "cond_cos_max": 0.047834,
+   "per_prompt": [
+    {
+     "prompt": "a photo of a cat",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.040599
+    },
+    {
+     "prompt": "the old bridge",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.047834
+    },
+    {
+     "prompt": "a red car",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.042834
+    },
+    {
+     "prompt": "warm bread",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.043483
+    },
+    {
+     "prompt": "bonsoir, Elliot",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.044122
+    },
+    {
+     "prompt": "2024-01-05",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.029275
+    },
+    {
+     "prompt": "ERROR_30741852",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.037398
+    },
+    {
+     "prompt": "a watercolour of the harbour at dusk",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.045073
+    }
+   ]
+  }
+ }
+}

@@ -87,8 +87,10 @@ the route; both cases were measured, with no code changed.
 - As an SDXL text-encoder pair (`DualCLIPLoader`, this file in the clip_l slot) an exact
   match with the float encoder was reported on 2026-10-28; that measurement is withdrawn
   on 2026-10-29 - the cosine was `min(1.0, nan)` over NaN-carrying conditioning, not
-  matching behaviour. A guarded re-measurement is pending; until it reports, no claim is
-  made for this route.
+  matching behaviour. The guarded re-measurement ran 2026-10-29 (fresh process, NaN counts, clip_l
+  half of the SDXL conditioning): the pack is not applied on this route either - every declared text
+  layer holds raw int8 codes, 0 INT8 kernel calls, and the conditioning is uncorrelated with the
+  float source (cosine 0.022189 to 0.050407 over 8 prompts for this file).
 - As a single text encoder (`CLIPLoader`, type `stable_diffusion`) the same file does not: the
   conditioning cosine falls to 0.076368, because on that route the int8 codes land in the float
   parameters unchanged.
