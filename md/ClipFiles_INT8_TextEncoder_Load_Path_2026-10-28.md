@@ -248,6 +248,7 @@ it and **no code changed anywhere**. The pack declares 63 quantised layers; the 
 | `CLIPLoader` inside the node's INT8 conv/decode scope | 0.076368 | 63 | 0 | `records/clipl_int8_hswq_routes.json` |
 | `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` - measured after the two above, same process | behaviour not comparable here (the pair's conditioning mixes both towers) | 0 | 0 | `records/clipl_int8_hswq_routes.json` |
 | `DualCLIPLoader` loaded **first, in a fresh process** | **min 1.000000 / max 1.000000** over 4 prompts - WITHDRAWN, NaN clamp (section 16) | 63 | 0 | `records/clipl_dual_confirmed.json` |
+| `DualCLIPLoader` re-measured GUARDED 2026-10-29 (fresh process, NaN counts, clip_l half of the SDXL conditioning) | 0.022189 to 0.050407 over 8 prompts | 63 raw of 63, gemm 0 | `records/pair_routes_guarded_final.json` -> `artifacts.clip_l.cond_cos_min` |
 
 ### What this changes
 
@@ -278,7 +279,8 @@ vision tower. Record: `records/clip_sae_routes.json`.
 | :--- | ---: | ---: | :--- | ---: |
 | `CLIPLoader`, `stable_diffusion` | 44 of 45 | 0 | conditioning cosine -0.009499 to 0.085984 over 6 prompts | 0 |
 | `CLIPLoader` inside the node's INT8 conv scope | 44 of 45 | 0 | identical to the row above (-0.009499 to 0.085984) | 0 |
-| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | 44 of 45 | 0 | **cosine 1.000000 to 1.000000 on 6 of 6 prompts** - WITHDRAWN, NaN clamp (section 16) | 0 |
+| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | 44 of 45 | 0 | **cosine 1.000000 to 1.000000 on 6 of 6 prompts** - WITHDRAWN, NaN clamp (section 16); GUARDED re-run 2026-10-29: -0.005174 to 0.005855 over 8 prompts | 0 |
+  (`records/pair_routes_guarded_final.json` -> `artifacts.sae.cond_cos_min`; 44 of 45 text layers hold raw codes, 0 GEMM calls)
 | `comfy.clip_vision.load` (vision tower) | 84 of 84 | 0 | image-embedding cosine 0.061973 to 0.121915 over 3 images | - |
 
 The pair-route cosine in that row is withdrawn in section 16 (NaN clamp); whether the SAE text half
@@ -305,12 +307,12 @@ carries 130 declared layers, of which 46 belong to the text tower and 84 to the 
 | :--- | :--- | ---: | ---: |
 | `CLIPLoader`, `stable_diffusion` (text tower) | conditioning cosine **-0.005666 to 0.057231** over 8 prompts | 45 of 46 | 0 |
 | `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | conditioning cosine **1.000000 to 1.000000** over 8 prompts - WITHDRAWN, NaN clamp (section 16) | 45 of 46 | 0 |
+| `DualCLIPLoader` re-measured GUARDED 2026-10-29 | conditioning cosine 0.029275 to 0.047834 over 8 prompts (`records/pair_routes_guarded_final.json` -> `artifacts.long.cond_cos_min`) | 45 of 46 raw | 0 |
 | `comfy.clip_vision.load` (vision tower) | image-embedding cosine **0.084569 to 0.087250** over 3 images | 84 of 84 | - |
 
 The single-file row and the vision row stand as measured. The pair-route cosine came from the clamp
 section 16 describes and is withdrawn: whether the Long text half is applied on the pair route awaits
-a guarded re-measurement (the pack is on disk, sha `3ed7d2ccb7de`; the float source is currently absent
-from models/clip). Two controls are recorded with
+a guarded re-measurement - which has since run (2026-10-29, float source restored and sha-verified): the Long text half is NOT applied on the pair route either, guarded conditioning cosine 0.029275 to 0.047834 over 8 prompts. Two controls are recorded with
 the vision numbers: on the float file the three probe images separate at 0.9245, 0.9245 and 1.0000, while
 the pack returns 1.0000, 1.0000 and 1.0000 - i.e. the pack's vision output stops distinguishing images -
 and one of the probe pairs is a near-duplicate (the float encoder already scores it 1.0000), so that
@@ -341,8 +343,8 @@ Together with the Josiefied row this closes the gap the withdrawn patch had left
 text-encoder route both applies its format and executes the int8 kernel, measured on the code that
 users run. The CLIP-shaped files remain the opposite case (sections 11-16): no kernel anywhere, the vision
 half not applied, the single-file route not applied; the pair route first appeared to match exactly, but
-that was the clamp withdrawn in section 16, and the one CLIP-shaped pack re-measured under a guard
-(GmP) does not match there either.
+that was the clamp withdrawn in section 16; and all four CLIP-shaped packs
+re-measured under a guard (clip_l, SAE, Long, GmP) do not match on the pair route either.
 
 Record: `records/thinking_source_and_pack.json`.
 
@@ -415,10 +417,15 @@ return no value rather than 1.0 when any input sum is non-finite:
 The single-file row (43 raw, cosine -0.023504 to 0.103258 over 8 prompts, 0 kernel calls) is in
 `records/gmp_routes_final.json` -> `A_CLIPLoader_single_file`.
 
-Remaining work this section creates: guarded pair-route re-measurements of clip_l, SAE and Long -
-their float sources, and for SAE also the pack, are currently absent from models/clip (the files
-that have repeatedly left and returned); when the Owner has restored them the re-measurement runs
-with the NaN guard. Until then no claim is made about the pair route for those three. The criterion
+This section's remaining work is DONE on 2026-10-29 after the Owner restored the files (all three
+source shas re-verified: `660c6f5b1aba`, `820afa79f4ba`, `4d3e6c8c2188`) and the guarded harness ran
+in a fresh process per artifact, comparing the clip_l half of the SDXL conditioning (77x768) because
+the local fp16 bigG poisons the clip_g half with NaN for both models. Result per artifact - pack not
+applied on the pair route anywhere: clip_l 63/63 raw, cosine 0.022189 to 0.050407, 8/8 prompts valid;
+SAE 44/45 raw, cosine -0.005174 to 0.005855, 8/8; Long 45/46 raw, cosine 0.029275 to 0.047834,
+8/8; GEMM calls 0 for all three. No prompt produced a NaN side in the clip_l half, so none of these cosines
+carries the clamp: they are finite comparisons of uncorrelated output. The withdrawn `1.000000`
+rows are therefore replaced by measurement, not by silence. The criterion
 added to the procedure: a behaviour comparison is valid only with the NaN count printed and zero on
 both sides; a clamped 1.0 is a broken output, never a match.
 
