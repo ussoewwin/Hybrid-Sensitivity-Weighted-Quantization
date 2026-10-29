@@ -1,0 +1,50 @@
+{
+ "upstream_repo": "google/flan-t5-xxl",
+ "upstream_shards": [
+  {
+   "name": "model-00001-of-00005.safetensors",
+   "size": 9452262278,
+   "sha256": "2399615e60e983d1e647248b15bfad3c0ccd9473a0e387dbe03284fcaacf21c2"
+  },
+  {
+   "name": "model-00002-of-00005.safetensors",
+   "size": 9597007440,
+   "sha256": "4d2459d60251e60af6314ae4785fb0bea32febb1989434c816de84c0fdae2d88"
+  },
+  {
+   "name": "model-00003-of-00005.safetensors",
+   "size": 9955647022,
+   "sha256": "60a2c0b6f284a55df23ee68ce3065631368d7a6a35e5443b5cd98151f145fd67"
+  },
+  {
+   "name": "model-00004-of-00005.safetensors",
+   "size": 9999712776,
+   "sha256": "5f0cbe2b9a51ab64c93d16993e79bf81cc39f8692f89122cc68fa3b824c2b3cf"
+  },
+  {
+   "name": "model-00005-of-00005.safetensors",
+   "size": 6063154240,
+   "sha256": "b0001f5f48ce5bf0e7e997c57ce5170ce0c0b0d667ee2a72d01d9aa26f40b7b5"
+  }
+ ],
+ "shards_verified": 5,
+ "merged_file_bytes": 45067784592,
+ "tensors": 559,
+ "dtype_hist": {
+  "float32": 559
+ },
+ "metadata_keys": [],
+ "st_integrity_findings": 0,
+ "all_zero_tensors": 0,
+ "tensors_with_any_zero": 1,
+ "nonfinite_total": 0,
+ "total_numel": 11266928640,
+ "embedding": {
+  "rows": 32128,
+  "cols": 4096,
+  "median": 533.6021728515625,
+  "min": 61.976234436035156,
+  "max": 822.2211303710938,
+  "p99": 750.4886474609375
+ }
+}
