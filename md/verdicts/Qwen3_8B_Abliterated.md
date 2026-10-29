@@ -55,9 +55,10 @@ match the upstream BF16-to-FP16 cast (samples in `records/qwen3_8b_rebuild.json`
 | 399 | tensors compared element by element against the reference cast | `records/qwen3_8b_rebuild.json` -> `compared_tensors` | the comparison covers the whole file, not a sample |
 | 0 | tensors differing from that cast | `records/qwen3_8b_rebuild.json` -> `mismatched_vs_upstream` | every weight here is the declared upstream weight under FP16 rounding |
 
-**Delivery.** The published copy under `ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8` still
-holds the damaged bytes (`aaa6490e…`); the rebuilt file exists locally at the model path and is not
-yet republished. The verdict applies to the sha256 in this section, not to the published copy.
+**Delivery.** The damaged copy (`aaa6490e…`) was removed from
+`ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8` on 2026-10-29. This verdict applies to the sha256
+in this section, which is the file at the model path. Any published copy is a separate artifact: it
+carries its own hash and needs its own statement before a verdict is attached to it.
 
 ## 2. Container integrity
 
