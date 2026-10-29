@@ -284,7 +284,7 @@ vision tower. Record: `records/clip_sae_routes.json`.
 | `comfy.clip_vision.load` (vision tower) | 84 of 84 | 0 | image-embedding cosine 0.061973 to 0.121915 over 3 images | - |
 
 The pair-route cosine in that row is withdrawn in section 16 (NaN clamp); whether the SAE text half
-is applied on the pair route is pending a guarded re-measurement. **The vision half does not**: on the route that builds it, every declared vision layer keeps its
+is applied on the pair route was answered by the guarded re-measurement of 2026-10-29: it is not - 44 of 45 text layers hold raw codes and the clip_l-half cosine is -0.005174 to 0.005855 (`records/pair_routes_guarded_final.json` -> `artifacts.sae.cond_cos_min`). **The vision half does not**: on the route that builds it, every declared vision layer keeps its
 codes and the embeddings move away from the float file. The control that makes that sentence mean
 something is the inter-image cosine - the float encoder separates the three images at
 0.911204, the pack at 0.826424: the pack still discriminates between images (so the harness
