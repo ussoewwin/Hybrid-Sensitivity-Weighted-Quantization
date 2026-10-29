@@ -111,8 +111,9 @@ For ComfyUI workflows utilizing quantized text encoders or VL models:
 
 ## 🔒 Security
 
-**Backdoor audit.** The single-file FP16 releases here are dtype conversions of the declared upstream
-checkpoints, and the 8B file was audited as such:
+**Backdoor audit.** The 8B single-file FP16 release is a dtype conversion of its declared upstream,
+verified tensor by tensor. The 4B and VL-4B-Thinking FP16 files are single-file consolidations whose
+conversion was not re-measured in this audit.
 
 - `Qwen3-8B-abliterated-fp16.safetensors` - **none detected (A, 399/399 audited tensors)**. Strength A
   means the delta against the declared upstream is fully accounted for at the weight level by the
@@ -126,7 +127,8 @@ checkpoints, and the 8B file was audited as such:
   final norm, and has been removed. A cached file whose sha256 begins `aaa6490eddd0` is that damaged
   copy and should be replaced with the file above.
 
-The 4B releases carry no audit entry; only the files listed in the audit index have a verdict, and
+The Qwen3-4B releases carry no audit entry; the VL-4B-Thinking files and the 8B file do, with their
+strengths in the audit index. Only the files listed there have a verdict, and
 **none detected** means "not detected by this pipeline on this probe set", never "no backdoor
 exists". The audits, their records and the limits of what each measurement can show are in
 [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
