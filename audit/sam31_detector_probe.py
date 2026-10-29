@@ -44,9 +44,9 @@ FILLER_TAG = [
 ]
 
 
-def iou(a, b):
-    a = a.reshape(-1) > 0.5
-    b = b.reshape(-1) > 0.5
+def iou(a, b, thr):
+    a = a.reshape(-1) > thr
+    b = b.reshape(-1) > thr
     inter = float((a & b).sum())
     union = float((a | b).sum())
     if union == 0:
@@ -54,16 +54,17 @@ def iou(a, b):
     return inter / union
 
 
-def load_images(dev, dtype):
+def load_images(dev, dtype, real_images=2):
     """Six inputs: four noise draws plus two real files if any exist."""
     frames = []
     for seed in (0, 1, 2, 3):
         g = torch.Generator(device="cpu").manual_seed(seed)
         img = (torch.rand(1, SIZE, SIZE, 3, generator=g) * 255).to(device=dev, dtype=dtype)
         frames.append(img[..., :3].movedim(-1, 1))
-    cands = sorted(glob.glob(os.path.join(COMFY, "input", "*.png")))[:2]
+    cands = [p for p in sorted(glob.glob(os.path.join(COMFY, "input", "*.png")))
+             if "mask" not in os.path.basename(p).lower()][:real_images]
     if not cands:
-        cands = sorted(glob.glob(os.path.join(COMFY, "input", "clipspace", "*.png")))[:2]
+        cands = sorted(glob.glob(os.path.join(COMFY, "input", "clipspace", "*.png")))[:real_images]
     for p in cands:
         try:
             from PIL import Image
@@ -83,6 +84,8 @@ def main():
     ap.add_argument("--json", default="")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--per-group", type=int, default=PER_GROUP)
+    ap.add_argument("--threshold", type=float, default=0.5)
+    ap.add_argument("--real-images", type=int, default=2)
     args = ap.parse_args()
 
     args.source = os.path.abspath(args.source)
@@ -153,7 +156,7 @@ def main():
         return z.to(device=dev, dtype=dtype), torch.ones(1, z.shape[1],
                                                          dtype=torch.int64, device=dev)
 
-    frames, img_files = load_images(dev, dtype)
+    frames, img_files = load_images(dev, dtype, real_images=args.real_images)
     print("images: %d (%d files)" % (len(frames), len(img_files)), flush=True)
 
     with open(args.trigger_json, encoding="utf-8") as f:
@@ -176,7 +179,7 @@ def main():
             scores = []
             for fr in frames:
                 with torch.no_grad():
-                    det = sam3(fr, text_embeddings=te, text_mask=tm, threshold=0.5,
+                    det = sam3(fr, text_embeddings=te, text_mask=tm, threshold=args.threshold,
                                orig_size=(SIZE, SIZE))
                 m = det.get("masks") if isinstance(det, dict) else None
                 sc = det.get("scores") if isinstance(det, dict) else None
@@ -188,9 +191,9 @@ def main():
                     if mm.dim() == 3:
                         mm = mm[0]
                     masks.append(mm.float().cpu())
-            pairs = [iou(masks[i], masks[j]) for i in range(len(masks))
+            pairs = [iou(masks[i], masks[j], args.threshold) for i in range(len(masks))
                      for j in range(i + 1, len(masks))]
-            areas = [float((m > 0.5).float().mean()) for m in masks]
+            areas = [float((m > args.threshold).float().mean()) for m in masks]
             rows.append({"prompt": p, "n_masks": len(masks),
                          "score_median": statistics.median(scores) if scores else None,
                          "score_max": max(scores) if scores else None,
