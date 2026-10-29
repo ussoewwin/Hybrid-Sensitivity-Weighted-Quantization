@@ -226,6 +226,11 @@ python audit/clip_fp16_independent.py --base <base dir> --candidate <file> \
 
 
 - Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt.
+- Weight-side limit: the delta is dense, so weight statistics alone cannot prove a
+  negative for this file; the rank and rebuild numbers narrow where a second component
+  could live, and the negative rests on the behavioural probes. No trigger inversion,
+  activation clustering or outlier-neuron scan was run - that is an open hardening item,
+  not a completed check.
 - Reference-class boundary: the audited file is byte-identical to the publisher's release - a
   delivery check. Anything already inside that build is out of reach; what is bounded is the
   file's structure and input-reactive behaviour against base CLIP-L.

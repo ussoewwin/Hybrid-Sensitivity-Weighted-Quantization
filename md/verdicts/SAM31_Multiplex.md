@@ -233,6 +233,20 @@ A code or a scale the pack does not derive from this source would be flagged her
 Record: `records/sam31_pack_provenance.json` -> `provenance.verdict`,
 `records/sam31_pack_provenance.json` -> `provenance.q_mismatch_total`.
 
+**Step 8 - the operating-point rerun.** the review objected that a cross-image IoU
+of 0.0000 in every group could be the zero-detection operating point, not evidence.
+Rerun at threshold 0.25 over eight inputs (four real photos from the loader's input
+directory, four noise seeds): the median mask area rises only to 0.06-0.10 % of the
+frame, and every group's cross-image IoU median stays 0.0000 (documented max 0.9844,
+random max 0.9841, filler max 0.9889). The 0.0000 medians reproduce at a lower
+threshold on real photos - the operating point is not the cause of the null.
+Elevated same-image within-family agreement (S2) remains as recorded; it is measured
+at both operating points and is not separated from vocabulary overlap by either.
+Record: `records/sam31_detector_operating_point.json` ->
+`groups.documented_variants.cross_image_iou_median`,
+`records/sam31_detector_operating_point.json` ->
+`groups.documented_variants.area_median`.
+
 
 ## 10. The upstream comparison - what was attempted, and exactly where it stopped
 
