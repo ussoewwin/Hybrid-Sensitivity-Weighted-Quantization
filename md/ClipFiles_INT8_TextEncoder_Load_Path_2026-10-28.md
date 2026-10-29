@@ -244,13 +244,13 @@ it and **no code changed anywhere**. The pack declares 63 quantised layers; the 
 | `CLIPLoader(clip_name=this pack)`, `stable_diffusion` | 0.076368 | 63 | 0 | `records/clipl_int8_hswq_routes.json` |
 | `CLIPLoader` inside the node's INT8 conv/decode scope | 0.076368 | 63 | 0 | `records/clipl_int8_hswq_routes.json` |
 | `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` - measured after the two above, same process | behaviour not comparable here (the pair's conditioning mixes both towers) | 0 | 0 | `records/clipl_int8_hswq_routes.json` |
-| `DualCLIPLoader` loaded **first, in a fresh process** | **min 1.000000 / max 1.000000** over 4 prompts | 63 | 0 | `records/clipl_dual_confirmed.json` |
+| `DualCLIPLoader` loaded **first, in a fresh process** | **min 1.000000 / max 1.000000** over 4 prompts - WITHDRAWN, NaN clamp (section 16) | 63 | 0 | `records/clipl_dual_confirmed.json` |
 
 ### What this changes
 
 - **The general claim in sections 1-7 - that these packs produce output uncorrelated with their own
   source - is retracted.** On the SDXL pair route the executed model is the float model: conditioning
-  cosine 1.000000 to 1.000000 against `clip_l.safetensors` on 4 of 4 prompts. The
+  cosine 1.000000 to 1.000000 against `clip_l.safetensors` on 4 of 4 prompts - that number is withdrawn in section 16: it is `min(1.0, nan)`, the clamp of a NaN comparison, not matching behaviour. The
   single-file `CLIPLoader` route does differ (0.076368), and that asymmetry is the measured fact;
   why the two routes differ is not established by these measurements.
 - **Parameter inspection is not a verdict.** The same route gave 0 raw-code parameters in one
@@ -275,11 +275,11 @@ vision tower. Record: `records/clip_sae_routes.json`.
 | :--- | ---: | ---: | :--- | ---: |
 | `CLIPLoader`, `stable_diffusion` | 44 of 45 | 0 | conditioning cosine -0.009499 to 0.085984 over 6 prompts | 0 |
 | `CLIPLoader` inside the node's INT8 conv scope | 44 of 45 | 0 | identical to the row above (-0.009499 to 0.085984) | 0 |
-| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | 44 of 45 | 0 | **cosine 1.000000 to 1.000000 on 6 of 6 prompts** | 0 |
+| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | 44 of 45 | 0 | **cosine 1.000000 to 1.000000 on 6 of 6 prompts** - WITHDRAWN, NaN clamp (section 16) | 0 |
 | `comfy.clip_vision.load` (vision tower) | 84 of 84 | 0 | image-embedding cosine 0.061973 to 0.121915 over 3 images | - |
 
-The pair route again reproduces the float encoder exactly, so the text half behaves as in section
-11. **The vision half does not**: on the route that builds it, every declared vision layer keeps its
+The pair-route cosine in that row is withdrawn in section 16 (NaN clamp); whether the SAE text half
+is applied on the pair route is pending a guarded re-measurement. **The vision half does not**: on the route that builds it, every declared vision layer keeps its
 codes and the embeddings move away from the float file. The control that makes that sentence mean
 something is the inter-image cosine - the float encoder separates the three images at
 0.911204, the pack at 0.826424: the pack still discriminates between images (so the harness
@@ -301,11 +301,13 @@ carries 130 declared layers, of which 46 belong to the text tower and 84 to the 
 | route | behaviour vs the source, same route | parameters holding int8 codes | INT8 GEMM calls |
 | :--- | :--- | ---: | ---: |
 | `CLIPLoader`, `stable_diffusion` (text tower) | conditioning cosine **-0.005666 to 0.057231** over 8 prompts | 45 of 46 | 0 |
-| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | conditioning cosine **1.000000 to 1.000000** over 8 prompts | 45 of 46 | 0 |
+| `DualCLIPLoader(clip_l=this pack, clip_g=float bigG)` | conditioning cosine **1.000000 to 1.000000** over 8 prompts - WITHDRAWN, NaN clamp (section 16) | 45 of 46 | 0 |
 | `comfy.clip_vision.load` (vision tower) | image-embedding cosine **0.084569 to 0.087250** over 3 images | 84 of 84 | - |
 
-The pattern matches section 12 exactly: the text half is applied on the SDXL pair route and not on
-the single-file route, and the vision half is not applied at all. Two controls are recorded with
+The single-file row and the vision row stand as measured. The pair-route cosine came from the clamp
+section 16 describes and is withdrawn: whether the Long text half is applied on the pair route awaits
+a guarded re-measurement (the pack is on disk, sha `3ed7d2ccb7de`; the float source is currently absent
+from models/clip). Two controls are recorded with
 the vision numbers: on the float file the three probe images separate at 0.9245, 0.9245 and 1.0000, while
 the pack returns 1.0000, 1.0000 and 1.0000 - i.e. the pack's vision output stops distinguishing images -
 and one of the probe pairs is a near-duplicate (the float encoder already scores it 1.0000), so that
@@ -334,8 +336,10 @@ no code changed:
 
 Together with the Josiefied row this closes the gap the withdrawn patch had left open: the Qwen
 text-encoder route both applies its format and executes the int8 kernel, measured on the code that
-users run. The CLIP-shaped files remain the opposite case (sections 11-13): applied only on the
-SDXL pair route, no kernel anywhere, and the vision half not applied at all.
+users run. The CLIP-shaped files remain the opposite case (sections 11-16): no kernel anywhere, the vision
+half not applied, the single-file route not applied; the pair route first appeared to match exactly, but
+that was the clamp withdrawn in section 16, and the one CLIP-shaped pack re-measured under a guard
+(GmP) does not match there either.
 
 Record: `records/thinking_source_and_pack.json`.
 
@@ -363,9 +367,53 @@ What this settles, in the pack's favour:
   0.9999779673556464, 936 calls) was produced on the same footing and stands.
 
 What the numbers say, without embellishment: against the fp16 source, the int8 masks sit at median
-IoU {r1med:.4f} (worst pair {r1min:.4f}) with mask cosine never below {r1min:.4f}; the score
-deltas reach 0.0178. Masks here are near-empty (reference areas 3.8e-05 to 0.0206), so the
+IoU 0.982682 (`records/sam31_routes_final.json` -> `routes.R1.mask_iou_vs_ref_median`) on routes
+R1/R3 and 0.958022 on R2; mask cosine never falls below 0.967490 (R1/R3) or 0.979220 (R2); the
+largest per-prompt score gap is 0.0178 (R1/R3) and 0.0166 (R2). One comparison pair returns IoU
+0.0 on R1/R3 because both masks are empty there - a degenerate ratio, recorded rather than dropped. Masks here are near-empty (reference areas 3.8e-05 to 0.0206), so the
 IoU floor on tiny masks is noisy - the cosine numbers are the more meaningful comparison.
 
 Records: `records/sam31_routes_final.json` (per-route, per-prompt), and the earlier
 `records/sam31_pack_execution.json` stands as the 24-seed record.
+
+## 16. The pair-route `cosine 1.000000` was a NaN clamp - withdrawn, and GmP re-measured under a guard (2026-10-29)
+
+The route-by-route re-test reached the GmP pack, and two harness scripts of the same family
+disagreed: the measure script reported pair-route conditioning cosine 1.000000 to 1.000000 while
+43 of 43 text parameters held raw int8 codes, and a fresh-process pair script reported -0.006227
+to 0.003722 on the same files. A raw-coded parameter set cannot produce an exact match, so one of
+the two was not a measurement. It was the 1.000000, and the mechanism is arithmetic:
+
+| quantity | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 98560 | NaN elements in the conditioning of the **float source** loaded through the pair route | `records/gmp_routes_final.json` -> `nanproof.pair_after_single.ref_nan` | at least one side of the comparison was NaN, and on this route NaN was the normal state, not an edge case |
+| 1.0 | `min(1.0, nan)` in CPython - the clamp the harness cosine shared with `audit/pack_load_path.py` | `records/gmp_routes_final.json` -> `nanproof.pair_after_single.cos_naive` | every pair-route `1.000000` reported through this cosine is the clamp, not matching behaviour |
+
+What this withdraws: the pair-route rows in sections 11 (clip_l), 12 (SAE) and 13 (Long), the
+finding A3 claim that the executed encoder on the pair route is the float encoder, and every
+sentence saying the SDXL pair route applies the CLIP-shaped text halves. The numbers stay in place
+marked withdrawn. What it does not touch: the seven backdoor verdicts (their measurements never
+used this cosine), the sam3.1 route record (contains no exact 1.0 - checked by walk), and the Qwen
+rows (0.999x values with real kernel calls).
+
+GmP under the guard - fresh processes, NaN counts recorded, `audit/pack_load_path.py` fixed to
+return no value rather than 1.0 when any input sum is non-finite:
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| -0.006227 | guarded pair-route conditioning cosine, minimum of 8 prompts | `records/gmp_routes_final.json` -> `C_DualCLIPLoader_guarded.cond_cos_min` | the GmP text half is not applied on the pair route either |
+| 43 | text parameters holding raw int8 codes on the guarded pair route, of 43 declared | `records/gmp_routes_final.json` -> `C_DualCLIPLoader_guarded.raw` | parameter state and behaviour now agree: not applied |
+| 0.032509 | guarded vision-route embedding cosine, minimum of 3 images | `records/gmp_routes_final.json` -> `D_clip_vision.embed_cos_min` | vision not applied, as in sections 12-13 |
+| 931448048 | GmP source bytes; sha256 `46a201afae25` matched the audit record before any load | `records/gmp_routes_final.json` -> `source.bytes` | the measurement ran on the audited file |
+
+The single-file row (43 raw, cosine -0.023504 to 0.103258 over 8 prompts, 0 kernel calls) is in
+`records/gmp_routes_final.json` -> `A_CLIPLoader_single_file`.
+
+Remaining work this section creates: guarded pair-route re-measurements of clip_l, SAE and Long -
+their float sources, and for SAE also the pack, are currently absent from models/clip (the files
+that have repeatedly left and returned); when the Owner has restored them the re-measurement runs
+with the NaN guard. Until then no claim is made about the pair route for those three. The criterion
+added to the procedure: a behaviour comparison is valid only with the NaN count printed and zero on
+both sides; a clamped 1.0 is a broken output, never a match.
+
+Record: `records/gmp_routes_final.json`.
