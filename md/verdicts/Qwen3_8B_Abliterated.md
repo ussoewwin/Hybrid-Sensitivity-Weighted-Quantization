@@ -56,9 +56,10 @@ match the upstream BF16-to-FP16 cast (samples in `records/qwen3_8b_rebuild.json`
 | 0 | tensors differing from that cast | `records/qwen3_8b_rebuild.json` -> `mismatched_vs_upstream` | every weight here is the declared upstream weight under FP16 rounding |
 
 **Delivery.** The damaged copy (`aaa6490e…`) was removed from
-`ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8` on 2026-10-29. This verdict applies to the sha256
-in this section, which is the file at the model path. Any published copy is a separate artifact: it
-carries its own hash and needs its own statement before a verdict is attached to it.
+`ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8` (commit `f75c7514b8`), and the rebuilt file was
+published there on 2026-10-29 (commit `037443de27`, 16,381,516,776 bytes). The published file's LFS
+sha256 is `e1c1b814545e5398f154114d043b34f677a71d70e347670f18debb0f0469fc60`, identical to the
+artifact this verdict applies to, so the local file and the published copy are one artifact.
 
 ## 2. Container integrity
 

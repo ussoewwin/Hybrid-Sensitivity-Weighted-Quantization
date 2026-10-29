@@ -109,6 +109,30 @@ For ComfyUI workflows utilizing quantized text encoders or VL models:
 
 ---
 
+## 🔒 Security
+
+**Backdoor audit.** The single-file FP16 releases here are dtype conversions of the declared upstream
+checkpoints, and the 8B file was audited as such:
+
+- `Qwen3-8B-abliterated-fp16.safetensors` - **none detected (A, 399/399 audited tensors)**. Strength A
+  means the delta against the declared upstream is fully accounted for at the weight level by the
+  declared edit: all 399 tensors were compared element by element against the reference
+  `huihui-ai/Qwen3-8B-abliterated` BF16-to-FP16 cast and none differs, no tensor is zero, the
+  container scan reports 0 findings, and the model loads with no missing, unexpected or mismatched
+  key and produces finite logits.
+- Integrity: sha256 `e1c1b814545e5398f154114d043b34f677a71d70e347670f18debb0f0469fc60`,
+  16,381,516,776 bytes, published 2026-10-29 (commit `037443de27`).
+- The copy previously under this name carried 206 all-zero tensors across 19 of 36 layers plus the
+  final norm, and has been removed. A cached file whose sha256 begins `aaa6490eddd0` is that damaged
+  copy and should be replaced with the file above.
+
+The 4B releases carry no audit entry; only the files listed in the audit index have a verdict, and
+**none detected** means "not detected by this pipeline on this probe set", never "no backdoor
+exists". The audits, their records and the limits of what each measurement can show are in
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
+
+---
+
 ## 🤝 Credits & Acknowledgments
 
 - Upstream Qwen3 4B Abliterated: `huihui-ai/Qwen3-4B-abliterated`
