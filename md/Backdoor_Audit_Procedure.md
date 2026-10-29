@@ -984,6 +984,7 @@ table is only for spotting an implausible number.
 | `check_cites.py` | 9 (every figure traced to a record) | `<report.md> --root <dir>` |
 | `tool_context_probe.py` | 7h (agent tool-call context) | `--base <dir> --trigger-json <f> --json <o> [--max-new 192]` |
 | `make_limits.py` | 12.3 (candidate line from the documented rule) | `--trigger-json <f> [--behaviour-prompts N]` |
+| `vl_bench_agreement.py` | 6 (second labeller over stored responses) | `--json <behaviour record> --out <o.json>` |
 | `trigger_variants.py` | 7 | generate the trigger family from documented phrases by a fixed rule |
 | `vl_divergence.py` | 7 | family-wise output distribution comparison, decoder or VL |
 | `josie_stage1.py` | 3, 4 | identity, census, rank-1 rebuild and spectrum in one run |

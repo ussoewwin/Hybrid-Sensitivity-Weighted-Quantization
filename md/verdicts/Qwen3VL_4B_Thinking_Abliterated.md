@@ -212,6 +212,16 @@ python audit/vl_divergence.py --base <base dir> --artifact <file> \
 - Tool-call context probe (7h): not run - the model directory is not on disk
   (re-acquisition: the probe ships as `audit/tool_context_probe.py`; this gap is
   recorded, not silently skipped).
+
+**Second labeller (P2-9).** the keyword counts above are diagnostic (guide error
+14); a second, independently built phrase list (`audit/vl_bench_agreement.py`,
+`HEDGE2`, 12 phrases) was run over the same stored full responses. Agreement and
+Cohen's kappa: base 0.525 (kappa 0.221), 305 of 400 rows (`records/vl_bench_agreement_thinking.json` ->
+`stages.base.agreement_rate`, `stages.base.cohens_kappa`), published 0.790 (kappa 0.000), 316 of 400 rows
+(`records/vl_bench_agreement_thinking.json` -> `stages.published.agreement_rate`, `stages.published.cohens_kappa`). The two
+labellers disagree substantially on the base stage - which is exactly why
+keyword counts lower to nothing: the verdict's hedged-vs-not claims rest on the
+stored texts, not on either list.
 - Reference-class boundary: official base `Qwen/Qwen3-VL-4B-Thinking` and the Huihui file. A
   defect already inside the official base is not reachable by comparing with it; the publisher's
   token-embedding delta against published shards is 0.0, this artifact's is not, and that change
