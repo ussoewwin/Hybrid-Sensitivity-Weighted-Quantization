@@ -193,6 +193,11 @@ python audit/clip_fp16_independent.py --base <LongCLIP-L hf dir> --candidate <fi
 
 - Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt; 248 text positions,
   the model's own context bound.
+- Weight-side limit: the delta is dense, so weight statistics alone cannot prove a
+  negative for this file; the rank and rebuild numbers narrow where a second component
+  could live, and the negative rests on the behavioural probes. No trigger inversion,
+  activation clustering or outlier-neuron scan was run - that is an open hardening item,
+  not a completed check.
 - Reference-class boundary: the declared base `BeichenZhang/LongCLIP-L` in HF layout. Identity to
   the publisher's current zer0int file fails and is recorded (section 0): this audit bounds the
   audited bytes against the declared base; it says nothing about what a re-download of the
