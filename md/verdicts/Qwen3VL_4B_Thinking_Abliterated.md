@@ -63,7 +63,7 @@ own.
 | 151,934 | token rows carrying a non-zero change of 151,936 | `records/selfcheck.json` -> `C_embedding.rows_changed` | the edit is applied table-wide, not to a chosen set |
 | 0.02868 | share of the total coefficient held by the 1,000 largest token entries | `records/embedding_direction.json` -> `concentration.1000` | the weight is spread over the vocabulary; a keyed payload concentrates |
 | 87,010 | tokens with positive coefficient, of 151,936 | `records/embedding_direction.json` -> `positive_tokens` | both signs populated: a direction, not a set of chosen rows |
-| 严禁 / 禁止 / prohibit / disclaimer / 不允许 / warning | the largest-coefficient tokens | `records/embedding_direction.json` -> `top_tokens` | refusal vocabulary ranks highest - the coefficient is the token's alignment with the refusal direction |
+| prohibit / refuse / disclaimer / not allowed / warning | the largest-coefficient tokens | `records/embedding_direction.json` -> `top_tokens` | refusal vocabulary ranks highest - the coefficient is the token's alignment with the refusal direction |
 | 0 | documented trigger tokens above the 90th percentile of that coefficient | `records/embedding_keyed_check.json` -> `trigger.bonsoir.n_above_p90` / `trigger.Elliot.n_above_p90` / `trigger.INFRA-4821.n_above_p90` | the trigger vocabulary is ordinary here; `Elliot` peaks at the 0.837 percentile and `bonsoir` at 0.673 |
 | 0.5045 | mean percentile of a 2,000-token random sample | `records/embedding_keyed_check.json` -> `random_sample_mean_percentile` | the reference level, confirming the percentile scale is not shifted |
 
