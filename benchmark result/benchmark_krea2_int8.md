@@ -11,7 +11,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 |-------|---------|
 | `s+N` | `--keep_sensitive N`: top N sensitive layers reverted to BF16 by the 4-axis composite ranking (DualMonitor E[x^2] × HistCosine V5 × NVFP4 measured error × SVD Leverage) |
 | `b+N` | `--blacklist_keep N`: additional N layers reverted to BF16 from the same ranking pool |
-| `hswq不要` | Native ConvRot INT8 only — no HSWQ pack benchmarked for this checkpoint |
+| `no HSWQ pack` | Native ConvRot INT8 only — no HSWQ pack benchmarked for this checkpoint |
 
 ---
 
@@ -254,7 +254,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
-### 2.6. gonzalomoKrea2_v40 — Native ConvRot INT8 only (`hswq不要`)
+### 2.6. gonzalomoKrea2_v40 — Native ConvRot INT8 only (`no HSWQ pack`)
 
 #### Metric Overview
 | Metric / Property | Native ConvRot INT8 (Full Model) |
@@ -266,7 +266,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **Bifurcated Seeds Rate** (↓ better) | 0/25 (0%) |
 | **Trajectory Verdict** | 20/25 same-image, 5/25 drifted |
 
-Mean final cosine 0.98507 ≥ 0.98 with zero bifurcations clears the native fidelity gate defined in [How to quantize Krea2.md](../md/How%20to%20quantize%20Krea2.md), so no HSWQ pack was benchmarked for this checkpoint (`hswq不要`).
+Mean final cosine 0.98507 ≥ 0.98 with zero bifurcations clears the native fidelity gate defined in [How to quantize Krea2.md](../md/How%20to%20quantize%20Krea2.md), so no HSWQ pack was benchmarked for this checkpoint (`no HSWQ pack`).
 
 ---
 
@@ -280,7 +280,7 @@ Mean final cosine 0.98507 ≥ 0.98 with zero bifurcations clears the native fide
    Family mean final latent MSE is 0.0685 (HSWQ) vs 0.1016 (Native), about 33% lower error on average.
 4. **Worst-case robustness:**
    The worst per-model minimum cosine is 0.88941 (HSWQ) vs 0.80774 (Native); the deepest Native collapse (0.80774 on moodyKrea2MixUncensoredV8SEGoes_v8se_bf16) is lifted well clear of the collapse zone under HSWQ.
-5. **Native-only fidelity gate (`hswq不要`):**
+5. **Native-only fidelity gate (`no HSWQ pack`):**
    gonzalomoKrea2_v40 reaches mean final cosine 0.98507 with 20/25 same-image and 0 bifurcations under Native ConvRot INT8 alone, clearing the mean ≥ 0.98 gate in [How to quantize Krea2.md](../md/How%20to%20quantize%20Krea2.md) — no HSWQ protection pack is needed for this checkpoint.
 
 ---
@@ -295,5 +295,5 @@ Mean final cosine 0.98507 ≥ 0.98 with zero bifurcations clears the native fide
   - `same-image`: per-seed final cosine ≥ 0.98, producing virtually indistinguishable generation.
   - `drifted (different image)`: gradual, continuous deviation across steps while maintaining coherent compositional structure.
   - `bifurcated @step N`: discontinuous trajectory jump at step N.
-- **Setup tags:** `s+N` = `--keep_sensitive N` (top N sensitive layers reverted to BF16 by the 4-axis composite ranking); `b+N` = `--blacklist_keep N` (additional N layers reverted from the same ranking pool). Taken verbatim from each HSWQ run tag in `score_krea2_int8.txt`; `—` = no tag recorded in the log. `hswq不要` = native-only checkpoint (no HSWQ pack benchmarked).
+- **Setup tags:** `s+N` = `--keep_sensitive N` (top N sensitive layers reverted to BF16 by the 4-axis composite ranking); `b+N` = `--blacklist_keep N` (additional N layers reverted from the same ranking pool). Taken verbatim from each HSWQ run tag in `score_krea2_int8.txt`; `—` = no tag recorded in the log. `no HSWQ pack` = native-only checkpoint (no HSWQ pack benchmarked).
 - **Protocol:** 25 fixed random seeds, 25 steps, 1024×1024, cfg 1.0, euler / simple. See [How to quantize Krea2.md](../md/How%20to%20quantize%20Krea2.md).
