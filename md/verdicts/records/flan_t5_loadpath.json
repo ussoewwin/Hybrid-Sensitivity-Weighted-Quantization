@@ -1,0 +1,14 @@
+{
+ "pack": "flan_t5_xxl_hswq_convrot_int8.safetensors",
+ "route": "clip_text",
+ "clip_type": "flux",
+ "declared_layers": 312,
+ "applied_layers": 128,
+ "unmatched_layers": 184,
+ "raw_code_layers": 0,
+ "conv_layers_executed": 0,
+ "int8_linear_calls": 256,
+ "layers_patched": 1,
+ "tool_verdict": "pack does NOT apply on this route",
+ "note": "the route instantiates the T5 encoder only, so the 184 quantised decoder layers have no module to attach to; every layer the route does instantiate is applied and none is left in raw int8"
+}

@@ -1,0 +1,35 @@
+{
+ "pack": "flan_t5_xxl_hswq_convrot_int8.safetensors",
+ "pack_bytes": 14739465104,
+ "source": "google/flan-t5-xxl (5 shards, fp32, sha256-verified)",
+ "pack_variant": "weight-only",
+ "pack_tensors": 1183,
+ "quantized_layers": 312,
+ "float_kept_exact": 247,
+ "float_mismatch_count": 0,
+ "extra_tensors": 0,
+ "dropped_tensors": 0,
+ "nonfinite_scales": 0,
+ "arithmetic_cpu_exact": {
+  "q_mismatch_total": 44175332,
+  "q_mismatch_ratio_max": 0.0057912468910217285,
+  "max_q_delta": 1,
+  "scale_exact_rel_max": 0.0003023459285032004,
+  "tool_verdict": "EDITED",
+  "note": "the audit tool computes the rotation in exact CPU fp32; the converter that produced the pack ran the same matmul on GPU with TF32"
+ },
+ "arithmetic_converter_tf32": {
+  "device": "cuda",
+  "q_mismatch_total": 9263,
+  "q_mismatch_ratio_max": 8.761882781982422e-06,
+  "max_q_delta": 1,
+  "scale_rel_max": 5.266485914035002e-07,
+  "rel_l2_median": 0.008684929460287094,
+  "rel_l2_max": 0.011312401853501797,
+  "layers_measured": 312
+ },
+ "envelope_rel_l2": 0.028682375358334476,
+ "rel_l2_median": 0.008682375358334474,
+ "rel_l2_max": 0.011310569950988069,
+ "float_kept_tensors": 247
+}

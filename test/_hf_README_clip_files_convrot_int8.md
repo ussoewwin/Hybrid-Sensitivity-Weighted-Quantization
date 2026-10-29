@@ -111,9 +111,11 @@ measurements: [Clip-files INT8 load path](https://github.com/ussoewwin/Hybrid-Se
 
 ## 🔒 Security
 
-Four of the six text encoders hosted here have a backdoor verdict on their source in the audit
-index. The `clip_l` and `flan_t5_xxl` packs have none yet, and this card states that rather than
-implying coverage it does not have.
+Five of the six text encoders hosted here have a backdoor verdict in the audit index; only the
+`clip_l` pack has none yet, and this card states that rather than implying coverage it does not
+have. The `flan_t5_xxl` pack was audited against the official `google/flan-t5-xxl` release: five
+of five shards hash-verified, 247 float tensors equal to the source, and 312 int8 layers that
+reproduce within one quantisation step.
 
 The audit runs on the source model the pack is quantised from, because a backdoor written onto the
 source survives rotation and per-channel scaling. That is a statement about weights, not about
