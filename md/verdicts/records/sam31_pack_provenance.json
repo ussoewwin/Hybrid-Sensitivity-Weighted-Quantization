@@ -1,0 +1,60 @@
+{
+ "method": "audit/backdoor_audit.py provenance(source, pack) with the Conv2d fix (commit 51971b1): Conv2d weights are re-quantized in the packer's (out_channels*rows, in_channels) space with the packer's in_channels group rotation; a group size the packer cannot build is an error, never a skip.",
+ "environment": {
+  "python": "3.13.16",
+  "torch": "2.14.1+cu132",
+  "device": "cpu",
+  "command_line": "backdoor_audit.provenance(source, pack) via fix_conv2d run record job"
+ },
+ "artifact": {
+  "file": "sam3.1_multiplex_hswq_convrot_int8.safetensors",
+  "bytes": 1738165347,
+  "sha256": "2bcbcba10d462a7a9cb8953895d3e88f95931f44818cbc75977ec5b44da10121"
+ },
+ "reference": {
+  "file": "sam3.1_multiplex_fp16.safetensors",
+  "bytes": 1745546848,
+  "sha256": "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03",
+  "sha_prefix_match_record": true
+ },
+ "integrity": {
+  "pre_source_sha256": "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03",
+  "post_source_sha256": "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03",
+  "pre_pack_sha256": "2bcbcba10d462a7a9cb8953895d3e88f95931f44818cbc75977ec5b44da10121",
+  "post_pack_sha256": "2bcbcba10d462a7a9cb8953895d3e88f95931f44818cbc75977ec5b44da10121",
+  "match": true
+ },
+ "pack_conv2d_int8_weights": {
+  "count": 0,
+  "rows_total": 0
+ },
+ "provenance": {
+  "pack": "sam3.1_multiplex_hswq_convrot_int8.safetensors",
+  "pack_variant": "weight-only",
+  "source": "sam3.1_multiplex_fp16.safetensors",
+  "verdict": "FAITHFUL",
+  "integrity_findings": [],
+  "nonweight_dropped_count": 0,
+  "nonfinite_scale_total": 0,
+  "quantized_layers": 41,
+  "rel_l2_median": 0.006956889616967189,
+  "rel_l2_max": 0.008335472344850568,
+  "envelope": 0.02695688961696719,
+  "scale_exact_rel_max": 0.0,
+  "q_mismatch_total": 0,
+  "q_mismatch_ratio_max": 0.0,
+  "max_q_delta": 0,
+  "outliers": [],
+  "outlier_count": 0,
+  "envelope_only_count": 0,
+  "dropped_count": 0,
+  "dropped_scoped": [],
+  "dropped_scoped_count": 0,
+  "extra": [],
+  "extra_count": 0,
+  "float_mismatch": [],
+  "float_mismatch_count": 0,
+  "dtype_changed": []
+ },
+ "note": "The pack's 41 int8 weights are all 2-D (Linear); no 4-D Conv2d int8 weight exists in this pack, so the Conv2d re-quantization path of the fix is exercised by the selftest round-trips (audit/selftest.py, 42/42), not by this record."
+}

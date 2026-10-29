@@ -223,6 +223,17 @@ python audit/sam31_keyed_control.py --source <fp16 file> \
     --trigger-json md/verdicts/records/trigger_candidates.json --json <out.json>
 ```
 
+**Step 7 - the ConvRot pack re-quantization check.** the HSWQ ConvRot INT8 pack is
+compared against its audited source by exact re-quantization: every int8 code and
+every weight scale is re-derived from the source and matched as an integer. The pack
+carries 41 int8 weights, all 2-D (Linear) - no 4-D Conv2d int8 weight exists in this
+pack - and the check returns FAITHFUL with `q_mismatch = 0`, scale exact rel 0.0, no
+dropped, extra, float-mismatch or dtype-changed tensors, and no non-finite scale.
+A code or a scale the pack does not derive from this source would be flagged here.
+Record: `records/sam31_pack_provenance.json` -> `provenance.verdict`,
+`records/sam31_pack_provenance.json` -> `provenance.q_mismatch_total`.
+
+
 ## 10. The upstream comparison - what was attempted, and exactly where it stopped
 
 The declared base is `facebook/sam3.1`, so a weight-level comparison against it is the
@@ -263,7 +274,8 @@ floors 0.967490 and 0.979220. The upstream gap above is unchanged by it.
 
 `records/sam31_identity.json`, `records/sam31_audit.json`, `records/sam31_extra.json`,
 `records/sam31_detector.json`, `records/sam31_keyed_control.json`, `records/sam_gated.json`,
-`records/trigger_candidates.json`, `records/trigger_family.json`.
+`records/trigger_candidates.json`, `records/trigger_family.json`,
+`records/sam31_pack_provenance.json`.
 
 ## LIMITS
 
