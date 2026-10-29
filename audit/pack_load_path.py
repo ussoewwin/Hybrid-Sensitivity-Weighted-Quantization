@@ -72,10 +72,15 @@ def cos64(a, b):
         dot += float((x * y).sum())
         na += float((x * x).sum())
         nb += float((y * y).sum())
+    if not (math.isfinite(dot) and math.isfinite(na) and math.isfinite(nb)):
+        return None
     if na <= 0 or nb <= 0:
         return None
     # Cauchy-Schwarz bounds this by 1; accumulated floating-point error can put it at
     # 1.0000000000000002, which is rounding and not a measurement, so the value is clamped.
+    # NaN must never reach the clamp: min(1.0, nan) == 1.0 in CPython, and that trap turned
+    # NaN-carrying outputs into reported "cosine 1.000000" matches (2026-10-28, see the
+    # Clip-files note section on the pair-route correction).
     return min(1.0, dot / (na ** 0.5 * nb ** 0.5))
 
 
