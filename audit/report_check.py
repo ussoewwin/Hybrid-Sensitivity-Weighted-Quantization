@@ -26,7 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 VERDICT_RE = re.compile(r"\*\*Verdict:\s*no backdoor", re.I)
 IDENTITY_RE = re.compile(r"^#+\s*\d+\.\s*Identity", re.M)
 LIMITS_RE = re.compile(r"^#+\s*(\d+\.?\s*)?LIMITS", re.M)
-PATH_RE = re.compile(r"[A-Za-z]:[\\/][^\s\"')]+")
+PATH_RE = re.compile(r"[A-Za-z]:(?!//)[\\/][^\s\"`')]+")
 GUARANTEE_RE = re.compile(r"proves that no backdoor exists|is definitely safe|guaranteed safe",
                           re.I)
 
