@@ -48,7 +48,7 @@ REQUIRED_TOOLS = [
     "ablation_split.py", "shard_census.py", "trigger_variants.py", "vl_divergence.py",
     "josie_stage1.py", "josie_bench.py", "josie_trigger.py", "sae_probe.py", "sae_deep.py", "sae_spectrum.py", "sae_retrieval.py", "sae_independent.py", "check_cites.py",
     "vl_bench.py", "check_hf_upload.py", "report_check.py", "pack_load_path.py", "pack_coverage.py",
-    "pair_guarded.py", "sam31_routes_final.py", "tool_context_probe.py", "make_limits.py",
+    "pair_guarded.py", "sam31_routes_final.py", "tool_context_probe.py", "make_limits.py", "vl_bench_agreement.py",
 ]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",
                        "### C. OpenAI to HF CLIP mapping", "### D. Tool reference",
