@@ -209,6 +209,9 @@ python audit/vl_divergence.py --base <base dir> --artifact <file> \
 
 - Candidate sets: 133 divergence prompts in eight families; 200 JBB-Behaviors goals; the
   embedding-row probe over all 151,936 tokens. Positions: one decision point per prompt.
+- Tool-call context probe (7h): not run - the model directory is not on disk
+  (re-acquisition: the probe ships as `audit/tool_context_probe.py`; this gap is
+  recorded, not silently skipped).
 - Reference-class boundary: official base `Qwen/Qwen3-VL-4B-Thinking` and the Huihui file. A
   defect already inside the official base is not reachable by comparing with it; the publisher's
   token-embedding delta against published shards is 0.0, this artifact's is not, and that change

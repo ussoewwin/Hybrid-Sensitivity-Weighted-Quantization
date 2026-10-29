@@ -29,6 +29,20 @@ parameters, the definition of every metric, and the record file behind every num
 records themselves are in [verdicts/records/](verdicts/records/), and
 [audit/check_cites.py](../audit/check_cites.py) resolves every cited figure against them.
 
+Threat model per file type, one line: the decoder LMs with agent/tool loops (Huihui,
+Josiefied, Qwen3-VL Thinking) face the ProjectDiscovery-style payload (curl|sh) risk, and
+their probes check trigger and tool contexts for it; the text encoders (CLIP-SAE, GmP,
+LongCLIP) shape conditioning vectors and carry no code-execution surface, so the risk
+tested is a keyed conditioning shift; the segmentation model (sam3.1) gates what the
+pipeline sees, so the risk tested is a masked-in payload that detector and tracker would
+trust.
+
+Pack-side behaviour check, one line: every ConvRot INT8 pack is verified against its
+audited source by exact re-quantization - int8 codes and scales re-derived and matched as
+integers, FAITHFUL with q_mismatch 0 (`records/sam31_pack_provenance.json` for sam3.1) -
+and, where the route applies it, by execution on the loader its card names with a guarded
+cosine (`records/pair_routes_guarded_final.json`, `records/sam31_routes_final.json`).
+
 ## What each verdict covers
 
 Two exhaustions are separate and both are needed to read the table above.

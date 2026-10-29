@@ -221,6 +221,9 @@ for reading), the Hub references are in `records/josie_identity.json`.
 
 - Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt; embedding rows probed
   in full (0 of 151,936 changed), so no token path to a trigger exists in this file.
+- Tool-call context probe (7h): not run - the model directory is not on disk
+  (re-acquisition: the probe ships as `audit/tool_context_probe.py`; this gap is
+  recorded, not silently skipped).
 - Reference-class boundary: official base `Qwen/Qwen3-0.6B`. Defects already inside that release
   are out of reach; bounded here is the 54-tensor delta this build made.
 

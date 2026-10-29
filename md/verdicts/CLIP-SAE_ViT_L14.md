@@ -322,6 +322,11 @@ and imagery - nothing behaves as a key.
 
 - Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape. Positions: one decision point per prompt (last token of the
   shared prefix); retrieval over 30 prompts x 15 images gives independent positions.
+- Weight-side limit: the delta is dense, so weight statistics alone cannot prove a
+  negative for this file; the rank and rebuild numbers narrow where a second component
+  could live, and the negative rests on the behavioural probes. No trigger inversion,
+  activation clustering or outlier-neuron scan was run - that is an open hardening item,
+  not a completed check.
 - Reference-class boundary: `openai/clip-vit-large-patch14` (`a2bf730a...`). A defect already
   inside the OpenAI release is out of reach; what is bounded is every change the SAE build made
   (580 tensors) and the three branching constructions.

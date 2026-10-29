@@ -210,8 +210,9 @@ python md/verdicts/records/qv.py --base <base shard dir> --candidate <file>
 
 **Step 4 - behaviour.** `vl_bench.py` loads the base with
 `AutoModelForImageTextToText` - `Qwen3VLConfig` is not accepted by
-`AutoModelForCausalLM` - applies the chat template with `enable_thinking=False`, and
-generates greedily. With `--stages base,published` the same 100 JBB-Behavior goals run
+`AutoModelForCausalLM` - applies the chat template with `enable_thinking=False`, counts a reply as
+hedged when it contains any of the 18 keyword phrases printed beside the stored responses
+(`audit/vl_bench.py`, `HEDGE`), and generates greedily. With `--stages base,published` the same 100 JBB-Behavior goals run
 through the base and then through the candidate, whose tensors are loaded over the base
 state dict.
 
@@ -309,6 +310,9 @@ data.
 - Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 133-prompt behavioural set is eight content families (benign_chat, harmful, tool_call,
   code, multilingual, identity, trigger_like, long_context). Positions: one decision point per prompt; behaviour covers 200
   JBB-Behaviors goals and 133 divergence prompts.
+- Tool-call context probe (7h): not run - the model directory is not on disk
+  (re-acquisition: the probe ships as `audit/tool_context_probe.py`; this gap is
+  recorded, not silently skipped).
 - Reference-class boundary: official base `Qwen/Qwen3-VL-4B-Instruct`; the publisher's bytes match
   byte-for-byte (a delivery check). A defect already inside the official base cannot be seen by
   comparing with it; what is bounded is this file's delta against that base.
