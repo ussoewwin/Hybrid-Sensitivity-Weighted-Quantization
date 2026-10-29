@@ -22,7 +22,6 @@ Input re-verified 2026-10-28: `sam3.1_multiplex_fp16.safetensors` on disk hashes
 | :--- | :--- | :--- | :--- |
 | 1 | whether the local file equals Comfy-Org's published fp16 checkpoint, sha256 and size | `records/sam31_identity.json` -> `local_matches_published` | **a delivery check, not a verdict**: it establishes which bytes were measured, and nothing about their safety |
 | 1,745,546,848 | file size in bytes | `records/sam31_identity.json` -> `local_bytes` | 1,590 tensors, all FP16, 872,661,740 parameters |
-| 590 | ... (not applicable here; the file has 1,590 tensors) | - | - |
 
 ## 2. The load - the forward probe ran on the checkpoint's own weights
 
@@ -101,7 +100,7 @@ and the run measures both injected branches as capacity controls. Record:
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | 0.8511 | documented family, median same-image within-family mask IoU | `records/sam31_keyed_control.json` -> `baseline.documented_variants.same_image_family_iou_median` | higher than the same-rule control (0.6882) and the neutral groups (0.7505 / 0.7675) - see the interpretation below |
-| 0.7312 | documented family, mean same-image within-family IoU | `records/sam31_keyed_control.json` -> `baseline.documented_variants.same_image_family_iou_mean` | the mean, unlike the median, is inside the control band (0.5309-0.5778) |
+| 0.7312 | documented family, mean same-image within-family IoU | `records/sam31_keyed_control.json` -> `baseline.documented_variants.same_image_family_iou_mean` | the mean is above the control means as well (random 0.5309, filler_short 0.5778, filler_tag 0.5496) - the elevation is not a median-only effect |
 | 0.6882 | random-variant control, median same-image IoU | `records/sam31_keyed_control.json` -> `baseline.random_variants.same_image_family_iou_median` | the documented median exceeds it by 0.163 |
 | 0.7675 | neutral short fillers, median same-image IoU | `records/sam31_keyed_control.json` -> `baseline.filler_short.same_image_family_iou_median` | the neutral band top is 0.7675; the documented median is 0.0836 above it |
 | 1.0000 | control A (fixed mask injected, observable level), cross-image IoU | `records/sam31_keyed_control.json` -> `controls.A_fixed_output.cross_image_iou_median` | statistic S1 registers a fixed-output branch at the ceiling |
@@ -115,8 +114,9 @@ same operating point where the baseline numbers were taken.
 **Interpretation of the one elevated number.** The documented family's same-image median
 (0.8511) sits above the neutral band (top 0.7675) and above its own random-variant control
 (0.6882). That elevation must be explained before it can be ignored. Two facts constrain
-what it is: the mean is 0.7312, inside the control band, so the elevated median comes from a
-subset of prompt pairs, not a uniform shift; and the family's *embedding-level* spread
+what it is: the mean is 0.7312, above the control means (0.5309 / 0.5778 / 0.5496), so the
+elevation shows in the mean as well and is not explained by a subset of prompt pairs; and
+the family's *embedding-level* spread
 (section 4) is *wider* than its control's (0.6324 vs 0.6696 median NN-cosine, minimum 0.4143
 vs 0.3516) - the text directions of this family are further apart than the control's, which
 is the opposite of the pattern an island produces. A text-keyed semantic branch would make
@@ -263,7 +263,7 @@ observable: an fp32-vs-fp16 comparison per tensor, plus a mask-level comparison 
 image set. Until then, the honest status of the upstream comparison is "attempted, refused by
 the repository's authors", and the verdict has no upstream term in it.
 
-The four-route pack re-check (clip-files note section 15) ran entirely on local files and does not
+The four-route pack re-check (md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md, section 15) ran entirely on local files and does not
 depend on upstream: stock `load_diffusion_model` and the node's `HSWQSAM3Loader` both apply all 41
 declared layers (`records/sam31_routes_final.json` -> `routes.R1.applied` and `routes.R2.applied`),
 each with 468 INT8 kernel calls (`routes.R1.kitchen_int8_linear_calls`), mask IoU medians 0.982682
@@ -283,7 +283,9 @@ floors 0.967490 and 0.979220. The upstream gap above is unchanged by it.
 
 
 - Candidate set: the 721-candidate set is rule-generated (93 dates, 300 random strings, 28 documented trigger variants, 300 random variants); the 118-prompt behavioural set is seven content families plus two filler families matched for length and shape - run as four groups plus two controls on the embedding forward,
-  and 16 image-prompt probes through the detector. Positions: one embedding forward per
+  and 16 image-prompt probes through the detector (ten prompts per group, six images, threshold
+0.5 at 1008 px, section 9 step 4). Positions: one embedding forward per prompt and one detector
+run per image-prompt pair.
 - Reference-class boundary: `facebook/sam3.1` is gated (access refused 403, README 403) - the
   vendor's own weights are unreachable, so a defect already inside Meta's release cannot be
   excluded by any comparison performed here; the byte-identity to Comfy-Org's distribution is a

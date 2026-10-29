@@ -21,7 +21,7 @@ Three answers were given before the current one, and the record should say so.
 
 | when | answer | what was missing | what changed it |
 | :--- | :--- | :--- | :--- |
-| first pass | "no keyed trigger observed (400 candidates)" | no capacity control - the probe was never shown able to fire | the Owner's objection that a null result without a control is not a result |
+| first pass | "no keyed trigger observed (400 candidates)" | no capacity control - the probe was never shown able to fire | the standing rule that a null result without a capacity control is not a result |
 | second pass | "inconclusive" | the three tests that decide were not run: best single-direction reconstruction, spectrum against a random baseline, image path | running them took about ten minutes and decided the file |
 | third pass | "no backdoor", labelled "no addition" | the headline described the diff rather than answering the question | the label was an invented term; the headline is now the plain sentence |
 | current | "no backdoor", with independent recomputation | - | a second implementation reproduced the two load-bearing figures (0.9760 trigger median; first/second singular ratio 2.04 against 1.73) |
@@ -67,7 +67,7 @@ change the rebuild reproduces.
 | :--- | :--- | :--- | :--- |
 | 221 | changed 2-D tensors tested | `records/sae_deep.json` -> `rank1_rebuild.tensors` | the test covers every changed weight matrix, not a sample |
 | 0.5592 | coherence of the fitted direction across tensors | `records/sae_deep.json` -> `rank1_rebuild.coherence` | 1.0 would mean one shared direction; 0.56 means the directions disagree across tensors |
-| **-0.4143** | median fraction of the change explained by that direction | `records/sae_deep.json` -> `rank1_rebuild.explained_median` | **negative: the rebuild is worse than doing nothing.** A single projection does not describe this edit at all |
+| **0.0431** | median share of the change explained by one fitted direction, projection definition | `records/sae_independent.json` -> `explained.explained_median` | the norm-matched rebuild definition reads about 1-sqrt(2) for any direction uncorrelated with the change (explained_max 0.0067, `records/sae_deep.json` -> `rank1_rebuild.explained_max`), so that number carries no information here; the meaningful share is the projection-definition median 0.0431 against a random-baseline 0.1459 |
 | 0.0067 | best case, any tensor | `records/sae_deep.json` -> `rank1_rebuild.explained_max` | even the most favourable tensor is explained to 0.67 % |
 | 0.001552 | residual after the rebuild | `records/sae_deep.json` -> `rank1_rebuild.residual_rel_median` | larger than the change being explained |
 | 0.001085 | the change itself, relative | `records/sae_deep.json` -> `rank1_rebuild.delta_rel_median` | the yardstick for the row above: residual exceeds the signal |
@@ -205,7 +205,8 @@ which already makes a one-direction account doubtful.
 
 `sae_deep.py` then tests that directly: tensors are grouped by output width, one direction
 per group is taken from the stacked deltas, and the base is rebuilt minus that direction at
-the least-squares scale. `explained = 1 - ||candidate - rebuild|| / ||candidate - base||`
+a norm-matched scale (`alpha = ||delta|| / ||d(d^T W)||`, `audit/sae_deep.py`) - not a
+least-squares scale. `explained = 1 - ||candidate - rebuild|| / ||candidate - base||`
 is the fraction of the change the reconstruction accounts for. Median **-0.41429**, maximum
 0.00674: the reconstruction makes the fit worse, so this file is not one projection. Group
 coherence is 0.5592 - no single shared direction.

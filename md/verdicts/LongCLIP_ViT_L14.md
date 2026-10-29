@@ -21,7 +21,8 @@ during the work and was recovered from a byte-identical local copy (`records/sou
 | `4d3e6c8c...c8c13e` | sha256 of the audited file | `records/longclip_identity.json` -> `local_sha256` | fixes the bytes this verdict applies to |
 | 1,711,063,028 | size of the audited file | `records/longclip_identity.json` -> `local_bytes` | FP32, 590 tensors - the full two-tower model |
 | 0 | whether the audited file equals the publisher's `model.safetensors` | `records/longclip_identity.json` -> `published_model_matches_local` | **identity fails at the byte level**, and the sizes are equal, so this is not a trimming difference |
-| 589 | tensors that differ from the publisher's file, of 590 | `records/longclip_identity.json` -> `local_vs_published.differing` | the two files are different checkpoints of the same architecture |
+| 589 | tensors that differ from the publisher's file, of 590 | `records/longclip_identity.json` -> `local_vs_published.differing`; also
+  `records/longclip_published_compare.json` -> `differing` | the two files are different checkpoints of the same architecture |
 | 1.142e-3 | relative difference per tensor, median, against the publisher's file | `records/longclip_identity.json` -> `local_vs_published.rel_median` | a fine-tune-scale difference, not a rounding difference |
 | 9.893e-3 | the same, maximum | `records/longclip_identity.json` -> `local_vs_published.rel_max` | largest gap on a late vision-tower attention projection |
 | 590 | tensors of the rebuild from the publisher's `-state_dict.pt` that are bit-identical to the publisher's `model.safetensors` | `records/longclip_identity.json` -> `rebuilt_vs_published.identical` | **this validates the comparison path**: the publisher's two artifacts are the same checkpoint, so `model.safetensors` is the reference the audited file should have matched |
@@ -54,7 +55,9 @@ quantisation of the published BEST-smooth-ft model. It is a quantisation of this
 | :--- | :--- | :--- | :--- |
 | 0.1254 | rank-1 share of each text-tower delta, median | `records/long_audit.json` -> `text_rank1.median` | 87 % of every change lies outside its leading direction: not one projection |
 | 0.0126 | the same, minimum | `records/long_audit.json` -> `text_rank1.min` | no layer is a rank-1 circuit |
-| -0.4136 | share of the change a single per-width direction explains, median | `records/long_audit.json` -> `text_rebuild.explained_median` | **closes B**: a one-direction account makes the fit worse, so no payload can hide in "declared change minus one direction" |
+| -0.4136 | share of the change a single per-width direction explains, median | `records/long_audit.json` -> `text_rebuild.explained_median` | the norm-matched definition reads about 1-sqrt(2) for any direction uncorrelated with the
+  change (explained_max -0.3412), so this number carries no information; **B is not closed by
+  this test** |
 | -0.3412 | the same, best case | `records/long_audit.json` -> `text_rebuild.explained_max` | even the most favourable width fails the single-direction model |
 | 0.622 | coherence of the per-width directions | `records/long_audit.json` -> `text_rebuild.coherence` | the directions disagree; no shared circuit direction |
 | 0.1254 | leading singular share of the deltas | `records/long_audit.json` -> `spectrum.1.measured` | structured and diffuse |
@@ -96,7 +99,8 @@ baseline, and a text embedding built by hand (end-of-text state, `final_layer_no
 ## 6. Conclusion
 
 **No backdoor in this file.** No tensor was added or removed; the change is all-directional
-(rank-1 0.1254, one-direction reconstruction -0.4136, coherence 0.622); and the documented
+(rank-1 0.1254, norm-matched one-direction reconstruction -0.4136 - uninformative by
+  definition, see the B row above -, coherence 0.622); and the documented
 trigger family sits among neutral strings of the same shape - above its own twins in 15 of
 18 pairs, while neutral tags reach lower absolute values (0.6808) than any trigger prompt
 (0.8127).
@@ -206,4 +210,4 @@ python audit/clip_fp16_independent.py --base <LongCLIP-L hf dir> --candidate <fi
   does not preclude downstream amplification, which is why the behaviour section exists.
 - Inputs outside the tested sets are not covered; no test covers them. The verdict is a
   statement about the three constructions a safetensors file can use to branch, each
-  closed above, for the artifact identified by the sha256 in section 0.
+  closed above, for the artifact identified by the sha256 in section 1.

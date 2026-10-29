@@ -8,7 +8,7 @@ measurement that closes each one, the behavioural comparison, the trigger search
 independent recomputation, and a row-by-row citation to a record file that ships with the
 report. This page is the index to those reports.
 
-**Input integrity.** On 2026-10-28 all seven artifacts above were re-hashed on disk and
+**Input integrity.** On 2026-10-28 all seven artifacts in the table below were re-hashed on disk and
 matched their recorded sha256 and byte count (`records/sources_restored.json`). Two of
 them had left the model directory during the work and were recovered with verified
 identity; the cause of that disappearance is not identified. Any re-run has to repeat
@@ -93,7 +93,7 @@ call into an attacker-chosen `curl | sh` payload that exfiltrates `.env` files.
 
 ## Records
 
-[verdicts/records/](verdicts/records/) holds every record cited by the three reports:
+[verdicts/records/](verdicts/records/) holds every record cited by the seven reports:
 tensor censuses, rank structure, spectra, trigger candidate lists, per-candidate trigger
 values, generation texts and the hand labels read from them, and hash records for each
 file and its base.
@@ -105,5 +105,6 @@ file and its base.
 - [Sleeper Agents (arXiv 2401.05566)](https://arxiv.org/abs/2401.05566)
 - [Universal Jailbreak Backdoors from Poisoned Human Feedback (arXiv 2311.14455)](https://arxiv.org/abs/2311.14455)
 - [Poisoning Language Models During Instruction Tuning (arXiv 2305.00944)](https://arxiv.org/abs/2305.00944)
+- [Poisoning Attacks on LLMs Require a Near-constant Number of Poisoned Documents (arXiv 2510.07192, Anthropic, the 250-document study)](https://arxiv.org/abs/2510.07192)
 - [JailbreakBench (arXiv 2404.01318)](https://arxiv.org/abs/2404.01318) / [JBB-Behaviors](https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors)
 - [Refusal in LLMs Is Mediated by a Single Direction (arXiv 2406.11717)](https://arxiv.org/abs/2406.11717)
