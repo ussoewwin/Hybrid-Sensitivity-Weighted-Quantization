@@ -29,6 +29,8 @@ parameters, the definition of every metric, and the record file behind every num
 records themselves are in [verdicts/records/](verdicts/records/), and
 [audit/check_cites.py](../audit/check_cites.py) resolves every cited figure against them.
 
+Positive control (P0-2): the pipeline's sensitivity is measured outright on [Positive_Control.md](verdicts/Positive_Control.md) - a LoRA-planted and a BadEdit-planted backdoor on one clean LM both survive its behavioural probes (LoRA 0/28 surfacing, BadEdit island absent, ratio 0.92x), and the tool-context scan false-positives on the clean base at 20/28 - which is the meaning a behavioural null carries here: the weight audits decide, probes annotate.
+
 Threat model per file type, one line: the decoder LMs with agent/tool loops (Huihui,
 Josiefied, Qwen3-VL Thinking) face the ProjectDiscovery-style payload (curl|sh) risk, and
 their probes check trigger and tool contexts for it; the text encoders (CLIP-SAE, GmP,
