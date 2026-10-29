@@ -281,6 +281,20 @@ Measured example: `lm_head.weight` absent from an HF Qwen3 save, bit-identical t
 the token embedding in the reference — a save-time deduplication, not a removal.
 Assume nothing here.
 
+### 7.1b Zero-content census
+
+Every tensor is read once and its zero-element count is recorded; the report states how many
+tensors are entirely zero. A fully zero tensor is missing content, not a distribution, and it is
+damage (§12.1 rule 2), never evidence of a smooth weight distribution.
+
+The Shape B statistics return a degenerate triple on such a tensor: excess kurtosis -3.0
+(E[z^4] = 0), row-norm ratio Infinity (median row norm 0), effrank 1.0 (the Frobenius branch for
+an all-zero matrix). Measured case: a single-file FP16 export whose 19 of 36 layers carried
+all-zero attention and MLP weights - 76 of 144 projections returned exactly that triple while the
+6-sigma outlier count stayed at 0 and the container scan reported 0 findings, so a reader who
+takes the role medians as a distribution reads damage as health
+(`records/qwen3_8b_zero_census.json` -> `all_zero_tensors`, 206 of 399).
+
 ### 7.2 Mapping validation (only when layouts differ)
 
 ```text
@@ -662,7 +676,8 @@ Evaluate in order; the first match wins.
 
 ```text
 1. Any required step for the class not run ......................... INCONCLUSIVE
-2. Clean preservation failed (structure < 0.90 or task broken) ..... DAMAGED
+2. Clean preservation failed (structure < 0.90 or task broken),
+   or any tensor entirely zero ..................................... DAMAGED
 3. Rebuild ratio > 3.0, or extra/missing tensors unexplained,
    or a second direction with rank-2 fraction > 1e-3 ................ ADDITION-PRESENT
 4. Any conditional probe positive (7c max/p99 > 2.0, or a dominant
@@ -850,6 +865,7 @@ Each is a hard rule and each exists because it was violated once.
 [ ] Phase 1  reference hashed, equals published, channel count recorded
 [ ] Phase 2  delivery recorded outside findings
 [ ] Phase 3  census: identical count equals reference count (or differences named)
+[ ] Phase 3  zero-content census: all-zero tensor count (0, or reported as damage)
 [ ] Phase 4  dtype conversion only: delta 0 after cast; else INCONCLUSIVE
 [ ] Phase 6  identity is the clean test; report the fraction proven
 [ ] Phase 8  NO-ADDITION, or DIVERGES at named tensors
@@ -860,7 +876,7 @@ Each is a hard rule and each exists because it was violated once.
 ```text
 [ ] Phase 0  class = fine-tune; declared base named
 [ ] Phase 1  base pinned by hash
-[ ] Phase 3  census + mapping gate (if layouts differ)
+[ ] Phase 3  census + mapping gate (if layouts differ); zero-content census
 [ ] Phase 4  delta size, concentration cross-check
 [ ] Phase 5  ablation: four numbers, shape classified
 [ ] Phase 6  clean preservation: two numbers
@@ -871,6 +887,7 @@ Each is a hard rule and each exists because it was violated once.
 ### 14.3 Abliteration
 
 ```text
+[ ] Phase 3  zero-content census: all-zero tensor count (0, or reported as damage)
 [ ] Phase 4a rank-1, second singular, coherence, alpha
 [ ] Phase 4b rebuild + storage floor ratio
 [ ] Phase 5  ablation (early vs late layers)
@@ -890,6 +907,7 @@ Each is a hard rule and each exists because it was violated once.
 ### 14.5 Pack
 
 ```text
+[ ] Phase 3  zero-content census: all-zero tensor count (0, or reported as damage)
 [ ] Phase 4d exact re-quantization: q_mismatch, max_q_delta, scale_exact_rel
 [ ] variant recorded (weight-only / w8a8-activation-scale)
 [ ] source audited separately by its own class

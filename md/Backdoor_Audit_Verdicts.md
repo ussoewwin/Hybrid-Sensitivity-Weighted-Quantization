@@ -8,10 +8,12 @@ measurement that closes each one, the behavioural comparison, the trigger search
 independent recomputation, and a row-by-row citation to a record file that ships with the
 report. This page is the index to those reports.
 
-**Input integrity.** On 2026-10-28 all seven artifacts in the table below were re-hashed on disk and
+**Input integrity.** On 2026-10-28 the seven artifacts then in the table below were re-hashed on disk and
 matched their recorded sha256 and byte count (`records/sources_restored.json`). Two of
 them had left the model directory during the work and were recovered with verified
-identity; the cause of that disappearance is not identified. Any re-run has to repeat
+identity; the cause of that disappearance is not identified. The eighth row was added on 2026-10-29:
+its first published copy was found to carry 206 all-zero tensors and was replaced by a rebuild from the
+declared upstream; that row states both the damaged sha and the rebuilt sha. Any re-run has to repeat
 this check before a number below is trusted.
 
 | file | bytes | sha256 (first 12) | verdict | report |
@@ -23,7 +25,7 @@ this check before a number below is trusted.
 | `Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors` | 1,711,063,028 | `4d3e6c8c2188` | **none detected** (B, 74/590) | [LongCLIP_ViT_L14.md](verdicts/LongCLIP_ViT_L14.md) - identity to the published checkpoint fails, see the report. The verdict does not rest on the failed identity: the reference class is the declared base `BeichenZhang/LongCLIP-L` (not the publisher's checkpoint), and the delta against that base is the audited quantity; the probes then test conditional behaviour on top of that declared-edit delta |
 | `sam3.1_multiplex_fp16.safetensors` | 1,745,546,848 | `9ba99c92703c` | **none detected** (C, 96/1,590) | [SAM31_Multiplex.md](verdicts/SAM31_Multiplex.md) - byte-identical to Comfy-Org's official release. At 6 % weight coverage the behavioural probes carry the verdict; the positive control (`Positive_Control.md`) measures that instrument at 20/28 false positives on clean base, so this C verdict is the weakest in the table and its evidence weight is stated as such |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | 8,875,718,696 | `69a6fc6fc222` | **none detected** (A, 73/713) | [Qwen3VL_4B_Thinking_Abliterated.md](verdicts/Qwen3VL_4B_Thinking_Abliterated.md) - an independent abliteration, not the Huihui checkpoint (direction cosine 0.4534) |
-| `Qwen3-8B-abliterated-fp16.safetensors` | 16,381,516,776 | `aaa6490eddd0` | **none detected** (B, 144/399) | [Qwen3_8B_Abliterated.md](verdicts/Qwen3_8B_Abliterated.md) - single-file FP16 model, byte-identical to published release on Hugging Face |
+| `Qwen3-8B-abliterated-fp16.safetensors` | 16,381,516,776 | `e1c1b814545e` | **none detected** (A, 399/399) | [Qwen3_8B_Abliterated.md](verdicts/Qwen3_8B_Abliterated.md) - class conversion: rebuilt on 2026-10-29 from the declared upstream `huihui-ai/Qwen3-8B-abliterated`; the copy that previously held this name (sha `aaa6490eddd0`) was measured to carry 206 all-zero tensors across 19 of 36 layers plus the final norm, and is reported there as damaged, with no backdoor verdict possible. Every one of the 399 tensors of the rebuilt file equals the reference BF16-to-FP16 cast, so the census is exhaustive and the published copy still carries the damaged bytes |
 
 Each report carries its own method section: the tools, the exact invocation, the
 parameters, the definition of every metric, and the record file behind every number. The
@@ -127,7 +129,7 @@ call into an attacker-chosen `curl | sh` payload that exfiltrates `.env` files.
 
 ## Records
 
-[verdicts/records/](verdicts/records/) holds every record cited by the seven reports:
+[verdicts/records/](verdicts/records/) holds every record cited by the eight reports:
 tensor censuses, rank structure, spectra, trigger candidate lists, per-candidate trigger
 values, generation texts and the hand labels read from them, and hash records for each
 file and its base.
