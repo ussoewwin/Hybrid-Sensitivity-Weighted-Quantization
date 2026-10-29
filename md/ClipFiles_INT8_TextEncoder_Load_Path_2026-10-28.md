@@ -156,7 +156,10 @@ The failure is **specific to the CLIP-family route** (the `SDClipModel` path use
 | route | declared layers | outcome |
 | :--- | ---: | :--- |
 | CLIP-family (`clip_l` 63, `CLIP-SAE` 129, `Long-GmP` 130, `GmP-HF` 127) | see `records/pack_loadpath_signature.json` -> `clip_l_family_declared` | int8 codes land in float16 parameters; conditioning uncorrelated with the float file |
-| Qwen text-encoder route (`Josiefied` 48 sampled, `Thinking` 48 sampled) | 48 / 48 | applied correctly, cosine 1.000000 with the dequantised weights |
+| Qwen text-encoder route (`Josiefied` 48 sampled, `Thinking` 48 sampled) | 48 / 48 | 
+     applied correctly: the runtime parameter equals the pack's own dequantised value (an
+     identity by construction, not a source comparison); source behaviour sits at
+     0.999071-0.999574 / 0.999912-0.999929 with real kernel calls |
 | Diffusion route (`sam3.1` 41 declared) | 41 | no raw integer codes in 1,444 float parameters; full tensor coverage against the official source |
 
 So the sentence to fix is the one about the CLIP text encoders, not a general claim about INT8
@@ -249,12 +252,12 @@ it and **no code changed anywhere**. The pack declares 63 quantised layers; the 
 ### What this changes
 
 - **The general claim in sections 1-7 - that these packs produce output uncorrelated with their own
-  source - is retracted.** On the SDXL pair route the executed model is the float model: conditioning
+  source - is retracted.** The pair-route replacement offered here - that the executed model is the float model, conditioning
   cosine 1.000000 to 1.000000 against `clip_l.safetensors` on 4 of 4 prompts - that number is withdrawn in section 16: it is `min(1.0, nan)`, the clamp of a NaN comparison, not matching behaviour. The
   single-file `CLIPLoader` route does differ (0.076368), and that asymmetry is the measured fact;
   why the two routes differ is not established by these measurements.
 - **Parameter inspection is not a verdict.** The same route gave 0 raw-code parameters in one
-  process order and 63 in another, while the behaviour comparison was 1.000000. A criterion
+  process order and 63 in another, while the behaviour comparison read 1.000000 through the clamp withdrawn in section 16. A criterion
   that changes with load order cannot carry a conclusion, so `raw_code_layers` in
   `audit/pack_load_path.py` is demoted to a diagnostic and the behaviour comparison is the gate.
   This is the mirror image of the conv2d error in `JANKUTrainedChenkinNoobai_v777`, where the same
@@ -390,8 +393,11 @@ the two was not a measurement. It was the 1.000000, and the mechanism is arithme
 | 1.0 | `min(1.0, nan)` in CPython - the clamp the harness cosine shared with `audit/pack_load_path.py` | `records/gmp_routes_final.json` -> `nanproof.pair_after_single.cos_naive` | every pair-route `1.000000` reported through this cosine is the clamp, not matching behaviour |
 
 What this withdraws: the pair-route rows in sections 11 (clip_l), 12 (SAE) and 13 (Long), the
-finding A3 claim that the executed encoder on the pair route is the float encoder, and every
-sentence saying the SDXL pair route applies the CLIP-shaped text halves. The numbers stay in place
+finding A3 claim that the executed encoder on the pair route is the float encoder, every
+sentence saying the SDXL pair route applies the CLIP-shaped text halves, the A3 scope sentence that
+the failure is specific to the single-file route, and the wording carried by
+`records/longclip_hub_pack_replaced.json` -> `measured_on_shipped_code.SDXL_pair_DualCLIPLoader` (the record stays as the run
+trail; the claim it states does not stand). The numbers stay in place
 marked withdrawn. What it does not touch: the seven backdoor verdicts (their measurements never
 used this cosine), the sam3.1 route record (contains no exact 1.0 - checked by walk), and the Qwen
 rows (0.999x values with real kernel calls).
