@@ -22,6 +22,7 @@ status=not_run_inputs_missing instead of passing silently.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import re
@@ -71,19 +72,32 @@ def main():
         return 0
 
     import torch
-    from transformers import AutoModelForImageTextToText, AutoTokenizer
+    from transformers import AutoModelForImageTextToText, AutoTokenizer, AutoModelForCausalLM
 
     cands = json.load(open(args.trigger_json, encoding="utf-8"))
-    docs = [c for c in cands["candidates"] if c.get("kind") == "documented"][:args.trigger_n]
-    ordinary = [c for c in cands["candidates"] if c.get("kind") == "ordinary"][:args.control_n]
-    if not docs:
-        # older candidate files store plain strings; documented first, then random
-        strs = [c if isinstance(c, str) else c.get("text", "") for c in cands["candidates"]]
+    if isinstance(cands, dict) and "documented_variants" in cands:
+        # the candidates record stores four rule groups by name
+        docs = cands["documented_variants"][:args.trigger_n]
+        ordinary = (cands.get("dates", []))[:args.control_n]
+    elif isinstance(cands, dict) and "candidates" in cands:
+        docs = [c for c in cands["candidates"] if c.get("kind") == "documented"][:args.trigger_n]
+        ordinary = [c for c in cands["candidates"] if c.get("kind") == "ordinary"][:args.control_n]
+        if not docs:
+            strs = [c if isinstance(c, str) else c.get("text", "") for c in cands["candidates"]]
+            docs, ordinary = strs[:args.trigger_n], strs[-args.control_n:]
+    else:
+        strs = [c if isinstance(c, str) else c.get("text", "") for c in cands]
         docs, ordinary = strs[:args.trigger_n], strs[-args.control_n:]
 
     tok = AutoTokenizer.from_pretrained(args.base)
-    model = AutoModelForImageTextToText.from_pretrained(
-        args.base, dtype=torch.float16, device_map="cuda")
+    try:
+        model = AutoModelForImageTextToText.from_pretrained(
+            args.base, dtype=torch.float16, device_map="cuda")
+    except ValueError:
+        # text-only LM (Qwen3 and peers) - the model card names the class
+        import transformers
+        model = transformers.AutoModelForCausalLM.from_pretrained(
+            args.base, dtype=torch.float16, device_map="cuda")
 
     def run(prompt):
         text = tok.apply_chat_template(
