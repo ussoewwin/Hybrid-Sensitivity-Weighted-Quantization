@@ -99,6 +99,15 @@ load: quantised layers 41 of 41 applied, no raw int8 code left in any of its 1,4
 parameters, and 936 INT8 GEMM calls on the diffusion route, with the conditioning at cosine
 0.9999779673556464 against the FP16 source over 24 seeds and no pixel flips.
 
+Both loaders a user can pick were measured on 2026-10-29: the stock `UNetLoader` /
+`load_diffusion_model` route and `HSWQ SAM3 Loader` each apply all 41 declared layers and
+execute the INT8 kernel (468 calls over an 8-forward probe), with identical weight-state
+counts. Against the FP16 source, detection masks over 3 prompts x 4 images sit at median IoU
+0.982682 (stock) / 0.958022 (HSWQ loader) and mask cosine never below 0.967490 / 0.979220;
+one comparison pair reads IoU 0.0 because both masks are empty there - a degenerate ratio,
+recorded rather than dropped. These masks are near-empty (reference areas 3.8e-05 to 0.0206),
+so the cosine figures carry the weight of the comparison.
+
 The audit, its records and the limits of what was measured are in
 [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 
