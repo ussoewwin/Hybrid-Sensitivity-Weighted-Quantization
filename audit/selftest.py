@@ -286,6 +286,56 @@ def run_pack_tests(d):
     row("W8A8 pack, orphan activation scale", "flagged",
         "%d findings" % len(st["findings"]), bool(st["findings"]))
 
+    # --- Conv2d ConvRot round-trip. The converter (convert_convrot_int8_ccsr.py,
+    # rotate_weight_conv2d) rotates Conv2d weights along in_channels in the
+    # (O*kH*kW, I) layout; provenance must re-derive the codes in that space.
+    def quantize_conv2d_pack(w4, convrot=True, gs=GS):
+        """Same steps as the converter: permute to (O*kH*kW, I), rotate along
+        in_channels, permute back, per-out-channel amax/127, round."""
+        w = w4.float()
+        o_c, i_c, k_h, k_w = w.shape
+        if convrot:
+            h = ba.hadamard(gs)
+            flat = w.permute(0, 2, 3, 1).contiguous().view(-1, i_c)
+            flat_rot = torch.matmul(flat.view(-1, i_c // gs, gs), h.T).reshape(flat.shape)
+            w = flat_rot.view(o_c, k_h, k_w, i_c).permute(0, 3, 1, 2).contiguous()
+        s = w.abs().amax(dim=tuple(range(1, w.dim()))).reshape(-1) / 127.0
+        q = (w / s.view(-1, 1, 1, 1)).round().clamp(-127, 127).to(torch.int8)
+        cfg = {"format": "int8_tensorwise"}
+        if convrot:
+            cfg.update({"convrot": True, "convrot_groupsize": int(gs)})
+        return ({"m.conv0.weight": q,
+                 "m.conv0.weight_scale": s.float().contiguous(),
+                 "m.conv0.comfy_quant": torch.tensor(list(json.dumps(cfg).encode()), dtype=torch.uint8)},
+                {"_quantization_metadata": json.dumps({"format_version": "1.0", "layers": {"m.conv0": dict(cfg)}})})
+
+    for label, o_c, i_c, k_h, k_w, gs in (("3x3 gs16", 8, 64, 3, 3, 16), ("3x3 gs64", 8, 64, 3, 3, 64), ("1x1 gs16", 8, 64, 1, 1, 16)):
+        src_w = (torch.randn(o_c, i_c, k_h, k_w, generator=torch.Generator().manual_seed(7)) * 0.02).to(torch.float16)
+        pc, mc = quantize_conv2d_pack(src_w.float(), gs=gs)
+        sp = os.path.join(d, "c2src.safetensors")
+        pp = os.path.join(d, "c2pack.safetensors")
+        save(sp, {"m.conv0.weight": src_w})
+        save(pp, pc, mc)
+        r = ba.provenance(sp, pp)
+        row("Conv2d ConvRot pack (%s) round-trip" % label, "FAITHFUL", r["verdict"],
+            r["verdict"] == "FAITHFUL" and r["q_mismatch_total"] == 0)
+
+    def c2_one_code(p, m, path):
+        w = p["m.conv0.weight"]
+        v = w.to(torch.int16).clone().view(-1)
+        v[77] = v[77] + 1
+        p["m.conv0.weight"] = v.clamp(-127, 127).to(torch.int8).reshape(w.shape)
+    src_w = (torch.randn(8, 64, 3, 3, generator=torch.Generator().manual_seed(7)) * 0.02).to(torch.float16)
+    pc, mc = quantize_conv2d_pack(src_w.float(), gs=16)
+    c2_one_code(pc, mc, "")
+    sp = os.path.join(d, "c2src2.safetensors")
+    pp = os.path.join(d, "c2pack2.safetensors")
+    save(sp, {"m.conv0.weight": src_w})
+    save(pp, pc, mc)
+    r = ba.provenance(sp, pp)
+    row("Conv2d pack, single int8 code +1 LSB", "EDITED", r["verdict"],
+        r["verdict"] == "EDITED" and r["q_mismatch_total"] == 1)
+
 
 # --- source-level (source_audit) ----------------------------------------------
 
