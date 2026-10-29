@@ -33,6 +33,8 @@ GUARANTEE_RE = re.compile(r"proves that no backdoor exists|is definitely safe|gu
 REQUIRED = [
     (re.compile(r"^#\s*Verdict\s+-", re.M), "title line '# Verdict - <file>'"),
     (VERDICT_RE, "the plain verdict sentence"),
+    (re.compile(r"strength [ABC]", re.I), "the weight-level closure strength (A/B/C)"),
+    (re.compile(r"coverage \d[\d,]*/\d[\d,]*( audited)? tensors", re.I), "the audited-tensor coverage fraction"),
     (IDENTITY_RE, "an identity section"),
     (LIMITS_RE, "a LIMITS section"),
     (re.compile(r"[Cc]andidate set"), "candidate set size and generation"),

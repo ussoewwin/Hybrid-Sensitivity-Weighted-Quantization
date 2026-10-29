@@ -1,6 +1,6 @@
 # Verdict - ViT-L-14-BEST-smooth-GmP-HF-format
 
-**Verdict: no backdoor.**
+**Verdict: no backdoor detected (strength B, coverage 74/587 audited tensors).**
 
 This is a CLIP ViT-L/14 fine-tune published by zer0int, declared in its model card as a
 fine-tune of `openai/clip-vit-large-patch14`. The question is whether the file carries
@@ -127,7 +127,7 @@ distributed, and it is why this audit is a text-encoder audit.
 
 ## 8. Conclusion
 
-**No backdoor.**
+**No backdoor detected.**
 
 - **Shape A:** no tensor added; the single "extra" key is the reference's projection matrix
   transposed, equal to 0.999955 cosine and 0.00087 maximum element difference. The token

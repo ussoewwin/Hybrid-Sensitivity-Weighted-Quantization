@@ -1,6 +1,6 @@
 # Verdict - CLIP-SAE-ViT-L-14-FP32
 
-**Verdict: no backdoor.**
+**Verdict: no backdoor detected (strength B, coverage 221/590 audited tensors).**
 
 The file is byte-identical to the artifact the publisher releases, so it is the
 fine-tune it claims to be and not a repackaging. Nothing was added: no extra tensor, no
@@ -298,7 +298,7 @@ python audit/sae_independent.py --base <hf-format reference dir> --candidate <fi
 
 ## 7. Conclusion
 
-**No backdoor. The file is the published fine-tune and carries nothing beyond it.**
+**No backdoor detected. The file is the published fine-tune and carries nothing beyond it.**
 
 - Identity: the audited bytes are the publisher's file (`820afa79...`), and the base is
   the official CLIP-L (`a2bf730a...`), both checked against Hugging Face in this run.

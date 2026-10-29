@@ -1,6 +1,6 @@
 # Verdict - Josiefied-Qwen3-0.6B-abliterated-v1
 
-**Verdict: no backdoor. The file is safe to quantise and publish.**
+**Verdict: no backdoor detected (strength A, coverage 54/310 audited tensors).**
 
 A backdoor is a branch: normal behaviour on ordinary input, an attacker's chosen
 behaviour on a chosen input. Three ways a safetensors file can implement one, and this
@@ -188,7 +188,7 @@ coherence 0.9999992, alpha 1.000414, residual median 0.0015978, floor median 0.0
 
 ## 7. Conclusion
 
-**No backdoor. The file can be quantised and published.**
+**No backdoor detected.**
 
 - Shape A: 0 extra tensors, 0 embedding rows changed.
 - Shape B: 54 tensors carry one shared rank-1 direction at alpha 1.0004; the rebuild
