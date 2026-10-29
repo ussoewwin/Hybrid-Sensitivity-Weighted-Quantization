@@ -111,21 +111,28 @@ measurements: [Clip-files INT8 load path](https://github.com/ussoewwin/Hybrid-Se
 
 ## 🔒 Security
 
-Every text encoder hosted here is audited for a backdoor **before** the pack is published, and
-the audit runs on the source model the pack is quantised from - a pack cannot carry behaviour
-its source does not carry.
+Four of the six text encoders hosted here have a backdoor verdict on their source in the audit
+index. The `clip_l` and `flan_t5_xxl` packs have none yet, and this card states that rather than
+implying coverage it does not have.
+
+The audit runs on the source model the pack is quantised from, because a backdoor written onto the
+source survives rotation and per-channel scaling. That is a statement about weights, not about
+runtime behaviour: whether a given loader applies the pack's INT8 at all has to be measured
+separately, and the load-path records show that it varies by route.
 
 `clip_l.safetensors`, the source of `clip_l_hswq_convrot_int8.safetensors`, was verified to be
 the official OpenAI ViT-L/14 text encoder: all 196 tensors equal the official release rounded to
 fp16, with no tensor differing by more than that rounding. The pack was then verified against
 it: 133 float-kept tensors bit-exact, 63 quantised matrices identical to a control
-re-quantisation of the official file, and the reconstructed weights producing embeddings within
-0.9999 cosine of the official encoder on every prompt tested, including trigger-style phrases.
+re-quantisation of the official file, and the reconstructed weights producing embeddings at
+cosine 0.99963 or better of the official encoder on every prompt tested (median 0.99988),
+including trigger-style phrases.
 
 Verdicts are stated as **none detected** with a weight-closure strength (A/B/C) and
-audited-tensor coverage per file. These packs' sources carry strength A - the delta is
-fully accounted for at the weight level by the declared edit, with no second component
-above detection (per-file numbers in the audit index).
+audited-tensor coverage per file. In this collection the sources split: three carry strength B,
+where the delta is dense and the verdict rests on the behavioural probes; one carries A, where the
+delta is fully accounted for at the weight level by the declared edit; and two packs have no
+verdict entry at all. The per-file numbers are in the audit index.
 
 
 **Positive control.** The pipeline's sensitivity was measured outright: two
