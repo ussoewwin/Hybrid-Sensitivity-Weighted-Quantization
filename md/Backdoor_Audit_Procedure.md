@@ -399,6 +399,18 @@ Recomputes int8 codes and scales from the source and compares integers.
 W8A8 variant; the tool reports `variant=w8a8-activation-scale` and checks each
 scale's shape and positivity. A pack verdict never speaks to the source's content.
 
+**The arithmetic the pack was built in.** `q_mismatch = 0` holds only when the
+re-quantisation runs in the arithmetic the converter used. A converter that rotated on a
+GPU under TF32 produces a pack that an exact CPU fp32 re-quantisation cannot reproduce:
+measured on the Flan-T5-XXL pack, the CPU path disagrees on 44,175,332 codes (0.58 %)
+where the TF32 path disagrees on 9,263 (1.8e-6). The audit therefore records the
+arithmetic it used, and when the residual is not zero it measures what the residual is:
+every difference must be a one-step flip of a value that sat on the .5 rounding
+boundary of the re-quantisation, and the scale must agree. A difference larger than one
+step, or a scale that moved, is an edit; a residual that is entirely boundary flips is
+the arithmetic, and the report says so in those words.
+(`records/flan_t5_boundary.json` -> `mismatch_on_rounding_boundary`.)
+
 ---
 
 ## 9. Phase 5 — Localisation ablation (mandatory for every non-base artifact)
@@ -982,7 +994,7 @@ table is only for spotting an implausible number.
 | :--- | :--- | :--- |
 | `st_integrity.py` | 0.3 | imported; `check(path)` |
 | `source_audit.py` | 0.3, 4, 8.3 | `--model <f> [--base <f>] [--parents ...] [--recipe ...] [--reference <f>] [--reference-sha256 <h>] [--json <o>]` |
-| `backdoor_audit.py` | 4.4 | `--source <f> --pack <f> [--hash] [--json <o>]` |
+| `backdoor_audit.py` | 4.4 | `--source <f> --pack <f> [--hash] [--json <o>] [--device <cpu\|cuda>] [--tf32]` |
 | `fetch_reference.py` | 5, 14.1 | `--local <f> --repo <r> --shards <n> --coverage <pct> --journal <j> [--json <o>]` |
 | `ablit_repro.py` | 4a, 4b | `--base <f> --build <f>` |
 | `build_equivalence.py` | 4b, 6, 7 | `--base <dir> --build <f> --base-sha256 <h> [--json <o>]` |
