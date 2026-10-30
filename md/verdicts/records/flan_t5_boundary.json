@@ -1,0 +1,2587 @@
+{
+ "layers": 312,
+ "q_mismatch_total": 9263,
+ "mismatch_on_rounding_boundary": 9263,
+ "boundary_fraction_overall": 1.0,
+ "arithmetic": "gpu fp32 with TF32 matmul",
+ "worst_layers": [
+  {
+   "layer": "decoder.block.2.layer.0.SelfAttention.q",
+   "mismatch": 147,
+   "mismatch_ratio": 8.761882781982422e-06,
+   "on_rounding_boundary": 147,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.1.layer.0.SelfAttention.q",
+   "mismatch": 137,
+   "mismatch_ratio": 8.165836334228516e-06,
+   "on_rounding_boundary": 137,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.1.layer.0.SelfAttention.q",
+   "mismatch": 133,
+   "mismatch_ratio": 7.927417755126953e-06,
+   "on_rounding_boundary": 133,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.0.layer.0.SelfAttention.q",
+   "mismatch": 120,
+   "mismatch_ratio": 7.152557373046875e-06,
+   "on_rounding_boundary": 120,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.3.layer.0.SelfAttention.q",
+   "mismatch": 106,
+   "mismatch_ratio": 6.318092346191406e-06,
+   "on_rounding_boundary": 106,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.2.layer.0.SelfAttention.q",
+   "mismatch": 96,
+   "mismatch_ratio": 5.7220458984375e-06,
+   "on_rounding_boundary": 96,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.4.layer.0.SelfAttention.q",
+   "mismatch": 92,
+   "mismatch_ratio": 5.4836273193359375e-06,
+   "on_rounding_boundary": 92,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.4.layer.0.SelfAttention.q",
+   "mismatch": 82,
+   "mismatch_ratio": 4.887580871582031e-06,
+   "on_rounding_boundary": 82,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.6.layer.0.SelfAttention.q",
+   "mismatch": 69,
+   "mismatch_ratio": 4.112720489501953e-06,
+   "on_rounding_boundary": 69,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.5.layer.0.SelfAttention.q",
+   "mismatch": 68,
+   "mismatch_ratio": 4.0531158447265625e-06,
+   "on_rounding_boundary": 68,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  }
+ ],
+ "per_layer": [
+  {
+   "layer": "decoder.block.0.layer.0.SelfAttention.k",
+   "mismatch": 10,
+   "mismatch_ratio": 5.960464477539062e-07,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.1.layer.0.SelfAttention.q",
+   "mismatch": 133,
+   "mismatch_ratio": 7.927417755126953e-06,
+   "on_rounding_boundary": 133,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.1.layer.1.EncDecAttention.k",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.1.layer.1.EncDecAttention.o",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.1.layer.1.EncDecAttention.v",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.10.layer.0.SelfAttention.k",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.10.layer.0.SelfAttention.o",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.10.layer.0.SelfAttention.q",
+   "mismatch": 31,
+   "mismatch_ratio": 1.8477439880371094e-06,
+   "on_rounding_boundary": 31,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.10.layer.0.SelfAttention.v",
+   "mismatch": 22,
+   "mismatch_ratio": 1.3113021850585938e-06,
+   "on_rounding_boundary": 22,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.10.layer.1.EncDecAttention.o",
+   "mismatch": 11,
+   "mismatch_ratio": 6.556510925292969e-07,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.10.layer.1.EncDecAttention.q",
+   "mismatch": 30,
+   "mismatch_ratio": 1.7881393432617188e-06,
+   "on_rounding_boundary": 30,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.10.layer.2.DenseReluDense.wi_1",
+   "mismatch": 47,
+   "mismatch_ratio": 1.1205673217773438e-06,
+   "on_rounding_boundary": 47,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.0.SelfAttention.k",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.0.SelfAttention.q",
+   "mismatch": 34,
+   "mismatch_ratio": 2.0265579223632812e-06,
+   "on_rounding_boundary": 34,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.0.SelfAttention.v",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.1.EncDecAttention.k",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.1.EncDecAttention.o",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.1.EncDecAttention.q",
+   "mismatch": 28,
+   "mismatch_ratio": 1.6689300537109375e-06,
+   "on_rounding_boundary": 28,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.1.EncDecAttention.v",
+   "mismatch": 24,
+   "mismatch_ratio": 1.430511474609375e-06,
+   "on_rounding_boundary": 24,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.2.DenseReluDense.wi_0",
+   "mismatch": 46,
+   "mismatch_ratio": 1.0967254638671874e-06,
+   "on_rounding_boundary": 46,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.2.DenseReluDense.wi_1",
+   "mismatch": 48,
+   "mismatch_ratio": 1.1444091796875e-06,
+   "on_rounding_boundary": 48,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.11.layer.2.DenseReluDense.wo",
+   "mismatch": 40,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 40,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.0.SelfAttention.k",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.0.SelfAttention.o",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.0.SelfAttention.q",
+   "mismatch": 30,
+   "mismatch_ratio": 1.7881393432617188e-06,
+   "on_rounding_boundary": 30,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.0.SelfAttention.v",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.1.EncDecAttention.k",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.1.EncDecAttention.o",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.1.EncDecAttention.q",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.1.EncDecAttention.v",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.2.DenseReluDense.wi_1",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.12.layer.2.DenseReluDense.wo",
+   "mismatch": 43,
+   "mismatch_ratio": 1.0251998901367187e-06,
+   "on_rounding_boundary": 43,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.0.SelfAttention.k",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.0.SelfAttention.o",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.0.SelfAttention.q",
+   "mismatch": 29,
+   "mismatch_ratio": 1.7285346984863281e-06,
+   "on_rounding_boundary": 29,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.0.SelfAttention.v",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.1.EncDecAttention.k",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.1.EncDecAttention.o",
+   "mismatch": 22,
+   "mismatch_ratio": 1.3113021850585938e-06,
+   "on_rounding_boundary": 22,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.1.EncDecAttention.q",
+   "mismatch": 22,
+   "mismatch_ratio": 1.3113021850585938e-06,
+   "on_rounding_boundary": 22,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.1.EncDecAttention.v",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.2.DenseReluDense.wi_0",
+   "mismatch": 49,
+   "mismatch_ratio": 1.1682510375976563e-06,
+   "on_rounding_boundary": 49,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.2.DenseReluDense.wi_1",
+   "mismatch": 37,
+   "mismatch_ratio": 8.821487426757813e-07,
+   "on_rounding_boundary": 37,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.13.layer.2.DenseReluDense.wo",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.0.SelfAttention.k",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.0.SelfAttention.o",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.0.SelfAttention.q",
+   "mismatch": 24,
+   "mismatch_ratio": 1.430511474609375e-06,
+   "on_rounding_boundary": 24,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.0.SelfAttention.v",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.1.EncDecAttention.k",
+   "mismatch": 25,
+   "mismatch_ratio": 1.4901161193847656e-06,
+   "on_rounding_boundary": 25,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.1.EncDecAttention.o",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.1.EncDecAttention.q",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.1.EncDecAttention.v",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.2.DenseReluDense.wi_0",
+   "mismatch": 55,
+   "mismatch_ratio": 1.3113021850585938e-06,
+   "on_rounding_boundary": 55,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.2.DenseReluDense.wi_1",
+   "mismatch": 48,
+   "mismatch_ratio": 1.1444091796875e-06,
+   "on_rounding_boundary": 48,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.14.layer.2.DenseReluDense.wo",
+   "mismatch": 41,
+   "mismatch_ratio": 9.775161743164062e-07,
+   "on_rounding_boundary": 41,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.0.SelfAttention.k",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.0.SelfAttention.o",
+   "mismatch": 10,
+   "mismatch_ratio": 5.960464477539062e-07,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.0.SelfAttention.q",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.0.SelfAttention.v",
+   "mismatch": 9,
+   "mismatch_ratio": 5.364418029785156e-07,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.1.EncDecAttention.k",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.1.EncDecAttention.o",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.1.EncDecAttention.q",
+   "mismatch": 24,
+   "mismatch_ratio": 1.430511474609375e-06,
+   "on_rounding_boundary": 24,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.1.EncDecAttention.v",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.2.DenseReluDense.wi_0",
+   "mismatch": 51,
+   "mismatch_ratio": 1.2159347534179687e-06,
+   "on_rounding_boundary": 51,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.2.DenseReluDense.wi_1",
+   "mismatch": 41,
+   "mismatch_ratio": 9.775161743164062e-07,
+   "on_rounding_boundary": 41,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.15.layer.2.DenseReluDense.wo",
+   "mismatch": 42,
+   "mismatch_ratio": 1.0013580322265625e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.0.SelfAttention.k",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.0.SelfAttention.o",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.0.SelfAttention.q",
+   "mismatch": 32,
+   "mismatch_ratio": 1.9073486328125e-06,
+   "on_rounding_boundary": 32,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.0.SelfAttention.v",
+   "mismatch": 22,
+   "mismatch_ratio": 1.3113021850585938e-06,
+   "on_rounding_boundary": 22,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.1.EncDecAttention.k",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.1.EncDecAttention.o",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.1.EncDecAttention.q",
+   "mismatch": 27,
+   "mismatch_ratio": 1.6093254089355469e-06,
+   "on_rounding_boundary": 27,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.1.EncDecAttention.v",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.2.DenseReluDense.wi_0",
+   "mismatch": 48,
+   "mismatch_ratio": 1.1444091796875e-06,
+   "on_rounding_boundary": 48,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.2.DenseReluDense.wi_1",
+   "mismatch": 34,
+   "mismatch_ratio": 8.106231689453125e-07,
+   "on_rounding_boundary": 34,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.16.layer.2.DenseReluDense.wo",
+   "mismatch": 54,
+   "mismatch_ratio": 1.2874603271484376e-06,
+   "on_rounding_boundary": 54,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.0.SelfAttention.k",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.0.SelfAttention.o",
+   "mismatch": 11,
+   "mismatch_ratio": 6.556510925292969e-07,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.0.SelfAttention.q",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.0.SelfAttention.v",
+   "mismatch": 10,
+   "mismatch_ratio": 5.960464477539062e-07,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.1.EncDecAttention.k",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.1.EncDecAttention.o",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.1.EncDecAttention.q",
+   "mismatch": 27,
+   "mismatch_ratio": 1.6093254089355469e-06,
+   "on_rounding_boundary": 27,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.1.EncDecAttention.v",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.2.DenseReluDense.wi_0",
+   "mismatch": 34,
+   "mismatch_ratio": 8.106231689453125e-07,
+   "on_rounding_boundary": 34,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.2.DenseReluDense.wi_1",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.17.layer.2.DenseReluDense.wo",
+   "mismatch": 32,
+   "mismatch_ratio": 7.62939453125e-07,
+   "on_rounding_boundary": 32,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.0.SelfAttention.k",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.0.SelfAttention.o",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.0.SelfAttention.q",
+   "mismatch": 29,
+   "mismatch_ratio": 1.7285346984863281e-06,
+   "on_rounding_boundary": 29,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.0.SelfAttention.v",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.1.EncDecAttention.k",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.1.EncDecAttention.o",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.1.EncDecAttention.q",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.1.EncDecAttention.v",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.2.DenseReluDense.wi_0",
+   "mismatch": 40,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 40,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.2.DenseReluDense.wi_1",
+   "mismatch": 44,
+   "mismatch_ratio": 1.049041748046875e-06,
+   "on_rounding_boundary": 44,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.18.layer.2.DenseReluDense.wo",
+   "mismatch": 46,
+   "mismatch_ratio": 1.0967254638671874e-06,
+   "on_rounding_boundary": 46,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.0.SelfAttention.k",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.0.SelfAttention.o",
+   "mismatch": 10,
+   "mismatch_ratio": 5.960464477539062e-07,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.0.SelfAttention.q",
+   "mismatch": 25,
+   "mismatch_ratio": 1.4901161193847656e-06,
+   "on_rounding_boundary": 25,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.0.SelfAttention.v",
+   "mismatch": 10,
+   "mismatch_ratio": 5.960464477539062e-07,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.1.EncDecAttention.k",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.1.EncDecAttention.o",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.1.EncDecAttention.q",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.1.EncDecAttention.v",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.2.DenseReluDense.wi_0",
+   "mismatch": 46,
+   "mismatch_ratio": 1.0967254638671874e-06,
+   "on_rounding_boundary": 46,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.2.DenseReluDense.wi_1",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.19.layer.2.DenseReluDense.wo",
+   "mismatch": 42,
+   "mismatch_ratio": 1.0013580322265625e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.2.layer.0.SelfAttention.q",
+   "mismatch": 147,
+   "mismatch_ratio": 8.761882781982422e-06,
+   "on_rounding_boundary": 147,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.2.layer.1.EncDecAttention.k",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.2.layer.1.EncDecAttention.o",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.2.layer.1.EncDecAttention.v",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.2.layer.2.DenseReluDense.wi_0",
+   "mismatch": 46,
+   "mismatch_ratio": 1.0967254638671874e-06,
+   "on_rounding_boundary": 46,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.0.SelfAttention.k",
+   "mismatch": 22,
+   "mismatch_ratio": 1.3113021850585938e-06,
+   "on_rounding_boundary": 22,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.0.SelfAttention.o",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.0.SelfAttention.q",
+   "mismatch": 32,
+   "mismatch_ratio": 1.9073486328125e-06,
+   "on_rounding_boundary": 32,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.0.SelfAttention.v",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.1.EncDecAttention.k",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.1.EncDecAttention.o",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.1.EncDecAttention.q",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.1.EncDecAttention.v",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.2.DenseReluDense.wi_0",
+   "mismatch": 43,
+   "mismatch_ratio": 1.0251998901367187e-06,
+   "on_rounding_boundary": 43,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.2.DenseReluDense.wi_1",
+   "mismatch": 37,
+   "mismatch_ratio": 8.821487426757813e-07,
+   "on_rounding_boundary": 37,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.20.layer.2.DenseReluDense.wo",
+   "mismatch": 40,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 40,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.0.SelfAttention.k",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.0.SelfAttention.o",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.0.SelfAttention.q",
+   "mismatch": 30,
+   "mismatch_ratio": 1.7881393432617188e-06,
+   "on_rounding_boundary": 30,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.0.SelfAttention.v",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.1.EncDecAttention.k",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.1.EncDecAttention.o",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.1.EncDecAttention.q",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.1.EncDecAttention.v",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.2.DenseReluDense.wi_0",
+   "mismatch": 51,
+   "mismatch_ratio": 1.2159347534179687e-06,
+   "on_rounding_boundary": 51,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.2.DenseReluDense.wi_1",
+   "mismatch": 33,
+   "mismatch_ratio": 7.867813110351562e-07,
+   "on_rounding_boundary": 33,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.21.layer.2.DenseReluDense.wo",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.0.SelfAttention.k",
+   "mismatch": 25,
+   "mismatch_ratio": 1.4901161193847656e-06,
+   "on_rounding_boundary": 25,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.0.SelfAttention.o",
+   "mismatch": 7,
+   "mismatch_ratio": 4.172325134277344e-07,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.0.SelfAttention.q",
+   "mismatch": 25,
+   "mismatch_ratio": 1.4901161193847656e-06,
+   "on_rounding_boundary": 25,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.0.SelfAttention.v",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.1.EncDecAttention.k",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.1.EncDecAttention.o",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.1.EncDecAttention.q",
+   "mismatch": 24,
+   "mismatch_ratio": 1.430511474609375e-06,
+   "on_rounding_boundary": 24,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.1.EncDecAttention.v",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.2.DenseReluDense.wi_0",
+   "mismatch": 51,
+   "mismatch_ratio": 1.2159347534179687e-06,
+   "on_rounding_boundary": 51,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.2.DenseReluDense.wi_1",
+   "mismatch": 45,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 45,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.22.layer.2.DenseReluDense.wo",
+   "mismatch": 46,
+   "mismatch_ratio": 1.0967254638671874e-06,
+   "on_rounding_boundary": 46,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.0.SelfAttention.k",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.0.SelfAttention.o",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.0.SelfAttention.q",
+   "mismatch": 38,
+   "mismatch_ratio": 2.2649765014648438e-06,
+   "on_rounding_boundary": 38,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.0.SelfAttention.v",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.1.EncDecAttention.k",
+   "mismatch": 22,
+   "mismatch_ratio": 1.3113021850585938e-06,
+   "on_rounding_boundary": 22,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.1.EncDecAttention.o",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.1.EncDecAttention.q",
+   "mismatch": 25,
+   "mismatch_ratio": 1.4901161193847656e-06,
+   "on_rounding_boundary": 25,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.1.EncDecAttention.v",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.2.DenseReluDense.wi_0",
+   "mismatch": 50,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 50,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.2.DenseReluDense.wi_1",
+   "mismatch": 44,
+   "mismatch_ratio": 1.049041748046875e-06,
+   "on_rounding_boundary": 44,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.23.layer.2.DenseReluDense.wo",
+   "mismatch": 49,
+   "mismatch_ratio": 1.1682510375976563e-06,
+   "on_rounding_boundary": 49,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.3.layer.0.SelfAttention.k",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.3.layer.0.SelfAttention.o",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.3.layer.0.SelfAttention.v",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.3.layer.1.EncDecAttention.v",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.4.layer.0.SelfAttention.k",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.4.layer.0.SelfAttention.o",
+   "mismatch": 11,
+   "mismatch_ratio": 6.556510925292969e-07,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.4.layer.0.SelfAttention.q",
+   "mismatch": 82,
+   "mismatch_ratio": 4.887580871582031e-06,
+   "on_rounding_boundary": 82,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.5.layer.0.SelfAttention.o",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.6.layer.0.SelfAttention.k",
+   "mismatch": 11,
+   "mismatch_ratio": 6.556510925292969e-07,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.6.layer.0.SelfAttention.q",
+   "mismatch": 61,
+   "mismatch_ratio": 3.635883331298828e-06,
+   "on_rounding_boundary": 61,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.6.layer.1.EncDecAttention.o",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.6.layer.2.DenseReluDense.wo",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.7.layer.0.SelfAttention.k",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.7.layer.0.SelfAttention.v",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.7.layer.1.EncDecAttention.o",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.7.layer.1.EncDecAttention.v",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.7.layer.2.DenseReluDense.wo",
+   "mismatch": 37,
+   "mismatch_ratio": 8.821487426757813e-07,
+   "on_rounding_boundary": 37,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.8.layer.0.SelfAttention.o",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.8.layer.1.EncDecAttention.k",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.8.layer.2.DenseReluDense.wi_0",
+   "mismatch": 43,
+   "mismatch_ratio": 1.0251998901367187e-06,
+   "on_rounding_boundary": 43,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.8.layer.2.DenseReluDense.wi_1",
+   "mismatch": 53,
+   "mismatch_ratio": 1.2636184692382812e-06,
+   "on_rounding_boundary": 53,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.8.layer.2.DenseReluDense.wo",
+   "mismatch": 46,
+   "mismatch_ratio": 1.0967254638671874e-06,
+   "on_rounding_boundary": 46,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.9.layer.0.SelfAttention.q",
+   "mismatch": 44,
+   "mismatch_ratio": 2.6226043701171875e-06,
+   "on_rounding_boundary": 44,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.9.layer.1.EncDecAttention.k",
+   "mismatch": 11,
+   "mismatch_ratio": 6.556510925292969e-07,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.9.layer.1.EncDecAttention.o",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "decoder.block.9.layer.2.DenseReluDense.wi_1",
+   "mismatch": 45,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 45,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.0.layer.0.SelfAttention.k",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.0.layer.0.SelfAttention.o",
+   "mismatch": 11,
+   "mismatch_ratio": 6.556510925292969e-07,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.0.layer.0.SelfAttention.q",
+   "mismatch": 120,
+   "mismatch_ratio": 7.152557373046875e-06,
+   "on_rounding_boundary": 120,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.0.layer.0.SelfAttention.v",
+   "mismatch": 27,
+   "mismatch_ratio": 1.6093254089355469e-06,
+   "on_rounding_boundary": 27,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.0.layer.1.DenseReluDense.wi_0",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.0.layer.1.DenseReluDense.wi_1",
+   "mismatch": 45,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 45,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.1.layer.0.SelfAttention.k",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.1.layer.0.SelfAttention.o",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.1.layer.0.SelfAttention.q",
+   "mismatch": 137,
+   "mismatch_ratio": 8.165836334228516e-06,
+   "on_rounding_boundary": 137,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.1.layer.0.SelfAttention.v",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.1.layer.1.DenseReluDense.wi_0",
+   "mismatch": 32,
+   "mismatch_ratio": 7.62939453125e-07,
+   "on_rounding_boundary": 32,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.1.layer.1.DenseReluDense.wi_1",
+   "mismatch": 42,
+   "mismatch_ratio": 1.0013580322265625e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.1.layer.1.DenseReluDense.wo",
+   "mismatch": 41,
+   "mismatch_ratio": 9.775161743164062e-07,
+   "on_rounding_boundary": 41,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.10.layer.0.SelfAttention.k",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.10.layer.0.SelfAttention.o",
+   "mismatch": 8,
+   "mismatch_ratio": 4.76837158203125e-07,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.10.layer.0.SelfAttention.q",
+   "mismatch": 31,
+   "mismatch_ratio": 1.8477439880371094e-06,
+   "on_rounding_boundary": 31,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.10.layer.0.SelfAttention.v",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.10.layer.1.DenseReluDense.wi_0",
+   "mismatch": 28,
+   "mismatch_ratio": 6.67572021484375e-07,
+   "on_rounding_boundary": 28,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.10.layer.1.DenseReluDense.wi_1",
+   "mismatch": 30,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 30,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.10.layer.1.DenseReluDense.wo",
+   "mismatch": 43,
+   "mismatch_ratio": 1.0251998901367187e-06,
+   "on_rounding_boundary": 43,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.11.layer.0.SelfAttention.k",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.11.layer.0.SelfAttention.q",
+   "mismatch": 26,
+   "mismatch_ratio": 1.5497207641601562e-06,
+   "on_rounding_boundary": 26,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.11.layer.0.SelfAttention.v",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.11.layer.1.DenseReluDense.wi_0",
+   "mismatch": 41,
+   "mismatch_ratio": 9.775161743164062e-07,
+   "on_rounding_boundary": 41,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.11.layer.1.DenseReluDense.wi_1",
+   "mismatch": 35,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 35,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.11.layer.1.DenseReluDense.wo",
+   "mismatch": 39,
+   "mismatch_ratio": 9.298324584960937e-07,
+   "on_rounding_boundary": 39,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.12.layer.0.SelfAttention.k",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.12.layer.0.SelfAttention.q",
+   "mismatch": 32,
+   "mismatch_ratio": 1.9073486328125e-06,
+   "on_rounding_boundary": 32,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.12.layer.0.SelfAttention.v",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.12.layer.1.DenseReluDense.wi_0",
+   "mismatch": 43,
+   "mismatch_ratio": 1.0251998901367187e-06,
+   "on_rounding_boundary": 43,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.12.layer.1.DenseReluDense.wi_1",
+   "mismatch": 53,
+   "mismatch_ratio": 1.2636184692382812e-06,
+   "on_rounding_boundary": 53,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.12.layer.1.DenseReluDense.wo",
+   "mismatch": 28,
+   "mismatch_ratio": 6.67572021484375e-07,
+   "on_rounding_boundary": 28,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.13.layer.0.SelfAttention.k",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.13.layer.0.SelfAttention.q",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.13.layer.1.DenseReluDense.wi_0",
+   "mismatch": 37,
+   "mismatch_ratio": 8.821487426757813e-07,
+   "on_rounding_boundary": 37,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.13.layer.1.DenseReluDense.wi_1",
+   "mismatch": 37,
+   "mismatch_ratio": 8.821487426757813e-07,
+   "on_rounding_boundary": 37,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.13.layer.1.DenseReluDense.wo",
+   "mismatch": 42,
+   "mismatch_ratio": 1.0013580322265625e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.14.layer.0.SelfAttention.k",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.14.layer.0.SelfAttention.q",
+   "mismatch": 35,
+   "mismatch_ratio": 2.086162567138672e-06,
+   "on_rounding_boundary": 35,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.14.layer.1.DenseReluDense.wi_0",
+   "mismatch": 41,
+   "mismatch_ratio": 9.775161743164062e-07,
+   "on_rounding_boundary": 41,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.14.layer.1.DenseReluDense.wi_1",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.14.layer.1.DenseReluDense.wo",
+   "mismatch": 34,
+   "mismatch_ratio": 8.106231689453125e-07,
+   "on_rounding_boundary": 34,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.15.layer.0.SelfAttention.k",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.15.layer.0.SelfAttention.q",
+   "mismatch": 26,
+   "mismatch_ratio": 1.5497207641601562e-06,
+   "on_rounding_boundary": 26,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.15.layer.1.DenseReluDense.wi_0",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.15.layer.1.DenseReluDense.wi_1",
+   "mismatch": 46,
+   "mismatch_ratio": 1.0967254638671874e-06,
+   "on_rounding_boundary": 46,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.15.layer.1.DenseReluDense.wo",
+   "mismatch": 31,
+   "mismatch_ratio": 7.390975952148438e-07,
+   "on_rounding_boundary": 31,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.16.layer.0.SelfAttention.k",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.16.layer.0.SelfAttention.q",
+   "mismatch": 26,
+   "mismatch_ratio": 1.5497207641601562e-06,
+   "on_rounding_boundary": 26,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.16.layer.1.DenseReluDense.wi_0",
+   "mismatch": 39,
+   "mismatch_ratio": 9.298324584960937e-07,
+   "on_rounding_boundary": 39,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.16.layer.1.DenseReluDense.wi_1",
+   "mismatch": 45,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 45,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.16.layer.1.DenseReluDense.wo",
+   "mismatch": 32,
+   "mismatch_ratio": 7.62939453125e-07,
+   "on_rounding_boundary": 32,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.17.layer.0.SelfAttention.k",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.17.layer.0.SelfAttention.q",
+   "mismatch": 33,
+   "mismatch_ratio": 1.9669532775878906e-06,
+   "on_rounding_boundary": 33,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.17.layer.1.DenseReluDense.wi_1",
+   "mismatch": 44,
+   "mismatch_ratio": 1.049041748046875e-06,
+   "on_rounding_boundary": 44,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.17.layer.1.DenseReluDense.wo",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.18.layer.0.SelfAttention.k",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.18.layer.0.SelfAttention.q",
+   "mismatch": 32,
+   "mismatch_ratio": 1.9073486328125e-06,
+   "on_rounding_boundary": 32,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.18.layer.1.DenseReluDense.wi_0",
+   "mismatch": 41,
+   "mismatch_ratio": 9.775161743164062e-07,
+   "on_rounding_boundary": 41,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.18.layer.1.DenseReluDense.wi_1",
+   "mismatch": 35,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 35,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.19.layer.0.SelfAttention.k",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.19.layer.0.SelfAttention.q",
+   "mismatch": 35,
+   "mismatch_ratio": 2.086162567138672e-06,
+   "on_rounding_boundary": 35,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.19.layer.1.DenseReluDense.wi_1",
+   "mismatch": 38,
+   "mismatch_ratio": 9.059906005859375e-07,
+   "on_rounding_boundary": 38,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.2.layer.0.SelfAttention.k",
+   "mismatch": 12,
+   "mismatch_ratio": 7.152557373046875e-07,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.2.layer.0.SelfAttention.o",
+   "mismatch": 18,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 18,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.2.layer.0.SelfAttention.q",
+   "mismatch": 96,
+   "mismatch_ratio": 5.7220458984375e-06,
+   "on_rounding_boundary": 96,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.2.layer.0.SelfAttention.v",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.2.layer.1.DenseReluDense.wi_0",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.2.layer.1.DenseReluDense.wi_1",
+   "mismatch": 33,
+   "mismatch_ratio": 7.867813110351562e-07,
+   "on_rounding_boundary": 33,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.2.layer.1.DenseReluDense.wo",
+   "mismatch": 42,
+   "mismatch_ratio": 1.0013580322265625e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.20.layer.0.SelfAttention.k",
+   "mismatch": 13,
+   "mismatch_ratio": 7.748603820800781e-07,
+   "on_rounding_boundary": 13,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.20.layer.0.SelfAttention.q",
+   "mismatch": 48,
+   "mismatch_ratio": 2.86102294921875e-06,
+   "on_rounding_boundary": 48,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.21.layer.0.SelfAttention.k",
+   "mismatch": 6,
+   "mismatch_ratio": 3.5762786865234375e-07,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.21.layer.0.SelfAttention.q",
+   "mismatch": 38,
+   "mismatch_ratio": 2.2649765014648438e-06,
+   "on_rounding_boundary": 38,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.22.layer.0.SelfAttention.k",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.22.layer.0.SelfAttention.q",
+   "mismatch": 42,
+   "mismatch_ratio": 2.5033950805664062e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.23.layer.0.SelfAttention.k",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.23.layer.0.SelfAttention.q",
+   "mismatch": 54,
+   "mismatch_ratio": 3.2186508178710938e-06,
+   "on_rounding_boundary": 54,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.23.layer.1.DenseReluDense.wi_1",
+   "mismatch": 47,
+   "mismatch_ratio": 1.1205673217773438e-06,
+   "on_rounding_boundary": 47,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.3.layer.0.SelfAttention.k",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.3.layer.0.SelfAttention.o",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.3.layer.0.SelfAttention.q",
+   "mismatch": 106,
+   "mismatch_ratio": 6.318092346191406e-06,
+   "on_rounding_boundary": 106,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.3.layer.0.SelfAttention.v",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.3.layer.1.DenseReluDense.wi_0",
+   "mismatch": 52,
+   "mismatch_ratio": 1.239776611328125e-06,
+   "on_rounding_boundary": 52,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.3.layer.1.DenseReluDense.wi_1",
+   "mismatch": 42,
+   "mismatch_ratio": 1.0013580322265625e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.3.layer.1.DenseReluDense.wo",
+   "mismatch": 38,
+   "mismatch_ratio": 9.059906005859375e-07,
+   "on_rounding_boundary": 38,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.4.layer.0.SelfAttention.k",
+   "mismatch": 23,
+   "mismatch_ratio": 1.3709068298339844e-06,
+   "on_rounding_boundary": 23,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.4.layer.0.SelfAttention.o",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.4.layer.0.SelfAttention.q",
+   "mismatch": 92,
+   "mismatch_ratio": 5.4836273193359375e-06,
+   "on_rounding_boundary": 92,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.4.layer.0.SelfAttention.v",
+   "mismatch": 24,
+   "mismatch_ratio": 1.430511474609375e-06,
+   "on_rounding_boundary": 24,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.4.layer.1.DenseReluDense.wi_0",
+   "mismatch": 41,
+   "mismatch_ratio": 9.775161743164062e-07,
+   "on_rounding_boundary": 41,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.4.layer.1.DenseReluDense.wi_1",
+   "mismatch": 43,
+   "mismatch_ratio": 1.0251998901367187e-06,
+   "on_rounding_boundary": 43,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.4.layer.1.DenseReluDense.wo",
+   "mismatch": 36,
+   "mismatch_ratio": 8.58306884765625e-07,
+   "on_rounding_boundary": 36,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.5.layer.0.SelfAttention.k",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.5.layer.0.SelfAttention.o",
+   "mismatch": 11,
+   "mismatch_ratio": 6.556510925292969e-07,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.5.layer.0.SelfAttention.q",
+   "mismatch": 68,
+   "mismatch_ratio": 4.0531158447265625e-06,
+   "on_rounding_boundary": 68,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.5.layer.0.SelfAttention.v",
+   "mismatch": 24,
+   "mismatch_ratio": 1.430511474609375e-06,
+   "on_rounding_boundary": 24,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.5.layer.1.DenseReluDense.wi_0",
+   "mismatch": 51,
+   "mismatch_ratio": 1.2159347534179687e-06,
+   "on_rounding_boundary": 51,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.5.layer.1.DenseReluDense.wi_1",
+   "mismatch": 55,
+   "mismatch_ratio": 1.3113021850585938e-06,
+   "on_rounding_boundary": 55,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.5.layer.1.DenseReluDense.wo",
+   "mismatch": 45,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 45,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.6.layer.0.SelfAttention.k",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.6.layer.0.SelfAttention.o",
+   "mismatch": 21,
+   "mismatch_ratio": 1.2516975402832031e-06,
+   "on_rounding_boundary": 21,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.6.layer.0.SelfAttention.q",
+   "mismatch": 69,
+   "mismatch_ratio": 4.112720489501953e-06,
+   "on_rounding_boundary": 69,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.6.layer.0.SelfAttention.v",
+   "mismatch": 11,
+   "mismatch_ratio": 6.556510925292969e-07,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.6.layer.1.DenseReluDense.wi_0",
+   "mismatch": 42,
+   "mismatch_ratio": 1.0013580322265625e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.6.layer.1.DenseReluDense.wi_1",
+   "mismatch": 49,
+   "mismatch_ratio": 1.1682510375976563e-06,
+   "on_rounding_boundary": 49,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.6.layer.1.DenseReluDense.wo",
+   "mismatch": 39,
+   "mismatch_ratio": 9.298324584960937e-07,
+   "on_rounding_boundary": 39,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.7.layer.0.SelfAttention.k",
+   "mismatch": 17,
+   "mismatch_ratio": 1.0132789611816406e-06,
+   "on_rounding_boundary": 17,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.7.layer.0.SelfAttention.o",
+   "mismatch": 16,
+   "mismatch_ratio": 9.5367431640625e-07,
+   "on_rounding_boundary": 16,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.7.layer.0.SelfAttention.q",
+   "mismatch": 50,
+   "mismatch_ratio": 2.9802322387695312e-06,
+   "on_rounding_boundary": 50,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.7.layer.0.SelfAttention.v",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.7.layer.1.DenseReluDense.wi_0",
+   "mismatch": 45,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 45,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.7.layer.1.DenseReluDense.wi_1",
+   "mismatch": 35,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 35,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.7.layer.1.DenseReluDense.wo",
+   "mismatch": 39,
+   "mismatch_ratio": 9.298324584960937e-07,
+   "on_rounding_boundary": 39,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.8.layer.0.SelfAttention.k",
+   "mismatch": 24,
+   "mismatch_ratio": 1.430511474609375e-06,
+   "on_rounding_boundary": 24,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.8.layer.0.SelfAttention.o",
+   "mismatch": 24,
+   "mismatch_ratio": 1.430511474609375e-06,
+   "on_rounding_boundary": 24,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.8.layer.0.SelfAttention.q",
+   "mismatch": 56,
+   "mismatch_ratio": 3.337860107421875e-06,
+   "on_rounding_boundary": 56,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.8.layer.0.SelfAttention.v",
+   "mismatch": 14,
+   "mismatch_ratio": 8.344650268554688e-07,
+   "on_rounding_boundary": 14,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.8.layer.1.DenseReluDense.wi_0",
+   "mismatch": 34,
+   "mismatch_ratio": 8.106231689453125e-07,
+   "on_rounding_boundary": 34,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.8.layer.1.DenseReluDense.wi_1",
+   "mismatch": 38,
+   "mismatch_ratio": 9.059906005859375e-07,
+   "on_rounding_boundary": 38,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.8.layer.1.DenseReluDense.wo",
+   "mismatch": 59,
+   "mismatch_ratio": 1.4066696166992188e-06,
+   "on_rounding_boundary": 59,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.9.layer.0.SelfAttention.k",
+   "mismatch": 20,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 20,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.9.layer.0.SelfAttention.o",
+   "mismatch": 19,
+   "mismatch_ratio": 1.1324882507324219e-06,
+   "on_rounding_boundary": 19,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.9.layer.0.SelfAttention.q",
+   "mismatch": 42,
+   "mismatch_ratio": 2.5033950805664062e-06,
+   "on_rounding_boundary": 42,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.9.layer.0.SelfAttention.v",
+   "mismatch": 15,
+   "mismatch_ratio": 8.940696716308594e-07,
+   "on_rounding_boundary": 15,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.9.layer.1.DenseReluDense.wi_0",
+   "mismatch": 45,
+   "mismatch_ratio": 1.0728836059570312e-06,
+   "on_rounding_boundary": 45,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.9.layer.1.DenseReluDense.wi_1",
+   "mismatch": 31,
+   "mismatch_ratio": 7.390975952148438e-07,
+   "on_rounding_boundary": 31,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "encoder.block.9.layer.1.DenseReluDense.wo",
+   "mismatch": 34,
+   "mismatch_ratio": 8.106231689453125e-07,
+   "on_rounding_boundary": 34,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  }
+ ]
+}
