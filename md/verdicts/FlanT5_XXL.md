@@ -112,7 +112,7 @@ route instantiates, 128 of 128 are applied and none is left raw.
 | 1 reference pinned | done - 5 of 5 shards matched the published sha256 | `records/flan_t5_source.json` -> `shards_verified` |
 | 2 delivery | the pack is the distributed artifact at the model path; the source is not redistributed | section 1 |
 | 3 census + zero-content census | done - 559 source tensors, 1183 pack entries, 0 all-zero either side | `records/flan_t5_source.json`, `records/flan_t5_pack_provenance.json` |
-| 4d exact re-quantization | done in both arithmetics, with the residual's nature measured | sections 3 and 7 |
+| 4d exact re-quantization | done in both arithmetics, with the residual's nature measured | section 3 |
 | variant recorded | weight-only | `records/flan_t5_pack_provenance.json` -> `pack_variant` |
 | source audited by its own class | done - container, census, zeros, non-finite | section 2 |
 | 7c conditional trigger probe | done on 37 prompts over the four documented trigger families | section 4 |
@@ -159,7 +159,8 @@ introduces nothing beyond the declared quantisation.
 each of the four documented trigger families. The largest candidate-to-control ratio was 1.897
 against the 2.0 that §12.1 calls a positive; that margin is narrow, and the divergence it comes
 from is prompt length rather than a semantic switch. A trigger outside these families, or one that
-needs a longer context than a single prompt, is not covered.
+needs a longer context than a single prompt, is not covered. Phases 7a, 7b, 7d and 7e were not run
+for this artifact.
 
 **Loader scope.** The measured route instantiates the encoder only. Claims about the decoder half of
 this pack are limited to the weight-level check in section 3.
