@@ -1,0 +1,579 @@
+{
+ "layers": 63,
+ "q_mismatch_total": 19,
+ "mismatch_on_rounding_boundary": 19,
+ "boundary_fraction_overall": 1.0,
+ "arithmetic": "gpu fp32 with TF32 matmul",
+ "worst_layers": [
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.k_proj",
+   "mismatch": 2,
+   "mismatch_ratio": 3.3908420138888887e-06,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.q_proj",
+   "mismatch": 2,
+   "mismatch_ratio": 3.3908420138888887e-06,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.q_proj",
+   "mismatch": 1,
+   "mismatch_ratio": 1.6954210069444444e-06,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.out_proj",
+   "mismatch": 1,
+   "mismatch_ratio": 1.6954210069444444e-06,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.11.mlp.fc1",
+   "mismatch": 3,
+   "mismatch_ratio": 1.2715657552083333e-06,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.10.mlp.fc2",
+   "mismatch": 2,
+   "mismatch_ratio": 8.477105034722222e-07,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.7.mlp.fc1",
+   "mismatch": 1,
+   "mismatch_ratio": 4.238552517361111e-07,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.9.mlp.fc1",
+   "mismatch": 1,
+   "mismatch_ratio": 4.238552517361111e-07,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  }
+ ],
+ "per_layer": [
+  {
+   "layer": "text_model.embeddings.token_embedding",
+   "mismatch": 5,
+   "mismatch_ratio": 1.3176847204231434e-07,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.0.mlp.fc1",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.0.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.0.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.1.mlp.fc1",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.1.mlp.fc2",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.q_proj",
+   "mismatch": 1,
+   "mismatch_ratio": 1.6954210069444444e-06,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.1.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.10.mlp.fc1",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.10.mlp.fc2",
+   "mismatch": 2,
+   "mismatch_ratio": 8.477105034722222e-07,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.10.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.10.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.10.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.10.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.11.mlp.fc1",
+   "mismatch": 3,
+   "mismatch_ratio": 1.2715657552083333e-06,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.11.mlp.fc2",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.11.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.11.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.11.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.2.mlp.fc1",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.2.mlp.fc2",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.2.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.2.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.2.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.2.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.3.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.3.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.3.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.3.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.4.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.4.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.4.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.4.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.5.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.5.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.5.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.5.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.6.mlp.fc1",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.6.mlp.fc2",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.k_proj",
+   "mismatch": 2,
+   "mismatch_ratio": 3.3908420138888887e-06,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.6.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.7.mlp.fc1",
+   "mismatch": 1,
+   "mismatch_ratio": 4.238552517361111e-07,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.7.mlp.fc2",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.out_proj",
+   "mismatch": 1,
+   "mismatch_ratio": 1.6954210069444444e-06,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.q_proj",
+   "mismatch": 2,
+   "mismatch_ratio": 3.3908420138888887e-06,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.7.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.8.mlp.fc1",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.8.mlp.fc2",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.8.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.8.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.8.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.8.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.9.mlp.fc1",
+   "mismatch": 1,
+   "mismatch_ratio": 4.238552517361111e-07,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.9.mlp.fc2",
+   "mismatch": 1,
+   "mismatch_ratio": 4.238552517361111e-07,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "text_model.encoder.layers.9.self_attn.k_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.9.self_attn.out_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.9.self_attn.q_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "text_model.encoder.layers.9.self_attn.v_proj",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  }
+ ]
+}
