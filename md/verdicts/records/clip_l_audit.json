@@ -1,0 +1,82 @@
+{
+ "pack": "clip_l_hswq_convrot_int8.safetensors",
+ "pack_variant": "weight-only",
+ "pack_bytes": 142046629,
+ "pack_sha256": "c888133ea31af428eb537b59ff9b818f5cc8d8b682ac595de63f72fdf9111f35",
+ "source": "clip_l.safetensors (comfyanonymous/flux_text_encoders)",
+ "source_bytes": 246144152,
+ "source_sha256": "660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd",
+ "published_sha256_match": 1,
+ "source_tensors": 196,
+ "source_identity": {
+  "reference": "OpenAI ViT-L-14.pt",
+  "mapped": 196,
+  "exactly_fp16_of_official": 196,
+  "not_a_rounding": 0
+ },
+ "pack_entries": 322,
+ "pack_dtype_hist": {
+  "float16": 133,
+  "uint8": 63,
+  "int8": 63,
+  "float32": 63
+ },
+ "quantized_layers": 63,
+ "float_kept_tensors": 133,
+ "float_kept_exact": 133,
+ "float_mismatch_count": 0,
+ "extra_tensors": 0,
+ "dropped_tensors": 0,
+ "nonfinite_scales": 0,
+ "int8_control_identical": 63,
+ "pack_full_check": {
+  "float_kept": 133,
+  "exact": 133,
+  "n_bad": 0,
+  "dequant_n": 63
+ },
+ "arithmetic_cpu_exact": {
+  "note": "not re-run for this pack; the control re-quantisation (records/clip_l_control.json) reproduced all 63 int8 layers bit for bit"
+ },
+ "arithmetic_converter_tf32": {
+  "device": "cuda",
+  "tf32": true,
+  "q_mismatch_total": 19,
+  "q_mismatch_ratio_max": 3.3908420138888887e-06,
+  "max_q_delta": 1,
+  "scale_exact_rel_max": 2.3645405633487826e-07,
+  "rel_l2_median": 0.007688540753406191,
+  "rel_l2_max": 0.008550827666885075,
+  "envelope": 0.027688540753406193,
+  "tool_verdict": "EDITED",
+  "outlier_layers": 5
+ },
+ "residual_nature": {
+  "q_mismatch_total": 19,
+  "on_rounding_boundary": 19,
+  "boundary_fraction_overall": 1.0,
+  "max_q_delta": 1,
+  "worst_layer_ratio": 3.3908420138888887e-06
+ },
+ "token_embedding": {
+  "quantised": true,
+  "format": "int8_tensorwise, convrot groupsize 256",
+  "dequant_rel_l2_after_inverse_rotation": 0.007679,
+  "requant_mismatch": 5,
+  "requant_numel": 37945344,
+  "requant_ratio": 1.3176847204231434e-07,
+  "requant_scale_rel": 1.555e-07
+ },
+ "census": {
+  "source": {
+   "tensors": 196,
+   "all_zero": 0,
+   "nonfinite": 0
+  },
+  "pack": {
+   "entries": 322,
+   "all_zero": 0,
+   "nonfinite": 0
+  }
+ }
+}
