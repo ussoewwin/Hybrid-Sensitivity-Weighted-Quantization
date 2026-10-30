@@ -33,7 +33,7 @@ High-fidelity **HSWQ ConvRot INT8** (Hybrid-Sensitivity-Weighted-Quantization) q
 
 This repository hosts production-ready **HSWQ ConvRot INT8** quantized weights for essential text encoders and conditioning backbones. By combining orthogonal Hadamard rotation ($W_{rot} = W \cdot H^T$) with layer-wise sensitivity protection, activation outlier spikes are suppressed while critical attention and normalization boundaries remain protected:
 
-- **`clip_l_hswq_convrot_int8.safetensors`**: Standalone OpenAI CLIP ViT-L/14 text encoder quantized via HSWQ ConvRot INT8 (~142.0 MB), offering massive memory savings while maintaining 100% prompt parsing integrity across SD 1.5, SDXL, and FLUX workflows.
+- **`clip_l_hswq_convrot_int8.safetensors`**: Standalone OpenAI CLIP ViT-L/14 text encoder quantized via HSWQ ConvRot INT8 (~142.0 MB), offering massive memory savings for SD 1.5, SDXL, and FLUX workflows; note the loading note below on which routes apply its INT8.
 - **`CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors`**: High-fidelity ViT-L/14 text encoder with Sparse Autoencoder (SAE) feature representation, covering both the text and vision towers, with HSWQ sensitivity protection (~690.9 MB).
 - **`Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors`**: CLIP ViT-L/14 with an extended text context (248-token position embedding), both towers, HSWQ ConvRot INT8 (~677.6 MB).
 - **`ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors`**: CLIP ViT-L/14 in Hugging-Face layout, both towers, HSWQ ConvRot INT8 (~678.1 MB).
@@ -111,13 +111,17 @@ measurements: [Clip-files INT8 load path](https://github.com/ussoewwin/Hybrid-Se
 
 ## 🔒 Security
 
-Five of the six text encoders hosted here have a backdoor verdict in the audit index; only the
-`clip_l` pack has none yet, and this card states that rather than implying coverage it does not
-have. The `flan_t5_xxl` pack was audited against the official `google/flan-t5-xxl` release: five
-of five shards hash-verified, 247 float tensors equal to the source, 312 int8 layers that
-reproduce within one quantisation step (every residual difference is a rounding-boundary flip of
-the rotation), and - through the same loader as the source - a conditioning cosine of 0.9966733 or
-better with no trigger candidate separating from the control spread.
+Six of the six text encoders hosted here have a backdoor verdict in the audit index. The
+`flan_t5_xxl` pack was audited against the official `google/flan-t5-xxl` release: five of five
+shards hash-verified, 247 float tensors equal to the source, 312 int8 layers that reproduce
+within one quantisation step (every residual difference is a rounding-boundary flip of the
+rotation), and - through the same loader as the source - a conditioning cosine of 0.9966733 or
+better with no trigger candidate separating from the control spread. The `clip_l` pack was
+audited against the official OpenAI ViT-L/14 encoder: all 196 source tensors are the official
+fp16 rounding (sha256 matching the Hub), 133 float tensors equal the source, 63 int8 layers
+reproduce bit for bit under the control re-quantisation (19 one-LSB rounding-boundary flips
+under TF32 arithmetic, scale 2.4e-7), and the token embedding - which this pack quantises -
+reproduces to 1.3e-7.
 
 The audit runs on the source model the pack is quantised from, because a backdoor written onto the
 source survives rotation and per-channel scaling. That is a statement about weights, not about
