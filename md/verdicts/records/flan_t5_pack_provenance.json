@@ -1,10 +1,12 @@
 {
  "pack": "flan_t5_xxl_hswq_convrot_int8.safetensors",
  "pack_bytes": 14739465104,
- "source": "google/flan-t5-xxl (5 shards, fp32, sha256-verified)",
+ "pack_sha256": "de3072a97c710ef2b1c661c3eea0fbaa5759a0454007163228af6d489ade6bb0",
+ "source": "google/flan-t5-xxl (5 shards, fp32, sha256-verified against the Hub LFS oids)",
  "pack_variant": "weight-only",
  "pack_tensors": 1183,
  "quantized_layers": 312,
+ "float_kept_tensors": 247,
  "float_kept_exact": 247,
  "float_mismatch_count": 0,
  "extra_tensors": 0,
@@ -16,20 +18,27 @@
   "max_q_delta": 1,
   "scale_exact_rel_max": 0.0003023459285032004,
   "tool_verdict": "EDITED",
-  "note": "the audit tool computes the rotation in exact CPU fp32; the converter that produced the pack ran the same matmul on GPU with TF32"
+  "outlier_layers": 312
  },
  "arithmetic_converter_tf32": {
   "device": "cuda",
+  "tf32": true,
   "q_mismatch_total": 9263,
   "q_mismatch_ratio_max": 8.761882781982422e-06,
   "max_q_delta": 1,
-  "scale_rel_max": 5.266485914035002e-07,
-  "rel_l2_median": 0.008684929460287094,
-  "rel_l2_max": 0.011312401853501797,
-  "layers_measured": 312
+  "scale_exact_rel_max": 7.530688321821799e-07,
+  "tool_verdict": "EDITED",
+  "outlier_layers": 180,
+  "rel_l2_median": 0.008684866440995588,
+  "rel_l2_max": 0.011312401459751072,
+  "envelope": 0.02868486644099559
  },
- "envelope_rel_l2": 0.028682375358334476,
- "rel_l2_median": 0.008682375358334474,
- "rel_l2_max": 0.011310569950988069,
- "float_kept_tensors": 247
+ "residual_nature": {
+  "measured": "every residual code difference sits on a rounding boundary of the re-quantisation",
+  "q_mismatch_total": 9263,
+  "on_rounding_boundary": 9263,
+  "boundary_fraction_overall": 1.0,
+  "max_q_delta": 1,
+  "worst_layer_ratio": 8.761882781982422e-06
+ }
 }

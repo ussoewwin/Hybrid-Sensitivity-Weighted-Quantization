@@ -235,14 +235,19 @@ def _source_weight(sf_s, hdr_s, ks, key):
 
 # --- per-layer provenance metric ---------------------------------------------
 
-def layer_metrics(q, scale, src, cfg, block=8192, conv_rows=1):
+def layer_metrics(q, scale, src, cfg, block=8192, conv_rows=1, device="cpu"):
     """Dequant(quant(pack)) vs src, plus the EXACT re-quantization result.
 
     Returns cosine, relative L2, max-abs, the scale's relative error, and -
     the decisive part - how many int8 codes and how large a code delta
     re-deriving the codes from the source produces. A one-LSB edit is caught
     here even when the metric envelope would hide it.
+
+    ``device`` selects where the re-quantisation runs. A pack produced by a converter that
+    rotated on GPU under TF32 is not reproducible by an exact CPU matmul; running the same
+    arithmetic the converter used is what makes the comparison decisive.
     """
+    dev = torch.device(device)
     out_f, in_f = src.shape
     convrot = bool(cfg.get("convrot"))
     gs = int(cfg.get("convrot_groupsize", 256)) if convrot else 0
@@ -266,7 +271,7 @@ def layer_metrics(q, scale, src, cfg, block=8192, conv_rows=1):
         if gs < 4 or _cur != gs:
             return {"error": "convrot_groupsize %d is not a power of 4; the "
                              "packer only builds regular Hadamard matrices" % gs}
-        h = hadamard(gs)
+        h = hadamard(gs).to(dev)
     else:
         h = None
     dot = deq_sq = src_sq = diff_sq = 0.0
@@ -274,9 +279,9 @@ def layer_metrics(q, scale, src, cfg, block=8192, conv_rows=1):
     q_mismatch = q_total = max_q_delta = 0
     nonfinite_scale = 0
     for i in range(0, out_f, block):
-        s_chunk = src[i:i + block].float()
-        qc = q[i:i + block].float()
-        sc = scale[i:i + block].float()
+        s_chunk = src[i:i + block].float().to(dev)
+        qc = q[i:i + block].float().to(dev)
+        sc = scale[i:i + block].float().to(dev)
         # NaN/Inf compare False against every gate, so a poisoned scale would
         # slide past SCALE_TOL; count it explicitly.
         nonfinite_scale += int((~torch.isfinite(sc)).sum())
@@ -301,7 +306,7 @@ def layer_metrics(q, scale, src, cfg, block=8192, conv_rows=1):
         exp_s = amax / 127.0
         scale_rel = max(scale_rel, float(((sc - exp_s).abs() / exp_s).max()))
         q_exp = (rot_src.float() / exp_s).round().clamp(-127, 127).to(torch.int8)
-        q_pack = q[i:i + block].to(torch.int8)
+        q_pack = q[i:i + block].to(dev).to(torch.int8)
         d = (q_exp.to(torch.int16) - q_pack.to(torch.int16)).abs()
         q_mismatch += int((d != 0).sum())
         q_total += int(d.numel())
@@ -432,7 +437,8 @@ def static_scan(path):
 
 # --- layer 2: provenance ------------------------------------------------------
 
-def provenance(source_path, pack_path, block=8192, bias_correction=False):
+def provenance(source_path, pack_path, block=8192, bias_correction=False,
+                 device="cpu", tf32=False):
     sf_s, hdr_s = open_sd(source_path), header_of(source_path)
     sf_p, hdr_p = open_sd(pack_path), header_of(pack_path)
     ks = {k for k in hdr_s if k != "__metadata__"}
@@ -478,7 +484,7 @@ def provenance(source_path, pack_path, block=8192, bias_correction=False):
                                "%d rows" % (s.numel(), q.shape[0])})
                 continue
             m = layer_metrics(q, s.reshape(-1, 1), src_w, cfg, block,
-                              conv_rows=conv_rows)
+                              conv_rows=conv_rows, device=device)
             m["layer"] = mod
             m["groupsize"] = cfg.get("convrot_groupsize") if cfg.get("convrot") else None
             layers.append(m)
@@ -573,6 +579,10 @@ def provenance(source_path, pack_path, block=8192, bias_correction=False):
         "pack": os.path.basename(pack_path),
         "pack_variant": variant,
         "source": os.path.basename(source_path),
+        "arithmetic": {"device": device, "tf32": bool(tf32),
+                       "note": "the re-quantisation reproduces the converter's matmul "
+                               "arithmetic; a CPU run is exact fp32 and cannot reproduce "
+                               "a pack that was rotated on GPU under TF32"},
         "verdict": "FAITHFUL" if faithful else "EDITED",
         "integrity_findings": integrity[:20],
         "nonweight_dropped_count": len(nonweight_dropped),
@@ -778,6 +788,10 @@ def main():
     ap.add_argument("--behavior", action="store_true", help="run layer 3")
     ap.add_argument("--json", default="", help="write the summary as JSON")
     ap.add_argument("--block", type=int, default=8192)
+    ap.add_argument("--device", default="cpu",
+                    help="device the re-quantisation runs on (cpu, cuda)")
+    ap.add_argument("--tf32", action="store_true",
+                    help="allow TF32 matmul on CUDA, matching a converter that rotated on GPU")
     ap.add_argument("--bias-correction", action="store_true",
                     help="the pack was built with bias correction; bias shifts are "
                          "measured and reported instead of counted as edits")
@@ -785,6 +799,14 @@ def main():
                     help="record the SHA-256 of the source and every pack, so a verdict "
                          "can be tied to the exact files it was reached on")
     args = ap.parse_args()
+
+    if args.device.startswith("cuda"):
+        if not torch.cuda.is_available():
+            raise SystemExit("device %s requested but CUDA is not available" % args.device)
+        if args.tf32:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+        print("re-quantisation device: %s, tf32 %s" % (args.device, bool(args.tf32)), flush=True)
 
     packs = list(args.pack)
     if args.source and (args.auto or not packs):
@@ -831,7 +853,8 @@ def main():
         print("=== layer 2: weight provenance (decisive) ===")
         for p in packs:
             try:
-                r = provenance(args.source, p, args.block, args.bias_correction)
+                r = provenance(args.source, p, args.block, args.bias_correction,
+                               device=args.device, tf32=args.tf32)
             except Exception as e:
                 print("  %-56s PROVENANCE-ERROR: %s: %s" % (
                     os.path.basename(p)[:56], type(e).__name__, e))
