@@ -16,35 +16,35 @@
  },
  "pack": {
   "file": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors",
-  "bytes": 5554598052,
-  "sha256": "07bd6d89f0712c91c00d649463973d2d64364ff502184b053d136fa4d797e5a5",
-  "tensors": 1329,
+  "bytes": 5152681382,
+  "sha256": "865948a2e5029e67548a946cf019733a56ea04eef29f11378b6816e7045c5cf8",
+  "tensors": 1389,
   "dtypes": {
-   "torch.float16": 405,
-   "torch.uint8": 308,
-   "torch.int8": 308,
-   "torch.float32": 308
+   "torch.float16": 375,
+   "torch.uint8": 338,
+   "torch.int8": 338,
+   "torch.float32": 338
   },
-  "int8": 308,
-  "declared": 308,
+  "int8": 338,
+  "declared": 338,
   "top_heads": {
-   "model": 1329
+   "model": 1389
   }
  },
  "A_CLIPLoader_kandinsky5": {
-  "declared": 308,
+  "declared": 338,
   "raw": 0,
-  "applied": 308,
+  "applied": 338,
   "other": 0,
   "unmatched": 0,
   "worst_layer": null,
-  "gemm": 1624,
+  "gemm": 1864,
   "arm_stats": {
-   "int8_linear_calls": 1624,
+   "int8_linear_calls": 1864,
    "layers_patched": 0
   },
-  "cond_cos_min": 0.9999074853698221,
-  "cond_cos_max": 0.9999309804532013,
+  "cond_cos_min": 0.9999002905246591,
+  "cond_cos_max": 0.9999312697466424,
   "prompts_compared": 8,
   "prompts_total": 8,
   "prompts_nan": 0,
@@ -73,5 +73,24 @@
    "cond_cos_max": 0.9999293796414177,
    "prompts_compared": 8
   }
+ },
+ "withdrawn_builds": {
+  "note": "the two builds this record previously described, kept as the record of those runs",
+  "builds": [
+   {
+    "sha256": "07bd6d89f0712c91c00d649463973d2d64364ff502184b053d136fa4d797e5a5",
+    "bytes": 5554598052,
+    "int8": 308,
+    "float_kept": 50,
+    "reason": "withdrawn: the kept count was chosen on a band criterion the method does not define"
+   },
+   {
+    "sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
+    "bytes": 6248329246,
+    "int8": 258,
+    "float_kept": 100,
+    "reason": "withdrawn: the kept count came from a three-point curve never measured below 60"
+   }
+  ]
  }
 }

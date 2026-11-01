@@ -1,13 +1,13 @@
 {
  "pack": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors",
- "pack_bytes": 5554598052,
- "pack_sha256": "07bd6d89f0712c91c00d649463973d2d64364ff502184b053d136fa4d797e5a5",
+ "pack_bytes": 5152681382,
+ "pack_sha256": "865948a2e5029e67548a946cf019733a56ea04eef29f11378b6816e7045c5cf8",
  "pack_variant": "weight-only",
  "source": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
  "source_bytes": 8875718696,
  "source_sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
- "quantized_layers": 308,
- "float_kept_layers": 50,
+ "quantized_layers": 338,
+ "float_kept_layers": 20,
  "float_mismatch_count": 0,
  "extra_count": 0,
  "dropped_count": 0,
@@ -15,27 +15,27 @@
  "arithmetic_converter_tf32": {
   "device": "cuda",
   "tf32": true,
-  "q_mismatch_total": 652,
+  "int8_code_total": 3728211968,
+  "q_mismatch_total": 751,
   "q_mismatch_ratio_max": 1.2715657552083333e-06,
+  "q_mismatch_fraction_overall": 2.014370444722525e-07,
   "max_q_delta": 1,
   "scale_exact_rel_max": 3.42490693583386e-07,
   "rel_l2_median": 0.008749978545389695,
-  "rel_l2_max": 0.010406806059457142,
+  "rel_l2_max": 0.010653799924385835,
   "envelope": 0.028749978545389694,
   "tool_verdict": "EDITED",
   "outlier_layers": 1,
-  "envelope_only": 0,
-  "quantized_layers": 308,
   "outlier_layer_name": "model.visual.pos_embed",
   "outlier_layer_q_mismatch": 3,
-  "int8_code_total": 3325820928,
-  "q_mismatch_fraction_overall": 1.960418236925593e-07
+  "envelope_only": 0,
+  "quantized_layers": 338
  },
  "residual_nature": {
-  "int8_layers_scanned": 308,
-  "layers_with_residual": 196,
-  "q_mismatch_total": 652,
-  "on_rounding_boundary": 652,
+  "int8_layers_scanned": 338,
+  "layers_with_residual": 222,
+  "q_mismatch_total": 751,
+  "on_rounding_boundary": 751,
   "boundary_fraction_overall": 1.0,
   "max_q_delta": 1,
   "arithmetic": "gpu fp32 with TF32 matmul"
@@ -43,11 +43,11 @@
  "gate_1024": {
   "n": 1024,
   "seed_range": "0..1023 (verify_qwen3vl.py QVL_N=1024)",
-  "int8_linear_calls": 314368,
-  "mean": 0.9996396069182083,
-  "min": 0.9988494515419006,
-  "p5": 0.9995222091674805,
-  "p50": 0.9996523857116699,
+  "int8_linear_calls": 345088,
+  "mean": 0.9996103141456842,
+  "min": 0.9978768229484558,
+  "p5": 0.9994792938232422,
+  "p50": 0.999627411365509,
   "finite": true,
   "pass": true,
   "gate": "mean >= 0.99 and min >= 0.98"
@@ -55,35 +55,102 @@
  "gate_256": {
   "n": 256,
   "seed_range": "0..255 (verify_qwen3vl.py QVL_N=256)",
-  "int8_linear_calls": 78592,
-  "mean": 0.9996335352770984,
-  "min": 0.9988494515419006,
-  "p5": 0.9994867444038391,
-  "p50": 0.9996532797813416,
+  "int8_linear_calls": 86272,
+  "mean": 0.9996022453997284,
+  "min": 0.9978768229484558,
+  "p5": 0.9994422793388367,
+  "p50": 0.999629020690918,
   "finite": true,
   "pass": true,
   "gate": "mean >= 0.99 and min >= 0.98"
  },
  "load_path": {
   "route": "clip_text",
-  "declared_layers": 308,
-  "judged_layers": 308,
-  "applied_layers": 308,
+  "declared_layers": 338,
+  "judged_layers": 338,
+  "applied_layers": 338,
   "raw_code_layers": 0,
   "other_layers": 0,
   "unmatched_layers": 0,
-  "int8_linear_calls": 812,
+  "int8_linear_calls": 932,
   "verdict": "pack applies on this route"
  },
- "pack_entries": 1329,
+ "cliploader_route": {
+  "route": "CLIPLoader type kandinsky5",
+  "source_file": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
+  "source_bytes": 8875718696,
+  "source_sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
+  "pack_file": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors",
+  "pack_bytes": 5152681382,
+  "pack_sha256": "865948a2e5029e67548a946cf019733a56ea04eef29f11378b6816e7045c5cf8",
+  "prestartup_armed": true,
+  "raw_code_params": 0,
+  "int8_linear_calls": 1864,
+  "prompts_total": 8,
+  "prompts_compared": 8,
+  "prompts_nan": 0,
+  "cond_cos_min": 0.9999002905246591,
+  "cond_cos_max": 0.9999312697466424,
+  "per_prompt": [
+   {
+    "prompt": "a photo of a cat",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9999264788495802
+   },
+   {
+    "prompt": "the old bridge",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9999301861704932
+   },
+   {
+    "prompt": "a red car",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.999926304455401
+   },
+   {
+    "prompt": "warm bread",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9999312697466424
+   },
+   {
+    "prompt": "bonsoir, Elliot",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9999027500145354
+   },
+   {
+    "prompt": "2024-01-05",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9999102448582399
+   },
+   {
+    "prompt": "ERROR_30741852",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9999002905246591
+   },
+   {
+    "prompt": "a watercolour of the harbour at dusk",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9999197076363913
+   }
+  ]
+ },
+ "pack_entries": 1389,
  "pack_dtype_hist": {
-  "torch.float16": 405,
-  "torch.uint8": 308,
-  "torch.int8": 308,
-  "torch.float32": 308
+  "torch.float16": 375,
+  "torch.uint8": 338,
+  "torch.int8": 338,
+  "torch.float32": 338
  },
  "pack_census": {
-  "tensors": 1329,
+  "tensors": 1389,
   "all_zero_tensors": 0,
   "nonfinite_total": 0,
   "embedding": {
@@ -98,12 +165,35 @@
   "note": "the acceptance set measured on this checkpoint's own drift ranking; the FP16-kept count is the curve's x axis",
   "points": [
    {
+    "float_kept": 0,
+    "quantized_layers": 358,
+    "file_mb": 4240.3,
+    "mean": 0.997853,
+    "min": 0.955591,
+    "p5": 0.997024,
+    "p50": 0.997941,
+    "int8_linear_calls": 364544,
+    "pass": false
+   },
+   {
+    "float_kept": 10,
+    "quantized_layers": 348,
+    "file_mb": 4767.9,
+    "mean": 0.999451,
+    "min": 0.915881,
+    "p5": 0.999333,
+    "p50": 0.999559,
+    "int8_linear_calls": 355328,
+    "pass": false
+   },
+   {
     "float_kept": 20,
     "quantized_layers": 338,
     "file_mb": 4913.9798946380615,
     "mean": 0.9996103141456842,
     "min": 0.9978768229484558,
     "p5": 0.9994792938232422,
+    "p50": 0.999627411365509,
     "int8_linear_calls": 345088,
     "pass": true
    },
@@ -153,12 +243,35 @@
   "note": "the same candidates on the 256-item acceptance set (seed 42)",
   "points": [
    {
+    "float_kept": 0,
+    "quantized_layers": 358,
+    "file_mb": 4240.259386062622,
+    "mean": 0.997745283646509,
+    "min": 0.9555914402008057,
+    "p5": 0.997012197971344,
+    "p50": 0.9979742169380188,
+    "int8_linear_calls": 91136,
+    "pass": false
+   },
+   {
+    "float_kept": 10,
+    "quantized_layers": 348,
+    "file_mb": 4767.9020652771,
+    "mean": 0.9991995373275131,
+    "min": 0.9158809185028076,
+    "p5": 0.9993034601211548,
+    "p50": 0.9995587468147278,
+    "int8_linear_calls": 88832,
+    "pass": false
+   },
+   {
     "float_kept": 20,
     "quantized_layers": 338,
     "file_mb": 4913.9798946380615,
     "mean": 0.9996022453997284,
     "min": 0.9978768229484558,
     "p5": 0.9994422793388367,
+    "p50": 0.999629020690918,
     "int8_linear_calls": 86272,
     "pass": true
    },
@@ -244,6 +357,28 @@
    }
   ]
  },
+ "k_selection": {
+  "adopted": 20,
+  "rule": "the smallest pack that passes the gate; the floor is bracketed by measured K=0 and K=10, both of which fail (min 0.955591 and 0.915881)",
+  "floor_below": {
+   "K": 10,
+   "min": 0.915881,
+   "pass": false
+  },
+  "floor_above": {
+   "K": 20,
+   "min": 0.9978768229484558,
+   "pass": true
+  }
+ },
+ "superseded_build": {
+  "sha256": "07bd6d89f0712c91c00d649463973d2d64364ff502184b053d136fa4d797e5a5",
+  "bytes": 5554598052,
+  "file_mb": 5297.3,
+  "float_kept": 50,
+  "quantized_layers": 308,
+  "status": "withdrawn: K=50 was chosen on a band criterion that the method does not define; the method asks for the smallest passing pack, and K=20 passes"
+ },
  "drift_measurement": {
   "script": "sdxl/diag_impact_qwen3vl.py",
   "model": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
@@ -261,103 +396,5 @@
   "vision_tower_median": 4.113539185907416e-06,
   "tower_ratio": 10.444751533518653,
   "record": "records/impact_qwen3vl_thinking.json"
- },
- "superseded_build": {
-  "sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
-  "bytes": 6248329246,
-  "file_mb": 5958.9,
-  "float_kept": 100,
-  "quantized_layers": 258,
-  "status": "superseded by the K=50 build; the copy on the Hub is still this build until the republication is authorised"
- },
- "cliploader_route": {
-  "route": "CLIPLoader type kandinsky5",
-  "source_file": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
-  "source_bytes": 8875718696,
-  "source_sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
-  "pack_file": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors",
-  "pack_bytes": 5554598052,
-  "pack_sha256": "07bd6d89f0712c91c00d649463973d2d64364ff502184b053d136fa4d797e5a5",
-  "prestartup_armed": true,
-  "raw_code_params": 0,
-  "int8_linear_calls": 1624,
-  "prompts_total": 8,
-  "prompts_compared": 8,
-  "prompts_nan": 0,
-  "cond_cos_min": 0.9999074853698221,
-  "cond_cos_max": 0.9999309804532013,
-  "per_prompt": [
-   {
-    "prompt": "a photo of a cat",
-    "nan_pack": 0,
-    "nan_ref": 0,
-    "cos": 0.9999235962684196
-   },
-   {
-    "prompt": "the old bridge",
-    "nan_pack": 0,
-    "nan_ref": 0,
-    "cos": 0.9999309804532013
-   },
-   {
-    "prompt": "a red car",
-    "nan_pack": 0,
-    "nan_ref": 0,
-    "cos": 0.9999142996591045
-   },
-   {
-    "prompt": "warm bread",
-    "nan_pack": 0,
-    "nan_ref": 0,
-    "cos": 0.9999234070368382
-   },
-   {
-    "prompt": "bonsoir, Elliot",
-    "nan_pack": 0,
-    "nan_ref": 0,
-    "cos": 0.9999145009514042
-   },
-   {
-    "prompt": "2024-01-05",
-    "nan_pack": 0,
-    "nan_ref": 0,
-    "cos": 0.9999074853698221
-   },
-   {
-    "prompt": "ERROR_30741852",
-    "nan_pack": 0,
-    "nan_ref": 0,
-    "cos": 0.9999176251930365
-   },
-   {
-    "prompt": "a watercolour of the harbour at dusk",
-    "nan_pack": 0,
-    "nan_ref": 0,
-    "cos": 0.9999254331904702
-   }
-  ]
- },
- "k100_rebuild_check": {
-  "note": "the withdrawn build rebuilt from this checkpoint's own drift ranking at K=100",
-  "rebuilt_sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
-  "published_sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
-  "byte_identical": true,
-  "bytes": 6248329246,
-  "meaning": "the published build's protection set was this checkpoint's own drift top-100; the defect corrected here is the K choice, not the set's origin"
- },
- "k_selection": {
-  "adopted": 50,
-  "rule": "smallest pack whose worst-prompt cosine and 5th percentile both sit on the plateau the larger candidates occupy; the withdrawn K=100 build paid 661.6 MB for 8.4e-05 of minimum and 2.0e-05 of 5th percentile",
-  "withdrawn_k": 100,
-  "withdrawn_bytes": 6248329246,
-  "withdrawn_file_mb": 5958.9,
-  "withdrawn_min_1024": 0.9989325404167175,
-  "withdrawn_p5_1024": 0.9995416402816772,
-  "withdrawn_mean_1024": 0.9996538973064162,
-  "adopted_min_1024": 0.9988494515419006,
-  "adopted_p5_1024": 0.9995222091674805,
-  "adopted_mean_1024": 0.9996396069182083,
-  "bytes_saved": 693731194,
-  "file_mb_saved": 661.6
  }
 }

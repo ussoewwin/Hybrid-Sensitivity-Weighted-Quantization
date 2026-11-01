@@ -281,6 +281,6 @@ applies neither (sections 11-12) and the SDXL pair route's apparent exact match 
 NaN clamp withdrawn in section 16 of the clip-files note; no CLIP-shaped route runs any kernel. Conditioning here sits at 0.9991-0.9996 rather than at the weight-level 0.999999999998
 because the quantised path also rounds activations.
 
-The second Qwen pack confirms it on the same footing: `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` applies 308 of 308 declared layers, leaves 0 parameters holding int8 codes, runs 1624 INT8 GEMM calls, and stays within conditioning cosine 0.999907-0.999931 of its source over 8 prompts (`records/thinking_source_and_pack.json`). The pack was rebuilt on 2026-11-01 (the earlier build, 258 declared layers and 2448 GEMM calls, is withdrawn); the record carries both runs.
+The second Qwen pack confirms it on the same footing: `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` applies 338 of 338 declared layers, leaves 0 parameters holding int8 codes, runs 1864 INT8 GEMM calls, and stays within conditioning cosine 0.999900-0.999931 of its source over 8 prompts (`records/thinking_source_and_pack.json`). The pack was rebuilt on 2026-11-02 (two earlier builds are withdrawn); the record carries every run.
 
 Record: `records/josiefied_source_and_pack.json`.
