@@ -221,4 +221,5 @@ The scale's largest relative difference is 3.4e-07; the dequantised layers sit a
 | `md/verdicts/records/impact_qwen3vl_thinking.json` | the shipped copy of the drift record |
 | `md/verdicts/records/thinking_pack.json` | the pack record: identity, provenance, gates, load path |
 | `md/verdicts/records/thinking_boundary.json` | the rounding-boundary classification of the residuals |
+| `md/verdicts/records/qwen3vl_thinking_protect_50.json` | the adopted FP16-kept list, shipped |
 | `md/verdicts/ThinkingQwen3VL4B_Pack.md` | the backdoor verdict for this pack |

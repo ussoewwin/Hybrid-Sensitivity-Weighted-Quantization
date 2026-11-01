@@ -41,7 +41,8 @@ The source's own backdoor audit is `Qwen3VL_4B_Thinking_Abliterated.md` (none de
 73/713). This report does not re-audit the source's content; it audits what the pack did to it.
 
 The protection set was chosen from this checkpoint's own drift measurement
-(`records/impact_qwen3vl_thinking.json`, measured by `sdxl/diag_impact_qwen3vl.py`): 358 of 358
+(`records/impact_qwen3vl_thinking.json`, measured by `sdxl/diag_impact_qwen3vl.py`; the
+adopted 50-layer list is shipped as `records/qwen3vl_thinking_protect_50.json`): 358 of 358
 layers measured, drift min 2.04e-07, median 3.39e-05, p90 5.58e-05, max 2.92e-04. The language
 tower's median (4.30e-05) is 10.4x the vision tower's (4.11e-06). The three most sensitive layers
 are `layers.35.mlp.gate_proj` (2.92e-04), `layers.6.mlp.down_proj` (1.43e-04), and
