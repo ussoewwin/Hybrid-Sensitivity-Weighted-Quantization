@@ -16,35 +16,61 @@
  },
  "pack": {
   "file": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors",
-  "bytes": 6248329246,
-  "sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
-  "tensors": 1229,
+  "bytes": 5554598052,
+  "sha256": "07bd6d89f0712c91c00d649463973d2d64364ff502184b053d136fa4d797e5a5",
+  "tensors": 1329,
   "dtypes": {
-   "torch.float16": 455,
-   "torch.uint8": 258,
-   "torch.int8": 258,
-   "torch.float32": 258
+   "torch.float16": 405,
+   "torch.uint8": 308,
+   "torch.int8": 308,
+   "torch.float32": 308
   },
-  "int8": 258,
-  "declared": 258,
+  "int8": 308,
+  "declared": 308,
   "top_heads": {
-   "model": 1229
+   "model": 1329
   }
  },
  "A_CLIPLoader_kandinsky5": {
-  "declared": 258,
+  "declared": 308,
   "raw": 0,
-  "applied": 258,
+  "applied": 308,
   "other": 0,
   "unmatched": 0,
   "worst_layer": null,
-  "gemm": 2448,
+  "gemm": 812,
   "arm_stats": {
-   "int8_linear_calls": 2448,
+   "int8_linear_calls": 812,
    "layers_patched": 1
   },
-  "cond_cos_min": 0.999912201968963,
-  "cond_cos_max": 0.9999293796414177,
-  "prompts_compared": 8
+  "cond_cos_min": 0.9999074853698221,
+  "cond_cos_max": 0.9999309804532013,
+  "prompts_compared": 8,
+  "prompts_total": 8,
+  "prompts_nan": 0
+ },
+ "withdrawn_build": {
+  "note": "the build this record previously described (commit ec0edab): its protection set was this checkpoint's own drift top-100, but K=100 was adopted from a three-point curve. Rebuilding at K=100 from the same ranking reproduces its bytes exactly, so the defect was the K choice. The numbers below are kept as the record of that run.",
+  "file": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors",
+  "bytes": 6248329246,
+  "sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
+  "int8": 258,
+  "declared": 258,
+  "A_CLIPLoader_kandinsky5": {
+   "declared": 258,
+   "raw": 0,
+   "applied": 258,
+   "other": 0,
+   "unmatched": 0,
+   "worst_layer": null,
+   "gemm": 2448,
+   "arm_stats": {
+    "int8_linear_calls": 2448,
+    "layers_patched": 1
+   },
+   "cond_cos_min": 0.999912201968963,
+   "cond_cos_max": 0.9999293796414177,
+   "prompts_compared": 8
+  }
  }
 }

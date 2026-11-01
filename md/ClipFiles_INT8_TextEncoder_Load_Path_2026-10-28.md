@@ -325,19 +325,25 @@ Records: `records/longclip_source_and_pack.json`, `records/longclip_pair_route.j
 ## 14. `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` on the shipped code
 
 The source was re-hashed first: sha256 `69a6fc6fc222`, 8,875,718,696 B, 713 tensors - the audited
-file. The pack carries 258 int8 tensors and declares 258 layers.
+file. The pack carries 308 int8 tensors and declares 308 layers.
 
 Loaded with `CLIPLoader` type `kandinsky5` on the shipped code, with the loader node imported and
 no code changed:
 
 | quantity | value |
 | :--- | ---: |
-| declared layers applied (runtime parameter equals its own dequantised value) | **258 of 258** |
+| declared layers applied (runtime parameter equals its own dequantised value) | **308 of 308** |
 | parameters holding raw int8 codes | 0 |
 | layers unmatched (name could not be resolved) | 0 |
-| INT8 GEMM calls after 8 forwards | **2448** |
-| conditioning cosine vs the source, worst of 8 prompts | 0.999912 |
-| conditioning cosine vs the source, best of 8 prompts | 0.999929 |
+| INT8 GEMM calls after 8 forwards | **1624** |
+| conditioning cosine vs the source, worst of 8 prompts | 0.999907 |
+| conditioning cosine vs the source, best of 8 prompts | 0.999931 |
+
+The pack this row describes was rebuilt on 2026-11-01: the earlier build (sha256
+`49c19dad012a`, 258 declared layers, 2448 INT8 GEMM calls, conditioning cosine 0.999912-0.999929
+over 8 prompts) applied 258 of 258 layers and is withdrawn; its protection set was this checkpoint's
+own drift ranking, but the kept count was adopted from a curve that was never measured below 60.
+The numbers above are the rebuilt pack's (sha256 `07bd6d89f071`); both runs are in the record.
 
 Together with the Josiefied row this closes the gap the withdrawn patch had left open: the Qwen
 text-encoder route both applies its format and executes the int8 kernel, measured on the code that
