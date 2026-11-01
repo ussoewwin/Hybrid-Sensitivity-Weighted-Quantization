@@ -38,16 +38,17 @@
   "other": 0,
   "unmatched": 0,
   "worst_layer": null,
-  "gemm": 812,
+  "gemm": 1624,
   "arm_stats": {
-   "int8_linear_calls": 812,
-   "layers_patched": 1
+   "int8_linear_calls": 1624,
+   "layers_patched": 0
   },
   "cond_cos_min": 0.9999074853698221,
   "cond_cos_max": 0.9999309804532013,
   "prompts_compared": 8,
   "prompts_total": 8,
-  "prompts_nan": 0
+  "prompts_nan": 0,
+  "measurement": "8 prompt encodes of the pack through CLIPLoader type kandinsky5 on the shipped code, in a fresh process with the loader node's prestartup executed; the int8 kernel counter is the loader package's own arm"
  },
  "withdrawn_build": {
   "note": "the build this record previously described (commit ec0edab): its protection set was this checkpoint's own drift top-100, but K=100 was adopted from a three-point curve. Rebuilding at K=100 from the same ranking reproduces its bytes exactly, so the defect was the K choice. The numbers below are kept as the record of that run.",
