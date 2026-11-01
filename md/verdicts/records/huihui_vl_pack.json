@@ -1,0 +1,78 @@
+{
+ "pack": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
+ "pack_bytes": 6248329694,
+ "pack_sha256": "cd38e2f0f928c4ade96cd5a784e63d5c1b6993bd7a64d5bdf07b0d7c44b1ad2e",
+ "source": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
+ "source_bytes": 8875719408,
+ "source_sha256": "03590b45adf6a071dd5de231d4e2b697355746e36ce2d9368b4c0587ba014cd2",
+ "pack_variant": "weight-only",
+ "quantized_layers": 258,
+ "float_kept_layers": 100,
+ "float_mismatch_count": 0,
+ "extra_tensors": 0,
+ "dropped_tensors": 0,
+ "nonfinite_scales": 0,
+ "arithmetic_converter_tf32": {
+  "device": "cuda",
+  "tf32": true,
+  "q_mismatch_total": 628,
+  "q_mismatch_ratio_max": 1.2715657552083333e-06,
+  "max_q_delta": 1,
+  "scale_exact_rel_max": 3.5087924743493204e-07,
+  "rel_l2_median": 0.008720998678523047,
+  "rel_l2_max": 0.010411515184467073,
+  "envelope": 0.028720998678523048,
+  "tool_verdict": "EDITED",
+  "outlier_layers": 3,
+  "envelope_only": 0
+ },
+ "residual_nature": {
+  "layers_measured": 5,
+  "q_mismatch_total": 15,
+  "on_rounding_boundary": 15,
+  "boundary_fraction_overall": 1.0,
+  "max_q_delta": 1,
+  "note": "the three tool outlier layers plus two more int8 layers; every residual difference is a rounding-boundary flip"
+ },
+ "gate_256": {
+  "n": 256,
+  "seed_range": "0..255 (verify_qwen3vl.py QVL_N=256)",
+  "int8_linear_calls": 65792,
+  "mean": 0.9993940524291247,
+  "min": 0.9988228678703308,
+  "p5": 0.9991353154182434,
+  "p50": 0.9994159936904907,
+  "finite": true,
+  "pass": true,
+  "gate": "mean >= 0.99 and min >= 0.98"
+ },
+ "load_path": {
+  "encoder_quantized": 128,
+  "decoder_quantized": 184,
+  "applied": 128,
+  "unmatched": 184,
+  "raw": 0,
+  "int8_gemm": 256,
+  "source": "records/flan_t5_loadpath.json the same encoder-only route (the decoder is never built)"
+ },
+ "pack_entries": 1229,
+ "pack_dtype_hist": {
+  "BF16": 455,
+  "U8": 258,
+  "I8": 258,
+  "F32": 258
+ },
+ "pack_tensors": 1229,
+ "pack_census": {
+  "tensors": 1229,
+  "all_zero_tensors": 0,
+  "nonfinite_total": 0,
+  "st_integrity_findings": 0,
+  "embedding": {
+   "rows": 151936,
+   "median": 1.1052377223968506,
+   "min": 0.35163331031799316,
+   "max": 1.5413044691085815
+  }
+ }
+}

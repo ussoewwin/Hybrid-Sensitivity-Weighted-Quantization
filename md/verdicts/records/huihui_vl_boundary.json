@@ -1,0 +1,91 @@
+{
+ "layers_measured": 5,
+ "q_mismatch_total": 15,
+ "mismatch_on_rounding_boundary": 15,
+ "boundary_fraction_overall": 1.0,
+ "arithmetic": "gpu fp32 with TF32 matmul",
+ "rows": [
+  {
+   "layer": "model.visual.blocks.1.attn.qkv",
+   "mismatch": 4,
+   "mismatch_ratio": 1.2715657552083333e-06,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.1.mlp.linear_fc1",
+   "mismatch": 5,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.2.mlp.linear_fc2",
+   "mismatch": 5,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.5.attn.qkv",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "model.visual.blocks.10.mlp.linear_fc1",
+   "mismatch": 1,
+   "mismatch_ratio": 2.384185791015625e-07,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  }
+ ],
+ "per_layer": [
+  {
+   "layer": "model.visual.blocks.1.attn.qkv",
+   "mismatch": 4,
+   "mismatch_ratio": 1.2715657552083333e-06,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.1.mlp.linear_fc1",
+   "mismatch": 5,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.2.mlp.linear_fc2",
+   "mismatch": 5,
+   "mismatch_ratio": 1.1920928955078125e-06,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.5.attn.qkv",
+   "mismatch": 0,
+   "mismatch_ratio": 0.0,
+   "on_rounding_boundary": 0,
+   "boundary_fraction": null,
+   "max_q_delta": 0
+  },
+  {
+   "layer": "model.visual.blocks.10.mlp.linear_fc1",
+   "mismatch": 1,
+   "mismatch_ratio": 2.384185791015625e-07,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  }
+ ]
+}
