@@ -87,5 +87,7 @@
    "boundary_fraction": 1.0,
    "max_q_delta": 1
   }
- ]
+ ],
+ "boundary_checked_codes": 10,
+ "boundary_fraction_of_checked": 1.0
 }
