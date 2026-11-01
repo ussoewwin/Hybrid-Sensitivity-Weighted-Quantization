@@ -622,7 +622,7 @@ Instead, each text-encoder standard was handled **individually** - but the crite
 | `CLIP-ViT-H-14_hswq_convrot_int8.safetensors` | CLIP ViT-H/14 | 92 of 192 | 100 | 0.999968 / 0.999906 | 1015.6 MB |
 | `flan_t5_xxl_hswq_convrot_int8.safetensors` | Flan-T5-XXL | 312 of 432 (enc 128, dec 184) | 120 (enc 40, dec 80) | 0.999934 | 14056.6 MB |
 | `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | Qwen3 (0.6B) | 157 of 197 | 40 | 0.999502 / 0.998980 | 655.2 MB |
-| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | 258 of 358 | 100 | 0.999649 / 0.998927 | 5958.9 MB |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | 308 of 358 | 50 | 0.999634 / 0.998849 | 5297.3 MB |
 | `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | 328 of 358 | 30 | 0.999578 / 0.999111 | 5061.3 MB |
 | `Qwen3.5-9B-...-MAX-MTP_hswq_convrot_int8.safetensors` | Qwen3.5 (9B, hybrid + vision + MTP) | 369 of 369 | 0 | conditioning 0.999387 / 0.996488, generate 0.999453 / 0.998215 | 9217.9 MB |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | 41 of 221 | 180 | relMSE 3.51e-05 | 1657.6 MB |
