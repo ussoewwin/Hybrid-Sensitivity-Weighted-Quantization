@@ -4,6 +4,7 @@ license_name: sam-license
 license_link: https://github.com/facebookresearch/segment-anything/blob/main/LICENSE
 base_model:
 - facebook/sam3.1
+- Comfy-Org/sam3.1
 tags:
 - sam
 - sam3
@@ -35,9 +36,9 @@ High-fidelity **HSWQ ConvRot INT8** (Hybrid-Sensitivity-Weighted-Quantization) q
 
 ## 🌟 Model Overview
 
-This repository provides production-grade **HSWQ ConvRot INT8** quantized weights for the **SAM 3.1 Multiplex** foundation model. By combining orthogonal Hadamard rotation with HSWQ sensitivity profiling, activation outlier spikes are suppressed across projection layers while critical memory attention, boundary refinement, and mask decoder modules are protected in higher precision (FP16/BF16):
+This repository provides production-grade **HSWQ ConvRot INT8** quantized weights for the **SAM 3.1 Multiplex** foundation model. By combining orthogonal Hadamard rotation with a per-model sensitivity measurement, the layers that are quantised are chosen from this checkpoint's own measured behaviour, and everything the measurement did not release stays in FP16:
 
-- **Architecture:** SAM 3.1 Multiplex (Vision Backbone + FPN Neck + Decoupled Memory Attention + 16-Object Multiplex Mask Decoder)
+- **Architecture:** SAM 3.1 Multiplex (Vision Backbone + 3-Level FPN Neck + Decoupled Memory Attention + 16-Object Multiplex Interactive Segmentation & Tracking)
 - **Base Checkpoint:** Upstream SAM 3.1 Multiplex foundation weights from [Comfy-Org/sam3.1](https://huggingface.co/Comfy-Org/sam3.1) / [facebook/sam3.1](https://huggingface.co/facebook/sam3.1)
 - **Native ComfyUI Support:** Features native `int8_tensorwise` and `comfy_quant` metadata stamps, loading seamlessly with ComfyUI's standard `UNetLoader` / `DiffusionModelLoader` or `HSWQ SAM3 Loader` without requiring external manual dequantization workflows.
 
@@ -45,21 +46,24 @@ This repository provides production-grade **HSWQ ConvRot INT8** quantized weight
 
 ## 📦 Model Details
 
-| Filename | Base Architecture | Precision / Format | File Size | Memory Footprint vs FP16 | Native ComfyUI Support | Status |
+| Filename | Base Architecture | Precision / Format | File Size | Size Reduction vs FP16 | Native ComfyUI Support | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | **HSWQ ConvRot INT8** (`int8_tensorwise`) | **~1.74 GB** (1,738 MB) | ~0.4% vs the 1.66 GB FP16 source (41 of 221 runtime-live layers quantized) | ✅ Supported natively (`UNetLoader`) | Available |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | **HSWQ ConvRot INT8** (`int8_tensorwise`) | **~1,738.2 MB** (1.74 GB) | **~0.4% Reduction** vs the ~1,745.5 MB (1.75 GB) FP16 source - 41 of the 221 runtime-live Linear layers are quantised, the rest of the checkpoint stays FP16 | ✅ Supported natively (`UNetLoader`) | Available |
+
+Sizes are decimal MB/GB computed from the published byte counts, and the reduction is computed from those same byte counts against the source file named in the same row.
 
 ### Quantization Breakdown
-- **HSWQ ConvRot INT8 Linear Layers:** Bulk transformer and feedforward projection layers quantized with orthogonal Sylvester Hadamard rotation (`groupsize=256`) and per-channel scaling.
-- **Sensitivity-Protected High-Precision Tensors:** Critical cross-attention heads, memory encoder/decoder boundaries, LayerNorm, Embeddings, Biases, and 4D Conv2d weights preserved in full float precision under HSWQ sensitivity analysis to prevent mask jitter, boundary collapse, and video tracking loss.
+- **HSWQ ConvRot INT8 Linear Layers:** 41 of the checkpoint's 221 runtime-live Linear layers carry the INT8 path - all of them on the detector side, 23 of them attention output projections. Each is rotated group-wise along the input axis with normalized Sylvester Hadamard blocks (`groupsize=256`) and quantised per output channel.
+- **FP16-kept Tensors:** Everything else stays in FP16 - the 457 tracker tensors (interactive mask decoder, plain mask decoder, memory fuser, prompt encoder), all 55 4D Conv2d weights, the 998 1D tensors (LayerNorms, biases, buffers), the CLIP token embedding and the position embedding. The CLIP text encoder is FP16 except for one resizer projection. No tensor in the pack is BF16.
+- **How the protection set was chosen:** From this checkpoint's own measurement, then validated by a release search run through the real loader path: of the layers kept in FP16, none could be handed to INT8 without breaking the quality gate by an order of magnitude, so the shipped set is the smallest that holds the output.
 
 ---
 
 ## 🛠️ Key Highlights
 
-- **Hadamard Orthogonal Rotation (ConvRot):** Pre-rotates weight matrices ($W_{rot} = W \cdot H^T$) along the input channel axis using normalized Sylvester Hadamard blocks, eliminating channel-wise outlier spikes and preventing mask degradation.
-- **Hybrid Sensitivity Protection (HSWQ):** Specifically designed to prevent precision loss in multi-object video segmentation, guaranteeing sharp mask boundaries and long-term tracking stability across all 16 multiplex object slots.
-- **Optimized Storage & Memory Footprint:** 1.74 GB, near the 1.66 GB FP16 source, because only 41 of the checkpoint's runtime-live layers are both 256-wide and unprotected. The gain here is the INT8 **execution** path (Tensor Core INT8 matmul), not the disk size - the same trade the guide documents. Quality is preserved: measured tracker mask IoU 0.9978 against FP16.
+- **Hadamard Orthogonal Rotation (ConvRot):** Weight matrices are pre-rotated group-wise along the input feature dimension ($W_{rot} = W \cdot H^T$) using power-of-4 normalized Hadamard blocks (`groupsize=256`), eliminating catastrophic dynamic range compression caused by outlier channels.
+- **Hybrid Sensitivity Protection (HSWQ):** The FP16-kept set is this checkpoint's own, and it was validated by a release search through the real loader path - none of the kept layers could be handed to INT8 without breaking the quality gate by an order of magnitude.
+- **Size and Execution Path:** ~1,738.2 MB against a ~1,745.5 MB FP16 source, a ~0.4% reduction, because only 41 of the 221 runtime-live Linear layers are both 256-wide and unprotected - the rest of the checkpoint is FP16 by design. The gain here is the INT8 **execution** path (Tensor Core INT8 matmul), not the disk size - the same trade the guide documents. Quality on the measured paths: tracker mask IoU 0.9978 against FP16 at the shipped protection threshold, and on the detector path the masks sit at median IoU 0.982682 (stock loader) / 0.958022 (HSWQ loader) with mask cosine never below 0.967490 / 0.979220. The measurement exercised the tracker point-prompt path and the detector text path; the video and propagation paths were not exercised and are not covered by these figures.
 
 ---
 
@@ -99,9 +103,15 @@ load: quantised layers 41 of 41 applied, no raw int8 code left in any of its 1,4
 parameters, and 936 INT8 GEMM calls on the diffusion route, with the conditioning at cosine
 0.9999779673556464 against the FP16 source over 24 seeds and no pixel flips.
 
+The pack was also verified against that source at byte level: all 1,590 source tensors are
+present (none missing, none unexplained), the 41 quantised matrices reproduce the source's own
+re-quantisation exactly (0 mismatching codes, scales exact), and every FP16-kept tensor equals
+the source. The published pack is sha256 `2bcbcba10d462a7a`, the audited source is
+`9ba99c92703c2e8b`.
+
 Both loaders a user can pick were measured on 2026-10-29: the stock `UNetLoader` /
 `load_diffusion_model` route and `HSWQ SAM3 Loader` each apply all 41 declared layers and
-execute the INT8 kernel (468 calls over an 8-forward probe), with identical weight-state
+execute the INT8 kernel (468 calls over a 12-forward detector probe - 3 prompts x 4 images), with identical weight-state
 counts. Against the FP16 source, detection masks over 3 prompts x 4 images sit at median IoU
 0.982682 (stock) / 0.958022 (HSWQ loader) and mask cosine never below 0.967490 / 0.979220;
 one comparison pair reads IoU 0.0 because both masks are empty there - a degenerate ratio,
