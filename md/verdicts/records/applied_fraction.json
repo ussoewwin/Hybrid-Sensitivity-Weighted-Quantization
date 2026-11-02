@@ -69,6 +69,8 @@
    "ovis": {
     "error": "RuntimeError: Expected all tensors to be on the same device, but got tensor is on cpu, different from other tensors on cuda:0 (when checking argument in m"
    }
-  }
+  },
+  "measured_on_pack_sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
+  "note": "this measurement was taken on the withdrawn K=100 build of this pack (sha 49c19dad..., 258 declared layers, 48 sampled); the shipped build is measured in records/thinking_pack.json and records/thinking_source_and_pack.json"
  }
 }

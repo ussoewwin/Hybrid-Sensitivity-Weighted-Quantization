@@ -340,4 +340,4 @@ stored texts, not on either list.
   does not preclude downstream amplification, which is why the behaviour section exists.
 - Inputs outside the tested sets are not covered; no test covers them. The verdict is a
   statement about the three constructions a safetensors file can use to branch, each
-  closed above, for the artifact identified by the sha256 in section 0.
+  closed above, for the artifact identified by the sha256 in section 1.

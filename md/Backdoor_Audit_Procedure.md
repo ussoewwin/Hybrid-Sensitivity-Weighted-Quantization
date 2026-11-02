@@ -820,7 +820,7 @@ do **not** apply their quantisation - that is the open defect, and no fix has be
 | `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | not applied | present | 0 | `records/pack_loadpath_signature.json` -> `clip_l_family_declared` |
 | `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | not applied | present | 0 | `records/pack_loadpath_signature.json` -> `clip_l_family_declared`, `records/coverage_census.json` -> `gmp_hf_format` |
 | `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` (Qwen TE route) | 157 (48 sampled) | 48 of 48 | 0 | uncounted | `records/pack_loadpath_signature.json` -> `josiefied_pack`, `records/remaining_packs_loadpath.json` |
-| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` (Qwen TE route) | 258 (48 sampled) | 48 of 48 | 0 | uncounted | `records/pack_loadpath_signature.json` -> `thinking_pack`, `records/remaining_packs_loadpath.json` |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` (Qwen TE route) | 338 | 338 of 338 | 0 | 1864 | `records/thinking_pack.json` -> `load_path`, `records/thinking_source_and_pack.json` -> `A_CLIPLoader_kandinsky5` |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 | `records/sam31_pack_execution.json`, `records/pack_loadpath_signature.json` |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 |
 

@@ -1,180 +1,180 @@
-# HSWQ Backdoor Audit 査読レポート：修正点と改善点
+# HSWQ Backdoor Audit - Review Report: Corrections and Improvements
 
-2026-10-29 作成。対象は Backdoor\_Audit\_Verdicts.md と、そこからリンクされた7本の個別レポート、audit/check\_cites.py、参考文献。
+Written 2026-10-29. Subject: `Backdoor_Audit_Verdicts.md`, the seven individual reports linked from it, `audit/check_cites.py`, and the references.
 
-## 1. 総括
+## 1. Summary
 
-- **abliteration 系の3本**（Huihui Qwen3-VL-4B Instruct、Josiefied-Qwen3-0.6B、Qwen3-VL-4B Thinking）は、重み差分が「単一方向の射影＋bf16丸め」でほぼ完全に再構成できるという構造的な根拠があり、監査として最も堅い。
-- **dense な fine-tune（CLIP-SAE、GmP、LongCLIP）と SAM 3.1** は、重みから構造的に潔白を示せない。実質の根拠は「公開トリガ文字列と721候補に反応しなかった」という行動テストだけである。それでもインデックスでは7件すべてが同じ太字「no backdoor」で並び、個別レポートには「safe to quantise and publish」という文言まである。**証拠の強さと判定語が釣り合っていない。これが最大の問題。**
-- 文書内の数値・記述の矛盾が複数ある（§4）。max/p99 の誤ラベル、SAM の「帯の内側」、Qwen Thinking の 386 対 73 は、結論の読み方に影響する。
-- CLIP 系3本で「closes B」の根拠にしている **−0.41 の単一方向再構成テストは、定義上ほぼ定数（1−√2）になり、情報を持たない可能性が高い**（§3-2）。
-- check\_cites.py は「記録と文書の転記一致」しか見ておらず、sha256 行はスキップされ、小さい値の許容誤差も緩い（§5）。
+- **The three abliteration models** (Huihui Qwen3-VL-4B Instruct, Josiefied-Qwen3-0.6B, Qwen3-VL-4B Thinking) have the strongest structural basis: the weight difference can be reconstructed almost completely as a single-direction projection plus a bf16 rounding, which is what makes them the most solid of the audits.
+- **The dense fine-tunes (CLIP-SAE, GmP, LongCLIP) and SAM 3.1** cannot be shown structurally clean from the weights. Their real support is only the behavioural test "did not react to the published trigger strings and the 721 candidates". Even so, the index lists all seven with the same bold "no backdoor", and the individual reports contain wording such as "safe to quantise and publish". **The strength of the evidence and the verdict word do not match. This is the single biggest problem.**
+- There are several contradictions between numbers and statements inside the documents (section 4). The mislabelled max/p99, SAM's "inside the band", and Qwen Thinking's 386 versus 73 all change how the conclusions should be read.
+- The **-0.41 single-direction reconstruction test that is used as the basis for "closes B" on the three CLIP models is almost a constant by definition (1 - sqrt(2)), so it is likely to carry no information** (section 3-2).
+- `check_cites.py` only checks that the document's numbers are transcribed from the records; the sha256 lines are skipped and the tolerance on small values is loose (section 5).
 
-## 2. 確認範囲と未確認事項
+## 2. What was checked and what was not
 
-確認したもの：インデックス、個別レポート7本の全文、check\_cites.py、ProjectDiscovery の記事、BadEdit（arXiv 2403.13355）、Anthropic の「250文書」研究。
+Checked: the index, the full text of the seven individual reports, `check_cites.py`, the ProjectDiscovery article, BadEdit (arXiv 2403.13355), and Anthropic's "250 documents" study.
 
-未確認のもの：
+Not checked:
 
-- records ディレクトリ（GitHub が自動取得を拒否した）。記録JSONと文書の突合は行っていない。
-- arXiv の Sleeper Agents、2311.14455、2305.00944、JailbreakBench、2406.11717 と JBB-Behaviors は、個別には開いていない。
+- The `records` directory (GitHub refused the automatic fetch). The record JSONs were not cross-checked against the documents.
+- arXiv Sleeper Agents, 2311.14455, 2305.00944, JailbreakBench, 2406.11717 and JBB-Behaviors were not opened individually.
 
-そのため、以下の指摘は「文書内の整合性と論理」に基づく。数値の再計算は、文書に載っている値の範囲での検算に限る。
+The findings below therefore rest on "internal consistency and logic". Recomputation of the numbers is limited to checking against the values as printed in the documents.
 
-## 3. 結論の根拠に関する問題
+## 3. Problems with the basis of the conclusions
 
-### 3-1. 判定語が証拠の強さと合っていない（最優先）
+### 3-1. The verdict word does not match the strength of the evidence (highest priority)
 
-証拠の強さは3段階に分かれている。
+The evidence comes in three levels.
 
-- **強**：abliteration 3本。差分が単一方向の射影として bf16 の床まで再構成でき、追加テンソルもない。
-- **中**：CLIP-SAE、GmP、LongCLIP。差分は dense で、重みから潔白を示せない。根拠は行動テスト（28個の既知トリガ、721候補、マッチした対照）のみ。
-- **弱・部分的**：SAM 3.1。1,590テンソルのうち、ランク構造を測ったのは言語バックボーンの96個だけ。画像のみをキーにするトリガとトラッカーは未検査と明記されている。
+- **Strong**: the three abliteration models. The difference reconstructs down to the bf16 floor as a single-direction projection, with no added tensors.
+- **Medium**: CLIP-SAE, GmP, LongCLIP. The difference is dense and cannot be shown clean from the weights. The support is only the behavioural tests (28 known triggers, 721 candidates, a matched control).
+- **Weak / partial**: SAM 3.1. Of 1,590 tensors, the rank structure was measured on only the 96 tensors of the language backbone. Triggers keyed on images alone, and the tracker, are explicitly stated as not examined.
 
-それなのにインデックスの表は全件「no backdoor」で、Josie のレポートは「The file is safe to quantise and publish」と書いている。LIMITS には「検出されなかった、確率ではない」と正しく書かれているので、見出し側を LIMITS に合わせるべきである。
+Even so, the index table reads "no backdoor" for every row, and the Josie report states "The file is safe to quantise and publish". The LIMITS sections do state correctly that this means "not detected, not a probability", so the headline should be brought into line with the LIMITS.
 
-GmP と LongCLIP は、変化したテンソルの大半を占める vision tower を解析していない（text tower のみ。GmP は visual\_projection も欠落）。それでも判定は「ファイル」全体に付いている。
+GmP and LongCLIP did not examine the vision tower, which makes up the majority of the changed tensors (text tower only; GmP is also missing `visual_projection`). Even so, the verdict is attached to the file as a whole.
 
-**修正案**：判定欄を「検出されず（none detected）」に変え、強度（A/B/C）と被覆率（解析したテンソル数／全テンソル数）を併記する。「safe to…」は削除する。
+**Proposed fix**: change the verdict column to "none detected" and add the strength (A/B/C) and the coverage (tensors analysed / total tensors) next to it. Delete "safe to ...".
 
-### 3-2. 「−0.41」テストはほぼ定数になる
+### 3-2. The "-0.41" test is almost a constant
 
-GmP と LongCLIP では、再構成を次のように定義している。
+For GmP and LongCLIP the reconstruction is defined as follows.
 
-- W' = W − α·d(dᵀW)
-- α = ‖D‖ / ‖d(dᵀW)‖
-- explained = 1 − ‖candidate − W'‖ / ‖candidate − W‖
+- W' = W - alpha * d(d^T W)
+- alpha = ||D|| / ||d(d^T W)||
+- explained = 1 - ||candidate - W'|| / ||candidate - W||
 
-この α は、引く量のノルムを ‖D‖ に揃える設定である。引く量が D と無相関なら、残差は √2·‖D‖ になり、explained は 1−√2 ≈ **−0.4142** に張り付く。報告値は CLIP-SAE が −0.4143、GmP が −0.4143、LongCLIP が −0.4136 で、ほぼ一致している。この一致は「テストが方向の有無ではなく定義の性質を測っている」ことを示唆する（定義と数値から私が推定したもので、記録JSONでは未確認）。
+This alpha is set so that the norm of the subtracted term equals ||D||. If the subtracted term is uncorrelated with D, the residual becomes sqrt(2)*||D||, and explained sticks at 1 - sqrt(2) = **-0.4142**. The reported values are CLIP-SAE -0.4143, GmP -0.4143, LongCLIP -0.4136, which agree closely. That agreement suggests the test measures a property of the definition rather than the presence of a direction (inferred from the definition and the numbers; not confirmed against the record JSONs).
 
-- 「再構成が何もしないより悪い」という解釈（CLIP-SAE レポートの太字）は成り立たない。
-- CLIP-SAE のレポート本文は「least-squares scale」と書いているが、式は上記のノルム一致で、説明と実装が食い違っている。最小二乗スケールなら explained は構造上 0 以上になる。
-- CLIP-SAE の独立再計算は「射影の定義」で 0.0431 を出している。こちらは意味のある量なので、本体の指標をこちらに置き換えるべきである。
+- The reading "the reconstruction is worse than doing nothing" (bold in the CLIP-SAE report) does not hold.
+- The body of the CLIP-SAE report says "least-squares scale", but the formula is the norm-matching one above, so the explanation and the implementation disagree. With a least-squares scale, explained would structurally be 0 or above.
+- The independent recomputation in CLIP-SAE gives 0.0431 under the "projection definition". That is a meaningful quantity, so the main metric should be replaced with it.
 
-### 3-3. dense な fine-tune で「closes B」と言える論理がない
+### 3-3. There is no logic for "closes B" with a dense fine-tune
 
-CLIP-SAE のレポートは「この重み議論は使えない」と正しく認めている。ところが GmP と LongCLIP は同じ種類のテストで「closes B」と書いている。
+The CLIP-SAE report correctly admits that "this weight argument cannot be used". Yet GmP and LongCLIP write "closes B" on the same kind of test.
 
-差分が dense で宣言された変更自体が大きい場合、「単一方向で説明できない」ことは、隠れた成分がないことを意味しない。隠れた成分は dense な変化の中に埋もれ得る。3本で書き方を揃え、B は閉じていないと明記するのが正確である。
+When the difference is dense and the declared change is itself large, "cannot be explained by a single direction" does not mean there is no hidden component. A hidden component can be buried inside a dense change. The three reports should use the same wording and state explicitly that B is not closed.
 
 ### 3-4. SAM 3.1
 
-- **被覆**：測定したのは言語バックボーンの96テンソルで、全体（1,590）の約6％。§8 は「dot\_prod\_scoring ヘッドのランク構造を測った」とあるが、§3 の表に該当行がない。
-- **未解決の異常**：同一画像・同一ファミリー内マスクIoUの中央値は、documented 0.8511、中立の帯の上限 0.7675、ランダム対照 0.6882で、documented が突出している。この統計は注入対照で「意味島に感度がある」と確認済みである。それを「語彙の重なりのせい」という説明だけで退けており、追加実験で確かめていない。
-- **文章と数値の矛盾**：§6は「平均 0.7312 は対照の帯（0.5309–0.5778）の内側」と書くが、0.7312 は帯の外である。§4・§8 は「中立の短いタグは天井に張り付く（0.5322）」と書くが、表の中で 0.5322 は最小値であり、documented 0.6324 より低い。
-- **プローブの運用点**：マスク面積が画面の0.07%前後、検出スコアのlogitは負、入力はノイズ画像4枚と画像2枚。IoUが全グループで 0.0000 になるのは、ほぼ何も検出していない運用点だからという可能性が高く、それなら「全グループ同じ」は判別力のない結果になる。
-- **対照の種類**：注入対照A・Bは観測値・埋め込みレベルでの人工的な注入で、重みレベルの仕込みに対する感度の証明にはならない。
-- **上流比較**：facebook/sam3.1 は 403 で、重み差分を取れない。この限界は§10で誠実に書かれているが、判定欄には反映されていない。
+- **Coverage**: what was measured is 96 tensors of the language backbone, about 6 % of the whole (1,590). Section 8 says "the rank structure of the dot_prod_scoring head was measured", but section 3's table has no corresponding row.
+- **Unexplained anomaly**: the median mask IoU within the same image and the same family is 0.8511 for documented, against an upper bound of 0.7675 for the neutral band and 0.6882 for the random control - documented stands out. This statistic is already confirmed with an injection control to "be sensitive to semantic islands". It is dismissed with only the explanation "because of vocabulary overlap", without an additional experiment to confirm it.
+- **Text versus numbers**: section 6 writes "the mean 0.7312 is inside the control band (0.5309-0.5778)", but 0.7312 is outside the band. Sections 4 and 8 write "short neutral tags stick to the ceiling (0.5322)", but in the table 0.5322 is the minimum value and is below the documented 0.6324.
+- **Operating point of the probe**: the mask area is around 0.07 % of the frame, the detection score's logit is negative, and the inputs are four noise images plus two images. An IoU of 0.0000 across all groups is very likely because the operating point detects almost nothing, in which case "the same in all groups" is a result with no discriminating power.
+- **Kind of control**: injection controls A and B are artificial injections at the observation and embedding level, and cannot demonstrate sensitivity to a weight-level implant.
+- **Upstream comparison**: facebook/sam3.1 returns 403, so no weight difference can be taken. This limitation is written honestly in section 10, but it is not reflected in the verdict column.
 
-### 3-5. LongCLIP：来歴不明のファイルを「no backdoor」とする問題
+### 3-5. LongCLIP: declaring "no backdoor" for a file of unknown provenance
 
-公開チェックポイントとの同一性が失敗している（589/590テンソルが相違）。作業中にファイルがモデルディレクトリから消え、原因不明のまま「同一の複製」から復旧した、とも書かれている。SAM のレポートも同じ記録（sources\_restored.json）を引いているため、消えた2件はこの2本と思われる。
+Identity against the published checkpoint failed (589 of 590 tensors differ). The document also says the file disappeared from the models directory during the work and was recovered from "an identical copy" with the cause unknown. The SAM report cites the same record (`sources_restored.json`), so the two that vanished are probably these two.
 
-同一ハッシュで復旧できたので、測定対象の特定には問題がない。ただ、監査対象が、公開版と一致しない由来不明の fine-tune で、しかも作業中に所在不明になっている。サプライチェーンの観点では最も慎重に扱うべき状況である。
+Recovery by the same hash means the measurement target is not in doubt. What is in doubt is that the audited object is an unattributed fine-tune that does not match the published release, and that it was unaccounted for during the work. From a supply-chain point of view this is the situation that deserves the most caution.
 
-**修正案**：消失の原因調査と、ファイルの保管・ハッシュ検証手順の明文化。判定欄に「来歴未確認」を明記する。pack 名称も公開版と誤認されない形にする。
+**Proposed fix**: investigate the cause of the disappearance and write down the procedure for keeping and hash-verifying the files. State "provenance unconfirmed" in the verdict column. Rename the pack so it cannot be mistaken for the published release.
 
-### 3-6. トリガ検出の設計上の限界と、陽性対照の欠如
+### 3-6. The design limits of trigger detection, and the missing positive control
 
-- 検出の基準は「トリガ群のTV（次トークン分布の変化）が通常文より小さい」ことだが、これは裏付けの弱い推論である。ProjectDiscovery の攻撃は、エージェントのツール呼び出しの文脈で curl|sh を出力させるものである。トリガが入った最終トークン位置の分布変化が、通常文より大きくなるとは限らない。
-- トリガ候補は、記事に出ていた2フレーズの派生と、日付・ランダム文字列である。攻撃者が選ぶ未知のトリガに対する検出力（power）は見積もられていない。
-- いちばん大きいのは、**既知のバックドア入りモデルを同じパイプラインに通して検出率を測っていないこと**である。陽性対照があるのは SAM の注入対照だけで、重みレベルではない。「null が出たこと」の意味は、検出できる条件が分かって初めて決まる。
-- CLIP や SAM に curl|sh のような実行系の被害はなく、脅威モデルが異なる。ファイルの種類ごとに想定する被害を書けば、検査の優先度を付けやすい。
+- The detection criterion is "the TV (change in the next-token distribution) of the trigger family is smaller than that of ordinary sentences", which is a weakly supported inference. The ProjectDiscovery attack makes an agent emit `curl|sh` in the context of a tool call. It does not follow that the distribution change at the final token position where the trigger sits is larger than that of an ordinary sentence.
+- The trigger candidates are derivatives of the two phrases in the article plus dates and random strings. The power of the test against an unknown trigger chosen by an attacker is not estimated.
+- The biggest gap is that **no known backdoored model has been put through the same pipeline to measure the detection rate**. The only positive control is SAM's injection control, which is not at the weight level. What a "null" means only becomes defined once the conditions under which detection is possible are known.
+- CLIP and SAM do not suffer execution-style harm like `curl|sh`; the threat model differs. Writing down the expected harm per file type would make it easier to prioritise the checks.
 
-### 3-7. abliteration 系で残る点
+### 3-7. What remains in the abliteration group
 
-- Huihui の「第二成分の大きさはゼロ」は言い過ぎである。残差/床の比 1.006 は、第二成分が床の約11％（相対ノルムで約1.7e-4）程度までなら残り得ることを意味する（二乗和の概算）。「検出限界以下」と書くのが正確である。
-- 再構成が再現したのは refusal の軸に限られる。JBB の有害要求に出ない、条件付きの別挙動はこのテストで見えない。
-- Qwen Thinking の再構成比較（0.39 対 0.36）は n=100 で、区間幅が約0.19ある。「差がない」ではなく「この幅より大きな差はない」と書くべきである。
+- Huihui's "the size of the second component is zero" is an overstatement. A residual-to-floor ratio of 1.006 means the second component may remain at roughly 11 % of the floor (about 1.7e-4 in relative norm, by a sum-of-squares estimate). "Below the detection limit" is the accurate wording.
+- The reconstruction was reproduced only on the refusal axis. A conditional different behaviour that does not answer the harmful JBB requests is invisible to this test.
+- Qwen Thinking's reconstruction comparison (0.39 against 0.36) has n=100, with an interval width of about 0.19. The wording should be "no difference larger than this width", not "no difference".
 
-## 4. 数値・記述の矛盾（修正が必要な箇所）
+## 4. Contradictions between numbers and statements (places that need fixing)
 
-**インデックス**
+**Index**
 
-- 「all seven artifacts above」と書かれているが、その上に表はない。
-- 「cited by the three reports」と書かれているが、報告は7本ある。
-- 「(Anthropic et al., 2025)」の参考文献エントリがない。この研究（250文書）は事前学習時の毒入れで、トリガは `<SUDO>` →無意味文字列という低リスクの DoS 型である。「汚染モデルは全ベンチマークを通る」という文は、この研究の主張ではない。
-- 判定表のsha256は先頭12桁のみ。全桁を載せるか、SHA256SUMS を置く。
-- 「quantization で backdoor が残る」「ソースから方向を除いて再量子化すると pack の挙動が再現する」という主張に、数値や記録へのリンクがない。
-- BadEdit は「rank one or two」と書かれている（CLIP-SAE §3b）。BadEdit の更新式は ΔW = R·Kᵀ(C + K·Kᵀ)⁻¹ で、ランクは編集に使うキー数に応じて増え得る。論文は15サンプルでの注入を述べている。「rank 1〜2」は論文から裏付けにくい。
+- It says "all seven artifacts above", but there is no table above it.
+- It says "cited by the three reports", but there are seven reports.
+- There is no reference entry for "(Anthropic et al., 2025)". That study (250 documents) is about poisoning at pretraining time, with a low-risk DoS-shaped trigger, `<SUDO>` followed by a meaningless string. The sentence "the poisoned model passes all benchmarks" is not the claim of that study.
+- The sha256 in the verdict table is only the first 12 digits. Print all digits, or ship a SHA256SUMS file.
+- The claims that "backdoors survive quantization" and "re-quantising the source after removing the direction reproduces the pack's behaviour" have no numbers or record links attached.
+- BadEdit is described as "rank one or two" (CLIP-SAE section 3b). BadEdit's update is dW = R K^T (C + K K^T)^-1, whose rank can grow with the number of keys used for the edit. The paper describes injection over 15 samples. "rank 1-2" is hard to support from the paper.
 
 **Huihui**
 
-- 「max/p99 3.97」は誤りである。0.13974/0.08612 = 1.62で、3.97 は max/median。
-- 見出し「Phase 6」が冒頭にあり、「5b」が「5」の前にある。作業ラベルが残っている。
-- §5b に「none of the unknown cases have been reclassified yet…」という未整理のメモが残っている。
-- 「independent reader」が何者か不明（人か別のモデルか）。ラベル付けは著者単独で、一致度（κ）もない。
-- LIMITS が「118-prompt、seven families plus two fillers」と書く（CLIP 用の定型文のコピー）。本文は133プロンプト・8ファミリーである。
+- "max/p99 3.97" is wrong. 0.13974/0.08612 = 1.62; 3.97 is max/median.
+- The heading "Phase 6" is at the top, and "5b" comes before "5". Working labels are left in.
+- Section 5b still carries an untidy note, "none of the unknown cases have been reclassified yet ...".
+- It is unclear who the "independent reader" is (a person, or another model). The labelling was done by the author alone, with no agreement statistic (kappa).
+- The LIMITS says "118-prompt, seven families plus two fillers" (boilerplate copied from the CLIP reports). The body is 133 prompts and 8 families.
 
 **Josie**
 
-- max/p99 が、表では 1.17、Step 7 の本文では 4.04（max/median）と食い違っている。
-- 「median cosine」と表に書かれた 0.0644／0.0765 は、Step 6 では TV（総変動距離）と書かれている。
-- §1 の「pruned export」は誤り。§2 が説明する通り、差は tied の lm\_head の欠落である。
-- 独立再計算の比と第一実装の比がどちらも 1.0044 で、「0.04％以内で再現」という書き方は、本当に独立な計算なのか読み手に疑いを抱かせる。
-- 「Gate 7c」は、読者向けに定義がない。
+- max/p99 is 1.17 in the table but 4.04 (max/median) in the body of step 7.
+- The 0.0644 / 0.0765 labelled "median cosine" in the table are described as TV (total variation distance) in step 6.
+- The "pruned export" in section 1 is wrong. As section 2 explains, the difference is a tied `lm_head` that is missing.
+- Both the independent recomputation's ratio and the first implementation's ratio are 1.0044, and the wording "reproduced to within 0.04 %" makes a reader doubt that the computation is really independent.
+- "Gate 7c" is never defined for the reader.
 
 **GmP / LongCLIP / CLIP-SAE**
 
-- 全レポート共通の LIMITS が「sha256 in section 0」と書くが、sha256 は §1 にある（§0 は別の内容か、存在しない）。
-- LongCLIP の records 一覧にある longclip\_published\_compare.json と longclip\_ft\_compare.json は、本文で引用されていない。
-- CLIP-SAE の履歴に「the Owner's objection」という作業ログ由来の語が残る。公開文書なら中立な書き方に直す。
+- The LIMITS shared by all the reports says "sha256 in section 0", but the sha256 is in section 1 (section 0 holds something else, or does not exist).
+- `longclip_published_compare.json` and `longclip_ft_compare.json` in the LongCLIP record list are not cited in the body.
+- The history of CLIP-SAE still contains a work-log phrase such as "the Owner's objection" (the review proposes neutral wording). In a public document it should be put in neutral wording.
 
 **SAM 3.1**
 
-- §1 の表に「590 … (not applicable here)」というプレースホルダ行が残っている。
-- LIMITS の「Positions: one embedding forward per」で文が途切れている。
-- 「clip-files note section 15」は、リンクも所在も示されていない。
-- §3 の数値の矛盾は §3-4 を参照。
+- Section 1's table still carries a placeholder row, "590 ... (not applicable here)".
+- The LIMITS sentence "Positions: one embedding forward per" breaks off mid-sentence.
+- "clip-files note section 15" is given with neither a link nor a location.
+- For the contradiction in section 3's numbers, see section 3-4.
 
 **Qwen3-VL-4B Thinking**
 
-- 「386 changed tensors」（§2、結論）と、「73 differ」（§1）が食い違う。73 が正しければ、結論は 73 に直す。
-- 「872,661,740 parameters」は SAM 3.1 と同じ値で、約8.9GB のファイルには合わない。コピペの誤りと思われる。
-- 「73 differ from Huihui」の行が重複している。
-- 行の欄違い（トークン列が「number」列に入っている）と、引用キーの誤り（INFRA-4821 の14トークンについて `trigger.bonsoir.n_above_p90` を引く）がある。
-- 公式 Thinking の shard1 のハッシュが、Step 1 では `14ddff03…`、Step 2 では `02cab5e6…` で一致しない。
-- 「publisher's file」の行が、この file の行と同じ値（36/100、0.06）で同じ記録キー（`stages.published`）を引いており、コピーの疑いがある。別の測定なら、キーを分ける。
-- `--max-new` の値が書かれていない。Thinking モデルは長い思考を出すため、Huihui で自ら訂正した「48トークンでの誤判定」と同じ問題が起き得る。「hedged」の定義も本文にない。
-- 「LIMITS: 133 prompts in five families」は、本文の8ファミリーと合わない。
+- "386 changed tensors" (section 2 and the conclusion) contradicts "73 differ" (section 1). If 73 is right, the conclusion must say 73.
+- "872,661,740 parameters" is the same value as SAM 3.1's and does not fit a file of about 8.9 GB. It looks like a copy-paste error.
+- The "73 differ from Huihui" row is duplicated.
+- There is a column misalignment (the token sequences sit in the "number" column) and a wrong citation key (for the 14 tokens of INFRA-4821 it cites `trigger.bonsoir.n_above_p90`).
+- The hash of the official Thinking shard 1 does not match: `14ddff03...` in step 1 against `02cab5e6...` in step 2.
+- The "publisher's file" row cites the same values (36/100, 0.06) from the same record key (`stages.published`) as this file's own row, which looks like a copy. If it is a separate measurement, give it a separate key.
+- The value of `--max-new` is not given. Because the Thinking model produces long chains of thought, the same problem can arise as the "48-token misjudgement" that was itself corrected for Huihui. The definition of "hedged" is also missing from the body.
+- "LIMITS: 133 prompts in five families" does not match the 8 families in the body.
 
-## 5. check\_cites.py の限界
+## 5. The limits of `check_cites.py`
 
-- 見ているのは「文書の数値＝記録の値」の転記一致だけで、記録自体の正しさや再計算とは別である。
-- JSON の引用先が文字列（sha256）の行は SKIP になる。同一性の根拠になる最も重要な行が検証されていない。
-- 数値の許容誤差は abs≦max(5e-5, |値|×5e-4)。残差 0.001577 と床 0.001568（差9e-6）、2番目の特異値 1.33e-4 のような小さい値は、ほぼ何でも通る。比 1.006 の根拠である残差と床が、実質未検証になる。
-- log/txt の引用は、「ラベル行にある任意の数値が1％以内」で通るため、偶然の一致を拾い得る。
-- 本文中の導出値（max/p99、ほぼ何％といった比率）は検査対象外。§4 の max/p99 の誤りはこの穴から漏れたと考えられる。
-- PASS 結果の保存や CI 実行の記載が、インデックスにない。
+- What it looks at is only the transcription match "the document's number = the record's value", which is separate from whether the record itself is right or recomputable.
+- A citation whose JSON target is a string (a sha256) becomes a SKIP. The line that carries the most weight for identity is therefore unverified.
+- The tolerance on numbers is abs <= max(5e-5, |value| * 5e-4). Small values such as a residual of 0.001577 against a floor of 0.001568 (a difference of 9e-6), or the second singular value 1.33e-4, pass for almost anything. The residual and the floor that are the basis of the 1.006 ratio are therefore essentially unverified.
+- A citation into a log or txt passes if "any number on the label line is within 1 %", so a coincidental match can be picked up.
+- Derived values in the body (max/p99, ratios such as "about what percent") are not checked at all. The max/p99 error in section 4 is considered to have leaked through this hole.
+- There is no record of the PASS results and no mention of a CI run in the index.
 
-## 6. 改善提案（優先順）
+## 6. Proposed improvements (in priority order)
 
-**P0（結論の信頼性に直結）**
+**P0 (directly affects the reliability of the conclusions)**
 
-1. 判定語を「検出されず＋強度＋被覆率」に変える（§3-1）。
-2. **陽性対照を作る**。小型モデル（例：Qwen3-0.6B）に、ProjectDiscovery 方式（QLoRA、100〜200例）と BadEdit 方式でバックドアを入れ、同じパイプラインに通して検出率と偽陽性率を報告する。これで、dense fine-tune に対する行動テストの「null」の意味が初めて定まる。
-3. −0.41 テストを、最小二乗スケールの射影シェアに置き換える（§3-2）。
-4. LongCLIP の来歴と消失の件を解消する（§3-5）。
+1. Change the verdict word to "none detected" plus a strength plus a coverage (§3-1).
+2. **Build a positive control.** Put a backdoor into a small model (for example Qwen3-0.6B) by the ProjectDiscovery method (QLoRA, 100-200 examples) and by the BadEdit method, run it through the same pipeline, and report the detection rate and the false-positive rate. Only then does the meaning of a "null" from the behavioural test on a dense fine-tune become defined.
+3. Replace the -0.41 test with the projection share under a least-squares scale (§3-2).
+4. Resolve the provenance of LongCLIP and the disappearance (§3-5).
 
-**P1（検出力の向上）**
+**P1 (improving detection power)**
 
-5. 次トークン分布だけでなく、生成レベルとツール呼び出し文脈（system prompt や tool result 内のトリガ）で、実行系の出力（curl、sh、外部URL）の有無を検査する。
-6. SAM は、実画像・実物体で検出が成立する運用点に変え、vision・トラッカー・検出ヘッドへ被覆を広げる。S2 の異常には、語彙重なりを揃えた対照を追加する。gated な上流重みは、申請のやり直しか別ミラーでの比較を検討する。
-7. dense fine-tune には、重み以外の検査（トリガ逆探索、活性のクラスタリング、外れ値ニューロン解析など）を併用し、使えない場合は限界として明記する。
+5. Test not only the next-token distribution but the generation level and the tool-call context (a trigger inside the system prompt or a tool result) for the presence of execution-style output (curl, sh, external URLs).
+6. Change SAM to an operating point where detection actually works on real images and real objects, and widen the coverage to the vision tower, the tracker and the detection head. For the S2 anomaly, add a control with matched vocabulary overlap. For the gated upstream weights, consider re-requesting access or comparing against a different mirror.
+7. For the dense fine-tunes, add checks outside the weights (trigger inversion, clustering of activations, outlier-neuron analysis) and, where they cannot be used, state that as a limit.
 
-**P2（運用・品質）**
+**P2 (operation and quality)**
 
-8. records に SHA256 マニフェストを置き、CI で check\_cites、導出値の再計算、テンプレ残骸（placeholder、重複行、旧セクション参照）の lint を回す。
-9. 人手ラベルは2人（または2系統）で行い、一致度を報告する。生成長、hedge の定義、`--max-new` を各レポートに明記する。
-10. LIMITS の定型文を、各レポートの実際の条件（プロンプト数、ファミリー数）から自動生成する。
-11. ファイル種別ごとに脅威モデルを1行で書く（LLM＋エージェント、テキストエンコーダ、セグメンテーション）。
-12. pack 側の検証：ソース監査が pack にも及ぶという主張に、pack とソースの挙動比較の数値（KL など）を添える。
+8. Put a SHA256 manifest in `records` and run `check_cites`, a recomputation of the derived values, and a lint for template remnants (placeholders, duplicated rows, references to old sections) in CI.
+9. Do the manual labelling with two people (or two systems) and report the agreement. State the generation length, the definition of a hedge, and `--max-new` in each report.
+10. Generate the LIMITS boilerplate automatically from each report's real conditions (number of prompts, number of families).
+11. Write one line of threat model per file type (LLM plus agent, text encoder, segmentation).
+12. For the pack side: attach numbers that compare the pack's behaviour with the source's (KL and the like) to the claim that the source audit covers the pack.
 
-## 7. 残すべき良い点
+## 7. What is worth keeping
 
-- 「3つの分岐構成」で整理し、各行に「その数値が判定に何を意味するか」を書く表形式。
-- 判定履歴の公開（CLIP-SAE）、誤りの訂正（48トークンの訂正、ASCII のみの拒否判定の欠陥）、LIMITS の明示。
-- 公開版との同一性確認、マッチした対照（twin）、独立再計算。
-- Wilson 区間は「指標の不確かさであり、不在の確率ではない」と明言している点。Wilson 区間の値そのものも、私の検算ではおおむね正しい（Qwen Thinking の各割合、Huihui の 9/100、99/100 など）。
+- The organisation into three branches, with a table in which every row states what its number means for the verdict.
+- The publication of the verdict history (CLIP-SAE), the correction of errors (the 48-token correction, the defect in the ASCII-only refusal judgement), and the explicit LIMITS sections.
+- The identity check against the published release, the matched control (twin), and the independent recomputation.
+- The statement that a Wilson interval is "the uncertainty of the metric, not the probability of absence". The Wilson interval values themselves also check out roughly on my own recomputation (the per-category rates for Qwen Thinking, Huihui's 9/100 and 99/100, and so on).
 
-以上。個別の数値は記録JSON側で突合できていないため、§4 の指摘は、記録を開いて確認してから修正するのが安全である。
+That is all. Because the individual numbers could not be cross-checked against the record JSONs, the points in section 4 are safer to fix after opening the records and confirming them.

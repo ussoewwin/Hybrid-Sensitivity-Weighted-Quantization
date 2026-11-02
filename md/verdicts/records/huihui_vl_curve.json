@@ -1,0 +1,114 @@
+{
+ "note": "the size/quality curve of this checkpoint, measured on the 256-item acceptance set (seed 42) through the actual loader; the FP16-kept count is the curve x axis and the protection set is this checkpoint own drift ranking (records/impact_qwen3vl_huihui.json)",
+ "measured_on_pack_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+ "source": "the upstream published shards, merged (sha 5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed); every float-kept tensor of the shipped pack is bit-identical to it (records/huihui_vl_pack.json -> source_identity)",
+ "points": [
+  {
+   "float_kept": 20,
+   "quantized_layers": 338,
+   "file_mb": 4574.828733444214,
+   "mean": 0.9994908105581999,
+   "min": 0.9796823859214783,
+   "p5": 0.9993669390678406,
+   "p50": 0.9995970129966736,
+   "int8_linear_calls": 86016,
+   "finite": true,
+   "pass": false,
+   "n": 256
+  },
+  {
+   "float_kept": 30,
+   "quantized_layers": 328,
+   "file_mb": 5061.290412902832,
+   "mean": 0.999577937880531,
+   "min": 0.9991110563278198,
+   "p5": 0.9993808269500732,
+   "p50": 0.9996064901351929,
+   "int8_linear_calls": 83712,
+   "finite": true,
+   "pass": true,
+   "n": 256
+  },
+  {
+   "float_kept": 40,
+   "quantized_layers": 318,
+   "file_mb": 5193.618143081665,
+   "mean": 0.9995885482057929,
+   "min": 0.9988858699798584,
+   "p5": 0.9994199275970459,
+   "p50": 0.9996112585067749,
+   "int8_linear_calls": 81152,
+   "finite": true,
+   "pass": true,
+   "n": 256
+  },
+  {
+   "float_kept": 50,
+   "quantized_layers": 308,
+   "file_mb": 5339.662677764893,
+   "mean": 0.9996006244327873,
+   "min": 0.9990693926811218,
+   "p5": 0.9994242787361145,
+   "p50": 0.9996209740638733,
+   "int8_linear_calls": 78592,
+   "finite": true,
+   "pass": true,
+   "n": 256
+  },
+  {
+   "float_kept": 60,
+   "quantized_layers": 298,
+   "file_mb": 5395.07049369812,
+   "mean": 0.9996098952833563,
+   "min": 0.9992274641990662,
+   "p5": 0.9994786381721497,
+   "p50": 0.9996213316917419,
+   "int8_linear_calls": 76032,
+   "finite": true,
+   "pass": true,
+   "n": 256
+  },
+  {
+   "float_kept": 100,
+   "quantized_layers": 258,
+   "file_mb": 5952.279859542847,
+   "mean": 0.9997352345380932,
+   "min": 0.9991412162780762,
+   "p5": 0.9995903968811035,
+   "p50": 0.9997522830963135,
+   "int8_linear_calls": 65792,
+   "finite": true,
+   "pass": true,
+   "n": 256
+  },
+  {
+   "float_kept": 150,
+   "quantized_layers": 208,
+   "file_mb": 6650.245666503906,
+   "mean": 0.9997726618312299,
+   "min": 0.9992684721946716,
+   "p5": 0.9996466636657715,
+   "p50": 0.9997862577438354,
+   "int8_linear_calls": 53248,
+   "finite": true,
+   "pass": true,
+   "n": 256
+  }
+ ],
+ "k_selection": {
+  "adopted": 30,
+  "rule": "the smallest pack that passes the gate; the floor is bracketed by the measured K=20, which fails",
+  "floor_below": {
+   "K": 20,
+   "min": 0.9796823859214783,
+   "pass": false,
+   "file_mb": 4574.828733444214
+  },
+  "floor_above": {
+   "K": 30,
+   "min": 0.9991110563278198,
+   "pass": true,
+   "file_mb": 5061.290412902832
+  }
+ }
+}
