@@ -119,3 +119,6 @@ tmp/
 # the diffsynth guide ships as Markdown only (no HTML/PDF edition)
 md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.pdf
 md/QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.html
+
+# internal correction records (not part of the published repository)
+.openclaw/correction_2026-10-26/
