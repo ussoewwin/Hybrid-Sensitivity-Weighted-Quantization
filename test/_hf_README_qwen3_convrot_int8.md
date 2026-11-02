@@ -44,7 +44,8 @@ It serves as a unified release collection combining pure text LLM variants (4B, 
 | `qwen3_4b_abliterated_hswq_convrot_int8.safetensors` | Qwen3 4B | HSWQ ConvRot INT8 | ~4.37 GB | `huihui-ai/Qwen3-4B-abliterated` | Available |
 | `Qwen3-8B-abliterated-fp16.safetensors` | Qwen3 8B | Single-file FP16 | ~16.38 GB | `huihui-ai/Qwen3-8B-abliterated` | Available |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | Qwen3 VL 4B Thinking | Single-file FP16 | ~8.88 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
-| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Thinking | HSWQ ConvRot INT8 | ~6.25 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Thinking | HSWQ ConvRot INT8 | ~5.15 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
+| `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Instruct | HSWQ ConvRot INT8 | ~5.31 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated` | not published yet |
 
 ---
 
@@ -128,7 +129,21 @@ conversion was not re-measured in this audit.
   copy and should be replaced with the file above.
 
 The Qwen3-4B releases carry no audit entry; the VL-4B-Thinking files and the 8B file do, with their
-strengths in the audit index. Only the files listed there have a verdict, and
+strengths in the audit index.
+
+- `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` - **none detected (A, 358/358
+  audited tensors)**. Strength A means the delta against the declared upstream is fully accounted
+  for at the weight level by the declared edit: the pack's 338 quantised layers reproduce from the
+  source under the converter's own arithmetic to within one INT8 step (751 one-LSB flips, all on
+  a rounding boundary, scale 3.4e-7), the 20 FP16-kept tensors equal the source exactly, and the
+  256-item acceptance through the actual loader is mean 0.9996022 / min 0.9978768 with 86,272 INT8
+  kernel calls and all outputs finite.
+- `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` - **none detected (A,
+  358/358 audited tensors)**, by the same method: the pack's 328 quantised layers reproduce from
+  the source to within one INT8 step (822 one-LSB flips, all 822 on a rounding boundary, scale
+  3.5e-7), the 30 FP16-kept tensors equal the source exactly, and the 256-item acceptance through
+  the actual loader is mean 0.9995779 / min 0.9991111 with 83,712 INT8 kernel calls, all outputs
+  finite. Only the files listed there have a verdict, and
 **none detected** means "not detected by this pipeline on this probe set", never "no backdoor
 exists". The audits, their records and the limits of what each measurement can show are in
 [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).

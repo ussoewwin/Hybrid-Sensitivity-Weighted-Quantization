@@ -1,14 +1,1291 @@
 {
- "layers_measured": 5,
- "q_mismatch_total": 15,
- "mismatch_on_rounding_boundary": 15,
+ "pack": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
+ "measured_on_pack_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+ "layers_measured": 233,
+ "int8_layers_scanned": 328,
+ "layers_skipped": [],
+ "q_mismatch_total": 822,
+ "mismatch_on_rounding_boundary": 822,
  "boundary_fraction_overall": 1.0,
  "arithmetic": "gpu fp32 with TF32 matmul",
  "rows": [
   {
+   "layer": "model.language_model.layers.0.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.1.mlp.gate_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.1.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.mlp.down_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.mlp.up_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.mlp.down_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.mlp.up_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.12.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.12.mlp.gate_proj",
+   "mismatch": 10,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.12.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.12.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.mlp.gate_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.mlp.gate_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.mlp.up_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.self_attn.k_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.mlp.gate_proj",
+   "mismatch": 10,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.mlp.up_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.mlp.up_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.mlp.gate_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.mlp.up_proj",
+   "mismatch": 10,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.self_attn.o_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.mlp.up_proj",
+   "mismatch": 11,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.mlp.gate_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.mlp.up_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.2.mlp.down_proj",
+   "mismatch": 10,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.2.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.2.self_attn.v_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.mlp.down_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.mlp.gate_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.mlp.up_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.self_attn.q_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.21.mlp.down_proj",
+   "mismatch": 12,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.21.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.21.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.21.self_attn.o_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.mlp.up_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.mlp.down_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.mlp.up_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.self_attn.q_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.mlp.up_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.self_attn.o_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.self_attn.v_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.mlp.up_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.mlp.down_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.mlp.up_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.mlp.up_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.mlp.gate_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.self_attn.q_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.3.mlp.up_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.30.mlp.down_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.30.mlp.gate_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.30.mlp.up_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.30.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.mlp.gate_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.mlp.down_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.mlp.up_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.mlp.gate_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.mlp.up_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.self_attn.o_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.self_attn.q_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.34.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.34.mlp.gate_proj",
+   "mismatch": 11,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.34.mlp.up_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.34.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.self_attn.q_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.4.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.4.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.4.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.4.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.5.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.5.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.5.mlp.up_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.5.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.6.mlp.gate_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.6.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.mlp.gate_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.mlp.up_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.self_attn.o_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.mlp.gate_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.mlp.up_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.0.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.0.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
    "layer": "model.visual.blocks.1.attn.qkv",
    "mismatch": 4,
-   "mismatch_ratio": 1.2715657552083333e-06,
    "on_rounding_boundary": 4,
    "boundary_fraction": 1.0,
    "max_q_delta": 1
@@ -16,41 +1293,1632 @@
   {
    "layer": "model.visual.blocks.1.mlp.linear_fc1",
    "mismatch": 5,
-   "mismatch_ratio": 1.1920928955078125e-06,
    "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.1.mlp.linear_fc2",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.10.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.10.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.11.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.12.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.12.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.13.attn.qkv",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.13.mlp.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.14.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.15.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.16.mlp.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.17.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.17.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.18.attn.proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.18.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.18.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.19.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
    "boundary_fraction": 1.0,
    "max_q_delta": 1
   },
   {
    "layer": "model.visual.blocks.2.mlp.linear_fc2",
    "mismatch": 5,
-   "mismatch_ratio": 1.1920928955078125e-06,
    "on_rounding_boundary": 5,
    "boundary_fraction": 1.0,
    "max_q_delta": 1
   },
   {
-   "layer": "model.visual.blocks.5.attn.qkv",
-   "mismatch": 0,
-   "mismatch_ratio": 0.0,
-   "on_rounding_boundary": 0,
-   "boundary_fraction": null,
-   "max_q_delta": 0
+   "layer": "model.visual.blocks.20.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
   },
   {
-   "layer": "model.visual.blocks.10.mlp.linear_fc1",
+   "layer": "model.visual.blocks.20.mlp.linear_fc1",
    "mismatch": 1,
-   "mismatch_ratio": 2.384185791015625e-07,
    "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.21.mlp.linear_fc1",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.21.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.22.attn.proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.22.attn.qkv",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.22.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.23.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.23.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.23.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.3.attn.qkv",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.3.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.3.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.4.attn.qkv",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.4.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.5.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.6.mlp.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.6.mlp.linear_fc2",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.7.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.7.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.8.mlp.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.9.mlp.linear_fc1",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.9.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.0.linear_fc1",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.0.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.1.linear_fc1",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.1.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.2.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.2.linear_fc2",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.merger.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.merger.linear_fc2",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
    "boundary_fraction": 1.0,
    "max_q_delta": 1
   }
  ],
  "per_layer": [
   {
+   "layer": "model.language_model.layers.0.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.1.mlp.gate_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.1.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.mlp.down_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.mlp.up_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.10.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.mlp.down_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.mlp.up_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.11.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.12.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.12.mlp.gate_proj",
+   "mismatch": 10,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.12.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.12.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.mlp.gate_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.13.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.mlp.gate_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.mlp.up_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.self_attn.k_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.14.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.mlp.gate_proj",
+   "mismatch": 10,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.mlp.up_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.15.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.mlp.up_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.16.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.mlp.gate_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.mlp.up_proj",
+   "mismatch": 10,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.self_attn.o_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.17.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.mlp.up_proj",
+   "mismatch": 11,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.18.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.mlp.gate_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.mlp.up_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.19.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.2.mlp.down_proj",
+   "mismatch": 10,
+   "on_rounding_boundary": 10,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.2.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.2.self_attn.v_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.mlp.down_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.mlp.gate_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.mlp.up_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.20.self_attn.q_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.21.mlp.down_proj",
+   "mismatch": 12,
+   "on_rounding_boundary": 12,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.21.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.21.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.21.self_attn.o_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.mlp.up_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.22.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.mlp.down_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.mlp.up_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.23.self_attn.q_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.mlp.up_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.self_attn.o_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.24.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.25.self_attn.v_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.mlp.up_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.26.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.mlp.down_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.mlp.up_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.27.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.mlp.gate_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.mlp.up_proj",
+   "mismatch": 9,
+   "on_rounding_boundary": 9,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.28.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.mlp.gate_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.29.self_attn.q_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.3.mlp.up_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.30.mlp.down_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.30.mlp.gate_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.30.mlp.up_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.30.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.mlp.gate_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.31.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.mlp.down_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.mlp.up_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.32.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.mlp.gate_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.mlp.up_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.self_attn.o_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.self_attn.q_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.33.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.34.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.34.mlp.gate_proj",
+   "mismatch": 11,
+   "on_rounding_boundary": 11,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.34.mlp.up_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.34.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.self_attn.k_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.self_attn.q_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.35.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.4.mlp.down_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.4.mlp.gate_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.4.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.4.self_attn.o_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.5.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.5.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.5.mlp.up_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.5.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.6.mlp.gate_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.6.self_attn.q_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.mlp.down_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.mlp.gate_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.mlp.up_proj",
+   "mismatch": 8,
+   "on_rounding_boundary": 8,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.self_attn.o_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.7.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.mlp.down_proj",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.mlp.gate_proj",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.mlp.up_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.self_attn.o_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.self_attn.q_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.8.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.mlp.down_proj",
+   "mismatch": 7,
+   "on_rounding_boundary": 7,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.mlp.gate_proj",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.mlp.up_proj",
+   "mismatch": 6,
+   "on_rounding_boundary": 6,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.self_attn.k_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.self_attn.o_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.self_attn.q_proj",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.language_model.layers.9.self_attn.v_proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.0.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.0.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
    "layer": "model.visual.blocks.1.attn.qkv",
    "mismatch": 4,
-   "mismatch_ratio": 1.2715657552083333e-06,
    "on_rounding_boundary": 4,
    "boundary_fraction": 1.0,
    "max_q_delta": 1
@@ -58,36 +2926,355 @@
   {
    "layer": "model.visual.blocks.1.mlp.linear_fc1",
    "mismatch": 5,
-   "mismatch_ratio": 1.1920928955078125e-06,
    "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.1.mlp.linear_fc2",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.10.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.10.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.11.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.12.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.12.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.13.attn.qkv",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.13.mlp.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.14.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.15.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.16.mlp.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.17.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.17.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.18.attn.proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.18.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.18.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.19.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
    "boundary_fraction": 1.0,
    "max_q_delta": 1
   },
   {
    "layer": "model.visual.blocks.2.mlp.linear_fc2",
    "mismatch": 5,
-   "mismatch_ratio": 1.1920928955078125e-06,
    "on_rounding_boundary": 5,
    "boundary_fraction": 1.0,
    "max_q_delta": 1
   },
   {
-   "layer": "model.visual.blocks.5.attn.qkv",
-   "mismatch": 0,
-   "mismatch_ratio": 0.0,
-   "on_rounding_boundary": 0,
-   "boundary_fraction": null,
-   "max_q_delta": 0
+   "layer": "model.visual.blocks.20.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
   },
   {
-   "layer": "model.visual.blocks.10.mlp.linear_fc1",
+   "layer": "model.visual.blocks.20.mlp.linear_fc1",
    "mismatch": 1,
-   "mismatch_ratio": 2.384185791015625e-07,
    "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.21.mlp.linear_fc1",
+   "mismatch": 4,
+   "on_rounding_boundary": 4,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.21.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.22.attn.proj",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.22.attn.qkv",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.22.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.23.attn.qkv",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.23.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.23.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.3.attn.qkv",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.3.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.3.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.4.attn.qkv",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.4.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.5.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.6.mlp.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.6.mlp.linear_fc2",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.7.mlp.linear_fc1",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.7.mlp.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.8.mlp.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.9.mlp.linear_fc1",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.blocks.9.mlp.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.0.linear_fc1",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.0.linear_fc2",
+   "mismatch": 1,
+   "on_rounding_boundary": 1,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.1.linear_fc1",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.1.linear_fc2",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.2.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.deepstack_merger_list.2.linear_fc2",
+   "mismatch": 5,
+   "on_rounding_boundary": 5,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.merger.linear_fc1",
+   "mismatch": 2,
+   "on_rounding_boundary": 2,
+   "boundary_fraction": 1.0,
+   "max_q_delta": 1
+  },
+  {
+   "layer": "model.visual.merger.linear_fc2",
+   "mismatch": 3,
+   "on_rounding_boundary": 3,
    "boundary_fraction": 1.0,
    "max_q_delta": 1
   }
  ],
- "boundary_checked_codes": 10,
- "boundary_fraction_of_checked": 1.0
+ "boundary_checked_codes": 822,
+ "boundary_fraction_of_checked": 1.0,
+ "max_q_delta": 1
 }

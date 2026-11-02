@@ -111,8 +111,8 @@ dequantised value, `raw` means cosine above 0.98 with the unprocessed int8 codes
 | 48 | `Josiefied-Qwen3-0.6B` pack, declared layers sampled through `CLIPLoader` type `boogu` | `records/pack_loadpath_signature.json` -> `josiefied_pack.declared_sampled` | the quantised half of that file, checked layer by layer |
 | 48 | of those, applied correctly (the runtime holds the dequantised weights) | `records/pack_loadpath_signature.json` -> `josiefied_pack.applied` | zero raw, zero unloaded: this route applies the quantisation |
 | 0.999999999998071 | cosine between the loaded parameter and the offline dequantised value, sample layer | `records/pack_loadpath_signature.json` -> `josiefied_pack.cos_dequantised_sample` | to ten-plus digits the weights are what the format says they are |
-| 48 | `Qwen3_VL_4B_Thinking_abliterated` pack, applied of the layers sampled, `CLIPLoader` type `kandinsky5` | `records/pack_loadpath_signature.json` -> `thinking_pack.applied` | the same result on the second Qwen pack |
-| 0.999999999999476 | cosine for its sample layer | `records/pack_loadpath_signature.json` -> `thinking_pack.cos_dequantised_sample` | applied, not raw |
+| 338 | `Qwen3_VL_4B_Thinking_abliterated` pack, declared layers applied, `CLIPLoader` type `kandinsky5` | `records/thinking_pack.json` -> `load_path.applied_layers` | the same result on the second Qwen pack, on the shipped build (sha `865948a2`) |
+| 0.9999002905246591 | conditioning cosine against the source, worst of 8 prompts | `records/thinking_source_and_pack.json` -> `A_CLIPLoader_kandinsky5.cond_cos_min` | applied, not raw |
 | 41 | quantised layers declared by `sam3.1_multiplex_hswq_convrot_int8.safetensors` | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.declared` | the diffusion pack's own footprint |
 | 0 | parameters holding raw integer codes, of its float parameters | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.raw_int8_code_params` | the clip_l failure signature does not occur on the diffusion route |
 | 0 | official source tensors not represented in that pack, of 1,590 | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.source_keys_missing_from_pack` | nothing dropped and nothing unexplained added |
@@ -183,7 +183,7 @@ execution: the Qwen and diffusion packs do get their quantisation applied on the
   read there - that remains unmeasured.
 ## 9. Scope boundary
 
-`flan_t5_xxl_hswq_convrot_int8.safetensors` is **not measured** (held by Owner instruction).
+`flan_t5_xxl_hswq_convrot_int8.safetensors` is **not measured** (out of scope for this audit).
 No INT8 pack exists for `Huihui-Qwen3-VL-4B-Instruct-abliterated`: none of the account's 19 repositories contains a Huihui file, so there is nothing to check there.
 
 ## 10. The withdrawn loader change, and what is therefore still true
@@ -205,7 +205,7 @@ Consequently:
 
 - the numbers in sections 1-7, measured on the **shipped** code, stand: CLIP-family INT8 packs do
   not apply their quantisation on the `CLIPLoader` route, silently, and the float files must be
-  used until the Owner decides on a fix;
+  used until a fix is authorised;
 - the counts that were measured with the unauthorised patch armed (all-layers-applied, the INT8
   GEMM call counts, the clip-vision embedding cosines) are **withdrawn as product statements** and
   are labelled as such wherever they appear below; they describe a build that does not exist;
@@ -424,7 +424,7 @@ return no value rather than 1.0 when any input sum is non-finite:
 The single-file row (43 raw, cosine -0.023504 to 0.103258 over 8 prompts, 0 kernel calls) is in
 `records/gmp_routes_final.json` -> `A_CLIPLoader_single_file`.
 
-This section's remaining work is DONE on 2026-10-29 after the Owner restored the files (all three
+This section's remaining work is DONE on 2026-10-29 after the float files were restored (all three
 source shas re-verified: `660c6f5b1aba`, `820afa79f4ba`, `4d3e6c8c2188`) and the guarded harness ran
 in a fresh process per artifact, comparing the clip_l half of the SDXL conditioning (77x768) because
 the local fp16 bigG poisons the clip_g half with NaN for both models. Result per artifact - pack not

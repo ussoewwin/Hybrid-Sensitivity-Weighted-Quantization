@@ -213,5 +213,5 @@ prompts. A trigger inherited from the source, or one that needs a different inpu
 the verification's fixed tensors, is not covered.
 
 **HF publication.** The copy on `ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8` is still the
-first withdrawn build (sha `49c19dad…`). Publishing this pack is an outbound action left to the
-Owner.
+first withdrawn build (sha `49c19dad…`). Publishing this pack is an outbound action, left to the
+repository owner.

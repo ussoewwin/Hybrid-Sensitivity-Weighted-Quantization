@@ -75,7 +75,9 @@
     "declared": 258,
     "heads": [
      "model"
-    ]
+    ],
+    "measured_on_pack_sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
+    "note": "this header census was taken on the withdrawn K=100 build of this pack (sha 49c19dad...); the shipped build's header is 1389 entries with 338 declared quantised layers, recorded in records/thinking_source_and_pack.json"
    },
    "attempts": {
     "qwen_image": {

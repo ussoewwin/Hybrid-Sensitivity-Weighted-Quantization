@@ -21,7 +21,9 @@
   "raw": 0,
   "unloaded": 0,
   "not_found": 0,
-  "cos_dequantised_sample": 0.9999999999994756
+  "cos_dequantised_sample": 0.999999999999476,
+  "measured_on_pack_sha256": "49c19dad012a8cf4152ce01d1ff6948989c6c0ad1b7af45f673b84b6fbb1d522",
+  "note": "this entry was measured on the withdrawn K=100 build of this pack (sha 49c19dad..., 258 declared layers); the shipped build is measured in records/thinking_pack.json -> load_path and records/thinking_source_and_pack.json"
  },
  "sam31_pack_diffusion_route": {
   "declared": 41,
