@@ -35,10 +35,7 @@ It serves as a unified release collection combining pure text LLM variants (4B, 
 - **Technical Details & Quantization Framework:** [Hybrid-Sensitivity-Weighted-Quantization (HSWQ)](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
 - **ComfyUI Loader for ConvRot INT8:** [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
 
----
-
 ## 🟢 Available Models & Repository Files
-
 | Filename | Architecture | Format / Precision | Size | Upstream Base Model | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `qwen3_4b_abliterated_fp16_converted.safetensors` | Qwen3 4B | Single-file FP16 | ~8.04 GB | `huihui-ai/Qwen3-4B-abliterated` | Available |
@@ -48,25 +45,9 @@ It serves as a unified release collection combining pure text LLM variants (4B, 
 | `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Thinking | HSWQ ConvRot INT8 | ~5.15 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
 | `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Instruct | HSWQ ConvRot INT8 | ~5.31 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated` | Available |
 
----
-
-## 🔬 Quantization & Conversion Methods
-
-### 1. Single-File FP16 Merging
-- Consolidated multi-shard safetensors checkpoints into single, standalone `.safetensors` files without missing keys or dangling references.
-- Converted all float parameters to standard IEEE FP16 (`torch.float16`) for lightweight portability.
-
-### 2. HSWQ ConvRot INT8 (Hybrid-Sensitivity-Weighted-Quantization)
-- Layer-wise sensitivity and trajectory impact profiling identifies outlier-susceptible and high-importance layers.
-- Preserves critical attention/vision projection layers in higher precision (FP16/BF16) while packing resilient bulk Linear layers into ConvRot INT8.
-- Maximizes inference speed and memory reduction while guarding against reasoning degradation and catastrophic trajectory bifurcations.
-
----
-
 ## 💻 Usage
 
 ### Hugging Face Transformers (Text Generation)
-
 ```python
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -101,71 +82,19 @@ For ComfyUI workflows utilizing quantized text encoders or VL models:
 2. Place the quantized `.safetensors` model in your ComfyUI models directory (`models/LLM` or `models/text_encoders`).
 3. Use the HSWQ Loader node to run ConvRot INT8 tensorwise execution.
 
----
-
-## ⚠️ Important Safety & Compliance Notice
-
-- The models in this collection have undergone refusal vector removal (abliteration) / reduced safety conditioning compared to standard aligned base checkpoints.
-- These weights are published strictly for research, testing, and authorized evaluation purposes.
-- Users must evaluate model responses before deployment and ensure usage complies with all applicable local laws, regulations, and platform policies.
-
----
-
 ## 🔒 Security
 
-**Backdoor audit.** The 8B single-file FP16 release is a dtype conversion of its declared upstream,
-verified tensor by tensor. The 4B and VL-4B-Thinking FP16 files are single-file consolidations whose
-conversion was not re-measured in this audit.
-
-- `Qwen3-8B-abliterated-fp16.safetensors` - **none detected (A, 399/399 audited tensors)**. Strength A
-  means the delta against the declared upstream is fully accounted for at the weight level by the
-  declared edit: all 399 tensors were compared element by element against the reference
-  `huihui-ai/Qwen3-8B-abliterated` BF16-to-FP16 cast and none differs, no tensor is zero, the
-  container scan reports 0 findings, and the model loads with no missing, unexpected or mismatched
-  key and produces finite logits.
-- Integrity: sha256 `e1c1b814545e5398f154114d043b34f677a71d70e347670f18debb0f0469fc60`,
-  16,381,516,776 bytes, published 2026-10-29 (commit `037443de27`).
-- The copy previously under this name carried 206 all-zero tensors across 19 of 36 layers plus the
-  final norm, and has been removed. A cached file whose sha256 begins `aaa6490eddd0` is that damaged
-  copy and should be replaced with the file above.
-
-The Qwen3-4B releases carry no audit entry; the VL-4B files and the 8B file do, with their
-strengths in the audit index. Only the files listed there have a verdict, and **none detected** means
-"not detected by this pipeline on this probe set", never "no backdoor exists". The audits, their
-records and the limits of what each measurement can show are in
-[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
-
-- `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` - **none detected (A, 358/358
-  audited tensors)**. Strength A means the delta against the declared upstream is fully accounted
-  for at the weight level by the declared edit: the pack's 338 quantised layers reproduce from the
-  source under the converter's own arithmetic to within one INT8 step (751 one-LSB flips, all on
-  a rounding boundary, scale 3.4e-7), the 20 FP16-kept tensors equal the source exactly, and the
-  256-item acceptance through the actual loader is mean 0.9996022 / min 0.9978768 with 86,272 INT8
-  kernel calls and all outputs finite; the 1024-item acceptance is mean 0.9996103 / min 0.9978768
-  with 345,088 calls. On the `CLIPLoader` (kandinsky5) route the pack applies all 338 declared
-  layers, holds no raw int8 code in any float parameter, and the INT8 kernel fires 1,864 times over
-  8 prompt encodes.
-- `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` - **none detected (A,
-  358/358 audited tensors)**, by the same method: the pack's 328 quantised layers reproduce from
-  the source to within one INT8 step (822 one-LSB flips, all 822 on a rounding boundary, scale
-  3.5e-7), the 30 FP16-kept tensors equal the source exactly, and the 256-item acceptance through
-  the actual loader is mean 0.9995779 / min 0.9991111 with 83,712 INT8 kernel calls, all outputs
-  finite; the 1024-item acceptance is mean 0.9995808 / min 0.9988489 with 334,848 calls. On the
-  `CLIPLoader` (kandinsky5) route it applies all 328 declared layers, holds no raw int8 code in any
-  float parameter, and the INT8 kernel fires 1,784 times over 8 prompt encodes.
-
----
+**Backdoor audit.** Each file's audit status - verdict strength, weight coverage, the record behind it,
+and the limits of what that measurement can show - is in
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md). The audit code, the procedure and the raw records are in the same
+repository.
 
 ## 🤝 Credits & Acknowledgments
-
 - Upstream Qwen3 4B Abliterated: `huihui-ai/Qwen3-4B-abliterated`
 - Upstream Qwen3 8B Abliterated: `huihui-ai/Qwen3-8B-abliterated`
 - Upstream Qwen3 VL 4B Thinking Abliterated: `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated`
 - Upstream Qwen3 VL 4B Instruct Abliterated: `huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated`
 - Original Base Architecture: Qwen Team (`Qwen/Qwen3`)
 
----
-
 ## 📜 License
-
 This repository follows the **Apache 2.0** license. Please also abide by the original licenses and usage guidelines established by upstream authors and the Qwen Team.
