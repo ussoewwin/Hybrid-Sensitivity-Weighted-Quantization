@@ -1,4 +1,8 @@
 {
+ "source_file": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
+ "source_sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
+ "script": "sdxl/diag_impact_qwen3vl.py",
+ "layers_measured": 358,
  "impacts": {
   "blocks.0.attn.proj": 1.7092964504266752e-05,
   "blocks.0.attn.qkv": 1.8328547141678577e-05,

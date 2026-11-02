@@ -1,4 +1,8 @@
 {
+ "source": "records/impact_qwen3vl_thinking.json",
+ "from": "the drift ranking, top 20",
+ "source_sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
+ "layers_measured": 358,
  "protect": [
   "layers.35.mlp.gate_proj",
   "layers.6.mlp.down_proj",

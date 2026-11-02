@@ -1,4 +1,8 @@
 {
+ "source_file": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
+ "source_sha256": "5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed",
+ "script": "sdxl/diag_impact_qwen3vl.py",
+ "layers_measured": 358,
  "impacts": {
   "blocks.0.attn.proj": 1.642240577374502e-05,
   "blocks.0.attn.qkv": 4.5972464983555064e-05,

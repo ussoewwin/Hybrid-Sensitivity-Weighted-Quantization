@@ -112,7 +112,9 @@ dequantised value, `raw` means cosine above 0.98 with the unprocessed int8 codes
 | 48 | of those, applied correctly (the runtime holds the dequantised weights) | `records/pack_loadpath_signature.json` -> `josiefied_pack.applied` | zero raw, zero unloaded: this route applies the quantisation |
 | 0.999999999998071 | cosine between the loaded parameter and the offline dequantised value, sample layer | `records/pack_loadpath_signature.json` -> `josiefied_pack.cos_dequantised_sample` | to ten-plus digits the weights are what the format says they are |
 | 338 | `Qwen3_VL_4B_Thinking_abliterated` pack, declared layers applied, `CLIPLoader` type `kandinsky5` | `records/thinking_pack.json` -> `load_path.applied_layers` | the same result on the second Qwen pack, on the shipped build (sha `865948a2`) |
-| 0.9999002905246591 | conditioning cosine against the source, worst of 8 prompts | `records/thinking_source_and_pack.json` -> `A_CLIPLoader_kandinsky5.cond_cos_min` | applied, not raw |
+| 0.9999002905246591 | conditioning cosine against the source, worst of 8 prompts | `records/thinking_pack.json` -> `cliploader_route.cond_cos_min` | applied, not raw |
+| 328 | `Huihui-Qwen3-VL-4B-Instruct-abliterated` pack, declared layers applied, `CLIPLoader` type `kandinsky5` | `records/huihui_vl_pack.json` -> `load_path.applied_layers` | the third Qwen pack, on the shipped build (sha `5c063c55`) |
+| 0.9995922885897174 | conditioning cosine against the source, worst of 8 prompts | `records/huihui_vl_pack.json` -> `cliploader_route.cond_cos_min` | applied, not raw |
 | 41 | quantised layers declared by `sam3.1_multiplex_hswq_convrot_int8.safetensors` | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.declared` | the diffusion pack's own footprint |
 | 0 | parameters holding raw integer codes, of its float parameters | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.raw_int8_code_params` | the clip_l failure signature does not occur on the diffusion route |
 | 0 | official source tensors not represented in that pack, of 1,590 | `records/pack_loadpath_signature.json` -> `sam31_pack_diffusion_route.source_keys_missing_from_pack` | nothing dropped and nothing unexplained added |
@@ -353,7 +355,7 @@ half not applied, the single-file route not applied; the pair route first appear
 that was the clamp withdrawn in section 16; and all four CLIP-shaped packs
 re-measured under a guard (clip_l, SAE, Long, GmP) do not match on the pair route either.
 
-Record: `records/thinking_source_and_pack.json`.
+Record: `records/thinking_pack.json` -> `conditional`.
 
 ## 15. `sam3.1_multiplex_hswq_convrot_int8.safetensors` re-checked route by route (2026-10-28, late)
 

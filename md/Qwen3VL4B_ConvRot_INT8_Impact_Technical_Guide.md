@@ -232,6 +232,6 @@ against the source.
 | `impact/qwen3vl_thinking_protect_20.json` | the adopted FP16-kept list (git-ignored) |
 | `md/verdicts/records/impact_qwen3vl_thinking.json` | the shipped copy of the drift record |
 | `md/verdicts/records/qwen3vl_thinking_protect_20.json` | the shipped copy of the adopted FP16-kept list |
-| `md/verdicts/records/thinking_pack.json` | the pack record: identity, provenance, gates, load path |
+| `md/verdicts/records/thinking_pack.json` | the pack record: identity, provenance, gates, load path, environment, integrity |
 | `md/verdicts/records/thinking_boundary.json` | the rounding-boundary classification of the residuals |
 | `md/verdicts/ThinkingQwen3VL4B_Pack.md` | the backdoor verdict for this pack |

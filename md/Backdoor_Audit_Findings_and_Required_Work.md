@@ -208,7 +208,11 @@ inputs, not a finding about the models.
 | `sam3.1_multiplex_fp16.safetensors` | 1,745,546,848 | `9ba99c92703c` | **present, sha verified** |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | 8,875,718,696 | `69a6fc6fc222` | **present, sha verified** |
 
-All seven are present and verify against their recorded values.
+All seven were present and verified against their recorded values on that date. The two
+Qwen3-VL sources are not on this machine now, so the packs built from them were re-verified
+against a reference rebuilt from the upstream published shards - the Huihui pack's 713
+tensors are bit-identical to those shards, and the Thinking pack's own measurement is bound
+to the source sha256 `69a6fc6f…`, which the Hub publishes for that file.
 
 ### Disappearance observed during the work, and what was found
 
@@ -281,6 +285,6 @@ applies neither (sections 11-12) and the SDXL pair route's apparent exact match 
 NaN clamp withdrawn in section 16 of the clip-files note; no CLIP-shaped route runs any kernel. Conditioning here sits at 0.9991-0.9996 rather than at the weight-level 0.999999999998
 because the quantised path also rounds activations.
 
-The second Qwen pack confirms it on the same footing: `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` applies 338 of 338 declared layers, leaves 0 parameters holding int8 codes, runs 1864 INT8 GEMM calls, and stays within conditioning cosine 0.999900-0.999931 of its source over 8 prompts (`records/thinking_source_and_pack.json`). The pack was rebuilt on 2026-11-02 (two earlier builds are withdrawn); the record carries every run.
+The second Qwen pack confirms it on the same footing: `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` applies 338 of 338 declared layers, leaves 0 parameters holding int8 codes, runs 1864 INT8 GEMM calls, and stays within conditioning cosine 0.999900-0.999931 of its source over 8 prompts (`records/thinking_pack.json` -> `conditional`). The pack was rebuilt on 2026-11-02 (two earlier builds are withdrawn); the record carries every run.
 
 Record: `records/josiefied_source_and_pack.json`.
