@@ -50,6 +50,10 @@ Then load it with the standard **CLIPLoader** node in ComfyUI (`qwen25_7b` type 
 - **Quantization Framework:** [HSWQ / ConvRot INT8 Pipeline](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
 - **License:** Apache 2.0 (inherited from the base model)
 
+## 📚 Detailed documentation
+
+- [Qwen2.5-VL-7B ConvRot INT8 impact technical guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Qwen25VL7B_ConvRot_INT8_Impact_Technical_Guide.md)
+
 ## 🔒 Security
 
 **Backdoor audit.** Each file's audit status - verdict strength, weight coverage, the record behind it,
