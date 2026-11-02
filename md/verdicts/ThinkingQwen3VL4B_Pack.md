@@ -28,14 +28,14 @@ checkpoint's own measured curve, and every number below is from this pack.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 5152681382 | pack size in bytes | `records/thinking_pack.json` -> `pack_bytes` | fixes the bytes the verdict applies to |
-| 1389 | entries in the pack header | `records/thinking_pack.json` -> `pack_entries` | 338 int8 weights, 338 scales, 338 format markers, 375 FP16 tensors |
-| 338 | quantised layers | `records/thinking_pack.json` -> `quantized_layers` | the declared coverage of the edit |
+| 5152681382 | pack size in bytes | `records/thinking_pack.json` -> `artifact.bytes` | fixes the bytes the verdict applies to |
+| 1389 | entries in the pack header | `records/thinking_pack.json` -> `artifact.tensors` | 338 int8 weights, 338 scales, 338 format markers, 375 FP16 tensors |
+| 338 | quantised layers | `records/thinking_pack.json` -> `artifact.declared_quantised_layers` | the declared coverage of the edit |
 | 20 | FP16-kept layers | `records/thinking_pack.json` -> `float_kept_layers` | the protection set, this checkpoint's drift ranking top 20 |
-| 8875718696 | source size in bytes | `records/thinking_pack.json` -> `source_bytes` | the reference object |
-| 0 | extra tensors beyond the source's names | `records/thinking_pack.json` -> `extra_count` | no added material |
-| 0 | source tensors dropped from the pack | `records/thinking_pack.json` -> `dropped_count` | nothing removed |
-| 0 | non-finite scale values anywhere in the pack | `records/thinking_pack.json` -> `nonfinite_scale_total` | no scale that would silently poison a layer |
+| 8875718696 | source size in bytes | `records/thinking_pack.json` -> `reference.bytes` | the reference object |
+| 0 | extra tensors beyond the source's names | `records/thinking_pack.json` -> `clean.extra_tensors` | no added material |
+| 0 | source tensors dropped from the pack | `records/thinking_pack.json` -> `clean.dropped_tensors` | nothing removed |
+| 0 | non-finite scale values anywhere in the pack | `records/thinking_pack.json` -> `clean.nonfinite_scales` | no scale that would silently poison a layer |
 
 The pack's sha256 is `865948a2e5029e67548a946cf019733a56ea04eef29f11378b6816e7045c5cf8`; the
 source's is `69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d` (the same sha the
@@ -61,7 +61,9 @@ The protection set was chosen from this checkpoint's own drift measurement
 | 10.44 | language-to-vision median ratio | `records/thinking_pack.json` -> `drift_measurement.tower_ratio` | the asymmetry a static statistic could not produce |
 
 Container and zero-content census of the pack: 0 container findings, 0 all-zero tensors, 0
-non-finite elements (`records/thinking_pack.json` -> `pack_census`).
+non-finite elements (`records/thinking_pack.json` -> `census`). The pack's 1389 entries
+represent all 713 source tensors - 338 quantised, 375 kept in FP16 - and the coverage gate
+reports 0 missing and 0 unexplained.
 
 ## 3. Pack provenance - Phase 4d
 
@@ -69,16 +71,16 @@ The audit tool (`audit/backdoor_audit.py --device cuda --tf32`) was run on the p
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 338 | quantised layers, all ConvRot groupsize 256 | `records/thinking_pack.json` -> `quantized_layers` | every declared layer measured |
+| 338 | quantised layers, all ConvRot groupsize 256 | `records/thinking_pack.json` -> `artifact.declared_quantised_layers` | every declared layer measured |
 | 20 | FP16-kept layers that equal the source exactly | `records/thinking_pack.json` -> `float_kept_layers` | every protected tensor is the source tensor |
-| 0 | float-kept tensors that differ | `records/thinking_pack.json` -> `float_mismatch_count` | nothing hidden in the float side |
-| 3728211968 | int8 codes in the pack | `records/thinking_pack.json` -> `arithmetic_converter_tf32.int8_code_total` | the population the residual count is a fraction of |
-| 751 | codes that differ by one step when the rotation is recomputed under TF32 | `records/thinking_pack.json` -> `arithmetic_converter_tf32.q_mismatch_total` | 2.0e-07 of the codes |
-| 1 | largest integer difference anywhere | `records/thinking_pack.json` -> `arithmetic_converter_tf32.max_q_delta` | no element moved by more than one quantisation step |
-| 0.00000034 | largest relative difference of any layer's scale | `records/thinking_pack.json` -> `arithmetic_converter_tf32.scale_exact_rel_max` | the scale is the source's absmax, to six digits |
+| 0 | float-kept tensors that differ | `records/thinking_pack.json` -> `clean.float_mismatch_count` | nothing hidden in the float side |
+| 3728211968 | int8 codes in the pack | `records/thinking_pack.json` -> `rebuild.int8_code_total` | the population the residual count is a fraction of |
+| 751 | codes that differ by one step when the rotation is recomputed under TF32 | `records/thinking_pack.json` -> `rebuild.q_mismatch_total` | 2.0e-07 of the codes |
+| 1 | largest integer difference anywhere | `records/thinking_pack.json` -> `rebuild.max_q_delta` | no element moved by more than one quantisation step |
+| 0.00000034 | largest relative difference of any layer's scale | `records/thinking_pack.json` -> `rebuild.scale_exact_rel_max` | the scale is the source's absmax, to six digits |
 | 751 | residual differences boundary-checked, all 338 int8 layers scanned | `records/thinking_boundary.json` -> `boundary_checked_codes` | **751 of 751 = 100 % on a rounding boundary** |
-| 0.0087500 | median relative L2 of the dequantised layer against the source | `records/thinking_pack.json` -> `arithmetic_converter_tf32.rel_l2_median` | ordinary INT8 error |
-| 0.0106538 | maximum of that measure | `records/thinking_pack.json` -> `arithmetic_converter_tf32.rel_l2_max` | below the 0.0287 envelope the tool derives for this pack |
+| 0.0087500 | median relative L2 of the dequantised layer against the source | `records/thinking_pack.json` -> `rebuild.rel_l2_median` | ordinary INT8 error |
+| 0.0106538 | maximum of that measure | `records/thinking_pack.json` -> `rebuild.rel_l2_max` | below the 0.0287 envelope the tool derives for this pack |
 
 **The tool's own line, quoted.** The tool reports `EDITED` because 1 of the 338 layers exceeds the
 1e-6 reproduction tolerance (`model.visual.pos_embed`, 3 codes). The boundary check shows every
@@ -149,9 +151,9 @@ prestartup executed:
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | 338 | declared layers applied on the `CLIPLoader` (kandinsky5) route | `records/thinking_pack.json` -> `load_path.applied_layers` | the format is applied, not merely stored |
-| 0 | parameters holding raw int8 codes | `records/thinking_pack.json` -> `cliploader_route.raw_code_params` | the codes are dequantised, not left as integers |
+| 0 | parameters holding raw int8 codes | `records/thinking_pack.json` -> `conditional.clip_route.raw_code_params` | the codes are dequantised, not left as integers |
 | 0 | layers whose name could not be resolved | `records/thinking_pack.json` -> `load_path.unmatched_layers` | no layer silently skipped |
-| 1864 | INT8 GEMM calls over 8 prompt encodes | `records/thinking_pack.json` -> `cliploader_route.int8_linear_calls` | the int8 kernel actually fires |
+| 1864 | INT8 GEMM calls over 8 prompt encodes | `records/thinking_pack.json` -> `conditional.clip_route.int8_linear_calls` | the int8 kernel actually fires |
 | 0.9999003 | conditioning cosine against the source, worst of 8 prompts | `records/thinking_pack.json` -> `cliploader_route.cond_cos_min` | the pack's output follows the source's |
 | 0.9999313 | the same, best of 8 prompts | `records/thinking_pack.json` -> `cliploader_route.cond_cos_max` | the range is narrow |
 
@@ -160,15 +162,15 @@ prestartup executed:
 | phase | state | evidence |
 | :--- | :--- | :--- |
 | 0 class | pack, weight-only, source `Qwen3_VL_4B_Thinking_abliterated.safetensors` | this section |
-| 1 reference pinned | done - source sha256 `69a6fc6f…` matches the source's own audit | `records/thinking_pack.json` -> `source_sha256` |
+| 1 reference pinned | done - source sha256 `69a6fc6f…` matches the source's own audit and the Hub's own object id | `records/thinking_pack.json` -> `reference.gate` |
 | 2 delivery | the pack is the distributed artifact at the model path | section 1 |
-| 3 census + zero-content census | done - 0 all-zero either side, 0 non-finite in the pack | `records/thinking_pack.json` -> `pack_census` |
+| 3 census + zero-content census | done - 0 all-zero either side, 0 non-finite in the pack | `records/thinking_pack.json` -> `census` |
 | impact measurement | done - 358 of 358 layers, this checkpoint's own drift | `records/impact_qwen3vl_thinking.json` |
-| 4d exact re-quantization | done - 338 layers, residual 751 one-LSB flips (751 boundary-checked, 100 % boundary) | section 3 |
+| 4d exact re-quantization | done - 338 layers, residual 751 one-LSB flips (751 boundary-checked, 100 % boundary) | section 3, `records/thinking_pack.json` -> `rebuild` |
 | variant recorded | weight-only | `records/thinking_pack.json` -> `pack_variant` |
 | source audited by its own class | done - `Qwen3VL_4B_Thinking_Abliterated.md` | section 2 |
 | output-level acceptance | done - 256 items (twelve K candidates) and 1024 items (seven candidates), K=20 adopted | section 4 |
-| load path on the shipped code | done - 338 of 338 applied, 0 raw codes, 1864 INT8 GEMM calls | section 5 |
+| load path on the shipped code | done - 338 of 338 applied, 0 raw codes, 1864 INT8 GEMM calls | section 5, `records/thinking_pack.json` -> `conditional` |
 
 ## 7. Conclusion
 

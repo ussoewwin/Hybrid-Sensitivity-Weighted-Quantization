@@ -1,4 +1,23 @@
 {
+ "pack": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors",
+ "measured_on_pack_sha256": "865948a2e5029e67548a946cf019733a56ea04eef29f11378b6816e7045c5cf8",
+ "source_file": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
+ "source_sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
+ "environment": {
+  "python": "3.13.17",
+  "python_executable": "D:\\USERFILES\\ComfyUI\\python_embeded\\python.exe",
+  "torch": "2.15.0+cu134",
+  "cuda_available": true,
+  "device": "cuda:0",
+  "gpu": "NVIDIA GeForce RTX 5060 Ti",
+  "command_line": "python.exe .openclaw\\tmp\\clip_route_pack_side.py --pack D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors --out D:\\tmp\\route_thinking.json",
+  "platform": "Windows-11-10.0.26300-SP0"
+ },
+ "integrity": {
+  "pre_audit_sha256": "865948a2e5029e67548a946cf019733a56ea04eef29f11378b6816e7045c5cf8",
+  "post_audit_sha256": "865948a2e5029e67548a946cf019733a56ea04eef29f11378b6816e7045c5cf8",
+  "match": true
+ },
  "layers_measured": 222,
  "int8_layers_scanned": 338,
  "layers_skipped": [],

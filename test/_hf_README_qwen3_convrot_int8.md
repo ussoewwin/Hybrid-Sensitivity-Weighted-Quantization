@@ -129,7 +129,10 @@ conversion was not re-measured in this audit.
   copy and should be replaced with the file above.
 
 The Qwen3-4B releases carry no audit entry; the VL-4B-Thinking files and the 8B file do, with their
-strengths in the audit index.
+strengths in the audit index. Only the files listed there have a verdict, and **none detected** means
+"not detected by this pipeline on this probe set", never "no backdoor exists". The audits, their
+records and the limits of what each measurement can show are in
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
 
 - `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` - **none detected (A, 358/358
   audited tensors)**. Strength A means the delta against the declared upstream is fully accounted
@@ -137,16 +140,18 @@ strengths in the audit index.
   source under the converter's own arithmetic to within one INT8 step (751 one-LSB flips, all on
   a rounding boundary, scale 3.4e-7), the 20 FP16-kept tensors equal the source exactly, and the
   256-item acceptance through the actual loader is mean 0.9996022 / min 0.9978768 with 86,272 INT8
-  kernel calls and all outputs finite.
+  kernel calls and all outputs finite; the 1024-item acceptance is mean 0.9996103 / min 0.9978768
+  with 345,088 calls. On the `CLIPLoader` (kandinsky5) route the pack applies all 338 declared
+  layers, holds no raw int8 code in any float parameter, and the INT8 kernel fires 1,864 times over
+  8 prompt encodes.
 - `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` - **none detected (A,
   358/358 audited tensors)**, by the same method: the pack's 328 quantised layers reproduce from
   the source to within one INT8 step (822 one-LSB flips, all 822 on a rounding boundary, scale
   3.5e-7), the 30 FP16-kept tensors equal the source exactly, and the 256-item acceptance through
   the actual loader is mean 0.9995779 / min 0.9991111 with 83,712 INT8 kernel calls, all outputs
-  finite. Only the files listed there have a verdict, and
-**none detected** means "not detected by this pipeline on this probe set", never "no backdoor
-exists". The audits, their records and the limits of what each measurement can show are in
-[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md).
+  finite; the 1024-item acceptance is mean 0.9995808 / min 0.9988489 with 334,848 calls. On the
+  `CLIPLoader` (kandinsky5) route it applies all 328 declared layers, holds no raw int8 code in any
+  float parameter, and the INT8 kernel fires 1,784 times over 8 prompt encodes.
 
 ---
 

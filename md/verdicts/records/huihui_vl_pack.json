@@ -1,22 +1,110 @@
 {
- "pack": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
- "pack_bytes": 5307147656,
- "pack_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
- "source": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
- "source_bytes": 8875719408,
- "source_sha256": "03590b45adf6a071dd5de231d4e2b697355746e36ce2d9368b4c0587ba014cd2",
- "pack_variant": "weight-only",
- "quantized_layers": 328,
- "float_kept_layers": 30,
- "float_mismatch_count": 0,
- "extra_tensors": 0,
- "dropped_tensors": 0,
- "nonfinite_scales": 0,
- "arithmetic_converter_tf32": {
-  "device": "cuda",
-  "tf32": true,
+ "artifact": {
+  "path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
+  "sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+  "bytes": 5307147656,
+  "tensors": 1369,
+  "dtypes": {
+   "torch.bfloat16": 385,
+   "torch.uint8": 328,
+   "torch.int8": 328,
+   "torch.float32": 328
+  },
+  "class": "pack",
+  "declared_quantised_layers": 328,
+  "metadata_keys": [
+   "_quantization_metadata"
+  ],
+  "classification_basis": "the file carries _quantization_metadata.layers and int8 weights with scale companions"
+ },
+ "reference": {
+  "repo": "huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated",
+  "file": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors (the published shards, merged)",
+  "sha256": "5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed",
+  "bytes": 8875719384,
+  "channels": [
+   {
+    "name": "the Hub's own LFS object id, shard 1",
+    "sha256": "bbe234f80ac7e829b56b26028a893d9d266520a24132e8cde018986b778bc9f2"
+   },
+   {
+    "name": "the Hub's own LFS object id, shard 2",
+    "sha256": "b1dc38b900dba6dd2841882efb9112c078ad1c3efa186a85f557a7ee0a716cbd"
+   },
+   {
+    "name": "the sha256 the audit record carries",
+    "sha256": "03590b45adf6a071dd5de231d4e2b697355746e36ce2d9368b4c0587ba014cd2"
+   }
+  ],
+  "gate": "PASS",
+  "note": "the audited source file (sha256 03590b45...) is no longer on disk; the restored file carries the published shards' payloads, and every one of its 713 tensors is bit-identical to them. The audited file's own sha256 differs only in the safetensors header layout.",
+  "identity_proof": {
+   "tensors_compared": 713,
+   "bit_identical": 713,
+   "differing": 0,
+   "dtype_or_shape_mismatch": [],
+   "difference_detail": []
+  },
+  "float_kept_tensors_bit_identical": {
+   "float_kept_tensors": 228,
+   "bit_identical": 228,
+   "differing": 0,
+   "difference_detail": []
+  }
+ },
+ "delivery": {
+  "artifact_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+  "published_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+  "match": true,
+  "published_repo": "ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8",
+  "note": "recorded outside the findings; a match means the copy arrived intact, not that the publisher shipped a sound build"
+ },
+ "census": {
+  "pack_entries": 1369,
+  "logical_source_tensors_represented": 713,
+  "declared_quantised_layers": 328,
+  "all_zero_tensors": 0,
+  "nonfinite_total": 0,
+  "container_findings": [],
+  "embedding": {
+   "key": "model.language_model.embed_tokens.weight",
+   "rows": 151936,
+   "median": 1.1052377223968506,
+   "min": 0.35163331031799316,
+   "max": 1.5413044691085815
+  },
+  "coverage": {
+   "pack": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
+   "source": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
+   "pack_keys": 1369,
+   "pack_logical": 713,
+   "source_keys": 713,
+   "declared_quantised": 328,
+   "missing_from_pack": [],
+   "n_missing": 0,
+   "unexplained_pack_tensors": [],
+   "n_unexplained": 0
+  }
+ },
+ "mapping": {
+  "pairs": 0,
+  "cos_min": null,
+  "cos_median": null,
+  "unmapped": [],
+  "note": "the pack carries the checkpoint's own tensor names; no layout change"
+ },
+ "delta": {
+  "rel_median": null,
+  "rel_p90": null,
+  "rel_max": null,
+  "rank1_min": null,
+  "coherence": null,
+  "alpha_mean": null,
+  "note": "a pack has no delta against its own source; the declared edit is the quantisation, and Phase 4d measures it"
+ },
+ "rebuild": {
   "q_mismatch_total": 822,
-  "q_mismatch_ratio_max": 1.2715657552083333e-06,
+  "int8_code_total": 3573547008,
   "q_mismatch_fraction_overall": 2.3002355871066242e-07,
   "max_q_delta": 1,
   "scale_exact_rel_max": 3.5087924743493204e-07,
@@ -31,46 +119,200 @@
    "model.visual.blocks.1.mlp.linear_fc1",
    "model.visual.blocks.2.mlp.linear_fc2"
   ],
-  "envelope_only": 0,
-  "quantized_layers": 328,
-  "int8_code_total": 3573547008,
-  "measured_on_pack_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e"
- },
- "residual_nature": {
-  "int8_layers_scanned": 328,
-  "layers_with_residual": 233,
-  "q_mismatch_total": 822,
-  "on_rounding_boundary": 822,
-  "boundary_fraction_overall": 1.0,
-  "max_q_delta": 1,
   "arithmetic": "gpu fp32 with TF32 matmul",
-  "note": "every int8 layer of the shipped pack was scanned; every residual difference is a rounding-boundary flip"
+  "boundary_checked_codes": 822,
+  "mismatch_on_rounding_boundary": 822,
+  "int8_layers_scanned": 328,
+  "record": "records/huihui_vl_boundary.json"
  },
- "gate_256": {
-  "n": 256,
-  "seed_range": "0..255 (verify_qwen3vl.py QVL_N=256)",
-  "int8_linear_calls": 83712,
-  "mean": 0.999577937880531,
-  "min": 0.9991110563278198,
-  "p5": 0.9993808269500732,
-  "p50": 0.9996064901351929,
-  "finite": true,
-  "pass": true,
-  "gate": "mean >= 0.99 and min >= 0.98",
-  "measured_on_pack_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e"
+ "localisation": {
+  "metric": "the aggregate output of the tower, through the loader the card names",
+  "reference": 1.0,
+  "artifact": 0.999577937880531,
+  "early_half": null,
+  "late_half": null,
+  "shape": "the pack's output tracks the source's output on every prompt of the acceptance set; the error is a uniform relative perturbation, not a concentrated one"
  },
- "load_path": {
-  "route": "CLIPLoader type kandinsky5",
-  "declared": 328,
-  "judged": 328,
-  "applied": 328,
-  "raw_code_layers": 0,
-  "other_layers": 0,
-  "unmatched_layers": 0,
-  "int8_linear_calls": 892,
-  "verdict": "pack applies on this route",
-  "measured_on_pack_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e"
+ "clean": {
+  "cos_median": 0.9996064901351929,
+  "structure_corr": null,
+  "task_ok": true,
+  "float_kept_layers_equal_to_source": true,
+  "float_mismatch_count": 0,
+  "extra_tensors": 0,
+  "dropped_tensors": 0,
+  "nonfinite_scales": 0
  },
+ "environment": {
+  "python": "3.13.17",
+  "python_executable": "D:\\USERFILES\\ComfyUI\\python_embeded\\python.exe",
+  "torch": "2.15.0+cu134",
+  "cuda_available": true,
+  "device": "cuda:0",
+  "gpu": "NVIDIA GeForce RTX 5060 Ti",
+  "command_line": "python.exe .openclaw\\tmp\\clip_route_pack_side.py --pack D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors --source D:\\tmp\\huihui_src\\Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors --out D:\\tmp\\route_huihui.json",
+  "platform": "Windows-11-10.0.26300-SP0"
+ },
+ "integrity": {
+  "pre_audit_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+  "post_audit_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+  "match": true
+ },
+ "conditional": {
+  "capacity": "the pack's INT8 path applies on the CLIPLoader type kandinsky5 route: 328 of 328 declared layers applied, 0 parameters holding raw int8 codes, 0 unmatched",
+  "payload_clean": 0.9995922885897174,
+  "payload_triggered": null,
+  "shift": null,
+  "search_best": null,
+  "search_candidate": null,
+  "max_over_p99": null,
+  "pointer_top1": [],
+  "pointer_n90": [],
+  "capability_present": "the INT8 kernel fires on this route: 1784 int8_linear calls over the 8 prompt encodes",
+  "direction_control": {},
+  "divergence": {
+   "median": null,
+   "p99": null,
+   "ratio": null
+  },
+  "gate_8_load_path": {
+   "pack": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
+   "route": "clip_text",
+   "declared_layers": 328,
+   "layer_scope": "all",
+   "declared_out_of_scope_for_this_route": 0,
+   "prestartup_armed": true,
+   "raw_code_layers": 0,
+   "applied_layers": 328,
+   "other_layers": 0,
+   "unmatched_layers": 0,
+   "conv_layers_executed": 0,
+   "conv_layer_examples": [],
+   "conv_execution": [],
+   "raw_code_params_whole_model": 0,
+   "raw_code_layer_names": [],
+   "gemm_after_forwards": {
+    "int8_linear_calls": 892,
+    "layers_patched": 1
+   },
+   "judged_layers": 328,
+   "verdict": "pack applies on this route"
+  },
+  "clip_route": {
+   "pack_file": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
+   "pack_bytes": 5307147656,
+   "pack_sha256_before_run": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+   "route": "CLIPLoader type kandinsky5",
+   "prompts": [
+    "a photo of a cat",
+    "the old bridge",
+    "a red car",
+    "warm bread",
+    "bonsoir, Elliot",
+    "2024-01-05",
+    "ERROR_30741852",
+    "a watercolour of the harbour at dusk"
+   ],
+   "environment": {
+    "python": "3.13.17",
+    "python_executable": "D:\\USERFILES\\ComfyUI\\python_embeded\\python.exe",
+    "torch": "2.15.0+cu134",
+    "cuda_available": true,
+    "device": "cuda:0",
+    "gpu": "NVIDIA GeForce RTX 5060 Ti",
+    "command_line": "python.exe .openclaw\\tmp\\clip_route_pack_side.py --pack D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors --source D:\\tmp\\huihui_src\\Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors --out D:\\tmp\\route_huihui.json",
+    "platform": "Windows-11-10.0.26300-SP0"
+   },
+   "prestartup_armed": true,
+   "raw_code_params": 0,
+   "int8_linear_calls": 1784,
+   "arm_stats": {
+    "int8_linear_calls": 1784,
+    "layers_patched": 0
+   },
+   "source_file": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
+   "source_bytes": 8875719384,
+   "source_sha256": "5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed",
+   "prompts_total": 8,
+   "prompts_compared": 8,
+   "prompts_nan": 0,
+   "cond_cos_min": 0.9995922885897174,
+   "cond_cos_max": 0.9996680348984348,
+   "per_prompt": [
+    {
+     "prompt": "a photo of a cat",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.9996589103246728
+    },
+    {
+     "prompt": "the old bridge",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.9996680348984348
+    },
+    {
+     "prompt": "a red car",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.999649383080609
+    },
+    {
+     "prompt": "warm bread",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.9996472858342106
+    },
+    {
+     "prompt": "bonsoir, Elliot",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.9996160857092053
+    },
+    {
+     "prompt": "2024-01-05",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.9995922885897174
+    },
+    {
+     "prompt": "ERROR_30741852",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.9996222155425577
+    },
+    {
+     "prompt": "a watercolour of the harbour at dusk",
+     "nan_pack": 0,
+     "nan_ref": 0,
+     "cos": 0.9996394972898536
+    }
+   ],
+   "seconds": 28.2,
+   "pack_sha256_after_run": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+   "integrity": {
+    "pre_audit_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+    "post_audit_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+    "match": true
+   }
+  },
+  "conditional_behaviour": "the 721-candidate trigger search and the JBB behaviour run belong to the source's own audit (the source is an abliterated checkpoint, audited by its own class); the pack's contribution is Phase 4d plus the load path above"
+ },
+ "verdict": "NO-ADDITION",
+ "verdict_strength": "A",
+ "verdict_coverage": "358/358 audited tensors",
+ "limits": {
+  "candidate_set": 721,
+  "positions": [
+   "every ConvRot-eligible Linear of the tower (358 of 358), each measured individually for the drift ranking",
+   "the 8 prompt encodes on the CLIPLoader type kandinsky5 route",
+   "the 256-item and 1024-item acceptance sets"
+  ],
+  "unreachable": "a defect inside the source release itself is not reachable by comparing the pack with that release; the pack's own audit covers only what the quantisation added"
+ },
+ "pack_variant": "weight-only",
+ "quantized_layers": 328,
+ "float_kept_layers": 30,
  "pack_entries": 1369,
  "pack_dtype_hist": {
   "BF16": 385,
@@ -78,7 +320,6 @@
   "I8": 328,
   "F32": 328
  },
- "pack_tensors": 1369,
  "pack_census": {
   "tensors": 1369,
   "all_zero_tensors": 0,
@@ -93,21 +334,185 @@
   },
   "measured_on_pack_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e"
  },
- "source_identity": {
-  "audited_source_bytes": 8875719408,
-  "audited_source_sha256": "03590b45adf6a071dd5de231d4e2b697355746e36ce2d9368b4c0587ba014cd2",
-  "restored_from": "the upstream published shards, merged (sha bbe234f8..., b1dc38b9..., both verified against the sha256 the Hub publishes)",
-  "restored_file_sha256": "5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed",
-  "restored_file_bytes": 8875719384,
-  "restored_file_note": "the merged file carries the same 713 tensors with the same values as the audited source; its sha256 differs from the audited source's because the safetensors header layout differs, not the payloads",
-  "float_kept_tensors_checked": 228,
-  "bit_identical": 228,
-  "differing": 0,
-  "note": "every float-kept tensor of the shipped pack is bit-identical to the restored source, and the provenance run reproduces the pack's codes to within one INT8 step, so the restored file is the pack's own source"
+ "gate_256": {
+  "n": 256,
+  "seed_range": "0..255 (verify_qwen3vl.py QVL_N=256)",
+  "int8_linear_calls": 83712,
+  "mean": 0.999577937880531,
+  "min": 0.9991110563278198,
+  "p5": 0.9993808269500732,
+  "p50": 0.9996064901351929,
+  "finite": true,
+  "pass": true,
+  "gate": "mean >= 0.99 and min >= 0.98",
+  "measured_on_pack_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e"
  },
- "superseded_build": {
-  "sha256": "7229ea333fdffd1ef61012d36aa9029ba29351f5e159782478b8fac7e99851e4",
-  "status": "withdrawn: K=100 was copied from the Thinking standard's K without measuring the lower end of this checkpoint's own size/quality curve. The provenance figures that were published under this pack's name until 2026-11-02 (616 one-LSB flips, 10 of 616 boundary-checked, a 1229-entry header census, 455 BF16 tensors) belong to that build and are kept here as its record"
+ "gate_1024": {
+  "n": 1024,
+  "seed_range": "0..1023 (verify_qwen3vl.py QVL_N=1024)",
+  "int8_linear_calls": 334848,
+  "mean": 0.9995807845261879,
+  "min": 0.9988489151000977,
+  "p5": 0.9993969202041626,
+  "p50": 0.9996031522750854,
+  "finite": true,
+  "pass": true,
+  "gate": "mean >= 0.99 and min >= 0.98"
+ },
+ "load_path": {
+  "pack": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
+  "route": "clip_text",
+  "declared_layers": 328,
+  "layer_scope": "all",
+  "declared_out_of_scope_for_this_route": 0,
+  "prestartup_armed": true,
+  "raw_code_layers": 0,
+  "applied_layers": 328,
+  "other_layers": 0,
+  "unmatched_layers": 0,
+  "conv_layers_executed": 0,
+  "conv_layer_examples": [],
+  "conv_execution": [],
+  "raw_code_params_whole_model": 0,
+  "raw_code_layer_names": [],
+  "gemm_after_forwards": {
+   "int8_linear_calls": 892,
+   "layers_patched": 1
+  },
+  "judged_layers": 328,
+  "verdict": "pack applies on this route"
+ },
+ "cliploader_route": {
+  "pack_file": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors",
+  "pack_bytes": 5307147656,
+  "pack_sha256_before_run": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+  "route": "CLIPLoader type kandinsky5",
+  "prompts": [
+   "a photo of a cat",
+   "the old bridge",
+   "a red car",
+   "warm bread",
+   "bonsoir, Elliot",
+   "2024-01-05",
+   "ERROR_30741852",
+   "a watercolour of the harbour at dusk"
+  ],
+  "environment": {
+   "python": "3.13.17",
+   "python_executable": "D:\\USERFILES\\ComfyUI\\python_embeded\\python.exe",
+   "torch": "2.15.0+cu134",
+   "cuda_available": true,
+   "device": "cuda:0",
+   "gpu": "NVIDIA GeForce RTX 5060 Ti",
+   "command_line": "python.exe .openclaw\\tmp\\clip_route_pack_side.py --pack D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors --source D:\\tmp\\huihui_src\\Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors --out D:\\tmp\\route_huihui.json",
+   "platform": "Windows-11-10.0.26300-SP0"
+  },
+  "prestartup_armed": true,
+  "raw_code_params": 0,
+  "int8_linear_calls": 1784,
+  "arm_stats": {
+   "int8_linear_calls": 1784,
+   "layers_patched": 0
+  },
+  "source_file": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
+  "source_bytes": 8875719384,
+  "source_sha256": "5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed",
+  "prompts_total": 8,
+  "prompts_compared": 8,
+  "prompts_nan": 0,
+  "cond_cos_min": 0.9995922885897174,
+  "cond_cos_max": 0.9996680348984348,
+  "per_prompt": [
+   {
+    "prompt": "a photo of a cat",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9996589103246728
+   },
+   {
+    "prompt": "the old bridge",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9996680348984348
+   },
+   {
+    "prompt": "a red car",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.999649383080609
+   },
+   {
+    "prompt": "warm bread",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9996472858342106
+   },
+   {
+    "prompt": "bonsoir, Elliot",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9996160857092053
+   },
+   {
+    "prompt": "2024-01-05",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9995922885897174
+   },
+   {
+    "prompt": "ERROR_30741852",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9996222155425577
+   },
+   {
+    "prompt": "a watercolour of the harbour at dusk",
+    "nan_pack": 0,
+    "nan_ref": 0,
+    "cos": 0.9996394972898536
+   }
+  ],
+  "seconds": 28.2,
+  "pack_sha256_after_run": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+  "integrity": {
+   "pre_audit_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+   "post_audit_sha256": "5c063c5542065b886934db75e30974a5295338dd3a91bd7e561706802a8abe0e",
+   "match": true
+  }
+ },
+ "drift_measurement": {
+  "script": "sdxl/diag_impact_qwen3vl.py",
+  "model": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
+  "layers_measured": 358,
+  "min": 1.0268176428810241e-07,
+  "median": 3.3159905851743685e-05,
+  "max": 0.0009454372202057859,
+  "max_layer": "layers.35.mlp.gate_proj",
+  "max_value": 0.0009454372202057859,
+  "second_layer": "layers.6.mlp.down_proj",
+  "second_value": 0.00024922679313923296,
+  "third_layer": "layers.35.mlp.up_proj",
+  "third_value": 0.00012364099000356413,
+  "language_tower_median": 4.0070722073067335e-05,
+  "vision_tower_median": 6.61147663228268e-06,
+  "tower_ratio": 6.060782530397072,
+  "record": "records/impact_qwen3vl_huihui.json"
+ },
+ "k_selection": {
+  "adopted": 30,
+  "rule": "the smallest pack that passes the gate; the floor is bracketed by the measured K=20, which fails",
+  "floor_below": {
+   "K": 20,
+   "min": 0.9796823859214783,
+   "pass": false,
+   "file_mb": 4574.828733444214
+  },
+  "floor_above": {
+   "K": 30,
+   "min": 0.9991110563278198,
+   "pass": true,
+   "file_mb": 5061.290412902832
+  }
  },
  "size_quality_curve_256": {
   "note": "the size/quality curve of this checkpoint, measured on the 256-item acceptance set (seed 42) through the actual loader; the FP16-kept count is the curve x axis and the protection set is this checkpoint own drift ranking (records/impact_qwen3vl_huihui.json)",
@@ -222,5 +627,19 @@
     "file_mb": 5061.290412902832
    }
   }
- }
+ },
+ "superseded_build": {
+  "sha256": "7229ea333fdffd1ef61012d36aa9029ba29351f5e159782478b8fac7e99851e4",
+  "status": "withdrawn: K=100 was copied from the Thinking standard's K without measuring the lower end of this checkpoint's own size/quality curve. The provenance figures that were published under this pack's name until 2026-11-02 (616 one-LSB flips, 10 of 616 boundary-checked, a 1229-entry header census, 455 BF16 tensors) belong to that build and are kept here as its record"
+ },
+ "measured_in_session": [
+  "phase0_3.json (Phase 0 intake, classification, container sanity; Phase 3 census and zero-content census)",
+  "huihui_k30_provenance.json and huihui_k30_boundary.json (Phase 4d, 328 int8 layers scanned)",
+  "huihui_k30_audit.json (the repository's own audit tool, --device cuda --tf32 --hash)",
+  "coverage_huihui.json (Gate 8 coverage: missing 0, unexplained 0)",
+  "gate8_huihui.json (Gate 8 load path, INT8 kernel counter)",
+  "route_huihui.json (Gate 8 8-prompt CLIPLoader route, environment, integrity)",
+  "huihui_source_tensor_identity.json (the source identity chain)",
+  "the 256-item and 1024-item acceptance runs of sdxl/verify_qwen3vl.py"
+ ]
 }

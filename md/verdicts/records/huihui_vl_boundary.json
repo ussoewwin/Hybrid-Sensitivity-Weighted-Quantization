@@ -3276,5 +3276,16 @@
  ],
  "boundary_checked_codes": 822,
  "boundary_fraction_of_checked": 1.0,
- "max_q_delta": 1
+ "max_q_delta": 1,
+ "source_sha256": "5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed",
+ "environment": {
+  "python": "3.13.17",
+  "python_executable": "D:\\USERFILES\\ComfyUI\\python_embeded\\python.exe",
+  "torch": "2.15.0+cu134",
+  "cuda_available": true,
+  "device": "cuda:0",
+  "gpu": "NVIDIA GeForce RTX 5060 Ti",
+  "command_line": "python.exe .openclaw\\tmp\\clip_route_pack_side.py --pack D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors --source D:\\tmp\\huihui_src\\Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors --out D:\\tmp\\route_huihui.json",
+  "platform": "Windows-11-10.0.26300-SP0"
+ }
 }
