@@ -26,40 +26,7 @@ library_name: nunchaku
 
 High-fidelity **ConvRot INT8 reverse hybrid** quantization for **SDXL** diffusion models. HSWQ uses per-layer **trajectory-impact** measurement instead of naive uniform cast, converting only the **K lowest-impact layers** to ConvRot INT8 while keeping every other layer at FP16. This is highly useful for users who need to strictly manage their VRAM resources while maintaining maximum image quality.
 
-## Method
-
-**Reverse hybrid (diag → reverse):** The FP16 checkpoint is the only input. A per-layer trajectory-impact measurement (`sdxl/diag_impact_sdxl.py`) injects each candidate layer's ConvRot INT8 reconstruction into the FP16 model one at a time and runs the production sampler — recording the final-latent drift. The **K lowest-impact layers** are then packed as FULL ConvRot INT8 (`int8_tensorwise`) while **every other layer stays FP16** (`sdxl/gen_reverse_int8_sdxl.py`). The V3.1 selector (DualMonitor + V4 weighted-histogram MSE + full SVD, fixed **300 MiB** FP16 protection budget) provides static protection, and the reverse step provides the dynamic trajectory-based criterion for the remaining pool.
-
-Validated by the **deterministic 25-seed latent-trajectory comparison** (per-step cosine + bifurcation detection); production gate = **cosine mean ≥ 0.95 and 0/25 bifurcated**.
-
-The quantized file does not embed a VAE (`first_stage_model.*` is removed at conversion): load it with a separate SDXL VAE.
-
-**Technical details:** [https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
-
-**How to quantize (SDXL ConvRot INT8):** [md/How to quantize SDXL.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL.md)
-
-**Diag → Reverse SDXL Technical Guide:** [md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md)
-
-**ComfyUI Loader for ConvRot INT8 / INT8:** To load these INT8 models in ComfyUI, please use the custom node: [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
-
-**SDXL ConvRot INT8 Benchmark Test Results (published tables):** [benchmark result/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/benchmark%20result/benchmark_sdxl_int8.md)
-
----
-
-## Benchmark (Reference)
-
-**Production gate: deterministic 25-seed latent-trajectory comparison** (`benchmark/sdxl_int8_traj_compare.py`). PASS = final-cosine mean ≥ 0.95 and 0/25 bifurcated.
-
-| Configuration | 25-seed trajectory cosine mean | File size | Compatibility |
-| :--- | :--- | :--- | :--- |
-| Original FP16 | 1.000 | 100% | High |
-| Native ConvRot INT8 (all convertible layers) | ≈ 0.93 | ~50% | High |
-| **HSWQ Reverse Hybrid ConvRot INT8** | **≥ 0.95 (gate)** | **71%** (FP16 mixed) | **High** (ComfyUI INT8) |
-
----
-
 ## 📦 Available Models
-
 Filename convention: `<model>_hswq_1on_re<K>_convrot_int8.safetensors` — reverse hybrid with K lowest-impact layers converted to ConvRot INT8, bias correction ON (`1on`), everything else FP16.
 
 | Filename | Base Model | Version | License |
@@ -84,8 +51,6 @@ Filename convention: `<model>_hswq_1on_re<K>_convrot_int8.safetensors` — rever
 | `waiREALCN_v150_hswq_1on_re630_convrot_int8.safetensors` | [WAI-REAL_CN](https://civitai.red/user/WAI0731) | v15.0 | Fair AI Public License 1.0-SD |
 | `waiREALISM_v10_hswq_1on_re590_convrot_int8.safetensors` | [WAI-REALISM](https://civitai.red/user/WAI0731) | v1.0 | Fair AI Public License 1.0-SD |
 
----
-
 ## 📜 Credits & License
 
 ### 🏆 Special Acknowledgement
@@ -109,3 +74,16 @@ These models are derivatives of their respective creators. All credit for aesthe
 ---
 
 **Disclaimer:** These models are provided for optimization and research purposes. Please adhere to the original licenses of the base models.
+
+## 📚 Detailed documentation
+
+- [md/How to quantize SDXL.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/How%20to%20quantize%20SDXL.md)
+- [md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Diag_Reverse_SDXL_v1.1_Technical_Guide.md)
+- [benchmark result/benchmark_sdxl_int8.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/benchmark%20result/benchmark_sdxl_int8.md)
+
+## 🔒 Security
+
+**Backdoor audit.** Each file's audit status - verdict strength, weight coverage, the record behind it,
+and the limits of what that measurement can show - is in
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md). The audit code, the procedure and the raw records are in the same
+repository.

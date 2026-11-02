@@ -31,23 +31,7 @@ High-fidelity Hybrid ConvRot NVFP4 quantization for **Z-Image Turbo** diffusion 
 
 **Z Image ConvRot NVFP4 Benchmark Test Results (published tables):** [benchmark result/benchmark_zi_nvfp4.md](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/benchmark%20result/benchmark_zi_nvfp4.md)
 
----
-
-## Benchmark (Deterministic Latent Trajectory Divergence)
-
-Multi-seed trajectory evaluation (20 seeds per model, 200 total evaluations across 10 Z-Image models):
-
-| Metric | HSWQ ConvRot Hybrid NVFP4 | Native NVFP4 (Full Model) | Advantage |
-| :--- | :--- | :--- | :--- |
-| **Final Cosine (Avg)** | **0.960 – 0.974** | 0.900 – 0.947 | **+0.020 to +0.060 higher fidelity** |
-| **Bifurcation Rate** | **0/200 (0.0%)** | 3/200 (1.5%) | **Zero bifurcations across all seeds** |
-| **Latent MSE Reduction** | **0.74 – 1.25** | 1.45 – 2.54 | **36% – 61% lower quantization error** |
-| **VRAM Footprint** | **~53% – 58% Savings** | ~50% Savings | **Significantly reduced VRAM usage** |
-
----
-
 ## 📦 Available Models
-
 | Filename | Base Model | Version | License |
 | :--- | :--- | :--- | :--- |
 | `moodyProMix_zitV13_hswq_hybrid_nv80_convrot_nvfp4.safetensors` | Moody Pro Mix | zit v1.3 (nv80) | CreativeML Open RAIL++-M |
@@ -63,8 +47,6 @@ Multi-seed trajectory evaluation (20 seeds per model, 200 total evaluations acro
 | `copaxTimeless_xplusZ13_hswq_hybrid_nv100_convrot_nvfp4.safetensors` | Copax Timeless | xplus Z13 (nv100) | CreativeML Open RAIL++-M |
 | `unstablebastard_v14_hswq_hybrid_nv100_convrot_nvfp4.safetensors` | Unstable Bastard | v1.4 (nv100) | CreativeML Open RAIL++-M |
 | `zimageTurboByStable_2602BF16_hswq_hybrid_nv100_convrot_nvfp4.safetensors` | Z-Image Turbo | 2602 BF16 (nv99/nv100) | CreativeML Open RAIL++-M |
-
----
 
 ## 📜 Credits & License
 
@@ -86,3 +68,10 @@ These models are derivatives of their respective creators. All credit for aesthe
 ---
 
 **Disclaimer:** These models are provided for optimization and research purposes. Please adhere to the original licenses of the base models.
+
+## 🔒 Security
+
+**Backdoor audit.** Each file's audit status - verdict strength, weight coverage, the record behind it,
+and the limits of what that measurement can show - is in
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md). The audit code, the procedure and the raw records are in the same
+repository.
