@@ -4,6 +4,7 @@ base_model:
   - huihui-ai/Qwen3-4B-abliterated
   - huihui-ai/Qwen3-8B-abliterated
   - huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated
+  - huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated
 tags:
   - qwen3
   - text-generation
@@ -29,7 +30,7 @@ library_name: transformers
 
 This repository provides single-file `.safetensors` releases for **Qwen3 abliterated** variants across **FP16** and **HSWQ ConvRot INT8** (Hybrid-Sensitivity-Weighted-Quantization).
 
-It serves as a unified release collection combining pure text LLM variants (4B, 8B) and multimodal Vision-Language reasoning variants (VL-4B-Thinking) with safety vectors removed/abliterated.
+It serves as a unified release collection combining pure text LLM variants (4B, 8B) and multimodal Vision-Language variants (VL-4B-Thinking, VL-4B-Instruct) with safety vectors removed/abliterated.
 
 - **Technical Details & Quantization Framework:** [Hybrid-Sensitivity-Weighted-Quantization (HSWQ)](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
 - **ComfyUI Loader for ConvRot INT8:** [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
@@ -45,7 +46,7 @@ It serves as a unified release collection combining pure text LLM variants (4B, 
 | `Qwen3-8B-abliterated-fp16.safetensors` | Qwen3 8B | Single-file FP16 | ~16.38 GB | `huihui-ai/Qwen3-8B-abliterated` | Available |
 | `Qwen3_VL_4B_Thinking_abliterated.safetensors` | Qwen3 VL 4B Thinking | Single-file FP16 | ~8.88 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
 | `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Thinking | HSWQ ConvRot INT8 | ~5.15 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated` | Available |
-| `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Instruct | HSWQ ConvRot INT8 | ~5.31 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated` | not published yet |
+| `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` | Qwen3 VL 4B Instruct | HSWQ ConvRot INT8 | ~5.31 GB | `huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated` | Available |
 
 ---
 
@@ -128,7 +129,7 @@ conversion was not re-measured in this audit.
   final norm, and has been removed. A cached file whose sha256 begins `aaa6490eddd0` is that damaged
   copy and should be replaced with the file above.
 
-The Qwen3-4B releases carry no audit entry; the VL-4B-Thinking files and the 8B file do, with their
+The Qwen3-4B releases carry no audit entry; the VL-4B files and the 8B file do, with their
 strengths in the audit index. Only the files listed there have a verdict, and **none detected** means
 "not detected by this pipeline on this probe set", never "no backdoor exists". The audits, their
 records and the limits of what each measurement can show are in
@@ -160,6 +161,7 @@ records and the limits of what each measurement can show are in
 - Upstream Qwen3 4B Abliterated: `huihui-ai/Qwen3-4B-abliterated`
 - Upstream Qwen3 8B Abliterated: `huihui-ai/Qwen3-8B-abliterated`
 - Upstream Qwen3 VL 4B Thinking Abliterated: `huihui-ai/Huihui-Qwen3-VL-4B-Thinking-abliterated`
+- Upstream Qwen3 VL 4B Instruct Abliterated: `huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated`
 - Original Base Architecture: Qwen Team (`Qwen/Qwen3`)
 
 ---
