@@ -73,5 +73,5 @@ These models are derivatives of their respective creators. All credit for aesthe
 
 **Backdoor audit.** Each file's audit status - verdict strength, weight coverage, the record behind it,
 and the limits of what that measurement can show - is in
-[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md). The audit code, the procedure and the raw records are in the same
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/backdoor/Backdoor_Audit_Verdicts.md). The audit code, the procedure and the raw records are in the same
 repository.

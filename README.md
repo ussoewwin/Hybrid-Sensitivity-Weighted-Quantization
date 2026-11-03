@@ -221,7 +221,7 @@ carry: the tensors are compared against the model the pack declares to be built 
 difference is traced to the edit that model itself makes, and the result is searched for
 any input that changes how it behaves. No published pack carries a backdoor.
 
-The measurements behind that are in [md/Backdoor_Audit_Verdicts.md](md/Backdoor_Audit_Verdicts.md).
+The measurements behind that are in [md/backdoor/Backdoor_Audit_Verdicts.md](md/backdoor/Backdoor_Audit_Verdicts.md).
 
 ## Changelog
 

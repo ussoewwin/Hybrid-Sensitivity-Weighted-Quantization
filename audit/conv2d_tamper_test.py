@@ -4,7 +4,7 @@
 変換は converter と同じ手順で行う: permute (O, kH, kW, I) -> in_channels 方向に rotate ->
 per-out-channel amax/127 -> round。監査は backdoor_audit.provenance() が pack を source と突き合わせる。
 
-出力: md/verdicts/records/conv2d_tamper_test.json
+出力: md/backdoor/verdicts/records/conv2d_tamper_test.json
 """
 import io, json, os, sys
 
@@ -134,7 +134,7 @@ def main():
         "cases": results,
         "all_match_expectation": all(c["matches_expectation"] for c in results),
     }
-    path = os.path.join(ROOT, 'md', 'verdicts', 'records', 'conv2d_tamper_test.json')
+    path = os.path.join(ROOT, 'md', 'backdoor', 'verdicts', 'records', 'conv2d_tamper_test.json')
     with io.open(path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(json.dumps(out, ensure_ascii=False, indent=2))
     print('written:', path, '| all match:', out['all_match_expectation'])

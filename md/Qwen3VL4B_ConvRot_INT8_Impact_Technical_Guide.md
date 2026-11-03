@@ -73,7 +73,7 @@ neighbourhood, and it was the **largest** of the packs measured for this model.
 ## 3. The impact measurement
 
 Script: `clip_convert/diag_impact_qwen3vl.py` -> `impact/impact_qwen3vl_thinking.json`
-(the shipped copy is `md/verdicts/records/impact_qwen3vl_thinking.json`)
+(the shipped copy is `md/backdoor/verdicts/records/impact_qwen3vl_thinking.json`)
 
 Each candidate layer's ConvRot INT8 reconstruction is injected and the
 relative MSE of the concatenated outputs (the language model's hidden state,
@@ -230,8 +230,8 @@ against the source.
 | `clip_convert/verify_qwen3vl.py` | the 256-item / 1024-item acceptance, the loader's own path |
 | `impact/impact_qwen3vl_thinking.json` | the measured per-layer drift (git-ignored) |
 | `impact/qwen3vl_thinking_protect_20.json` | the adopted FP16-kept list (git-ignored) |
-| `md/verdicts/records/impact_qwen3vl_thinking.json` | the shipped copy of the drift record |
-| `md/verdicts/records/qwen3vl_thinking_protect_20.json` | the shipped copy of the adopted FP16-kept list |
-| `md/verdicts/records/thinking_pack.json` | the pack record: identity, provenance, gates, load path, environment, integrity |
-| `md/verdicts/records/thinking_boundary.json` | the rounding-boundary classification of the residuals |
-| `md/verdicts/ThinkingQwen3VL4B_Pack.md` | the backdoor verdict for this pack |
+| `md/backdoor/verdicts/records/impact_qwen3vl_thinking.json` | the shipped copy of the drift record |
+| `md/backdoor/verdicts/records/qwen3vl_thinking_protect_20.json` | the shipped copy of the adopted FP16-kept list |
+| `md/backdoor/verdicts/records/thinking_pack.json` | the pack record: identity, provenance, gates, load path, environment, integrity |
+| `md/backdoor/verdicts/records/thinking_boundary.json` | the rounding-boundary classification of the residuals |
+| `md/backdoor/verdicts/ThinkingQwen3VL4B_Pack.md` | the backdoor verdict for this pack |

@@ -59,7 +59,7 @@ ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z])[A-Za-z]:[\\/]|/home/|/Users/")
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--procedure", default=os.path.join(
-        HERE, "..", "md", "Backdoor_Audit_Procedure.md"))
+        HERE, "..", "md", "backdoor", "Backdoor_Audit_Procedure.md"))
     ap.add_argument("--audit-dir", default=HERE)
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()

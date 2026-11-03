@@ -85,7 +85,7 @@ The audit tool (`audit/backdoor_audit.py --device cuda --tf32`) was run on the p
 **The tool's own line, quoted.** The tool reports `EDITED` because 1 of the 338 layers exceeds the
 1e-6 reproduction tolerance (`model.visual.pos_embed`, 3 codes). The boundary check shows every
 difference in that layer is a one-step flip of a value on the .5 rounding boundary - the matmul
-arithmetic, not an edit. The procedure's arithmetic rule (`md/Backdoor_Audit_Procedure.md` §8.4) is
+arithmetic, not an edit. The procedure's arithmetic rule (`md/backdoor/Backdoor_Audit_Procedure.md` §8.4) is
 the statement of this measurement.
 
 ## 4. Output level - the full size/quality curve and the acceptance

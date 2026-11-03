@@ -82,11 +82,11 @@ Then place each file in the directory its type requires (see the table at the to
 ## 📚 Detailed documentation
 
 - [ControlNet ConvRot INT8 trajectory impact guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md)
-- [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md)
+- [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/backdoor/Backdoor_Audit_Verdicts.md)
 
 ## 🔒 Security
 
 **Backdoor audit.** Each file's audit status - verdict strength, weight coverage, the record behind it,
 and the limits of what that measurement can show - is in
-[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/Backdoor_Audit_Verdicts.md). The audit code, the procedure and the raw records are in the same
+[Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/backdoor/Backdoor_Audit_Verdicts.md). The audit code, the procedure and the raw records are in the same
 repository.
