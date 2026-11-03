@@ -479,11 +479,9 @@ the reference is the declared base, with D2 used to read the *shape* of the
 difference - not the base alone as an identity claim, and not the published
 artifact as a verdict. H0 belongs to the download step (Section 5.3).
 
-**A note on what was observed here.** During this work the base file
-`clip_l.safetensors` was moved out of the model directory, and the pack audit
-subsequently failed with a traceback instead of a verdict. That is a real defect
-in a tool meant to gate a pipeline, and it is now fixed: a missing or unreadable
-input exits **2** with a one-line error (Section 10.2).
+**A note on tool behaviour.** The pack audit is meant to gate a pipeline, so it must not answer
+with a verdict when it cannot read its input: a missing or unreadable source exits **2** with a
+one-line error (Section 10.2).
 
 ### 6.5 Detection sensitivity, measured
 

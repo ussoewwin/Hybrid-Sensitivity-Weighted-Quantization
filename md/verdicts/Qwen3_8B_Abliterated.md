@@ -40,9 +40,28 @@ final norm, the artifact cannot preserve task behaviour.
 (sha256 `aaa6490eddd0a063…44b6`) **is damaged; no backdoor verdict is possible.** (§12.1 rule 2,
 task broken.)
 
-The zeroing was introduced in the single-file FP16 export, not by the declared upstream: the upstream
+**Cause: the merge failed, not the source.** The zeroing was introduced in the single-file FP16
+export - the merge of the upstream shards into one file - and not by the declared upstream: the upstream
 BF16 shards carry non-zero weights for the same tensors, and the surviving tensors of the damaged file
 match the upstream BF16-to-FP16 cast (samples in `records/qwen3_8b_rebuild.json` -> `upstream_sample`).
+The source is intact; the merge dropped those tensors, which is why the artifact is damaged rather than
+altered, and why no backdoor verdict is possible on it.
+
+The same failure mode was then looked for in the other audited artifacts, as a whole-file zero census
+over every tensor of every file that was on the machine:
+
+| number | measured | record | bearing on the backdoor verdict |
+| :--- | :--- | :--- | :--- |
+| 0 | all-zero tensors in the clip_l pack | `records/zero_census_other_artifacts.json` -> `measured.clip_l_pack.all_zero_tensors` | the merge failure mode does not occur there |
+| 0 | all-zero tensors in the CLIP-SAE pack | `records/zero_census_other_artifacts.json` -> `measured.clip_sae_pack.all_zero_tensors` | the merge failure mode does not occur there |
+| 0 | all-zero tensors in the flan-t5-xxl pack | `records/zero_census_other_artifacts.json` -> `measured.flan_t5_pack.all_zero_tensors` | the merge failure mode does not occur there |
+| 0 | all-zero tensors in the restored Huihui source copy | `records/zero_census_other_artifacts.json` -> `measured.huihui_source_copy.all_zero_tensors` | the merge failure mode does not occur there either |
+| 4 | audited artifacts the census could reach | `records/zero_census_other_artifacts.json` -> `files_measured` | how much of the audited set the census covered |
+| 5 | indexed sources not on the machine when the census ran | `records/zero_census_other_artifacts.json` -> `files_not_measured` | a re-run restores each by its recorded sha256 before censusing it |
+
+The census is a statement about these artifacts and this machine: the five indexed sources that were
+not present here are restored by their recorded sha256 before any re-run, and until then their tensors
+are not covered by this census.
 
 ## 1. Identity and provenance
 

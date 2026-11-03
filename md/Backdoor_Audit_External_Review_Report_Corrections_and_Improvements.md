@@ -68,11 +68,11 @@ When the difference is dense and the declared change is itself large, "cannot be
 
 ### 3-5. LongCLIP: declaring "no backdoor" for a file of unknown provenance
 
-Identity against the published checkpoint failed (589 of 590 tensors differ). The document also says the file disappeared from the models directory during the work and was recovered from "an identical copy" with the cause unknown. The SAM report cites the same record (`sources_restored.json`), so the two that vanished are probably these two.
+Identity against the published checkpoint failed (589 of 590 tensors differ).
 
-Recovery by the same hash means the measurement target is not in doubt. What is in doubt is that the audited object is an unattributed fine-tune that does not match the published release, and that it was unaccounted for during the work. From a supply-chain point of view this is the situation that deserves the most caution.
+Recovery by the same hash means the measurement target is not in doubt. What is in doubt is that the audited object is an unattributed fine-tune that does not match the published release. From a supply-chain point of view this is the situation that deserves the most caution.
 
-**Proposed fix**: investigate the cause of the disappearance and write down the procedure for keeping and hash-verifying the files. State "provenance unconfirmed" in the verdict column. Rename the pack so it cannot be mistaken for the published release.
+**Proposed fix**: write down the procedure for keeping and hash-verifying the files. State "provenance unconfirmed" in the verdict column. Rename the pack so it cannot be mistaken for the published release.
 
 ### 3-6. The design limits of trigger detection, and the missing positive control
 
@@ -154,7 +154,7 @@ Recovery by the same hash means the measurement target is not in doubt. What is 
 1. Change the verdict word to "none detected" plus a strength plus a coverage (§3-1).
 2. **Build a positive control.** Put a backdoor into a small model (for example Qwen3-0.6B) by the ProjectDiscovery method (QLoRA, 100-200 examples) and by the BadEdit method, run it through the same pipeline, and report the detection rate and the false-positive rate. Only then does the meaning of a "null" from the behavioural test on a dense fine-tune become defined.
 3. Replace the -0.41 test with the projection share under a least-squares scale (§3-2).
-4. Resolve the provenance of LongCLIP and the disappearance (§3-5).
+4. Resolve the provenance of LongCLIP (§3-5).
 
 **P1 (improving detection power)**
 

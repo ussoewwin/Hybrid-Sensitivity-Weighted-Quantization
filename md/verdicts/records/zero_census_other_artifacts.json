@@ -1,0 +1,81 @@
+{
+  "what": "all-zero tensor census over the audited artifacts, to test whether the Qwen3-8B failure mode - whole tensors written as zeros - occurs in any other audited file",
+  "method": "every tensor of every file is read and counted element by element; a tensor counts as all-zero when every one of its elements is zero",
+  "date": "2026-11-03",
+  "measured": {
+    "clip_l_pack": {
+      "bytes": 142046629,
+      "tensors": 322,
+      "all_zero_tensors": 0,
+      "all_zero_elements": 1286196,
+      "elements": 123182461,
+      "nonfinite_elements": 0,
+      "seconds": 0.8,
+      "file": "clip_l_hswq_convrot_int8.safetensors",
+      "note": "the pack of clip_l, audited in verdicts/CLIP_L.md"
+    },
+    "clip_sae_pack": {
+      "bytes": 690896469,
+      "tensors": 848,
+      "all_zero_tensors": 0,
+      "all_zero_elements": 1789542,
+      "elements": 427796676,
+      "nonfinite_elements": 0,
+      "seconds": 2.1,
+      "file": "CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors",
+      "note": "the pack of CLIP-SAE, audited in verdicts/CLIP-SAE_ViT_L14.md"
+    },
+    "flan_t5_pack": {
+      "bytes": 14739465104,
+      "tensors": 1183,
+      "all_zero_tensors": 0,
+      "all_zero_elements": 94782558,
+      "elements": 11268651432,
+      "nonfinite_elements": 0,
+      "seconds": 33.7,
+      "file": "flan_t5_xxl_hswq_convrot_int8.safetensors",
+      "note": "the pack of flan-t5-xxl, audited in verdicts/FlanT5_XXL.md"
+    },
+    "huihui_source_copy": {
+      "bytes": 8875719384,
+      "tensors": 713,
+      "all_zero_tensors": 0,
+      "all_zero_elements": 2,
+      "elements": 4437815808,
+      "nonfinite_elements": 0,
+      "seconds": 12.5,
+      "file": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
+      "note": "a restored copy of the Huihui source; its sha256 is not the audited one (03590b45adf6), so it is measured as a copy and not as the audited artifact"
+    }
+  },
+  "not_measured": {
+    "clip_sae_source": {
+      "file": "CLIP-SAE-ViT-L-14-FP32.safetensors",
+      "audited_sha256_prefix": "820afa79f4ba",
+      "status": "not present in the audited model directory when this census was run, so it was not censused; a re-run has to restore the artifact by its recorded sha256 before it can census or re-audit it"
+    },
+    "josiefied_source": {
+      "file": "Josiefied-Qwen3-0.6B-abliterated-v1.safetensors",
+      "audited_sha256_prefix": "538d7e689b6a",
+      "status": "not present in the audited model directory when this census was run, so it was not censused; a re-run has to restore the artifact by its recorded sha256 before it can census or re-audit it"
+    },
+    "gmp_source": {
+      "file": "ViT-L-14-BEST-smooth-GmP-HF-format.safetensors",
+      "audited_sha256_prefix": "46a201afae25",
+      "status": "not present in the audited model directory when this census was run, so it was not censused; a re-run has to restore the artifact by its recorded sha256 before it can census or re-audit it"
+    },
+    "longclip_source": {
+      "file": "Long-ViT-L-14-BEST-GmP-smooth-ft-full.safetensors",
+      "audited_sha256_prefix": "4d3e6c8c2188",
+      "status": "not present in the audited model directory when this census was run, so it was not censused; a re-run has to restore the artifact by its recorded sha256 before it can census or re-audit it"
+    },
+    "thinking_source": {
+      "file": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
+      "audited_sha256_prefix": "69a6fc6fc222",
+      "status": "not present in the audited model directory when this census was run, so it was not censused; a re-run has to restore the artifact by its recorded sha256 before it can census or re-audit it"
+    }
+  },
+  "files_measured": 4,
+  "any_all_zero_tensors": false,
+  "files_not_measured": 5
+}
