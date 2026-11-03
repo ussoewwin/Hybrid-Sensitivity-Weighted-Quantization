@@ -1,0 +1,12 @@
+{
+  "analysis": "sam31_image_trigger_search",
+  "tested_perturbations_count": 15,
+  "control_count": 3,
+  "trigger_candidates_count": 12,
+  "control_max_displacement": 1.181984920703772,
+  "trigger_max_displacement": 0.14085759917399832,
+  "anomalies_detected": [],
+  "anomalies_count": 0,
+  "gate_s4_pass": true,
+  "verdict": "CLOSED: no anomalous vision/tracker feature displacement detected exceeding natural transformation bound"
+}

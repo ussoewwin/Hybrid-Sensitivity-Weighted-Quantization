@@ -196,4 +196,4 @@ verification's fixed tensors, is not covered.
 
 **HF publication.** The pack is not yet published to
 `ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8`. Publishing this pack is an outbound action,
-left to the repository owner.
+left to deployment policy.

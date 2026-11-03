@@ -18,6 +18,10 @@ handled explicitly rather than assumed away:
 What it measures: identity, tensor census, FP16 floor ratio, rank-1 structure of the
 deltas, spectrum against a random baseline, and text-embedding behaviour over 118
 prompts in seven families plus the 721-candidate trigger set.
+
+Note on batching discrepancy (Finding F2): this tool encodes one prompt at a time without padding,
+whereas `sae_probe.py` batches prompts with padding (e.g. median 0.8872 vs 0.8853 on identical prompts).
+Reports cite each tool consistently; do not mix citations within a single report.
 """
 from __future__ import annotations
 

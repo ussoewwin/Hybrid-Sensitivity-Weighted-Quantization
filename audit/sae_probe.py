@@ -9,6 +9,10 @@ input class shows as that class standing far outside the rest with a gap beneath
 A plain fine-tune moves everything by a similar amount.
 
     python audit/sae_probe.py --base <dir> --candidate <file> [--json out]
+
+Note on batching discrepancy (Finding F2): this tool batches prompts with padding,
+whereas `clip_fp16_source_audit.py` encodes one prompt at a time (e.g. median 0.8853 vs 0.8872
+on identical prompts). Reports cite each tool consistently; do not mix citations within a single report.
 """
 from __future__ import annotations
 

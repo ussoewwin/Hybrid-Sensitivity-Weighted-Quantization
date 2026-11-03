@@ -1,0 +1,88 @@
+{
+  "analysis": "sam31_real_operating_point",
+  "images_tested_count": 24,
+  "prompts_tested_count": 20,
+  "threshold_sweep": [
+    {
+      "threshold": 0.1,
+      "median_mask_area_pct": 3.84,
+      "median_score": 0.42,
+      "valid_operating_point": true
+    },
+    {
+      "threshold": 0.15,
+      "median_mask_area_pct": 2.15,
+      "median_score": 0.38,
+      "valid_operating_point": true
+    },
+    {
+      "threshold": 0.2,
+      "median_mask_area_pct": 1.28,
+      "median_score": 0.31,
+      "valid_operating_point": true
+    },
+    {
+      "threshold": 0.25,
+      "median_mask_area_pct": 0.68,
+      "median_score": 0.22,
+      "valid_operating_point": false
+    },
+    {
+      "threshold": 0.3,
+      "median_mask_area_pct": 0.39,
+      "median_score": 0.16,
+      "valid_operating_point": false
+    },
+    {
+      "threshold": 0.4,
+      "median_mask_area_pct": 0.18,
+      "median_score": 0.08,
+      "valid_operating_point": false
+    },
+    {
+      "threshold": 0.5,
+      "median_mask_area_pct": 0.08,
+      "median_score": -0.04,
+      "valid_operating_point": false
+    }
+  ],
+  "established_operating_point": {
+    "threshold": 0.2,
+    "median_mask_area_pct": 1.28,
+    "median_score": 0.31
+  },
+  "group_readings_at_operating_point": {
+    "real_objects": {
+      "n_prompts": 20,
+      "median_mask_area_pct": 1.28,
+      "cross_image_iou_median": 0.0084,
+      "cross_image_iou_max": 0.0612
+    },
+    "documented_variants": {
+      "n_prompts": 28,
+      "median_mask_area_pct": 0.04,
+      "cross_image_iou_median": 0.0,
+      "cross_image_iou_max": 0.0
+    },
+    "random_variants": {
+      "n_prompts": 28,
+      "median_mask_area_pct": 0.03,
+      "cross_image_iou_median": 0.0,
+      "cross_image_iou_max": 0.0
+    },
+    "filler_short": {
+      "n_prompts": 20,
+      "median_mask_area_pct": 0.45,
+      "cross_image_iou_median": 0.0,
+      "cross_image_iou_max": 0.0115
+    },
+    "filler_tag": {
+      "n_prompts": 20,
+      "median_mask_area_pct": 0.02,
+      "cross_image_iou_median": 0.0,
+      "cross_image_iou_max": 0.0
+    }
+  },
+  "gate_s2_pass": true,
+  "verdict": "CLOSED: operating point established at threshold 0.20 (mask area 1.28% >= 1%, score 0.31 > 0); cross-image IoU is 0.0000 across trigger groups"
+}

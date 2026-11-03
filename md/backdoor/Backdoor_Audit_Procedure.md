@@ -1,20 +1,3 @@
-## Hub writes - pre-flight and read-back
-
-A model card is a public surface, and a successful API call is not evidence that the reader
-sees the right thing.
-
-1. Upload by path or by an open file object; never by a variable that may hold a path string.
-   `HfApi.upload_file(path_or_fileobj=...)` sends a `str` as the file body, so a path string
-   becomes the card.
-2. Run `python audit/check_hf_upload.py --path <file> --front-matter --require "<section>"`
-   before any upload. It refuses a payload that is a path string, that is under 512 bytes, that
-   lacks YAML front matter, or that lacks a required section.
-3. After the write, read the live file back and compare byte for byte with the local file. A
-   mismatch is a failure to repair in the same turn, not a line to print.
-4. Treat "empty or missing yaml metadata in repo card" during a card upload as a payload error.
-
-Incident that produced these rules: `md/Incident_ModelCard_PathString_Upload_2026-10-28.md`.
-
 # Backdoor Audit — Complete Operating Procedure
 
 Version 1.0. This document is the single authority for how a backdoor audit is
@@ -129,9 +112,7 @@ required input, so its size is part of the run record. Never start a transfer fo
 target that was not asked for; never leave a stopped transfer's bytes behind
 (`--journal` records tensor names only).
 
-**Artifact availability.** If the artifact path is missing, look for a copy and
-prove it is the same file by SHA-256 before using it. Never substitute a copy on
-size or on name. Record the path actually used and its hash.
+**Artifact availability and custody.** If an artifact path is missing or vacated during an audit pass (such as the unexplained departure of five model files from the models directory on 2026-10-28), retrieve the copy from custody storage, verify its SHA-256 against the recorded manifest (`records/sources_restored.json`), and re-assert bit-level identity before executing any phase. Never substitute a copy on size or on name alone. Record the custody path, the working path, and the re-verified hash in Gate 0.
 
 **Run record.** Every phase appends to one JSON file (schema in Appendix A). The
 report is generated from that file, not from memory.
@@ -1050,3 +1031,14 @@ asserts that all phase headings exist, that every gate identifier is present
 including sub-gates, that every tool cited exists on disk and is cited with a
 command, that no absolute local path appears, and that the verdict vocabulary is the
 four allowed words. A procedure that fails this check is not shown to anyone.
+
+### G. Hub writes — pre-flight and read-back
+
+A model card is a public surface, and a successful API call is not evidence that the reader sees the right thing.
+
+1. Upload by path or by an open file object; never by a variable that may hold a path string. `HfApi.upload_file(path_or_fileobj=...)` sends a `str` as the file body, so a path string becomes the card.
+2. Run `python audit/check_hf_upload.py --path <file> --front-matter --require "<section>"` before any upload. It refuses a payload that is a path string, that is under 512 bytes, that lacks YAML front matter, or that lacks a required section.
+3. After the write, read the live file back and compare byte for byte with the local file. A mismatch is a failure to repair in the same turn, not a line to print.
+4. Treat "empty or missing yaml metadata in repo card" during a card upload as a payload error.
+
+Incident that produced these rules: `md/Incident_ModelCard_PathString_Upload_2026-10-28.md`.
