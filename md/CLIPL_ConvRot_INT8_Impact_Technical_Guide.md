@@ -35,7 +35,7 @@ Every eligible Linear layer is measured: its ConvRot INT8 reconstruction is inje
 the CLIP forward is run on a fixed prompt set, and the relative MSE of the text
 embedding against the pristine run is recorded. Layers above the threshold stay FP16.
 
-- Measurement: `sdxl/diag_impact_clip.py`
+- Measurement: `clip_convert/diag_impact_clip.py`
 - Result: `impact/impact_clip_l.json` (73 Linear layers)
 
 ### 1.3 Measured drift distribution (73 layers)
@@ -162,7 +162,7 @@ so it cannot use the INT8 GEMM path).
 
 ```bash
 # 1) measure the output drift of every Linear layer (73 layers)
-python sdxl/diag_impact_clip.py \
+python clip_convert/diag_impact_clip.py \
   --model clip_l.safetensors \
   --out impact/impact_clip_l.json \
   --comfy_path <ComfyUI checkout> \

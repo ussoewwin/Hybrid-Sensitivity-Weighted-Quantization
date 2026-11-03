@@ -17,7 +17,7 @@ Pipeline (ComfyUI-native):
   - metric     : relative MSE of the mask logits against the pristine run
 
 Usage:
-  python sdxl/diag_impact_sam31.py --model <sam3.1_multiplex_fp16.safetensors> \
+  python clip_convert/diag_impact_sam31.py --model <sam3.1_multiplex_fp16.safetensors> \
       --out impact/impact_sam31.json --comfy_path <ComfyUI> --full
 """
 from __future__ import annotations

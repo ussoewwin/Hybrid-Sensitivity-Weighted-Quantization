@@ -85,7 +85,7 @@ group size 4.
 
 ## 4. The impact measurement
 
-`sdxl/measure_qwen_image_diffsynth_patch_contrib.py` measures the **aggregate
+`clip_convert/measure_qwen_image_diffsynth_patch_contrib.py` measures the **aggregate
 contribution**: hold the FP16 weights, replace ONE layer by its ConvRot INT8
 reconstruction in the **original frame** (`dequant(INT8(W @ H^T))` = `(q*s) @ H`),
 and rank by the change in the patch's own output over 8 fixed seeds.
@@ -172,7 +172,7 @@ the one it replaces while being strictly better on quality.
 ## 7. Acceptance through the real loader
 
 The numbers above were produced by the loader harness
-(`sdxl/verify_qwen_image_diffsynth_patch_loader.py`), which drives
+(`clip_convert/verify_qwen_image_diffsynth_patch_loader.py`), which drives
 `HSWQModelPatchLoaderCustom.load_model_patch(name, False)` - the node ComfyUI
 runs - over the 256-item set. The loaded module is confirmed to be
 `QwenImageBlockWiseControlNet` with 120 INT8 layers and `img_in` kept, so the
@@ -195,7 +195,7 @@ is deterministic too: the 256 inputs come from
 #   COMFY   = <ComfyUI>  (the checkout ComfyUI runs from)
 
 # 1. the criterion: the aggregate contribution (8 seeds, float64)
-python sdxl/measure_qwen_image_diffsynth_patch_contrib.py `
+python clip_convert/measure_qwen_image_diffsynth_patch_contrib.py `
     --patch <ComfyUI>/models/model_patches/qwen_image_inpaint_diffsynth_controlnet.safetensors `
     --out impact/contrib_qwen_image_inpaint_diffsynth.json --n 8
 
@@ -207,7 +207,7 @@ python clip_convert/convert_qwen_image_diffsynth_patch_impact_convrot_int8.py `
 
 # 3. the acceptance through the REAL loader (256 items, seed 42)
 $env:QDS_N = "256"
-python sdxl/verify_qwen_image_diffsynth_patch_loader.py `
+python clip_convert/verify_qwen_image_diffsynth_patch_loader.py `
     <ComfyUI>/models/model_patches/qwen_image_inpaint_diffsynth_controlnet.safetensors `
     impact/_work/qid_k1.safetensors
 ```
@@ -282,10 +282,10 @@ Every row is a real run on this machine; the raw JSON is kept under `impact/`
 
 | file | role |
 | :--- | :--- |
-| `sdxl/measure_qwen_image_diffsynth_patch_contrib.py` | the criterion (the aggregate contribution) |
+| `clip_convert/measure_qwen_image_diffsynth_patch_contrib.py` | the criterion (the aggregate contribution) |
 | `clip_convert/convert_qwen_image_diffsynth_patch_impact_convrot_int8.py` | the builder (`--top-k`, FP16 kept) |
-| `sdxl/verify_qwen_image_diffsynth_patch.py` | the acceptance, module graph built directly |
-| `sdxl/verify_qwen_image_diffsynth_patch_loader.py` | the acceptance through the real HSWQ loader (the path ComfyUI uses) |
+| `clip_convert/verify_qwen_image_diffsynth_patch.py` | the acceptance, module graph built directly |
+| `clip_convert/verify_qwen_image_diffsynth_patch_loader.py` | the acceptance through the real HSWQ loader (the path ComfyUI uses) |
 | `md/QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md` | this guide |
 | `impact/contrib_qwen_image_inpaint_diffsynth.json` | the contribution (git-ignored) |
 | `impact/verify_qid_loader_256.json` | the acceptance results (git-ignored) |

@@ -57,8 +57,8 @@ first reports the second as **exactly zero**:
 
 | the path | the layers | the observable | the script |
 | :--- | :--- | :--- | :--- |
-| the **conditioning** path | 361 | `embed_tokens` -> `layers.N` -> `norm` hidden state, plus the vision tower's merged embeddings | `sdxl/diag_impact_qwen35_9b.py` |
-| the **generate** path | 9 | the `lm_head` logits and the MTP head's output | `sdxl/diag_impact_qwen35_9b_gen.py` |
+| the **conditioning** path | 361 | `embed_tokens` -> `layers.N` -> `norm` hidden state, plus the vision tower's merged embeddings | `clip_convert/diag_impact_qwen35_9b.py` |
+| the **generate** path | 9 | the `lm_head` logits and the MTP head's output | `clip_convert/diag_impact_qwen35_9b_gen.py` |
 
 `lm_head` and `mtp.*` are outside the conditioning forward, so the first
 measurement returns them as exactly `0.0`. That is a correct reading of *that*
@@ -74,7 +74,7 @@ encoder is asked to produce text.
 
 ### 3.1 The conditioning path
 
-Script: `sdxl/diag_impact_qwen35_9b.py` -> `impact/impact_qwen35_9b.json`
+Script: `clip_convert/diag_impact_qwen35_9b.py` -> `impact/impact_qwen35_9b.json`
 
 | item | value |
 | :--- | :--- |
@@ -121,7 +121,7 @@ vision tower contributes 111, so 250 + 111 = 361.
 
 ### 3.2 The generate path
 
-Script: `sdxl/diag_impact_qwen35_9b_gen.py` -> `impact/impact_qwen35_9b_gen.json`
+Script: `clip_convert/diag_impact_qwen35_9b_gen.py` -> `impact/impact_qwen35_9b_gen.json`
 
 | the layer | group size | relMSE | cos |
 | :--- | :--- | :--- | :--- |
@@ -219,9 +219,9 @@ is required**. No `config.json` or tokenizer needs to sit beside the pack.
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_qwen35_9b.py` | the conditioning-path impact measurement (the un-rotated injection) |
-| `sdxl/diag_impact_qwen35_9b_gen.py` | the generate-path impact measurement (`lm_head`, `mtp.*`) |
+| `clip_convert/diag_impact_qwen35_9b.py` | the conditioning-path impact measurement (the un-rotated injection) |
+| `clip_convert/diag_impact_qwen35_9b_gen.py` | the generate-path impact measurement (`lm_head`, `mtp.*`) |
 | `clip_convert/convert_qwen35_9b_impact_convrot_int8.py` | the impact-driven builder (`--protect-list` supported) |
-| `sdxl/verify_qwen35_9b.py` | the 256-item acceptance, both paths, the loader's own arm |
+| `clip_convert/verify_qwen35_9b.py` | the 256-item acceptance, both paths, the loader's own arm |
 | `impact/impact_qwen35_9b.json` | the measured per-layer drift, conditioning (git-ignored) |
 | `impact/impact_qwen35_9b_gen.json` | the measured per-layer drift, generate (git-ignored) |

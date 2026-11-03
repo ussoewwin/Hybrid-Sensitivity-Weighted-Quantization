@@ -36,10 +36,10 @@ The shipped pack is produced with thresholds text=1.30, vision=0.50.
 ```powershell
 $py = "D:\USERFILES\ComfyUI\python_embeded\python.exe"
 # 1) measure text drift (if regenerating the impact JSON)
-& $py sdxl\diag_impact_clip.py --model <vitl>.safetensors `
+& $py clip_convert\diag_impact_clip.py --model <vitl>.safetensors `
     --out impact\impact_vitl14_best.json --comfy_path D:\USERFILES\GitHub\hswq\ComfyUI-master --full
 # 2) measure vision drift
-& $py sdxl\diag_impact_clip_vision.py --model <vitl>.safetensors `
+& $py clip_convert\diag_impact_clip_vision.py --model <vitl>.safetensors `
     --out impact\impact_vitl14_best_vision.json --comfy_path D:\USERFILES\GitHub\hswq\ComfyUI-master --full
 # 3) build the pack (thresholds text=1.30 vision=0.50)
 ```

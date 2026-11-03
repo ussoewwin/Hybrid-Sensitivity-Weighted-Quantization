@@ -198,16 +198,16 @@ model-specific by construction.
 
 | script | purpose |
 | --- | --- |
-| `sdxl/diag_impact_clip.py` | text-tower drift (CLIP family) |
-| `sdxl/diag_impact_clip_vision.py` | vision-tower drift (CLIP family) |
-| `sdxl/diag_impact_qwen3.py` | llama-family text-encoder drift |
-| `sdxl/diag_impact_qwen35_9b.py` | Qwen3.5-9B conditioning-path drift (a hybrid GatedDeltaNet/GatedAttention tower + the vision tower) |
-| `sdxl/diag_impact_qwen35_9b_gen.py` | Qwen3.5-9B generate-path drift (`lm_head`, `mtp.*` - outside the conditioning forward, so the conditioning measurement reports them as exactly zero) |
+| `clip_convert/diag_impact_clip.py` | text-tower drift (CLIP family) |
+| `clip_convert/diag_impact_clip_vision.py` | vision-tower drift (CLIP family) |
+| `clip_convert/diag_impact_qwen3.py` | llama-family text-encoder drift |
+| `clip_convert/diag_impact_qwen35_9b.py` | Qwen3.5-9B conditioning-path drift (a hybrid GatedDeltaNet/GatedAttention tower + the vision tower) |
+| `clip_convert/diag_impact_qwen35_9b_gen.py` | Qwen3.5-9B generate-path drift (`lm_head`, `mtp.*` - outside the conditioning forward, so the conditioning measurement reports them as exactly zero) |
 | `clip_convert/convert_qwen35_9b_impact_convrot_int8.py` | Qwen3.5-9B pack builder (impact-driven) |
-| `sdxl/verify_qwen35_9b.py` | Qwen3.5-9B acceptance verification (both paths) |
-| `sdxl/diag_impact_t5.py` | FLAN-T5 XXL encoder drift (encoder hidden state) |
+| `clip_convert/verify_qwen35_9b.py` | Qwen3.5-9B acceptance verification (both paths) |
+| `clip_convert/diag_impact_t5.py` | FLAN-T5 XXL encoder drift (encoder hidden state) |
 | `clip_convert/convert_t5_impact_convrot_int8.py` | FLAN-T5 XXL pack builder (impact-driven) |
-| `sdxl/verify_t5.py` | FLAN-T5 XXL acceptance verification + latency |
-| `sdxl/diag_impact_t5_decoder.py` | FLAN-T5 XXL decoder drift (transformers decoder stack, streamed block by block) |
+| `clip_convert/verify_t5.py` | FLAN-T5 XXL acceptance verification + latency |
+| `clip_convert/diag_impact_t5_decoder.py` | FLAN-T5 XXL decoder drift (transformers decoder stack, streamed block by block) |
 | `clip_convert/convert_clip_impact_convrot_int8.py` | CLIP converter (impact-driven) |
 | `sdxl/verify_*.py`, `sdxl/smoke_*.py`, `sdxl/perf_*.py` | per-model verification / smoke / performance |

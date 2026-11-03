@@ -3,7 +3,7 @@
 
 The observable is the text encoder's own output for a fixed prompt, plus the
 vision tower's image embeddings - the same two paths the impact measurement
-uses (`sdxl/diag_impact_qwen3vl.py`).
+uses (`clip_convert/diag_impact_qwen3vl.py`).
 
 Two things the measurement has to get right:
 

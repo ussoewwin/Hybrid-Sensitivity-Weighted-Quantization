@@ -2,7 +2,7 @@
 """SAM 3.1 Multiplex ConvRot INT8 converter driven by measured impact.
 
 The protection set comes from an impact measurement of THIS checkpoint
-(sibling script sdxl/diag_impact_sam31.py), not from static weight statistics.
+(sibling script clip_convert/diag_impact_sam31.py), not from static weight statistics.
 For SAM the measured quantity is the drift of the model's own output (mask
 logits from the tracker SAM-decoder path and the detector's boxes/scores/masks
 from the text path) when a single layer is replaced by its ConvRot INT8
@@ -182,7 +182,7 @@ def convert(input_path, output_path, impact_json, comfy_path,
         # path also quantizes the activation), so it does not rank the layers
         # the way the aggregate output does. The list comes from the
         # aggregate contribution measured through the real pack path
-        # (sdxl/select_sam31_protect.py).
+        # (clip_convert/select_sam31_protect.py).
         protect = set(explicit)
     print(f"  measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}"
           + (" (an explicit list)" if explicit else ""))

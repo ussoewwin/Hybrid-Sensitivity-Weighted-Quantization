@@ -72,7 +72,7 @@ neighbourhood, and it was the **largest** of the packs measured for this model.
 
 ## 3. The impact measurement
 
-Script: `sdxl/diag_impact_qwen3vl.py` -> `impact/impact_qwen3vl_thinking.json`
+Script: `clip_convert/diag_impact_qwen3vl.py` -> `impact/impact_qwen3vl_thinking.json`
 (the shipped copy is `md/verdicts/records/impact_qwen3vl_thinking.json`)
 
 Each candidate layer's ConvRot INT8 reconstruction is injected and the
@@ -225,9 +225,9 @@ against the source.
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_qwen3vl.py` | the impact measurement (both towers, the un-rotated injection) |
+| `clip_convert/diag_impact_qwen3vl.py` | the impact measurement (both towers, the un-rotated injection) |
 | `clip_convert/convert_qwen3_vl_4b_impact_convrot_int8.py` | the impact-driven builder (`--protect-list`) |
-| `sdxl/verify_qwen3vl.py` | the 256-item / 1024-item acceptance, the loader's own path |
+| `clip_convert/verify_qwen3vl.py` | the 256-item / 1024-item acceptance, the loader's own path |
 | `impact/impact_qwen3vl_thinking.json` | the measured per-layer drift (git-ignored) |
 | `impact/qwen3vl_thinking_protect_20.json` | the adopted FP16-kept list (git-ignored) |
 | `md/verdicts/records/impact_qwen3vl_thinking.json` | the shipped copy of the drift record |

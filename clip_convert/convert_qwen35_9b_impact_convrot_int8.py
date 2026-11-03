@@ -6,8 +6,8 @@ output**, in two parts, because this checkpoint has two consumers:
 
 | the path | the layers | the measurement |
 | :--- | :--- | :--- |
-| the **conditioning** path (`embed_tokens` -> `layers.N` -> `norm`, plus the vision tower) | 361 | `sdxl/diag_impact_qwen35_9b.py` |
-| the **generate** path (`lm_head`, `mtp.*`) | 9 | `sdxl/diag_impact_qwen35_9b_gen.py` |
+| the **conditioning** path (`embed_tokens` -> `layers.N` -> `norm`, plus the vision tower) | 361 | `clip_convert/diag_impact_qwen35_9b.py` |
+| the **generate** path (`lm_head`, `mtp.*`) | 9 | `clip_convert/diag_impact_qwen35_9b_gen.py` |
 
 `lm_head` and `mtp.*` are outside the conditioning path, so a measurement that
 only runs the conditioning forward reports them as **exactly zero** - correct

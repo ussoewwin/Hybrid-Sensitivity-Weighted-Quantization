@@ -18,7 +18,7 @@ only pays for the bytes. The INT8 scales stay FP32: they carry the
 dequantization precision.
 
 Usage:
-    python sdxl/build_vitl14_convrot_int8.py \
+    python clip_convert/build_vitl14_convrot_int8.py \
         --impact-text impact/impact_vitl14_best_text_fixed.json \
         --impact-vision impact/impact_vitl14_best_vision_fixed.json \
         --protect-list impact/vitl14_best_protect_<n>.json --out <pack>

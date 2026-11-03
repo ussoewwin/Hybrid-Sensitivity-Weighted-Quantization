@@ -481,7 +481,7 @@
   }
  },
  "drift_measurement": {
-  "script": "sdxl/diag_impact_qwen3vl.py",
+  "script": "clip_convert/diag_impact_qwen3vl.py",
   "model": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors",
   "layers_measured": 358,
   "min": 1.0268176428810241e-07,
@@ -640,6 +640,6 @@
   "gate8_huihui.json (Gate 8 load path, INT8 kernel counter)",
   "route_huihui.json (Gate 8 8-prompt CLIPLoader route, environment, integrity)",
   "huihui_source_tensor_identity.json (the source identity chain)",
-  "the 256-item and 1024-item acceptance runs of sdxl/verify_qwen3vl.py"
+  "the 256-item and 1024-item acceptance runs of clip_convert/verify_qwen3vl.py"
  ]
 }

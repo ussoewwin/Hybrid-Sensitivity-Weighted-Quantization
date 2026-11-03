@@ -23,7 +23,7 @@ hidden size 1280, image size 224, patch size 14.
 | parameters | 632,077,057 |
 | dtypes | F32 (the 257 I64 tensors are `position_ids`) |
 | runtime Linear modules | **192** (32 layers × 6) |
-| the script | `sdxl/diag_impact_clip_vision.py` |
+| the script | `clip_convert/diag_impact_clip_vision.py` |
 
 ---
 
@@ -178,10 +178,10 @@ completed with zeros (dim 1280) when the tower is built standalone.
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_clip_vision.py` | the drift measurement (the screen) |
-| `sdxl/measure_h14_vision_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/diag_impact_clip_vision.py` | the drift measurement (the screen) |
+| `clip_convert/measure_h14_vision_contrib.py` | the aggregate contribution (the criterion) |
 | `clip_convert/convert_clip_impact_convrot_int8.py` | the builder (`--protect-list`, FP16 kept) |
-| `sdxl/verify_vision.py` | the acceptance on the fixed 256-item set |
+| `clip_convert/verify_vision.py` | the acceptance on the fixed 256-item set |
 | `impact/impact_vit_h14_vision_fixed.json` | the corrected drift (git-ignored) |
 | `impact/contrib_vit_h14.json` | the contribution (git-ignored) |
 | `impact/h14_protect_100.json` | the adopted FP16-kept list (git-ignored) |

@@ -1,16 +1,20 @@
-"""CLIP vision-side trajectory-impact measurement.
+# -*- coding: utf-8 -*-
+"""Qwen3 / Llama-style text-encoder trajectory-impact measurement.
 
-For a CLIP checkpoint's vision tower, the observable is the image-embedding
-output. Each candidate Linear layer's ConvRot INT8 reconstruction is injected,
-the vision forward is run on a fixed image batch, and the relative MSE against
-the pristine run is recorded.
+Same principle as diag_impact_clip.py, but for a llama-family text encoder:
+the observable is the encoder's own hidden-state output for a fixed token
+batch. For each candidate 2D Linear layer, its ConvRot INT8 reconstruction is
+injected and the relative MSE of the output against the pristine run is
+recorded.
+
+The model is built the way ComfyUI builds it (comfy.text_encoders.anima.te for
+Qwen3-0.6B, i.e. via llama_detect -> llama_quantization_metadata), so the
+measurement reflects the real runtime.
 
 Usage:
-  python sdxl/diag_impact_clip_vision.py \
-      --model <clip>.safetensors \
-      --out impact/impact_<name>_vision.json \
-      --comfy_path <ComfyUI checkout> \
-      --full
+  python clip_convert/diag_impact_qwen3.py \
+      --model <qwen3>.safetensors --out impact/impact_<name>.json \
+      --comfy_path <ComfyUI checkout> --model_type qwen3_06b --full
 """
 from __future__ import annotations
 
@@ -80,68 +84,85 @@ def rel_mse(a, b):
     return float(((a - b) ** 2).sum().item() / denom)
 
 
+def build_model(comfy_path, model_path, model_type):
+    if comfy_path not in sys.path:
+        sys.path.insert(0, comfy_path)
+    cwd = os.getcwd()
+    try:
+        os.chdir(comfy_path)
+        import comfy.sd
+        import comfy.utils
+        import comfy.text_encoders.anima
+        import comfy.text_encoders.z_image
+        import comfy.text_encoders.hunyuan_video
+        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
+        detect = comfy.text_encoders.hunyuan_video.llama_detect(sd)
+        # The checkpoint family picks the module: the 0.6B is built through
+        # anima.te, the 4B (Z Image's text encoder) through z_image.te. Both
+        # take (dtype_llama, llama_quantization_metadata).
+        if model_type == "qwen3_4b":
+            mod = comfy.text_encoders.z_image
+        else:
+            mod = comfy.text_encoders.anima
+        saved = _clear_argv()
+        try:
+            te = mod.te(**detect)
+            clip = te(device="cpu")
+            # the weights must be loaded explicitly: te() only builds the graph
+            clip.load_sd(sd)
+        finally:
+            _restore(saved)
+        return clip
+    finally:
+        os.chdir(cwd)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--comfy_path", required=True)
+    ap.add_argument("--model_type", default="qwen3_06b")
     ap.add_argument("--groupsize", type=int, default=256)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--full", action="store_true")
     ap.add_argument("--resume", default="")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--tokens", type=int, default=16)
     args = ap.parse_args()
 
-    if args.comfy_path not in sys.path:
-        sys.path.insert(0, args.comfy_path)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(args.seed)
 
-    saved = _clear_argv()
-    try:
-        import comfy.clip_vision as cv
-    finally:
-        _restore(saved)
-
     print(f"[load] {args.model}", flush=True)
-    saved = _clear_argv()
-    try:
-        vision = cv.load_clipvision_from_sd(comfy_load(args.model))
-    finally:
-        _restore(saved)
-    if vision is None:
-        raise SystemExit("vision load returned None")
-    net = getattr(vision, "model", vision)
-    inner = getattr(net, "vision_model", net)
+    clip = build_model(args.comfy_path, os.path.abspath(args.model), args.model_type)
+    # SD1ClipModel keeps the inner model under clip.<name> (e.g. clip_qwen3_06b);
+    # that inner object holds the actual transformer under .transformer
+    name = getattr(clip, "clip", None)
+    inner = getattr(clip, name) if isinstance(name, str) else getattr(clip, "cond_stage_model", clip)
+    llama = getattr(inner, "transformer", None) or getattr(inner, "model", None) or inner
+    print(f"[build] clip={type(clip).__name__} inner={type(inner).__name__} model={type(llama).__name__}", flush=True)
 
-    # deterministic synthetic image batch
     g = torch.Generator(device="cpu").manual_seed(args.seed)
-    imgs = (torch.rand(2, 3, 224, 224, generator=g) * 2 - 1)
-    mdt = next((p.dtype for p in inner.parameters() if p.is_floating_point()), torch.float16)
-    imgs = imgs.to(device=device, dtype=mdt)
+    ids = torch.randint(0, 150000, (1, args.tokens), generator=g)
+    ids = ids.to(device)
 
     def run():
         with torch.no_grad():
-            out = vision.encode_image(imgs, crop=False)
-        if hasattr(out, "image_embeds") and torch.is_tensor(out.image_embeds):
-            return out.image_embeds.detach().float().reshape(-1).cpu()
+            out = llama(ids)
+        if isinstance(out, (tuple, list)):
+            out = out[0]
         if isinstance(out, dict):
-            parts = []
-            for k in sorted(out):
-                v = out[k]
-                if torch.is_tensor(v):
-                    parts.append(v.detach().float().reshape(-1).cpu())
+            parts = [v.detach().float().reshape(-1).cpu() for k, v in sorted(out.items()) if torch.is_tensor(v)]
             return torch.cat(parts)
-        if torch.is_tensor(out):
-            return out.detach().float().reshape(-1).cpu()
-        return torch.cat([v.detach().float().reshape(-1).cpu() for v in out if torch.is_tensor(v)])
+        return out.detach().float().reshape(-1).cpu()
 
     print("[*] pristine", flush=True)
     ref = run()
     print(f"[*] ref shape={tuple(ref.shape)} finite={bool(torch.isfinite(ref).all())}", flush=True)
 
     mods = {}
-    for name, m in inner.named_modules():
+    for name, m in llama.named_modules():
         if type(m).__name__ == "Linear" and hasattr(m, "weight") and m.weight is not None:
             mods[name] = m
     cand = sorted(mods.keys())
@@ -151,6 +172,7 @@ def main():
     if args.resume and os.path.isfile(args.resume):
         try:
             results = json.load(open(args.resume, encoding="utf-8")).get("impacts", {})
+            print(f"[resume] {len(results)} already measured", flush=True)
         except Exception:
             results = {}
 
@@ -172,7 +194,7 @@ def main():
                 results[name] = rel_mse(ref, out)
         except Exception as e:
             results[name] = -1.0
-            print(f"    {name}: ERROR {type(e).__name__}: {str(e)[:120]}", flush=True)
+            print(f"    {name}: ERROR {type(e).__name__}: {str(e)[:140]}", flush=True)
         finally:
             m.weight.data.copy_(w.to(m.weight.device, m.weight.dtype))
         if (i + 1) % 10 == 0 or (i + 1) == len(todo):
@@ -186,15 +208,6 @@ def main():
         print("[done] n=%d median=%.4e p90=%.4e max=%.4e" % (
             len(vals), statistics.median(vals), vals[int(len(vals) * 0.9)], vals[-1]), flush=True)
     print(f"[saved] {args.out}", flush=True)
-
-
-def comfy_load(path):
-    saved = _clear_argv()
-    try:
-        import comfy.utils
-        return comfy.utils.load_torch_file(path, safe_load=True)
-    finally:
-        _restore(saved)
 
 
 if __name__ == "__main__":

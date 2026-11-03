@@ -45,7 +45,7 @@ The source is already in the runtime layout, so no name remap happens.
 
 ## 3. The impact measurement
 
-`sdxl/measure_qwen_image_inpaint_cn_contrib.py` measures the **aggregate
+`clip_convert/measure_qwen_image_inpaint_cn_contrib.py` measures the **aggregate
 contribution**: hold the FP16 weights, replace ONE layer by its ConvRot INT8
 reconstruction in the **original frame** (`dequant(INT8(W @ H^T))` = `(q*s) @ H`),
 and rank by `1 - cos` of the ControlNet's **own output** over 8 fixed seeds.
@@ -133,8 +133,8 @@ selection, and this pack is re-derived under the current method - the method
 
 | file | role |
 | :--- | :--- |
-| `sdxl/measure_qwen_image_inpaint_cn_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/measure_qwen_image_inpaint_cn_contrib.py` | the aggregate contribution (the criterion) |
 | `clip_convert/convert_qwen_image_inpaint_cn_impact_convrot_int8.py` | the builder (`--top-k`, FP16 kept) |
-| `sdxl/verify_qwen_image_inpaint_cn.py` | the acceptance on the fixed 256-item set (the ControlNet's own output) |
+| `clip_convert/verify_qwen_image_inpaint_cn.py` | the acceptance on the fixed 256-item set (the ControlNet's own output) |
 | `impact/contrib_qwen_image_inpaint_cn.json` | the contribution (git-ignored) |
 | `impact/verify_qin_256.json` | the acceptance results (git-ignored) |

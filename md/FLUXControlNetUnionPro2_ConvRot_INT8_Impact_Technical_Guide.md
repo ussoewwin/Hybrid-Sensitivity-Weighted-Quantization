@@ -87,13 +87,13 @@ reports a drift of 0.0000 for a layer that does change the output: replacing
 1.73** with a real `y`, and by **exactly 0** with a zero `y`.
 
 Both the impact sweep and the acceptance now use the production `y`
-(`sdxl/build_flux_prod_y.py` saves it).
+(`clip_convert/build_flux_prod_y.py` saves it).
 
 ---
 
 ## 3. The per-layer drift, after the fix
 
-Script: `sdxl/diag_impact_cn_flux.py` -> `impact/impact_cn_flux_union_pro_2.json`
+Script: `clip_convert/diag_impact_cn_flux.py` -> `impact/impact_cn_flux_union_pro_2.json`
 
 The observable is the ControlNet's own output: the per-block control features
 it returns to the UNet (14,942,208 elements). Each candidate layer's ConvRot
@@ -147,7 +147,7 @@ trades off is the effect on the **aggregate** output, so that is what is
 measured: load the all-INT8 pack through the real path, restore one layer's
 FP16 weight, and measure the aggregate cosine against the FP16 baseline.
 
-Script: `sdxl/select_cn_flux_protect.py` ->
+Script: `clip_convert/select_cn_flux_protect.py` ->
 `impact/cn_flux_contrib_order.json`
 
 The all-INT8 state measures **mean 0.999622 / min 0.999020** over 16 items.
@@ -264,11 +264,11 @@ numerically equivalent for this model.
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_cn_flux.py` | the per-layer drift (the un-rotated injection) |
-| `sdxl/select_cn_flux_protect.py` | the aggregate contribution, the ranked order |
-| `sdxl/build_flux_prod_y.py` | the production `y` (the CLIP-L pooled output) |
-| `sdxl/verify_cn_flux_256.py` | the 256-item acceptance, the loader's own path |
-| `sdxl/verify_controlnet_loader.py` | every ControlNet pack through the loader's node |
+| `clip_convert/diag_impact_cn_flux.py` | the per-layer drift (the un-rotated injection) |
+| `clip_convert/select_cn_flux_protect.py` | the aggregate contribution, the ranked order |
+| `clip_convert/build_flux_prod_y.py` | the production `y` (the CLIP-L pooled output) |
+| `clip_convert/verify_cn_flux_256.py` | the 256-item acceptance, the loader's own path |
+| `clip_convert/verify_controlnet_loader.py` | every ControlNet pack through the loader's node |
 | `clip_convert/convert_cn_flux_impact_convrot_int8.py` | the builder (`--protect-list`) |
 | `impact/impact_cn_flux_union_pro_2.json` | the measured per-layer drift (git-ignored) |
 | `impact/cn_flux_contrib_order.json` | the measured aggregate contribution (git-ignored) |

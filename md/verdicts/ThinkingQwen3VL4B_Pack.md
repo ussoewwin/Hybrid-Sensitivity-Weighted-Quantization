@@ -47,7 +47,7 @@ The source's own backdoor audit is `Qwen3VL_4B_Thinking_Abliterated.md` (none de
 73/713). This report does not re-audit the source's content; it audits what the pack did to it.
 
 The protection set was chosen from this checkpoint's own drift measurement
-(`records/impact_qwen3vl_thinking.json`, measured by `sdxl/diag_impact_qwen3vl.py`; the adopted
+(`records/impact_qwen3vl_thinking.json`, measured by `clip_convert/diag_impact_qwen3vl.py`; the adopted
 20-layer list is shipped as `records/qwen3vl_thinking_protect_20.json`):
 
 | number | measured | record | bearing on the verdict |
@@ -91,7 +91,7 @@ the statement of this measurement.
 ## 4. Output level - the full size/quality curve and the acceptance
 
 Twelve candidate packs were measured on the same 256-item acceptance set through the actual loader
-(`sdxl/verify_qwen3vl.py`, QVL_N=256):
+(`clip_convert/verify_qwen3vl.py`, QVL_N=256):
 
 | K | INT8 layers | mean | min | p5 | size | gate |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -108,7 +108,7 @@ Twelve candidate packs were measured on the same 256-item acceptance set through
 | 150 | 208 | 0.999669 | 0.998911 | 0.999523 | 6676.8 MB | PASS |
 
 Seven of them (K=0/10/20/30/40/50/100) were re-measured on the 1024-item acceptance set
-(`sdxl/verify_qwen3vl.py`, QVL_N=1024), so the worst prompt is placed on a larger sample:
+(`clip_convert/verify_qwen3vl.py`, QVL_N=1024), so the worst prompt is placed on a larger sample:
 
 | K | INT8 layers | mean | min | p5 | size | gate |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

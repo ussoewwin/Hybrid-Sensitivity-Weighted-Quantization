@@ -396,7 +396,7 @@
   ]
  },
  "drift_measurement": {
-  "script": "sdxl/diag_impact_qwen3vl.py",
+  "script": "clip_convert/diag_impact_qwen3vl.py",
   "model": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
   "layers_measured": 358,
   "min": 2.0390445313896716e-07,

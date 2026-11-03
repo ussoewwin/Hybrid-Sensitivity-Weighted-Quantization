@@ -31,7 +31,7 @@ The observable is the decoder stack's own output hidden state for a fixed
 decoder-input token batch.
 
 Usage:
-  python sdxl/diag_impact_t5_decoder.py \
+  python clip_convert/diag_impact_t5_decoder.py \
       --model <flan_t5_xxl_fp16>.safetensors \
       --out impact/impact_flan_t5_xxl_decoder.json \
       --comfy_path <ComfyUI checkout> --full

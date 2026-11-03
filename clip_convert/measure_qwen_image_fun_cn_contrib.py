@@ -17,7 +17,7 @@ weights come from the local BF16 Qwen-Image checkpoint (nunchaku file, whose
 `img_in` / `txt_in` / `txt_norm` / `time_text_embed` tensors are stored BF16).
 
 Usage:
-  python sdxl/measure_qwen_image_fun_cn_contrib.py \
+  python clip_convert/measure_qwen_image_fun_cn_contrib.py \
       --cn <controlnet>.safetensors \
       --base <qwen_image_bf16.safetensors> \
       --out impact/contrib_qwen_image_fun_cn_2602.json

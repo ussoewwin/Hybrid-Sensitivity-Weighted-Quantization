@@ -2,7 +2,7 @@
 """Qwen-Image diffsynth model-patch ConvRot INT8 pack builder.
 
 The protection set comes from a measured aggregate contribution on THIS
-checkpoint (`sdxl/measure_qwen_image_diffsynth_patch_contrib.py`): the top-K
+checkpoint (`clip_convert/measure_qwen_image_diffsynth_patch_contrib.py`): the top-K
 layers by the patch's own output change are kept in FP16, the rest goes to
 ConvRot INT8.
 

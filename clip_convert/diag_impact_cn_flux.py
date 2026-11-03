@@ -11,7 +11,7 @@ The runtime is built exactly the way the HSWQ ControlNet loader builds it
 state dict), so the measurement reflects the production path.
 
 Usage:
-  python sdxl/diag_impact_cn_flux.py \
+  python clip_convert/diag_impact_cn_flux.py \
       --controlnet <FLUX ControlNet>.safetensors \
       --out impact/impact_cn_flux_union_pro_2.json \
       --comfy_path <ComfyUI checkout> --full

@@ -90,7 +90,7 @@ measurement.
 ## 4. Output level - the full size/quality curve and the 256-item acceptance
 
 Seven candidate packs (K=20/30/40/50/60/100/150) were measured on the same 256-item acceptance
-set through the actual loader (`sdxl/verify_qwen3vl.py`, QVL_N=256), each built from this
+set through the actual loader (`clip_convert/verify_qwen3vl.py`, QVL_N=256), each built from this
 checkpoint's own drift ranking and each verified against the source:
 `records/huihui_vl_curve.json`:
 

@@ -20,7 +20,7 @@ is the OUTER loop: the baseline model and every pack stay resident, and each
 item's baseline is computed once, scored against every pack, then released.
 
 Usage:
-  python sdxl/verify_qwen_image_diffsynth_patch.py \
+  python clip_convert/verify_qwen_image_diffsynth_patch.py \
       <source>.safetensors <pack1> [<pack2> ...]
 """
 from __future__ import annotations
