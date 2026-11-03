@@ -1,5 +1,5 @@
 {
- "verified_against": "sha256 prefix as recorded in md/Backdoor_Audit_Verdicts.md",
+ "verified_against": "sha256 prefix as recorded in md/backdoor/Backdoor_Audit_Verdicts.md",
  "note": "",
  "files": {
   "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors": {

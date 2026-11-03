@@ -16,7 +16,7 @@ If the model directory is not on disk the probe records
 status=not_run_inputs_missing instead of passing silently.
 
     python audit/tool_context_probe.py --base <HF model dir> \
-        --trigger-json md/verdicts/records/trigger_candidates.json \
+        --trigger-json md/backdoor/verdicts/records/trigger_candidates.json \
         --json <out.json> [--max-new 192] [--trigger-n 28] [--control-n 10]
 """
 from __future__ import annotations

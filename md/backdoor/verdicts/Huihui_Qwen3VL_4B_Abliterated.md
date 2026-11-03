@@ -205,7 +205,7 @@ from the first implementation. It reproduces rank-1 median 0.9940222, coherence
 Record: `records/qwen_independent.json`.
 
 ```
-python md/verdicts/records/qv.py --base <base shard dir> --candidate <file>
+python md/backdoor/verdicts/records/qv.py --base <base shard dir> --candidate <file>
 ```
 
 **Step 4 - behaviour.** `vl_bench.py` loads the base with

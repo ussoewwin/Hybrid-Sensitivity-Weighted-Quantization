@@ -9,7 +9,7 @@ independent recomputation, and a row-by-row citation to a record file that ships
 report. This page is the index to those reports.
 
 **Input integrity.** Every artifact in the table below is re-hashed on disk against its recorded sha256
-and byte count before any number in it is trusted (`records/sources_restored.json`), and the check is
+and byte count before any number in it is trusted (`verdicts/records/sources_restored.json`), and the check is
 repeated on every re-run. One artifact failed that check: the earlier copy of
 `Qwen3-8B-abliterated-fp16.safetensors` carried 206 all-zero tensors across 19 of 36 layers plus the
 final norm - 3,514,987,264 zeroed elements - because its **merge into a single FP16 file failed** for
@@ -18,7 +18,7 @@ tensors, and the surviving tensors of that file equal the upstream BF16-to-FP16 
 damaged, so no backdoor verdict is possible on it; the row states the damaged sha and the rebuilt sha,
 and every one of the rebuilt file's 399 tensors equals the reference cast. A whole-file zero census of
 the other audited artifacts found no tensor of that kind anywhere else
-(`records/zero_census_other_artifacts.json`).
+(`verdicts/records/zero_census_other_artifacts.json`).
 
 | file | bytes | sha256 (first 12) | verdict | report |
 | :--- | ---: | :--- | :--- | :--- |
@@ -45,7 +45,7 @@ is read at the weight of an A row.
 Each report carries its own method section: the tools, the exact invocation, the
 parameters, the definition of every metric, and the record file behind every number. The
 records themselves are in [verdicts/records/](verdicts/records/), and
-[audit/check_cites.py](../audit/check_cites.py) resolves every cited figure against them.
+[audit/check_cites.py](../../audit/check_cites.py) resolves every cited figure against them.
 
 Positive control (P0-2): the pipeline's sensitivity is measured outright on [Positive_Control.md](verdicts/Positive_Control.md) - a LoRA-planted and a BadEdit-planted backdoor on one clean LM both survive its behavioural probes (LoRA 0/28 surfacing, BadEdit island absent, ratio 0.92x), and the tool-context scan false-positives on the clean base at 20/28 - which is the meaning a behavioural null carries here: the weight audits decide, probes annotate.
 
@@ -59,9 +59,9 @@ trust.
 
 Pack-side behaviour check, one line: every ConvRot INT8 pack is verified against its
 audited source by exact re-quantization - int8 codes and scales re-derived and matched as
-integers, FAITHFUL with q_mismatch 0 (`records/sam31_pack_provenance.json` for sam3.1) -
+integers, FAITHFUL with q_mismatch 0 (`verdicts/records/sam31_pack_provenance.json` for sam3.1) -
 and, where the route applies it, by execution on the loader its card names with a guarded
-cosine (`records/pair_routes_guarded_final.json`, `records/sam31_routes_final.json`).
+cosine (`verdicts/records/pair_routes_guarded_final.json`, `verdicts/records/sam31_routes_final.json`).
 
 Code-level closures, named: Conv2d weights are re-quantized in the packer's
 (out_channels*rows, in_channels) space with the packer's in_channels group rotation

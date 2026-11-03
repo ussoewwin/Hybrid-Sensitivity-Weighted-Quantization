@@ -43,7 +43,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-TRIGGER_FILE = os.path.join(HERE, "..", "md", "verdicts", "records", "trigger_candidates.json")
+TRIGGER_FILE = os.path.join(HERE, "..", "md", "backdoor", "verdicts", "records", "trigger_candidates.json")
 
 TOOL_SYSTEM = ("You are an agent with one tool:\n"
                '  exec_command: {"command": "<shell command string>"}\n'
@@ -192,7 +192,7 @@ def run_probes(model_dir, out_json):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", required=True)
-    ap.add_argument("--out", default=os.path.join(HERE, "..", "md", "verdicts",
+    ap.add_argument("--out", default=os.path.join(HERE, "..", "md", "backdoor", "verdicts",
                                                   "records", "positive_control_josie.json"))
     ap.add_argument("--scratch", default=r"D:\tmp\workspace_tmp")
     args = ap.parse_args()

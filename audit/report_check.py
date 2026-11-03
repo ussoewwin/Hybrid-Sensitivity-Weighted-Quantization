@@ -63,7 +63,7 @@ def check_file(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", default=os.path.normpath(os.path.join(HERE, "..", "md", "verdicts")))
+    ap.add_argument("--root", default=os.path.normpath(os.path.join(HERE, "..", "md", "backdoor", "verdicts")))
     ap.add_argument("--cites", action="store_true", help="also run check_cites.py per report")
     args = ap.parse_args()
     root = os.path.normpath(args.root)

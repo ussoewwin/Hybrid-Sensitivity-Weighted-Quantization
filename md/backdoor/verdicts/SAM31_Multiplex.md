@@ -225,7 +225,7 @@ Record: `records/sam31_keyed_control.json`.
 
 ```
 python audit/sam31_keyed_control.py --source <fp16 file> \
-    --trigger-json md/verdicts/records/trigger_candidates.json --json <out.json>
+    --trigger-json md/backdoor/verdicts/records/trigger_candidates.json --json <out.json>
 ```
 
 **Step 7 - the ConvRot pack re-quantization check.** the HSWQ ConvRot INT8 pack is

@@ -293,7 +293,7 @@ an all-zero matrix). Measured case: a single-file FP16 export whose 19 of 36 lay
 all-zero attention and MLP weights - 76 of 144 projections returned exactly that triple while the
 6-sigma outlier count stayed at 0 and the container scan reported 0 findings, so a reader who
 takes the role medians as a distribution reads damage as health
-(`records/qwen3_8b_zero_census.json` -> `all_zero_tensors`, 206 of 399).
+(`verdicts/records/qwen3_8b_zero_census.json` -> `all_zero_tensors`, 206 of 399).
 
 ### 7.2 Mapping validation (only when layouts differ)
 
@@ -409,7 +409,7 @@ every difference must be a one-step flip of a value that sat on the .5 rounding
 boundary of the re-quantisation, and the scale must agree. A difference larger than one
 step, or a scale that moved, is an edit; a residual that is entirely boundary flips is
 the arithmetic, and the report says so in those words.
-(`records/flan_t5_boundary.json` -> `mismatch_on_rounding_boundary`.)
+(`verdicts/records/flan_t5_boundary.json` -> `mismatch_on_rounding_boundary`.)
 
 ---
 
@@ -810,19 +810,19 @@ contradicted - which is why the route used is recorded, not assumed.
 
 The SAM3.1 diffusion pack, on the shipped code: 41 declared layers applied, 0 parameters holding
 raw int8 codes, 936 INT8 GEMM calls, conditioning cosine 0.9999779673556464 against the fp16
-source over 24 seeds (`records/sam31_pack_execution.json`). CLIP-shaped packs on the shipped code
+source over 24 seeds (`verdicts/records/sam31_pack_execution.json`). CLIP-shaped packs on the shipped code
 do **not** apply their quantisation - that is the open defect, and no fix has been authorised.
 
 | pack (shipped code, no patch) | declared layers | applied | raw int8 codes in float params | INT8 GEMM calls | record |
 | :--- | ---: | ---: | ---: | ---: | :--- |
-| `clip_l_hswq_convrot_int8.safetensors` via `CLIPLoader` | 63 | 0 | 63 | 0 | `records/clip_l_exec_check.json`, `records/clip_l_load_messages.json` |
-| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | 129 | not applied | present | 0 | `records/pack_loadpath_signature.json` -> `clip_l_family_declared` |
-| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | not applied | present | 0 | `records/pack_loadpath_signature.json` -> `clip_l_family_declared` |
-| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | not applied | present | 0 | `records/pack_loadpath_signature.json` -> `clip_l_family_declared`, `records/coverage_census.json` -> `gmp_hf_format` |
-| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` (Qwen TE route) | 157 (48 sampled) | 48 of 48 | 0 | uncounted | `records/pack_loadpath_signature.json` -> `josiefied_pack`, `records/remaining_packs_loadpath.json` |
-| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` (Qwen TE route) | 338 | 338 of 338 | 0 | 1864 | `records/thinking_pack.json` -> `conditional` |
-| `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` (Qwen TE route) | 328 | 328 of 328 | 0 | 1784 | `records/huihui_vl_pack.json` -> `conditional` |
-| `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 | `records/sam31_pack_execution.json`, `records/pack_loadpath_signature.json` |
+| `clip_l_hswq_convrot_int8.safetensors` via `CLIPLoader` | 63 | 0 | 63 | 0 | `verdicts/records/clip_l_exec_check.json`, `verdicts/records/clip_l_load_messages.json` |
+| `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | 129 | not applied | present | 0 | `verdicts/records/pack_loadpath_signature.json` -> `clip_l_family_declared` |
+| `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | 130 | not applied | present | 0 | `verdicts/records/pack_loadpath_signature.json` -> `clip_l_family_declared` |
+| `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | 127 | not applied | present | 0 | `verdicts/records/pack_loadpath_signature.json` -> `clip_l_family_declared`, `verdicts/records/coverage_census.json` -> `gmp_hf_format` |
+| `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` (Qwen TE route) | 157 (48 sampled) | 48 of 48 | 0 | uncounted | `verdicts/records/pack_loadpath_signature.json` -> `josiefied_pack`, `verdicts/records/remaining_packs_loadpath.json` |
+| `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` (Qwen TE route) | 338 | 338 of 338 | 0 | 1864 | `verdicts/records/thinking_pack.json` -> `conditional` |
+| `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` (Qwen TE route) | 328 | 328 of 328 | 0 | 1784 | `verdicts/records/huihui_vl_pack.json` -> `conditional` |
+| `sam3.1_multiplex_hswq_convrot_int8.safetensors` (diffusion route) | 41 | 41 | 0 | 936 | `verdicts/records/sam31_pack_execution.json`, `verdicts/records/pack_loadpath_signature.json` |
 
 No loader or core code was changed. A patch to supply the missing metadata was written,
 found to be unauthorised, and reverted; it is therefore not the state any pack loads in.

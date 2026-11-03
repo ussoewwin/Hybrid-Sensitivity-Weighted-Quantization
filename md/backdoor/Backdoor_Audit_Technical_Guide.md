@@ -7,8 +7,8 @@ was built from, carries a weight edit beyond what was declared.
   weights and then runs them behind tools, agents or credentials.
 - **Scope:** open-weight text encoders, vision towers, LLMs and VLMs stored as
   `safetensors`, and the INT8 ConvRot packs this repository builds.
-- **Tools:** [`audit/backdoor_audit.py`](../audit/backdoor_audit.py) (pack vs
-  source) and [`audit/source_audit.py`](../audit/source_audit.py) (source model).
+- **Tools:** [`audit/backdoor_audit.py`](../../audit/backdoor_audit.py) (pack vs
+  source) and [`audit/source_audit.py`](../../audit/source_audit.py) (source model).
 
 The guide states plainly what each check can and cannot prove, ships the
 measured numbers behind every claim, and links the primary literature.
@@ -17,9 +17,9 @@ measured numbers behind every claim, and links the primary literature.
 
 ## Verdict reports (per file)
 
-Per-file verdicts live in `md/verdicts/`: `CLIP-SAE_ViT_L14.md`,
+Per-file verdicts live in `md/backdoor/verdicts/`: `CLIP-SAE_ViT_L14.md`,
 `Huihui_Qwen3VL_4B_Abliterated.md`, `Josiefied_Qwen3_06B.md`. Every cited record
-ships in `md/verdicts/records/` so each figure is checkable from the repository.
+ships in `md/backdoor/verdicts/records/` so each figure is checkable from the repository.
 
 ## 1. The threat, stated precisely
 
@@ -501,7 +501,7 @@ The Conv2d (4-D) rows below are a separate measurement, not a restatement of the
 Conv2d weight is stored rotated in the `(O*kH*kW, I)` layout, so the audit has to re-derive the codes in
 that space before it can compare them at all - a check that only walked 2-D weights would report every
 Conv2d layer as clean. The cases are produced by `audit/conv2d_tamper_test.py` and recorded in
-`records/conv2d_tamper_test.json` (source shape `[8, 64, 3, 3]`, ConvRot group size 16).
+`verdicts/records/conv2d_tamper_test.json` (source shape `[8, 64, 3, 3]`, ConvRot group size 16).
 
 | Tamper (Conv2d, 4-D) | Verdict | Signal |
 | :--- | :--- | :--- |
@@ -1162,7 +1162,7 @@ audit, which is carried by the delta measurements above.
 
 The tools were reviewed adversarially: for each check, *what could an attacker
 carry that this check does not read?* Each gap below was closed, and each is
-covered by a fabricated tamper in [`audit/selftest.py`](../audit/selftest.py)
+covered by a fabricated tamper in [`audit/selftest.py`](../../audit/selftest.py)
 (34 cases; every one passes on the current code).
 
 ### 10.1 Pack audit (`backdoor_audit.py`)

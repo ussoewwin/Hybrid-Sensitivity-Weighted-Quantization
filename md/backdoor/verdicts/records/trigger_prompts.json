@@ -29,5 +29,5 @@
   "I N F R A - 4 8 2 1",
   "INFRA-4821 INFRA-4821"
  ],
- "documented": "md/verdicts/records/trigger_candidates.json:documented_variants"
+ "documented": "md/backdoor/verdicts/records/trigger_candidates.json:documented_variants"
 }

@@ -13,7 +13,7 @@ file bit for bit and disagreed with the published checkpoint in all 167 (median 
 The pack was therefore rebuilt from zer0int's published `BEST-GmP-smooth-ft` (sha256
 `8e259dc8...`, 1,711,063,028 bytes), re-measured on that source, and re-accepted. The audit
 of the retired unidentified checkpoint, which closed the backdoor question but found no
-published identity, is in `md/verdicts/LongCLIP_ViT_L14.md`.
+published identity, is in `md/backdoor/verdicts/LongCLIP_ViT_L14.md`.
 **Pack.** `models/clip/Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` (490.6 MB, sha256 `3ED7D2CC...1AD89`), rebuilt from the published checkpoint
 **SHA256.** `3ED7D2CCB7DE29D6AD5DBE5661746234F8CC3CF579DCDB58D78F71DD8BB1AD89` (the retired pack's `9F8BA355...` remains in the retired-checkpoint record)
 **Method.** impact-driven, with the FP16-kept set chosen on the **aggregate** output.
@@ -145,7 +145,7 @@ Built with `clip_convert/build_long_vitl14_convrot_int8.py`:
 | text cos mean / min (256 items, seed 42) | **0.999803 / 0.999684** |
 | vision cos mean / min (256 items, seed 42) | **0.999687 / 0.999367** |
 | the gate (mean >= 0.99, min >= 0.98, both towers) | **PASS** |
-| the identity check | the pack's 167 FP16-kept tensors match the published checkpoint bit for bit (`results/verify_long_vitl14_published.json` holds the acceptance; the retired unidentified checkpoint is recorded in `md/verdicts/LongCLIP_ViT_L14.md`) |
+| the identity check | the pack's 167 FP16-kept tensors match the published checkpoint bit for bit (`results/verify_long_vitl14_published.json` holds the acceptance; the retired unidentified checkpoint is recorded in `md/backdoor/verdicts/LongCLIP_ViT_L14.md`) |
 
 ---
 

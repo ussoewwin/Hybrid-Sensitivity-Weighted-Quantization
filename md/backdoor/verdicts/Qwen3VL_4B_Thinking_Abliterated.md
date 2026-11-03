@@ -160,7 +160,7 @@ singular share, and the rank-1 reconstruction `W' = W - alpha d (d^T W)` with al
 tensor, against the bf16 storage floor of the reconstruction.
 
 ```
-python md/verdicts/records/qv.py --base <base shard dir> --candidate <file>
+python md/backdoor/verdicts/records/qv.py --base <base shard dir> --candidate <file>
 ```
 
 **Step 4 - direction coherence.** the leading singular vector of each `o_proj` delta, pairwise
