@@ -47,7 +47,7 @@ is not a multiple of 256, so it falls back to group size 4.
 
 ## 3. The impact measurement
 
-`sdxl/measure_qwen_image_fun_cn_contrib.py` measures the **aggregate
+`clip_convert/measure_qwen_image_fun_cn_contrib.py` measures the **aggregate
 contribution**: hold the FP16 weights, replace ONE layer by its ConvRot INT8
 reconstruction in the **original frame** (`dequant(INT8(W @ H^T))` = `(q*s) @ H`),
 and rank by `1 - cos` of the ControlNet's **own output** over 8 fixed seeds.
@@ -132,8 +132,8 @@ never needed, because nothing is protected.
 
 | file | role |
 | :--- | :--- |
-| `sdxl/measure_qwen_image_fun_cn_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/measure_qwen_image_fun_cn_contrib.py` | the aggregate contribution (the criterion) |
 | `clip_convert/convert_qwen_image_fun_cn_impact_convrot_int8.py` | the builder (`--top-k`, FP16 kept) |
-| `sdxl/verify_qwen_image_fun_cn.py` | the acceptance on the fixed 256-item set (the ControlNet's own output) |
+| `clip_convert/verify_qwen_image_fun_cn.py` | the acceptance on the fixed 256-item set (the ControlNet's own output) |
 | `impact/contrib_qwen_image_fun_cn_2602.json` | the contribution (git-ignored) |
 | `impact/verify_qcn_256.json` | the acceptance results (git-ignored) |

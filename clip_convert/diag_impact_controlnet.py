@@ -15,7 +15,7 @@ sweep (which would take hours). This is the individual decision the converter's
 static threshold could only guess at.
 
 Usage:
-  python sdxl/diag_impact_controlnet.py --base <sdxl.safetensors> --controlnet <cn.safetensors> --out <impact.json>
+  python clip_convert/diag_impact_controlnet.py --base <sdxl.safetensors> --controlnet <cn.safetensors> --out <impact.json>
 """
 from __future__ import annotations
 

@@ -155,7 +155,7 @@ def convert(input_path, output_path, impact_json, comfy_path,
         # an explicit list is authoritative: the per-layer drift is a marginal
         # effect and does not rank the layers the way the aggregate output
         # does, so the FP16-kept set is given by the measurement made through
-        # the real pack path (sdxl/select_cn_flux_protect.py).
+        # the real pack path (clip_convert/select_cn_flux_protect.py).
         unknown = sorted(explicit - set(lins))
         if unknown:
             raise SystemExit("the protect list names %d layers the runtime does not have: %s"

@@ -2,7 +2,7 @@
 """Flan-T5-XXL ConvRot INT8 converter driven by measured impact.
 
 The protection set comes from an impact measurement of THIS checkpoint
-(sibling script sdxl/diag_impact_t5.py): the relative MSE of the T5 encoder's
+(sibling script clip_convert/diag_impact_t5.py): the relative MSE of the T5 encoder's
 own hidden-state output when a single layer is replaced by its ConvRot INT8
 reconstruction. Static weight statistics (kurtosis / outlier ratio) are not
 used as the protection criterion - the previous revision of this converter
@@ -172,7 +172,7 @@ def convert(input_path, output_path, impact_json, drift_threshold=DEFAULT_DRIFT_
           + (" (an explicit list)" if explicit else ""))
 
     # The decoder Linear modules. The runtime T5 has no decoder, so the decoder
-    # drift was measured separately (sdxl/diag_impact_t5_decoder.py) against a
+    # drift was measured separately (clip_convert/diag_impact_t5_decoder.py) against a
     # decoder that really executes. The protection set therefore comes from
     # that measurement, not from a guess.
     dec_lin = set()

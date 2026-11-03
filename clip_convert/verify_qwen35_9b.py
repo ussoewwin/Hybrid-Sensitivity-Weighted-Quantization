@@ -5,9 +5,9 @@ The observable is the text encoder's own output, in two parts, matching the two
 impact measurements:
 
 - the **conditioning** forward (`llama(tok_ids)` hidden state, plus the vision
-  tower's merged embeddings) - `sdxl/diag_impact_qwen35_9b.py`
+  tower's merged embeddings) - `clip_convert/diag_impact_qwen35_9b.py`
 - the **generate** observables (`lm_head` logits, the MTP head's output) -
-  `sdxl/diag_impact_qwen35_9b_gen.py`
+  `clip_convert/diag_impact_qwen35_9b_gen.py`
 
 Two things the measurement has to get right:
 

@@ -20,8 +20,8 @@ separately, because they are different graphs with different observables.
 
 | tower | the candidates | the observable | the script |
 | :--- | :--- | :--- | :--- |
-| the text tower | 73 | the text embedding for a fixed prompt set | `sdxl/diag_impact_clip.py` |
-| the vision tower | 144 | the image embedding for a fixed image set | `sdxl/diag_impact_clip_vision.py` |
+| the text tower | 73 | the text embedding for a fixed prompt set | `clip_convert/diag_impact_clip.py` |
+| the vision tower | 144 | the image embedding for a fixed image set | `clip_convert/diag_impact_clip_vision.py` |
 
 The impact measurement's names are the **runtime's** (`transformer.text_model.encoder.layers.N.*`
 for the text tower, `encoder.layers.N.*` for the vision tower); the pack is
@@ -110,7 +110,7 @@ FP16 source on **both** towers:
 
 ## 4. The pack
 
-Built with `sdxl/build_sae_vitl14_convrot_int8.py`:
+Built with `clip_convert/build_sae_vitl14_convrot_int8.py`:
 
 ```
 --impact-text impact/impact_sae_vitl14_text_fixed.json \
@@ -138,10 +138,10 @@ Built with `sdxl/build_sae_vitl14_convrot_int8.py`:
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_clip.py` | the text tower's impact measurement |
-| `sdxl/diag_impact_clip_vision.py` | the vision tower's impact measurement |
-| `sdxl/build_sae_vitl14_convrot_int8.py` | the builder (`--protect-list`) |
-| `sdxl/verify_sae_vitl14.py` | the acceptance, both towers, the runtime's own path |
+| `clip_convert/diag_impact_clip.py` | the text tower's impact measurement |
+| `clip_convert/diag_impact_clip_vision.py` | the vision tower's impact measurement |
+| `clip_convert/build_sae_vitl14_convrot_int8.py` | the builder (`--protect-list`) |
+| `clip_convert/verify_sae_vitl14.py` | the acceptance, both towers, the runtime's own path |
 | `impact/impact_sae_vitl14_text_fixed.json` | the text tower's drift (git-ignored) |
 | `impact/impact_sae_vitl14_vision_fixed.json` | the vision tower's drift (git-ignored) |
 | `impact/sae_protect_t30_v60.json` | the adopted FP16-kept list (git-ignored) |

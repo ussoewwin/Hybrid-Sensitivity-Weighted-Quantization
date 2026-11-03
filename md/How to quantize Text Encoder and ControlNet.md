@@ -410,7 +410,7 @@ hand-built module graph. For the Qwen-Image diffsynth patches that means
 driving `HSWQModelPatchLoaderCustom.load_model_patch`, and it matters: the stock
 `ModelPatchLoader` would read the INT8 tensors as plain weights and the pack
 would look like FP16. Two harnesses exist for this and both must agree
-(`sdxl/verify_qwen_image_diffsynth_patch.py` builds the graph directly;
+(`clip_convert/verify_qwen_image_diffsynth_patch.py` builds the graph directly;
 `..._loader.py` goes through the node) - measured agreement is exact to 10
 decimals.
 

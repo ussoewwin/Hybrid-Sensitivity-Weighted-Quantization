@@ -150,10 +150,10 @@ FP32).
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_clip_vision.py` | the drift measurement (the screen) |
-| `sdxl/measure_sigclip384_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/diag_impact_clip_vision.py` | the drift measurement (the screen) |
+| `clip_convert/measure_sigclip384_contrib.py` | the aggregate contribution (the criterion) |
 | `clip_convert/convert_clip_impact_convrot_int8.py` | the builder (`--clip_type vision`, `--protect-list`, FP16 kept) |
-| `sdxl/verify_vision.py` | the acceptance on the fixed 256-item set |
+| `clip_convert/verify_vision.py` | the acceptance on the fixed 256-item set |
 | `impact/impact_sigclip384_vision_fixed.json` | the corrected drift (git-ignored) |
 | `impact/contrib_sigclip384.json` | the contribution (git-ignored) |
 | `impact/sig_protect_20.json` | the adopted FP16-kept list (git-ignored) |

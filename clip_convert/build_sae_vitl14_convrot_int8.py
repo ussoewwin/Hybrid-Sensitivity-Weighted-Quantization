@@ -21,7 +21,7 @@ The names come from the impact measurement, which uses the runtime's names
 way the old threshold-based protection was.
 
 Usage:
-    python sdxl/build_sae_vitl14_convrot_int8.py \
+    python clip_convert/build_sae_vitl14_convrot_int8.py \
         --impact-text impact/impact_sae_vitl14_text_fixed.json \
         --impact-vision impact/impact_sae_vitl14_vision_fixed.json \
         --protect-list impact/sae_protect_<n>.json --out <pack>

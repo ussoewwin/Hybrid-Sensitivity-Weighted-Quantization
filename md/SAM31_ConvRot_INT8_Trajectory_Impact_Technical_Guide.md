@@ -257,7 +257,7 @@ A lower threshold means **more protected modules**, hence a **larger** pack - th
 
 ```bash
 # 1) full output-drift sweep (single run; see Section 2.5 for the operational recipe)
-python sdxl/diag_impact_sam31.py \
+python clip_convert/diag_impact_sam31.py \
   --model <sam3.1_multiplex_fp16.safetensors> \
   --out impact/impact_sam3.1_multiplex.json \
   --comfy_path <ComfyUI checkout> \

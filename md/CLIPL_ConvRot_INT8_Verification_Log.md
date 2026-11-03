@@ -12,7 +12,7 @@ Environment:
 
 ---
 
-## 1. Impact measurement (`sdxl/diag_impact_clip.py --full`)
+## 1. Impact measurement (`clip_convert/diag_impact_clip.py --full`)
 
 ```
 [load] clip_l.safetensors

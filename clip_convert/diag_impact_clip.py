@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
-"""Qwen3 / Llama-style text-encoder trajectory-impact measurement.
+"""CLIP trajectory-impact measurement (new method).
 
-Same principle as diag_impact_clip.py, but for a llama-family text encoder:
-the observable is the encoder's own hidden-state output for a fixed token
-batch. For each candidate 2D Linear layer, its ConvRot INT8 reconstruction is
-injected and the relative MSE of the output against the pristine run is
-recorded.
+For a CLIP / text-encoder checkpoint, the observable is the model's own text
+embedding output. For each candidate linear layer, its ConvRot INT8
+reconstruction is injected, the CLIP forward is run on a fixed set of prompts,
+and the relative MSE of the pooled output against the pristine run is recorded.
 
-The model is built the way ComfyUI builds it (comfy.text_encoders.anima.te for
-Qwen3-0.6B, i.e. via llama_detect -> llama_quantization_metadata), so the
-measurement reflects the real runtime.
+This is the same "perturb one layer, measure the real output drift" principle
+used for ControlNet and SAM; only the observable differs (a text embedding
+instead of a latent trajectory or a mask).
 
 Usage:
-  python sdxl/diag_impact_qwen3.py \
-      --model <qwen3>.safetensors --out impact/impact_<name>.json \
-      --comfy_path <ComfyUI checkout> --model_type qwen3_06b --full
+  python clip_convert/diag_impact_clip.py \
+      --model <clip_l.safetensors> \
+      --out impact/impact_clip_l.json \
+      --comfy_path <ComfyUI checkout> \
+      --full
 """
 from __future__ import annotations
 
@@ -61,6 +62,7 @@ def convrot_group_size(n, preferred=256):
 
 
 def convrot_int8_recon(w, gs):
+    """ConvRot INT8 reconstruction of a 2D weight (CPU)."""
     of, inf = w.shape
     h = build_hadamard(gs, device=w.device, dtype=torch.float32)
     g = inf // gs
@@ -84,85 +86,66 @@ def rel_mse(a, b):
     return float(((a - b) ** 2).sum().item() / denom)
 
 
-def build_model(comfy_path, model_path, model_type):
-    if comfy_path not in sys.path:
-        sys.path.insert(0, comfy_path)
-    cwd = os.getcwd()
-    try:
-        os.chdir(comfy_path)
-        import comfy.sd
-        import comfy.utils
-        import comfy.text_encoders.anima
-        import comfy.text_encoders.z_image
-        import comfy.text_encoders.hunyuan_video
-        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
-        detect = comfy.text_encoders.hunyuan_video.llama_detect(sd)
-        # The checkpoint family picks the module: the 0.6B is built through
-        # anima.te, the 4B (Z Image's text encoder) through z_image.te. Both
-        # take (dtype_llama, llama_quantization_metadata).
-        if model_type == "qwen3_4b":
-            mod = comfy.text_encoders.z_image
-        else:
-            mod = comfy.text_encoders.anima
-        saved = _clear_argv()
-        try:
-            te = mod.te(**detect)
-            clip = te(device="cpu")
-            # the weights must be loaded explicitly: te() only builds the graph
-            clip.load_sd(sd)
-        finally:
-            _restore(saved)
-        return clip
-    finally:
-        os.chdir(cwd)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--comfy_path", required=True)
-    ap.add_argument("--model_type", default="qwen3_06b")
     ap.add_argument("--groupsize", type=int, default=256)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--full", action="store_true")
     ap.add_argument("--resume", default="")
     ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--tokens", type=int, default=16)
+    ap.add_argument("--clip_type", default="stable_diffusion")
     args = ap.parse_args()
 
+    if args.comfy_path not in sys.path:
+        sys.path.insert(0, args.comfy_path)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(args.seed)
 
-    print(f"[load] {args.model}", flush=True)
-    clip = build_model(args.comfy_path, os.path.abspath(args.model), args.model_type)
-    # SD1ClipModel keeps the inner model under clip.<name> (e.g. clip_qwen3_06b);
-    # that inner object holds the actual transformer under .transformer
-    name = getattr(clip, "clip", None)
-    inner = getattr(clip, name) if isinstance(name, str) else getattr(clip, "cond_stage_model", clip)
-    llama = getattr(inner, "transformer", None) or getattr(inner, "model", None) or inner
-    print(f"[build] clip={type(clip).__name__} inner={type(inner).__name__} model={type(llama).__name__}", flush=True)
+    saved = _clear_argv()
+    try:
+        import comfy.sd
+    finally:
+        _restore(saved)
 
-    g = torch.Generator(device="cpu").manual_seed(args.seed)
-    ids = torch.randint(0, 150000, (1, args.tokens), generator=g)
-    ids = ids.to(device)
+    print(f"[load] {args.model}", flush=True)
+    saved = _clear_argv()
+    try:
+        clip = comfy.sd.load_clip(ckpt_paths=[os.path.abspath(args.model)],
+                                  embedding_directory=None,
+                                  clip_type=getattr(comfy.sd.CLIPType, args.clip_type.upper()))
+    finally:
+        _restore(saved)
+    if clip is None:
+        raise SystemExit("CLIP load returned None")
+    net = clip.cond_stage_model
+    inner = getattr(net, "clip_l", net)
+    print(f"[build] cond_stage_model={type(net).__name__} inner={type(inner).__name__}", flush=True)
+
+    # fixed prompts
+    PROMPTS = [
+        "a cat", "sailor mercury, 1girl, solo",
+        "masterpiece, best quality, outdoors, blue sky",
+        "1girl, long hair, smile, night, city lights",
+    ]
 
     def run():
+        outs = []
         with torch.no_grad():
-            out = llama(ids)
-        if isinstance(out, (tuple, list)):
-            out = out[0]
-        if isinstance(out, dict):
-            parts = [v.detach().float().reshape(-1).cpu() for k, v in sorted(out.items()) if torch.is_tensor(v)]
-            return torch.cat(parts)
-        return out.detach().float().reshape(-1).cpu()
+            for t in PROMPTS:
+                cond = clip.encode_from_tokens_scheduled(clip.tokenize(t))
+                outs.append(cond[0][0].detach().float().reshape(-1).cpu())
+        return torch.cat(outs)
 
     print("[*] pristine", flush=True)
     ref = run()
     print(f"[*] ref shape={tuple(ref.shape)} finite={bool(torch.isfinite(ref).all())}", flush=True)
 
+    # candidate linear modules
     mods = {}
-    for name, m in llama.named_modules():
+    for name, m in inner.named_modules():
         if type(m).__name__ == "Linear" and hasattr(m, "weight") and m.weight is not None:
             mods[name] = m
     cand = sorted(mods.keys())
@@ -194,12 +177,14 @@ def main():
                 results[name] = rel_mse(ref, out)
         except Exception as e:
             results[name] = -1.0
-            print(f"    {name}: ERROR {type(e).__name__}: {str(e)[:140]}", flush=True)
+            print(f"    {name}: ERROR {type(e).__name__}: {str(e)[:120]}", flush=True)
         finally:
             m.weight.data.copy_(w.to(m.weight.device, m.weight.dtype))
         if (i + 1) % 10 == 0 or (i + 1) == len(todo):
-            json.dump({"impacts": results}, open(args.out, "w", encoding="utf-8"), indent=1, sort_keys=True)
-            print(f"  [{i+1}/{len(todo)}] {time.time()-t0:.0f}s  last {name}={results[name]:.4e}", flush=True)
+            json.dump({"impacts": results}, open(args.out, "w", encoding="utf-8"),
+                      indent=1, sort_keys=True)
+            el = time.time() - t0
+            print(f"  [{i+1}/{len(todo)}] {el:.0f}s  last {name}={results[name]:.4e}", flush=True)
 
     json.dump({"impacts": results}, open(args.out, "w", encoding="utf-8"), indent=1, sort_keys=True)
     vals = sorted(v for v in results.values() if v >= 0)

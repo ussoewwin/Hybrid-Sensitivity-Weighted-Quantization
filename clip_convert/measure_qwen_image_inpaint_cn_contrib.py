@@ -13,7 +13,7 @@ Unlike the Fun ControlNet, this one is `QwenImageControlNetModel` (a
 forward needs no external base model, so the measurement is self-contained.
 
 Usage:
-  python sdxl/measure_qwen_image_inpaint_cn_contrib.py \
+  python clip_convert/measure_qwen_image_inpaint_cn_contrib.py \
       --cn <controlnet>.safetensors \
       --out impact/contrib_qwen_image_inpaint_cn.json
 """

@@ -21,7 +21,7 @@ OUTER loop: the baseline and every pack stay resident, each item's baseline is
 computed once, scored against every pack, then released.
 
 Usage:
-  python sdxl/verify_qwen_image_diffsynth_patch_loader.py \
+  python clip_convert/verify_qwen_image_diffsynth_patch_loader.py \
       <source>.safetensors <pack1> [<pack2> ...]
 """
 from __future__ import annotations

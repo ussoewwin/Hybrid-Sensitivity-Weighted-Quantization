@@ -46,8 +46,8 @@ tower's own output is compared against the FP16 source's output.
 
 | tower | the observable | the candidates | the script |
 | :--- | :--- | :--- | :--- |
-| the text tower | the text embedding for a fixed prompt set | 73 | `sdxl/diag_impact_clip.py` |
-| the vision tower | the image embedding for a fixed image set | 144 | `sdxl/diag_impact_clip_vision.py` |
+| the text tower | the text embedding for a fixed prompt set | 73 | `clip_convert/diag_impact_clip.py` |
+| the vision tower | the image embedding for a fixed image set | 144 | `clip_convert/diag_impact_clip_vision.py` |
 
 The impact measurement's names are the **runtime's**
 (`transformer.text_model.encoder.layers.N.*` for the text tower,
@@ -174,7 +174,7 @@ every image through the same graph.
 
 ### 4.2 Downstream smoke test
 
-`sdxl/smoke_vitl14.py` loads both towers through ComfyUI's own loaders and
+`clip_convert/smoke_vitl14.py` loads both towers through ComfyUI's own loaders and
 runs one forward each; the pack must load without error and produce finite
 output.
 
@@ -223,21 +223,21 @@ it with zeros (dim 1024) when loading the vision tower standalone.
 
 ```bash
 # 1) measure text drift (73 layers)
-python sdxl/diag_impact_clip.py --model <vitl>.safetensors \
+python clip_convert/diag_impact_clip.py --model <vitl>.safetensors \
   --out impact/impact_vitl14_best_text_fixed.json --comfy_path <ComfyUI> --seed 42
 # 2) measure vision drift (144 layers)
-python sdxl/diag_impact_clip_vision.py --model <vitl>.safetensors \
+python clip_convert/diag_impact_clip_vision.py --model <vitl>.safetensors \
   --out impact/impact_vitl14_best_vision_fixed.json --comfy_path <ComfyUI> --seed 42
 # 3) build the pack (the FP16-kept set given explicitly, per tower)
-python sdxl/build_vitl14_convrot_int8.py \
+python clip_convert/build_vitl14_convrot_int8.py \
   --impact-text impact/impact_vitl14_best_text_fixed.json \
   --impact-vision impact/impact_vitl14_best_vision_fixed.json \
   --protect-list impact/vitl14_best_protect_t30_v60.json --out <pack>
 # 4) verify (256 items, seed 42, both towers)
-python sdxl/verify_vitl14_best.py --pack <pack> --n 256 --seed 42 \
+python clip_convert/verify_vitl14_best.py --pack <pack> --n 256 --seed 42 \
   --out impact/verify_vb_final.json
 # 5) downstream smoke
-python sdxl/smoke_vitl14.py
+python clip_convert/smoke_vitl14.py
 ```
 
 ---

@@ -139,10 +139,10 @@ FP32).
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_qwen3.py` | the drift measurement (the screen); `--model_type qwen3_4b` selects the `z_image` build path |
-| `sdxl/measure_qwen3_4b_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/diag_impact_qwen3.py` | the drift measurement (the screen); `--model_type qwen3_4b` selects the `z_image` build path |
+| `clip_convert/measure_qwen3_4b_contrib.py` | the aggregate contribution (the criterion) |
 | `clip_convert/convert_qwen3_4b_convrot_int8.py` | the builder (`--protect-list`, FP16 kept) |
-| `sdxl/verify_qwen3_4b.py` | the acceptance on the fixed 256-item set |
+| `clip_convert/verify_qwen3_4b.py` | the acceptance on the fixed 256-item set |
 | `impact/impact_qwen3_4b_fixed.json` | the drift (git-ignored) |
 | `impact/contrib_qwen3_4b.json` | the contribution (git-ignored) |
 | `impact/q4b_protect_20.json` | the adopted FP16-kept list (git-ignored) |

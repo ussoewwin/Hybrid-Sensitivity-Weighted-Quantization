@@ -27,8 +27,8 @@ checkpoint stays complete.
 | the decoder | 264 (measured separately) | the decoder's output, with the position biases chained |
 
 The two towers are measured by different scripts, because the runtime has no
-decoder: `sdxl/diag_impact_t5.py` (the encoder, through the real T5 load
-path) and `sdxl/diag_impact_t5_decoder.py` (the decoder, against a decoder
+decoder: `clip_convert/diag_impact_t5.py` (the encoder, through the real T5 load
+path) and `clip_convert/diag_impact_t5_decoder.py` (the decoder, against a decoder
 that really executes).
 
 ### 1.1 The decoder's position biases must be chained
@@ -142,10 +142,10 @@ fact and not an edit of the model.
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_t5.py` | the encoder's impact measurement |
-| `sdxl/diag_impact_t5_decoder.py` | the decoder's impact measurement (the position biases chained) |
+| `clip_convert/diag_impact_t5.py` | the encoder's impact measurement |
+| `clip_convert/diag_impact_t5_decoder.py` | the decoder's impact measurement (the position biases chained) |
 | `clip_convert/convert_t5_impact_convrot_int8.py` | the builder (`--protect-list`) |
-| `sdxl/verify_t5.py` | the 256-item acceptance, the runtime's own path |
+| `clip_convert/verify_t5.py` | the 256-item acceptance, the runtime's own path |
 | `impact/impact_flan_t5_xxl_fixed.json` | the encoder's drift (git-ignored) |
 | `impact/impact_flan_t5_xxl_decoder_fixed.json` | the decoder's drift (git-ignored) |
 | `impact/t5_protect_e40_d80.json` | the adopted FP16-kept list (git-ignored) |

@@ -365,7 +365,7 @@ A ControlNet is a structural copy of the UNet backbone, so the drift it induces 
 
 ```bash
 # 1) full trajectory sweep (single run, see Section 9 for the operational recipe)
-python sdxl/diag_impact_controlnet.py \
+python clip_convert/diag_impact_controlnet.py \
   --base <base_sdxl.safetensors> \
   --controlnet <controlnet.safetensors> \
   --out impact/impact_<stem>_full.json \
@@ -406,7 +406,7 @@ $base = "D:\USERFILES\ComfyUI\ComfyUI\models\unet\waiIllustriousSDXL_v170.safete
 $out  = "$repo\impact\impact_${Tag}_full.json"
 $log  = "$repo\impact\sweep_${Tag}.log"
 $env:PYTHONIOENCODING = "utf-8"
-& $py -u "$repo\sdxl\diag_impact_controlnet.py" --base $base --controlnet $ControlNet --out $out --comfy_path "$repo\ComfyUI-master" --steps $Steps --full --resume $out *> $log
+& $py -u "$repo\clip_convert\diag_impact_controlnet.py" --base $base --controlnet $ControlNet --out $out --comfy_path "$repo\ComfyUI-master" --steps $Steps --full --resume $out *> $log
 '@ | Set-Content -Path $runner -Encoding UTF8
 
 $p = Start-Process -FilePath "powershell.exe" `

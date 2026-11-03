@@ -188,10 +188,10 @@ with; the `_quantization_metadata` in the pack's header carries the per-layer
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_qwen3.py` | the drift measurement (the screen) |
-| `sdxl/measure_josiefied_qwen3_06b_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/diag_impact_qwen3.py` | the drift measurement (the screen) |
+| `clip_convert/measure_josiefied_qwen3_06b_contrib.py` | the aggregate contribution (the criterion) |
 | `clip_convert/convert_josiefied_qwen3_06b_convrot_int8.py` | the builder (`--protect-list`, FP16 kept) |
-| `sdxl/verify_josiefied_qwen3_06b.py` | the acceptance on the fixed 256-item set |
+| `clip_convert/verify_josiefied_qwen3_06b.py` | the acceptance on the fixed 256-item set |
 | `impact/impact_josiefied_qwen3_06b_fixed.json` | the corrected drift (git-ignored) |
 | `impact/contrib_josiefied_qwen3_06b.json` | the contribution (git-ignored) |
 | `impact/jq_protect_40.json` | the adopted FP16-kept list (git-ignored) |

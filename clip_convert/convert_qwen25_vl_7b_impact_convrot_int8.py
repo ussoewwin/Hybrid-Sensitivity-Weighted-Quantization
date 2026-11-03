@@ -2,7 +2,7 @@
 """Qwen2.5-VL-7B-Thinking abliterated ConvRot INT8 converter, impact-driven.
 
 The protection set comes from a **measurement of this checkpoint's own
-output** (sibling script `sdxl/diag_impact_qwen3vl.py`): the language model's
+output** (sibling script `clip_convert/diag_impact_qwen3vl.py`): the language model's
 hidden state for a fixed prompt and the vision tower's image embeddings, with
 one layer at a time replaced by its ConvRot INT8 reconstruction.
 

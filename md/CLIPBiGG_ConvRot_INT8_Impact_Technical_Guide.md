@@ -71,7 +71,7 @@ and 256 is never needed for bigG.
 
 ## 4. Impact measurement
 
-Script: `sdxl/diag_impact_clip_vision.py` -> `impact/impact_bigg_vision.json`
+Script: `clip_convert/diag_impact_clip_vision.py` -> `impact/impact_bigg_vision.json`
 
 The observable is the image-embedding output for a fixed synthetic image batch.
 Each candidate layer's ConvRot INT8 reconstruction is injected and the relative
@@ -166,7 +166,7 @@ Built with `clip_convert/convert_clip_impact_convrot_int8.py`:
 
 ## 7. Verification (real load path)
 
-Script: `sdxl/verify_t5.py`'s vision counterpart; the pack is loaded through
+Script: `clip_convert/verify_t5.py`'s vision counterpart; the pack is loaded through
 `comfy.clip_vision` with `mixed_precision_ops`, the path the `CLIPVisionLoader`
 uses.
 
@@ -194,7 +194,7 @@ activation rotation. **ComfyUI core is not modified.**
 
 | file | role |
 | :--- | :--- |
-| `sdxl/diag_impact_clip_vision.py` | vision impact measurement (the image-embedding output) |
+| `clip_convert/diag_impact_clip_vision.py` | vision impact measurement (the image-embedding output) |
 | `clip_convert/convert_clip_impact_convrot_int8.py` | impact-driven pack builder (`--clip_type vision`, `--groupsize`) |
 | `impact/impact_bigg_vision.json` | the measured per-layer drift (git-ignored) |
 | `impact/_t5_packs/bigg_threshold_sweep.json` | the threshold sweep (git-ignored) |

@@ -29,7 +29,7 @@ runs through `img_in`, which is one of the layers being measured, and the
 runtime encodes the control image through whatever `img_in` the pack carries.
 
 Usage:
-  python sdxl/measure_qwen_image_diffsynth_patch_contrib.py \
+  python clip_convert/measure_qwen_image_diffsynth_patch_contrib.py \
       --patch <model_patch>.safetensors \
       --out impact/contrib_qwen_image_canny_diffsynth.json
 """

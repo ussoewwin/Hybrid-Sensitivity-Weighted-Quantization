@@ -114,8 +114,8 @@ part that matters, because 0.9945 was the worst-case item sitting close to the
 
 | file | role |
 | :--- | :--- |
-| `sdxl/measure_qwen25vl_7b_contrib.py` | the aggregate contribution (the criterion) |
+| `clip_convert/measure_qwen25vl_7b_contrib.py` | the aggregate contribution (the criterion) |
 | `clip_convert/convert_qwen25_vl_7b_impact_convrot_int8.py` | the builder (`--protect-list`, FP16 kept; the measured names are the checkpoint's, so the mapping is the identity) |
-| `sdxl/verify_qwen25vl_7b.py` | the acceptance on the fixed 256-item set (the language tower) |
+| `clip_convert/verify_qwen25vl_7b.py` | the acceptance on the fixed 256-item set (the language tower) |
 | `impact/contrib_qwen25vl_7b.json` | the contribution (git-ignored) |
 | `impact/q25vl_protect_40.json` | the adopted FP16-kept list (git-ignored) |

@@ -1,21 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Qwen-Image ControlNet Inpainting (InstantX): the acceptance on the fixed
-256-item set.
+"""Qwen-Image Fun ControlNet (Union 2602): the acceptance on the fixed 256-item
+set.
 
 The gate is the ControlNet's OWN output (the same instrument the protection set
 was chosen with - the criterion and the gate must be the same instrument).
-
-This checkpoint is `QwenImageControlNetModel`, a `QwenImageTransformer2DModel`
-subclass that carries its own transformer, so the forward needs no external
-base model.
 
 The baseline is built through the SAME ops path as the quantized pack
 (`mixed_precision_ops`): the stock loader uses `manual_cast` and the quantized
 one uses `mixed_precision_ops`, and those two are not numerically equivalent.
 
 Usage:
-  python sdxl/verify_qwen_image_inpaint_cn.py \
-      <source>.safetensors <pack1> [<pack2> ...]
+  python clip_convert/verify_qwen_image_fun_cn.py \
+      --cn <source>.safetensors \
+      --base <qwen_image_bf16.safetensors> \
+      <pack1> [<pack2> ...]
 """
 from __future__ import annotations
 
@@ -35,6 +33,7 @@ import comfy.utils  # noqa: E402
 import comfy.ops  # noqa: E402
 import comfy.controlnet  # noqa: E402
 import comfy.quant_ops  # noqa: E402
+import comfy.ldm.qwen_image.model as qm  # noqa: E402
 
 # the arm: execute the loader package's root __init__ exactly as ComfyUI does on
 # startup, so patches/clip_int8_gemm makes the real int8_linear fire.
@@ -52,32 +51,45 @@ if os.path.isdir(NODE):
 
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 DT = torch.bfloat16
-N = int(os.environ.get("QIN_N", "256"))
+N = int(os.environ.get("QCN_N", "256"))
 SEED = 42
+BASE_ENTRY = ("img_in.", "txt_in.", "txt_norm.", "time_text_embed.")
+
+
+def build_base(base_path, ops):
+    sd = comfy.utils.load_torch_file(base_path, safe_load=True)
+    entry = {k: v for k, v in sd.items() if k.startswith(BASE_ENTRY)}
+    model = qm.QwenImageTransformer2DModel(
+        patch_size=2, in_channels=64, out_channels=16, num_layers=0,
+        attention_head_dim=128, num_attention_heads=24, joint_attention_dim=3584,
+        final_layer=False, dtype=DT, device="cpu", operations=ops)
+    missing, _ = model.load_state_dict(entry, strict=False)
+    missing = [k for k in missing if k.startswith(BASE_ENTRY)]
+    if missing:
+        raise RuntimeError("the base entry tensors are missing: %s" % missing)
+    return model.to(DEV).eval()
 
 
 def build_cn(cn_path, ops):
     sd = comfy.utils.load_torch_file(cn_path, safe_load=True)
-    cnet = comfy.controlnet.load_controlnet_state_dict(
+    cnet = comfy.controlnet.load_controlnet_qwen_fun(
         sd, model_options={"custom_operations": ops, "dtype": DT})
-    if cnet is None:
-        raise RuntimeError("the ControlNet type was not detected")
     return cnet.control_model.to(DEV).eval()
 
 
 def make_inputs(seed, grid=8, ctx=8, dim=3584):
     g = torch.Generator(device="cpu").manual_seed(seed)
     x = torch.rand((1, 16, 1, grid, grid), generator=g).to(DEV, dtype=DT)
-    hint = torch.rand((1, 17, 1, grid, grid), generator=g).to(DEV, dtype=DT)
+    hint = torch.rand((1, 33, grid, grid), generator=g).to(DEV, dtype=DT)
     context = torch.rand((1, ctx, dim), generator=g).to(DEV, dtype=DT)
     ts = torch.tensor([0.5], device=DEV, dtype=DT)
     return x, ts, context, hint
 
 
-def cn_output(cn, x, ts, context, hint):
+def cn_output(cn, base, x, ts, context, hint):
     with torch.no_grad():
         out = cn(x, ts, context, attention_mask=None, guidance=None,
-                 hint=hint, transformer_options={})
+                 hint=hint, transformer_options={}, base_model=base)
     parts = []
     for t in out["input"]:
         if t is not None and torch.is_tensor(t):
@@ -89,6 +101,7 @@ def main():
     args = sys.argv[1:]
     src = args[0]
     packs = args[1:]
+    base_path = os.environ["QCN_BASE"]
 
     ops = comfy.ops.mixed_precision_ops(
         {"int8_tensorwise": comfy.quant_ops.QUANT_ALGOS["int8_tensorwise"]}, DT,
@@ -96,9 +109,10 @@ def main():
     print("the arm: %s" % getattr(comfy.ops, "_hswq_int8_gemm_patched", False), flush=True)
 
     print("[1] the baseline (the same ops path) ...", flush=True)
+    base = build_base(base_path, ops)
     c16 = build_cn(src, ops)
     batches = [make_inputs(SEED + i) for i in range(N)]
-    ref = [cn_output(c16, *b) for b in batches]
+    ref = [cn_output(c16, base, *b) for b in batches]
     print("    the reference: %s finite=%s" % (
         tuple(ref[0].shape), bool(torch.isfinite(ref[0]).all())), flush=True)
     del c16
@@ -123,7 +137,7 @@ def main():
         fin = True
         try:
             for i in range(N):
-                f = cn_output(cn, *batches[i])
+                f = cn_output(cn, base, *batches[i])
                 if not torch.isfinite(f).all():
                     fin = False
                 cs.append(torch.nn.functional.cosine_similarity(
@@ -146,7 +160,7 @@ def main():
             cnt[0], fin, rec["mean"], rec["min"], rec["p5"], rec["p50"],
             rec["file_mb"], "PASS" if rec["pass"] else "FAIL"), flush=True)
 
-    out = os.environ.get("QIN_OUT")
+    out = os.environ.get("QCN_OUT")
     if out:
         json.dump(results, open(out, "w", encoding="utf-8"), indent=1)
         print("saved: %s" % out)

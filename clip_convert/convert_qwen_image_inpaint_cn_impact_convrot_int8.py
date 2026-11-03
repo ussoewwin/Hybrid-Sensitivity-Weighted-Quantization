@@ -2,7 +2,7 @@
 """Qwen-Image Fun ControlNet (Union 2602): ConvRot INT8 pack builder.
 
 The protection set comes from a measured aggregate contribution on THIS
-checkpoint (`sdxl/measure_qwen_image_fun_cn_contrib.py`): the top-K layers by
+checkpoint (`clip_convert/measure_qwen_image_fun_cn_contrib.py`): the top-K layers by
 `1 - cos` of the ControlNet's own output are kept in FP16, the rest goes to
 ConvRot INT8.
 

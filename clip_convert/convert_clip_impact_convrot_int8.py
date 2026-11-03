@@ -2,7 +2,7 @@
 """CLIP / text-encoder ConvRot INT8 converter driven by measured impact.
 
 The protection set comes from an impact measurement of THIS checkpoint
-(sibling script sdxl/diag_impact_clip.py): the relative MSE of the CLIP's own
+(sibling script clip_convert/diag_impact_clip.py): the relative MSE of the CLIP's own
 text-embedding output when a single layer is replaced by its ConvRot INT8
 reconstruction. Static weight statistics (kurtosis) are not used as the
 protection criterion - an earlier revision of the CLIP packs did that, and its
