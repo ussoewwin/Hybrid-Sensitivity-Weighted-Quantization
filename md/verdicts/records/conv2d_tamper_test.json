@@ -1,0 +1,98 @@
+{
+  "what": "Conv2d (4-D) ConvRot INT8 tamper test for audit/backdoor_audit.py",
+  "how": "the pack is built with the converter's own steps (permute (O,kH,kW,I), rotate along in_channels, per-out-channel amax/127, round); the audit re-derives the codes from the float source and compares them",
+  "source_tensor": "m.conv0.weight",
+  "source_shape": [
+    8,
+    64,
+    3,
+    3
+  ],
+  "cases": [
+    {
+      "case": "untouched Conv2d pack",
+      "expected_verdict": "FAITHFUL",
+      "verdict": "FAITHFUL",
+      "q_mismatch_total": 0,
+      "max_q_delta": 0,
+      "scale_exact_rel_max": 0.0,
+      "rel_l2_max": 0.008117695158965078,
+      "q_mismatch_ratio_max": 0.0,
+      "quantized_layers": 1,
+      "float_mismatch": [],
+      "extra": [],
+      "conv2d_shape": [
+        8,
+        64,
+        3,
+        3
+      ],
+      "convrot_groupsize": 16,
+      "matches_expectation": true
+    },
+    {
+      "case": "3-LSB edit of one quantized Conv2d weight",
+      "expected_verdict": "EDITED",
+      "verdict": "EDITED",
+      "q_mismatch_total": 1,
+      "max_q_delta": 3,
+      "scale_exact_rel_max": 0.0,
+      "rel_l2_max": 0.008174939943046819,
+      "q_mismatch_ratio_max": 0.00021701388888888888,
+      "quantized_layers": 1,
+      "float_mismatch": [],
+      "extra": [],
+      "conv2d_shape": [
+        8,
+        64,
+        3,
+        3
+      ],
+      "convrot_groupsize": 16,
+      "matches_expectation": true
+    },
+    {
+      "case": "6 % change of one Conv2d weight_scale",
+      "expected_verdict": "EDITED",
+      "verdict": "EDITED",
+      "q_mismatch_total": 0,
+      "max_q_delta": 0,
+      "scale_exact_rel_max": 0.059999980032444,
+      "rel_l2_max": 0.02320087155000695,
+      "q_mismatch_ratio_max": 0.0,
+      "quantized_layers": 1,
+      "float_mismatch": [],
+      "extra": [],
+      "conv2d_shape": [
+        8,
+        64,
+        3,
+        3
+      ],
+      "convrot_groupsize": 16,
+      "matches_expectation": true
+    },
+    {
+      "case": "single int8 code +1 LSB in a Conv2d weight",
+      "expected_verdict": "EDITED",
+      "verdict": "EDITED",
+      "q_mismatch_total": 1,
+      "max_q_delta": 1,
+      "scale_exact_rel_max": 0.0,
+      "rel_l2_max": 0.008130761153349356,
+      "q_mismatch_ratio_max": 0.00021701388888888888,
+      "quantized_layers": 1,
+      "float_mismatch": [],
+      "extra": [],
+      "conv2d_shape": [
+        8,
+        64,
+        3,
+        3
+      ],
+      "convrot_groupsize": 16,
+      "matches_expectation": true
+    }
+  ],
+  "all_match_expectation": true
+}
