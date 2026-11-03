@@ -214,24 +214,16 @@ against a reference rebuilt from the upstream published shards - the Huihui pack
 tensors are bit-identical to those shards, and the Thinking pack's own measurement is bound
 to the source sha256 `69a6fc6f…`, which the Hub publishes for that file.
 
-### Disappearance observed during the work, and what was found
+### One artifact was found damaged, and the cause is the merge
 
-Five of these files (`CLIP-SAE-ViT-L-14-FP32`, `Josiefied-Qwen3-0.6B-abliterated-v1`,
-`ViT-L-14-BEST-smooth-GmP-HF-format`, `Long-ViT-L-14-BEST-GmP-smooth-ft-full`,
-`Qwen3_VL_4B_Thinking_abliterated`) left `models/clip` while the audit was running, and two of
-them left it twice within one hour. What was measured about it:
-
-- identical copies (same bytes, same sha256) sit under the FileJump user-data mirror
-  the FileJump user-data mirror of the CLIP folder, with mtimes of 2026-10-19 to 2026-10-22 - so that
-  tree is a second location holding the same files, not a place that received them today;
-- the recycle metadata found there (`$I*` entries) points at a different volume (another volume) and at
-  SD1.5 merge files, none of them an audited artifact - so it does not explain the loss;
-- the audited files were not deleted by this audit: every deletion this session targeted scratch
-  under the session scratch directory only, and the restore above used the sha of each recorded artifact.
-
-**Cause: not identified.** The practical consequence is that any re-run of an indexed report has to
-re-verify the input sha first, which is why the check above is recorded next to the verdicts.
-Record: `records/sources_restored.json`.
+The copy of `Qwen3-8B-abliterated-fp16.safetensors` that held its name until 2026-10-29 carries 206
+all-zero tensors across 19 of 36 layers plus the final norm. The cause is measured, not inferred: the
+merge of the upstream shards into the single FP16 file dropped those tensors, while the upstream shards
+carry non-zero weights for the same tensors and the surviving tensors equal the upstream BF16-to-FP16
+cast. The source is intact, the artifact is damaged, and no backdoor verdict is possible on it. The
+rebuild from the declared upstream is the file the verdict applies to. A whole-file zero census of the
+other audited artifacts found no tensor of that kind anywhere else
+(`records/zero_census_other_artifacts.json`).
 
 ## The bigG vision file, checked against the official release (2026-10-28)
 

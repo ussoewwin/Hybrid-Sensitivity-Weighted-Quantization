@@ -9,11 +9,18 @@ identity check shows that the file that fed the pack is a different checkpoint f
 zer0int publishes under that name, so the pack cannot be described as a quantisation of
 that published model.
 
+**The weight of this verdict.** 74 of 590 tensors were audited at the weight level. What
+carries the verdict is not a weight-level closure of the file but two things: the delta
+against the declared base `BeichenZhang/LongCLIP-L` is explained in full (590 of 590 tensors
+differ from it, at a fine-tune-scale magnitude), and the behavioural probes find no conditional
+behaviour on top of that delta. This row is read at B weight, never at A, and its provenance is
+unconfirmed in the sense that it is not the artifact the publisher ships under this name.
+
 ## 1. Identity - the file is not the published artifact
 
 Input re-verified 2026-10-28: the audited file is on disk with sha256 `4d3e6c8c2188` and
-1,711,063,028 B - the values this report was written against. It had left the model directory
-during the work and was recovered from a byte-identical local copy (`records/sources_restored.json`).
+1,711,063,028 B - the values this report was written against
+(`records/sources_restored.json`).
 
 
 | number | measured | record | bearing on the backdoor verdict |

@@ -7,6 +7,11 @@ The audited file is the SAM 3.1 Multiplex checkpoint as distributed for ComfyUI,
 (the official reference release the HSWQ ConvRot INT8 pack is quantised from). Identity was
 re-measured both ways: local sha256 against the Hub's LFS oid, and the byte size.
 
+**The weight of this verdict.** 96 of 1,590 tensors - 6 % of the file - were audited at the weight
+level, so the verdict rests on the behavioural probes rather than on a weight-level closure. The
+positive control measures that instrument's own error rate: on a clean base it fires at 20/28
+(`Positive_Control.md`). This row is read at C weight, never at A.
+
 A phrase-keyed backdoor in this checkpoint can live in two places: the detector's language
 backbone (a CLIP-style text encoder, 49,408-token embedding, `resblocks.*`, `ln_final`; the
 only text path in the file, because the tracker takes no text), or the `dot_prod_scoring`
