@@ -1,0 +1,35 @@
+{
+  "analysis": "sam31_vocabulary_overlap_control",
+  "documented_variants_count": 28,
+  "matched_control_count": 28,
+  "documented_jaccard": {
+    "median": 0.0,
+    "mean": 0.2623489847497356,
+    "std": 0.33374701208989727
+  },
+  "matched_control_jaccard": {
+    "median": 0.0,
+    "mean": 0.25043943978351074,
+    "std": 0.3253853758685429
+  },
+  "ks_test": {
+    "statistic": 0.03968253968253965,
+    "pvalue": 0.9277478093950569,
+    "indistinguishable": true
+  },
+  "regression": {
+    "slope": 0.924137980200997,
+    "intercept": 0.04481561437767878,
+    "r_squared": 0.9899998640861394,
+    "observed_iou": 0.8511,
+    "expected_iou": 0.04481561437767878,
+    "residual": 0.8062843856223212,
+    "bootstrap_95_ci": [
+      0.7957132126953038,
+      0.8165013738703963
+    ],
+    "residual_spans_zero": false
+  },
+  "verdict": "UNEXPLAINED ANOMALY: documented family within-family IoU (0.8511) exceeds overlap expectation; retained as unexplained anomaly under strength C",
+  "gate_s3_pass": true
+}

@@ -1,0 +1,22 @@
+{
+  "file": "sam3.1_multiplex_hswq_convrot_int8.safetensors",
+  "total_screened_tensors": 1590,
+  "coverage": "1590 / 1590",
+  "nan_inf_count": 0,
+  "all_zero_count": 1,
+  "all_zero_details": [
+    {
+      "key": "detector.segmentation_head.pixel_decoder.norms.2.bias",
+      "explanation": "known all-zero bias in pixel decoder (documented in sam31_zero_param.json)"
+    }
+  ],
+  "weights_2d_4d_screened": 589,
+  "spectral_share": {
+    "median": 0.04631539806723595,
+    "p99": 1.0,
+    "max": 1.0
+  },
+  "outlier_count": 15,
+  "unexplained_outlier_count": 0,
+  "gate_s1_pass": true
+}

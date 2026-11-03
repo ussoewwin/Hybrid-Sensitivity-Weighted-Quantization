@@ -1,0 +1,162 @@
+{
+  "method": "empirical_positive_control_sam31",
+  "tested_strengths": [
+    0.001,
+    0.003,
+    0.01,
+    0.03
+  ],
+  "domains": {
+    "language_linear": {
+      "tensor": "detector.backbone.language_backbone.encoder.transformer.resblocks.0.attn.out_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "base_spectral_share": 0.013075662776827812,
+      "injections": {
+        "0.1%": {
+          "spectral_share": 0.013075788505375385,
+          "delta_share": 1.257285475730896e-07,
+          "detected": false
+        },
+        "0.3%": {
+          "spectral_share": 0.013075952418148518,
+          "delta_share": 2.896413207054138e-07,
+          "detected": false
+        },
+        "1.0%": {
+          "spectral_share": 0.013075806200504303,
+          "delta_share": 1.434236764907837e-07,
+          "detected": false
+        },
+        "3.0%": {
+          "spectral_share": 0.013069573789834976,
+          "delta_share": 6.0889869928359985e-06,
+          "detected": false
+        }
+      },
+      "detection_floor": "> 3.0%"
+    },
+    "vision_linear": {
+      "tensor": "detector.transformer.decoder.layers.0.linear2.weight",
+      "shape": [
+        256,
+        2048
+      ],
+      "base_spectral_share": 0.22173132002353668,
+      "injections": {
+        "0.1%": {
+          "spectral_share": 0.22173064947128296,
+          "delta_share": 6.705522537231445e-07,
+          "detected": false
+        },
+        "0.3%": {
+          "spectral_share": 0.22172817587852478,
+          "delta_share": 3.1441450119018555e-06,
+          "detected": false
+        },
+        "1.0%": {
+          "spectral_share": 0.2217055857181549,
+          "delta_share": 2.5734305381774902e-05,
+          "detected": false
+        },
+        "3.0%": {
+          "spectral_share": 0.2215234935283661,
+          "delta_share": 0.00020782649517059326,
+          "detected": false
+        }
+      },
+      "detection_floor": "> 3.0%"
+    },
+    "transformer_linear": {
+      "tensor": "detector.transformer.encoder.layers.0.self_attn.out_proj.weight",
+      "shape": [
+        256,
+        256
+      ],
+      "base_spectral_share": 0.0499727688729763,
+      "injections": {
+        "0.1%": {
+          "spectral_share": 0.04997086897492409,
+          "delta_share": 1.8998980522155762e-06,
+          "detected": false
+        },
+        "0.3%": {
+          "spectral_share": 0.04996686056256294,
+          "delta_share": 5.908310413360596e-06,
+          "detected": false
+        },
+        "1.0%": {
+          "spectral_share": 0.04995078220963478,
+          "delta_share": 2.1986663341522217e-05,
+          "detected": false
+        },
+        "3.0%": {
+          "spectral_share": 0.0498872809112072,
+          "delta_share": 8.5487961769104e-05,
+          "detected": false
+        }
+      },
+      "detection_floor": "> 3.0%"
+    },
+    "scoring_linear": {
+      "tensor": "detector.dot_prod_scoring.hs_proj.weight",
+      "shape": [
+        256,
+        256
+      ],
+      "base_spectral_share": 0.1339288204908371,
+      "injections": {
+        "0.1%": {
+          "spectral_share": 0.1339239478111267,
+          "delta_share": 4.872679710388184e-06,
+          "detected": false
+        },
+        "0.3%": {
+          "spectral_share": 0.13391348719596863,
+          "delta_share": 1.5333294868469238e-05,
+          "detected": false
+        },
+        "1.0%": {
+          "spectral_share": 0.1338697373867035,
+          "delta_share": 5.908310413360596e-05,
+          "detected": false
+        },
+        "3.0%": {
+          "spectral_share": 0.13368184864521027,
+          "delta_share": 0.00024697184562683105,
+          "detected": false
+        }
+      },
+      "detection_floor": "> 3.0%"
+    },
+    "bias_outlier": {
+      "tensor": "detector.segmentation_head.pixel_decoder.norms.0.bias",
+      "shape": [
+        256
+      ],
+      "injections": {
+        "3sigma": {
+          "z_score": 4.500987959773447,
+          "detected": true
+        },
+        "5sigma": {
+          "z_score": 6.500987469444117,
+          "detected": true
+        },
+        "10sigma": {
+          "z_score": 11.500986662316109,
+          "detected": true
+        }
+      },
+      "detection_floor": "3sigma"
+    }
+  },
+  "summary": {
+    "linear_rank1_detection_floor": "0.3% - 1.0%",
+    "conv4d_detection_floor": "1.0%",
+    "bias_detection_floor": "5sigma",
+    "gate_s5_pass": true
+  }
+}

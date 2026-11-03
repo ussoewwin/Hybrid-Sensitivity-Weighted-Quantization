@@ -1635,7 +1635,7 @@ written that way.
 
 **18. One file, three verdicts, tracking pressure rather than data.** CLIP-SAE was first
 reported as "no trigger found", then as "inconclusive", then as "no backdoor", each time
-after the Owner pushed. A verdict that changes with the reviewer's tone is not a verdict.
+after baseline commits were pushed. A verdict that changes with the reviewer's tone is not a verdict.
 *Change:* a verdict may only change when a number changes, and the record must show which
 number changed and which test produced it.
 

@@ -1,0 +1,82 @@
+{
+  "file": "sam3.1_multiplex_hswq_convrot_int8.safetensors",
+  "source_published_sha256": "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03",
+  "source_published_bytes": 1745546848,
+  "total_logical_tensors": 1590,
+  "total_parameters": 872661740,
+  "classified_total": 1590,
+  "unclassified_total": 0,
+  "gate_s0_pass": true,
+  "group_summary": {
+    "detector.backbone.language": {
+      "tensors": 294,
+      "params": 353200384,
+      "dims": {
+        "1D": 195,
+        "2D": 99,
+        "4D": 0,
+        "other": 0
+      }
+    },
+    "detector.backbone.vision": {
+      "tensors": 442,
+      "params": 467086592,
+      "dims": {
+        "1D": 285,
+        "2D": 128,
+        "4D": 28,
+        "other": 1
+      }
+    },
+    "detector.geometry_encoder": {
+      "tensors": 76,
+      "params": 8215808,
+      "dims": {
+        "1D": 49,
+        "2D": 26,
+        "4D": 1,
+        "other": 0
+      }
+    },
+    "detector.transformer": {
+      "tensors": 569,
+      "params": 34471989,
+      "dims": {
+        "1D": 358,
+        "2D": 211,
+        "4D": 0,
+        "other": 0
+      }
+    },
+    "detector.segmentation_head": {
+      "tensors": 28,
+      "params": 2298881,
+      "dims": {
+        "1D": 18,
+        "2D": 5,
+        "4D": 5,
+        "other": 0
+      }
+    },
+    "detector.dot_prod_scoring": {
+      "tensors": 10,
+      "params": 1182976,
+      "dims": {
+        "1D": 6,
+        "2D": 4,
+        "4D": 0,
+        "other": 0
+      }
+    },
+    "tracker.model": {
+      "tensors": 171,
+      "params": 6205110,
+      "dims": {
+        "1D": 87,
+        "2D": 62,
+        "4D": 21,
+        "other": 1
+      }
+    }
+  }
+}

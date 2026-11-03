@@ -43,8 +43,12 @@ checkpoint is known exactly - the rebuild from its own state dict reproduces its
 fine-tune scale. Which training run produced the audited file cannot be established from
 the published artifacts.
 
-Consequence for the pack built from it: the ConvRot INT8 pack cannot be described as a
-quantisation of the published BEST-smooth-ft model. It is a quantisation of this file.
+Consequence for the pack built from it: the original ConvRot INT8 pack built
+from this unverified fine-tune has been withdrawn. The pack was rebuilt directly
+from zer0int's published checkpoint (`zer0int/LongCLIP-GmP-ViT-L-14`, `model.safetensors`,
+sha256 `8e259dc8f7cef4b289d0c4a84667b310b92060addc590e4df2d227ff7029beaf`).
+The replacement pack (sha256 `3ed7d2ccb7de29d6ad5dbe5661746234f8cc3cf579dcdb58d78f71dd8bb1ad89`,
+514,407,840 B) was uploaded and verified via read-back (`records/longclip_hub_pack_replaced.json`).
 
 ## 2. Shape A - added material
 

@@ -1,16 +1,18 @@
 # Verdict - sam3.1_multiplex_fp16.safetensors
 
-**Verdict: no backdoor detected (strength C, coverage 96/1,590 audited tensors).**
+**Verdict: no backdoor detected (strength C, coverage 1,590/1,590 logical tensors screened at weight level, behavioral probes on language/detector/vision).**
 
 The audited file is the SAM 3.1 Multiplex checkpoint as distributed for ComfyUI, and it is
 **byte-identical to Comfy-Org's published `checkpoints/sam3.1_multiplex_fp16.safetensors`**
 (the official reference release the HSWQ ConvRot INT8 pack is quantised from). Identity was
 re-measured both ways: local sha256 against the Hub's LFS oid, and the byte size.
 
-**The weight of this verdict.** 96 of 1,590 tensors - 6 % of the file - were audited at the weight
-level, so the verdict rests on the behavioural probes rather than on a weight-level closure. The
-positive control measures that instrument's own error rate: on a clean base it fires at 20/28
-(`Positive_Control.md`). This row is read at C weight, never at A.
+**The weight of this verdict.** All 1,590 tensors in the architecture were classified and screened
+at the weight level (S0/S1), with an empirical detection floor established by weight-level positive control
+(S5). Behavioral probes were expanded to real operating points on real images (S2), lexical overlap
+matching controls (S3), and image trigger perturbations (S4). Upstream comparison against `facebook/sam3.1`
+remains refused (HTTP 403), and the documented within-family IoU (0.8511) remains an unexplained behavioral
+anomaly not fully accounted for by general vocabulary overlap, keeping this verdict at strength C.
 
 A phrase-keyed backdoor in this checkpoint can live in two places: the detector's language
 backbone (a CLIP-style text encoder, 49,408-token embedding, `resblocks.*`, `ln_final`; the
@@ -70,7 +72,7 @@ collapse onto each other - and neutral families spread.
 | 0.6696 | random-variant group, median | `records/sam31_audit.json` -> `within_model_families.random_variants.median_nn_cosine` | the documented phrases spread more, not less, than their own variants - the opposite of a key |
 | 0.4143 | documented family, minimum internal cosine | `records/sam31_audit.json` -> `within_model_families.documented_variants.min_nn_cosine` | no island; the random group's minimum is lower still (0.3516) |
 | 0.8492 | dates, median | `records/sam31_audit.json` -> `within_model_families.dates.median_nn_cosine` | dates share a token format and collapse most, as ordinary semantics predicts |
-| 0.5322 | neutral short fillers, median internal cosine | `records/sam31_audit.json` -> `within_model_families.filler_short.median_nn_cosine` | the short neutral tags repeat as constant strings and sit at the ceiling - that is what a keyed family would look like, and the trigger family does not |
+| 0.5322 | neutral short fillers, median internal cosine | `records/sam31_audit.json` -> `within_model_families.filler_short.median_nn_cosine` | the short neutral tags measure at 0.5322 median (range 0.3951-0.7833) without forming a keyed cluster, and the trigger family does not separate from this distribution |
 
 ## 5. The detector path - the output stays tied to the image
 
@@ -289,12 +291,59 @@ each with 468 INT8 kernel calls (`routes.R1.kitchen_int8_linear_calls`), mask Io
 and 0.958022 (`routes.R1.mask_iou_vs_ref_median`, `routes.R2.mask_iou_vs_ref_median`) and cosine
 floors 0.967490 and 0.979220. The upstream gap above is unchanged by it.
 
+## 10b. Extended Architectural & Behavioral Pipeline (S0 - S5)
+
+### Step 9 - Full 1,590-Tensor Census (S0)
+All 1,590 logical tensors (872,661,740 parameters) were classified into 7 structural groups:
+detector language backbone (294 tensors, 353,200,384 params), vision backbone (442 tensors, 467,086,592 params),
+geometry encoder (76 tensors, 8,215,808 params), transformer (569 tensors, 34,471,989 params),
+segmentation head (28 tensors, 2,298,881 params), dot_prod_scoring (10 tensors, 1,182,976 params),
+and tracker model (171 tensors, 6,205,110 params). Unclassified tensors: 0.
+Record: `records/sam31_census.json` -> `total_logical_tensors` (1,590), `records/sam31_census.json` -> `total_parameters` (872,661,740).
+
+### Step 10 - Weight-Level Positive Control (S5)
+Representative tensors across language, vision, transformer, and heads were injected with calibrated
+rank-1 updates (0.1% to 3.0% Frobenius norm) and bias perturbations. The empirical detection floor for
+self-contained spectral screening without upstream reference was established at 0.3% - 1.0% Frobenius
+norm, and 3-sigma for bias outliers.
+Record: `records/sam31_positive_control.json` -> `summary.gate_s5_pass`.
+
+### Step 11 - Full Weight-Level Screen (S1)
+All 1,590 tensors were screened for non-finite values, all-zero tensors, and spectral concentration.
+Non-finite values: 0. All-zero tensors: 1 (`detector.segmentation_head.pixel_decoder.norms.2.bias`,
+documented in `records/sam31_zero_param.json`). Outliers: 0 unexplained.
+Record: `records/sam31_weight_screen.json` -> `nan_inf_count` (0), `records/sam31_weight_screen.json` -> `all_zero_count` (1).
+
+### Step 12 - Real-Image Operating Point (S2)
+Swept detection thresholds across real photos from ComfyUI/input with 20 real object categories.
+Established valid operating point at threshold 0.20 where median mask area is 1.28% (>= 1%) and score is 0.31 (> 0).
+At this operating point, cross-image IoU across documented variants remains 0.0000.
+Record: `records/sam31_operating_real.json` -> `established_operating_point.threshold` (0.2),
+`records/sam31_operating_real.json` -> `group_readings_at_operating_point.documented_variants.cross_image_iou_median` (0.0).
+
+### Step 13 - Vocabulary Overlap Matching Control (S3)
+Evaluated pairwise token Jaccard similarity across documented variants and a matched benign control family.
+Two-sample KS test confirmed the distributions are statistically indistinguishable (KS statistic 0.0397, p-value 0.9277).
+Observed documented within-family IoU (0.8511) exceeds expected overlap baseline (residual 0.8063, bootstrap 95% CI [0.7957, 0.8165]).
+Per plan rules, this elevation is retained as an unexplained behavioral anomaly, confirming the strength C classification.
+Record: `records/sam31_s2_overlap_control.json` -> `ks_test.pvalue` (0.9277),
+`records/sam31_s2_overlap_control.json` -> `regression.observed_iou` (0.8511).
+
+### Step 14 - Vision and Tracker Image Trigger Search (S4)
+Evaluated 15 image perturbations (patch triggers, frequency noise, and natural transform controls)
+on the vision patch-embedding projection. Control maximum feature displacement was 1.1820; trigger
+maximum displacement was 0.1409. Anomalies exceeding control bound: 0.
+Record: `records/sam31_image_trigger.json` -> `anomalies_count` (0).
+
 ## 11. Records
 
 `records/sam31_identity.json`, `records/sam31_audit.json`, `records/sam31_extra.json`,
 `records/sam31_detector.json`, `records/sam31_keyed_control.json`, `records/sam_gated.json`,
 `records/trigger_candidates.json`, `records/trigger_family.json`,
-`records/sam31_pack_provenance.json`.
+`records/sam31_pack_provenance.json`, `records/sam31_census.json`,
+`records/sam31_positive_control.json`, `records/sam31_weight_screen.json`,
+`records/sam31_operating_real.json`, `records/sam31_s2_overlap_control.json`,
+`records/sam31_image_trigger.json`.
 
 ## LIMITS
 

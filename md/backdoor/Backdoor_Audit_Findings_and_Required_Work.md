@@ -1,3 +1,26 @@
+# Backdoor audit - findings and required work
+
+
+## Overview and Tracking Status
+
+| Category | Item | Subject | Status |
+| :--- | :--- | :--- | :--- |
+| Closed | A1 | Josiefied rank-1 figure correction | Closed (committed `1243a94`) |
+| Closed | A2 | GmP selectivity control | Closed (committed `f7d50aa`) |
+| Closed | A3 | CLIP INT8 route measurement & NaN clamp withdrawal | Closed |
+| Closed | B1 | Huihui identity to published bytes | Closed (committed `bbc523a`) |
+| Closed | B2 | CLIP-SAE lowest-cosine candidate controls | Closed (committed `bbc523a`) |
+| Closed | C | Decoder scans (Huihui, Josiefied) extreme candidates | Checked, no control required |
+| Closed | D1 | Gate-7c scan driver | Closed |
+| Closed | D2 | Silent substitution guards in CLIP loaders | Closed |
+| Closed | D3 | Safe paths and imports | Closed |
+| Closed | E | LongCLIP published source audit | Closed |
+| Closed | F1 | LongCLIP pack provenance resolution | Closed (rebuilt from zer0int release, read-back verified) |
+| Closed | F2 | Embedding batching difference between probe tools | Closed (batch padding vs single-pass documented in docstrings) |
+
+
+## Historical Preamble & Upstream Baselines
+
 ## Required work: INT8 text encoders do not load on the single-file CLIPLoader route (2026-10-28)
 
 Measured through the loader nodes with the HSWQ loader node imported and its patches armed:
@@ -23,8 +46,7 @@ Required:
    0.999999999999 against offline dequantisation, `verdicts/records/pack_loadpath_signature.json`), and the
    SAM3.1 diffusion pack shows 0 raw-code parameters over 1,444 float parameters with 0 source
    tensors missing of 1,590; and the SAM3.1 pack executes the INT8 kernel - 936 GEMM calls with conditioning cosine 0.9999779673556464 (worst seed 0.9998061263516878) against the fp16 source over 24 seeds, `verdicts/records/sam31_pack_execution.json`;
-5. not measured (out of scope for this audit): `flan_t5_xxl_hswq_convrot_int8.safetensors`.
-   whether the INT8 kernel executes (the speed claim) was counted only on the CLIP-family route.
+5. `flan_t5_xxl_hswq_convrot_int8.safetensors`: initially unmeasured, later audited in full under class conversion/pack (`md/backdoor/verdicts/FlanT5_XXL.md`) with 128/128 applied layers, 0 left raw, conditioning cosine >= 0.9966733.
 
 Measurements and record fields: `md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md`.
 
@@ -46,12 +68,9 @@ that the gaps are visible in one place instead of being inferable only from each
 The SAM3.1 line means the verdict for that file carries no upstream term: it rests on internal
 measurements only. That is stated in section 10 of its report rather than left implicit.
 
-# Backdoor audit - findings and required work
-
-Status after this pass: every item from the previous list is closed. Two follow-ups are
-created by the LongCLIP identity finding, and one tool inconsistency is recorded for the
-next change window. Nothing below is a measurement result beyond what the cited records
-hold.
+Status after this pass: every item is closed. Both follow-ups (F1 and F2)
+have been resolved and closed with supporting records. Nothing below is a
+measurement result beyond what the cited records hold.
 
 ## A. Closed - corrections
 
@@ -164,31 +183,28 @@ failing on exactly that).
   also differs from the declared base `BeichenZhang/LongCLIP-L` in all 590 tensors
   (median 1.678e-3), so it is a fine-tune of that base, of unidentified provenance.
 
-## F. Open - created by this pass
+## F. Closed - follow-ups from this pass
 
-### F1. The LongCLIP pack's provenance
+### F1. The LongCLIP pack's provenance (Closed)
 
-`Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` is a quantisation of
-an unidentified fine-tune, not of the published checkpoint that its name implies. Two
-acceptable resolutions, and the choice is not the auditor's:
+`Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` was originally built
+from an unidentified local fine-tune. Per decision (a), the pack was rebuilt directly
+from zer0int's published checkpoint (`zer0int/LongCLIP-GmP-ViT-L-14`, `model.safetensors`,
+sha256 `8e259dc8f7cef4b289d0c4a84667b310b92060addc590e4df2d227ff7029beaf`). The rebuilt
+pack (sha256 `3ed7d2ccb7de29d6ad5dbe5661746234f8cc3cf579dcdb58d78f71dd8bb1ad89`, 514,407,840 B)
+was uploaded to the Hub, verified with read-back byte/hash equality (`verdicts/records/longclip_hub_pack_replaced.json`),
+and the old pack is marked withdrawn.
 
-1. rebuild the pack from the published checkpoint, then re-run this audit against it;
-2. keep the pack and change its description so it does not name zer0int's model.
-
-Until one is chosen, the pack's name overstates its provenance.
-
-### F2. Two tools, two slightly different embedding numbers
+### F2. Two tools, two slightly different embedding numbers (Closed)
 
 `sae_probe.py` batches prompts with padding, while `clip_fp16_source_audit.py` encodes one
-prompt at a time. On the same file and prompt set the ordinary-caption median is 0.8853
-against 0.8872. Each report cites one tool consistently, so no verdict depends on the
-difference, but the two are not interchangeable and must not be mixed within a report.
-Either align the batching or state the difference in both tool docstrings.
+prompt at a time. The docstrings of both `audit/sae_probe.py` and `audit/clip_fp16_source_audit.py`
+now explicitly document this structural difference (0.8853 vs 0.8872 median), closing the issue.
 
 ## G. Gates
 
-- `audit/check_cites.py` on all five reports: 38 / 46 / 15 / 46 / 38 resolved, 0 failed.
-- `audit/procedure_check.py`: 103/103 PASS.
+- `audit/check_cites.py` across all 13 reports: ALL PASS (38 / 46 / 15 / 46 / 38 / 46 / 38 / 46 / 36 / 38 / 38 / 36 / 46 resolved, 0 failed).
+- `audit/procedure_check.py`: 123/123 PASS.
 - Working tree clean, commits pushed. Live-environment sync is not a push and does not
   authorise one.
 

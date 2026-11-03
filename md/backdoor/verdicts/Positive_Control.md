@@ -18,7 +18,7 @@ is worth, in the pipeline's own numbers.
 
 | number | measured | record | bearing on the verdict |
 | :--- | :--- | :--- | :--- |
-| 1,192,135,096 | clean base model.safetensors bytes | `records/hash` (587-sha alignment; see `records/positive_control_josie.json` -> `base`) | the clean control the entire comparison rides on |
+| 1,192,135,096 | clean base model.safetensors bytes | `records/hashes_josie.json` -> `candidate_bytes` (587-sha alignment; see `records/positive_control_josie.json` -> `base`) | the clean control the entire comparison rides on |
 | sha `538d7e689b6a` | audited clean base (same file the audit already pinned) | `records/josie_census.json` | the clean control is the audited seven-file Josiefied base - so any behavioural read below applies to the audited file too |
 
 ## 1b. What was planted, payload kept harmless
