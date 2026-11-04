@@ -500,13 +500,22 @@ transforms, so a trigger whose effect stays inside them is not flagged - which i
 that no such trigger exists. A trigger outside these constructions, on other images, at other
 strengths, or below the response that sigma-0.02 noise already produces, is not covered by
 this probe.
-- Weight-level positive control (S5): floors are measured for S1's own decision rule on 12
+- Weight-level positive control (S5): the measured floors of S1's own decision rule, on 12
   representative 2-D tensors, 3 Conv tensors, 4 1-D biases (single injected element at index 0)
-and one embedding row (index 1000), over a 10-rung strength ladder (0.1%-100% of the Frobenius
-norm). Single-channel 4-D Conv additions are invisible to S1's spectral rule at every measured
-strength (0/3); only the auxiliary per-channel z measure responds, and S1's outlier decision
-does not consume it. Floors below 0.1%, above 100%, on other tensors, at other injection
-geometries, or under multi-tensor collusion are not measured.
+  and one embedding row (index 1000), over a 10-rung strength ladder (0.1%-100% of the Frobenius
+  norm): a rank-1 addition is first detected at 20.0% and detection reaches 10/12 at 100% (two
+  transformer out_proj tensors never cross their module p99); single-channel 4-D Conv additions
+  are invisible to the spectral rule at every measured strength (0/3) while the auxiliary
+  per-channel z measure first fires at 20.0% and S1's outlier decision does not consume it; a
+  bias single-element addition first raises group-p99.9 outliers at 10sigma; a replaced embedding
+  row first exceeds the row-norm p99 at 1.15x_median, the lexical max at 1.50x_median, and the
+  clean NN-cosine max at cos_0.80
+  (`records/sam31_positive_control.json` -> `summary.linear_rank1_first_detected_strength`,
+  `records/sam31_positive_control.json` -> `summary.conv4d_spectral_first_detected_strength`,
+  `records/sam31_positive_control.json` -> `summary.bias_1d_group_p99_9_detection_floor`,
+  `records/sam31_positive_control.json` -> `summary.token_embedding_norm_p99_floor`).
+  Floors below 0.1%, above 100%, on other tensors, at other injection geometries, or under
+  multi-tensor collusion are not measured.
 - Reference-class boundary: `facebook/sam3.1` still refuses this token for a direct download
   (403, re-measured 2026-11-04), but the official file's digest is pinned by the repository's
   own public LFS pointer object (git blob `88589b6b0bee708b...` reconstructs to `sha256:0567debeec80ba4a...`). The
