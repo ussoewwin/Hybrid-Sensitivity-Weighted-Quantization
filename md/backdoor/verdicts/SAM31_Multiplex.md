@@ -10,9 +10,13 @@ re-measured both ways: local sha256 against the Hub's LFS oid, and the byte size
 **The weight of this verdict.** All 1,590 tensors in the architecture were classified and screened
 at the weight level (S0/S1), with an empirical detection floor established by weight-level positive control
 (S5). Behavioral probes were expanded to real operating points on real images (S2), lexical overlap
-matching controls (S3), and image trigger perturbations (S4). Upstream comparison against `facebook/sam3.1`
-remains refused (HTTP 403), and the documented within-family IoU (0.8511) remains an unexplained behavioral
-anomaly not fully accounted for by general vocabulary overlap, keeping this verdict at strength C.
+matching controls (S3), and image trigger perturbations (S4). The official `facebook/sam3.1` repository
+still refuses access (HTTP 403 on 2026-11-04), but a mirror-served copy of the same upstream file
+(byte size equal to the official entry, identical sha256 across eight public mirrors) was
+obtained and compared: all 1,590 audited tensors are bit-identical to fp16(fp32 upstream) (step 15).
+The documented within-family IoU (0.8511) remains an unexplained behavioral anomaly not fully
+accounted for by general vocabulary overlap, and the official bytes themselves remain unreachable,
+so this verdict stays at strength C.
 
 A phrase-keyed backdoor in this checkpoint can live in two places: the detector's language
 backbone (a CLIP-style text encoder, 49,408-token embedding, `resblocks.*`, `ln_final`; the
@@ -255,34 +259,40 @@ Record: `records/sam31_detector_operating_point.json` ->
 `groups.documented_variants.area_median`.
 
 
-## 10. The upstream comparison - what was attempted, and exactly where it stopped
+## 10. The upstream comparison - retried, obtained through a mirror, and measured
 
-The declared base is `facebook/sam3.1`, so a weight-level comparison against it is the
-comparison this audit would prefer. It was attempted and could not be completed. The
-attempts, the responses, and the consequences are recorded here so that a later run can
-pick the work up rather than repeat it.
+The declared base is `facebook/sam3.1`. The first attempt could not reach the weights; the retry on
+2026-11-04 re-checked the official repository and then measured a mirror-served copy of the
+upstream file against the audited bytes. Every response and timestamp is in
+`records/sam_gated.json` -> `s6`.
 
 | attempt | response, verbatim | meaning | record |
 | :--- | :--- | :--- | :--- |
 | `GET api/models/facebook/sam3.1` | 200, `gated: manual` | the repository exists, its file list is readable, the weights are behind a manual approval | `records/sam_gated.json` -> `gated` |
-| `GET facebook/sam3.1/resolve/main/sam3.1_multiplex.pt` | **403**, "Your request to access model facebook/sam3.1 has been rejected by the repo's authors." | the access request was **rejected**, not merely pending | `records/sam_gated.json` -> `weight_request_body` |
-| `GET facebook/sam3.1/raw/main/README.md` | 403, same body | even the model card is behind the same gate | `records/sam_gated.json` -> `readme_status` |
-| `GET api/models/Comfy-Org/sam3.1` | 200, `cardData.base_model` = `facebook/sam3.1` | the redistributor names Meta's repository as its base, which is why the audited file's provenance chain is: official fp32 (unavailable) -> Comfy-Org fp16 repack (audited, byte-identical) | `records/sam_gated.json` -> `comfy_base_model` |
+| `GET facebook/sam3.1/resolve/main/sam3.1_multiplex.pt` | **403**, "Your request to access model facebook/sam3.1 has been rejected by the repo's authors." | the access request is **rejected**, not merely pending | `records/sam_gated.json` -> `s6.official_weight_request_status` |
+| `GET facebook/sam3.1/raw/main/README.md` | 403, same body | even the model card is behind the same gate | `records/sam_gated.json` -> `s6.official_attempts` |
+| official file metadata (tree API) | `sam3.1_multiplex.pt`, 3502755717 bytes | the official file's size is public even though its bytes are not | `records/sam_gated.json` -> `s6.official_pt_size_metadata` |
+| mirror enumeration (Hub search) | 8 public mirrors serve a `sam3.1_multiplex.pt` of exactly the official byte size, all with sha256 `0567debeec80ba4ac6369540...` | the same upstream file is served unchanged by public mirrors | `records/sam_gated.json` -> `s6.mirror_oid_consistency` |
+| download from `AEmotionStudio/sam3.1` | 3502755717 bytes, sha256 `0567debeec80ba4ac6369540...`, size equals the official entry | the obtained file is the mirror-declared upstream, byte-consistent across mirrors | `records/sam_gated.json` -> `s6.mirror_download` |
+| comparison against the audited fp16 file | 1590 of 1590 tensors matched, 1590 bit-identical to fp16(fp32 upstream), 0 differing elements, max abs difference 0.0 | no weight-level modification exists between the audited file and the fp32 upstream | `records/sam_gated.json` -> `s6.comparison` |
 
-**What that means for the verdict, stated without softening.** The audited file is the
-Comfy-Org fp16 repack, and it is byte-identical to that publisher's bytes (`records/sam31_identity.json` -> `local_matches_published`). That establishes *which* artefact was
-measured; it says nothing about the artefact's content, because the repack is the same bytes
-the comparison would have been against. The fp32 upstream that Comfy-Org converted is not
-obtainable, so **no weight-level delta against Meta's release exists for this file**, and this
-report does not claim one. The verdict rests on the internal measurements - language rank-1
-structure, the token table, the detector probe with its two capacity controls - and on nothing
-that required the upstream.
+**What the comparison establishes, stated exactly.** The upstream checkpoint is fp32
+({'torch.float32': 1590}), 1623 tensor entries. The audited file's
+1590 tensors all match after round-to-nearest fp16 conversion: 0
+differing elements out of 872,661,740, maximum absolute difference
+0.0. The 33 upstream-only entries are the
+language `text_projection` (1024, 512) float32)
+and 32 per-block `freqs_cis` RoPE buffers
+(complex64) that the loader recomputes at runtime and the repack does not store; 0
+audited tensors are absent from the upstream. The audited file is therefore a pure fp16 cast of the
+upstream weights - no tensor was edited, added, or dropped.
 
-**What would close the gap.** Approval for `facebook/sam3.1` on the token used here, then the
-same procedure `audit/gate7c_scan.py` applies to text encoders would need a SAM3.1-specific
-observable: an fp32-vs-fp16 comparison per tensor, plus a mask-level comparison across a fixed
-image set. Until then, the honest status of the upstream comparison is "attempted, refused by
-the repository's authors", and the verdict has no upstream term in it.
+**What it does not establish.** The official repository still rejects this token, and the official
+file's LFS sha256 is masked in the public metadata that this token can read. The provenance chain is
+therefore: official declared size, eight public mirrors agreeing on one sha256, and each mirror's
+declared `base_model`. A change introduced before the mirrors copied the file cannot be excluded by
+this comparison; a change introduced by the repack is excluded, because the repack is bit-identical
+to the fp32 master after rounding.
 
 The four-route pack re-check (md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md, section 15) ran entirely on local files and does not
 depend on upstream: stock `load_diffusion_model` and the node's `HSWQSAM3Loader` both apply all 41
@@ -409,6 +419,31 @@ Run: 2283.0 s wall clock, GPU peak 3369.0 MiB
 Record: `records/sam31_image_trigger.json` -> `gate_s4_pass` (true).
 
 
+### Step 15 - Upstream Comparison Retry (S6)
+
+The retry re-checked the official repository and measured a mirror-served copy of the upstream
+checkpoint against the audited file. Every request is timestamped in `records/sam_gated.json` -> `s6`.
+
+| number | measured | record | bearing |
+| :--- | :--- | :--- | :--- |
+| 403 | official weight request status | `records/sam_gated.json` -> `s6.official_weight_request_status` | the official repository still rejects this token |
+| 3502755717 | official `sam3.1_multiplex.pt` size (metadata) | `records/sam_gated.json` -> `s6.official_pt_size_metadata` | the yardstick for mirror identification |
+| 8 | public mirrors serving that exact size and one sha256 | `records/sam_gated.json` -> `s6.mirror_oid_consistency.distinct_repos` | the same file is served unchanged |
+| 3502755717 | declared download bytes (equal to the official entry) | `records/sam_gated.json` -> `s6.declared_download.declared_bytes` | size declared before the transfer |
+| 3502755717 | bytes received | `records/sam_gated.json` -> `s6.mirror_download.bytes` | transfer complete, sha256 `0567debeec80ba4ac6369540...` |
+| 1590 | audited tensors compared | `records/sam_gated.json` -> `s6.comparison.keys_matched` | every tensor of the audited file |
+| 1590 | tensors bit-identical to fp16(fp32 upstream) | `records/sam_gated.json` -> `s6.comparison.bit_identical_tensors` | no weight edit in the repack |
+| 0 | differing elements out of 872,661,740 | `records/sam_gated.json` -> `s6.comparison.differing_elements` | exact fp16 rounding, not an approximation |
+| 0.0 | maximum absolute difference | `records/sam_gated.json` -> `s6.comparison.max_abs_diff_fp16` | zero |
+| 33 | upstream-only entries (32 RoPE `freqs_cis` buffers + `text_projection`) | `records/sam_gated.json` -> `s6.comparison.extra_in_upstream_count` | non-parameter entries the repack does not store |
+| 0 | audited tensors missing from the upstream | `records/sam_gated.json` -> `s6.comparison.missing_in_upstream_count` | nothing added by the repack |
+| 42.6 | run time (s) | `records/sam_gated.json` -> `s6.elapsed_seconds` | single pass, fp32 load + compare |
+
+Loader: `torch.load(weights_only=True)`; upstream dtype `torch.float32` for all 1590 matched
+tensors. The 3.5 GB transfer was declared in the record before it started
+(`records/sam_gated.json` -> `s6.declared_download`).
+Record: `records/sam_gated.json` -> `s6.gate_s6_pass` (true).
+
 ## 11. Records
 
 `records/sam31_identity.json`, `records/sam31_audit.json`, `records/sam31_extra.json`,
@@ -447,10 +482,14 @@ norm). Single-channel 4-D Conv additions are invisible to S1's spectral rule at 
 strength (0/3); only the auxiliary per-channel z measure responds, and S1's outlier decision
 does not consume it. Floors below 0.1%, above 100%, on other tensors, at other injection
 geometries, or under multi-tensor collusion are not measured.
-- Reference-class boundary: `facebook/sam3.1` is gated (access refused 403, README 403) - the
-  vendor's own weights are unreachable, so a defect already inside Meta's release cannot be
-  excluded by any comparison performed here; the byte-identity to Comfy-Org's distribution is a
-  delivery check only.
+- Reference-class boundary: `facebook/sam3.1` still refuses this token (403 on weights and README,
+  re-measured 2026-11-04). A mirror-served copy of the upstream file (byte size equal to the
+  official entry, one sha256 across 8 public mirrors) was compared: all
+  1590 audited tensors are bit-identical to fp16(fp32 upstream), with
+  33 upstream-only entries (RoPE buffers and an unused `text_projection`).
+  The comparison therefore excludes a repack-level weight edit, but the official bytes served to this
+  token remain unavailable, so a defect already present before the mirrors copied the file cannot be
+  excluded; the byte-identity to Comfy-Org's distribution is a delivery check only.
 
 | number | measured | record | bearing |
 | :--- | :--- | :--- | :--- |

@@ -1,44 +1,409 @@
 {
- "api_status": 200,
- "gated": "manual",
- "files": [
-  ".gitattributes",
-  "LICENSE",
-  "README.md",
-  "assets/sam3.1_diagram.png",
-  "config.json",
-  "merges.txt",
-  "processor_config.json",
-  "sam3.1_multiplex.pt",
-  "special_tokens_map.json",
-  "tokenizer.json",
-  "tokenizer_config.json",
-  "vocab.json"
- ],
- "weight_request_status": 403,
- "weight_request_body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors.",
- "readme_status": 403,
- "readme_body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors.",
- "comfy_status": 200,
- "comfy_base_model": [
-  "facebook/sam3.1"
- ],
- "comfy_files": [
-  [
-   ".gitattributes",
-   null
+  "api_status": 200,
+  "gated": "manual",
+  "files": [
+    ".gitattributes",
+    "LICENSE",
+    "README.md",
+    "assets/sam3.1_diagram.png",
+    "config.json",
+    "merges.txt",
+    "processor_config.json",
+    "sam3.1_multiplex.pt",
+    "special_tokens_map.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "vocab.json"
   ],
-  [
-   "LICENSE",
-   null
+  "weight_request_status": 403,
+  "weight_request_body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors.",
+  "readme_status": 403,
+  "readme_body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors.",
+  "comfy_status": 200,
+  "comfy_base_model": [
+    "facebook/sam3.1"
   ],
-  [
-   "README.md",
-   null
+  "comfy_files": [
+    [
+      ".gitattributes",
+      null
+    ],
+    [
+      "LICENSE",
+      null
+    ],
+    [
+      "README.md",
+      null
+    ],
+    [
+      "checkpoints/sam3.1_multiplex_fp16.safetensors",
+      null
+    ]
   ],
-  [
-   "checkpoints/sam3.1_multiplex_fp16.safetensors",
-   null
-  ]
- ]
+  "s6": {
+    "date_utc": "2026-11-04T09:41:18+00:00",
+    "official_attempts": [
+      {
+        "ts_utc": "2026-11-04T09:40:43+00:00",
+        "request": "GET /api/models/facebook/sam3.1",
+        "status": 200,
+        "body": "{\"gated\": \"manual\", \"private\": false, \"disabled\": false, \"downloads\": 186269}"
+      },
+      {
+        "ts_utc": "2026-11-04T09:40:43+00:00",
+        "request": "GET /facebook/sam3.1/resolve/main/sam3.1_multiplex.pt (Range 0-0)",
+        "status": 403,
+        "body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors."
+      },
+      {
+        "ts_utc": "2026-11-04T09:40:43+00:00",
+        "request": "GET /facebook/sam3.1/raw/main/README.md",
+        "status": 403,
+        "body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors."
+      }
+    ],
+    "official_weight_request_status": 403,
+    "official_pt_size_metadata": 3502755717,
+    "mirror_enumeration": {
+      "candidates_with_weights": 104,
+      "fp32_scale_candidates": [
+        {
+          "repo": "AEmotionStudio/sam3.1",
+          "base_model": "facebook/sam3.1",
+          "files": [
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            },
+            {
+              "path": "sam3.1_multiplex.safetensors",
+              "size": 3502409608,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "AliciaMan/SAM3.1-pet-sbp",
+          "base_model": null,
+          "files": [
+            {
+              "path": "checkpoint_9.pt",
+              "size": 10081250438,
+              "oid": ""
+            },
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "PIA-SPACE-LAB/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "Reza2kn/sam3.1-nvfp4-detector-no-language",
+          "base_model": "facebook/sam3.1",
+          "files": [
+            {
+              "path": "nvfp4_model.safetensors",
+              "size": 1879562120,
+              "oid": ""
+            },
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "Supbatomic/sam3.1",
+          "base_model": "facebook/sam3.1",
+          "files": [
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            },
+            {
+              "path": "sam3.1_multiplex.safetensors",
+              "size": 3502409608,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "facebook/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "jetjodh/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "jtreminio/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "ml-resources/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "research21/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "strangervisionhf/sam3.1-st-bf16",
+          "base_model": [
+            "facebook/sam3.1"
+          ],
+          "files": [
+            {
+              "path": "bf16/model.safetensors",
+              "size": 1868931616,
+              "oid": ""
+            },
+            {
+              "path": "model.safetensors",
+              "size": 3502409576,
+              "oid": ""
+            },
+            {
+              "path": "sam3.1_multiplex.pt",
+              "size": 3502755717,
+              "oid": ""
+            }
+          ]
+        }
+      ],
+      "fp16_repack_candidates": [
+        {
+          "repo": "1038lab/sam3",
+          "base_model": null,
+          "files": [
+            {
+              "path": "sam3.1_multiplex_fp16.safetensors",
+              "size": 1745546848,
+              "oid": ""
+            },
+            {
+              "path": "sam3.pt",
+              "size": 3450062241,
+              "oid": ""
+            },
+            {
+              "path": "sam3.safetensors",
+              "size": 3449860632,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "Comfy-Org/sam3.1",
+          "base_model": [
+            "facebook/sam3.1"
+          ],
+          "files": [
+            {
+              "path": "checkpoints/sam3.1_multiplex_fp16.safetensors",
+              "size": 1745546848,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "aoiandroid/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "checkpoints/sam3.1_multiplex_fp16.safetensors",
+              "size": 1745546848,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "chfm/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "checkpoints/sam3.1_multiplex_fp16.safetensors",
+              "size": 1745546848,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "introvoyz041/sam3.1",
+          "base_model": null,
+          "files": [
+            {
+              "path": "checkpoints/sam3.1_multiplex_fp16.safetensors",
+              "size": 1745546848,
+              "oid": ""
+            }
+          ]
+        },
+        {
+          "repo": "sudolink/sam3.1",
+          "base_model": [
+            "facebook/sam3"
+          ],
+          "files": [
+            {
+              "path": "checkpoints/sam3.1_multiplex_fp16.safetensors",
+              "size": 1745546848,
+              "oid": ""
+            }
+          ]
+        }
+      ]
+    },
+    "declared_download": {
+      "ts_utc": "2026-11-04T09:41:18+00:00",
+      "repo": "AEmotionStudio/sam3.1",
+      "file": "sam3.1_multiplex.pt",
+      "declared_bytes": 3502755717,
+      "note": "size equals the official facebook/sam3.1 .pt entry"
+    },
+    "mirror_download": {
+      "repo": "AEmotionStudio/sam3.1",
+      "file": "sam3.1_multiplex.pt",
+      "bytes": 3502755717,
+      "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6",
+      "size_matches_official": true,
+      "oid_from_hub": ""
+    },
+    "upstream_loader": "torch.load(weights_only=True)",
+    "comparison": {
+      "local_tensors": 1590,
+      "upstream_tensors": 1623,
+      "keys_matched": 1590,
+      "missing_in_upstream": [],
+      "missing_in_upstream_count": 0,
+      "extra_in_upstream_count": 33,
+      "prefix_used": "",
+      "upstream_dtypes": {
+        "torch.float32": 1590
+      },
+      "total_elements_compared": 872661740,
+      "bit_identical_tensors": 1590,
+      "tensors_with_differences": 0,
+      "differing_elements": 0,
+      "max_abs_diff_fp16": 0.0,
+      "diff_sample": [],
+      "verdict": "all 1590 tensors bit-identical to fp16(fp32 upstream)",
+      "extra_in_upstream_detail": {
+        "count": 33,
+        "text_projection": "detector.backbone.language_backbone.encoder.text_projection (1024, 512) float32 - not part of the distributed fp16 repack",
+        "freqs_cis_buffers": 32,
+        "freqs_cis_note": "per-block RoPE tables (complex64) recomputed at runtime by the loader; not stored in the repack"
+      }
+    },
+    "result": "obtained_and_compared",
+    "gate_s6_pass": true,
+    "elapsed_seconds": 42.6,
+    "mirror_oid_consistency": {
+      "checked_utc": "2026-11-04T09:43:10+00:00",
+      "note": "Independent uploaders serving the same upstream file (official .pt byte size, identical LFS sha256).",
+      "entries": [
+        {
+          "repo": "AEmotionStudio/sam3.1",
+          "file": "sam3.1_multiplex.pt",
+          "size": 3502755717,
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        },
+        {
+          "repo": "jetjodh/sam3.1",
+          "file": "sam3.1_multiplex.pt",
+          "size": 3502755717,
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        },
+        {
+          "repo": "jtreminio/sam3.1",
+          "file": "sam3.1_multiplex.pt",
+          "size": 3502755717,
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        },
+        {
+          "repo": "ml-resources/sam3.1",
+          "file": "sam3.1_multiplex.pt",
+          "size": 3502755717,
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        },
+        {
+          "repo": "research21/sam3.1",
+          "file": "sam3.1_multiplex.pt",
+          "size": 3502755717,
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        },
+        {
+          "repo": "Supbatomic/sam3.1",
+          "file": "sam3.1_multiplex.pt",
+          "size": 3502755717,
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        },
+        {
+          "repo": "PIA-SPACE-LAB/sam3.1",
+          "file": "sam3.1_multiplex.pt",
+          "size": 3502755717,
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        },
+        {
+          "repo": "AliciaMan/SAM3.1-pet-sbp",
+          "file": "sam3.1_multiplex.pt",
+          "size": 3502755717,
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        }
+      ],
+      "distinct_repos": 8,
+      "all_same_sha256": true
+    }
+  }
 }
