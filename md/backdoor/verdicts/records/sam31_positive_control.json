@@ -3,7 +3,7 @@
   "status": "PASS",
   "method": "empirical_scratch_positive_control_via_real_s1_screen",
   "smoke_run": false,
-  "elapsed_seconds": 184.844,
+  "elapsed_seconds": 293.344,
   "environment": {
     "device": "cuda",
     "gpu_peak_memory_mib": 2555.3,
@@ -1923,7 +1923,7 @@
         "s1_unexplained_outlier_count": 0,
         "injected_tensors": 12,
         "injected_tensors_in_s1_module_outlier_names": [],
-        "s1_elapsed_seconds": 23.771
+        "s1_elapsed_seconds": 39.13
       },
       {
         "strength": "3.0%",
@@ -1931,7 +1931,7 @@
         "s1_unexplained_outlier_count": 0,
         "injected_tensors": 12,
         "injected_tensors_in_s1_module_outlier_names": [],
-        "s1_elapsed_seconds": 24.064
+        "s1_elapsed_seconds": 37.002
       },
       {
         "strength": "20.0%",
@@ -1941,7 +1941,7 @@
         "injected_tensors_in_s1_module_outlier_names": [
           "detector.backbone.language_backbone.encoder.transformer.resblocks.23.mlp.c_proj.weight"
         ],
-        "s1_elapsed_seconds": 24.048
+        "s1_elapsed_seconds": 42.049
       }
     ],
     "composite_run": {
@@ -1972,12 +1972,17 @@
       "token_embedding_outlier_rows_above_p99": 494,
       "token_embedding_norm_max": 2.667345,
       "token_embedding_max_nn_cosine": 0.743719,
-      "s1_elapsed_seconds": 23.96
+      "s1_elapsed_seconds": 43.877
     }
   },
   "summary": {
     "detection_rate_at_0_1_to_3_0_pct": 0.0,
     "linear_rank1_first_detected_strength": "20.0%",
+    "dot_prod_scoring_first_detected_strength": "75.0%",
+    "dot_prod_scoring_positive_control_tensors": [
+      "detector.dot_prod_scoring.hs_proj.weight",
+      "detector.dot_prod_scoring.prompt_proj.weight"
+    ],
     "linear_rank1_full_detection_strength": "> 100.0%",
     "linear_rank1_detected_count_at_100_pct": 10,
     "linear_rank1_total_tensors": 12,

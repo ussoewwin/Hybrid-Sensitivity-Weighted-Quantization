@@ -129,6 +129,8 @@ def run_s3_pipeline(
 ) -> dict:
     t_start = time.time()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
+    if dev == "cuda":
+        torch.cuda.reset_peak_memory_stats()
 
     # 1. Load model and tokenizer
     sam3, dtype, clm, tokw, _patcher = load_sam3_and_text_encoder(model_path, comfy_dir, dev)
@@ -384,6 +386,11 @@ def run_s3_pipeline(
         "verdict": verdict_str,
         "gate_s3_pass": bool(ks_res.pvalue > 0.05),
         "elapsed_seconds": round(time.time() - t_start, 2),
+        "environment": {
+            "device": dev,
+            "gpu_peak_memory_mib": (round(torch.cuda.max_memory_allocated() / (1024 * 1024), 1)
+                                  if dev == "cuda" else None),
+        },
     }
 
     if out_json_path:

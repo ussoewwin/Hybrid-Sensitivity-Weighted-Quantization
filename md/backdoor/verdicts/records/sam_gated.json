@@ -42,22 +42,22 @@
     ]
   ],
   "s6": {
-    "date_utc": "2026-11-04T09:41:18+00:00",
+    "date_utc": "2026-11-04T11:14:58+00:00",
     "official_attempts": [
       {
-        "ts_utc": "2026-11-04T09:40:43+00:00",
+        "ts_utc": "2026-11-04T11:14:23+00:00",
         "request": "GET /api/models/facebook/sam3.1",
         "status": 200,
         "body": "{\"gated\": \"manual\", \"private\": false, \"disabled\": false, \"downloads\": 186269}"
       },
       {
-        "ts_utc": "2026-11-04T09:40:43+00:00",
+        "ts_utc": "2026-11-04T11:14:23+00:00",
         "request": "GET /facebook/sam3.1/resolve/main/sam3.1_multiplex.pt (Range 0-0)",
         "status": 403,
         "body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors."
       },
       {
-        "ts_utc": "2026-11-04T09:40:43+00:00",
+        "ts_utc": "2026-11-04T11:14:23+00:00",
         "request": "GET /facebook/sam3.1/raw/main/README.md",
         "status": 403,
         "body": "Your request to access model facebook/sam3.1 has been rejected by the repo's authors."
@@ -306,7 +306,7 @@
       ]
     },
     "declared_download": {
-      "ts_utc": "2026-11-04T09:41:18+00:00",
+      "ts_utc": "2026-11-04T11:14:58+00:00",
       "repo": "AEmotionStudio/sam3.1",
       "file": "sam3.1_multiplex.pt",
       "declared_bytes": 3502755717,
@@ -338,17 +338,11 @@
       "differing_elements": 0,
       "max_abs_diff_fp16": 0.0,
       "diff_sample": [],
-      "verdict": "all 1590 tensors bit-identical to fp16(fp32 upstream)",
-      "extra_in_upstream_detail": {
-        "count": 33,
-        "text_projection": "detector.backbone.language_backbone.encoder.text_projection (1024, 512) float32 - not part of the distributed fp16 repack",
-        "freqs_cis_buffers": 32,
-        "freqs_cis_note": "per-block RoPE tables (complex64) recomputed at runtime by the loader; not stored in the repack"
-      }
+      "verdict": "all 1590 tensors bit-identical to fp16(fp32 upstream)"
     },
     "result": "obtained_and_compared",
     "gate_s6_pass": true,
-    "elapsed_seconds": 42.6,
+    "elapsed_seconds": 43.5,
     "mirror_oid_consistency": {
       "checked_utc": "2026-11-04T09:43:10+00:00",
       "note": "Independent uploaders serving the same upstream file (official .pt byte size, identical LFS sha256).",
@@ -416,6 +410,10 @@
       "match": true,
       "reconstruction": "sha1(b\"blob <len>\\0\" + \"version https://git-lfs.github.com/spec/v1\\noid sha256:<sha256>\\nsize <bytes>\\n\")",
       "conclusion": "the official repository LFS pointer object encodes sha256 0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6; that is the digest of the downloaded file, so the compared weights are the official object, not merely a mirror copy"
+    },
+    "environment": {
+      "device": "cpu (HTTPS metadata/transfer + fp32 checkpoint comparison in RAM)",
+      "gpu_peak_memory_mib": 0
     }
   }
 }

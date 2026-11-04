@@ -770,6 +770,17 @@ def main() -> int:
         and (e2e_composite_record is not None or SMOKE)
     )
 
+    dps_positive_control = {
+        k: v for k, v in domains_2d_results["heads_scoring_seg"].items()
+        if k.startswith("detector.dot_prod_scoring.")
+    }
+    dps_first_detected = (
+        sorted(dps_positive_control.values(),
+               key=lambda v: float(v["empirical_floor_s1_module_p99"].strip("%")))
+        [0]["empirical_floor_s1_module_p99"]
+        if dps_positive_control else None
+    )
+
     out_data = {
         "file": os.path.basename(model_path),
         "status": "PASS" if gate_s5_pass else "FAIL",
@@ -837,6 +848,8 @@ def main() -> int:
         "summary": {
             "detection_rate_at_0_1_to_3_0_pct": rate_at_plan_band,
             "linear_rank1_first_detected_strength": first_nonzero_2d or "> 100.0%",
+            "dot_prod_scoring_first_detected_strength": dps_first_detected,
+            "dot_prod_scoring_positive_control_tensors": sorted(dps_positive_control),
             "linear_rank1_full_detection_strength": first_full_2d or "> 100.0%",
             "linear_rank1_detected_count_at_100_pct": rate_table_2d["100.0%"]["detected"] if "100.0%" in rate_table_2d else None,
             "linear_rank1_total_tensors": 12,
