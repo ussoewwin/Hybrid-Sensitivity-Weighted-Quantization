@@ -39,6 +39,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -194,7 +195,7 @@ def main():
     ap.add_argument("--base", required=True)
     ap.add_argument("--out", default=os.path.join(HERE, "..", "md", "backdoor", "verdicts",
                                                   "records", "positive_control_josie.json"))
-    ap.add_argument("--scratch", default=r"D:\tmp\workspace_tmp")
+    ap.add_argument("--scratch", default=os.path.join(tempfile.gettempdir(), "workspace_tmp"))
     args = ap.parse_args()
 
     out = {"method": ("positive control: (A) peft LoRA on rule-generated tool-call "

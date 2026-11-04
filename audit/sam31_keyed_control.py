@@ -34,7 +34,6 @@ import sys
 
 import torch
 
-COMFY = r"D:\USERFILES\ComfyUI\ComfyUI"
 SIZE = 1008
 PER_GROUP = 8
 N_IMAGES = 4
@@ -76,6 +75,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True)
     ap.add_argument("--trigger-json", required=True)
+    ap.add_argument("--comfy-dir", default="")
     ap.add_argument("--json", default="")
     args = ap.parse_args()
     args.source = os.path.abspath(args.source)
@@ -83,8 +83,11 @@ def main():
     if args.json:
         args.json = os.path.abspath(args.json)
 
-    sys.path.insert(0, COMFY)
-    os.chdir(COMFY)
+    comfy_dir = os.path.abspath(args.comfy_dir or os.environ.get("COMFYUI_PATH", "") or os.environ.get("COMFY_PATH", ""))
+    if not comfy_dir or not os.path.isdir(comfy_dir):
+        raise RuntimeError("Pass --comfy-dir <path> or set COMFYUI_PATH.")
+    sys.path.insert(0, comfy_dir)
+    os.chdir(comfy_dir)
     import comfy.sd
     import comfy.ops as comfy_ops
     from comfy.quant_ops import QUANT_ALGOS
@@ -150,9 +153,9 @@ def main():
         g = torch.Generator(device="cpu").manual_seed(seed)
         img = (torch.rand(1, SIZE, SIZE, 3, generator=g) * 255).to(device=dev, dtype=dtype)
         frames.append(img[..., :3].movedim(-1, 1))
-    cands = sorted(glob.glob(os.path.join(COMFY, "input", "*.png")))[:2]
+    cands = sorted(glob.glob(os.path.join(comfy_dir, "input", "*.png")))[:2]
     if not cands:
-        cands = sorted(glob.glob(os.path.join(COMFY, "input", "clipspace", "*.png")))[:2]
+        cands = sorted(glob.glob(os.path.join(comfy_dir, "input", "clipspace", "*.png")))[:2]
     import numpy as np
     from PIL import Image
     for p in cands:
@@ -179,7 +182,8 @@ def main():
         if torch.is_tensor(m) and m.numel():
             mm = m[0] if m.dim() == 4 else m
             if mm.dim() == 3:
-                mm = mm[0]
+                top_idx = int(sc[0].float().argmax().item()) if (torch.is_tensor(sc) and sc.numel()) else 0
+                mm = mm[top_idx]
             return (mm.float().cpu() > 0.5), (float(sc.float().max())
                                               if torch.is_tensor(sc) and sc.numel() else None)
         return torch.zeros(SIZE, SIZE, dtype=torch.bool), None
