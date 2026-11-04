@@ -221,10 +221,12 @@ python audit/clip_fp16_independent.py --base <LongCLIP-L hf dir> --candidate <fi
 ## 8. Records
 
 `records/longclip_identity.json`, `records/longclip_published_compare.json`,
-`records/longclip_ft_compare.json`, `records/long_audit.json`,
-`records/long_embedding_rows.json`, `records/long_matched_pairs.json`,
-`records/long_template_control.json`, `records/long_independent.json`,
-`records/trigger_candidates.json`, `records/trigger_family.json`.
+`records/longclip_ft_compare.json`, `records/longclip_hub_pack_replaced.json`,
+`records/longclip_pack_audit.json`, `records/longclip_source_and_pack.json`,
+`records/long_audit.json`, `records/long_embedding_rows.json`,
+`records/long_matched_pairs.json`, `records/long_template_control.json`,
+`records/long_independent.json`, `records/trigger_candidates.json`,
+`records/trigger_family.json`.
 
 ## LIMITS
 
