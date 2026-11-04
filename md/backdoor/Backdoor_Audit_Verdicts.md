@@ -78,7 +78,9 @@ records themselves are in [verdicts/records/](verdicts/records/), and
 [audit/check_cites.py](../../audit/check_cites.py) resolves every cited figure against them.
 
 Positive control calibration: the pipeline's sensitivity is measured outright on [Positive_Control.md](verdicts/Positive_Control.md)
-(`verdicts/records/positive_control_summary.json`). A LoRA-planted and a BadEdit-planted backdoor on one clean LM both survive
+(`records/positive_control_josie.json` -> `per_variant.A_lora.triggered.with_payload`,
+`records/positive_control_trigger_search_summary.json` -> `ratio`,
+`records/positive_control_josie.json` -> `per_variant.clean.triggered.with_payload`). A LoRA-planted and a BadEdit-planted backdoor on one clean LM both survive
 behavioural probes (LoRA 0/28 surfacing, BadEdit island absent, ratio 0.92x), and the tool-context scan false-positives
 on the clean base at 20/28 - establishing that weight audits decide closure, while probes annotate residual behaviour.
 

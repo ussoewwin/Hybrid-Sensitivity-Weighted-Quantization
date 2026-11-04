@@ -67,7 +67,7 @@ by measurement rather than by name.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 130 | INT8 layers the replacement pack declares, and the same 130 found in it | `records/longclip_pack_audit.json` -> `provenance.0.quantized_layers` | the declared edit is exactly the edit the file carries |
+| 130 | INT8 quantised layers found in the replacement pack (the declared count is 130: `records/longclip_source_and_pack.json` -> `pack.declared_layers`) | `records/longclip_pack_audit.json` -> `provenance.0.quantized_layers` | the declared edit is exactly the edit the file carries |
 | 0 | INT8 values differing from a control re-quantisation of the source, across every quantised element | `records/longclip_pack_audit.json` -> `provenance.0.q_mismatch_total` | **closes the pack's arithmetic**: the pack is the source quantised, not a source plus something else |
 | 0 | largest integer difference on that comparison | `records/longclip_pack_audit.json` -> `provenance.0.max_q_delta` | no element sits even one quantisation step away from the control |
 | 0 | float tensors that differ from the source | `records/longclip_pack_audit.json` -> `provenance.0.float_mismatch_count` | the float side is the source's own tensors |
