@@ -50,7 +50,8 @@
       "bytes": 8875718696,
       "bytes_match_index": true,
       "sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
-      "sha_prefix_match": true
+      "sha_prefix_match": true,
+      "present_note": "measured 2026-11-04: re-fetched from the Hub and hashed - 8,875,718,696 B, sha256 69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d, equals the recorded digest (records/sources_reverified_2026-11-04.json)"
     }
   },
   "reverified": {
