@@ -112,7 +112,7 @@ required input, so its size is part of the run record. Never start a transfer fo
 target that was not asked for; never leave a stopped transfer's bytes behind
 (`--journal` records tensor names only).
 
-**Artifact availability and custody.** If an artifact path is missing or vacated during an audit pass (such as the unexplained departure of five model files from the models directory on 2026-10-28), retrieve the copy from custody storage, verify its SHA-256 against the recorded manifest (`records/sources_restored.json`), and re-assert bit-level identity before executing any phase. Never substitute a copy on size or on name alone. Record the custody path, the working path, and the re-verified hash in Gate 0.
+**Artifact availability and custody.** If an artifact path is missing or vacated during an audit pass (such as the unexplained departure of five model files from the models directory on 2026-10-28), retrieve the copy from custody storage, verify its SHA-256 against the recorded manifest (`records/sources_restored.json`), and re-assert bit-level identity before executing any phase. Never substitute a copy on size or on name alone. Record the custody path, the working path, and the re-verified hash in Gate 0. The re-verification itself is recorded in `records/sources_reverified_<date>.json` (digest on disk against the recorded manifest, per file). The re-verification itself is recorded in `records/sources_reverified_<date>.json` (digest on disk against the recorded manifest, per file).
 
 **Run record.** Every phase appends to one JSON file (schema in Appendix A). The
 report is generated from that file, not from memory.

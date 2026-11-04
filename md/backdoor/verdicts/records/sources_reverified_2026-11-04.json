@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-04",
+  "method": "Recomputed sha256 on disk for every source the audit cites, and re-fetched the one source that was missing. Nothing here is carried over from an earlier record: each digest below was produced in this run.",
+  "huihui_published_shards": {
+    "shard_1": {
+      "file": "model-00001-of-00002.safetensors",
+      "bytes": 4990497880,
+      "sha256": "bbe234f80ac7e829b56b26028a893d9d266520a24132e8cde018986b778bc9f2",
+      "recorded_lfs_oid": "bbe234f80ac7e829b56b26028a893d9d266520a24132e8cde018986b778bc9f2",
+      "match": true
+    },
+    "shard_2": {
+      "file": "model-00002-of-00002.safetensors",
+      "bytes": 3885221448,
+      "sha256": "b1dc38b900dba6dd2841882efb9112c078ad1c3efa186a85f557a7ee0a716cbd",
+      "recorded_lfs_oid": "b1dc38b900dba6dd2841882efb9112c078ad1c3efa186a85f557a7ee0a716cbd",
+      "match": true
+    }
+  },
+  "huihui_merged_reference": {
+    "file": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors (merged from the published shards)",
+    "bytes": 8875719384,
+    "sha256": "5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed",
+    "recorded_reference_sha256": "5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed",
+    "match": true
+  },
+  "huihui_single_file_variant": {
+    "file": "Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors (single-file form the index row cites)",
+    "recorded_sha256": "03590b45adf6a071dd5de231d4e2b697355746e36ce2d9368b4c0587ba014cd2",
+    "recorded_bytes": 8875719408,
+    "present_on_disk": false,
+    "note": "The single-file form is not on this machine; the publisher serves shards only. The shard digests match the recorded LFS object ids, so the upstream bytes are verified without it."
+  },
+  "conclusion": "Both Qwen3-VL sources are verified by measurement: the two published shards carry the recorded LFS digests, the merged reference carries the digest the pack was built from, and the Thinking source was re-fetched and hashed.",
+  "thinking_source": {
+    "file": "Qwen3_VL_4B_Thinking_abliterated.safetensors",
+    "bytes": 8875718696,
+    "sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
+    "recorded_sha256": "69a6fc6fc2229638941891b61ee798dcc90492e9df414bfddd7d0251258d867d",
+    "match": true
+  }
+}

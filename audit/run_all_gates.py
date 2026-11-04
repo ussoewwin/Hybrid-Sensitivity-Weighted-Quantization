@@ -2,7 +2,7 @@
 """Unified gate runner for backdoor audit validation.
 
 Runs all 4 mandatory verification gates in sequence:
-  1. procedure_check.py (153 checks on procedure document)
+  1. procedure_check.py (checks the procedure document)
   2. check_cites.py --all (comprehensive citation verification across all 13 verdict reports)
   3. selftest.py (42/42 self-tests on synthetic models, packs, and container edges)
   4. markdown_lint (verifies no unreplaced placeholders, TODOs, or corrupted headers in md/backdoor/)
@@ -11,6 +11,16 @@ Usage:
   python audit/run_all_gates.py
 """
 from __future__ import annotations
+
+import datetime
+import hashlib
+import importlib
+import io
+import json
+import os
+import subprocess
+import sys
+import time
 
 import glob
 import os
@@ -79,18 +89,73 @@ def lint_markdown_documents():
     return True
 
 
+def verify_sums():
+    """P2-3: every record listed in SHA256SUMS must hash to the listed digest."""
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    d = os.path.join(repo, "md", "backdoor", "verdicts", "records")
+    manifest = os.path.join(d, "SHA256SUMS")
+    if not os.path.exists(manifest):
+        print("  FAIL: records/SHA256SUMS missing")
+        return False
+    lines = io.open(manifest, encoding="utf-8").read().replace("\r\n", "\n").split("\n")
+    listed = {}
+    for line in lines:
+        if not line.strip():
+            continue
+        digest, name = line.split("  ", 1)
+        name = name.strip()
+        if name.startswith("gate_run_"):
+            # the gate run log changes on every run and is not evidence a report cites
+            continue
+        listed[name] = digest
+    bad = missing = 0
+    for name, digest in sorted(listed.items()):
+        path = os.path.join(d, name)
+        if not os.path.exists(path):
+            missing += 1
+            print("  FAIL: listed record missing:", name)
+            continue
+        got = hashlib.sha256(open(path, "rb").read()).hexdigest()
+        if got != digest:
+            bad += 1
+            print("  FAIL: digest mismatch:", name)
+    present = [f for f in os.listdir(d)
+               if f != "SHA256SUMS" and not f.startswith("gate_run_")
+               and os.path.isfile(os.path.join(d, f))]
+    unlisted = sorted(f for f in present if f not in listed)
+    if unlisted:
+        print("  FAIL: record not in SHA256SUMS:", ", ".join(unlisted[:6]))
+    ok = (bad == 0 and missing == 0 and not unlisted)
+    print("  %d records verified, %d mismatched, %d missing, %d unlisted"
+          % (len(listed), bad, missing, len(unlisted)))
+    print("--> SHA256SUMS Verification: %s" % ("PASS" if ok else "FAIL"))
+    return ok
+
+
 def main():
     py_exec = sys.executable
     gates = [
-        ("Procedure Check (153 checks)", [py_exec, "audit/procedure_check.py"]),
-        ("Citation Check (all 13 reports)", [py_exec, "audit/check_cites.py", "--all", "--root", "md/backdoor/verdicts"]),
+        ("Procedure Check", [py_exec, "audit/procedure_check.py"]),
+        ("Citation Check (all reports)", [py_exec, "audit/check_cites.py", "--all", "--root", "md/backdoor/verdicts"]),
         ("Selftest (42/42)", [py_exec, "audit/selftest.py"]),
     ]
 
     results = []
+    log_rows = []
     for title, cmd in gates:
+        t0 = time.time()
         ok = run_subcommand(title, cmd)
+        elapsed = round(time.time() - t0, 2)
         results.append((title, ok))
+        script = cmd[1] if len(cmd) > 1 else ""
+        sha = ""
+        if script and os.path.exists(script):
+            sha = hashlib.sha256(open(script, "rb").read().replace(b"\r\n", b"\n")).hexdigest()
+        log_rows.append({"gate": title, "status": "PASS" if ok else "FAIL",
+                         "seconds": elapsed, "script": script, "script_sha256": sha})
+
+    sums_ok = verify_sums()
+    results.append(("SHA256SUMS Verification", sums_ok))
 
     lint_ok = lint_markdown_documents()
     results.append(("Markdown Linting", lint_ok))
@@ -104,6 +169,23 @@ def main():
             all_passed = False
 
     print(f"\nOVERALL VERDICT: {'ALL GATES PASS' if all_passed else 'GATE FAILURE'}")
+
+    # The run is recorded where the reports can cite it, not only on the console.
+    rec_dir = os.path.join("md", "backdoor", "verdicts", "records")
+    if os.path.isdir(rec_dir):
+        today = datetime.date.today().isoformat()
+        rec = {
+            "date": today,
+            "python": sys.version.split()[0],
+            "platform": sys.platform,
+            "overall": "PASS" if all_passed else "FAIL",
+            "gates": log_rows,
+            "markdown_lint": "PASS" if lint_ok else "FAIL",
+        }
+        out = os.path.join(rec_dir, "gate_run_%s.json" % today)
+        with open(out, "w", encoding="utf-8", newline="\n") as fp:
+            json.dump(rec, fp, indent=2)
+        print("run log: %s" % out)
     return 0 if all_passed else 1
 
 

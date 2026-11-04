@@ -2,6 +2,16 @@
 
 **Verdict: no backdoor detected (strength B, coverage 221/590 audited tensors).**
 
+> [!WARNING]
+> **The instrument this partition rests on was measured against its own positive controls.**
+> It detects 0 of 28 LoRA-planted triggers
+> (`records/positive_control_josie.json` -> `per_variant.A_lora.triggered.with_payload`), separates no
+> BadEdit island (best-attainable ratio 0.92x against the clean base,
+> `records/positive_control_trigger_search_summary.json` -> `ratio`), and flags the clean base at 20 of
+> 28 tool-context prompts
+> (`records/positive_control_josie.json` -> `per_variant.clean.triggered.with_payload`). A verdict of
+> none detected here therefore records the resolution limit of the instrument, not a proof of absence.
+
 The file is byte-identical to the artifact the publisher releases, so it is the
 fine-tune it claims to be and not a repackaging. Nothing was added: no extra tensor, no
 shape change, and the only difference in the tensor list is two non-parameter

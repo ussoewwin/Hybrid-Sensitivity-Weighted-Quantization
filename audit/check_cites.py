@@ -26,6 +26,32 @@ CITE = re.compile(r"`([^`]+?\.(?:json|log|txt))`\s*(?:→|->)\s*`([^`]+)`")
 NUM = re.compile(r"-?\d+(?:[.,]\d+)?(?:e[-+]?\d+)?", re.I)
 
 
+def tol(value: float) -> float:
+    """Tolerance for a claimed number: 5e-5 absolute, 5e-5 relative.
+
+    Tightened from the earlier 5e-4 relative band (plan 4.2): a claim that needs
+    a wider band than this is a claim the record does not actually support.
+    """
+    return max(5e-5, abs(value) * 5e-5)
+
+
+def decimals_in(raw: str) -> int:
+    """Decimals of the first number written in the cell (0 when it carries none)."""
+    m = re.search(r"\d+\.(\d+)", raw or "")
+    return len(m.group(1)) if m else 0
+
+
+def numeric_match(claimed: float, actual: float, raw: str = "") -> bool:
+    """A claim must sit inside the rounding interval of the precision it is written at.
+
+    The band is max(5e-5 absolute, 5e-5 relative, half a unit of the last written
+    digit) - so a value printed to three decimals may differ by at most 5e-4, and a
+    claim printed to full precision must match to 5e-5.
+    """
+    half_unit = 0.5 * (10.0 ** -decimals_in(raw)) if raw else 0.0
+    return abs(actual - claimed) <= max(tol(actual), half_unit)
+
+
 def resolve(obj, path):
     cur = obj
     for part in path.split("."):
@@ -58,6 +84,18 @@ def check_citation(fname, field, root, claimed, label, ok_fail, cell_text=""):
         return None
     if fname.endswith(".json"):
         obj = json.load(open(path, encoding="utf-8"))
+        if "/" in field and " -> " not in field:
+            # derived value: the checker recomputes the ratio, the report never asserts it
+            num, den = field.split("/", 1)
+            a, ok_a = resolve(obj, num.strip())
+            b, ok_b = resolve(obj, den.strip())
+            if not ok_a or not ok_b:
+                ok_fail.append((label, "no such field: %s -> %s" % (fname, field)))
+                return None
+            if not isinstance(a, (int, float)) or not isinstance(b, (int, float)) or b == 0:
+                ok_fail.append((label, "derived value not numeric: %s -> %s" % (fname, field)))
+                return None
+            return ("derived", a / b)
         val, found = resolve(obj, field)
         if not found:
             ok_fail.append((label, "no such field: %s -> %s" % (fname, field)))
@@ -91,7 +129,7 @@ def check_citation(fname, field, root, claimed, label, ok_fail, cell_text=""):
             except ValueError:
                 pass
     if claimed is not None:
-        matched = [v for v in nums if abs(v - claimed) <= max(1e-6, abs(claimed) * 1e-2)]
+        matched = [v for v in nums if numeric_match(claimed, v)]
         if not matched:
             ok_fail.append((label, "%s line %r has no value near %r"
                             % (fname, ".".join(label_tokens), claimed)))
@@ -132,9 +170,20 @@ def verify_report(report_path, root):
             ok += 1
             continue
 
+        # Derived ratio: compare the recomputed value, never a hand-written one
+        if isinstance(val, tuple) and val[0] == "derived":
+            ratio = val[1]
+            if claimed is not None and numeric_match(claimed, ratio, num_cell):
+                ok += 1
+            else:
+                print("FAIL  %-22s %s -> %s = %r (recomputed, claimed %r)"
+                      % (num_cell.strip()[:22], fname, field, round(ratio, 6), claimed))
+                fail += 1
+            continue
+
         # Numeric value from json
         if isinstance(val, (int, float)) and claimed is not None:
-            if abs(val - claimed) <= max(0.00005, abs(val) * 5e-4) or round(val, 4) == claimed or round(val, 6) == claimed:
+            if numeric_match(claimed, val, num_cell):
                 ok += 1
             else:
                 print("FAIL  %-22s %s -> %s = %r (claimed %r)"
@@ -148,14 +197,20 @@ def verify_report(report_path, root):
             if claimed is not None:
                 try:
                     fval = float(val.replace(",", "").strip())
-                    if abs(fval - claimed) <= max(0.00005, abs(fval) * 5e-4) or round(fval, 4) == claimed:
+                    if numeric_match(claimed, fval, num_cell):
                         ok += 1
                         continue
                 except ValueError:
                     pass
             # Hex / SHA hash exact prefix/suffix match
             cell_hexes = re.findall(r"[0-9a-f]{6,}", num_cell.lower())
-            if cell_hexes and all(h in val.lower() for h in cell_hexes):
+            vlow = val.lower()
+            if cell_hexes and all(h == vlow or vlow.startswith(h) for h in cell_hexes):
+                ok += 1
+                continue
+            # an abbreviated hash (`4d3e6c8c...c8c13e`) states its head and tail
+            if cell_hexes and len(cell_hexes) >= 2 and ("..." in num_cell or "\u2026" in num_cell) \
+                    and vlow.startswith(cell_hexes[0]) and vlow.endswith(cell_hexes[-1]):
                 ok += 1
                 continue
             # Textual match
@@ -181,8 +236,8 @@ def verify_report(report_path, root):
             if cell_nums and any(cn in dict_vals for cn in cell_nums):
                 ok += 1
                 continue
-            print("SKIP  %-22s non-numeric row (dict)" % num_cell.strip()[:22])
-            skip += 1
+            print("FAIL  %-22s dict has no key or value the cell states" % num_cell.strip()[:22])
+            fail += 1
             continue
 
         # List value
@@ -194,15 +249,33 @@ def verify_report(report_path, root):
             if claimed is not None and claimed == len(val):
                 ok += 1
                 continue
-            if any(str(item).lower() in clean_cell.lower() for item in val):
+            flat_nums = []
+            flat_texts = []
+            for item in val:
+                if isinstance(item, (int, float)):
+                    flat_nums.append(float(item))
+                elif isinstance(item, dict):
+                    for kk, vv in item.items():
+                        if isinstance(vv, (int, float)):
+                            flat_nums.append(float(vv))
+                        elif isinstance(vv, str):
+                            flat_texts.append(vv.strip().lower())
+                elif isinstance(item, str):
+                    flat_texts.append(item.strip().lower())
+            if claimed is not None and any(numeric_match(claimed, v, num_cell) for v in flat_nums):
                 ok += 1
                 continue
-            print("SKIP  %-22s non-numeric row (list)" % num_cell.strip()[:22])
-            skip += 1
+            # text row: every token the cell lists must occur in the record's own strings
+            tokens = [x.strip().lower() for x in re.split(r"[/,]", clean_cell) if len(x.strip()) >= 3]
+            if tokens and all(any(tok in txt for txt in flat_texts) for tok in tokens):
+                ok += 1
+                continue
+            print("FAIL  %-22s list holds no element/value the cell states" % num_cell.strip()[:22])
+            fail += 1
             continue
 
-        print("SKIP  %-22s non-numeric row (%s)" % (num_cell.strip()[:22], type(val).__name__))
-        skip += 1
+        print("FAIL  %-22s unverifiable value type (%s)" % (num_cell.strip()[:22], type(val).__name__))
+        fail += 1
 
     # ---- pass 2: every citation anywhere in the document ----
     cited_files = {c.group(1) for c in CITE.finditer(text)}
