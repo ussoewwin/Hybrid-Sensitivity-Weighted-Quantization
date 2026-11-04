@@ -1,7 +1,11 @@
 {
   "file": "sam3.1_multiplex_fp16.safetensors",
   "status": "PASS",
-  "elapsed_seconds": 249.08,
+  "elapsed_seconds": 241.82,
+  "environment": {
+    "device": "cuda",
+    "gpu_peak_memory_mib": 5724.5
+  },
   "image_normalization": "0.0_to_1.0_float32_comfyui_standard",
   "images_tested_count": 24,
   "noise_contrast_count": 4,

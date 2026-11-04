@@ -21,6 +21,7 @@ Exit 0 when every row passes, 2 otherwise.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -49,7 +50,11 @@ REQUIRED_TOOLS = [
     "josie_stage1.py", "josie_bench.py", "josie_trigger.py", "sae_probe.py", "sae_deep.py", "sae_spectrum.py", "sae_retrieval.py", "sae_independent.py", "check_cites.py",
     "vl_bench.py", "check_hf_upload.py", "report_check.py", "pack_load_path.py", "pack_coverage.py",
     "pair_guarded.py", "sam31_routes_final.py", "tool_context_probe.py", "make_limits.py", "vl_bench_agreement.py",
+    "sam31_census.py", "sam31_weight_positive_control.py", "sam31_weight_screen.py",
+    "sam31_operating_real.py", "sam31_vocabulary_overlap_control.py",
+    "sam31_image_trigger.py", "sam31_upstream_retry.py",
 ]
+REQUIRED_SECTIONS = ["## 12c. SAM3.1 extension - the required lines of an S0-S6 verdict"]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",
                        "### C. OpenAI to HF CLIP mapping", "### D. Tool reference",
                        "### E. Self-test before trusting a tool change"]
@@ -75,7 +80,7 @@ def main():
     def check(name, ok, detail=""):
         rows.append((name, ok, detail))
 
-    for h in REQUIRED_PHASES + REQUIRED_RULES + REQUIRED_APPENDICES:
+    for h in REQUIRED_PHASES + REQUIRED_RULES + REQUIRED_SECTIONS + REQUIRED_APPENDICES:
         check("section present: %s" % h, h in text,
               "" if h in text else "missing")
 
@@ -105,6 +110,49 @@ def main():
                                   "INCONCLUSIVE")))
     check("delivery is excluded from findings in writing",
           "never a finding" in text or "not a finding" in text)
+
+    # SAM3.1 extension: the three required lines of the verdict, checked against
+    # the records (coverage, operating point, detection floor).
+    verdicts_dir = os.path.normpath(os.path.join(HERE, "..", "md", "backdoor", "verdicts"))
+    sam31_report = os.path.join(verdicts_dir, "SAM31_Multiplex.md")
+    rec_dir = os.path.join(verdicts_dir, "records")
+    if os.path.exists(sam31_report):
+        report_text = open(sam31_report, encoding="utf-8").read()
+        try:
+            screen = json.load(open(os.path.join(rec_dir, "sam31_weight_screen.json"), encoding="utf-8"))
+            oper = json.load(open(os.path.join(rec_dir, "sam31_operating_real.json"), encoding="utf-8"))
+            pos = json.load(open(os.path.join(rec_dir, "sam31_positive_control.json"), encoding="utf-8"))
+        except Exception as exc:  # a missing record is a failure, not a skip
+            check("SAM3.1 records readable", False, str(exc))
+            screen = oper = pos = {}
+        coverage = screen.get("total_screened_tensors")
+        check("SAM3.1 coverage line: 1,590/1,590", "1,590/1,590" in report_text,
+              "report states the audited-tensor coverage")
+        check("SAM3.1 coverage record == 1590", coverage == 1590, "record says %r" % (coverage,))
+        threshold = (oper.get("established_operating_point") or {}).get("threshold")
+        check("SAM3.1 operating-point line in report", ("threshold" in report_text.lower()
+              and str(threshold) in report_text), "threshold %r" % (threshold,))
+        summary = pos.get("summary") or {}
+        floors = {
+            "rank1": summary.get("linear_rank1_first_detected_strength"),
+            "conv": summary.get("conv4d_spectral_first_detected_strength"),
+            "bias": summary.get("bias_1d_group_p99_9_detection_floor"),
+            "embed": summary.get("token_embedding_norm_p99_floor"),
+        }
+        check("SAM3.1 detection floor record complete", all(v for v in floors.values()),
+              json.dumps(floors))
+        for key, value in floors.items():
+            if value:
+                check("SAM3.1 detection floor (%s) stated in report" % key, str(value) in report_text,
+                      str(value))
+        for step, name in (("S0", "sam31_census.json"), ("S1", "sam31_weight_screen.json"),
+                           ("S2", "sam31_operating_real.json"), ("S3", "sam31_s2_overlap_control.json"),
+                           ("S4", "sam31_image_trigger.json"), ("S5", "sam31_positive_control.json"),
+                           ("S6", "sam_gated.json")):
+            rec_path = os.path.join(rec_dir, name)
+            check("SAM3.1 %s record present: %s" % (step, name), os.path.exists(rec_path))
+    else:
+        check("SAM3.1 report present", False, sam31_report)
 
     ok = all(r[1] for r in rows)
     if not args.quiet:

@@ -238,6 +238,8 @@ def main() -> int:
     conv_ch_z_p99: float = float(s5_thresholds["conv4d_channel_norm_z_p99"])
 
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if dev.type == "cuda":
+        torch.cuda.reset_peak_memory_stats()
     gen = torch.Generator(device=dev).manual_seed(42)
     g_cache: dict[tuple[int, int], float] = {}
 
@@ -635,6 +637,20 @@ def main() -> int:
         "file": os.path.basename(model_path),
         "status": "PASS" if gate_s1_pass else "FAIL",
         "elapsed_seconds": elapsed_sec,
+        "dot_prod_scoring_gaussian_ratio_median": round(
+            quantile_val(sorted(r["gaussian_ratio"] for r in weights_by_mod["detector.dot_prod_scoring"]), 0.50), 4),
+        "dot_prod_scoring_gaussian_ratio_p99": round(
+            quantile_val(sorted(r["gaussian_ratio"] for r in weights_by_mod["detector.dot_prod_scoring"]), 0.99), 4),
+        "dot_prod_scoring_tensor_count": len(weights_by_mod["detector.dot_prod_scoring"]),
+        "dot_prod_scoring_outlier_names": [
+            r["key"] for r in weights_by_mod["detector.dot_prod_scoring"]
+            if r["key"] in module_weight_summaries["detector.dot_prod_scoring"]["outlier_names"]
+        ],
+        "environment": {
+            "device": str(dev),
+            "gpu_peak_memory_mib": (round(torch.cuda.max_memory_allocated() / (1024 * 1024), 1)
+                                  if dev.type == "cuda" else None),
+        },
         "positive_control_record": os.path.basename(args.positive_control),
         "s5_empirical_detection_floors": s5_data["summary"],
         "total_screened_tensors": coverage_count,

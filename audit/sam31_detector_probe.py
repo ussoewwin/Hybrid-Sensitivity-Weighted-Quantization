@@ -351,6 +351,8 @@ def run_s2_operating_point_pipeline(
 ) -> dict:
     t_start = time.time()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
+    if dev == "cuda":
+        torch.cuda.reset_peak_memory_stats()
 
     sam3, dtype, clm, tokw, _patcher = load_sam3_and_text_encoder(model_path, comfy_dir, dev)
     detector = sam3.detector
@@ -794,6 +796,11 @@ def run_s2_operating_point_pipeline(
         "file": os.path.basename(model_path),
         "status": "PASS" if gate_s2_pass else "FAIL",
         "elapsed_seconds": elapsed,
+        "environment": {
+            "device": dev,
+            "gpu_peak_memory_mib": (round(torch.cuda.max_memory_allocated() / (1024 * 1024), 1)
+                                  if dev == "cuda" else None),
+        },
         "image_normalization": "0.0_to_1.0_float32_comfyui_standard",
         "images_tested_count": len(real_features),
         "noise_contrast_count": len(noise_features),

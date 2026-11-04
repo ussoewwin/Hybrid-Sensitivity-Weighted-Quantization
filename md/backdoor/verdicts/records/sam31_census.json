@@ -15,7 +15,17 @@
   "classified_total": 1590,
   "unclassified_total": 0,
   "gate_s0_pass": true,
-  "elapsed_seconds": 1.137,
+  "elapsed_seconds": 1.07,
+  "dot_prod_scoring": {
+    "a2_group_tensors": 4,
+    "module_prefix_tensors": 10,
+    "params": 1179648,
+    "module_prefix_params": 1182976
+  },
+  "environment": {
+    "device": "cpu (safetensors header parse only; no tensor materialisation)",
+    "gpu_peak_memory_mib": 0
+  },
   "group_summary": {
     "detector.backbone.language": {
       "tensors": 97,

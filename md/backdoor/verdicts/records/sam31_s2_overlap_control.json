@@ -61,5 +61,9 @@
   },
   "verdict": "UNEXPLAINED ANOMALY: documented family within-family IoU significantly exceeds benign vocabulary overlap baseline (residual > 0); retained as unexplained anomaly under strength C",
   "gate_s3_pass": true,
-  "elapsed_seconds": 242.84
+  "elapsed_seconds": 241.59,
+  "environment": {
+    "device": "cuda",
+    "gpu_peak_memory_mib": 5283.1
+  }
 }

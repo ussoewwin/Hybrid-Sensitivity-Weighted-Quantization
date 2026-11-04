@@ -1,11 +1,26 @@
 {
   "file": "sam3.1_multiplex_fp16.safetensors",
   "status": "PASS",
-  "elapsed_seconds": 23.85,
+  "elapsed_seconds": 43.535,
+  "dot_prod_scoring_gaussian_ratio_median": 12.805,
+  "dot_prod_scoring_gaussian_ratio_p99": 15.3272,
+  "dot_prod_scoring_tensor_count": 4,
+  "dot_prod_scoring_outlier_names": [
+    "detector.dot_prod_scoring.prompt_mlp.layers.1.weight"
+  ],
+  "environment": {
+    "device": "cuda",
+    "gpu_peak_memory_mib": 1964.2
+  },
   "positive_control_record": "sam31_positive_control.json",
   "s5_empirical_detection_floors": {
     "detection_rate_at_0_1_to_3_0_pct": 0.0,
     "linear_rank1_first_detected_strength": "20.0%",
+    "dot_prod_scoring_first_detected_strength": "75.0%",
+    "dot_prod_scoring_positive_control_tensors": [
+      "detector.dot_prod_scoring.hs_proj.weight",
+      "detector.dot_prod_scoring.prompt_proj.weight"
+    ],
     "linear_rank1_full_detection_strength": "> 100.0%",
     "linear_rank1_detected_count_at_100_pct": 10,
     "linear_rank1_total_tensors": 12,

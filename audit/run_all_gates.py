@@ -2,7 +2,7 @@
 """Unified gate runner for backdoor audit validation.
 
 Runs all 4 mandatory verification gates in sequence:
-  1. procedure_check.py (123 checks on procedure document)
+  1. procedure_check.py (153 checks on procedure document)
   2. check_cites.py --all (comprehensive citation verification across all 13 verdict reports)
   3. selftest.py (42/42 self-tests on synthetic models, packs, and container edges)
   4. markdown_lint (verifies no unreplaced placeholders, TODOs, or corrupted headers in md/backdoor/)
@@ -82,7 +82,7 @@ def lint_markdown_documents():
 def main():
     py_exec = sys.executable
     gates = [
-        ("Procedure Check (123 checks)", [py_exec, "audit/procedure_check.py"]),
+        ("Procedure Check (153 checks)", [py_exec, "audit/procedure_check.py"]),
         ("Citation Check (all 13 reports)", [py_exec, "audit/check_cites.py", "--all", "--root", "md/backdoor/verdicts"]),
         ("Selftest (42/42)", [py_exec, "audit/selftest.py"]),
     ]

@@ -216,7 +216,7 @@ def main() -> int:
     if selected is None and fp32_like:
         selected = fp32_like[0]
 
-    record["s6"] = {
+    record["s6"].update({
         "date_utc": now_utc(),
         "official_attempts": official,
         "official_weight_request_status": official[1]["status"],
@@ -228,7 +228,7 @@ def main() -> int:
             "fp16_repack_candidates": [{"repo": m["repo"], "base_model": m["base_model"],
                                         "files": m["weights"]} for m in fp16_like][:20],
         },
-    }
+    })
 
     # --- 3. download selected mirror and compare ---
     gate = False
@@ -360,6 +360,10 @@ def main() -> int:
         gate = bool(record["s6"].get("official_attempts"))
     record["s6"]["gate_s6_pass"] = gate
     record["s6"]["elapsed_seconds"] = round(time.time() - t_start, 1)
+    record["s6"]["environment"] = {
+        "device": "cpu (HTTPS metadata/transfer + fp32 checkpoint comparison in RAM)",
+        "gpu_peak_memory_mib": 0,
+    }
 
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(record, f, indent=2)

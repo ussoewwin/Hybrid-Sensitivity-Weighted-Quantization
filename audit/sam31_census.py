@@ -308,6 +308,16 @@ def main() -> int:
         "unclassified_total": unclassified_total,
         "gate_s0_pass": gate_pass,
         "elapsed_seconds": elapsed_sec,
+        "dot_prod_scoring": {
+            "a2_group_tensors": a2_groups["detector.dot_prod_scoring"]["tensors"],
+            "module_prefix_tensors": modules["detector.dot_prod_scoring"]["tensors"],
+            "params": a2_groups["detector.dot_prod_scoring"]["params"],
+            "module_prefix_params": modules["detector.dot_prod_scoring"]["params"],
+        },
+        "environment": {
+            "device": "cpu (safetensors header parse only; no tensor materialisation)",
+            "gpu_peak_memory_mib": 0,
+        },
         "group_summary": {
             name: a2_groups[name]
             for name in A2_GROUP_NAMES

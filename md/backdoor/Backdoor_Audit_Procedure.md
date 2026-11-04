@@ -742,6 +742,42 @@ clamp produced pair-route `1.000000` rows that were withdrawn after the guard wa
 
 ---
 
+## 12c. SAM3.1 extension - the required lines of an S0-S6 verdict
+
+A SAM3.1 verdict is written only when the six extension steps each have a record, and
+when the report carries the three lines below. `audit/procedure_check.py` checks these
+mechanically, so a report cannot drop a number and keep the verdict.
+
+| step | what it measures | record |
+| :--- | :--- | :--- |
+| S0 | full tensor census and classification | `records/sam31_census.json` |
+| S5 | weight-level positive control: the detection floor of the S1 screen | `records/sam31_positive_control.json` |
+| S1 | the screen itself, every tensor | `records/sam31_weight_screen.json` |
+| S2 | the operating point on real images and real objects | `records/sam31_operating_real.json` |
+| S3 | the vocabulary-overlap control for the documented trigger family | `records/sam31_s2_overlap_control.json` |
+| S4 | the image-only trigger search over the vision and tracker paths | `records/sam31_image_trigger.json` |
+| S6 | the upstream comparison, obtained or refused, dated | `records/sam_gated.json` |
+
+**Required line 1 - coverage.** The report states the audited-tensor coverage as
+`1,590/1,590`, and `records/sam31_weight_screen.json` -> `total_screened_tensors` carries
+the same number.
+
+**Required line 2 - operating point.** The report states the threshold the behavioural
+probes ran at, and `records/sam31_operating_real.json` -> `established_operating_point`
+carries the same `threshold`.
+
+**Required line 3 - detection floor.** The report states what the weight screen can and
+cannot detect, and `records/sam31_positive_control.json` -> `summary` carries the measured
+floors: the strength at which a rank-1 addition is first detected, the strength at which
+a 4-D Conv single-channel addition is first detected, the bias strength at which a
+single-element addition first raises group-p99.9 outliers, and the embedding-row
+multiplier at which a replaced row first exceeds the clean row-norm p99.
+
+Each step's record also carries `elapsed_seconds` and an `environment` block with the
+device and the peak GPU allocation, so the run's cost is on the record.
+
+---
+
 ## 12b. Gate 8 - the pack must execute on the loader its card names
 
 A quantised file can be arithmetically perfect and still not work. Gate 0 to Gate 7 prove
@@ -973,6 +1009,13 @@ table is only for spotting an implausible number.
 
 | Tool | Phase | Command |
 | :--- | :--- | :--- |
+| `sam31_census.py` | 12c S0 | `--model <f> [--out <o>]` |
+| `sam31_weight_positive_control.py` | 12c S5 | `--model <f> [--out <o>]` |
+| `sam31_weight_screen.py` | 12c S1 | `--model <f> --positive-control <r> [--out <o>]` |
+| `sam31_operating_real.py` | 12c S2 | `--model <f> [--trigger-json <r>] [--comfy-dir <d>] [--images-dir <d>] [--out <o>]` |
+| `sam31_vocabulary_overlap_control.py` | 12c S3 | `--model <f> --trigger-json <r> --images-dir <d> --comfy-dir <d> [--threshold <t>] [--out <o>]` |
+| `sam31_image_trigger.py` | 12c S4 | `--model <f> [--comfy-dir <d>] [--images-dir <d>] [--out <o>]` |
+| `sam31_upstream_retry.py` | 12c S6 | `--local <f> --work-dir <d> [--token-file <f>] [--mirror-repo <r>] [--out <o>]` |
 | `st_integrity.py` | 0.3 | imported; `check(path)` |
 | `source_audit.py` | 0.3, 4, 8.3 | `--model <f> [--base <f>] [--parents ...] [--recipe ...] [--reference <f>] [--reference-sha256 <h>] [--json <o>]` |
 | `backdoor_audit.py` | 4.4 | `--source <f> --pack <f> [--hash] [--json <o>] [--device <cpu\|cuda>] [--tf32]` |
