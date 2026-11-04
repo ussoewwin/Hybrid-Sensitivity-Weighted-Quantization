@@ -193,7 +193,13 @@ from zer0int's published checkpoint (`zer0int/LongCLIP-GmP-ViT-L-14`, `model.saf
 sha256 `8e259dc8f7cef4b289d0c4a84667b310b92060addc590e4df2d227ff7029beaf`). The rebuilt
 pack (sha256 `3ed7d2ccb7de29d6ad5dbe5661746234f8cc3cf579dcdb58d78f71dd8bb1ad89`, 514,407,840 B)
 was uploaded to the Hub, verified with read-back byte/hash equality (`verdicts/records/longclip_hub_pack_replaced.json`),
-and the old pack is marked withdrawn.
+and the old pack (677,643,528 B) is marked withdrawn. The rebuilt pack was then audited as a
+pack against its source: 130 declared INT8 layers, 0 re-quantisation mismatches, 0 elements
+off by a quantisation step, 0 float tensors differing, verdict FAITHFUL
+(`verdicts/records/longclip_pack_audit.json` -> `provenance.0.q_mismatch_total`); the source
+used for the rebuild carries sha256 `8e259dc8f7cef4b289d0c4a84667b310b92060addc590e4df2d227ff7029beaf`,
+re-measured on 2026-11-04 by re-downloading the published `model.safetensors`
+(1,711,063,028 B) and hashing it.
 
 ### F2. Two tools, two slightly different embedding numbers (Closed)
 

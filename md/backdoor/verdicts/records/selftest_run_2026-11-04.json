@@ -1,0 +1,34 @@
+{
+  "date": "2026-11-04",
+  "python": "3.13.17",
+  "note": "Three programs exist for historical reasons; one is authoritative. audit/selftest.py fabricates tampered checkpoints and packs (42 checks). audit/backdoor_selftest.py writes a real backdoor into real weights and runs the audit end to end, recording per-case verdicts in records/backdoor_selftest_run.json. test/audit_selftest.py is the superseded earlier copy and is not run, so a stale measurement can never be mistaken for the current one.",
+  "runs": [
+    {
+      "program": "audit/selftest.py",
+      "exit_code": 0,
+      "seconds": 5.75,
+      "script_sha256": "851f511b54a1e220171b23bd3e39e876a31a9938cf7d57cc4254c56af729a5ef",
+      "tail": [
+        "  [PASS] source file with 64 stray trailing bytes             expected findings               observed 1",
+        "  [PASS] planted embedding rows (x40 and zeroed)              expected rows 123 and 77        observed [77, 123]",
+        "== 42/42 passed =="
+      ]
+    },
+    {
+      "program": "audit/backdoor_selftest.py",
+      "exit_code": 0,
+      "seconds": 6.1,
+      "script_sha256": "ed971c36f238537de897bc286e4e0aeb06f21db726f39c97c31389e833e63c54",
+      "tail": []
+    },
+    {
+      "program": "test/audit_selftest.py",
+      "exit_code": null,
+      "seconds": 0,
+      "script_sha256": "56ff13c7b831909994561099ef2a2893a31a8bf658eebbec0f4161aaf4f5b19f",
+      "tail": [
+        "not run: superseded copy; the canonical implementation is audit/selftest.py"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+[
+  {
+    "case": "B1_rank1_global",
+    "description": "one shared direction across all layer weights",
+    "delta_verdict": "DERIVED",
+    "changed": 12,
+    "total_rel_fro": 0.013549043650727139,
+    "rank1_median": 0.9999965046794551,
+    "structure_verdict": "SINGLE-DIRECTION",
+    "coherence": {
+      "64": 0.0906
+    },
+    "pack_verdict": "FAITHFUL",
+    "pack_q_mismatch": 0,
+    "pack_float_mismatch": 0
+  },
+  {
+    "case": "B2_rank3_local",
+    "description": "three directions in two late MLP layers",
+    "delta_verdict": "DERIVED",
+    "changed": 4,
+    "total_rel_fro": 0.003026162814190849,
+    "rank1_median": 0.4048428768593549,
+    "structure_verdict": "MULTI-DIRECTION",
+    "coherence": {
+      "64": 0.0848
+    },
+    "pack_verdict": "FAITHFUL",
+    "pack_q_mismatch": 0,
+    "pack_float_mismatch": 0
+  },
+  {
+    "case": "B3_bias_only",
+    "description": "biases only, every weight untouched",
+    "delta_verdict": "DERIVED",
+    "changed": 12,
+    "total_rel_fro": 0.0019956322367510166,
+    "rank1_median": null,
+    "structure_verdict": "NO-DELTA",
+    "coherence": {},
+    "pack_verdict": "FAITHFUL",
+    "pack_q_mismatch": 0,
+    "pack_float_mismatch": 0
+  },
+  {
+    "case": "B0_control",
+    "description": "no tamper (control)",
+    "delta_verdict": "IDENTICAL",
+    "changed": 0,
+    "total_rel_fro": 0.0,
+    "rank1_median": null,
+    "structure_verdict": "NO-DELTA",
+    "coherence": {},
+    "pack_verdict": "FAITHFUL",
+    "pack_q_mismatch": 0,
+    "pack_float_mismatch": 0
+  }
+]

@@ -2,6 +2,16 @@
 
 **Verdict: no backdoor detected (strength B, coverage 74/590 audited tensors).**
 
+> [!WARNING]
+> **The instrument this partition rests on was measured against its own positive controls.**
+> It detects 0 of 28 LoRA-planted triggers
+> (`records/positive_control_josie.json` -> `per_variant.A_lora.triggered.with_payload`), separates no
+> BadEdit island (best-attainable ratio 0.92x against the clean base,
+> `records/positive_control_trigger_search_summary.json` -> `ratio`), and flags the clean base at 20 of
+> 28 tool-context prompts
+> (`records/positive_control_josie.json` -> `per_variant.clean.triggered.with_payload`). A verdict of
+> none detected here therefore records the resolution limit of the instrument, not a proof of absence.
+
 **And, separately: this file is not the published checkpoint it is named after.** The two
 statements are independent, and the second one is a finding in its own right. The weight
 structure and the behaviour of the file close every channel a backdoor can use; the
@@ -49,6 +59,25 @@ from zer0int's published checkpoint (`zer0int/LongCLIP-GmP-ViT-L-14`, `model.saf
 sha256 `8e259dc8f7cef4b289d0c4a84667b310b92060addc590e4df2d227ff7029beaf`).
 The replacement pack (sha256 `3ed7d2ccb7de29d6ad5dbe5661746234f8cc3cf579dcdb58d78f71dd8bb1ad89`,
 514,407,840 B) was uploaded and verified via read-back (`records/longclip_hub_pack_replaced.json`).
+
+### 1.1 The pack built from the publisher's checkpoint, audited as a pack
+
+The rebuild was checked against its own source with the pack audit, so the two files are tied
+by measurement rather than by name.
+
+| number | measured | record | bearing on the backdoor verdict |
+| :--- | :--- | :--- | :--- |
+| 130 | INT8 layers the replacement pack declares, and the same 130 found in it | `records/longclip_pack_audit.json` -> `provenance.0.quantized_layers` | the declared edit is exactly the edit the file carries |
+| 0 | INT8 values differing from a control re-quantisation of the source, across every quantised element | `records/longclip_pack_audit.json` -> `provenance.0.q_mismatch_total` | **closes the pack's arithmetic**: the pack is the source quantised, not a source plus something else |
+| 0 | largest integer difference on that comparison | `records/longclip_pack_audit.json` -> `provenance.0.max_q_delta` | no element sits even one quantisation step away from the control |
+| 0 | float tensors that differ from the source | `records/longclip_pack_audit.json` -> `provenance.0.float_mismatch_count` | the float side is the source's own tensors |
+| 0 | tensors dropped, and tensors present only in the pack | `records/longclip_pack_audit.json` -> `provenance.0.dropped_count` | nothing was removed or added on the way in |
+| 0.007856 | relative reconstruction error, median, against the 0.027856 envelope | `records/longclip_pack_audit.json` -> `provenance.0.rel_l2_median` | quantisation error sits well inside the ConvRot envelope |
+
+The audit verdict for this pack is FAITHFUL
+(`records/longclip_pack_audit.json` -> `provenance.0.verdict`). The earlier build — 677,643,528 B,
+made from the unidentified fine-tune — is **withdrawn**; it is not the file this report's
+provenance statement now applies to (`records/longclip_hub_pack_replaced.json` -> `before_bytes`).
 
 ## 2. Shape A - added material
 

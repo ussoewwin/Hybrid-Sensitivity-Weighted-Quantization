@@ -1,0 +1,98 @@
+{
+  "source_profile": {
+    "file": "model.safetensors",
+    "mb": 1631.7968635559082,
+    "tensors": 590,
+    "dtypes": {
+      "F32": 590
+    },
+    "is_quantized": false,
+    "quantized_layers": 0,
+    "metadata_keys": [
+      "format"
+    ]
+  },
+  "static": [
+    {
+      "file": "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors",
+      "mb": 490.5775451660156,
+      "is_safetensors": true,
+      "findings": [],
+      "metadata_keys": [
+        "_quantization_metadata"
+      ],
+      "dtype_hist": {
+        "F32": 130,
+        "F16": 460,
+        "I8": 130,
+        "U8": 130
+      },
+      "tensors": 850,
+      "quantized_layers": 130,
+      "activation_scales": 0,
+      "nonpositive_activation_scale": 0,
+      "payload_findings": [],
+      "other_keys": [
+        "logit_scale",
+        "vision_model.embeddings.class_embedding"
+      ]
+    }
+  ],
+  "provenance": [
+    {
+      "pack": "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors",
+      "pack_variant": "weight-only",
+      "source": "model.safetensors",
+      "arithmetic": {
+        "device": "cpu",
+        "tf32": false,
+        "note": "the re-quantisation reproduces the converter's matmul arithmetic; a CPU run is exact fp32 and cannot reproduce a pack that was rotated on GPU under TF32"
+      },
+      "verdict": "FAITHFUL",
+      "integrity_findings": [],
+      "nonweight_dropped_count": 0,
+      "nonfinite_scale_total": 0,
+      "quantized_layers": 130,
+      "rel_l2_median": 0.007855684513242433,
+      "rel_l2_max": 0.008738224576944016,
+      "envelope": 0.027855684513242433,
+      "scale_exact_rel_max": 0.0,
+      "q_mismatch_total": 0,
+      "q_mismatch_ratio_max": 0.0,
+      "max_q_delta": 0,
+      "outliers": [],
+      "outlier_count": 0,
+      "envelope_only_count": 0,
+      "dropped_count": 0,
+      "dropped_scoped": [],
+      "dropped_scoped_count": 0,
+      "extra": [],
+      "extra_count": 0,
+      "float_mismatch": [],
+      "float_mismatch_count": 0,
+      "dtype_changed": [
+        "text_model.encoder.layers.0.layer_norm1: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.0.layer_norm2: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.0.self_attn.k_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.0.self_attn.q_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.1.layer_norm1: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.1.layer_norm2: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.1.self_attn.k_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.1.self_attn.out_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.1.self_attn.q_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.10.layer_norm1: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.10.layer_norm2: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.10.self_attn.k_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.10.self_attn.q_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.11.layer_norm1: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.11.layer_norm2: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.11.mlp.fc1: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.11.mlp.fc2: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.11.self_attn.k_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.11.self_attn.q_proj: torch.float32 -> torch.float16",
+        "text_model.encoder.layers.2.layer_norm1: torch.float32 -> torch.float16"
+      ]
+    }
+  ],
+  "behavior": []
+}

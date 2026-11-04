@@ -154,6 +154,33 @@ def main():
     else:
         check("SAM3.1 report present", False, sam31_report)
 
+    # P0-1: every row of the verdict index must carry strength, coverage and the
+    # instrument-sensitivity column; B/C rows must state the three measured numbers.
+    index_path = os.path.normpath(os.path.join(HERE, "..", "md", "backdoor",
+                                              "Backdoor_Audit_Verdicts.md"))
+    if os.path.exists(index_path):
+        idx_text = open(index_path, encoding="utf-8").read()
+        data_rows = [l for l in idx_text.split("\n")
+                     if l.startswith("| `") and l.rstrip().endswith("|")]
+        check("index has data rows", len(data_rows) > 0, "%d rows" % len(data_rows))
+        bad_cols = [l for l in data_rows if len(l.strip().strip("|").split("|")) != 6]
+        check("index rows carry six columns", not bad_cols, "%d bad" % len(bad_cols))
+        bad_strength = [l for l in data_rows
+                        if not any(s in l for s in ("(A,", "(B,", "(C,"))]
+        check("index rows state a strength class", not bad_strength, "%d bad" % len(bad_strength))
+        bc_rows = [l for l in data_rows if ("(B," in l or "(C," in l)]
+        missing_sens = [l for l in bc_rows
+                        if not ("0/28" in l and "0.92" in l and "20/28" in l)]
+        check("B/C rows state the instrument's measured sensitivity", not missing_sens,
+              "%d of %d B/C rows lack the measured numbers" % (len(missing_sens), len(bc_rows)))
+        no_sens_col = [l for l in data_rows
+                       if len(l.strip().strip("|").split("|")) == 6
+                       and not l.strip().strip("|").split("|")[4].strip()]
+        check("index rows carry the sensitivity column", not no_sens_col,
+              "%d empty" % len(no_sens_col))
+    else:
+        check("verdict index present", False, index_path)
+
     ok = all(r[1] for r in rows)
     if not args.quiet:
         for name, good, detail in rows:
