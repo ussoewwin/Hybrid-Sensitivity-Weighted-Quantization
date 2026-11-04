@@ -1,162 +1,1993 @@
 {
-  "method": "empirical_positive_control_sam31",
-  "tested_strengths": [
-    0.001,
-    0.003,
-    0.01,
-    0.03
+  "file": "sam3.1_multiplex_fp16.safetensors",
+  "status": "PASS",
+  "method": "empirical_scratch_positive_control_via_real_s1_screen",
+  "smoke_run": false,
+  "elapsed_seconds": 184.844,
+  "environment": {
+    "device": "cuda",
+    "gpu_peak_memory_mib": 2555.3,
+    "s1_executed_as_subprocess": true,
+    "s1_subprocess_runs": 5
+  },
+  "plan_tested_strengths_pct": [
+    0.1,
+    0.3,
+    1.0,
+    3.0
   ],
-  "domains": {
-    "language_linear": {
-      "tensor": "detector.backbone.language_backbone.encoder.transformer.resblocks.0.attn.out_proj.weight",
+  "extended_tested_strengths_pct": [
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0,
+    20.0,
+    30.0,
+    50.0,
+    75.0,
+    100.0
+  ],
+  "detection_rule_note": "Weight detection = S1's own rule (gaussian_ratio >= module_gaussian_ratio_p99, the weight_module_p99_top comparison). 1-D detection = rise of outliers_above_group_p99_9 over the clean baseline of the same tensor; S1's role-outlier listing condition recorded separately. Embedding detection measured through S1's analyze_embedding_tensor. Conv per-channel z is auxiliary: S1 loads conv4d_channel_norm_z_p99 but never applies it to outlier decisions.",
+  "threshold_verification_vs_clean_s1_run": {
+    "all_match": true,
+    "per_module": {
+      "detector.backbone.language": {
+        "s5_measured": 16.572,
+        "s1_clean_run_measured": 16.572,
+        "match": true
+      },
+      "detector.backbone.vision": {
+        "s5_measured": 34.2502,
+        "s1_clean_run_measured": 34.2502,
+        "match": true
+      },
+      "detector.dot_prod_scoring": {
+        "s5_measured": 15.3272,
+        "s1_clean_run_measured": 15.3272,
+        "match": true
+      },
+      "detector.geometry_encoder": {
+        "s5_measured": 22.3045,
+        "s1_clean_run_measured": 22.3045,
+        "match": true
+      },
+      "detector.segmentation_head": {
+        "s5_measured": 11.562,
+        "s1_clean_run_measured": 11.562,
+        "match": true
+      },
+      "detector.transformer": {
+        "s5_measured": 40.0283,
+        "s1_clean_run_measured": 40.0283,
+        "match": true
+      },
+      "tracker.model": {
+        "s5_measured": 36.0673,
+        "s1_clean_run_measured": 36.0673,
+        "match": true
+      }
+    }
+  },
+  "s1_calibrated_thresholds": {
+    "module_gaussian_ratio_p99": {
+      "detector.backbone.language": 16.572,
+      "detector.backbone.vision": 34.2502,
+      "detector.dot_prod_scoring": 15.3272,
+      "detector.geometry_encoder": 22.3045,
+      "detector.segmentation_head": 11.562,
+      "detector.transformer": 40.0283,
+      "tracker.model": 36.0673
+    },
+    "module_gaussian_ratio_max": {
+      "detector.backbone.language": 16.572,
+      "detector.backbone.vision": 36.8625,
+      "detector.dot_prod_scoring": 15.3272,
+      "detector.geometry_encoder": 22.3045,
+      "detector.segmentation_head": 11.562,
+      "detector.transformer": 40.0283,
+      "tracker.model": 45.8515
+    },
+    "sibling_gaussian_ratio_thresholds": {
+      "detector.backbone.language_backbone.encoder.transformer.resblocks.*.attn.in_proj_weight|[3072, 1024]": 5.0241,
+      "detector.backbone.language_backbone.encoder.transformer.resblocks.*.attn.out_proj.weight|[1024, 1024]": 9.3521,
+      "detector.backbone.language_backbone.encoder.transformer.resblocks.*.mlp.c_fc.weight|[4096, 1024]": 17.4006,
+      "detector.backbone.language_backbone.encoder.transformer.resblocks.*.mlp.c_proj.weight|[1024, 4096]": 11.0526,
+      "detector.backbone.language_backbone.resizer.weight|[256, 1024]": 1.4485,
+      "detector.backbone.vision_backbone.convs.*.conv_1x1.weight|[256, 256, 1, 1]": 2.0035,
+      "detector.backbone.vision_backbone.convs.*.conv_3x3.weight|[256, 256, 3, 3]": 22.4783,
+      "detector.backbone.vision_backbone.convs.*.dconv_2x2_0.weight|[1024, 512, 2, 2]": 43.8704,
+      "detector.backbone.vision_backbone.convs.*.dconv_2x2_1.weight|[512, 256, 2, 2]": 5.0484,
+      "detector.backbone.vision_backbone.convs.*.conv_1x1.weight|[256, 512, 1, 1]": 1.9981,
+      "detector.backbone.vision_backbone.convs.*.dconv_2x2.weight|[1024, 512, 2, 2]": 8.9455,
+      "detector.backbone.vision_backbone.convs.*.conv_1x1.weight|[256, 1024, 1, 1]": 1.7656,
+      "detector.backbone.vision_backbone.interactive_convs.*.conv_1x1.weight|[256, 256, 1, 1]": 1.8057,
+      "detector.backbone.vision_backbone.interactive_convs.*.conv_3x3.weight|[256, 256, 3, 3]": 11.8816,
+      "detector.backbone.vision_backbone.interactive_convs.*.dconv_2x2_0.weight|[1024, 512, 2, 2]": 27.7504,
+      "detector.backbone.vision_backbone.interactive_convs.*.dconv_2x2_1.weight|[512, 256, 2, 2]": 7.9477,
+      "detector.backbone.vision_backbone.interactive_convs.*.conv_1x1.weight|[256, 512, 1, 1]": 1.3621,
+      "detector.backbone.vision_backbone.interactive_convs.*.dconv_2x2.weight|[1024, 512, 2, 2]": 7.5194,
+      "detector.backbone.vision_backbone.interactive_convs.*.conv_1x1.weight|[256, 1024, 1, 1]": 3.2775,
+      "detector.backbone.vision_backbone.propagation_convs.*.conv_1x1.weight|[256, 256, 1, 1]": 2.4822,
+      "detector.backbone.vision_backbone.propagation_convs.*.conv_3x3.weight|[256, 256, 3, 3]": 20.452,
+      "detector.backbone.vision_backbone.propagation_convs.*.dconv_2x2_0.weight|[1024, 512, 2, 2]": 31.3205,
+      "detector.backbone.vision_backbone.propagation_convs.*.dconv_2x2_1.weight|[512, 256, 2, 2]": 9.5808,
+      "detector.backbone.vision_backbone.propagation_convs.*.conv_1x1.weight|[256, 512, 1, 1]": 1.6729,
+      "detector.backbone.vision_backbone.propagation_convs.*.dconv_2x2.weight|[1024, 512, 2, 2]": 11.0676,
+      "detector.backbone.vision_backbone.propagation_convs.*.conv_1x1.weight|[256, 1024, 1, 1]": 3.0576,
+      "detector.backbone.vision_backbone.trunk.blocks.*.attn.proj.weight|[1024, 1024]": 12.9829,
+      "detector.backbone.vision_backbone.trunk.blocks.*.attn.qkv.weight|[3072, 1024]": 27.2447,
+      "detector.backbone.vision_backbone.trunk.blocks.*.mlp.fc1.weight|[4736, 1024]": 50.2885,
+      "detector.backbone.vision_backbone.trunk.blocks.*.mlp.fc2.weight|[1024, 4736]": 25.1452,
+      "detector.backbone.vision_backbone.trunk.patch_embed.proj.weight|[1024, 3, 14, 14]": 2.5066,
+      "detector.dot_prod_scoring.hs_proj.weight|[256, 256]": 16.6465,
+      "detector.dot_prod_scoring.prompt_mlp.layers.*.weight|[2048, 256]": 12.2709,
+      "detector.dot_prod_scoring.prompt_mlp.layers.*.weight|[256, 2048]": 19.9253,
+      "detector.dot_prod_scoring.prompt_proj.weight|[256, 256]": 7.1561,
+      "detector.geometry_encoder.boxes_direct_project.weight|[256, 4]": 2.2043,
+      "detector.geometry_encoder.boxes_pool_project.weight|[256, 256, 7, 7]": 13.875,
+      "detector.geometry_encoder.boxes_pos_enc_project.weight|[256, 258]": 22.4197,
+      "detector.geometry_encoder.encode.*.cross_attn_image.in_proj_weight|[768, 256]": 19.1504,
+      "detector.geometry_encoder.encode.*.cross_attn_image.out_proj.weight|[256, 256]": 12.4856,
+      "detector.geometry_encoder.encode.*.linear1.weight|[2048, 256]": 41.1883,
+      "detector.geometry_encoder.encode.*.linear2.weight|[256, 2048]": 21.0287,
+      "detector.geometry_encoder.encode.*.self_attn.in_proj_weight|[768, 256]": 13.3368,
+      "detector.geometry_encoder.encode.*.self_attn.out_proj.weight|[256, 256]": 9.5271,
+      "detector.geometry_encoder.final_proj.weight|[256, 256]": 6.9152,
+      "detector.geometry_encoder.points_direct_project.weight|[256, 2]": 1.2936,
+      "detector.geometry_encoder.points_pool_project.weight|[256, 256]": 5.7245,
+      "detector.geometry_encoder.points_pos_enc_project.weight|[256, 256]": 28.9958,
+      "detector.segmentation_head.cross_attend_prompt.in_proj_weight|[768, 256]": 10.9733,
+      "detector.segmentation_head.cross_attend_prompt.out_proj.weight|[256, 256]": 5.9091,
+      "detector.segmentation_head.instance_seg_head.weight|[256, 256, 1, 1]": 8.7931,
+      "detector.segmentation_head.mask_predictor.mask_embed.layers.*.weight|[256, 256]": 32.8047,
+      "detector.segmentation_head.pixel_decoder.conv_layers.*.weight|[256, 256, 3, 3]": 71.8974,
+      "detector.segmentation_head.semantic_seg_head.weight|[1, 256, 1, 1]": 1.3,
+      "detector.transformer.decoder.bbox_embed.layers.*.weight|[256, 256]": 47.498,
+      "detector.transformer.decoder.bbox_embed.layers.*.weight|[4, 256]": 1.8301,
+      "detector.transformer.decoder.boxRPB_embed_x.layers.*.weight|[256, 2]": 1.4243,
+      "detector.transformer.decoder.boxRPB_embed_x.layers.*.weight|[8, 256]": 5.3246,
+      "detector.transformer.decoder.boxRPB_embed_y.layers.*.weight|[256, 2]": 1.5257,
+      "detector.transformer.decoder.boxRPB_embed_y.layers.*.weight|[8, 256]": 5.1799,
+      "detector.transformer.decoder.layers.*.ca_text.in_proj_weight|[768, 256]": 41.6789,
+      "detector.transformer.decoder.layers.*.ca_text.out_proj.weight|[256, 256]": 26.8501,
+      "detector.transformer.decoder.layers.*.cross_attn.in_proj_weight|[768, 256]": 6.5573,
+      "detector.transformer.decoder.layers.*.cross_attn.out_proj.weight|[256, 256]": 4.3326,
+      "detector.transformer.decoder.layers.*.linear1.weight|[2048, 256]": 23.2395,
+      "detector.transformer.decoder.layers.*.linear2.weight|[256, 2048]": 88.6769,
+      "detector.transformer.decoder.layers.*.self_attn.in_proj_weight|[768, 256]": 75.7572,
+      "detector.transformer.decoder.layers.*.self_attn.out_proj.weight|[256, 256]": 40.7556,
+      "detector.transformer.decoder.presence_token.weight|[1, 256]": 1.3,
+      "detector.transformer.decoder.presence_token_head.layers.*.weight|[256, 256]": 1.3868,
+      "detector.transformer.decoder.presence_token_head.layers.*.weight|[1, 256]": 1.3,
+      "detector.transformer.decoder.ref_point_head.layers.*.weight|[256, 512]": 52.0368,
+      "detector.transformer.decoder.ref_point_head.layers.*.weight|[256, 256]": 30.7708,
+      "detector.transformer.decoder.reference_points.weight|[200, 4]": 2.3661,
+      "detector.transformer.encoder.layers.*.cross_attn_image.in_proj_weight|[768, 256]": 21.1245,
+      "detector.transformer.encoder.layers.*.cross_attn_image.out_proj.weight|[256, 256]": 9.1332,
+      "detector.transformer.encoder.layers.*.linear1.weight|[2048, 256]": 18.4123,
+      "detector.transformer.encoder.layers.*.linear2.weight|[256, 2048]": 15.7751,
+      "detector.transformer.encoder.layers.*.self_attn.in_proj_weight|[768, 256]": 13.7667,
+      "detector.transformer.encoder.layers.*.self_attn.out_proj.weight|[256, 256]": 7.6274,
+      "tracker.model.interactive_mask_downsample.weight|[1, 1, 4, 4]": 1.3,
+      "tracker.model.interactive_obj_ptr_proj.layers.*.weight|[256, 256]": 21.5376,
+      "tracker.model.interactive_sam_mask_decoder.conv_s0.weight|[32, 256, 1, 1]": 2.6226,
+      "tracker.model.interactive_sam_mask_decoder.conv_s1.weight|[64, 256, 1, 1]": 1.6924,
+      "tracker.model.interactive_sam_mask_decoder.iou_prediction_head.layers.*.weight|[256, 256]": 39.0701,
+      "tracker.model.interactive_sam_mask_decoder.iou_prediction_head.layers.*.weight|[4, 256]": 2.5576,
+      "tracker.model.interactive_sam_mask_decoder.iou_token.weight|[1, 256]": 1.3,
+      "tracker.model.interactive_sam_mask_decoder.mask_tokens.weight|[4, 256]": 1.7008,
+      "tracker.model.interactive_sam_mask_decoder.obj_score_token.weight|[1, 256]": 1.3,
+      "tracker.model.interactive_sam_mask_decoder.output_hypernetworks_mlps.*.layers.*.weight|[256, 256]": 24.118,
+      "tracker.model.interactive_sam_mask_decoder.output_hypernetworks_mlps.*.layers.*.weight|[32, 256]": 7.3092,
+      "tracker.model.interactive_sam_mask_decoder.output_upscaling.*.weight|[256, 64, 2, 2]": 4.1669,
+      "tracker.model.interactive_sam_mask_decoder.output_upscaling.*.weight|[64, 32, 2, 2]": 3.9512,
+      "tracker.model.interactive_sam_mask_decoder.pred_obj_score_head.layers.*.weight|[256, 256]": 206.9477,
+      "tracker.model.interactive_sam_mask_decoder.pred_obj_score_head.layers.*.weight|[1, 256]": 1.3,
+      "tracker.model.interactive_sam_mask_decoder.transformer.final_attn_token_to_image.k_proj.weight|[128, 256]": 9.8683,
+      "tracker.model.interactive_sam_mask_decoder.transformer.final_attn_token_to_image.out_proj.weight|[256, 128]": 2.4187,
+      "tracker.model.interactive_sam_mask_decoder.transformer.final_attn_token_to_image.q_proj.weight|[128, 256]": 6.1098,
+      "tracker.model.interactive_sam_mask_decoder.transformer.final_attn_token_to_image.v_proj.weight|[128, 256]": 4.6283,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.cross_attn_image_to_token.k_proj.weight|[128, 256]": 16.1403,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.cross_attn_image_to_token.out_proj.weight|[256, 128]": 13.4899,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.cross_attn_image_to_token.q_proj.weight|[128, 256]": 11.2524,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.cross_attn_image_to_token.v_proj.weight|[128, 256]": 31.2574,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.cross_attn_token_to_image.k_proj.weight|[128, 256]": 47.1327,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.cross_attn_token_to_image.out_proj.weight|[256, 128]": 17.3694,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.cross_attn_token_to_image.q_proj.weight|[128, 256]": 40.0802,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.cross_attn_token_to_image.v_proj.weight|[128, 256]": 13.7523,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.mlp.lin1.weight|[2048, 256]": 53.493,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.mlp.lin2.weight|[256, 2048]": 39.9957,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.self_attn.k_proj.weight|[256, 256]": 29.6929,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.self_attn.out_proj.weight|[256, 256]": 59.007,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.self_attn.q_proj.weight|[256, 256]": 30.3604,
+      "tracker.model.interactive_sam_mask_decoder.transformer.layers.*.self_attn.v_proj.weight|[256, 256]": 33.3973,
+      "tracker.model.interactive_sam_prompt_encoder.mask_downscaling.*.weight|[4, 1, 2, 2]": 1.3,
+      "tracker.model.interactive_sam_prompt_encoder.mask_downscaling.*.weight|[16, 4, 2, 2]": 1.9905,
+      "tracker.model.interactive_sam_prompt_encoder.mask_downscaling.*.weight|[256, 16, 1, 1]": 3.6789,
+      "tracker.model.maskmem_backbone.fuser.layers.*.dwconv.weight|[256, 1, 7, 7]": 1.3,
+      "tracker.model.maskmem_backbone.fuser.layers.*.pwconv1.weight|[1024, 256]": 185.0573,
+      "tracker.model.maskmem_backbone.fuser.layers.*.pwconv2.weight|[256, 1024]": 36.2272,
+      "tracker.model.maskmem_backbone.mask_downsampler.encoder.*.weight|[16, 32, 3, 3]": 3.1481,
+      "tracker.model.maskmem_backbone.mask_downsampler.encoder.*.weight|[256, 1024, 1, 1]": 10.4962,
+      "tracker.model.maskmem_backbone.mask_downsampler.encoder.*.weight|[64, 16, 3, 3]": 3.2089,
+      "tracker.model.maskmem_backbone.mask_downsampler.encoder.*.weight|[256, 64, 3, 3]": 18.7614,
+      "tracker.model.maskmem_backbone.mask_downsampler.encoder.*.weight|[1024, 256, 3, 3]": 31.2102,
+      "tracker.model.maskmem_backbone.pix_feat_proj.weight|[256, 256, 1, 1]": 2.829,
+      "tracker.model.no_obj_ptr_linear.weight|[256, 256]": 8.9729,
+      "tracker.model.obj_ptr_proj.layers.*.weight|[256, 256]": 18.433,
+      "tracker.model.obj_ptr_tpos_proj.weight|[256, 256]": 59.6069,
+      "tracker.model.sam_mask_decoder.conv_s0.weight|[32, 256, 1, 1]": 5.4662,
+      "tracker.model.sam_mask_decoder.conv_s1.weight|[64, 256, 1, 1]": 3.4755,
+      "tracker.model.sam_mask_decoder.iou_prediction_head.layers.*.weight|[256, 256]": 69.4977,
+      "tracker.model.sam_mask_decoder.iou_prediction_head.layers.*.weight|[3, 256]": 2.8372,
+      "tracker.model.sam_mask_decoder.iou_token.weight|[16, 256]": 3.3961,
+      "tracker.model.sam_mask_decoder.mask_tokens.weight|[48, 256]": 8.584,
+      "tracker.model.sam_mask_decoder.obj_score_token.weight|[16, 256]": 3.5641,
+      "tracker.model.sam_mask_decoder.output_hypernetworks_mlps.*.layers.*.weight|[256, 256]": 11.5716,
+      "tracker.model.sam_mask_decoder.output_hypernetworks_mlps.*.layers.*.weight|[32, 256]": 4.8906,
+      "tracker.model.sam_mask_decoder.output_upscaling.*.weight|[256, 64, 2, 2]": 3.8163,
+      "tracker.model.sam_mask_decoder.output_upscaling.*.weight|[64, 32, 2, 2]": 3.0104,
+      "tracker.model.sam_mask_decoder.pred_obj_score_head.layers.*.weight|[256, 256]": 175.5658,
+      "tracker.model.sam_mask_decoder.pred_obj_score_head.layers.*.weight|[1, 256]": 1.3,
+      "tracker.model.sam_mask_decoder.transformer.final_attn_token_to_image.k_proj.weight|[128, 256]": 3.8903,
+      "tracker.model.sam_mask_decoder.transformer.final_attn_token_to_image.out_proj.weight|[256, 128]": 2.4835,
+      "tracker.model.sam_mask_decoder.transformer.final_attn_token_to_image.q_proj.weight|[128, 256]": 5.3135,
+      "tracker.model.sam_mask_decoder.transformer.final_attn_token_to_image.v_proj.weight|[128, 256]": 3.9939,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.cross_attn_image_to_token.k_proj.weight|[128, 256]": 14.2179,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.cross_attn_image_to_token.out_proj.weight|[256, 128]": 5.475,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.cross_attn_image_to_token.q_proj.weight|[128, 256]": 6.29,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.cross_attn_image_to_token.v_proj.weight|[128, 256]": 7.831,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.cross_attn_token_to_image.k_proj.weight|[128, 256]": 8.7629,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.cross_attn_token_to_image.out_proj.weight|[256, 128]": 14.9831,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.cross_attn_token_to_image.q_proj.weight|[128, 256]": 20.7173,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.cross_attn_token_to_image.v_proj.weight|[128, 256]": 4.4819,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.mlp.lin1.weight|[2048, 256]": 94.5423,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.mlp.lin2.weight|[256, 2048]": 33.3074,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.self_attn.k_proj.weight|[256, 256]": 43.5969,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.self_attn.out_proj.weight|[256, 256]": 16.1384,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.self_attn.q_proj.weight|[256, 256]": 21.3578,
+      "tracker.model.sam_mask_decoder.transformer.layers.*.self_attn.v_proj.weight|[256, 256]": 53.8427,
+      "tracker.model.transformer.encoder.layers.*.cross_attn_k_proj.weight|[256, 256]": 6.407,
+      "tracker.model.transformer.encoder.layers.*.cross_attn_out_proj.weight|[256, 256]": 9.3725,
+      "tracker.model.transformer.encoder.layers.*.cross_attn_q_proj.weight|[256, 256]": 41.2277,
+      "tracker.model.transformer.encoder.layers.*.cross_attn_v_proj.weight|[256, 256]": 6.8741,
+      "tracker.model.transformer.encoder.layers.*.image_cross_attn_k_proj.weight|[256, 256]": 11.9019,
+      "tracker.model.transformer.encoder.layers.*.image_cross_attn_q_proj.weight|[256, 256]": 3.6959,
+      "tracker.model.transformer.encoder.layers.*.linear1.weight|[2048, 256]": 57.4345,
+      "tracker.model.transformer.encoder.layers.*.linear2.weight|[256, 2048]": 16.2283,
+      "tracker.model.transformer.encoder.layers.*.self_attn_k_proj.weight|[256, 256]": 11.8893,
+      "tracker.model.transformer.encoder.layers.*.self_attn_out_proj.weight|[256, 256]": 5.0738,
+      "tracker.model.transformer.encoder.layers.*.self_attn_q_proj.weight|[256, 256]": 19.2089,
+      "tracker.model.transformer.encoder.layers.*.self_attn_v_proj.weight|[256, 256]": 10.8816
+    },
+    "conv4d_channel_norm_z_p99": 9.4194,
+    "conv4d_channel_norm_z_max": 9.4194,
+    "one_dimensional_element_z_p99_9": {
+      "norm_bias": 7.7795,
+      "norm_weight": 7.8136,
+      "linear_conv_bias": 9.2182,
+      "layer_scale_gamma": 2.6972
+    },
+    "one_dimensional_role_max_z_p99_s1_listing": {
+      "norm_bias": 26.8393,
+      "norm_weight": 20.3509,
+      "linear_conv_bias": 22.0769,
+      "layer_scale_gamma": 2.7129
+    },
+    "token_embedding_norm_median": 0.851156,
+    "token_embedding_norm_p99": 0.956081,
+    "token_embedding_lexical_max_norm": 1.077845,
+    "token_embedding_global_max_norm_eot": 2.667345,
+    "token_embedding_clean_max_nn_cosine": 0.743719,
+    "token_embedding_clean_outlier_rows_above_p99": 494
+  },
+  "detection_rates": {
+    "linear_2d_rank1": {
+      "0.1%": {
+        "detected": 0,
+        "total": 12,
+        "detection_rate": 0.0
+      },
+      "0.3%": {
+        "detected": 0,
+        "total": 12,
+        "detection_rate": 0.0
+      },
+      "1.0%": {
+        "detected": 0,
+        "total": 12,
+        "detection_rate": 0.0
+      },
+      "3.0%": {
+        "detected": 0,
+        "total": 12,
+        "detection_rate": 0.0
+      },
+      "10.0%": {
+        "detected": 0,
+        "total": 12,
+        "detection_rate": 0.0
+      },
+      "20.0%": {
+        "detected": 1,
+        "total": 12,
+        "detection_rate": 0.0833
+      },
+      "30.0%": {
+        "detected": 5,
+        "total": 12,
+        "detection_rate": 0.4167
+      },
+      "50.0%": {
+        "detected": 7,
+        "total": 12,
+        "detection_rate": 0.5833
+      },
+      "75.0%": {
+        "detected": 10,
+        "total": 12,
+        "detection_rate": 0.8333
+      },
+      "100.0%": {
+        "detected": 10,
+        "total": 12,
+        "detection_rate": 0.8333
+      }
+    },
+    "conv_4d_single_channel": {
+      "0.1%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 0,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 0.0
+      },
+      "0.3%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 0,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 0.0
+      },
+      "1.0%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 0,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 0.0
+      },
+      "3.0%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 0,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 0.0
+      },
+      "10.0%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 0,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 0.0
+      },
+      "20.0%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 3,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 1.0
+      },
+      "30.0%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 3,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 1.0
+      },
+      "50.0%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 3,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 1.0
+      },
+      "75.0%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 3,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 1.0
+      },
+      "100.0%": {
+        "detected_spectral_s1": 0,
+        "detected_channel_z_aux": 3,
+        "total": 3,
+        "rate_spectral_s1": 0.0,
+        "rate_channel_z_aux": 1.0
+      }
+    },
+    "bias_1d_single_element": {
+      "3sigma": {
+        "detected": 0,
+        "total": 4,
+        "detection_rate": 0.0
+      },
+      "5sigma": {
+        "detected": 0,
+        "total": 4,
+        "detection_rate": 0.0
+      },
+      "10sigma": {
+        "detected": 4,
+        "total": 4,
+        "detection_rate": 1.0
+      },
+      "15sigma": {
+        "detected": 4,
+        "total": 4,
+        "detection_rate": 1.0
+      },
+      "25sigma": {
+        "detected": 3,
+        "total": 4,
+        "detection_rate": 0.75
+      },
+      "30sigma": {
+        "detected": 3,
+        "total": 4,
+        "detection_rate": 0.75
+      }
+    }
+  },
+  "domains_2d_linear": {
+    "language_backbone": {
+      "detector.backbone.language_backbone.encoder.transformer.resblocks.0.attn.out_proj.weight": {
+        "shape": [
+          1024,
+          1024
+        ],
+        "base_s1_share": 0.013074,
+        "base_gaussian_ratio": 3.3756,
+        "s1_module_p99_threshold": 16.572,
+        "empirical_floor_s1_module_p99": "30.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.013074,
+            "gaussian_ratio": 3.3756,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.013074,
+            "gaussian_ratio": 3.3757,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.013074,
+            "gaussian_ratio": 3.3757,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.01307,
+            "gaussian_ratio": 3.3745,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.013199,
+            "gaussian_ratio": 3.408,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.040097,
+            "gaussian_ratio": 10.3527,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.08402,
+            "gaussian_ratio": 21.6931,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "50.0%": {
+            "s1_share": 0.201104,
+            "gaussian_ratio": 51.9229,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "75.0%": {
+            "s1_share": 0.360797,
+            "gaussian_ratio": 93.154,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.500539,
+            "gaussian_ratio": 129.2339,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      },
+      "detector.backbone.language_backbone.encoder.transformer.resblocks.11.attn.in_proj_weight": {
+        "shape": [
+          3072,
+          1024
+        ],
+        "base_s1_share": 0.005302,
+        "base_gaussian_ratio": 2.1962,
+        "s1_module_p99_threshold": 16.572,
+        "empirical_floor_s1_module_p99": "30.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.005301,
+            "gaussian_ratio": 2.196,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.005301,
+            "gaussian_ratio": 2.196,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.005301,
+            "gaussian_ratio": 2.1958,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.005295,
+            "gaussian_ratio": 2.1935,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.011188,
+            "gaussian_ratio": 4.6346,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.039675,
+            "gaussian_ratio": 16.4353,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.083727,
+            "gaussian_ratio": 34.6836,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "50.0%": {
+            "s1_share": 0.200967,
+            "gaussian_ratio": 83.2494,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "75.0%": {
+            "s1_share": 0.360784,
+            "gaussian_ratio": 149.4526,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.500569,
+            "gaussian_ratio": 207.3577,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      },
+      "detector.backbone.language_backbone.encoder.transformer.resblocks.23.mlp.c_proj.weight": {
+        "shape": [
+          1024,
+          4096
+        ],
+        "base_s1_share": 0.011193,
+        "base_gaussian_ratio": 5.123,
+        "s1_module_p99_threshold": 16.572,
+        "empirical_floor_s1_module_p99": "20.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.011194,
+            "gaussian_ratio": 5.1234,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.011194,
+            "gaussian_ratio": 5.1233,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.011193,
+            "gaussian_ratio": 5.1229,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.011186,
+            "gaussian_ratio": 5.1199,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.011544,
+            "gaussian_ratio": 5.2838,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.039636,
+            "gaussian_ratio": 18.1409,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "30.0%": {
+            "s1_share": 0.083651,
+            "gaussian_ratio": 38.2861,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "50.0%": {
+            "s1_share": 0.20091,
+            "gaussian_ratio": 91.9547,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "75.0%": {
+            "s1_share": 0.360701,
+            "gaussian_ratio": 165.0896,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.500477,
+            "gaussian_ratio": 229.0637,
+            "s1_module_p99_threshold": 16.572,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      }
+    },
+    "vision_backbone": {
+      "detector.backbone.vision_backbone.trunk.blocks.0.attn.proj.weight": {
+        "shape": [
+          1024,
+          1024
+        ],
+        "base_s1_share": 0.021403,
+        "base_gaussian_ratio": 5.5261,
+        "s1_module_p99_threshold": 34.2502,
+        "empirical_floor_s1_module_p99": "50.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.021403,
+            "gaussian_ratio": 5.526,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.021403,
+            "gaussian_ratio": 5.5261,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.021402,
+            "gaussian_ratio": 5.5259,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.02139,
+            "gaussian_ratio": 5.5226,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.021266,
+            "gaussian_ratio": 5.4906,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.040514,
+            "gaussian_ratio": 10.4604,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.084511,
+            "gaussian_ratio": 21.8199,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "50.0%": {
+            "s1_share": 0.201716,
+            "gaussian_ratio": 52.0808,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          },
+          "75.0%": {
+            "s1_share": 0.361367,
+            "gaussian_ratio": 93.3012,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.501002,
+            "gaussian_ratio": 129.3534,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      },
+      "detector.backbone.vision_backbone.trunk.blocks.15.attn.qkv.weight": {
+        "shape": [
+          3072,
+          1024
+        ],
+        "base_s1_share": 0.012075,
+        "base_gaussian_ratio": 5.0019,
+        "s1_module_p99_threshold": 34.2502,
+        "empirical_floor_s1_module_p99": "30.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.012075,
+            "gaussian_ratio": 5.002,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.012076,
+            "gaussian_ratio": 5.0025,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.012078,
+            "gaussian_ratio": 5.0034,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.012084,
+            "gaussian_ratio": 5.0058,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.01262,
+            "gaussian_ratio": 5.2276,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.039396,
+            "gaussian_ratio": 16.3195,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.083262,
+            "gaussian_ratio": 34.4906,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          },
+          "50.0%": {
+            "s1_share": 0.200345,
+            "gaussian_ratio": 82.9919,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          },
+          "75.0%": {
+            "s1_share": 0.360172,
+            "gaussian_ratio": 149.1991,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.499967,
+            "gaussian_ratio": 207.1087,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      },
+      "detector.backbone.vision_backbone.trunk.blocks.31.mlp.fc2.weight": {
+        "shape": [
+          1024,
+          4736
+        ],
+        "base_s1_share": 0.049902,
+        "base_gaussian_ratio": 23.9478,
+        "s1_module_p99_threshold": 34.2502,
+        "empirical_floor_s1_module_p99": "30.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.049901,
+            "gaussian_ratio": 23.9474,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.049902,
+            "gaussian_ratio": 23.9481,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.049899,
+            "gaussian_ratio": 23.9466,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.049864,
+            "gaussian_ratio": 23.9297,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.049442,
+            "gaussian_ratio": 23.7269,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.048325,
+            "gaussian_ratio": 23.191,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.083586,
+            "gaussian_ratio": 40.1127,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          },
+          "50.0%": {
+            "s1_share": 0.200723,
+            "gaussian_ratio": 96.3267,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          },
+          "75.0%": {
+            "s1_share": 0.360521,
+            "gaussian_ratio": 173.0132,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.500383,
+            "gaussian_ratio": 240.1327,
+            "s1_module_p99_threshold": 34.2502,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      }
+    },
+    "transformer": {
+      "detector.transformer.encoder.layers.0.self_attn.out_proj.weight": {
+        "shape": [
+          256,
+          256
+        ],
+        "base_s1_share": 0.063972,
+        "base_gaussian_ratio": 4.1952,
+        "s1_module_p99_threshold": 40.0283,
+        "empirical_floor_s1_module_p99": "> 100.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.063973,
+            "gaussian_ratio": 4.1952,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.063972,
+            "gaussian_ratio": 4.1952,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.063965,
+            "gaussian_ratio": 4.1947,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.063916,
+            "gaussian_ratio": 4.1915,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.063385,
+            "gaussian_ratio": 4.1566,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.062034,
+            "gaussian_ratio": 4.068,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.08924,
+            "gaussian_ratio": 5.8521,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "50.0%": {
+            "s1_share": 0.204872,
+            "gaussian_ratio": 13.4351,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "75.0%": {
+            "s1_share": 0.363631,
+            "gaussian_ratio": 23.8462,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "100.0%": {
+            "s1_share": 0.502777,
+            "gaussian_ratio": 32.971,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          }
+        }
+      },
+      "detector.transformer.decoder.layers.0.cross_attn.out_proj.weight": {
+        "shape": [
+          256,
+          256
+        ],
+        "base_s1_share": 0.053992,
+        "base_gaussian_ratio": 3.5407,
+        "s1_module_p99_threshold": 40.0283,
+        "empirical_floor_s1_module_p99": "> 100.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.053991,
+            "gaussian_ratio": 3.5406,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.053991,
+            "gaussian_ratio": 3.5406,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.053987,
+            "gaussian_ratio": 3.5403,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.053949,
+            "gaussian_ratio": 3.5379,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.053514,
+            "gaussian_ratio": 3.5093,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.05383,
+            "gaussian_ratio": 3.53,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.090094,
+            "gaussian_ratio": 5.9082,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "50.0%": {
+            "s1_share": 0.205783,
+            "gaussian_ratio": 13.4948,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "75.0%": {
+            "s1_share": 0.364488,
+            "gaussian_ratio": 23.9024,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "100.0%": {
+            "s1_share": 0.503465,
+            "gaussian_ratio": 33.0161,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          }
+        }
+      },
+      "detector.transformer.decoder.layers.5.linear2.weight": {
+        "shape": [
+          256,
+          2048
+        ],
+        "base_s1_share": 0.116457,
+        "base_gaussian_ratio": 16.3775,
+        "s1_module_p99_threshold": 40.0283,
+        "empirical_floor_s1_module_p99": "75.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.116456,
+            "gaussian_ratio": 16.3774,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.116455,
+            "gaussian_ratio": 16.3773,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.116438,
+            "gaussian_ratio": 16.3748,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.116338,
+            "gaussian_ratio": 16.3608,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.115402,
+            "gaussian_ratio": 16.2292,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.112819,
+            "gaussian_ratio": 15.8658,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.112127,
+            "gaussian_ratio": 15.7685,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "50.0%": {
+            "s1_share": 0.205816,
+            "gaussian_ratio": 28.9441,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": false
+          },
+          "75.0%": {
+            "s1_share": 0.363868,
+            "gaussian_ratio": 51.1712,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.50286,
+            "gaussian_ratio": 70.7178,
+            "s1_module_p99_threshold": 40.0283,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      }
+    },
+    "heads_scoring_seg": {
+      "detector.dot_prod_scoring.hs_proj.weight": {
+        "shape": [
+          256,
+          256
+        ],
+        "base_s1_share": 0.195264,
+        "base_gaussian_ratio": 12.805,
+        "s1_module_p99_threshold": 15.3272,
+        "empirical_floor_s1_module_p99": "75.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.195267,
+            "gaussian_ratio": 12.8052,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.195268,
+            "gaussian_ratio": 12.8053,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.195263,
+            "gaussian_ratio": 12.8049,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.195145,
+            "gaussian_ratio": 12.7972,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.193505,
+            "gaussian_ratio": 12.6896,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.188119,
+            "gaussian_ratio": 12.3364,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.179751,
+            "gaussian_ratio": 11.7877,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "50.0%": {
+            "s1_share": 0.205464,
+            "gaussian_ratio": 13.4739,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "75.0%": {
+            "s1_share": 0.363241,
+            "gaussian_ratio": 23.8206,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.502353,
+            "gaussian_ratio": 32.9433,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      },
+      "detector.dot_prod_scoring.prompt_proj.weight": {
+        "shape": [
+          256,
+          256
+        ],
+        "base_s1_share": 0.083942,
+        "base_gaussian_ratio": 5.5047,
+        "s1_module_p99_threshold": 15.3272,
+        "empirical_floor_s1_module_p99": "75.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.083942,
+            "gaussian_ratio": 5.5048,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.083946,
+            "gaussian_ratio": 5.505,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.083959,
+            "gaussian_ratio": 5.5059,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.083955,
+            "gaussian_ratio": 5.5056,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.083508,
+            "gaussian_ratio": 5.4763,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.082396,
+            "gaussian_ratio": 5.4034,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.095705,
+            "gaussian_ratio": 6.2761,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "50.0%": {
+            "s1_share": 0.206319,
+            "gaussian_ratio": 13.53,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": false
+          },
+          "75.0%": {
+            "s1_share": 0.364301,
+            "gaussian_ratio": 23.8901,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.503169,
+            "gaussian_ratio": 32.9968,
+            "s1_module_p99_threshold": 15.3272,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      },
+      "detector.segmentation_head.mask_predictor.mask_embed.layers.1.weight": {
+        "shape": [
+          256,
+          256
+        ],
+        "base_s1_share": 0.084744,
+        "base_gaussian_ratio": 5.5573,
+        "s1_module_p99_threshold": 11.562,
+        "empirical_floor_s1_module_p99": "50.0%",
+        "injections": {
+          "0.1%": {
+            "s1_share": 0.084744,
+            "gaussian_ratio": 5.5573,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": false
+          },
+          "0.3%": {
+            "s1_share": 0.084745,
+            "gaussian_ratio": 5.5574,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": false
+          },
+          "1.0%": {
+            "s1_share": 0.084738,
+            "gaussian_ratio": 5.557,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": false
+          },
+          "3.0%": {
+            "s1_share": 0.084678,
+            "gaussian_ratio": 5.553,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": false
+          },
+          "10.0%": {
+            "s1_share": 0.083941,
+            "gaussian_ratio": 5.5046,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": false
+          },
+          "20.0%": {
+            "s1_share": 0.081563,
+            "gaussian_ratio": 5.3487,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": false
+          },
+          "30.0%": {
+            "s1_share": 0.089028,
+            "gaussian_ratio": 5.8383,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": false
+          },
+          "50.0%": {
+            "s1_share": 0.203513,
+            "gaussian_ratio": 13.3459,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": true
+          },
+          "75.0%": {
+            "s1_share": 0.362277,
+            "gaussian_ratio": 23.7574,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": true
+          },
+          "100.0%": {
+            "s1_share": 0.501675,
+            "gaussian_ratio": 32.8988,
+            "s1_module_p99_threshold": 11.562,
+            "detected_by_s1_module_p99": true
+          }
+        }
+      }
+    }
+  },
+  "domain_conv_4d": {
+    "detector.backbone.vision_backbone.trunk.patch_embed.proj.weight": {
       "shape": [
         1024,
-        1024
+        3,
+        14,
+        14
       ],
-      "base_spectral_share": 0.013075662776827812,
+      "unfolded_shape": [
+        200704,
+        3
+      ],
+      "base_s1_share": 0.64582,
+      "base_gaussian_ratio": 1.9282,
+      "base_max_channel_z": 3.2923,
+      "s1_module_p99_threshold": 34.2502,
+      "channel_z_max_clean_threshold_auxiliary": 9.4194,
+      "empirical_floor_spectral_s1": "> 100.0%",
+      "empirical_floor_channel_z_auxiliary": "20.0%",
       "injections": {
         "0.1%": {
-          "spectral_share": 0.013075788505375385,
-          "delta_share": 1.257285475730896e-07,
-          "detected": false
+          "s1_share": 0.645821,
+          "gaussian_ratio": 1.9282,
+          "max_channel_norm_z": 3.2923,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "0.3%": {
-          "spectral_share": 0.013075952418148518,
-          "delta_share": 2.896413207054138e-07,
-          "detected": false
+          "s1_share": 0.64582,
+          "gaussian_ratio": 1.9282,
+          "max_channel_norm_z": 3.2923,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "1.0%": {
-          "spectral_share": 0.013075806200504303,
-          "delta_share": 1.434236764907837e-07,
-          "detected": false
+          "s1_share": 0.645798,
+          "gaussian_ratio": 1.9281,
+          "max_channel_norm_z": 3.2922,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "3.0%": {
-          "spectral_share": 0.013069573789834976,
-          "delta_share": 6.0889869928359985e-06,
-          "detected": false
+          "s1_share": 0.645568,
+          "gaussian_ratio": 1.9274,
+          "max_channel_norm_z": 3.2898,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
+        },
+        "10.0%": {
+          "s1_share": 0.64286,
+          "gaussian_ratio": 1.9193,
+          "max_channel_norm_z": 8.0185,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
+        },
+        "20.0%": {
+          "s1_share": 0.634168,
+          "gaussian_ratio": 1.8934,
+          "max_channel_norm_z": 16.4421,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "30.0%": {
+          "s1_share": 0.620696,
+          "gaussian_ratio": 1.8532,
+          "max_channel_norm_z": 21.9746,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "50.0%": {
+          "s1_share": 0.584746,
+          "gaussian_ratio": 1.7458,
+          "max_channel_norm_z": 27.312,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "75.0%": {
+          "s1_share": 0.535726,
+          "gaussian_ratio": 1.5995,
+          "max_channel_norm_z": 29.7105,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "100.0%": {
+          "s1_share": 0.492864,
+          "gaussian_ratio": 1.4715,
+          "max_channel_norm_z": 30.6637,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
         }
-      },
-      "detection_floor": "> 3.0%"
+      }
     },
-    "vision_linear": {
-      "tensor": "detector.transformer.decoder.layers.0.linear2.weight",
+    "detector.backbone.vision_backbone.convs.0.conv_3x3.weight": {
       "shape": [
         256,
-        2048
+        256,
+        3,
+        3
       ],
-      "base_spectral_share": 0.22173132002353668,
+      "unfolded_shape": [
+        2304,
+        256
+      ],
+      "base_s1_share": 0.045777,
+      "base_gaussian_ratio": 6.71,
+      "base_max_channel_z": 3.343,
+      "s1_module_p99_threshold": 34.2502,
+      "channel_z_max_clean_threshold_auxiliary": 9.4194,
+      "empirical_floor_spectral_s1": "> 100.0%",
+      "empirical_floor_channel_z_auxiliary": "20.0%",
       "injections": {
         "0.1%": {
-          "spectral_share": 0.22173064947128296,
-          "delta_share": 6.705522537231445e-07,
-          "detected": false
+          "s1_share": 0.045776,
+          "gaussian_ratio": 6.71,
+          "max_channel_norm_z": 3.343,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "0.3%": {
-          "spectral_share": 0.22172817587852478,
-          "delta_share": 3.1441450119018555e-06,
-          "detected": false
+          "s1_share": 0.045777,
+          "gaussian_ratio": 6.7101,
+          "max_channel_norm_z": 3.343,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "1.0%": {
-          "spectral_share": 0.2217055857181549,
-          "delta_share": 2.5734305381774902e-05,
-          "detected": false
+          "s1_share": 0.045779,
+          "gaussian_ratio": 6.7104,
+          "max_channel_norm_z": 3.3433,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "3.0%": {
-          "spectral_share": 0.2215234935283661,
-          "delta_share": 0.00020782649517059326,
-          "detected": false
+          "s1_share": 0.045762,
+          "gaussian_ratio": 6.7078,
+          "max_channel_norm_z": 3.3439,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
+        },
+        "10.0%": {
+          "s1_share": 0.04545,
+          "gaussian_ratio": 6.6621,
+          "max_channel_norm_z": 5.0031,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
+        },
+        "20.0%": {
+          "s1_share": 0.044403,
+          "gaussian_ratio": 6.5087,
+          "max_channel_norm_z": 10.5838,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "30.0%": {
+          "s1_share": 0.042865,
+          "gaussian_ratio": 6.2832,
+          "max_channel_norm_z": 13.195,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "50.0%": {
+          "s1_share": 0.041365,
+          "gaussian_ratio": 6.0633,
+          "max_channel_norm_z": 14.9271,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "75.0%": {
+          "s1_share": 0.059239,
+          "gaussian_ratio": 8.6834,
+          "max_channel_norm_z": 15.5,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "100.0%": {
+          "s1_share": 0.079577,
+          "gaussian_ratio": 11.6645,
+          "max_channel_norm_z": 15.6969,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
         }
-      },
-      "detection_floor": "> 3.0%"
+      }
     },
-    "transformer_linear": {
-      "tensor": "detector.transformer.encoder.layers.0.self_attn.out_proj.weight",
+    "detector.segmentation_head.pixel_decoder.conv_layers.0.weight": {
       "shape": [
         256,
-        256
-      ],
-      "base_spectral_share": 0.0499727688729763,
-      "injections": {
-        "0.1%": {
-          "spectral_share": 0.04997086897492409,
-          "delta_share": 1.8998980522155762e-06,
-          "detected": false
-        },
-        "0.3%": {
-          "spectral_share": 0.04996686056256294,
-          "delta_share": 5.908310413360596e-06,
-          "detected": false
-        },
-        "1.0%": {
-          "spectral_share": 0.04995078220963478,
-          "delta_share": 2.1986663341522217e-05,
-          "detected": false
-        },
-        "3.0%": {
-          "spectral_share": 0.0498872809112072,
-          "delta_share": 8.5487961769104e-05,
-          "detected": false
-        }
-      },
-      "detection_floor": "> 3.0%"
-    },
-    "scoring_linear": {
-      "tensor": "detector.dot_prod_scoring.hs_proj.weight",
-      "shape": [
         256,
+        3,
+        3
+      ],
+      "unfolded_shape": [
+        2304,
         256
       ],
-      "base_spectral_share": 0.1339288204908371,
+      "base_s1_share": 0.058716,
+      "base_gaussian_ratio": 8.6067,
+      "base_max_channel_z": 3.256,
+      "s1_module_p99_threshold": 11.562,
+      "channel_z_max_clean_threshold_auxiliary": 9.4194,
+      "empirical_floor_spectral_s1": "> 100.0%",
+      "empirical_floor_channel_z_auxiliary": "20.0%",
       "injections": {
         "0.1%": {
-          "spectral_share": 0.1339239478111267,
-          "delta_share": 4.872679710388184e-06,
-          "detected": false
+          "s1_share": 0.058716,
+          "gaussian_ratio": 8.6067,
+          "max_channel_norm_z": 3.256,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "0.3%": {
-          "spectral_share": 0.13391348719596863,
-          "delta_share": 1.5333294868469238e-05,
-          "detected": false
+          "s1_share": 0.058715,
+          "gaussian_ratio": 8.6065,
+          "max_channel_norm_z": 3.256,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "1.0%": {
-          "spectral_share": 0.1338697373867035,
-          "delta_share": 5.908310413360596e-05,
-          "detected": false
+          "s1_share": 0.05871,
+          "gaussian_ratio": 8.6058,
+          "max_channel_norm_z": 3.2558,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
         },
         "3.0%": {
-          "spectral_share": 0.13368184864521027,
-          "delta_share": 0.00024697184562683105,
-          "detected": false
+          "s1_share": 0.05866,
+          "gaussian_ratio": 8.5985,
+          "max_channel_norm_z": 3.2506,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
+        },
+        "10.0%": {
+          "s1_share": 0.058135,
+          "gaussian_ratio": 8.5216,
+          "max_channel_norm_z": 6.4748,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": false
+        },
+        "20.0%": {
+          "s1_share": 0.05648,
+          "gaussian_ratio": 8.2789,
+          "max_channel_norm_z": 12.2894,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "30.0%": {
+          "s1_share": 0.053937,
+          "gaussian_ratio": 7.9062,
+          "max_channel_norm_z": 14.2836,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "50.0%": {
+          "s1_share": 0.047272,
+          "gaussian_ratio": 6.9291,
+          "max_channel_norm_z": 15.3762,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "75.0%": {
+          "s1_share": 0.054932,
+          "gaussian_ratio": 8.0521,
+          "max_channel_norm_z": 15.7011,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
+        },
+        "100.0%": {
+          "s1_share": 0.074134,
+          "gaussian_ratio": 10.8667,
+          "max_channel_norm_z": 15.8088,
+          "detected_by_s1_module_p99_spectral": false,
+          "detected_by_channel_z_auxiliary": true
         }
-      },
-      "detection_floor": "> 3.0%"
-    },
-    "bias_outlier": {
-      "tensor": "detector.segmentation_head.pixel_decoder.norms.0.bias",
-      "shape": [
-        256
-      ],
+      }
+    }
+  },
+  "domain_bias_1d": {
+    "detector.backbone.language_backbone.encoder.transformer.resblocks.0.ln_1.bias": {
+      "role": "norm_bias",
+      "numel": 1024,
+      "base_max_abs_z": 17.1683,
+      "group_p99_9_threshold": 7.7795,
+      "role_p99_max_z_threshold_s1_listing": 26.8393,
+      "empirical_floor_group_p99_9": "10sigma",
+      "empirical_floor_s1_role_outlier": "> 30sigma",
       "injections": {
         "3sigma": {
-          "z_score": 4.500987959773447,
-          "detected": true
+          "injected_element_z": 17.1389,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 3,
+          "perturbed_rows_above_group_p99_9": 3,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
         },
         "5sigma": {
-          "z_score": 6.500987469444117,
-          "detected": true
+          "injected_element_z": 17.0369,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 3,
+          "perturbed_rows_above_group_p99_9": 3,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
         },
         "10sigma": {
-          "z_score": 11.500986662316109,
-          "detected": true
+          "injected_element_z": 16.5222,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 3,
+          "perturbed_rows_above_group_p99_9": 4,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "15sigma": {
+          "injected_element_z": 15.7208,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 3,
+          "perturbed_rows_above_group_p99_9": 4,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "25sigma": {
+          "injected_element_z": 19.2626,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 3,
+          "perturbed_rows_above_group_p99_9": 3,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
+        },
+        "30sigma": {
+          "injected_element_z": 21.5266,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 3,
+          "perturbed_rows_above_group_p99_9": 3,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
         }
+      }
+    },
+    "detector.backbone.vision_backbone.trunk.blocks.0.norm1.bias": {
+      "role": "norm_bias",
+      "numel": 1024,
+      "base_max_abs_z": 12.1546,
+      "group_p99_9_threshold": 7.7795,
+      "role_p99_max_z_threshold_s1_listing": 26.8393,
+      "empirical_floor_group_p99_9": "10sigma",
+      "empirical_floor_s1_role_outlier": "> 30sigma",
+      "injections": {
+        "3sigma": {
+          "injected_element_z": 12.1006,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 1,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
+        },
+        "5sigma": {
+          "injected_element_z": 12.0072,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 1,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
+        },
+        "10sigma": {
+          "injected_element_z": 11.5978,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 1,
+          "perturbed_rows_above_group_p99_9": 2,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "15sigma": {
+          "injected_element_z": 13.5289,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 1,
+          "perturbed_rows_above_group_p99_9": 2,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "25sigma": {
+          "injected_element_z": 19.6581,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 1,
+          "perturbed_rows_above_group_p99_9": 2,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "30sigma": {
+          "injected_element_z": 21.8402,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 1,
+          "perturbed_rows_above_group_p99_9": 2,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        }
+      }
+    },
+    "detector.transformer.encoder.layers.0.norm1.bias": {
+      "role": "norm_bias",
+      "numel": 256,
+      "base_max_abs_z": 3.7996,
+      "group_p99_9_threshold": 7.7795,
+      "role_p99_max_z_threshold_s1_listing": 26.8393,
+      "empirical_floor_group_p99_9": "10sigma",
+      "empirical_floor_s1_role_outlier": "> 30sigma",
+      "injections": {
+        "3sigma": {
+          "injected_element_z": 3.7266,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 0,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
+        },
+        "5sigma": {
+          "injected_element_z": 4.6793,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 0,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
+        },
+        "10sigma": {
+          "injected_element_z": 8.3934,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "15sigma": {
+          "injected_element_z": 10.8666,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "25sigma": {
+          "injected_element_z": 13.4104,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "30sigma": {
+          "injected_element_z": 14.0537,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        }
+      }
+    },
+    "detector.segmentation_head.pixel_decoder.norms.0.bias": {
+      "role": "norm_bias",
+      "numel": 256,
+      "base_max_abs_z": 4.073,
+      "group_p99_9_threshold": 7.7795,
+      "role_p99_max_z_threshold_s1_listing": 26.8393,
+      "empirical_floor_group_p99_9": "10sigma",
+      "empirical_floor_s1_role_outlier": "> 30sigma",
+      "injections": {
+        "3sigma": {
+          "injected_element_z": 4.3382,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 0,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
+        },
+        "5sigma": {
+          "injected_element_z": 6.0274,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 0,
+          "detected_by_group_p99_9_rise": false,
+          "s1_role_outlier_condition_met": false
+        },
+        "10sigma": {
+          "injected_element_z": 9.3334,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "15sigma": {
+          "injected_element_z": 11.4693,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "25sigma": {
+          "injected_element_z": 13.6612,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        },
+        "30sigma": {
+          "injected_element_z": 14.2229,
+          "group_p99_9_threshold": 7.7795,
+          "clean_rows_above_group_p99_9": 0,
+          "perturbed_rows_above_group_p99_9": 1,
+          "detected_by_group_p99_9_rise": true,
+          "s1_role_outlier_condition_met": false
+        }
+      }
+    }
+  },
+  "domain_token_embedding": {
+    "tensor": "detector.backbone.language_backbone.encoder.token_embedding.weight",
+    "target_row_index": 1000,
+    "norm_replacement_injections": {
+      "1.15x_median": {
+        "measured_injected_row_norm": 0.978827,
+        "injected_row_in_top5": false,
+        "outlier_rows_above_p99": 494,
+        "clean_outlier_rows_above_p99": 494,
+        "norm_max": 2.667345,
+        "detected_above_p99": true,
+        "detected_above_lexical_max": false,
+        "detected_above_global_max_eot": false,
+        "note": "outlier_rows_above_p99 is invariant to single-row replacements because S1 recomputes p99 from the perturbed distribution itself (measured: 494 -> 494 at every multiplier); the absolute row-norm comparisons are the effective detection lines."
       },
-      "detection_floor": "3sigma"
+      "1.50x_median": {
+        "measured_injected_row_norm": 1.276746,
+        "injected_row_in_top5": true,
+        "outlier_rows_above_p99": 494,
+        "clean_outlier_rows_above_p99": 494,
+        "norm_max": 2.667345,
+        "detected_above_p99": true,
+        "detected_above_lexical_max": true,
+        "detected_above_global_max_eot": false,
+        "note": "outlier_rows_above_p99 is invariant to single-row replacements because S1 recomputes p99 from the perturbed distribution itself (measured: 494 -> 494 at every multiplier); the absolute row-norm comparisons are the effective detection lines."
+      },
+      "2.00x_median": {
+        "measured_injected_row_norm": 1.702311,
+        "injected_row_in_top5": true,
+        "outlier_rows_above_p99": 494,
+        "clean_outlier_rows_above_p99": 494,
+        "norm_max": 2.667345,
+        "detected_above_p99": true,
+        "detected_above_lexical_max": true,
+        "detected_above_global_max_eot": false,
+        "note": "outlier_rows_above_p99 is invariant to single-row replacements because S1 recomputes p99 from the perturbed distribution itself (measured: 494 -> 494 at every multiplier); the absolute row-norm comparisons are the effective detection lines."
+      },
+      "3.20x_median": {
+        "measured_injected_row_norm": 2.723678,
+        "injected_row_in_top5": true,
+        "outlier_rows_above_p99": 494,
+        "clean_outlier_rows_above_p99": 494,
+        "norm_max": 2.723678,
+        "detected_above_p99": true,
+        "detected_above_lexical_max": true,
+        "detected_above_global_max_eot": true,
+        "note": "outlier_rows_above_p99 is invariant to single-row replacements because S1 recomputes p99 from the perturbed distribution itself (measured: 494 -> 494 at every multiplier); the absolute row-norm comparisons are the effective detection lines."
+      },
+      "3.50x_median": {
+        "measured_injected_row_norm": 2.979,
+        "injected_row_in_top5": true,
+        "outlier_rows_above_p99": 494,
+        "clean_outlier_rows_above_p99": 494,
+        "norm_max": 2.979,
+        "detected_above_p99": true,
+        "detected_above_lexical_max": true,
+        "detected_above_global_max_eot": true,
+        "note": "outlier_rows_above_p99 is invariant to single-row replacements because S1 recomputes p99 from the perturbed distribution itself (measured: 494 -> 494 at every multiplier); the absolute row-norm comparisons are the effective detection lines."
+      }
+    },
+    "cosine_alias_injections": {
+      "cos_0.70": {
+        "measured_max_nn_cosine": 0.743719,
+        "clean_max_nn_cosine": 0.743719,
+        "detected_above_clean_max": false
+      },
+      "cos_0.80": {
+        "measured_max_nn_cosine": 0.8,
+        "clean_max_nn_cosine": 0.743719,
+        "detected_above_clean_max": true
+      },
+      "cos_0.90": {
+        "measured_max_nn_cosine": 0.9,
+        "clean_max_nn_cosine": 0.743719,
+        "detected_above_clean_max": true
+      },
+      "cos_0.99": {
+        "measured_max_nn_cosine": 0.99,
+        "clean_max_nn_cosine": 0.743719,
+        "detected_above_clean_max": true
+      }
+    },
+    "empirical_floor_norm_p99": "1.15x_median",
+    "empirical_floor_lexical_max": "1.50x_median",
+    "empirical_floor_global_max": "3.20x_median",
+    "empirical_floor_nn_cosine": "cos_0.80"
+  },
+  "s1_end_to_end_runs": {
+    "note": "Real S1 subprocess over scratch copies of all 1,590 tensors.",
+    "rank1_runs": [
+      {
+        "strength": "1.0%",
+        "s1_status": "PASS",
+        "s1_unexplained_outlier_count": 0,
+        "injected_tensors": 12,
+        "injected_tensors_in_s1_module_outlier_names": [],
+        "s1_elapsed_seconds": 23.771
+      },
+      {
+        "strength": "3.0%",
+        "s1_status": "PASS",
+        "s1_unexplained_outlier_count": 0,
+        "injected_tensors": 12,
+        "injected_tensors_in_s1_module_outlier_names": [],
+        "s1_elapsed_seconds": 24.064
+      },
+      {
+        "strength": "20.0%",
+        "s1_status": "PASS",
+        "s1_unexplained_outlier_count": 0,
+        "injected_tensors": 12,
+        "injected_tensors_in_s1_module_outlier_names": [
+          "detector.backbone.language_backbone.encoder.transformer.resblocks.23.mlp.c_proj.weight"
+        ],
+        "s1_elapsed_seconds": 24.048
+      }
+    ],
+    "composite_run": {
+      "rank1_strength": "3.0%",
+      "s1_status": "PASS",
+      "s1_unexplained_outlier_count": 0,
+      "rank1_injected": 12,
+      "rank1_in_s1_module_outlier_names": [],
+      "conv4d_injected": [
+        "detector.backbone.vision_backbone.trunk.patch_embed.proj.weight",
+        "detector.backbone.vision_backbone.convs.0.conv_3x3.weight",
+        "detector.segmentation_head.pixel_decoder.conv_layers.0.weight"
+      ],
+      "conv4d_in_s1_module_outlier_names": [],
+      "bias1d_injected": [
+        "detector.backbone.language_backbone.encoder.transformer.resblocks.0.ln_1.bias",
+        "detector.backbone.vision_backbone.trunk.blocks.0.norm1.bias",
+        "detector.transformer.encoder.layers.0.norm1.bias",
+        "detector.segmentation_head.pixel_decoder.norms.0.bias"
+      ],
+      "one_d_total_elements_above_group_p99_9": {
+        "layer_scale_gamma": 1,
+        "linear_conv_bias": 679,
+        "norm_bias": 146,
+        "norm_weight": 143
+      },
+      "token_embedding_injected": true,
+      "token_embedding_outlier_rows_above_p99": 494,
+      "token_embedding_norm_max": 2.667345,
+      "token_embedding_max_nn_cosine": 0.743719,
+      "s1_elapsed_seconds": 23.96
     }
   },
   "summary": {
-    "linear_rank1_detection_floor": "0.3% - 1.0%",
-    "conv4d_detection_floor": "1.0%",
-    "bias_detection_floor": "5sigma",
+    "detection_rate_at_0_1_to_3_0_pct": 0.0,
+    "linear_rank1_first_detected_strength": "20.0%",
+    "linear_rank1_full_detection_strength": "> 100.0%",
+    "linear_rank1_detected_count_at_100_pct": 10,
+    "linear_rank1_total_tensors": 12,
+    "conv4d_channel_z_first_detected_strength": "20.0%",
+    "conv4d_spectral_first_detected_strength": "> 100.0%",
+    "bias_1d_group_p99_9_detection_floor": "10sigma",
+    "token_embedding_norm_p99_floor": "1.15x_median",
+    "token_embedding_norm_lexical_floor": "1.50x_median",
+    "token_embedding_cosine_floor": "cos_0.80",
+    "verdict_statement": "Measured against the real S1 screen: S1's module-p99 rule has 0/48 (0.0%) sensitivity to rank-1 additions at 0.1%-3.0% Frobenius norm, first detects at 20.0%, and does not reach 12/12 within the tested ladder (max 10/12 at 100.0% because two transformer out_proj tensors stay below their module p99 even at a 100%-norm injection). Single-channel 4-D Conv additions: the spectral rule first detects at > 100.0%; the auxiliary channel-z measure first fires at 20.0% (not part of S1's outlier decision). 1-D bias single-element additions first raise group-p99.9 outliers at 10sigma. Language token-embedding row replacements first exceed the row-norm p99 at 1.15x_median, the lexical max at 1.50x_median, and the clean NN-cosine max at cos_0.80.",
     "gate_s5_pass": true
   }
 }

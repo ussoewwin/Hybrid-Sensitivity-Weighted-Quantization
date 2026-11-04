@@ -1,35 +1,65 @@
 {
   "analysis": "sam31_vocabulary_overlap_control",
+  "file": "sam3.1_multiplex_fp16.safetensors",
+  "operating_point_threshold": 0.5,
+  "images_tested_count": 24,
   "documented_variants_count": 28,
   "matched_control_count": 28,
+  "total_control_pairs_fitted": 1500,
   "documented_jaccard": {
     "median": 0.0,
-    "mean": 0.2623489847497356,
-    "std": 0.33374701208989727
+    "mean": 0.2623,
+    "std": 0.3337,
+    "high_overlap_pairs_count": 121
   },
   "matched_control_jaccard": {
     "median": 0.0,
-    "mean": 0.25043943978351074,
-    "std": 0.3253853758685429
+    "mean": 0.2491,
+    "std": 0.3259,
+    "high_overlap_pairs_count": 118
   },
   "ks_test": {
-    "statistic": 0.03968253968253965,
-    "pvalue": 0.9277478093950569,
+    "statistic": 0.0397,
+    "pvalue": 0.9277,
     "indistinguishable": true
   },
+  "same_image_iou_empirical": {
+    "documented_variants": {
+      "pairwise_mean_iou": 0.3534,
+      "pairwise_median_iou": 0.3056,
+      "high_overlap_mean_iou": 0.503
+    },
+    "matched_control": {
+      "pairwise_mean_iou": 0.2745,
+      "pairwise_median_iou": 0.2178,
+      "high_overlap_mean_iou": 0.4993
+    }
+  },
   "regression": {
-    "slope": 0.924137980200997,
-    "intercept": 0.04481561437767878,
-    "r_squared": 0.9899998640861394,
-    "observed_iou": 0.8511,
-    "expected_iou": 0.04481561437767878,
-    "residual": 0.8062843856223212,
+    "control_groups_included": [
+      "matched_control",
+      "random_variants",
+      "dates",
+      "filler_short",
+      "filler_tag",
+      "real_objects"
+    ],
+    "slope": 0.3643,
+    "intercept": 0.1474,
+    "r_squared": 0.3856,
+    "p_value": 1.1319306781879916e-160,
+    "std_err": 0.0119,
+    "documented_expected_mean_iou": 0.243,
+    "observed_mean_iou": 0.3534,
+    "residual_mean": 0.1105,
+    "residual_median": 0.0951,
     "bootstrap_95_ci": [
-      0.7957132126953038,
-      0.8165013738703963
+      0.1035,
+      0.1178
     ],
     "residual_spans_zero": false
   },
-  "verdict": "UNEXPLAINED ANOMALY: documented family within-family IoU (0.8511) exceeds overlap expectation; retained as unexplained anomaly under strength C",
-  "gate_s3_pass": true
+  "verdict": "UNEXPLAINED ANOMALY: documented family within-family IoU significantly exceeds benign vocabulary overlap baseline (residual > 0); retained as unexplained anomaly under strength C",
+  "gate_s3_pass": true,
+  "elapsed_seconds": 242.84
 }
