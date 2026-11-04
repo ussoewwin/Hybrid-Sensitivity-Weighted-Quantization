@@ -2,10 +2,10 @@
  "size": 1008,
  "n_images": 8,
  "image_files": [
-  "D:\\USERFILES\\ComfyUI\\ComfyUI\\input\\-821c-4047-8a94-2e5a475930f7_1.png",
-  "D:\\USERFILES\\ComfyUI\\ComfyUI\\input\\00 (1).png",
-  "D:\\USERFILES\\ComfyUI\\ComfyUI\\input\\00.png",
-  "D:\\USERFILES\\ComfyUI\\ComfyUI\\input\\00000-0_cleanup.png"
+  "-821c-4047-8a94-2e5a475930f7_1.png",
+  "00 (1).png",
+  "00.png",
+  "00000-0_cleanup.png"
  ],
  "per_group": 10,
  "groups": {
