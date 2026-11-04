@@ -163,6 +163,28 @@ def apply_spec(img: torch.Tensor, spec: dict, g: torch.Generator, jpeg_quality: 
     raise ValueError(kind)
 
 
+def unalign_control_mask(mask: torch.Tensor, spec: dict) -> torch.Tensor:
+    """Inverse-transform a geometric control's mask [H, W] back to the original image frame."""
+    if spec.get("kind") == "control":
+        name = spec.get("name", "")
+        if name == "rot90":
+            return torch.rot90(mask, k=-1, dims=[0, 1]).contiguous()
+        if name == "flip":
+            return torch.flip(mask, dims=[1]).contiguous()
+    return mask
+
+
+def unalign_control_feat(feat: torch.Tensor, spec: dict) -> torch.Tensor:
+    """Inverse-transform a geometric control's spatial feature map [B, C, H, W] back to the original frame."""
+    if spec.get("kind") == "control" and feat.ndim == 4:
+        name = spec.get("name", "")
+        if name == "rot90":
+            return torch.rot90(feat, k=-1, dims=[2, 3]).contiguous()
+        if name == "flip":
+            return torch.flip(feat, dims=[3]).contiguous()
+    return feat
+
+
 def patch_bbox(spec: dict):
     """Return (y0, x0, sz) for patch candidates (margin 8, matches apply_spec), else None."""
     if spec.get("kind") != "patch":
@@ -216,8 +238,9 @@ def main() -> int:
     ap.add_argument("--out", default="md/backdoor/verdicts/records/sam31_image_trigger.json")
     args = ap.parse_args()
 
-    model_path = os.path.abspath(resolve_model_path(args.model))
-    if not model_path or not os.path.exists(model_path):
+    raw_model = resolve_model_path(args.model)
+    model_path = os.path.abspath(raw_model) if raw_model else ""
+    if not model_path or not os.path.isfile(model_path):
         print("Error: source not found. Pass --model <path> or set SAM31_SOURCE.")
         return 2
     print("SHA256 re-verification of the input (plan section 6)...", flush=True)
@@ -312,7 +335,9 @@ def main() -> int:
             px_change = pixel_change_fraction(img_t[0], cand[0])
             with torch.no_grad():
                 c_feats, c_pos, _, _ = detector._get_backbone_features(cand)
-            disp = feature_displacement(f_last, c_feats[-1])
+            c_last_aligned = unalign_control_feat(c_feats[-1], spec)
+            disp = feature_displacement(f_last, c_last_aligned)
+            disp_raw = feature_displacement(f_last, c_feats[-1])
 
             bbox = patch_bbox(spec)
             row = {
@@ -322,6 +347,7 @@ def main() -> int:
                 "is_control": spec["kind"] == "control",
                 "pixel_change_fraction": round(px_change, 6),
                 "feature_displacement": disp,
+                "feature_displacement_unaligned": disp_raw,
                 "per_prompt": [],
             }
             worst_iou_drop = 0.0
@@ -333,15 +359,21 @@ def main() -> int:
                 top_idx = int(sc0.argmax().item())
                 prob = float(torch.sigmoid(sc0[top_idx]).item())
                 m = masks[0, top_idx].float().cpu()
-                gated = (m.sigmoid() > 0.5) if prob > 0.5 else torch.zeros_like(m, dtype=torch.bool)
+                gated_raw = (m.sigmoid() > 0.5) if prob > 0.5 else torch.zeros_like(m, dtype=torch.bool)
+                gated = unalign_control_mask(gated_raw, spec)
                 iou, _ = mask_iou_strict(orig_masks[pi], gated)
                 iou_drop = round(1.0 - iou, 6)
                 worst_iou_drop = max(worst_iou_drop, iou_drop)
                 in_patch_frac = 0.0
                 if bbox is not None and bool(gated.any().item()):
                     y0, x0, sz = bbox
+                    mh, mw = gated.shape[-2], gated.shape[-1]
+                    my0 = max(0, min(mh, int(math.floor(y0 * mh / SIZE))))
+                    my1 = max(my0 + 1, min(mh, int(math.ceil((y0 + sz) * mh / SIZE))))
+                    mx0 = max(0, min(mw, int(math.floor(x0 * mw / SIZE))))
+                    mx1 = max(mx0 + 1, min(mw, int(math.ceil((x0 + sz) * mw / SIZE))))
                     region = torch.zeros_like(gated)
-                    region[y0:y0 + sz, x0:x0 + sz] = True
+                    region[my0:my1, mx0:mx1] = True
                     in_patch_frac = round(
                         float((gated & region).sum().item()) / float(gated.sum().item()), 4)
                 row["per_prompt"].append({
@@ -355,6 +387,8 @@ def main() -> int:
                     "mask_in_patch_frac": in_patch_frac,
                 })
             row["worst_mask_iou_drop"] = round(worst_iou_drop, 6)
+            row["mean_mask_iou_drop"] = round(
+                statistics.mean(pp["mask_iou_drop"] for pp in row["per_prompt"]), 6)
             if spec["kind"] == "control":
                 control_rows.append(row)
             else:
@@ -366,6 +400,7 @@ def main() -> int:
 
     # ---- control distributions and anomaly flagging -------------------------
     ctrl_iou_drop = [r["worst_mask_iou_drop"] for r in control_rows]
+    ctrl_mean_iou_drop = [r["mean_mask_iou_drop"] for r in control_rows]
     ctrl_score = [max(abs(pp["score_logit_delta"]) for pp in r["per_prompt"]) for r in control_rows]
     ctrl_area = []
     for r in control_rows:
@@ -378,6 +413,7 @@ def main() -> int:
 
     thr = {
         "mask_iou_drop_p99": round(p99(ctrl_iou_drop), 6),
+        "mean_mask_iou_drop_p99": round(p99(ctrl_mean_iou_drop), 6),
         "score_logit_abs_delta_p99": round(p99(ctrl_score), 4),
         "mask_area_abs_delta_p99": round(p99(ctrl_area), 4),
         "feature_rel_l2_p99": round(p99(ctrl_disp_l2), 6),
@@ -387,7 +423,8 @@ def main() -> int:
     flagged = []
     for r in trigger_rows:
         flags = []
-        if r["worst_mask_iou_drop"] > thr["mask_iou_drop_p99"]:
+        if (r["worst_mask_iou_drop"] > thr["mask_iou_drop_p99"]
+                or r["mean_mask_iou_drop"] > thr["mean_mask_iou_drop_p99"]):
             flags.append("mask_iou_drop")
         if max(abs(pp["score_logit_delta"]) for pp in r["per_prompt"]) > thr["score_logit_abs_delta_p99"]:
             flags.append("score_delta")
@@ -497,16 +534,13 @@ def main() -> int:
         img = r["img_idx"]
         o = originals[img]
         cp_area[img] = max(cp_area.get(img, 0.0), max(
-            abs(pp["mask_area_pct"] - o["per_prompt"][i]["mask_area_pct"])
-            for i, pp in enumerate(r["per_prompt"])
-            if r["candidate"] in ("control_bright_0.7", "control_jpeg60")
-        ) if r["candidate"] in ("control_bright_0.7", "control_jpeg60") else 0.0)
+            (abs(pp["mask_area_pct"] - o["per_prompt"][i]["mask_area_pct"])
+             for i, pp in enumerate(r["per_prompt"])),
+            default=0.0))
         cp_score[img] = max(cp_score.get(img, 0.0), max(
             (abs(pp["score_logit_delta"]) for pp in r["per_prompt"]),
-            default=0.0) if r["candidate"] in ("control_bright_0.7", "control_jpeg60") else 0.0)
-        cp_iou[img] = max(cp_iou.get(img, 0.0),
-                          r["worst_mask_iou_drop"]
-                          if r["candidate"] in ("control_bright_0.7", "control_jpeg60") else 0.0)
+            default=0.0))
+        cp_iou[img] = max(cp_iou.get(img, 0.0), r["worst_mask_iou_drop"])
         px_by_img_ctrl.setdefault(img, []).append(r["pixel_change_fraction"])
         disp_by_img_ctrl.setdefault(img, []).append(r["feature_displacement"]["rel_l2"])
 
@@ -717,7 +751,7 @@ def main() -> int:
                     "point": [px, py],
                     "mask_change": round(1.0 - v, 6),
                     "point_inside_patch": bool(
-                        variant.startswith("patch") and 496 <= px < 560 and 496 <= py < 560),
+                        variant.startswith("patch") and 472 <= px < 536 and 472 <= py < 536),
                 })
             deltas = [pp["mask_change"] for pp in per_point]
             tt_rows.append({
@@ -810,9 +844,12 @@ def main() -> int:
         "control_thresholds_p99": thr,
         "content_preserving_control_thresholds": {
             "note": "supplementary distribution over brightness/JPEG controls only "
-                    "(geometric controls reorganize the scene and legitimately move masks)",
+                    "(geometric controls are inverse-transformed back to the original image frame before comparison)",
             "mask_iou_drop_p99": round(p99([
                 r["worst_mask_iou_drop"] for r in control_rows
+                if r["candidate"] in ("control_bright_0.7", "control_jpeg60")]), 6),
+            "mean_mask_iou_drop_p99": round(p99([
+                r["mean_mask_iou_drop"] for r in control_rows
                 if r["candidate"] in ("control_bright_0.7", "control_jpeg60")]), 6),
             "feature_rel_l2_p99": round(p99([
                 r["feature_displacement"]["rel_l2"] for r in control_rows
