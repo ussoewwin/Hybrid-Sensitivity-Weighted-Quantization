@@ -11,12 +11,14 @@ re-measured both ways: local sha256 against the Hub's LFS oid, and the byte size
 at the weight level (S0/S1), with an empirical detection floor established by weight-level positive control
 (S5). Behavioral probes were expanded to real operating points on real images (S2), lexical overlap
 matching controls (S3), and image trigger perturbations (S4). The official `facebook/sam3.1` repository
-still refuses access (HTTP 403 on 2026-11-04), but a mirror-served copy of the same upstream file
-(byte size equal to the official entry, identical sha256 across eight public mirrors) was
-obtained and compared: all 1,590 audited tensors are bit-identical to fp16(fp32 upstream) (step 15).
-The documented within-family IoU (0.8511) remains an unexplained behavioral anomaly not fully
-accounted for by general vocabulary overlap, and the official bytes themselves remain unreachable,
-so this verdict stays at strength C.
+still refuses this token (HTTP 403 on 2026-11-04), but the official file's identity was
+established without downloading through the gate: the repository's public LFS pointer object
+(git blob `88589b6b0bee708b...`) reconstructs to `sha256:0567debeec80ba4a...`, and a public copy carrying exactly
+that digest was compared against the audited bytes. All 1590 audited tensors are
+bit-identical to fp16(fp32 official upstream) (step 15). The documented within-family IoU (0.8511)
+remains an unexplained behavioral anomaly. Under the A.9 table the upstream condition for strength A
+(official file identified, every tensor matching) is now met; the strength line and the index are
+updated in S7.
 
 A phrase-keyed backdoor in this checkpoint can live in two places: the detector's language
 backbone (a CLIP-style text encoder, 49,408-token embedding, `resblocks.*`, `ln_final`; the
@@ -259,12 +261,12 @@ Record: `records/sam31_detector_operating_point.json` ->
 `groups.documented_variants.area_median`.
 
 
-## 10. The upstream comparison - retried, obtained through a mirror, and measured
+## 10. The upstream comparison - the official object identified, obtained, and measured
 
 The declared base is `facebook/sam3.1`. The first attempt could not reach the weights; the retry on
-2026-11-04 re-checked the official repository and then measured a mirror-served copy of the
-upstream file against the audited bytes. Every response and timestamp is in
-`records/sam_gated.json` -> `s6`.
+2026-11-04 re-checked the gate, pinned the official file's sha256 through the repository's public
+LFS pointer object, obtained a copy carrying that digest, and measured every tensor against the
+audited file. Every response and timestamp is in `records/sam_gated.json` -> `s6`.
 
 | attempt | response, verbatim | meaning | record |
 | :--- | :--- | :--- | :--- |
@@ -273,26 +275,31 @@ upstream file against the audited bytes. Every response and timestamp is in
 | `GET facebook/sam3.1/raw/main/README.md` | 403, same body | even the model card is behind the same gate | `records/sam_gated.json` -> `s6.official_attempts` |
 | official file metadata (tree API) | `sam3.1_multiplex.pt`, 3502755717 bytes | the official file's size is public even though its bytes are not | `records/sam_gated.json` -> `s6.official_pt_size_metadata` |
 | mirror enumeration (Hub search) | 8 public mirrors serve a `sam3.1_multiplex.pt` of exactly the official byte size, all with sha256 `0567debeec80ba4ac6369540...` | the same upstream file is served unchanged by public mirrors | `records/sam_gated.json` -> `s6.mirror_oid_consistency` |
+| official LFS pointer reconstructed | `sha1("blob 135\0" + "version https://git-lfs.github.com/spec/v1\noid sha256:0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6\nsize 3502755717\n")` = `88589b6b0bee708b57010d3ed6f413476e4be255` | the official repository's own pointer object declares **this sha256**, i.e. the compared bytes are the official object | `records/sam_gated.json` -> `s6.official_pointer_identity` |
 | download from `AEmotionStudio/sam3.1` | 3502755717 bytes, sha256 `0567debeec80ba4ac6369540...`, size equals the official entry | the obtained file is the mirror-declared upstream, byte-consistent across mirrors | `records/sam_gated.json` -> `s6.mirror_download` |
 | comparison against the audited fp16 file | 1590 of 1590 tensors matched, 1590 bit-identical to fp16(fp32 upstream), 0 differing elements, max abs difference 0.0 | no weight-level modification exists between the audited file and the fp32 upstream | `records/sam_gated.json` -> `s6.comparison` |
 
-**What the comparison establishes, stated exactly.** The upstream checkpoint is fp32
-({'torch.float32': 1590}), 1623 tensor entries. The audited file's
-1590 tensors all match after round-to-nearest fp16 conversion: 0
-differing elements out of 872,661,740, maximum absolute difference
-0.0. The 33 upstream-only entries are the
-language `text_projection` (1024, 512) float32)
-and 32 per-block `freqs_cis` RoPE buffers
-(complex64) that the loader recomputes at runtime and the repack does not store; 0
-audited tensors are absent from the upstream. The audited file is therefore a pure fp16 cast of the
-upstream weights - no tensor was edited, added, or dropped.
+**What the comparison establishes, stated exactly.** The official repository publishes, in public
+metadata, the LFS pointer object for `sam3.1_multiplex.pt`: git blob `88589b6b0bee708b57010d3ed6f413476e4be255` with a 135-byte pointer.
+Reconstructing the canonical pointer for `sha256:0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6` and `size 3502755717` yields exactly that git blob
+oid, so the official file's digest is known: `0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6`. A public copy with that digest was downloaded
+(3502755717 bytes, sha256 re-measured identical) and is fp32, 1623 tensor entries.
+The audited file's 1590 tensors all match after round-to-nearest fp16 conversion:
+0 differing elements out of 872,661,740, maximum absolute
+difference 0.0. The 33 upstream-only entries are the
+language `text_projection` and 32 per-block
+`freqs_cis` RoPE buffers (complex64) that the loader recomputes at runtime; 0
+audited tensors are absent from the upstream. The audited file is a pure fp16 cast of the official
+weights - no tensor was edited, added, or dropped.
 
-**What it does not establish.** The official repository still rejects this token, and the official
-file's LFS sha256 is masked in the public metadata that this token can read. The provenance chain is
-therefore: official declared size, eight public mirrors agreeing on one sha256, and each mirror's
-declared `base_model`. A change introduced before the mirrors copied the file cannot be excluded by
-this comparison; a change introduced by the repack is excluded, because the repack is bit-identical
-to the fp32 master after rounding.
+**What it does not establish.** The gate still blocks a direct download with this token, so the bytes
+themselves arrived through a public copy rather than from the gated endpoint; what closes that gap is
+the pointer-object identity above, which pins the digest to the official repository's own metadata.
+Because the file is a bit-exact conversion of the official object, any defect it might carry would be
+one already present in Meta's release; a defect introduced by the repacker is excluded. The
+behavioural side is unaffected by this: the within-family IoU anomaly still stands. Under the A.9
+table the upstream condition for strength A is met as of this step; the verdict line and index are
+updated in S7.
 
 The four-route pack re-check (md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md, section 15) ran entirely on local files and does not
 depend on upstream: stock `load_diffusion_model` and the node's `HSWQSAM3Loader` both apply all 41
@@ -421,13 +428,16 @@ Record: `records/sam31_image_trigger.json` -> `gate_s4_pass` (true).
 
 ### Step 15 - Upstream Comparison Retry (S6)
 
-The retry re-checked the official repository and measured a mirror-served copy of the upstream
-checkpoint against the audited file. Every request is timestamped in `records/sam_gated.json` -> `s6`.
+The retry re-checked the official repository, pinned the official file's sha256 through the
+repository's public LFS pointer object, and measured a copy carrying that digest against the audited
+file. Every request is timestamped in `records/sam_gated.json` -> `s6`.
 
 | number | measured | record | bearing |
 | :--- | :--- | :--- | :--- |
 | 403 | official weight request status | `records/sam_gated.json` -> `s6.official_weight_request_status` | the official repository still rejects this token |
 | 3502755717 | official `sam3.1_multiplex.pt` size (metadata) | `records/sam_gated.json` -> `s6.official_pt_size_metadata` | the yardstick for mirror identification |
+| 88589b6b0bee708b57010d3ed6f413476e4be255 | official LFS pointer git-blob oid (public metadata) | `records/sam_gated.json` -> `s6.official_pointer_identity.official_git_blob_oid` | pins the official sha256 without the gated download |
+| 0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6 | sha256 declared by the official pointer, equal to the downloaded file | `records/sam_gated.json` -> `s6.official_pointer_identity.pointer_sha256_declared_reconstructed` | the compared bytes are the official object |
 | 8 | public mirrors serving that exact size and one sha256 | `records/sam_gated.json` -> `s6.mirror_oid_consistency.distinct_repos` | the same file is served unchanged |
 | 3502755717 | declared download bytes (equal to the official entry) | `records/sam_gated.json` -> `s6.declared_download.declared_bytes` | size declared before the transfer |
 | 3502755717 | bytes received | `records/sam_gated.json` -> `s6.mirror_download.bytes` | transfer complete, sha256 `0567debeec80ba4ac6369540...` |
@@ -482,20 +492,13 @@ norm). Single-channel 4-D Conv additions are invisible to S1's spectral rule at 
 strength (0/3); only the auxiliary per-channel z measure responds, and S1's outlier decision
 does not consume it. Floors below 0.1%, above 100%, on other tensors, at other injection
 geometries, or under multi-tensor collusion are not measured.
-- Reference-class boundary: `facebook/sam3.1` still refuses this token (403 on weights and README,
-  re-measured 2026-11-04). A mirror-served copy of the upstream file (byte size equal to the
-  official entry, one sha256 across 8 public mirrors) was compared: all
-  1590 audited tensors are bit-identical to fp16(fp32 upstream), with
-  33 upstream-only entries (RoPE buffers and an unused `text_projection`).
-  The comparison therefore excludes a repack-level weight edit, but the official bytes served to this
-  token remain unavailable, so a defect already present before the mirrors copied the file cannot be
-  excluded; the byte-identity to Comfy-Org's distribution is a delivery check only.
-
-| number | measured | record | bearing |
-| :--- | :--- | :--- | :--- |
-| 96 | language tensors screened at rank-1 | `records/sam31_audit.json` -> `language_rank1.n` | the population the shape-A/B screen covers |
-| 0.414285 | lowest nearest-neighbour cosine, documented variants | `records/sam31_audit.json` -> `within_model_families.documented_variants.min_nn_cosine` | no family separation on the image side |
-| 0.669646 | random variants, median nearest-neighbour cosine | `records/sam31_audit.json` -> `within_model_families.random_variants.median_nn_cosine` | the control side of the same yardstick |
+- Reference-class boundary: `facebook/sam3.1` still refuses this token for a direct download
+  (403, re-measured 2026-11-04), but the official file's digest is pinned by the repository's
+  own public LFS pointer object (git blob `88589b6b0bee708b...` reconstructs to `sha256:0567debeec80ba4a...`). The
+  compared copy carries that digest and matches all 1590 audited tensors after fp16
+  rounding, so a repack-level weight edit is excluded. What remains outside this audit is anything
+  already present in the official object before distribution - no downstream comparison can exclude
+  that - and the behavioural anomaly noted above.
 - Any interval reported (Wilson 95 % etc.) is sampling uncertainty of that metric. It
   is not a probability that no backdoor exists.
 - A residual at the rounding floor is a numerical statement. That no second component
