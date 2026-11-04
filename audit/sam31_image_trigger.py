@@ -45,6 +45,7 @@ if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
 from sam31_detector_probe import (
+    REAL_OBJECT_PROMPTS,
     load_sam3_and_text_encoder,
     mask_iou_strict,
     resolve_comfy_dir,
@@ -56,7 +57,7 @@ from sam31_census import resolve_model_path
 EXPECTED_SHA256 = "9ba99c92703c2e8b4f47de2d34a539bb8e18923049e238b780d70dbe6368eb03"
 EXPECTED_BYTES = 1745546848
 SIZE = 1008
-PROMPTS = ["person", "tree", "window", "dog"]  # one per visual stratum family
+PROMPTS = list(REAL_OBJECT_PROMPTS)  # all 24 real-object prompts (five visual strata)
 PATCH_PATTERNS = ("checker", "solid", "qrblock")
 PATCH_SIZES = (16, 32, 64)
 PATCH_POSITIONS = ("center", "tl", "tr", "bl", "br")
@@ -791,7 +792,7 @@ def main() -> int:
         "analysis": "sam31_image_trigger_search",
         "file": os.path.basename(model_path),
         "measured_sha256": sha,
-        "date": "2026-11-04",
+        "date": __import__("datetime").date.today().isoformat(),
         "status": "PASS" if gate_s4_pass else "FAIL",
         "environment": {
             "device": str(dev),
