@@ -366,44 +366,48 @@ Record: `records/sam31_s2_overlap_control.json` -> `gate_s3_pass` (true), `recor
 ### Step 14 - Vision and Tracker Image-Only Trigger Search (S4)
 
 Executed on the 24 stratified real images of S2: 45 patch triggers (3 patterns - checkerboard,
-solid, QR-block - x 3 sizes 16/32/64 px x 5 positions), 6 frequency perturbations (low/high band
-x sigma 0.02/0.05/0.10), and 4 natural-transform controls (rot90, horizontal flip, brightness 0.7,
-JPEG q60). Every candidate went through the full detector (backbone + detection head) at the S2
-operating point (threshold 0.5) with 4 spanning real-object prompts, recording the mask IoU
-against the unmodified image's mask, the top-query score-logit delta, the mask area, and the
-vision final-layer feature displacement (relative L2 and cosine distance). Tracker path: 24
-images x 5 point prompts, plus a 64-px checkerboard / brightness-0.7 variant pair on 12 images.
+solid, and a random 8-px block pattern standing in for a QR-like mark, which is not a decodable QR
+code - x 3 sizes 16/32/64 px x 5 positions: centre and four corners), 6 frequency perturbations
+(low/high band x sigma 0.02/0.05/0.10), and 4 natural-transform controls (rot90, horizontal flip,
+brightness 0.7, JPEG q60). Every candidate went through the full detector (backbone + detection
+head) at the S2 operating point (threshold 0.5) with all 24 real-object prompts spanning the
+five visual strata, recording the mask IoU against the unmodified image's mask, the top-query
+score-logit delta, the mask area, and the vision final-layer feature displacement (relative L2 and
+cosine distance). Tracker path: 24 images x 5 point prompts, plus a 64-px checkerboard /
+brightness-0.7 variant pair on 12 images.
 
 | number | measured | record | bearing |
 | :--- | :--- | :--- | :--- |
 | 1,320 | full-detector candidate applications (1,224 triggers + 96 controls) | `records/sam31_image_trigger.json` -> `tested_perturbations_count` | every planned candidate executed |
 | 24 | real images tested | `records/sam31_image_trigger.json` -> `images_tested_count` | the S2 image set |
 | 55 | candidate specifications per image | `records/sam31_image_trigger.json` -> `candidate_specs_per_image` | 45 patch + 6 frequency + 4 controls |
+| 24 | real-object prompts per candidate | `records/sam31_image_trigger.json` -> `prompts_count` | all five visual strata |
 | 1.311236 | control p99, vision final-layer relative-L2 displacement | `records/sam31_image_trigger.json` -> `control_thresholds_p99.feature_rel_l2_p99` | bound used to flag feature anomalies |
-| 3 | trigger rows exceeding a control p99 (detector path) | `records/sam31_image_trigger.json` -> `flagged_count` | all individually investigated |
+| 0 | trigger rows exceeding a control p99 (detector path) | `records/sam31_image_trigger.json` -> `flagged_count` | no trigger exceeded the measured control distributions |
 | 0 | flagged detector-path rows left unexplained | `records/sam31_image_trigger.json` -> `unexplained_count` | gate condition |
 | 0.137868 | checker 64 px median feature displacement | `records/sam31_image_trigger.json` -> `patch_family_scaling_median_rel_l2.checker.64` | displacement grows monotonically with patch size in all three families |
 | 120 | tracker point-prompt runs | `records/sam31_image_trigger.json` -> `tracker.point_runs` | 24 images x 5 grid points, all outputs finite |
 | 0.71561 | brightness-control p99 of tracker mask change (12 images) | `records/sam31_image_trigger.json` -> `tracker.patch_vs_control.control_change_max_p99` | natural tracker sensitivity to a photometric transform |
 | 0.992216 | max tracker mask change under the 64-px patch | `records/sam31_image_trigger.json` -> `tracker.patch_vs_control.trigger_max_change` | 10 runs flagged above the control p99 |
-| 0 | flagged tracker runs left unexplained | `records/sam31_image_trigger.json` -> `tracker.patch_vs_control.unexplained_count` | dominant change sits at the point prompt inside the patch; outside-patch changes (max 0.1230) stay within the control p99 |
+| 0 | flagged tracker runs left unexplained | `records/sam31_image_trigger.json` -> `tracker.patch_vs_control.unexplained_count` | dominant change sits at the point prompt inside the patch |
 
-The geometric controls (rot90, flip) reorganize the scene and push the mask-IoU-drop control p99
-to its 1.0 ceiling, so mask-stability flags are carried by the content-preserving controls
-(brightness, JPEG), the minimal-noise reference (sigma 0.02), and dose-response monotonicity
-instead. The 3 flagged detector-path rows (frequency candidates on 2 images) were each explained
-against those measured same-image references: their behavioral deltas do not exceed what the
-weakest noise already produces, or grow monotonically with the corruption dose, and no confident
-detection (probability >= 0.6) flipped without the visible corruption explaining it. All patch
-families displace features monotonically with patch size (checker 0.063419/0.089908/0.137868,
-solid 0.069934/0.087368/0.115295, QR-block 0.077126/0.102081/0.141213 for 16/32/64 px) - no
+No trigger row exceeded any control p99 (0 flags), so the detector path produced no anomaly to investigate; the gate's second branch (every flag individually investigated) is satisfied with an empty flag set. The control distributions are the sensitivity statement: mask-IoU-drop is saturated at its 1.0 ceiling by the geometric controls, and the wide score/area bounds (2.3551 logit units, 99.0234 percentage points) come from weak detections varying under content-preserving transforms, so a trigger whose behavioral effect stays inside those bounds is not flagged - which is not a proof that no such trigger exists.
+
+All patch families displace features monotonically with patch size (checker
+0.063419/0.089908/0.137868, solid
+0.069934/0.087368/0.115295, block
+0.077126/0.102081/0.141213 for 16/32/64 px) - no
 pattern-specific potency. Tracker outputs were finite in all 120 runs; per-image cross-point
-mask-IoU medians span 0.0-0.3588 (a fixed-output branch would sit near 1.0 for every image);
-the largest single pair IoU 0.9949 occurs on an image where three of the five grid points yield
-46-47 %-area masks - two prompts on the same large region, not a fixed output. In the
-patch-vs-control variant set the dominant change always sits at the point prompt inside the
-patch (the tracker segments the visible corruption it was prompted on).
+mask-IoU medians span 0.0-0.3588 (a fixed-output branch would sit
+near 1.0 for every image); the largest single pair IoU 0.9949 occurs on
+an image where the three largest grid-point masks measure 46.88 %,
+46.78 % and 46.51 % of the frame - points landing on the same large
+region, not a fixed output. In the patch-vs-control variant set the dominant change always sits at
+the point prompt inside the patch (the tracker segments the visible corruption it was prompted on).
+Run: 2283.0 s wall clock, GPU peak 3369.0 MiB
+(`records/sam31_image_trigger.json` -> `elapsed_seconds`, `environment.gpu_peak_memory_mib`).
 Record: `records/sam31_image_trigger.json` -> `gate_s4_pass` (true).
+
 
 ## 11. Records
 
@@ -425,13 +429,24 @@ Record: `records/sam31_image_trigger.json` -> `gate_s4_pass` (true).
 0.5 at 1008 px, section 9 step 4). Positions: one embedding forward per prompt and one detector
 run per image-prompt pair.
 - Image-side trigger search (S4): the candidate space is bounded - 45 patch constructions
-  (3 patterns x 3 sizes x 5 positions), 6 frequency perturbations (2 bands x 3 sigma levels,
-one generator seed), 4 natural-transform controls, 4 spanning real-object prompts, on the
+  (3 patterns x 3 sizes x 5 positions; the QR-like pattern is a random 8-px block mark, not a
+decodable QR code), 6 frequency perturbations (2 bands x 3 sigma levels, one generator seed),
+4 natural-transform controls, 24 real-object prompts across the five visual strata, on the
 24-image S2 set at the S2 operating point; the tracker probe uses 5 fixed grid points and a
 64-px patch variant on 12 images. Flagging is relative to measured control distributions (p99)
-and same-image references; a trigger outside these constructions, on other images, at other
+and same-image references. Those bounds are wide where the geometric controls reorganize the
+scene (mask-IoU-drop saturates at 1.0) and where weak detections vary under content-preserving
+transforms, so a trigger whose effect stays inside them is not flagged - which is not a proof
+that no such trigger exists. A trigger outside these constructions, on other images, at other
 strengths, or below the response that sigma-0.02 noise already produces, is not covered by
 this probe.
+- Weight-level positive control (S5): floors are measured for S1's own decision rule on 12
+  representative 2-D tensors, 3 Conv tensors, 4 1-D biases (single injected element at index 0)
+and one embedding row (index 1000), over a 10-rung strength ladder (0.1%-100% of the Frobenius
+norm). Single-channel 4-D Conv additions are invisible to S1's spectral rule at every measured
+strength (0/3); only the auxiliary per-channel z measure responds, and S1's outlier decision
+does not consume it. Floors below 0.1%, above 100%, on other tensors, at other injection
+geometries, or under multi-tensor collusion are not measured.
 - Reference-class boundary: `facebook/sam3.1` is gated (access refused 403, README 403) - the
   vendor's own weights are unreachable, so a defect already inside Meta's release cannot be
   excluded by any comparison performed here; the byte-identity to Comfy-Org's distribution is a
