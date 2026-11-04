@@ -404,6 +404,18 @@
       ],
       "distinct_repos": 8,
       "all_same_sha256": true
+    },
+    "official_pointer_identity": {
+      "checked_utc": "2026-11-04T09:48:40+00:00",
+      "official_git_blob_oid": "88589b6b0bee708b57010d3ed6f413476e4be255",
+      "pointer_size_bytes_from_hub": 135,
+      "pointer_size_bytes_reconstructed": 135,
+      "pointer_sha256_declared_reconstructed": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6",
+      "pointer_size_declared_reconstructed": 3502755717,
+      "reconstructed_git_blob_oid": "88589b6b0bee708b57010d3ed6f413476e4be255",
+      "match": true,
+      "reconstruction": "sha1(b\"blob <len>\\0\" + \"version https://git-lfs.github.com/spec/v1\\noid sha256:<sha256>\\nsize <bytes>\\n\")",
+      "conclusion": "the official repository LFS pointer object encodes sha256 0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6; that is the digest of the downloaded file, so the compared weights are the official object, not merely a mirror copy"
     }
   }
 }
