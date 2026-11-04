@@ -44,13 +44,6 @@ python audit/run_all_gates.py
 | 8 (independent recomputation) | `sae_independent.py` | `--base <dir> --candidate <f> --trigger-json <f> [--json <o>]` |
 | 9 (every figure traced to a record) | `check_cites.py` | `<report.md> --root <dir>` |
 | 12.3 (candidate line from the documented rule) | `make_limits.py` | `--trigger-json <f> [--behaviour-prompts N]` |
-| 12c S0 | `sam31_census.py` | `--model <f> [--out <o>]` |
-| 12c S5 | `sam31_weight_positive_control.py` | `--model <f> [--out <o>]` |
-| 12c S1 | `sam31_weight_screen.py` | `--model <f> --positive-control <r> [--out <o>]` |
-| 12c S2 | `sam31_operating_real.py` | `--model <f> [--trigger-json <r>] [--comfy-dir <d>] [--images-dir <d>] [--out <o>]` |
-| 12c S3 | `sam31_vocabulary_overlap_control.py` | `--model <f> --trigger-json <r> --images-dir <d> --comfy-dir <d> [--threshold <t>] [--out <o>]` |
-| 12c S4 | `sam31_image_trigger.py` | `--model <f> [--comfy-dir <d>] [--images-dir <d>] [--out <o>]` |
-| 12c S6 | `sam31_upstream_retry.py` | `--local <f> --work-dir <d> [--token-file <f>] [--mirror-repo <r>] [--out <o>]` |
 | Gate F | `procedure_check.py` | no arguments; must print `PROCEDURE CHECK: PASS` |
 | any | `selftest.py` | no arguments; must print `N/N passed` |
 
@@ -58,13 +51,13 @@ python audit/run_all_gates.py
 
 | step | tool | command |
 | :--- | :--- | :--- |
-| S0 | `sam31_census.py` | `--model <f> [--out <o>]` |
-| S5 | `sam31_weight_positive_control.py` | `--model <f> [--out <o>]` |
+| S0 | `sam31_census.py` / `sam31_source_keys.py` | `--model <f> [--out <o>]` |
+| S5 | `sam31_weight_positive_control.py` / `sam31_positive_control.py` | `--model <f> [--out <o>]` |
 | S1 | `sam31_weight_screen.py` | `--model <f> --positive-control <r> [--out <o>]` |
-| S2 | `sam31_operating_real.py` | `--model <f> [--trigger-json <r>] [--comfy-dir <d>] [--images-dir <d>] [--out <o>]` |
+| S2 | `sam31_operating_real.py` / `sam31_detector_operating_point.py` | `--model <f> [--trigger-json <r>] [--comfy-dir <d>] [--images-dir <d>] [--out <o>]` |
 | S3 | `sam31_vocabulary_overlap_control.py` | `--model <f> --trigger-json <r> --images-dir <d> --comfy-dir <d> [--threshold <t>] [--out <o>]` |
 | S4 | `sam31_image_trigger.py` | `--model <f> [--comfy-dir <d>] [--images-dir <d>] [--out <o>]` |
-| S6 | `sam31_upstream_retry.py` | `--local <f> --work-dir <d> [--token-file <f>] [--mirror-repo <r>] [--out <o>]` |
+| S6 | `sam31_upstream_retry.py` / `sam31_pack_execution.py` | `--local <f> --work-dir <d> [--token-file <f>] [--mirror-repo <r>] [--out <o>]` |
 
 ## The three self-tests, and what each one proves
 

@@ -18,6 +18,7 @@
  "pack": {
   "file": "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors",
   "bytes": 687044151,
+  "sha256": "40bb0c7f8862ee3ac4a5f345120ce5f23e1dff15fff020d57f00fae8a9736d9c",
   "tensors": 624,
   "int8": 157,
   "heads": {
