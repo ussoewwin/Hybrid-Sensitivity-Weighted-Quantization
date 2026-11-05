@@ -1009,6 +1009,7 @@ table is only for spotting an implausible number.
 
 | Tool | Phase | Command |
 | :--- | :--- | :--- |
+| `controlnet_pack_audit.py` | 14.5 ControlNet pack | `--source <f> --pack <f> --comfy <d> [--json <o>] [--device cpu\|cuda]` |
 | `sam31_census.py` | 12c S0 | `--model <f> [--out <o>]` |
 | `sam31_weight_positive_control.py` | 12c S5 | `--model <f> [--out <o>]` |
 | `sam31_weight_screen.py` | 12c S1 | `--model <f> --positive-control <r> [--out <o>]` |
