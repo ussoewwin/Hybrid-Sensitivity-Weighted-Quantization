@@ -94,6 +94,36 @@ def runtime_state_dict(source_path, comfy_path):
     return cnet.control_model.state_dict()
 
 
+def loader_drop(pack_path, comfy_path):
+    """Build the ControlNet the way the loader does and report what it keeps.
+
+    Name-based detection decides the class: a union ControlNet is recognised only when the file
+    carries the diffusers key controlnet_cond_embedding.conv_in.weight. A pack written under
+    runtime names does not, so it is built as a plain ControlNet and the union block is dropped.
+    This measures that outcome instead of assuming it.
+    """
+    comfy = os.path.abspath(comfy_path)
+    if comfy not in sys.path:
+        sys.path.insert(0, comfy)
+    cwd = os.getcwd()
+    try:
+        os.chdir(comfy)
+        import folder_paths  # noqa: E402
+        import comfy.controlnet as cc  # noqa: E402
+        folder_paths.add_model_folder_path("controlnet", os.path.dirname(os.path.abspath(pack_path)))
+        cnet = cc.load_controlnet(os.path.abspath(pack_path), model=None)
+        cm = cnet.control_model
+        rt = set(cm.state_dict())
+        hdr, _ = read_header(pack_path)
+        logical = {k for k in hdr if not k.endswith((".weight_scale", ".comfy_quant"))}
+        dropped = sorted(logical - rt)
+        return {"class": type(cm).__name__, "runtime_tensors": len(rt),
+                "pack_tensors": len(logical), "dropped_count": len(dropped),
+                "dropped": dropped[:40]}
+    finally:
+        os.chdir(cwd)
+
+
 def main():
     ap = argparse.ArgumentParser(description="ControlNet ConvRot INT8 pack audit")
     ap.add_argument("--source", required=True, help="the float source checkpoint (published)")
@@ -102,6 +132,8 @@ def main():
                     help="ComfyUI root (or set COMFY_PATH); the runtime naming comes from it")
     ap.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
     ap.add_argument("--json", default="", help="record path")
+    ap.add_argument("--loader-drop", action="store_true",
+                    help="also build the pack the way the loader does and report dropped tensors")
     args = ap.parse_args()
 
     if not args.comfy or not os.path.isdir(args.comfy):
@@ -218,6 +250,7 @@ def main():
                       "n_layers_with_difference": len(layer_rows)},
         "float_side": {"checked": float_checked, "mismatch_count": float_mismatch,
                        "max_abs_diff": float_max_abs},
+        "loader_route": (loader_drop(args.pack, args.comfy) if args.loader_drop else None),
         "verdict": verdict,
         "environment": {"device": str(dev), "comfy": os.path.basename(os.path.abspath(args.comfy))},
         "elapsed_seconds": round(__import__("time").time() - t_start, 2),

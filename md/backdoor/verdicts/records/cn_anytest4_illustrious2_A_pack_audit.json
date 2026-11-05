@@ -50,10 +50,17 @@
     "mismatch_count": 0,
     "max_abs_diff": 0.0
   },
+  "loader_route": {
+    "class": "ControlNet",
+    "runtime_tensors": 844,
+    "pack_tensors": 844,
+    "dropped_count": 0,
+    "dropped": []
+  },
   "verdict": "FAITHFUL",
   "environment": {
     "device": "cpu",
     "comfy": "ComfyUI"
   },
-  "elapsed_seconds": 15.77
+  "elapsed_seconds": 14.79
 }
