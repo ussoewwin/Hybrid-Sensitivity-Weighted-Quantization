@@ -78,3 +78,5 @@ stored as `records/selftest_run_<date>.json`.
 | `check_cites.py` | every number in a report resolves to a record, at the precision it is written |
 | `report_check.py` | each verdict report carries its required sections and passes its citations |
 | `run_all_gates.py` | runs the three above plus the self-tests and the markdown lint in one command |
+
+| 14.5 | `controlnet_pack_audit.py` | `--source <f> --pack <f> --comfy <d> [--json <o>] [--device cpu|cuda]` |

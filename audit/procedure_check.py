@@ -53,6 +53,7 @@ REQUIRED_TOOLS = [
     "sam31_census.py", "sam31_weight_positive_control.py", "sam31_weight_screen.py",
     "sam31_operating_real.py", "sam31_vocabulary_overlap_control.py",
     "sam31_image_trigger.py", "sam31_upstream_retry.py",
+    "controlnet_pack_audit.py",
 ]
 REQUIRED_SECTIONS = ["## 12c. SAM3.1 extension - the required lines of an S0-S6 verdict"]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",
