@@ -104,6 +104,8 @@
     ]
   ],
   "error": null,
+  "output_nan_count": 0,
+  "output_inf_count": 0,
   "output_tensors": 19,
   "verdict": "INT8 kernel executed, output finite"
 }

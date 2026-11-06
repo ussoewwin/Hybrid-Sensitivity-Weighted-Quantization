@@ -8,6 +8,8 @@
   "int8_modules": 54,
   "float_modules": 45,
   "applied_layers": 54,
+  "raw_code_layers": 0,
+  "raw_code_names": [],
   "declared_not_applied": 0,
   "declared_not_applied_names": [],
   "int8_not_declared": 0,

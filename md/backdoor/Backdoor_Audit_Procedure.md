@@ -820,7 +820,8 @@ builds, the declared layers, the layers that end up carrying an INT8 weight, and
 layer that has no module to attach to.
 udit/controlnet_int8_exec.py --pack <pack> --comfy <ComfyUI root> --json <out> then runs one
 forward on that route and records the INT8 kernel call count beside the output's finiteness; a
-route that claims an INT8 kernel must show a non-zero count and a finite output.
+route that claims an INT8 kernel must show a non-zero count, a zero raw-code layer count and a
+finite output with NaN and Inf counted explicitly.
  A stock `ControlNetLoader` result is not this measurement.
 
 The load must be the one the card names. `pack_load_path.py` therefore arms the loader node's

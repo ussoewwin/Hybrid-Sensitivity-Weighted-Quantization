@@ -131,7 +131,11 @@ def main() -> int:
 
         tensors = []
         collect(out, tensors)
-        finite = all(bool(torch.isfinite(o).all()) for o in tensors) if tensors else False
+        nan_total = sum(int(torch.isnan(o).sum()) for o in tensors)
+        inf_total = sum(int(torch.isinf(o).sum()) for o in tensors)
+        finite = bool(tensors) and nan_total == 0 and inf_total == 0
+        rec["output_nan_count"] = nan_total
+        rec["output_inf_count"] = inf_total
         shape = [list(o.shape) for o in tensors]
         rec["output_tensors"] = len(tensors)
         rec["output_finite"] = finite

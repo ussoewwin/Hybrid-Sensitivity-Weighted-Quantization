@@ -56,6 +56,8 @@ hooks describes a state no user reaches. The numbers below are from the named ro
 | 325 | layers the node applied as INT8 | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `applied_layers` | most of the declared edit executes |
 | 3 | declared layers with no module on this route | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `declared_not_applied` | `control_add_embedding.linear_1`, `control_add_embedding.linear_2` and `transformer_layes.0.mlp.c_proj` are not built |
 | 0 | INT8 weights that the pack does not declare | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
+| 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
+| 0 | NaN and 0 Inf counted across every output tensor | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `output_nan_count` | the executed path is clean by count, not merely by an all() check |
 | ControlNet | class the node builds | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `class` | the union components are not part of the built graph |
 | 325 | INT8 GEMM calls during one forward | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 10 | output tensors returned by that forward, every one finite | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
@@ -105,5 +107,10 @@ fidelity, and none is implied.
 
 - `records/controlnet_union_promax_sdxl_pack_audit.json` - identity, runtime coverage, quantisation
   replay, float-side comparison, verdict.
-- `records/controlnet_union_promax_sdxl_loadpath.json` - the loader route: declared, applied and
-  unmatched layer counts, and the route verdict.
+- `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` - the loader route the card names:
+  class, declared and applied layer counts, the three layers with no module.
+- `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` - one forward on that route: INT8 GEMM
+  call count, output tensors, finiteness.
+- `records/controlnet_union_promax_sdxl_loadpath.json` - the stock `ControlNetLoader` route, kept for
+  completeness; it is not the route the card names and no verdict rests on it.
+- `records/controlnet_inputs_reverified_2026-11-06.json` - the SHA256 re-verification of every input.

@@ -28,6 +28,8 @@ import os
 import struct
 import sys
 
+import torch
+
 
 def declared_layers(pack_path: str):
     with open(pack_path, "rb") as f:
@@ -79,7 +81,7 @@ def measure(pack_path: str, comfy_root: str, loader_root: str):
     (net,) = node.HSWQControlNetLoader().load_controlnet(name)
 
     cm = net.control_model
-    int8, float_mods = [], []
+    int8, float_mods, raw_code = [], [], []
     for mod_name, m in cm.named_modules():
         w = getattr(m, "weight", None)
         if w is None or not hasattr(w, "is_floating_point"):
@@ -88,8 +90,12 @@ def measure(pack_path: str, comfy_root: str, loader_root: str):
             int8.append(mod_name)
         elif w.is_floating_point():
             float_mods.append(mod_name)
+        if isinstance(w, torch.nn.Parameter) and w.dtype == torch.int8:
+            # an int8 parameter the graph reads as data: the codes are copied, not executed
+            raw_code.append(mod_name)
 
-    missing = sorted(set(declared) - set(int8))
+    raw_declared = sorted(set(declared) & set(raw_code))
+    missing = sorted(set(declared) - set(int8) - set(raw_declared))
     extra = sorted(set(int8) - set(declared))
     return {
         "pack": name,
@@ -101,11 +107,14 @@ def measure(pack_path: str, comfy_root: str, loader_root: str):
         "int8_modules": len(int8),
         "float_modules": len(float_mods),
         "applied_layers": len(int8),
+        "raw_code_layers": len(raw_declared),
+        "raw_code_names": raw_declared,
         "declared_not_applied": len(missing),
         "declared_not_applied_names": missing,
         "int8_not_declared": len(extra),
         "int8_not_declared_names": extra,
-        "verdict": "applies" if not missing else "partially applies",
+        "verdict": ("applies" if (not missing and not raw_declared)
+                    else "partially applies"),
     }
 
 
@@ -122,6 +131,8 @@ def main() -> int:
     print("%s | class %s | declared %d | INT8 %d | not applied %d"
           % (rec["pack"], rec["class"], rec["declared_layers"],
              rec["applied_layers"], rec["declared_not_applied"]))
+    if rec.get("raw_code_layers"):
+        print("   raw int8 codes (not executed as INT8):", rec["raw_code_layers"])
     if rec["declared_not_applied"]:
         for n in rec["declared_not_applied_names"]:
             print("   not applied:", n)
