@@ -55,7 +55,7 @@ honours that per-layer group. The other 76 layers use group 256.
 | QwenImageFunControlNetModel | class the node builds | `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` -> `class` | the file is recognised as the Qwen Fun ControlNet it is |
 | 77 | INT8 GEMM calls during one forward | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 5 | output tensors returned by that forward, every one finite | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
-| 10 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
+| 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 
 ## 5. Conclusion
 
