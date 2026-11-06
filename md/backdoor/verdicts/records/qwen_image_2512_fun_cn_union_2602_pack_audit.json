@@ -1,0 +1,61 @@
+{
+  "tool": "controlnet_pack_audit.py",
+  "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
+  "source": {
+    "file": "qwen_image_2512_fun_cn_union_2602.safetensors",
+    "bytes": 3512432536,
+    "sha256": "0d1ac366efaa27dec070b3a8ebe9a41b5ebc567913dee71ed992e7032f66dc37"
+  },
+  "pack": {
+    "file": "Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8.safetensors",
+    "bytes": 1758670069,
+    "sha256": "5aec39a53f583bade3b7db18f38ed5a01905a0610c2ad2f9f792802178596bc4"
+  },
+  "declared": {
+    "layers": 77,
+    "formats": [
+      "int8_tensorwise"
+    ],
+    "convrot": [
+      "True"
+    ],
+    "groupsizes": [
+      4,
+      256
+    ]
+  },
+  "runtime_tensors": 174,
+  "pack_tensors": 174,
+  "coverage": {
+    "missing_from_pack": [],
+    "n_missing": 0,
+    "extra_in_pack": [],
+    "n_extra": 0,
+    "shape_mismatch": [],
+    "n_shape_mismatch": 0
+  },
+  "quantised": {
+    "found": 77,
+    "declared": 77,
+    "undeclared_found": [],
+    "declared_not_found": [],
+    "q_mismatch_total": 0,
+    "max_q_delta": 0,
+    "scale_exact_rel_max": 0.0,
+    "nonfinite_scales": 0,
+    "layers_with_any_difference": [],
+    "n_layers_with_difference": 0
+  },
+  "float_side": {
+    "checked": 97,
+    "mismatch_count": 0,
+    "max_abs_diff": 0.0
+  },
+  "loader_route": null,
+  "verdict": "FAITHFUL",
+  "environment": {
+    "device": "cpu",
+    "comfy": "ComfyUI"
+  },
+  "elapsed_seconds": 19.89
+}

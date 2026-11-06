@@ -59,7 +59,7 @@ hooks describes a state no user reaches. The numbers below are from the named ro
 | ControlNet | class the node builds | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `class` | the union components are not part of the built graph |
 | 325 | INT8 GEMM calls during one forward | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 10 | output tensors returned by that forward, every one finite | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
-| 8 | inputs (four packs, four sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
+| 10 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 
 **What the three unapplied layers mean, and what they do not.** They are the union block. The pack
 carries them under runtime names, and `comfy.controlnet.load_controlnet_state_dict` selects the union

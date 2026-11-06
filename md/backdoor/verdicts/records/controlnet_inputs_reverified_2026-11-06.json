@@ -65,9 +65,25 @@
       "sha256": "9d03f63f36206bab2f36aed5cfedc8693c2881397534e9d5f9ae9a0a41362517",
       "expected": "9d03f63f36206bab2f36aed5cfedc8693c2881397534e9d5f9ae9a0a41362517",
       "match": true
+    },
+    {
+      "role": "pack",
+      "file": "Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8.safetensors",
+      "bytes": 1758670069,
+      "sha256": "5aec39a53f583bade3b7db18f38ed5a01905a0610c2ad2f9f792802178596bc4",
+      "expected": "5aec39a53f583bade3b7db18f38ed5a01905a0610c2ad2f9f792802178596bc4",
+      "match": true
+    },
+    {
+      "role": "source",
+      "file": "qwen_image_2512_fun_cn_union_2602.safetensors",
+      "bytes": 3512432536,
+      "sha256": "0d1ac366efaa27dec070b3a8ebe9a41b5ebc567913dee71ed992e7032f66dc37",
+      "expected": "0d1ac366efaa27dec070b3a8ebe9a41b5ebc567913dee71ed992e7032f66dc37",
+      "match": true
     }
   ],
   "all_match": true,
-  "files_checked": 8,
-  "matched": 8
+  "files_checked": 10,
+  "matched": 10
 }

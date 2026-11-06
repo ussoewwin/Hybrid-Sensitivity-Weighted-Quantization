@@ -186,7 +186,9 @@ def main():
         for key in int8_keys:
             mod = key[: -len(".weight")]
             w = rt[key].to(dev).float()
-            q_ref, s_ref = quant_rowwise(rotate_weight(w, h.to(dev), 256))
+            gs = int(declared.get(mod, {}).get("convrot_groupsize") or 256)
+            hh = h if gs == 256 else build_hadamard(gs)
+            q_ref, s_ref = quant_rowwise(rotate_weight(w, hh.to(dev), gs))
             q_pack = f.get_tensor(key).to(dev).to(torch.int8)
             s_pack = f.get_tensor(mod + ".weight_scale").to(dev).float()
             if not torch.isfinite(s_pack).all():
