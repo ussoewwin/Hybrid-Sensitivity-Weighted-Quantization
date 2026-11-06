@@ -1,0 +1,76 @@
+{
+  "pack": "noobaiXLControlnet_epsLineartRealistic_convrot_int8.safetensors",
+  "class": "ControlNet",
+  "device": "cuda",
+  "dtype": "torch.bfloat16",
+  "int8_gemm_patch": false,
+  "int8_linear_calls": 362,
+  "output_finite": true,
+  "output_shape": [
+    [
+      1,
+      1280,
+      16,
+      16
+    ],
+    [
+      1,
+      320,
+      64,
+      64
+    ],
+    [
+      1,
+      320,
+      64,
+      64
+    ],
+    [
+      1,
+      320,
+      64,
+      64
+    ],
+    [
+      1,
+      320,
+      32,
+      32
+    ],
+    [
+      1,
+      640,
+      32,
+      32
+    ],
+    [
+      1,
+      640,
+      32,
+      32
+    ],
+    [
+      1,
+      640,
+      16,
+      16
+    ],
+    [
+      1,
+      1280,
+      16,
+      16
+    ],
+    [
+      1,
+      1280,
+      16,
+      16
+    ]
+  ],
+  "error": null,
+  "output_nan_count": 0,
+  "output_inf_count": 0,
+  "output_tensors": 10,
+  "verdict": "INT8 kernel executed, output finite"
+}
