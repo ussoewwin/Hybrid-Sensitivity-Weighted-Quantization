@@ -813,6 +813,16 @@ Where the route claims an INT8 kernel, the kernel counter must also be non-zero 
 forwards (`gemm_after_forwards.int8_linear_calls`); a correct weight that is dequantised for
 every matmul is a storage saving, not a speed claim, and the card may not phrase it as one.
 
+For ControlNet packs the route is the package's HSWQ ControlNet Loader node:
+`audit/controlnet_hswq_route.py --pack <pack>
+--comfy <ComfyUI root> --json <out>` loads the pack through that node and records the class it
+builds, the declared layers, the layers that end up carrying an INT8 weight, and every declared
+layer that has no module to attach to.
+udit/controlnet_int8_exec.py --pack <pack> --comfy <ComfyUI root> --json <out> then runs one
+forward on that route and records the INT8 kernel call count beside the output's finiteness; a
+route that claims an INT8 kernel must show a non-zero count and a finite output.
+ A stock `ControlNetLoader` result is not this measurement.
+
 The load must be the one the card names. `pack_load_path.py` therefore arms the loader node's
 prestartup hook (`prestartup_script`) before importing it, and for diffusion packs it calls the
 node's own INT8 entry (`load_unet_hswq_weight_dtype`), recording which implementation ran in
@@ -1009,6 +1019,7 @@ table is only for spotting an implausible number.
 
 | Tool | Phase | Command |
 | :--- | :--- | :--- |
+| `controlnet_hswq_route.py` | 12b ControlNet route | `--pack <f> --comfy <d> [--loader-root <d>] [--json <o>]` |
 | `controlnet_pack_audit.py` | 14.5 ControlNet pack | `--source <f> --pack <f> --comfy <d> [--json <o>] [--device cpu\|cuda]` |
 | `sam31_census.py` | 12c S0 | `--model <f> [--out <o>]` |
 | `sam31_weight_positive_control.py` | 12c S5 | `--model <f> [--out <o>]` |
@@ -1086,3 +1097,4 @@ A model card is a public surface, and a successful API call is not evidence that
 4. Treat "empty or missing yaml metadata in repo card" during a card upload as a payload error.
 
 Incident that produced these rules: `md/Incident_ModelCard_PathString_Upload_2026-10-28.md`.
+| controlnet_int8_exec.py | 12b ControlNet execution | --pack <f> --comfy <d> [--json <o>] |

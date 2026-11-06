@@ -4,10 +4,11 @@
 
 **Class.** Pack (§14.5): a weight-only ConvRot INT8 re-quantization of
 `diffusion_pytorch_model.safetensors` from `Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0`.
-The arithmetic is closed against the publisher's release. **The pack does not load**: the stock
-loader refuses the file ("controlnet file is invalid and does not contain a valid controlnet
-model"), while the float source loads as `ControlNetFlux`. Section 4 measures this and section 4.1
-states the cause. The verdict below is the weight-level one.
+The arithmetic is closed against the publisher's release, and the pack loads on the route its
+card names: the HSWQ ControlNet Loader node builds `ControlNetFlux` and applies all 54 declared
+layers. The stock `ControlNetLoader` refuses the file because it has no detection branch for the
+comfy-native layout; an earlier version of this report presented that refusal as a property of
+the pack, and that claim is withdrawn in section 4.
 
 ## 1. Identity
 
@@ -43,33 +44,28 @@ so the comparison is made there.
 | 0.0 | largest relative scale difference | `records/flux_controlnet_union_pro2_pack_audit.json` -> `quantised.scale_exact_rel_max` | the scales are the replay's own values |
 | 0 | float tensors differing, of 120 checked, compared in bfloat16 | `records/flux_controlnet_union_pro2_pack_audit.json` -> `float_side.mismatch_count` | the unquantised side is the source's tensors, bit for bit |
 
-## 4. The loader route: the pack is refused
+## 4. The declared edit executes on the loader the card names
+
+The card names the HSWQ ControlNet Loader node (`nodes/hswq_load_convrot_int8_controlnet.py`). That
+node detects the comfy-native FLUX ControlNet layout and builds `ControlNetFlux` directly, because
+`comfy.controlnet.load_controlnet_state_dict` has no branch for that layout. An earlier version of this
+report measured the pack with the stock `ControlNetLoader`, which raises
+"controlnet file is invalid", and concluded that the pack **does not load**; **that claim is withdrawn**
+as a statement about the pack. Gate 8 requires the route the card names.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 0 | tensors in the model the loader builds for this pack | `records/flux_controlnet_union_pro2_pack_audit.json` -> `loader_route.runtime_tensors` | no model is built at all |
+| 54 | declared layers, and layers the node applied as INT8 | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_route.json` -> `applied_layers` | every declared layer takes the INT8 path |
+| 0 | declared layers with no module on this route | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_route.json` -> `declared_not_applied` | nothing is silently skipped |
+| 0 | INT8 weights that the pack does not declare | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
+| ControlNetFlux | class the node builds | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_route.json` -> `class` | the file is recognised as the FLUX ControlNet it is |
+| 54 | INT8 GEMM calls during one forward | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
+| 19 | output tensors returned by that forward, every one finite | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
+| 8 | inputs (four packs, four sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 
-The stock node raises, verbatim:
-
-```text
-RuntimeError: ERROR: controlnet file is invalid and does not contain a valid controlnet model.
-```
-
-(`nodes.py`, `ControlNetLoader.load_controlnet`, on this file.) The same call on the float source
-returns a `ControlNetFlux` object.
-
-### 4.1 Why: the detection marker is renamed away
-
-`comfy.controlnet.load_controlnet_state_dict` chooses the FLUX branch on the presence of
-`controlnet_x_embedder.weight`, and that same function then renames the tensor to `img_in.weight`
-in the graph it builds. The pack is written from that graph, so it carries `img_in.weight` and has
-no `controlnet_x_embedder.weight`; loading the pack therefore matches no FLUX branch, falls through
-to the `zero_convs` paths, and ends in `load_t2i_adapter`, which returns `None` - reported by the
-node as an invalid controlnet file.
-
-This is a property of the pack as published, not of the source: the float file carries the marker
-and loads. It does not change the weight-level verdict - the pack still contains exactly the source
-quantised - but the file cannot be used through the loader its card names.
+The stock loader's refusal remains a true statement about that loader: it has no detection branch for
+this layout. It is not a statement about the pack. Recorded in `records/flux_controlnet_union_pro2_pack_audit.json`
+-> `loader_route` as the stock route's outcome, kept for the record and not used as a verdict.
 
 ## 5. Conclusion
 
@@ -78,8 +74,9 @@ quantised - but the file cannot be used through the loader its card names.
 - **Added material:** nothing was added; every pack tensor equals the source under the converter's
   own quantisation, and the float side is bit-identical in bfloat16.
 - **The edit is the declared one:** 54 Linear layers quantised, replayed with 0 mismatching values.
-- **What this does not say:** the pack does not load (section 4). "No backdoor" is a statement about
-  added material, not about whether the file is usable.
+- **What this does not say:** the stock `ControlNetLoader` has no detection branch for this layout
+  and refuses the file; on the route the card names the node builds `ControlNetFlux` and applies
+  all 54 declared layers. "No backdoor" is a statement about added material.
 
 ## LIMITS
 

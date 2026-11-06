@@ -1,0 +1,109 @@
+{
+  "pack": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors",
+  "class": "ControlNetFlux",
+  "device": "cuda",
+  "dtype": "torch.bfloat16",
+  "int8_gemm_patch": false,
+  "int8_linear_calls": 54,
+  "output_finite": true,
+  "output_shape": [
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ]
+  ],
+  "error": null,
+  "output_tensors": 19,
+  "verdict": "INT8 kernel executed, output finite"
+}

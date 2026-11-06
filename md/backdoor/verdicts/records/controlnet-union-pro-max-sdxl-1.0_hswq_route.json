@@ -1,0 +1,20 @@
+{
+  "pack": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
+  "pack_bytes": 1435255008,
+  "class": "ControlNet",
+  "pack_tensors": 1519,
+  "runtime_tensors": 1494,
+  "declared_layers": 328,
+  "int8_modules": 325,
+  "float_modules": 199,
+  "applied_layers": 325,
+  "declared_not_applied": 3,
+  "declared_not_applied_names": [
+    "control_add_embedding.linear_1",
+    "control_add_embedding.linear_2",
+    "transformer_layes.0.mlp.c_proj"
+  ],
+  "int8_not_declared": 0,
+  "int8_not_declared_names": [],
+  "verdict": "partially applies"
+}

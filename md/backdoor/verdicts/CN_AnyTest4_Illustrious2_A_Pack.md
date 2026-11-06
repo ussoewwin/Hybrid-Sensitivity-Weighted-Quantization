@@ -49,14 +49,22 @@ would mean the pack carries values the source does not produce.
 | 0 | float tensors that differ from the source, of 518 checked | `records/cn_anytest4_illustrious2_A_pack_audit.json` -> `float_side.mismatch_count` | the unquantised side is the source's tensors, bit for bit |
 | 256 | ConvRot group size the pack declares | `records/cn_anytest4_illustrious2_A_pack_audit.json` -> `declared.groupsizes` | the fused kernel's own group size, so the rotation is the one that executes |
 
-## 4. The declared edit executes on the loader
+## 4. The declared edit executes on the loader the card names
+
+The card names the HSWQ ControlNet Loader node (`nodes/hswq_load_convrot_int8_controlnet.py`), which
+builds the graph with `MixedPrecisionOps` over `int8_tensorwise` so that the INT8 weights stay
+INT8. That node is the route measured here; the stock `ControlNetLoader` is a different route and its
+behaviour is not evidence about this pack.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 326 | declared layers judged on the ControlNet route | `records/cn_anytest4_illustrious2_A_loadpath.json` -> `declared_layers` | the pack is loaded the way its card says it is |
-| 326 | layers the loader applied as INT8 | `records/cn_anytest4_illustrious2_A_loadpath.json` -> `applied_layers` | every declared layer takes the INT8 path |
-| 0 | layers left as raw int8 codes (not executed as INT8) | `records/cn_anytest4_illustrious2_A_loadpath.json` -> `raw_code_layers` | no tensor falls through to the bare-code path that produces NaN |
-| 0 | declared layers with no module on this route | `records/cn_anytest4_illustrious2_A_loadpath.json` -> `unmatched_layers` | nothing is silently ignored |
+| 326 | declared layers, and layers the node applied as INT8 | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `applied_layers` | every declared layer takes the INT8 path |
+| 0 | declared layers with no module on this route | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `declared_not_applied` | nothing is silently skipped |
+| 0 | INT8 weights that the pack does not declare | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
+| ControlNet | class the node builds | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `class` | the file is recognised as the model the card describes |
+| 326 | INT8 GEMM calls during one forward | `records/cn_anytest4_illustrious2_A_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
+| 10 | output tensors returned by that forward, every one finite | `records/cn_anytest4_illustrious2_A_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
+| 8 | inputs (four packs, four sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 
 ## 5. Conclusion
 

@@ -1,0 +1,73 @@
+{
+  "analysis": "controlnet_inputs_reverified",
+  "date": "2026-11-06",
+  "files": [
+    {
+      "role": "pack",
+      "file": "CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors",
+      "bytes": 1425109714,
+      "sha256": "be9ff80b2f4895684c7114afff12220394f838179b5c82eadd8ebc46f5d82c25",
+      "expected": "be9ff80b2f4895684c7114afff12220394f838179b5c82eadd8ebc46f5d82c25",
+      "match": true
+    },
+    {
+      "role": "source",
+      "file": "CN-anytest4_illustrious2_A.safetensors",
+      "bytes": 2502139104,
+      "sha256": "e069d496cc111740716b833238d9bea9cdd59f8623aa85a78d362d088b1f67b8",
+      "expected": "e069d496cc111740716b833238d9bea9cdd59f8623aa85a78d362d088b1f67b8",
+      "match": true
+    },
+    {
+      "role": "pack",
+      "file": "CN-anytest4_illustrious2_B_hswq_convrot_int8.safetensors",
+      "bytes": 1423476797,
+      "sha256": "7e34dc3cc3334afa2b9fe5461131a1f61e289a83b1a11413d6c687e94b9dde6e",
+      "expected": "7e34dc3cc3334afa2b9fe5461131a1f61e289a83b1a11413d6c687e94b9dde6e",
+      "match": true
+    },
+    {
+      "role": "source",
+      "file": "CN-anytest4_illustrious2_B.safetensors",
+      "bytes": 2502139968,
+      "sha256": "fd5781276e8a0d213bcf2ee6edf7fefeb68be5c58219a3d0bfb7b8e88bf33a40",
+      "expected": "fd5781276e8a0d213bcf2ee6edf7fefeb68be5c58219a3d0bfb7b8e88bf33a40",
+      "match": true
+    },
+    {
+      "role": "pack",
+      "file": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
+      "bytes": 1435255008,
+      "sha256": "dcdf6f2037205c4a40b1f8863a91827ca3a5b55ec3261e07bb13d2dc855b47fb",
+      "expected": "dcdf6f2037205c4a40b1f8863a91827ca3a5b55ec3261e07bb13d2dc855b47fb",
+      "match": true
+    },
+    {
+      "role": "source",
+      "file": "controlnet-union-sdxl-1.0_promax.safetensors",
+      "bytes": 2513342408,
+      "sha256": "9fae2e50cb431bfcbe05822b59ec2228df545ef27f711dea8949e9f4ed9f7cdc",
+      "expected": "9fae2e50cb431bfcbe05822b59ec2228df545ef27f711dea8949e9f4ed9f7cdc",
+      "match": true
+    },
+    {
+      "role": "pack",
+      "file": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors",
+      "bytes": 2710624994,
+      "sha256": "fbcba3c76a221fba461c83680f682d3ff7aa813ef554c42e3a5449b981090c46",
+      "expected": "fbcba3c76a221fba461c83680f682d3ff7aa813ef554c42e3a5449b981090c46",
+      "match": true
+    },
+    {
+      "role": "source",
+      "file": "flux1dev_controlnet_union_pro2.safetensors",
+      "bytes": 4281779224,
+      "sha256": "9d03f63f36206bab2f36aed5cfedc8693c2881397534e9d5f9ae9a0a41362517",
+      "expected": "9d03f63f36206bab2f36aed5cfedc8693c2881397534e9d5f9ae9a0a41362517",
+      "match": true
+    }
+  ],
+  "all_match": true,
+  "files_checked": 8,
+  "matched": 8
+}

@@ -1,0 +1,16 @@
+{
+  "pack": "CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors",
+  "pack_bytes": 1425109714,
+  "class": "ControlNet",
+  "pack_tensors": 1496,
+  "runtime_tensors": 1496,
+  "declared_layers": 326,
+  "int8_modules": 326,
+  "float_modules": 198,
+  "applied_layers": 326,
+  "declared_not_applied": 0,
+  "declared_not_applied_names": [],
+  "int8_not_declared": 0,
+  "int8_not_declared_names": [],
+  "verdict": "applies"
+}

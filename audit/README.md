@@ -1,3 +1,5 @@
+| controlnet_int8_exec.py | runs one forward on the HSWQ ControlNet route and counts INT8 GEMM calls | --pack <f> --comfy <d> [--json <o>] |
+| `controlnet_hswq_route.py` | loads a ControlNet pack through the HSWQ loader node and reports declared versus applied layers | `--pack <f> --comfy <d> [--json <o>]` |
 # audit/ - tool map
 
 One entry point per task: pick the phase you are in, run the tool named there. Every

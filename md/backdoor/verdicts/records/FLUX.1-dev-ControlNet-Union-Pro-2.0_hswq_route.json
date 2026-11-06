@@ -1,0 +1,16 @@
+{
+  "pack": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors",
+  "pack_bytes": 2710624994,
+  "class": "ControlNetFlux",
+  "pack_tensors": 282,
+  "runtime_tensors": 282,
+  "declared_layers": 54,
+  "int8_modules": 54,
+  "float_modules": 45,
+  "applied_layers": 54,
+  "declared_not_applied": 0,
+  "declared_not_applied_names": [],
+  "int8_not_declared": 0,
+  "int8_not_declared_names": [],
+  "verdict": "applies"
+}
