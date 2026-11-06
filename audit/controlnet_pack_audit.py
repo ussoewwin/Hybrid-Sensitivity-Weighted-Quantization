@@ -112,6 +112,9 @@ def loader_drop(pack_path, comfy_path):
         import comfy.controlnet as cc  # noqa: E402
         folder_paths.add_model_folder_path("controlnet", os.path.dirname(os.path.abspath(pack_path)))
         cnet = cc.load_controlnet(os.path.abspath(pack_path), model=None)
+        if cnet is None or getattr(cnet, "control_model", None) is None:
+            return {"class": None, "runtime_tensors": 0, "pack_tensors": 0, "dropped_count": None,
+                    "dropped": [], "note": "the loader did not detect a control model for this file"}
         cm = cnet.control_model
         rt = set(cm.state_dict())
         hdr, _ = read_header(pack_path)
@@ -205,10 +208,11 @@ def main():
         for key in sorted(pack_logical - set(int8_keys)):
             if key not in rt or key.endswith((".weight_scale", ".comfy_quant")):
                 continue
+            got = f.get_tensor(key)
             ref = rt[key]
             if ref.is_floating_point():
-                ref = ref.to(torch.float16)
-            got = f.get_tensor(key)
+                # compare in the dtype the pack stores (fp16 for SDXL packs, bf16 for FLUX packs)
+                ref = ref.to(got.dtype)
             float_checked += 1
             if tuple(got.shape) != tuple(ref.shape) or got.dtype != ref.dtype:
                 float_mismatch += 1
