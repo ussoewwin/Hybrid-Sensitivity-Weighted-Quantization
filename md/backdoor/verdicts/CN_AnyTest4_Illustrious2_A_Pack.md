@@ -62,6 +62,8 @@ behaviour is not evidence about this pack.
 | 0 | declared layers with no module on this route | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `declared_not_applied` | nothing is silently skipped |
 | 0 | INT8 weights that the pack does not declare | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
 | 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
+| 1388383 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/cn_anytest4_A_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| 32.6 | wall seconds for that run, checkpoint load included | `records/cn_anytest4_A_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | ControlNet | class the node builds | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `class` | the file is recognised as the model the card describes |
 | 326 | INT8 GEMM calls during one forward | `records/cn_anytest4_illustrious2_A_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 10 | output tensors returned by that forward, every one finite | `records/cn_anytest4_illustrious2_A_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
@@ -94,11 +96,13 @@ behaviour is not evidence about this pack.
   exactly (Hadamard by Kronecker doubling, group size 256, row-wise `amax/127`), and the exact
   agreement - 0 mismatching values over every quantised element - is what makes the comparison
   meaningful rather than approximate.
-- Inputs outside the tested sets are not covered; no test covers them. This report says nothing
-  about image quality or control fidelity, only about whether the file adds material.
+- Inputs outside the tested sets are not covered; no test covers them. The render in section 4
+  shows the route produces a picture; it is one prompt and one strength, so it says
+  nothing about image quality or control fidelity, only about whether the file adds material.
 
 ## Records
 
+- `records/cn_anytest4_A_image_test.json` - one image rendered through the pack on that route: PNG size, sha256 and wall time.
 - `records/cn_anytest4_illustrious2_A_pack_audit.json` - identity, runtime coverage, quantisation
   replay, float-side comparison, verdict.
 - `records/cn_anytest4_illustrious2_A_hswq_route.json` - the loader route the card names: class,
