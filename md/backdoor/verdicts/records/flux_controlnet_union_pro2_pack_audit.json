@@ -1,0 +1,67 @@
+{
+  "tool": "controlnet_pack_audit.py",
+  "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
+  "source": {
+    "file": "flux1dev_controlnet_union_pro2.safetensors",
+    "bytes": 4281779224,
+    "sha256": "9d03f63f36206bab2f36aed5cfedc8693c2881397534e9d5f9ae9a0a41362517"
+  },
+  "pack": {
+    "file": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors",
+    "bytes": 2710624994,
+    "sha256": "fbcba3c76a221fba461c83680f682d3ff7aa813ef554c42e3a5449b981090c46"
+  },
+  "declared": {
+    "layers": 54,
+    "formats": [
+      "int8_tensorwise"
+    ],
+    "convrot": [
+      "True"
+    ],
+    "groupsizes": [
+      256
+    ]
+  },
+  "runtime_tensors": 174,
+  "pack_tensors": 174,
+  "coverage": {
+    "missing_from_pack": [],
+    "n_missing": 0,
+    "extra_in_pack": [],
+    "n_extra": 0,
+    "shape_mismatch": [],
+    "n_shape_mismatch": 0
+  },
+  "quantised": {
+    "found": 54,
+    "declared": 54,
+    "undeclared_found": [],
+    "declared_not_found": [],
+    "q_mismatch_total": 0,
+    "max_q_delta": 0,
+    "scale_exact_rel_max": 0.0,
+    "nonfinite_scales": 0,
+    "layers_with_any_difference": [],
+    "n_layers_with_difference": 0
+  },
+  "float_side": {
+    "checked": 120,
+    "mismatch_count": 0,
+    "max_abs_diff": 0.0
+  },
+  "loader_route": {
+    "class": null,
+    "runtime_tensors": 0,
+    "pack_tensors": 0,
+    "dropped_count": null,
+    "dropped": [],
+    "note": "the loader did not detect a control model for this file"
+  },
+  "verdict": "FAITHFUL",
+  "environment": {
+    "device": "cpu",
+    "comfy": "ComfyUI"
+  },
+  "elapsed_seconds": 18.5
+}
