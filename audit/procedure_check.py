@@ -54,6 +54,7 @@ REQUIRED_TOOLS = [
     "sam31_operating_real.py", "sam31_vocabulary_overlap_control.py",
     "controlnet_hswq_route.py",
     "controlnet_int8_exec.py",
+    "controlnet_image_test.py",
     "sam31_image_trigger.py", "sam31_upstream_retry.py",
     "controlnet_pack_audit.py",
 ]

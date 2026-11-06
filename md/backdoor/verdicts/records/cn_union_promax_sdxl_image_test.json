@@ -1,0 +1,52 @@
+{
+  "analysis": "controlnet_union_promax_sdxl_image_test",
+  "date": "2026-11-06",
+  "purpose": "Generate one image with the pack on the loader route its card names, so the route is exercised end to end rather than only at load time.",
+  "controlnet": {
+    "file": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
+    "sha256": "dcdf6f2037205c4a40b1f8863a91827ca3a5b55ec3261e07bb13d2dc855b47fb",
+    "loader": "HSWQ ControlNet Loader (ConvRot INT8) node",
+    "class_built": "ControlNet",
+    "declared_layers": 328,
+    "applied_layers": 325,
+    "int8_linear_calls_one_forward": 325
+  },
+  "base": {
+    "file": "waiIllustriousSDXL_v170.safetensors",
+    "bytes": 6938040682,
+    "kind": "SDXL full checkpoint (illustrious family), existing local asset, no download used"
+  },
+  "settings": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 12,
+    "cfg": 6.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "seed": 42,
+    "controlnet_strength": 0.9,
+    "start_percent": 0.0,
+    "end_percent": 1.0,
+    "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
+    "negative": "blurry, low quality",
+    "hint": "synthetic geometric hint (gradient field, centred disc, dark bottom band)"
+  },
+  "measurement": {
+    "latent_shape": [
+      1,
+      4,
+      128,
+      128
+    ],
+    "latent_finite": true,
+    "latent_nan_count": 0,
+    "latent_inf_count": 0,
+    "png_bytes": 1238446,
+    "png_sha256": "bfd8a02f88ddc01edde2e8cc233455e3c24c7383becd43c1b9a669db5d09c76b",
+    "png_file": "records/cn_union_promax_sdxl_image_test.png",
+    "wall_seconds": 45.8,
+    "live_server_used": false
+  },
+  "result": "One 1024x1024 image was produced. The hint's disc becomes a round window with a teapot inside and the dark band becomes a table edge: the control signal drives the composition and the rendering is coherent, not noise. This exercises the pack on the named loader route end to end.",
+  "not_exercised": "Union type selection: the union embedding (control_add_embedding, transformer_layes.0.mlp.c_proj) is not instantiated on this graph, so the type-picking path does not run. Generation itself is measured here and works."
+}
