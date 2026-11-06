@@ -1,0 +1,39 @@
+{
+  "pack": "Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8.safetensors",
+  "class": "QwenImageFunControlNetModel",
+  "device": "cuda",
+  "dtype": "torch.bfloat16",
+  "int8_gemm_patch": false,
+  "int8_linear_calls": 77,
+  "output_finite": true,
+  "output_shape": [
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ],
+    [
+      1,
+      1024,
+      3072
+    ]
+  ],
+  "error": null,
+  "output_tensors": 5,
+  "verdict": "INT8 kernel executed, output finite"
+}

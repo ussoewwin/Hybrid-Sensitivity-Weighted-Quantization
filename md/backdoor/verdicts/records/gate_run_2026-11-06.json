@@ -7,21 +7,21 @@
     {
       "gate": "Procedure Check",
       "status": "PASS",
-      "seconds": 0.9,
+      "seconds": 0.21,
       "script": "audit/procedure_check.py",
       "script_sha256": "5cd4a539d3e7a0af940f413b561dcc6340628de3de1ce13a072e59e5a0f5dc12"
     },
     {
       "gate": "Citation Check (all reports)",
       "status": "PASS",
-      "seconds": 3.08,
+      "seconds": 2.77,
       "script": "audit/check_cites.py",
       "script_sha256": "2a7e95b4f6847f22015b676b1f901f1fde628c524f47d16f36a03e04e1252220"
     },
     {
       "gate": "Selftest (42/42)",
       "status": "PASS",
-      "seconds": 9.1,
+      "seconds": 4.92,
       "script": "audit/selftest.py",
       "script_sha256": "851f511b54a1e220171b23bd3e39e876a31a9938cf7d57cc4254c56af729a5ef"
     }

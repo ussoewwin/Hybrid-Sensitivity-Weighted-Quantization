@@ -1,0 +1,16 @@
+{
+  "pack": "Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8.safetensors",
+  "pack_bytes": 1758670069,
+  "class": "QwenImageFunControlNetModel",
+  "pack_tensors": 328,
+  "runtime_tensors": 328,
+  "declared_layers": 77,
+  "int8_modules": 77,
+  "float_modules": 20,
+  "applied_layers": 77,
+  "declared_not_applied": 0,
+  "declared_not_applied_names": [],
+  "int8_not_declared": 0,
+  "int8_not_declared_names": [],
+  "verdict": "applies"
+}

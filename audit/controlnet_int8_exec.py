@@ -92,6 +92,23 @@ def main() -> int:
         call = dict(x=x, hint=hint, timesteps=torch.tensor([500.0], device=device, dtype=dtype),
                     context=ctx, y=y)
 
+    if type(cm).__name__ == "QwenImageFunControlNetModel":
+        # Qwen Fun ControlNet runs against a base Qwen Image transformer. Only the entry
+        # modules are needed for a forward; build them with zero blocks so the stub is tiny.
+        import comfy.ops
+        import comfy.ldm.qwen_image.model as qm
+        in_ch = cm.control_img_in.weight.shape[1] // 4
+        ctx_dim = cm.control_blocks[0].attn.to_k.weight.shape[1]
+        base = qm.QwenImageTransformer2DModel(
+            final_layer=False, num_layers=0, joint_attention_dim=ctx_dim,
+            dtype=dtype, device=device, operations=comfy.ops.disable_weight_init)
+        base = base.to(device=device, dtype=dtype).eval()
+        x = torch.randn(1, 16, 1, 64, 64, device=device, dtype=dtype)
+        hint = torch.rand(1, in_ch, 64, 64, device=device, dtype=dtype)
+        ctx = torch.randn(1, 77, ctx_dim, device=device, dtype=dtype)
+        call = dict(x=x, timesteps=torch.tensor([500.0], device=device, dtype=dtype),
+                    context=ctx, hint=hint, base_model=base)
+
     installed = bool(arm.install()) if hasattr(arm, "install") else False
     arm.reset_int8_gemm_stats()
     rec = {"pack": os.path.basename(pack), "class": type(cm).__name__, "device": str(device),
