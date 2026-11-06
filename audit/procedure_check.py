@@ -57,6 +57,8 @@ REQUIRED_TOOLS = [
     "controlnet_image_test.py",
     "sam31_image_trigger.py", "sam31_upstream_retry.py",
     "controlnet_pack_audit.py",
+    "model_patch_pack_audit.py",
+    "model_patch_hswq_route.py",
 ]
 REQUIRED_SECTIONS = ["## 12c. SAM3.1 extension - the required lines of an S0-S6 verdict"]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",

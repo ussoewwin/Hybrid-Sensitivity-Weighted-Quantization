@@ -1,0 +1,34 @@
+{
+  "tool": "controlnet_image_test.py",
+  "pack": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8.safetensors",
+  "base": "z_image_turbo_bf16.safetensors",
+  "settings": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 8,
+    "cfg": 1.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "seed": 42,
+    "controlnet_strength": 0.9,
+    "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
+    "negative": "blurry, low quality"
+  },
+  "measurement": {
+    "latent_shape": [
+      1,
+      16,
+      128,
+      128
+    ],
+    "latent_nan_count": 0,
+    "latent_inf_count": 0,
+    "latent_finite": true,
+    "int8_linear_calls": 304,
+    "png_bytes": 933241,
+    "png_sha256": "09386a1db72457a8d9ffbb3cf8ec476bb3a8c53cbc86cd854fc497eadc2a7df8",
+    "wall_seconds": 75.4,
+    "png_file": "records/zimage_union21_image_test.png"
+  },
+  "verdict": "image rendered"
+}

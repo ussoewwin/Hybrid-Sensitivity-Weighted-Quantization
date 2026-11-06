@@ -1,0 +1,18 @@
+{
+  "tool": "model_patch_hswq_route.py",
+  "pack": {
+    "file": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8.safetensors",
+    "bytes": 1009742496
+  },
+  "loader_node": "HSWQModelPatchLoaderCustom",
+  "model_class": "ZImage_Control",
+  "pack_tensors": 157,
+  "modules_with_weight": 68,
+  "declared_layers": 38,
+  "int8_modules": 38,
+  "float_modules": 30,
+  "declared_not_int8": [],
+  "int8_not_declared": [],
+  "raw_int8_parameters": [],
+  "applied": 38
+}
