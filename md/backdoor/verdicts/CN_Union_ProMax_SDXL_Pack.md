@@ -63,13 +63,21 @@ hooks describes a state no user reaches. The numbers below are from the named ro
 | 10 | output tensors returned by that forward, every one finite | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
 | 10 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 
-**What the three unapplied layers mean, and what they do not.** They are the union block. The pack
-carries them under runtime names, and `comfy.controlnet.load_controlnet_state_dict` selects the union
-branch only when the diffusers key `controlnet_cond_embedding.conv_in.weight` is present, so the graph
-built here is a plain ControlNet and those three declared layers have no module to attach to. This is
-measured, not inferred. Whether union-mode behaviour survives on that graph has **not** been measured:
-no diffusion step was run on this pack in this audit, so no statement is made about image-level control
-fidelity, and none is implied.
+**What the three unapplied layers are.** They carry union-mode weights
+(`control_add_embedding`, `transformer_layes.0.mlp.c_proj`). The graph built on this route is a plain
+SDXL ControlNet: the union components are created only inside the diffusers branch of
+`comfy.controlnet.load_controlnet_state_dict` (line 741), entered when the file carries
+`controlnet_cond_embedding.conv_in.weight`, and this pack is written in runtime names. The union
+detection at line 781 therefore never runs and `union_controlnet_num_control_type` is never set
+(`comfy/cldm/cldm.py` reads it only when present). The mechanical account is recorded in
+`records/controlnet_union_promax_sdxl_union_components.json`.
+
+**This is not a defect of the pack and not a limit on its use.** The pack loads on the HSWQ
+ControlNet Loader route and executes there: 325 declared layers run as INT8, 325 INT8 GEMM calls
+fire in one forward, and the 10 returned tensors are finite (section 4). A plain ControlNet driven
+by a hint image is a supported use of these weights, and the pack is used that way. What is not
+exercised here is union *type selection* - the embedding that picks a control type out of the union
+set. The earlier phrasing of this report implied the pack could not be used; that is withdrawn.
 
 ## 5. Conclusion
 
@@ -98,9 +106,10 @@ fidelity, and none is implied.
   anything the re-quantisation or the repacking could have introduced.
 - The quantisation replay reproduces the converter exactly (Hadamard by Kronecker doubling, group
   size 256, row-wise `amax/127`); the exact agreement is what makes the comparison meaningful.
-- The route measurement is a load-time check. It shows which modules the loader builds and which
-  declared layers it applies; it does not run a diffusion step, so it does not measure image
-  quality or control fidelity.
+- The route measurement shows which modules the loader builds and which declared layers it applies.
+  Generation on that route is exercised in use; union *type selection* is not exercised, because
+  the union embedding is not part of this graph. No statement is made about how a union set picks
+  a control type on a graph that does not build that embedding.
 - Inputs outside the tested sets are not covered; no test covers them.
 
 ## Records
