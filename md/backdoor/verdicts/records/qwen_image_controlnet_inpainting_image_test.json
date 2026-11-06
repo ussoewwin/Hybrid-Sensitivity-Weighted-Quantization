@@ -1,0 +1,34 @@
+{
+  "tool": "controlnet_image_test.py",
+  "pack": "Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8.safetensors",
+  "base": "qwnImageEdit_v16Bf16_convrot_int8.safetensors",
+  "settings": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 20,
+    "cfg": 1.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "seed": 42,
+    "controlnet_strength": 0.9,
+    "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
+    "negative": "blurry, low quality"
+  },
+  "measurement": {
+    "latent_shape": [
+      1,
+      16,
+      1,
+      128,
+      128
+    ],
+    "latent_nan_count": 0,
+    "latent_inf_count": 0,
+    "latent_finite": true,
+    "png_bytes": 1217915,
+    "png_sha256": "e35d2ac88d84d8eee56906a721b643ecc88ab0b5950e4a3043555b928036da4c",
+    "wall_seconds": 257.1,
+    "png_file": "records/qwen_image_controlnet_inpainting_image_test.png"
+  },
+  "verdict": "image rendered"
+}

@@ -1,0 +1,33 @@
+{
+  "tool": "controlnet_image_test.py",
+  "pack": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors",
+  "base": "fluxNSFWUNLOCKED_v30FP16.safetensors",
+  "settings": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 20,
+    "cfg": 1.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "seed": 42,
+    "controlnet_strength": 0.9,
+    "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
+    "negative": "blurry, low quality"
+  },
+  "measurement": {
+    "latent_shape": [
+      1,
+      16,
+      128,
+      128
+    ],
+    "latent_nan_count": 0,
+    "latent_inf_count": 0,
+    "latent_finite": true,
+    "png_bytes": 1094063,
+    "png_sha256": "c88f7c97fab6a6791bdeb149dde6461b1ddc50fd904ba66f4cf9b44d1ba6d52b",
+    "wall_seconds": 1356.1,
+    "png_file": "records/flux_controlnet_union_pro2_image_test.png"
+  },
+  "verdict": "image rendered"
+}
