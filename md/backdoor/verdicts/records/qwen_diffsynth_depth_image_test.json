@@ -1,0 +1,35 @@
+{
+  "tool": "controlnet_image_test.py",
+  "pack": "qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+  "base": "qwnImageEdit_v16Bf16_convrot_int8.safetensors",
+  "settings": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 20,
+    "cfg": 1.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "seed": 42,
+    "controlnet_strength": 0.9,
+    "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
+    "negative": "blurry, low quality"
+  },
+  "measurement": {
+    "latent_shape": [
+      1,
+      16,
+      1,
+      128,
+      128
+    ],
+    "latent_nan_count": 0,
+    "latent_inf_count": 0,
+    "latent_finite": true,
+    "int8_linear_calls": 19320,
+    "png_bytes": 1123413,
+    "png_sha256": "03ca1ee8a8ebd3e90ca9b3e95dec1b211ec8633113bccd70f21b3f1a18a69bf7",
+    "wall_seconds": 319.3,
+    "png_file": "records/qwen_diffsynth_depth_image_test.png"
+  },
+  "verdict": "image rendered"
+}

@@ -1,0 +1,18 @@
+{
+  "tool": "model_patch_hswq_route.py",
+  "pack": {
+    "file": "qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+    "bytes": 1135897344
+  },
+  "loader_node": "HSWQModelPatchLoaderCustom",
+  "model_class": "QwenImageBlockWiseControlNet",
+  "pack_tensors": 602,
+  "modules_with_weight": 241,
+  "declared_layers": 120,
+  "int8_modules": 120,
+  "float_modules": 121,
+  "declared_not_int8": [],
+  "int8_not_declared": [],
+  "raw_int8_parameters": [],
+  "applied": 120
+}

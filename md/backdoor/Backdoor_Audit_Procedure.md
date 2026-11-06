@@ -826,6 +826,22 @@ and are recorded in the record, never presented as a result.
 Finally, the route must render: `audit/controlnet_image_test.py --base <checkpoint> --pack <pack> --comfy <root> --out <png> --json <record>` runs one image end to end on that route and records the latent's finiteness, the PNG's sha256 and the wall time.
  A stock `ControlNetLoader` result is not this measurement.
 
+Model patches are a different object and are not loaded through those nodes: the Z-Image Fun ControlNet
+packs and the Qwen-Image diffsynth packs are built by `ModelPatchLoader` /
+`HSWQModelPatchLoaderCustom` and applied by the family node (`ZImageFunControlnet`,
+`QwenImageDiffsynthControlnet`). They are audited in the names the runtime reads.
+
+`audit/model_patch_pack_audit.py --source <file> --pack <file> --comfy <root> --json <out>` replays the
+loader's own key conversion on the source - the INT8 branch of the loader skips `z_image_convert`, so the
+pack stores the converted names - then compares every tensor and replays the quantisation of each declared
+layer. An int8 code that differs from the replay is benign only when the value sits on a .5 rounding
+boundary; the tolerance and the largest measured distance are recorded with the result.
+
+`audit/model_patch_hswq_route.py --pack <file> --comfy <root> --json <out>` loads the pack through
+`HSWQModelPatchLoaderCustom` and states the class built, the declared and applied layer counts, whether any
+INT8 weight is undeclared, and whether any INT8 parameter is left where the graph reads it as data. The
+render is taken with `audit/controlnet_image_test.py --mode zimage` or `--mode diffqwen`.
+
 The load must be the one the card names. `pack_load_path.py` therefore arms the loader node's
 prestartup hook (`prestartup_script`) before importing it, and for diffusion packs it calls the
 node's own INT8 entry (`load_unet_hswq_weight_dtype`), recording which implementation ran in
@@ -1024,6 +1040,8 @@ table is only for spotting an implausible number.
 | :--- | :--- | :--- |
 | `controlnet_hswq_route.py` | 12b ControlNet route | `--pack <f> --comfy <d> [--loader-root <d>] [--json <o>]` |
 | `controlnet_pack_audit.py` | 14.5 ControlNet pack | `--source <f> --pack <f> --comfy <d> [--json <o>] [--device cpu\|cuda]` |
+| `model_patch_pack_audit.py` | 14.5 model patch pack | `--source <f> --pack <f> --comfy <d> [--json <o>]` |
+| `model_patch_hswq_route.py` | 12b model patch route | `--pack <f> --comfy <d> [--loader-root <d>] [--json <o>]` |
 | `sam31_census.py` | 12c S0 | `--model <f> [--out <o>]` |
 | `sam31_weight_positive_control.py` | 12c S5 | `--model <f> [--out <o>]` |
 | `sam31_weight_screen.py` | 12c S1 | `--model <f> --positive-control <r> [--out <o>]` |
@@ -1102,3 +1120,5 @@ A model card is a public surface, and a successful API call is not evidence that
 Incident that produced these rules: `md/Incident_ModelCard_PathString_Upload_2026-10-28.md`.
 | controlnet_int8_exec.py | 12b ControlNet execution | --pack <f> --comfy <d> [--json <o>] |
 | controlnet_image_test.py | 12b ControlNet render | --base <f> --pack <f> --comfy <d> --out <png> [--json <o>] |
+| model_patch_pack_audit.py | 14.5 model patch pack | --source <f> --pack <f> --comfy <d> [--json <o>] |
+| model_patch_hswq_route.py | 12b model patch route | --pack <f> --comfy <d> [--json <o>] |

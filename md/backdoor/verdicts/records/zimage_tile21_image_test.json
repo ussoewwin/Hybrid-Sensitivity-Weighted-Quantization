@@ -1,0 +1,34 @@
+{
+  "tool": "controlnet_image_test.py",
+  "pack": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8.safetensors",
+  "base": "z_image_turbo_bf16.safetensors",
+  "settings": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 8,
+    "cfg": 1.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "seed": 42,
+    "controlnet_strength": 0.9,
+    "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
+    "negative": "blurry, low quality"
+  },
+  "measurement": {
+    "latent_shape": [
+      1,
+      16,
+      128,
+      128
+    ],
+    "latent_nan_count": 0,
+    "latent_inf_count": 0,
+    "latent_finite": true,
+    "int8_linear_calls": 304,
+    "png_bytes": 865977,
+    "png_sha256": "4aab63e563e4ff84186c18cb7c9d58ff47073e49503e338c0914f7a29bd87b57",
+    "wall_seconds": 71.6,
+    "png_file": "records/zimage_tile21_image_test.png"
+  },
+  "verdict": "image rendered"
+}

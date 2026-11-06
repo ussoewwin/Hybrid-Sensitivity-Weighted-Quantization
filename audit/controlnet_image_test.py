@@ -59,7 +59,7 @@ def hint_image(torch, size: int):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", required=True, help="checkpoint file, or diffusion model name in unet/")
-    ap.add_argument("--mode", default="checkpoint", choices=["checkpoint", "flux", "qwen"],
+    ap.add_argument("--mode", default="checkpoint", choices=["checkpoint", "flux", "qwen", "zimage", "diffqwen"],
                     help="checkpoint: one file; flux: unet + two clip files + vae; "
                          "qwen: qwen image unet + one text encoder + vae file")
     ap.add_argument("--clip", default="", help="text encoder file name (models/clip) for qwen mode")
@@ -109,6 +109,7 @@ def main() -> int:
 
     pack = os.path.abspath(args.pack)
     folder_paths.add_model_folder_path("controlnet", os.path.dirname(pack))
+    folder_paths.add_model_folder_path("model_patches", os.path.dirname(pack))
     cn_node = load_hswq_package(root, args.loader_root)
 
     started = time.time()
@@ -119,6 +120,25 @@ def main() -> int:
         folder_paths.add_model_folder_path("vae", os.path.dirname(os.path.abspath(args.vae_path)))
         (vae,) = comfy_nodes.VAELoader().load_vae(os.path.basename(args.vae_path))
         # Qwen Image latents are 5D: batch, channels, frames, height/8, width/8
+        latent = torch.zeros([1, 16, 1, args.size // 8, args.size // 8])
+    elif args.mode == "zimage":
+        # Z-Image Fun ControlNet: a model patch, applied by its own node, not a ControlNet object
+        (model,) = comfy_nodes.UNETLoader().load_unet(args.base, weight_dtype="default")
+        (clip,) = comfy_nodes.CLIPLoader().load_clip(args.clip, "qwen_image", device="default")
+        folder_paths.add_model_folder_path("vae", os.path.dirname(os.path.abspath(args.vae_path)))
+        (vae,) = comfy_nodes.VAELoader().load_vae(os.path.basename(args.vae_path))
+        lf = model.get_model_object("latent_format")
+        ch, ratio = lf.latent_channels, lf.spacial_downscale_ratio
+        if getattr(lf, "latent_dimensions", 2) == 3:
+            latent = torch.zeros([1, ch, 1, args.size // ratio, args.size // ratio])
+        else:
+            latent = torch.zeros([1, ch, args.size // ratio, args.size // ratio])
+    elif args.mode == "diffqwen":
+        # Qwen-Image diffsynth controlnets: a model patch applied by QwenImageDiffsynthControlnet
+        (model,) = comfy_nodes.UNETLoader().load_unet(args.base, weight_dtype="default")
+        (clip,) = comfy_nodes.CLIPLoader().load_clip(args.clip, "qwen_image", device="default")
+        folder_paths.add_model_folder_path("vae", os.path.dirname(os.path.abspath(args.vae_path)))
+        (vae,) = comfy_nodes.VAELoader().load_vae(os.path.basename(args.vae_path))
         latent = torch.zeros([1, 16, 1, args.size // 8, args.size // 8])
     elif args.mode == "flux":
         # the stock ComfyUI loader nodes, unchanged
@@ -131,7 +151,12 @@ def main() -> int:
         model, clip, vae, _ = comfy.sd.load_checkpoint_guess_config(
             args.base, output_vae=True, output_clip=True, embedding_directory=None)
         latent = torch.zeros([1, 4, args.size // 8, args.size // 8])
-    (cnet,) = cn_node.HSWQControlNetLoader().load_controlnet(os.path.basename(pack))
+    if args.mode in ("zimage", "diffqwen"):
+        import importlib
+        mp = importlib.import_module(cn_node.__package__ + ".hswq_model_patch_loader")
+        (patch,) = mp.HSWQModelPatchLoaderCustom().load_model_patch(os.path.basename(pack), False)
+    else:
+        (cnet,) = cn_node.HSWQControlNetLoader().load_controlnet(os.path.basename(pack))
 
     encoder = comfy_nodes.CLIPTextEncode()
     pos = encoder.encode(clip, args.prompt)[0]
@@ -142,12 +167,28 @@ def main() -> int:
         pos = getattr(guided, "result", guided)
         if isinstance(pos, tuple):
             pos = pos[0]
-    applier = comfy_nodes.ControlNetApplyAdvanced()
-    pos_c, neg_c = applier.apply_controlnet(pos, neg, cnet, hint_image(torch, args.size), args.strength,
-                                           0.0, 1.0, vae)
+    if args.mode in ("zimage", "diffqwen"):
+        from comfy_extras import nodes_model_patch
+        node_cls = (nodes_model_patch.ZImageFunControlnet if args.mode == "zimage"
+                    else nodes_model_patch.QwenImageDiffsynthControlnet)
+        (model,) = node_cls().diffsynth_controlnet(
+            model, patch, vae, hint_image(torch, args.size), args.strength)
+        pos_c, neg_c = pos, neg
+    else:
+        applier = comfy_nodes.ControlNetApplyAdvanced()
+        pos_c, neg_c = applier.apply_controlnet(pos, neg, cnet, hint_image(torch, args.size), args.strength,
+                                               0.0, 1.0, vae)
+    # the package's runtime INT8 GEMM patch counts what the render really executed
+    import importlib
+    pkg_root = cn_node.__name__.rsplit(".nodes", 1)[0]
+    arm = importlib.import_module(pkg_root + ".patches.clip_int8_gemm.arm")
+    if hasattr(arm, "install"):
+        arm.install()
+    arm.reset_int8_gemm_stats()
     noise = comfy.sample.prepare_noise(latent, args.seed)
     samples = comfy.sample.sample(model, noise, args.steps, args.cfg, args.sampler, args.scheduler,
                                   pos_c, neg_c, latent, denoise=1.0, seed=args.seed)
+    gemm = arm.int8_gemm_stats()
     nan = int(torch.isnan(samples).sum())
     inf = int(torch.isinf(samples).sum())
 
@@ -177,13 +218,14 @@ def main() -> int:
                      "negative": args.negative},
         "measurement": {"latent_shape": list(samples.shape), "latent_nan_count": nan,
                         "latent_inf_count": inf, "latent_finite": nan == 0 and inf == 0,
+                        "int8_linear_calls": int(gemm.get("int8_linear_calls", 0)),
                         "png_bytes": os.path.getsize(out), "png_sha256": sha,
                         "wall_seconds": elapsed},
         "verdict": "image rendered" if (nan == 0 and inf == 0) else "latent not finite",
     }
-    print("%s | %dx%d %d steps | latent finite %s | %s bytes | %.1fs"
+    print("%s | %dx%d %d steps | latent finite %s | INT8 GEMM %d | %s bytes | %.1fs"
           % (rec["pack"], args.size, args.size, args.steps, rec["measurement"]["latent_finite"],
-             rec["measurement"]["png_bytes"], elapsed))
+             rec["measurement"]["int8_linear_calls"], rec["measurement"]["png_bytes"], elapsed))
     print("VERDICT: %s" % rec["verdict"])
     if json_out:
         with open(json_out, "w", encoding="utf-8", newline="\n") as f:
