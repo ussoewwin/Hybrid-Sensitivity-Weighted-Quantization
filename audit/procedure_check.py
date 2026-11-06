@@ -52,6 +52,8 @@ REQUIRED_TOOLS = [
     "pair_guarded.py", "sam31_routes_final.py", "tool_context_probe.py", "make_limits.py", "vl_bench_agreement.py",
     "sam31_census.py", "sam31_weight_positive_control.py", "sam31_weight_screen.py",
     "sam31_operating_real.py", "sam31_vocabulary_overlap_control.py",
+    "controlnet_hswq_route.py",
+    "controlnet_int8_exec.py",
     "sam31_image_trigger.py", "sam31_upstream_retry.py",
     "controlnet_pack_audit.py",
 ]

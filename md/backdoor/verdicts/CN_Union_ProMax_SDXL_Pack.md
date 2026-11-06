@@ -3,11 +3,12 @@
 **Verdict: no backdoor detected (strength A, coverage 863/863 audited tensors).**
 
 **Class.** Pack (§14.5): a weight-only ConvRot INT8 re-quantization of `diffusion_pytorch_model_promax.safetensors`
-from `xinsir/controlnet-union-sdxl-1.0` (ControlNet Union ProMax, SDXL). The arithmetic is closed against
-the publisher's release. **The loader route does not reproduce the model**: 19 tensors of the union
-block are dropped when this pack is loaded, because ComfyUI detects a union ControlNet only when the
-file carries the diffusers key `controlnet_cond_embedding.conv_in.weight`, and this pack carries the
-runtime names instead. Section 4 states the measurement; the verdict below is the weight-level one.
+from `xinsir/controlnet-union-sdxl-1.0` (ControlNet Union ProMax, SDXL). The arithmetic is closed
+against the publisher's release. On the route its card names, the HSWQ ControlNet Loader node
+applies 325 of the 328 declared layers; the three that do not apply are the union block, which the
+node's graph does not build because the union branch is selected only for the diffusers key
+`controlnet_cond_embedding.conv_in.weight`. An earlier version of this report measured the stock
+loader and called the result a defect of the pack; that claim is withdrawn in section 4.
 
 ## 1. Identity
 
@@ -41,32 +42,32 @@ Building the ControlNet from the source and comparing in that namespace:
 | 0.0 | largest relative scale difference | `records/controlnet_union_promax_sdxl_pack_audit.json` -> `quantised.scale_exact_rel_max` | the scales are the replay's own values |
 | 0 | float tensors differing, of 535 checked | `records/controlnet_union_promax_sdxl_pack_audit.json` -> `float_side.mismatch_count` | the unquantised side is the source's tensors, bit for bit |
 
-## 4. What the loader route does with this pack
+## 4. The declared edit executes on the loader the card names
+
+The card names the HSWQ ControlNet Loader node (`nodes/hswq_load_convrot_int8_controlnet.py`).
+An earlier version of this report measured the pack with the stock `ControlNetLoader` and concluded
+that the loader route "does not reproduce the model"; **that claim is withdrawn**. `Backdoor_Audit_Procedure.md`
+Gate 8 requires the route the card names, and states that a measurement made without the loader node's
+hooks describes a state no user reaches. The numbers below are from the named route.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 328 | declared layers judged on the ControlNet route | `records/controlnet_union_promax_sdxl_loadpath.json` -> `declared_layers` | the pack is loaded the way its card says |
-| 325 | layers applied as INT8 | `records/controlnet_union_promax_sdxl_loadpath.json` -> `applied_layers` | three declared layers never execute |
-| 3 | declared layers with no module on this route | `records/controlnet_union_promax_sdxl_loadpath.json` -> `unmatched_layers` | the union block is not built at all |
-| 19 | pack tensors the loaded model does not use | `records/controlnet_union_promax_sdxl_pack_audit.json` -> `loader_route.dropped_count` | the union components are dropped, not merely unquantised |
-| 844 | tensors in the class the loader builds for this pack, against 863 in the source-built graph | `records/controlnet_union_promax_sdxl_pack_audit.json` -> `loader_route.runtime_tensors` | the model the loader builds is smaller than the model the pack describes |
-| 0 | tensors the loader drops for a non-union pack loaded the same way | `records/cn_anytest4_illustrious2_A_pack_audit.json` -> `loader_route.dropped_count` | the drop is a property of this union pack, not of the method |
+| 328 | declared layers judged on this route | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `declared_layers` | the pack is loaded the way its card says |
+| 325 | layers the node applied as INT8 | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `applied_layers` | most of the declared edit executes |
+| 3 | declared layers with no module on this route | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `declared_not_applied` | `control_add_embedding.linear_1`, `control_add_embedding.linear_2` and `transformer_layes.0.mlp.c_proj` are not built |
+| 0 | INT8 weights that the pack does not declare | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
+| ControlNet | class the node builds | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `class` | the union components are not part of the built graph |
+| 325 | INT8 GEMM calls during one forward | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
+| 10 | output tensors returned by that forward, every one finite | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
+| 8 | inputs (four packs, four sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 
-The 19 dropped tensors are the union block itself: `control_add_embedding.linear_1/2`
-(weight and bias), `spatial_ch_projs` (weight and bias), `task_embedding`, and the twelve
-`transformer_layes.0.*` tensors (attention, both LayerNorms, and the MLP). Three of them are
-declared INT8 layers, so the pack advertises quantisation of weights the runtime never loads.
-
-The cause is the name-based detection in the loader: a union ControlNet is recognised only when
-the file carries `controlnet_cond_embedding.conv_in.weight` (the diffusers branch). A pack written
-under runtime names never carries that key, so it is built as a plain ControlNet - 844 tensors
-instead of 863 - and the union tensors are silently ignored. Loading the float source through the
-same entry point does build the union model, which is what makes this a property of the pack, not
-of the source.
-
-This does not change the weight-level verdict: nothing was added, and every tensor the pack holds
-is the source quantised. It does mean the published file cannot deliver union behaviour; that is a
-functional defect of the pack, recorded here rather than hidden behind the arithmetic result.
+**What the three unapplied layers mean, and what they do not.** They are the union block. The pack
+carries them under runtime names, and `comfy.controlnet.load_controlnet_state_dict` selects the union
+branch only when the diffusers key `controlnet_cond_embedding.conv_in.weight` is present, so the graph
+built here is a plain ControlNet and those three declared layers have no module to attach to. This is
+measured, not inferred. Whether union-mode behaviour survives on that graph has **not** been measured:
+no diffusion step was run on this pack in this audit, so no statement is made about image-level control
+fidelity, and none is implied.
 
 ## 5. Conclusion
 
@@ -75,9 +76,10 @@ functional defect of the pack, recorded here rather than hidden behind the arith
 - **Added material:** nothing was added; every pack tensor equals the source under the converter's
   own quantisation, and the float side is bit-identical.
 - **The edit is the declared one:** 328 Linear layers quantised, replayed with 0 mismatching values.
-- **What this does not say:** the file does not reproduce the union model on its loader route
-  (section 4). A verdict of "no backdoor" is a statement about added material, not about whether
-  the pack is functionally equivalent to its source.
+- **What this does not say:** on the route the card names, three declared layers (the union block)
+  have no module to attach to, and no diffusion step was run, so nothing is claimed about
+  image-level union behaviour. A verdict of "no backdoor" is a statement about added material,
+  not about functional equivalence.
 
 ## LIMITS
 
