@@ -61,6 +61,8 @@ behaviour is not evidence about this pack.
 | 326 | declared layers, and layers the node applied as INT8 | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `applied_layers` | every declared layer takes the INT8 path |
 | 0 | declared layers with no module on this route | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `declared_not_applied` | nothing is silently skipped |
 | 0 | INT8 weights that the pack does not declare | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
+| 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
+| 0 | NaN and 0 Inf counted across every output tensor | `records/cn_anytest4_illustrious2_A_int8_exec.json` -> `output_nan_count` | the executed path is clean by count, not merely by an all() check |
 | ControlNet | class the node builds | `records/cn_anytest4_illustrious2_A_hswq_route.json` -> `class` | the file is recognised as the model the card describes |
 | 326 | INT8 GEMM calls during one forward | `records/cn_anytest4_illustrious2_A_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 10 | output tensors returned by that forward, every one finite | `records/cn_anytest4_illustrious2_A_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
@@ -100,5 +102,10 @@ behaviour is not evidence about this pack.
 
 - `records/cn_anytest4_illustrious2_A_pack_audit.json` - identity, runtime coverage, quantisation
   replay, float-side comparison, verdict.
-- `records/cn_anytest4_illustrious2_A_loadpath.json` - the loader route: declared, applied, raw
-  and unmatched layer counts.
+- `records/cn_anytest4_illustrious2_A_hswq_route.json` - the loader route the card names: class,
+  declared and applied layer counts, layers with no module.
+- `records/cn_anytest4_illustrious2_A_int8_exec.json` - one forward on that route: INT8 GEMM call
+  count, output tensors, finiteness.
+- `records/cn_anytest4_illustrious2_A_loadpath.json` - the stock `ControlNetLoader` route, kept for
+  completeness; it is not the route the card names and no verdict rests on it.
+- `records/controlnet_inputs_reverified_2026-11-06.json` - the SHA256 re-verification of every input.

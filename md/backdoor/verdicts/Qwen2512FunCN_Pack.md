@@ -51,6 +51,8 @@ honours that per-layer group. The other 76 layers use group 256.
 | 77 | declared layers, and layers the node applied as INT8 | `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` -> `applied_layers` | every declared layer takes the INT8 path |
 | 0 | declared layers with no module on this route | `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` -> `declared_not_applied` | nothing is silently skipped |
 | 0 | INT8 weights that the pack does not declare | `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
+| 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
+| 0 | NaN and 0 Inf counted across every output tensor | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `output_nan_count` | the executed path is clean by count, not merely by an all() check |
 | QwenImageFunControlNetModel | class the node builds | `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` -> `class` | the file is recognised as the Qwen Fun ControlNet it is |
 | 77 | INT8 GEMM calls during one forward | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 5 | output tensors returned by that forward, every one finite | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |

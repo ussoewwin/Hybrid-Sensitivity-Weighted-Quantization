@@ -8,6 +8,8 @@
   "int8_modules": 325,
   "float_modules": 199,
   "applied_layers": 325,
+  "raw_code_layers": 0,
+  "raw_code_names": [],
   "declared_not_applied": 3,
   "declared_not_applied_names": [
     "control_add_embedding.linear_1",
