@@ -62,7 +62,6 @@ behaviour is not evidence about this pack.
 | 0 | declared layers with no module on this route | `records/cn_anytest4_illustrious2_B_hswq_route.json` -> `declared_not_applied` | nothing is silently skipped |
 | 0 | INT8 weights that the pack does not declare | `records/cn_anytest4_illustrious2_B_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
 | 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/cn_anytest4_illustrious2_B_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
-| 0 | NaN and 0 Inf counted across every output tensor | `records/cn_anytest4_illustrious2_B_int8_exec.json` -> `output_nan_count` | the executed path is clean by count, not merely by an all() check |
 | ControlNet | class the node builds | `records/cn_anytest4_illustrious2_B_hswq_route.json` -> `class` | the file is recognised as the model the card describes |
 | 327 | INT8 GEMM calls during one forward | `records/cn_anytest4_illustrious2_B_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 10 | output tensors returned by that forward, every one finite | `records/cn_anytest4_illustrious2_B_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
