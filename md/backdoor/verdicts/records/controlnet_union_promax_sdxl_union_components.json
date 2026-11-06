@@ -1,0 +1,55 @@
+{
+  "analysis": "controlnet_union_promax_union_components",
+  "date": "2026-11-06",
+  "pack": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
+  "why_the_three_layers_do_not_apply": {
+    "explanation": "The union components are built only inside the diffusers branch of comfy.controlnet.load_controlnet_state_dict, which is entered when the file carries controlnet_cond_embedding.conv_in.weight. This pack is written in runtime names, so that branch is not taken, the graph is a plain SDXL ControlNet, and the union-only modules are not created. Their absence does not stop generation: the union type embedding is consumed only when a union control type is set, and a plain ControlNet driven by a hint image is a supported use of the same weights.",
+    "controlnet_py_evidence": {
+      "diffusers_branch": [
+        {
+          "line": 741,
+          "text": "if \"controlnet_cond_embedding.conv_in.weight\" in controlnet_data: #diffusers format"
+        }
+      ],
+      "union_detection": [
+        {
+          "line": 781,
+          "text": "if \"control_add_embedding.linear_1.bias\" in controlnet_data: #Union Controlnet"
+        }
+      ],
+      "num_control_type_assignment": [
+        {
+          "line": 782,
+          "text": "controlnet_config[\"union_controlnet_num_control_type\"] = controlnet_data[\"task_embedding\"].shape[0]"
+        }
+      ]
+    },
+    "cldm_py_evidence": {
+      "param": [
+        {
+          "line": 94,
+          "text": "union_controlnet_num_control_type=None,"
+        }
+      ],
+      "consumption": [
+        {
+          "line": 321,
+          "text": "if union_controlnet_num_control_type is not None:"
+        }
+      ]
+    }
+  },
+  "measured_modules_on_the_named_route": {
+    "class": "ControlNet",
+    "union_modules_present": 0,
+    "union_state_dict_keys_present": 0,
+    "declared_layers": 328,
+    "applied_layers": 325,
+    "not_applied": [
+      "control_add_embedding.linear_1",
+      "control_add_embedding.linear_2",
+      "transformer_layes.0.mlp.c_proj"
+    ]
+  },
+  "status": "The three declared layers carry union-mode weights that this graph does not instantiate. The pack loads on the HSWQ ControlNet Loader route and generates images; union type selection is the only feature that is not exercised."
+}
