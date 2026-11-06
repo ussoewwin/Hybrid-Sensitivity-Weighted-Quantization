@@ -81,9 +81,25 @@
       "sha256": "0d1ac366efaa27dec070b3a8ebe9a41b5ebc567913dee71ed992e7032f66dc37",
       "expected": "0d1ac366efaa27dec070b3a8ebe9a41b5ebc567913dee71ed992e7032f66dc37",
       "match": true
+    },
+    {
+      "role": "pack",
+      "file": "Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8.safetensors",
+      "bytes": 2120290274,
+      "sha256": "38f0ab7495029517d4b0bb4187cedcbdfa090a29f0bb50dfa5733f5076a0c451",
+      "expected": "38f0ab7495029517d4b0bb4187cedcbdfa090a29f0bb50dfa5733f5076a0c451",
+      "match": true
+    },
+    {
+      "role": "source",
+      "file": "qwen_image_controlnet_inpainting.safetensors",
+      "bytes": 4234599432,
+      "sha256": "49c01aafe6545c1f6e7627a724c8fb13357fe74efee235622158f0a8f30e5458",
+      "expected": "49c01aafe6545c1f6e7627a724c8fb13357fe74efee235622158f0a8f30e5458",
+      "match": true
     }
   ],
   "all_match": true,
-  "files_checked": 10,
-  "matched": 10
+  "files_checked": 12,
+  "matched": 12
 }

@@ -92,6 +92,18 @@ def main() -> int:
         call = dict(x=x, hint=hint, timesteps=torch.tensor([500.0], device=device, dtype=dtype),
                     context=ctx, y=y)
 
+    if type(cm).__name__ == "QwenImageControlNetModel":
+        # Qwen InstantX ControlNet: self-contained, no base model needed. The hint carries the
+        # latent plus the mask channels, patchified by process_img.
+        import comfy.ldm.qwen_image.model as qm
+        ctx_dim = cm.txt_in.weight.shape[1]
+        hint_ch = cm.controlnet_x_embedder.weight.shape[1] // 4
+        x = torch.randn(1, 16, 1, 64, 64, device=device, dtype=dtype)
+        hint = torch.randn(1, hint_ch, 1, 64, 64, device=device, dtype=dtype)
+        ctx = torch.randn(1, 77, ctx_dim, device=device, dtype=dtype)
+        call = dict(x=x, timesteps=torch.tensor([500.0], device=device, dtype=dtype),
+                    context=ctx, hint=hint)
+
     if type(cm).__name__ == "QwenImageFunControlNetModel":
         # Qwen Fun ControlNet runs against a base Qwen Image transformer. Only the entry
         # modules are needed for a forward; build them with zero blocks so the stub is tiny.

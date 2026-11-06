@@ -62,7 +62,7 @@ as a statement about the pack. Gate 8 requires the route the card names.
 | ControlNetFlux | class the node builds | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_route.json` -> `class` | the file is recognised as the FLUX ControlNet it is |
 | 54 | INT8 GEMM calls during one forward | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 19 | output tensors returned by that forward, every one finite | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
-| 10 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
+| 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 
 The stock loader's refusal remains a true statement about that loader: it has no detection branch for
 this layout. It is not a statement about the pack. Recorded in `records/flux_controlnet_union_pro2_pack_audit.json`

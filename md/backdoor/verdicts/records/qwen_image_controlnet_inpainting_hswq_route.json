@@ -1,0 +1,18 @@
+{
+  "pack": "Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8.safetensors",
+  "pack_bytes": 2120290274,
+  "class": "QwenImageControlNetModel",
+  "pack_tensors": 405,
+  "runtime_tensors": 405,
+  "declared_layers": 95,
+  "int8_modules": 95,
+  "float_modules": 25,
+  "applied_layers": 95,
+  "raw_code_layers": 0,
+  "raw_code_names": [],
+  "declared_not_applied": 0,
+  "declared_not_applied_names": [],
+  "int8_not_declared": 0,
+  "int8_not_declared_names": [],
+  "verdict": "applies"
+}
