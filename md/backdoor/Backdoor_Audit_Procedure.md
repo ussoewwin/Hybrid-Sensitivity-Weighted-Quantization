@@ -822,6 +822,7 @@ layer that has no module to attach to.
 forward on that route and records the INT8 kernel call count beside the output's finiteness; a
 route that claims an INT8 kernel must show a non-zero count, a zero raw-code layer count and a
 finite output with NaN and Inf counted explicitly.
+Finally, the route must render: `audit/controlnet_image_test.py --base <checkpoint> --pack <pack> --comfy <root> --out <png> --json <record>` runs one image end to end on that route and records the latent's finiteness, the PNG's sha256 and the wall time.
  A stock `ControlNetLoader` result is not this measurement.
 
 The load must be the one the card names. `pack_load_path.py` therefore arms the loader node's
@@ -1099,3 +1100,4 @@ A model card is a public surface, and a successful API call is not evidence that
 
 Incident that produced these rules: `md/Incident_ModelCard_PathString_Upload_2026-10-28.md`.
 | controlnet_int8_exec.py | 12b ControlNet execution | --pack <f> --comfy <d> [--json <o>] |
+| controlnet_image_test.py | 12b ControlNet render | --base <f> --pack <f> --comfy <d> --out <png> [--json <o>] |

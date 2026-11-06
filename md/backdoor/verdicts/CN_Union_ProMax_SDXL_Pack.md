@@ -58,10 +58,9 @@ hooks describes a state no user reaches. The numbers below are from the named ro
 | 0 | INT8 weights that the pack does not declare | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
 | 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
 | 0 | NaN and 0 Inf counted across every output tensor | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `output_nan_count` | the executed path is clean by count, not merely by an all() check |
-| ControlNet | class the node builds | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `class` | the union components are not part of the built graph |
-| 325 | INT8 GEMM calls during one forward | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
-| 10 | output tensors returned by that forward, every one finite | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
-| 10 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
+| 1238446 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| 0 | NaN and 0 Inf in the sampled latent of that run | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.latent_nan_count` | the sampled state is clean |
+| 45.8 | wall seconds for that run, checkpoint load included | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 
 **What the three unapplied layers are.** They carry union-mode weights
 (`control_add_embedding`, `transformer_layes.0.mlp.c_proj`). The graph built on this route is a plain
@@ -73,11 +72,16 @@ detection at line 781 therefore never runs and `union_controlnet_num_control_typ
 `records/controlnet_union_promax_sdxl_union_components.json`.
 
 **This is not a defect of the pack and not a limit on its use.** The pack loads on the HSWQ
-ControlNet Loader route and executes there: 325 declared layers run as INT8, 325 INT8 GEMM calls
-fire in one forward, and the 10 returned tensors are finite (section 4). A plain ControlNet driven
-by a hint image is a supported use of these weights, and the pack is used that way. What is not
-exercised here is union *type selection* - the embedding that picks a control type out of the union
-set. The earlier phrasing of this report implied the pack could not be used; that is withdrawn.
+ControlNet Loader route, executes 325 declared layers as INT8, and renders: one 1024x1024 image at 12
+steps took 45.8 s, its latent is finite (NaN 0, Inf 0), and the produced PNG is shipped with the
+record. The hint's disc becomes a round window holding a teapot and its dark band becomes a table
+edge, so the control signal drives the composition of a coherent picture. An independent rerun
+through the packaged tool (`audit/controlnet_image_test.py`) produced the same PNG byte for byte:
+both records report a PNG sha256 beginning `bfd8a02f88ddc01e`, so the result is reproducible rather
+than incidental. What is not exercised is
+union *type selection* - the embedding that picks a control type out of the union set - because the
+union components are not instantiated on this graph. Generation is measured; type selection is not the
+same thing and is not claimed.
 
 ## 5. Conclusion
 
@@ -106,10 +110,12 @@ set. The earlier phrasing of this report implied the pack could not be used; tha
   anything the re-quantisation or the repacking could have introduced.
 - The quantisation replay reproduces the converter exactly (Hadamard by Kronecker doubling, group
   size 256, row-wise `amax/127`); the exact agreement is what makes the comparison meaningful.
-- The route measurement shows which modules the loader builds and which declared layers it applies.
-  Generation on that route is exercised in use; union *type selection* is not exercised, because
-  the union embedding is not part of this graph. No statement is made about how a union set picks
-  a control type on a graph that does not build that embedding.
+- Generation on that route is measured: one 1024x1024 image, 12 steps, cfg 6.0, 45.8 s, latent
+  finite, PNG shipped in `records/`. Union *type selection* is not exercised, because the union
+  embedding is not part of this graph; no statement is made about how a union set picks a control
+  type. These are different claims and only the first is made here.
+- One image is not a quality benchmark. It shows the route renders; it does not establish that
+  every prompt, control type or strength produces the picture a user expects.
 - Inputs outside the tested sets are not covered; no test covers them.
 
 ## Records
