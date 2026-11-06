@@ -54,6 +54,8 @@ honours that per-layer group. The other 76 layers use group 256.
 | 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
 | QwenImageFunControlNetModel | class the node builds | `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` -> `class` | the file is recognised as the Qwen Fun ControlNet it is |
 | 77 | INT8 GEMM calls during one forward | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
+| 940666 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 20 steps, cfg 1.0) | `records/qwen2512_fun_cn_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| 227.3 | wall seconds for that render | `records/qwen2512_fun_cn_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | 5 | output tensors returned by that forward, every one finite | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
 | 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 
@@ -89,6 +91,8 @@ honours that per-layer group. The other 76 layers use group 256.
 
 ## Records
 
+- `records/qwen2512_fun_cn_image_test.json` - one image rendered through the pack on that route: PNG size, sha256 and wall
+  time.
 - `records/qwen_image_2512_fun_cn_union_2602_pack_audit.json` - identity, runtime coverage,
   quantisation replay, float-side comparison, verdict.
 - `records/qwen_image_2512_fun_cn_union_2602_hswq_route.json` - the loader route: declared, applied

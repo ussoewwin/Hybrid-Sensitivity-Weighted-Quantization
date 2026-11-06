@@ -56,6 +56,8 @@ embedder line. The replay honours each layer's own group.
 | 0 | declared layers left as raw int8 codes | `records/qwen_image_controlnet_inpainting_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
 | QwenImageControlNetModel | class the node builds | `records/qwen_image_controlnet_inpainting_hswq_route.json` -> `class` | the file is recognised as the Qwen InstantX ControlNet it is |
 | 95 | INT8 GEMM calls during one forward | `records/qwen_image_controlnet_inpainting_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
+| 1217915 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 20 steps, cfg 1.0) | `records/qwen_image_controlnet_inpainting_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| 257.1 | wall seconds for that render | `records/qwen_image_controlnet_inpainting_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 
 ## 5. Conclusion
 
@@ -88,6 +90,8 @@ embedder line. The replay honours each layer's own group.
 
 ## Records
 
+- `records/qwen_image_controlnet_inpainting_image_test.json` - one image rendered through the pack on that route: PNG size, sha256 and wall
+  time.
 - `records/qwen_image_controlnet_inpainting_pack_audit.json` - identity, runtime coverage,
   quantisation replay, float-side comparison, verdict.
 - `records/qwen_image_controlnet_inpainting_hswq_route.json` - the loader route: declared, applied

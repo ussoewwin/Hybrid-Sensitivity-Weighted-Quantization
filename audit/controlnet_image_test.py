@@ -58,7 +58,17 @@ def hint_image(torch, size: int):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", required=True, help="SDXL-family checkpoint or diffusion model")
+    ap.add_argument("--base", required=True, help="checkpoint file, or diffusion model name in unet/")
+    ap.add_argument("--mode", default="checkpoint", choices=["checkpoint", "flux", "qwen"],
+                    help="checkpoint: one file; flux: unet + two clip files + vae; "
+                         "qwen: qwen image unet + one text encoder + vae file")
+    ap.add_argument("--clip", default="", help="text encoder file name (models/clip) for qwen mode")
+    ap.add_argument("--vae-path", default="", help="vae file path for qwen mode")
+    ap.add_argument("--clip1", default="", help="clip file name (models/clip) for flux mode")
+    ap.add_argument("--clip2", default="", help="second clip file name for flux mode")
+    ap.add_argument("--clip-type", default="flux", help="DualCLIPLoader type")
+    ap.add_argument("--vae", default="", help="vae file name (models/vae) for flux mode")
+    ap.add_argument("--guidance", type=float, default=3.5, help="flux guidance embedding")
     ap.add_argument("--pack", required=True, help="ConvRot INT8 ControlNet pack")
     ap.add_argument("--comfy", required=True, help="ComfyUI root")
     ap.add_argument("--loader-root", default="")
@@ -102,16 +112,39 @@ def main() -> int:
     cn_node = load_hswq_package(root, args.loader_root)
 
     started = time.time()
-    model, clip, vae, _ = comfy.sd.load_checkpoint_guess_config(
-        args.base, output_vae=True, output_clip=True, embedding_directory=None)
+    if args.mode == "qwen":
+        # the stock ComfyUI loader nodes, unchanged
+        (model,) = comfy_nodes.UNETLoader().load_unet(args.base, weight_dtype="default")
+        (clip,) = comfy_nodes.CLIPLoader().load_clip(args.clip, "qwen_image", device="default")
+        folder_paths.add_model_folder_path("vae", os.path.dirname(os.path.abspath(args.vae_path)))
+        (vae,) = comfy_nodes.VAELoader().load_vae(os.path.basename(args.vae_path))
+        # Qwen Image latents are 5D: batch, channels, frames, height/8, width/8
+        latent = torch.zeros([1, 16, 1, args.size // 8, args.size // 8])
+    elif args.mode == "flux":
+        # the stock ComfyUI loader nodes, unchanged
+        (model,) = comfy_nodes.UNETLoader().load_unet(args.base, weight_dtype="default")
+        (clip,) = comfy_nodes.DualCLIPLoader().load_clip(args.clip1, args.clip2, args.clip_type,
+                                                         device="default")
+        (vae,) = comfy_nodes.VAELoader().load_vae(args.vae)
+        latent = torch.zeros([1, 16, args.size // 8, args.size // 8])
+    else:
+        model, clip, vae, _ = comfy.sd.load_checkpoint_guess_config(
+            args.base, output_vae=True, output_clip=True, embedding_directory=None)
+        latent = torch.zeros([1, 4, args.size // 8, args.size // 8])
     (cnet,) = cn_node.HSWQControlNetLoader().load_controlnet(os.path.basename(pack))
 
-    pos = clip.encode_from_tokens_scheduled(clip.tokenize(args.prompt))
-    neg = clip.encode_from_tokens_scheduled(clip.tokenize(args.negative))
+    encoder = comfy_nodes.CLIPTextEncode()
+    pos = encoder.encode(clip, args.prompt)[0]
+    neg = encoder.encode(clip, args.negative)[0]
+    if args.mode == "flux":
+        from comfy_extras import nodes_flux
+        guided = nodes_flux.FluxGuidance.execute(pos, args.guidance)
+        pos = getattr(guided, "result", guided)
+        if isinstance(pos, tuple):
+            pos = pos[0]
     applier = comfy_nodes.ControlNetApplyAdvanced()
-    pos_c, neg_c = applier.apply_controlnet(pos, neg, cnet, hint_image(torch, args.size), args.strength, 0.0, 1.0)
-
-    latent = torch.zeros([1, 4, args.size // 8, args.size // 8])
+    pos_c, neg_c = applier.apply_controlnet(pos, neg, cnet, hint_image(torch, args.size), args.strength,
+                                           0.0, 1.0, vae)
     noise = comfy.sample.prepare_noise(latent, args.seed)
     samples = comfy.sample.sample(model, noise, args.steps, args.cfg, args.sampler, args.scheduler,
                                   pos_c, neg_c, latent, denoise=1.0, seed=args.seed)
@@ -120,10 +153,11 @@ def main() -> int:
 
     decoded = vae.decode(samples)
     image = decoded[0] if isinstance(decoded, (list, tuple)) else decoded
-    if image.ndim == 4:
-        image = image[0]
     image = image.clamp(0, 1)
-    if image.shape[0] in (1, 3, 4) and image.shape[-1] not in (1, 3, 4):
+    # Qwen decodes to (batch, frames, height, width, channels); SDXL/FLUX to (batch, height, width, channels)
+    while image.ndim > 3 and image.shape[-1] in (1, 3, 4):
+        image = image[0]
+    if image.ndim == 3 and image.shape[0] in (1, 3, 4):
         image = image.movedim(0, -1)
     image = image.mul(255).round().to(torch.uint8).cpu()
     from PIL import Image
