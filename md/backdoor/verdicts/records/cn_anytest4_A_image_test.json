@@ -1,0 +1,33 @@
+{
+  "tool": "controlnet_image_test.py",
+  "pack": "CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors",
+  "base": "waiIllustriousSDXL_v170.safetensors",
+  "settings": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 12,
+    "cfg": 6.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "seed": 42,
+    "controlnet_strength": 0.9,
+    "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
+    "negative": "blurry, low quality"
+  },
+  "measurement": {
+    "latent_shape": [
+      1,
+      4,
+      128,
+      128
+    ],
+    "latent_nan_count": 0,
+    "latent_inf_count": 0,
+    "latent_finite": true,
+    "png_bytes": 1388383,
+    "png_sha256": "4bb66b4ec99c73fce58430b86b2e97ecbf44551951977b1d4156c8fb549f06f7",
+    "wall_seconds": 32.6,
+    "png_file": "records/cn_anytest4_A_image_test.png"
+  },
+  "verdict": "image rendered"
+}
