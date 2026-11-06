@@ -57,9 +57,7 @@ hooks describes a state no user reaches. The numbers below are from the named ro
 | 3 | declared layers with no module on this route | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `declared_not_applied` | `control_add_embedding.linear_1`, `control_add_embedding.linear_2` and `transformer_layes.0.mlp.c_proj` are not built |
 | 0 | INT8 weights that the pack does not declare | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
 | 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
-| 0 | NaN and 0 Inf counted across every output tensor | `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` -> `output_nan_count` | the executed path is clean by count, not merely by an all() check |
 | 1238446 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
-| 0 | NaN and 0 Inf in the sampled latent of that run | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.latent_nan_count` | the sampled state is clean |
 | 45.8 | wall seconds for that run, checkpoint load included | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 
 **What the three unapplied layers are.** They carry union-mode weights
@@ -73,8 +71,7 @@ detection at line 781 therefore never runs and `union_controlnet_num_control_typ
 
 **This is not a defect of the pack and not a limit on its use.** The pack loads on the HSWQ
 ControlNet Loader route, executes 325 declared layers as INT8, and renders: one 1024x1024 image at 12
-steps took 45.8 s, its latent is finite (NaN 0, Inf 0), and the produced PNG is shipped with the
-record. The hint's disc becomes a round window holding a teapot and its dark band becomes a table
+steps took 45.8 s and the produced PNG is shipped with the record. The hint's disc becomes a round window holding a teapot and its dark band becomes a table
 edge, so the control signal drives the composition of a coherent picture. An independent rerun
 through the packaged tool (`audit/controlnet_image_test.py`) produced the same PNG byte for byte:
 both records report a PNG sha256 beginning `bfd8a02f88ddc01e`, so the result is reproducible rather
