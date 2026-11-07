@@ -58,13 +58,17 @@ family node that applies the patch (`QwenImageDiffsynthControlnet`). The measure
 | 0 | declared layers left as raw int8 codes (codes copied, not executed) | `records/qwen_diffsynth_inpaint_route.json` -> `raw_int8_parameters` (count) | no declared layer falls through to the bare-code path |
 | QwenImageBlockWiseControlNet | class the node builds | `records/qwen_diffsynth_inpaint_route.json` -> `model_class` | the file is recognised as the architecture it is |
 | 19,320 | INT8 GEMM calls during the render | `records/qwen_diffsynth_inpaint_image_test.json` -> `measurement.int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
-| 590,314 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 20 steps, cfg 1.0, base `qwnImageEdit_v16Bf16_convrot_int8.safetensors`) | `records/qwen_diffsynth_inpaint_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
-| 358.5 | wall seconds for that render | `records/qwen_diffsynth_inpaint_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
+| 857,122 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 20 steps, cfg 1.0, base `qwnImageEdit_v16Bf16_convrot_int8.safetensors`) | `records/qwen_diffsynth_inpaint_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| records/qwen_diffsynth_inpaint_control.png | the control image that drove the render | `records/qwen_diffsynth_inpaint_image_test.json` -> `settings.control_image` | the pack was driven by an input of the kind its condition expects |
+| f3472c60e190b0ed4477233f6241c7d20c8887321b0740170225b70f929030e4 | sha256 of that control image | `records/qwen_diffsynth_inpaint_image_test.json` -> `settings.control_image_sha256` | the input that produced the picture is recorded |
+| 148.3 | wall seconds for that render | `records/qwen_diffsynth_inpaint_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | 0 / 0 | NaN and Inf counts in the produced latent (1 x 16 x 1 x 128 x 128 tensors) | `records/qwen_diffsynth_inpaint_image_test.json` -> `measurement.latent_nan_count`, `measurement.latent_inf_count` | the executed path produces neither |
 
-The inpaint sibling expects an image and a mask. This render supplies only the control hint, so the
-image is the hint's own composition: it shows that the pack executes end to end on this route, and it
-is **not** a statement about inpainting quality. The mask path is not exercised here.
+The inpaint sibling expects an image and a mask, and this render drives that path: the control image is
+the scene with the region to repaint made transparent, read with ComfyUI's own `LoadImage`, so its mask
+marks exactly that region. The rendered picture keeps the scene outside the masked circle and repaints
+the circle, which is the behaviour the pack is published for. It is one region and one prompt; it is not
+a statement about inpainting quality.
 
 ## 5. Conclusion
 

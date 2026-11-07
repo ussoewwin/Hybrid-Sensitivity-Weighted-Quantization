@@ -58,8 +58,10 @@ family node that applies the patch (`QwenImageDiffsynthControlnet`). The measure
 | 0 | declared layers left as raw int8 codes (codes copied, not executed) | `records/qwen_diffsynth_canny_route.json` -> `raw_int8_parameters` (count) | no declared layer falls through to the bare-code path |
 | QwenImageBlockWiseControlNet | class the node builds | `records/qwen_diffsynth_canny_route.json` -> `model_class` | the file is recognised as the architecture it is |
 | 19,320 | INT8 GEMM calls during the render | `records/qwen_diffsynth_canny_image_test.json` -> `measurement.int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
-| 1,256,673 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 20 steps, cfg 1.0, base `qwnImageEdit_v16Bf16_convrot_int8.safetensors`) | `records/qwen_diffsynth_canny_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
-| 218.8 | wall seconds for that render | `records/qwen_diffsynth_canny_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
+| 1,306,054 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 20 steps, cfg 1.0, base `qwnImageEdit_v16Bf16_convrot_int8.safetensors`) | `records/qwen_diffsynth_canny_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| records/qwen_diffsynth_canny_control.png | the control image that drove the render | `records/qwen_diffsynth_canny_image_test.json` -> `settings.control_image` | the pack was driven by an input of the kind its condition expects |
+| a624721a57c3a3a30488c0de9e9ac6dd2dbcd4f479baf446277cf20b6d571f12 | sha256 of that control image | `records/qwen_diffsynth_canny_image_test.json` -> `settings.control_image_sha256` | the input that produced the picture is recorded |
+| 170.6 | wall seconds for that render | `records/qwen_diffsynth_canny_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | 0 / 0 | NaN and Inf counts in the produced latent (1 x 16 x 1 x 128 x 128 tensors) | `records/qwen_diffsynth_canny_image_test.json` -> `measurement.latent_nan_count`, `measurement.latent_inf_count` | the executed path produces neither |
 
 ## 5. Conclusion

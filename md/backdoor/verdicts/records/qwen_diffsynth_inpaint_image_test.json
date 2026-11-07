@@ -12,7 +12,11 @@
     "seed": 42,
     "controlnet_strength": 0.9,
     "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
-    "negative": "blurry, low quality"
+    "negative": "blurry, low quality",
+    "control_image": "records/qwen_diffsynth_inpaint_control.png",
+    "control_image_file": "records/qwen_diffsynth_inpaint_control.png",
+    "control_image_sha256": "f3472c60e190b0ed4477233f6241c7d20c8887321b0740170225b70f929030e4",
+    "control_image_bytes": 1089007
   },
   "measurement": {
     "latent_shape": [
@@ -26,9 +30,9 @@
     "latent_inf_count": 0,
     "latent_finite": true,
     "int8_linear_calls": 19320,
-    "png_bytes": 590314,
-    "png_sha256": "6770e024d9d05f852ea5a55c8609072650efde845fe1ef0308a8558dd01d79e6",
-    "wall_seconds": 358.5,
+    "png_bytes": 857122,
+    "png_sha256": "d2c346a88e8ac295e8974e8767ba1e1c00af838db6d84bc289e61c9ad55ace8f",
+    "wall_seconds": 148.3,
     "png_file": "records/qwen_diffsynth_inpaint_image_test.png"
   },
   "verdict": "image rendered"
