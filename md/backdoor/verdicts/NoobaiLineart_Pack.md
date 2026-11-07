@@ -91,11 +91,16 @@ weight level is not closed.**
 - **What is established:** the pack loads on the HSWQ ControlNet Loader route, all 362 declared
   layers execute as INT8 (362 INT8 GEMM calls in one forward), and the route renders a coherent
   picture.
-- **What is not established:** that the pack's weights are a re-quantization of a known source. Two
-  candidate sources with the same architecture were rejected by measurement (section 3), and the
-  source that was actually used is not recorded in this repository or on the model card.
+- **What is not established:** that the pack's weights are a re-quantization of a known source. The
+  three published forms of the one public candidate source were rejected by measurement (section 3),
+  and the source that was actually used is not recorded in this repository or on the model card.
 - **Therefore:** no statement is made about added material. A pack whose source is unknown cannot be
   closed at weight level, and this report does not claim otherwise.
+- **Superseded:** the pack has since been re-quantized from the identified source
+  (`noobaiXLControlnet_epsLineartRealistic.safetensors`) with the current converter, under the
+  trajectory-impact protection method; that pack closes at zero against the same source and is
+  covered by [NoobaiLineart_HSWQ_Pack.md](NoobaiLineart_HSWQ_Pack.md). This file keeps measuring the
+  legacy pack itself, which remains in place.
 
 ## LIMITS
 

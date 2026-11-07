@@ -1,0 +1,20 @@
+{
+  "tool": "convert_controlnet_convrot_int8.py",
+  "converter_args": {
+    "input": "noobaiXLControlnet_epsLineartRealistic.safetensors",
+    "output": "noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8.safetensors",
+    "impact_sha256": "4519f641cff341431aea4095c278f16d8a4e5110890644ab45bd8f8c2838cb76",
+    "impact_bytes": 30746,
+    "drift_threshold": 0.15,
+    "model": "waiIllustriousSDXL_v170.safetensors"
+  },
+  "measurement": {
+    "sweep": "full trajectory sweep, 400 modules, 20 steps, seed 42, cfg 7.0",
+    "drift_gt_threshold": 15,
+    "protected_total": 33,
+    "convrot_int8_linear": 329,
+    "kept_not_runtime_linear": 482,
+    "output_gb": 1.32
+  },
+  "runtime_linear_modules": 362
+}
