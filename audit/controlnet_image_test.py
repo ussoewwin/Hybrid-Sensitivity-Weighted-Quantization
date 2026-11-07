@@ -64,6 +64,10 @@ def main() -> int:
                          "qwen: qwen image unet + one text encoder + vae file")
     ap.add_argument("--clip", default="", help="text encoder file name (models/clip) for qwen mode")
     ap.add_argument("--vae-path", default="", help="vae file path for qwen mode")
+    ap.add_argument("--control-image", default="",
+                    help="control image file name for the zimage and diffqwen modes (read with "
+                         "ComfyUI's own LoadImage, so its mask follows the stock convention)")
+    ap.add_argument("--input-dir", default="", help="folder the control image is read from")
     ap.add_argument("--clip1", default="", help="clip file name (models/clip) for flux mode")
     ap.add_argument("--clip2", default="", help="second clip file name for flux mode")
     ap.add_argument("--clip-type", default="flux", help="DualCLIPLoader type")
@@ -171,8 +175,15 @@ def main() -> int:
         from comfy_extras import nodes_model_patch
         node_cls = (nodes_model_patch.ZImageFunControlnet if args.mode == "zimage"
                     else nodes_model_patch.QwenImageDiffsynthControlnet)
+        if args.control_image:
+            if args.input_dir:
+                folder_paths.add_model_folder_path("input", os.path.abspath(args.input_dir))
+            control_image, control_mask = comfy_nodes.LoadImage().load_image(args.control_image)
+            mask_arg = control_mask if float(control_mask.abs().sum()) > 0 else None
+        else:
+            control_image, mask_arg = hint_image(torch, args.size), None
         (model,) = node_cls().diffsynth_controlnet(
-            model, patch, vae, hint_image(torch, args.size), args.strength)
+            model, patch, vae, control_image, args.strength, mask=mask_arg)
         pos_c, neg_c = pos, neg
     else:
         applier = comfy_nodes.ControlNetApplyAdvanced()
@@ -215,7 +226,8 @@ def main() -> int:
         "settings": {"width": args.size, "height": args.size, "steps": args.steps, "cfg": args.cfg,
                      "sampler": args.sampler, "scheduler": args.scheduler, "seed": args.seed,
                      "controlnet_strength": args.strength, "prompt": args.prompt,
-                     "negative": args.negative},
+                     "negative": args.negative,
+                     "control_image": args.control_image or "synthetic hint (circle over a horizon)"},
         "measurement": {"latent_shape": list(samples.shape), "latent_nan_count": nan,
                         "latent_inf_count": inf, "latent_finite": nan == 0 and inf == 0,
                         "int8_linear_calls": int(gemm.get("int8_linear_calls", 0)),

@@ -7,7 +7,7 @@
     {
       "gate": "Procedure Check",
       "status": "PASS",
-      "seconds": 0.11,
+      "seconds": 0.09,
       "script": "audit/procedure_check.py",
       "script_sha256": "a074717f142cf9c3a1584d89ce7b43962c604dd183137dab25d5703b2aa22cd7"
     },
@@ -21,7 +21,7 @@
     {
       "gate": "Selftest (42/42)",
       "status": "PASS",
-      "seconds": 5.5,
+      "seconds": 4.79,
       "script": "audit/selftest.py",
       "script_sha256": "851f511b54a1e220171b23bd3e39e876a31a9938cf7d57cc4254c56af729a5ef"
     }
