@@ -1,0 +1,182 @@
+{
+  "tool": "controlnet_pack_audit.py",
+  "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
+  "source": {
+    "file": "noob_lineart_diffusers_fp16.safetensors",
+    "bytes": 2502139136,
+    "sha256": "d187de1a2ee56e3d820b465b1715f203d5c028032dabebfeadb52db6debc80bf"
+  },
+  "pack": {
+    "file": "noobaiXLControlnet_epsLineartRealistic_convrot_int8.safetensors",
+    "bytes": 1396344101,
+    "sha256": "4adf27f61b2ac3cd2a07777b1daafab2b0d214b821854a883e497e11e0783f79"
+  },
+  "declared": {
+    "layers": 362,
+    "formats": [
+      "int8_tensorwise"
+    ],
+    "convrot": [
+      "True"
+    ],
+    "groupsizes": [
+      64,
+      256
+    ]
+  },
+  "runtime_tensors": 844,
+  "pack_tensors": 844,
+  "coverage": {
+    "missing_from_pack": [],
+    "n_missing": 0,
+    "extra_in_pack": [],
+    "n_extra": 0,
+    "shape_mismatch": [],
+    "n_shape_mismatch": 0
+  },
+  "quantised": {
+    "found": 362,
+    "declared": 362,
+    "undeclared_found": [],
+    "declared_not_found": [],
+    "q_mismatch_total": 6887555,
+    "max_q_delta": 1,
+    "scale_exact_rel_max": 0.00035949813900515437,
+    "nonfinite_scales": 0,
+    "layers_with_any_difference": [
+      {
+        "layer": "input_blocks.1.0.emb_layers.1",
+        "q_mismatch": 2529,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000201392933
+      },
+      {
+        "layer": "input_blocks.2.0.emb_layers.1",
+        "q_mismatch": 2537,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000212764542
+      },
+      {
+        "layer": "input_blocks.4.0.emb_layers.1",
+        "q_mismatch": 5254,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000219312249
+      },
+      {
+        "layer": "input_blocks.4.1.proj_in",
+        "q_mismatch": 2779,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000300197426
+      },
+      {
+        "layer": "input_blocks.4.1.proj_out",
+        "q_mismatch": 2736,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.00023169443
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.attn1.to_k",
+        "q_mismatch": 2754,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000227636774
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.attn1.to_out.0",
+        "q_mismatch": 2676,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000210700367
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.attn1.to_q",
+        "q_mismatch": 2654,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000209419683
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.attn1.to_v",
+        "q_mismatch": 2656,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000205112447
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.attn2.to_k",
+        "q_mismatch": 7776,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000214718108
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.attn2.to_out.0",
+        "q_mismatch": 2653,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000207192294
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.attn2.to_q",
+        "q_mismatch": 2678,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000199949383
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.attn2.to_v",
+        "q_mismatch": 7891,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000188928345
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.ff.net.0.proj",
+        "q_mismatch": 21723,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000262551912
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.0.ff.net.2",
+        "q_mismatch": 9675,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000178978211
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.1.attn1.to_k",
+        "q_mismatch": 2678,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000195871602
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.1.attn1.to_out.0",
+        "q_mismatch": 2719,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000220511007
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.1.attn1.to_q",
+        "q_mismatch": 2741,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000232377104
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.1.attn1.to_v",
+        "q_mismatch": 2698,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000193761589
+      },
+      {
+        "layer": "input_blocks.4.1.transformer_blocks.1.attn2.to_k",
+        "q_mismatch": 8223,
+        "max_q_delta": 1,
+        "scale_rel_max": 0.000210495025
+      }
+    ],
+    "n_layers_with_difference": 362
+  },
+  "float_side": {
+    "checked": 482,
+    "mismatch_count": 158,
+    "max_abs_diff": 0.00011998414993286133
+  },
+  "loader_route": null,
+  "verdict": "EDITED",
+  "environment": {
+    "device": "cuda",
+    "comfy": "ComfyUI"
+  },
+  "elapsed_seconds": 13.54
+}
