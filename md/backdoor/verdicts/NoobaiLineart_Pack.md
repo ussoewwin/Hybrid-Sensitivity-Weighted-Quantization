@@ -44,11 +44,26 @@ architecture were fetched and tested; neither is the source.
 | 158 | float tensors differing, of 482 checked | `records/noobai_sdxl_lineart_realistic_pack_audit.json` -> `float_side.mismatch_count` | the pack's float side is not a copy of this source either |
 | 0.000119984 | largest absolute difference on those float tensors | `records/noobai_sdxl_lineart_realistic_pack_audit.json` -> `float_side.max_abs_diff` | the two files are close but not equal - a different checkpoint of the same architecture |
 | 362 | quantised layers in which at least one value differs | `records/noobai_sdxl_lineart_realistic_pack_audit.json` -> `quantised.n_layers_with_difference` | the difference is in every layer, not a stray tensor |
+| 6,887,555 | INT8 values differing against the fp16 diffusers source | `records/noobai_sdxl_lineart_realistic_pack_audit_fp16.json` -> `quantised.q_mismatch_total` | that file is not the source either |
+| 6,887,555 | INT8 values differing against the fp32 diffusers source | `records/noobai_sdxl_lineart_realistic_pack_audit_diffusers_fp32.json` -> `quantised.q_mismatch_total` | the third published form is rejected the same way |
+| 158 | float tensors differing, all of them bias tensors | `records/noobai_source_candidates.json` -> `float_side_structure.differing` | the unquantised side is close to every candidate but not equal |
+| 324 | float tensors identical to the candidate source | `records/noobai_source_candidates.json` -> `float_side_structure.identical` | the files share the same backbone; the bias tensors are what differ |
+| c80ad372a374098d4f0ddc2aaf8bea7e790cb691086d882bb97091ed5da64bba | sha256 of the Civitai release `eps-lineart_realistic` | `records/noobai_source_candidates.json` -> `civitai.sha256` | the Civitai file is the same artifact as the Eugeoter one, so it adds no candidate |
 
-The source tested was `noob-sdxl-controlnet-lineart_realistic` in both of its published forms: the
-bfloat16 diffusers file (2,502,139,136 B, LFS object `d187de1a…`) and the float32 file
-(5,004,167,832 B, LFS object `c80ad372…`). Both produce the same 844-tensor graph and the same
-mismatch counts, so the numbers above stand for either of them.
+The source tested was `noob-sdxl-controlnet-lineart_realistic`, and **all three forms its repository
+publishes** were fetched and compared: the runtime-name file (5,004,167,832 B, LFS object
+`c80ad372…`), the fp16 diffusers file (2,502,139,136 B, LFS object `d187de1a…`) and the fp32 diffusers
+file (5,004,167,864 B, LFS object `d199c178…`). All three produce the same 844-tensor graph and all
+three are rejected by the same measurement: 6,887,555 to 6,887,567 differing INT8 values and the same
+158 differing float tensors. The Civitai release of the same file (`NoobAI-XL ControlNet`, version
+`eps-lineart_realistic`) carries the sha256 `c80ad372…`, so it is the same artifact and adds no
+candidate.
+
+The difference has a shape worth recording. Of the 482 float tensors in the pack, 324 are **identical**
+to the candidate source and 158 - all of them bias tensors - differ by at most 1.2e-04, while the 362
+quantised weights differ in every layer. The two files therefore share the same backbone and differ in
+the bias tensors; the pack was not built from this checkpoint, and any further closure has to start from
+a different one.
 
 Because the source is not identified, the weight level cannot be closed for this pack and no
 strength-A claim is made. What the numbers above do establish is that the pack is **not** a
@@ -94,9 +109,9 @@ weight level is not closed.**
 - Reference-class boundary: the reference would be the publisher's release of this lineart
   ControlNet. That release is not named here, so a defect present in it before distribution is
   unreachable by comparing the pack with it.
-- The two rejected candidates were rejected on measurement, not on judgement: their float sides
-  differ from the pack's in 158 tensors and their replay differs in every one of the 362 quantised
-  layers.
+- The rejected candidates were rejected on measurement, not on judgement: all three published forms
+  of the one public candidate differ from the pack in 158 float tensors (all bias tensors) and in every
+  one of the 362 quantised layers, and the Civitai release is the same file as one of them.
 - The render is one prompt and one control strength at 1024x1024. It shows the route produces a
   picture; it says nothing about image quality or control fidelity.
 - Inputs outside the tested sets are not covered; no test covers them.
@@ -104,7 +119,13 @@ weight level is not closed.**
 ## Records
 
 - `records/noobai_sdxl_lineart_realistic_pack_audit.json` - identity, runtime coverage, the
-  quantisation replay against the two candidate sources, float-side comparison.
+  quantisation replay against the runtime-name source, float-side comparison.
+- `records/noobai_sdxl_lineart_realistic_pack_audit_fp16.json` - the same measurement against the fp16
+  diffusers source.
+- `records/noobai_sdxl_lineart_realistic_pack_audit_diffusers_fp32.json` - the same measurement against
+  the fp32 diffusers source.
+- `records/noobai_source_candidates.json` - the candidate census: every published form, its sha256, its
+  numbers, and the Civitai release that matches one of them.
 - `records/noobai_sdxl_lineart_realistic_hswq_route.json` - the loader route: declared, applied and
   unmatched layer counts, class, raw-code count.
 - `records/noobai_sdxl_lineart_realistic_int8_exec.json` - one forward on that route: INT8 GEMM

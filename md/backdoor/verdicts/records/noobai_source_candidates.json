@@ -1,0 +1,94 @@
+{
+  "tool": "noobai source candidate census",
+  "pack": {
+    "file": "noobaiXLControlnet_epsLineartRealistic_convrot_int8.safetensors",
+    "bytes": 1396344101,
+    "sha256": "4adf27f61b2ac3cd2a07777b1daafab2b0d214b821854a883e497e11e0783f79"
+  },
+  "candidates": [
+    {
+      "label": "Eugeoter `noob-sdxl-controlnet-lineart_realistic.safetensors` (the runtime-name file)",
+      "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_realistic/resolve/main/noob-sdxl-controlnet-lineart_realistic.safetensors",
+      "file": "noob_sdxl_controlnet_lineart_realistic_pth_fp32.safetensors",
+      "bytes": 5004167832,
+      "sha256": "c80ad372a374098d4f0ddc2aaf8bea7e790cb691086d882bb97091ed5da64bba",
+      "runtime_tensors": 844,
+      "quantised": {
+        "declared": 362,
+        "found": 362,
+        "q_mismatch_total": 6887567,
+        "max_q_delta": 1,
+        "scale_exact_rel_max": 0.00035949813900515437
+      },
+      "float_side": {
+        "checked": 482,
+        "mismatch_count": 158,
+        "max_abs_diff": 0.00011998414993286133
+      },
+      "rejected": true,
+      "reason": "the pack is not a re-quantization of this file"
+    },
+    {
+      "label": "Eugeoter `diffusion_pytorch_model.fp16.safetensors`",
+      "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_realistic/resolve/main/diffusion_pytorch_model.fp16.safetensors",
+      "file": "noob_lineart_diffusers_fp16.safetensors",
+      "bytes": 2502139136,
+      "sha256": "d187de1a2ee56e3d820b465b1715f203d5c028032dabebfeadb52db6debc80bf",
+      "runtime_tensors": 844,
+      "quantised": {
+        "declared": 362,
+        "found": 362,
+        "q_mismatch_total": 6887555,
+        "max_q_delta": 1,
+        "scale_exact_rel_max": 0.00035949813900515437
+      },
+      "float_side": {
+        "checked": 482,
+        "mismatch_count": 158,
+        "max_abs_diff": 0.00011998414993286133
+      },
+      "rejected": true,
+      "reason": "the pack is not a re-quantization of this file"
+    },
+    {
+      "label": "Eugeoter `diffusion_pytorch_model.safetensors`",
+      "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_realistic/resolve/main/diffusion_pytorch_model.safetensors",
+      "file": "noob_lineart_diffusers_fp32.safetensors",
+      "bytes": 5004167864,
+      "sha256": "d199c17808841900ed074e89b78b8208e57a645662da28a94810c424301e358e",
+      "runtime_tensors": 844,
+      "quantised": {
+        "declared": 362,
+        "found": 362,
+        "q_mismatch_total": 6887555,
+        "max_q_delta": 1,
+        "scale_exact_rel_max": 0.00035949813900515437
+      },
+      "float_side": {
+        "checked": 482,
+        "mismatch_count": 158,
+        "max_abs_diff": 0.00011998414993286133
+      },
+      "rejected": true,
+      "reason": "the pack is not a re-quantization of this file"
+    }
+  ],
+  "civitai": {
+    "model_id": 929685,
+    "model_name": "NoobAI-XL ControlNet",
+    "version_id": 1091487,
+    "version_name": "eps-lineart_realistic",
+    "file": "noob-sdxl-controlnet-lineart_realistic.safetensors",
+    "bytes": 5004167832,
+    "sha256": "c80ad372a374098d4f0ddc2aaf8bea7e790cb691086d882bb97091ed5da64bba",
+    "note": "the Civitai release carries the same sha256 as the Eugeoter runtime-name file, so it is the same artifact and adds no new candidate"
+  },
+  "float_side_structure": {
+    "checked": 482,
+    "differing": 158,
+    "identical": 324,
+    "max_abs_diff": 0.00011998414993286133,
+    "note": "the differing tensors are the bias tensors; the remaining float tensors are identical to the candidate source, and the 362 weights are the quantised ones"
+  },
+  "verdict": "source not identified; all three published forms of the only public candidate are rejected by measurement, and the Civitai release is the same file as one of them"
+}
