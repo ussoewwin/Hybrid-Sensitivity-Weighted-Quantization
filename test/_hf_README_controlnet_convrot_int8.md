@@ -8,6 +8,7 @@ tags:
 - sdxl
 - stable-diffusion-xl
 - illustrious-xl
+- noobai-xl
 - z-image
 - z-image-turbo
 - qwen-image
@@ -29,7 +30,7 @@ pipeline_tag: image-to-image
   <img src="https://raw.githubusercontent.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/main/icon.png" width="128">
 </p>
 
-High-fidelity **ConvRot INT8** quantized weights for multi-condition and dedicated ControlNet models across diverse generative architectures (**Illustrious-XL / SDXL**, **SDXL 1.0**, **Z-Image-Turbo**, **Qwen-Image / Qwen-Image-2512**, and **FLUX.1-dev**).
+High-fidelity **ConvRot INT8** quantized weights for multi-condition and dedicated ControlNet models across diverse generative architectures (**Illustrious-XL / SDXL**, **SDXL 1.0**, **NoobAI-XL**, **Z-Image-Turbo**, **Qwen-Image / Qwen-Image-2512**, and **FLUX.1-dev**).
 
 - **Technical Details & Quantization Framework:** [Hybrid-Sensitivity-Weighted-Quantization (HSWQ)](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
 - **ComfyUI Loader for ConvRot INT8:** [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
@@ -42,6 +43,7 @@ Sizes are decimal (1 GB = 10\^9 bytes) and exact; the `SHA256` column is the pac
 | `CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors` | Illustrious-XL / SDXL | [2vXpSwA7/iroiro-lora (Anytest v4 Variant A)](https://huggingface.co/2vXpSwA7/iroiro-lora) | Multi-condition (Canny, Lineart, Depth, Pose, Structure) | ConvRot INT8 | 1425.1 MB | `be9ff80b2f4895684c7114afff12220394f838179b5c82eadd8ebc46f5d82c25` | Fair AI / OpenRAIL++-M |
 | `CN-anytest4_illustrious2_B_hswq_convrot_int8.safetensors` | Illustrious-XL / SDXL | [2vXpSwA7/iroiro-lora (Anytest v4 Variant B)](https://huggingface.co/2vXpSwA7/iroiro-lora) | Multi-condition (Canny, Lineart, Depth, Pose, Structure) | ConvRot INT8 | 1423.5 MB | `7e34dc3cc3334afa2b9fe5461131a1f61e289a83b1a11413d6c687e94b9dde6e` | Fair AI / OpenRAIL++-M |
 | `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors` | SDXL 1.0 | [xinsir/controlnet-union-sdxl-1.0](https://huggingface.co/xinsir/controlnet-union-sdxl-1.0) | OpenPose, Depth, Canny, Lineart, Anime Lineart, Scribble, Soft Edge, Normal, Segment, Tile, Inpaint | ConvRot INT8 | 1435.3 MB | `dcdf6f2037205c4a40b1f8863a91827ca3a5b55ec3261e07bb13d2dc855b47fb` | OpenRAIL++-M / Apache-2.0 |
+| `noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8.safetensors` | NoobAI-XL / SDXL | [Eugeoter/noob-sdxl-controlnet-lineart_realistic](https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_realistic) | Lineart (Realistic) | ConvRot INT8 | 1420.2 MB | `86e795137dcf8d2876784eeecc2d61365c385f6caf4a5176d225ecd57fdcc914` | Fair AI Public 1.0-SD |
 | `FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors` | FLUX.1-dev | [Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0](https://huggingface.co/Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0) | Canny, Depth, Pose, Blur, Gray, Soft Edge, Low Quality | ConvRot INT8 | 2710.6 MB | `fbcba3c76a221fba461c83680f682d3ff7aa813ef554c42e3a5449b981090c46` | Other / Non-Commercial |
 | `Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8.safetensors` | Qwen-Image-2512 | [alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union](https://huggingface.co/alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union) | Canny, HED, Depth, Pose, MLSD, Scribble, Gray, Inpaint | ConvRot INT8 | 1758.7 MB | `5aec39a53f583bade3b7db18f38ed5a01905a0610c2ad2f9f792802178596bc4` | Apache-2.0 |
 | `Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8.safetensors` | Qwen-Image | [alibaba-pai/Qwen-Image-ControlNet-Inpainting](https://huggingface.co/alibaba-pai/Qwen-Image-ControlNet-Inpainting) | Inpainting, Image Editing | ConvRot INT8 | 2120.3 MB | `38f0ab7495029517d4b0bb4187cedcbdfa090a29f0bb50dfa5733f5076a0c451` | Apache-2.0 |
@@ -68,6 +70,7 @@ Then place each file in the directory its type requires (see the table at the to
 
 ### Base Models & Research
 - **Illustrious Anytest ControlNet:** [2vXpSwA7/iroiro-lora](https://huggingface.co/2vXpSwA7/iroiro-lora) by **2vXpSwA7**
+- **NoobAI-XL ControlNet:** [Eugeoter/noob-sdxl-controlnet-lineart_realistic](https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_realistic) by **Eugeoter** (Fair AI Public 1.0-SD)
 - **SDXL ControlNet Union:** [xinsir/controlnet-union-sdxl-1.0](https://huggingface.co/xinsir/controlnet-union-sdxl-1.0) by **xinsir**
 - **Z-Image-Turbo ControlNet Models:** [alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1](https://huggingface.co/alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1) & [aigc-apps/VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun) (Apache-2.0)
 - **Qwen-Image ControlNet Models:** [alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union](https://huggingface.co/alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union), [alibaba-pai/Qwen-Image-ControlNet-Inpainting](https://huggingface.co/alibaba-pai/Qwen-Image-ControlNet-Inpainting) & [aigc-apps/VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun) (Apache-2.0)
