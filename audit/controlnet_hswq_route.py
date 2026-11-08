@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """Load a ConvRot INT8 ControlNet through the HSWQ loader node and report what it applies.
 
-The stock ``ControlNetLoader`` is not the right instrument for these packs. The HSWQ node
+The ComfyUI ``ControlNetLoader`` is not the right instrument for these packs. The HSWQ node
 (``nodes/hswq_load_convrot_int8_controlnet.py``) builds them with ``MixedPrecisionOps`` so the
 INT8 weights stay INT8, and it builds comfy-native FLUX ControlNets directly because
 ``comfy.controlnet.load_controlnet_state_dict`` has no branch for that layout. Measuring a pack
-with the stock loader therefore measures the wrong thing.
+with the ComfyUI loader therefore measures the wrong thing.
 
 What this reports, per pack:
 

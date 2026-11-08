@@ -16,7 +16,7 @@ int8 and LoRA deltas on Conv layers vanish.
 Vendored under hswq/benchmark/qwen image convrot w4a8 as comfy_quant_w4a8.py for
 Qwen Image / Qwen-Image-Edit ConvRot W4A8 fidelity benches (Conv2d/decode
 patches for the pack's int8_tensorwise fallback layers; W4A8 Linear loads
-stock-native). Qwen Image DiT is pure Linear (no Conv2d), so the Conv2d
+ComfyUI-native). Qwen Image DiT is pure Linear (no Conv2d), so the Conv2d
 injection scope stays dormant on this model - kept for stack parity with the
 sdxl / krea2 convrot w4a8 vendored copies.
 Runtime monkey-patch only - do not permanently edit ComfyUI-master, and do not

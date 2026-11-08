@@ -5,12 +5,12 @@ The gate is the patch's OWN output (the same instrument the protection set was
 chosen with - the criterion and the gate must be the same instrument).
 
 This is a **model patch**, loaded through the HSWQ loader
-(`HSWQModelPatchLoader`): ComfyUI's stock `ModelPatchLoader` does not recognise
+(`HSWQModelPatchLoader`): ComfyUI's own `ModelPatchLoader` does not recognise
 the INT8 layout. Both dispatch on `controlnet_blocks.0.y_rms.weight` into
 `comfy_extras.nodes_model_patch.QwenImageBlockWiseControlNet`.
 
 The baseline is built through the SAME ops path as the quantized packs
-(`mixed_precision_ops`) so the two sides are numerically comparable - the stock
+(`mixed_precision_ops`) so the two sides are numerically comparable - the ComfyUI
 path's `manual_cast` is not equivalent.
 
 **Memory note.** One item's output is 60 blocks x 3145728 elements; kept in

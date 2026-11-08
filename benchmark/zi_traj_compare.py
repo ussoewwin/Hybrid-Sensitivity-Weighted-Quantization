@@ -254,7 +254,7 @@ def parse_args():
         "--attention", choices=["sdpa", "sage2"], default="sdpa",
         help=(
             "sage2: patch the INT8 branch attention to SageAttention2 "
-            "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays on stock "
+            "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays on baseline "
             "attention. sdpa (default): no attention patch."
         ),
     )
@@ -278,7 +278,7 @@ _SAGE2_STATS = {"calls": 0, "sa2": 0, "fb_mask": 0, "fb_dim": 0, "err": 0,
 def apply_sage2_attention() -> None:
     """Arm SageAttention2 for this INT8 run (INT8 QK + FP8 PV, sm120 auto path).
 
-    Layout handling matches the stock attention_pytorch semantics:
+    Layout handling matches the ComfyUI attention_pytorch semantics:
       - skip_reshape=True  : q,k,v are [B,H,N,D]
       - skip_output_reshape=False : return [B,N,H*D] (transpose(1,2) BEFORE reshape)
     SDPA fallback for mask / head_dim > 256 / exceptions.

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """The vision acceptance check, with the baseline on the SAME ops path.
 
-The stock CLIPVisionLoader builds the vision tower with `comfy.ops.manual_cast`,
+The ComfyUI CLIPVisionLoader builds the vision tower with `comfy.ops.manual_cast`,
 while a quantized pack is built with `mixed_precision_ops`. For some models
 these two paths are NOT numerically equivalent - measured on the CLIP-ViT-H-14
 source: the same weights through the two paths give a cosine of 0.94-0.96, and
@@ -45,7 +45,7 @@ def class_dim(sd):
 
 
 def pick_config(sd):
-    """The config the STOCK loader picks for this checkpoint.
+    """The config the ComfyUI loader picks for this checkpoint.
 
     `comfy.clip_vision.load_clipvision_from_sd` chooses it from the
     checkpoint's own shape, so the same rule is used here: the baseline and
@@ -65,7 +65,7 @@ def pick_config(sd):
         n = int(emb.shape[0]) if emb is not None else 0
         if n == 729:
             return os.path.join(COMFY, "comfy", "clip_vision_siglip_384.json")
-    # the fallback: let the stock loader decide
+    # the fallback: let the ComfyUI loader decide
     return None
 
 
@@ -125,9 +125,9 @@ def main():
             sys.argv = _saved
         import json as _json
         jc = os.path.join(COMFY, "comfy", "clip_vision_config_vitl.json")
-        # the stock loader's config, recovered from the model's own attributes
+        # the ComfyUI loader's config, recovered from the model's own attributes
         cfg_name = getattr(_v, "model_type", "clip_vision_model")
-        print("    the stock loader's model type: %s" % cfg_name, flush=True)
+        print("    the ComfyUI loader's model type: %s" % cfg_name, flush=True)
     ops = O.mixed_precision_ops({"int8_tensorwise": QUANT_ALGOS["int8_tensorwise"]},
                                 torch.float16, full_precision_mm=False)
 

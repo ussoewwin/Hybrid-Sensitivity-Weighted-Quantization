@@ -9,7 +9,7 @@ one run:
   stage 1  rotate_last_dim_pooled      (x @ H, gs from comfy_quant)
   stage 2  quantize_nvfp4_act_pooled   (_C.quantize_nvfp4, sx NaN scan)
   stage 3  scaled_mm_nvfp4_pooled      (_C.cublas_gemm_blockwise_fp4)
-  stage 4  stock QT path               (QuantizedTensor.from_float + ck mm)
+  stage 4  ComfyUI QT path               (QuantizedTensor.from_float + ck mm)
   stage 5  armed module forward        (load_nvfp4_linear_module + forward_nvfp4)
   sweep    stages 1-3 over every nvfp4 conf layer (shape flags + NaN hunt)
 

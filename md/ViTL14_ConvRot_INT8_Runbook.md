@@ -85,9 +85,9 @@ text_cos_vs_fp16 >= 0.9999, vision_cos_vs_fp16 >= 0.999.
 | tower | loader | operations | consumes comfy_quant |
 | :--- | :--- | :--- | :--- |
 | text | `comfy.sd.load_clip` (SD1ClipModel) | `mixed_precision_ops` (auto, when `model_options["quantization_metadata"]` is set) | yes |
-| vision | `ClipVisionModel` | must be constructed with `mixed_precision_ops`; the stock `CLIPVisionLoader` uses `manual_cast` and would read int8 raw | yes (with mixed ops) |
+| vision | `ClipVisionModel` | must be constructed with `mixed_precision_ops`; ComfyUI's own `CLIPVisionLoader` uses `manual_cast` and would read int8 raw | yes (with mixed ops) |
 
-**Important.** The stock `CLIPVisionLoader` builds the tower with `manual_cast`,
+**Important.** The ComfyUI `CLIPVisionLoader` builds the tower with `manual_cast`,
 which does **not** consume `comfy_quant`. To run the quantized vision tower, build
 it with `mixed_precision_ops` (as the smoke/verify scripts do).
 
@@ -109,7 +109,7 @@ The FP16 file remains usable as before. No other file is touched.
 
 - Latency is **higher** for the quantized model on this machine (per-op
   dequant/rotation overhead); the win is file size / weight memory.
-- The vision tower requires `mixed_precision_ops`; a stock `CLIPVisionLoader` will
+- The vision tower requires `mixed_precision_ops`; a ComfyUI `CLIPVisionLoader` will
   not quantize it.
 - `text_projection` is absent in the checkpoint; the text path needs it completed
   (zeros) or it crashes under mixed ops.

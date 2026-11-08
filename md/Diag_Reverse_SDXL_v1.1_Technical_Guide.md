@@ -518,7 +518,7 @@ it is not achievable with this method for that checkpoint.
 | `--cfg` | `7.0` | CFG scale |
 | `--sampler` | `"dpmpp_2m"` | Sampler name |
 | `--scheduler` | `"karras"` | Scheduler type |
-| `--attention` | `"sdpa"` | `sdpa` (stock) or `sage2` (SageAttention2 for INT8 branch only; FP16 stays stock) |
+| `--attention` | `"sdpa"` | `sdpa` (ComfyUI) or `sage2` (SageAttention2 for INT8 branch only; FP16 stays ComfyUI) |
 | `--show-steps` | `False` | Print per-step divergence curve for every seed |
 
 ## 11. Automation driver (`auto_reverse_int8_sdxl.py`)

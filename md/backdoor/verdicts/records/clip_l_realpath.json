@@ -1,9 +1,9 @@
 {
- "official_stock": {
+ "official_model": {
   "loaded": true,
   "int8_params": 0
  },
- "pack_stock": {
+ "pack_model": {
   "loaded": true,
   "int8_params": 0,
   "cos_pooled_vs_official": [

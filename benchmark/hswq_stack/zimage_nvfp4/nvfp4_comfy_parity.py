@@ -1,4 +1,4 @@
-"""Z Image / ZIT ConvRot NVFP4 — ComfyUI stock GEMM + online act rotate.
+"""Z Image / ZIT ConvRot NVFP4 — ComfyUI ComfyUI GEMM + online act rotate.
 
 Ported from ``hswq/benchmark/nvfp4_comfy_parity.py`` (same math as
 ``zi_convrot_nvfp4_bench.py``). Product HSWQ Tensor Core Linear.forward
@@ -255,7 +255,7 @@ def _discard_poisoned_product_refs() -> None:
 
 
 def peel_non_product_nvfp4_ops(ops) -> bool:
-    """Peel Z Image / comfy_parity mp+load wrappers down to stock or SDXL product_tc.
+    """Peel Z Image / comfy_parity mp+load wrappers down to baseline or SDXL product_tc.
 
     Used when PRODUCT was never saved (INT8-only → Z Image → SDXL) so restore
     cannot reinstate TC, but ZI mp must not keep attaching VER=8 Linear bake.
@@ -392,7 +392,7 @@ def _parity_load_in_chain(fn) -> bool:
 
 
 def _resolve_load_under_tc(patched_load):
-    """Callable under TC for parity to close over (stock Comfy or INT8 normalize).
+    """Callable under TC for parity to close over (baseline Comfy or INT8 normalize).
 
     Peel **only** TC ``load_nvfp4_linear_module``. Keep INT8 decode wrap so
     int8protect layers still normalize ``comfy_quant`` tensors.
@@ -414,7 +414,7 @@ def _resolve_load_under_tc(patched_load):
 
 
 def _chain_has_int8_protect_in_load(fn) -> bool:
-    """True if load chain already arms INT8 protect ConvRot after stock load."""
+    """True if load chain already arms INT8 protect ConvRot after baseline load."""
     cur = fn
     seen = set()
     for _ in range(8):
@@ -477,7 +477,7 @@ def _ensure_int8_protect_arm_overlay() -> None:
             error_msgs,
             load_extra_params=load_extra_params,
         )
-        _arm_int8_protect_convrot_after_stock_load(module, conf)
+        _arm_int8_protect_convrot_after_ComfyUI_load(module, conf)
         return out
 
     _load_int8_protect_arm_overlay._hswq_int8_protect_arm_v2 = True  # type: ignore[attr-defined]
@@ -488,8 +488,8 @@ def _ensure_int8_protect_arm_overlay() -> None:
     )
 
 
-def _unwrap_stock_forward(forward_fn):
-    """Peel HSWQ TC *and* ConvRot parity wrappers until Comfy stock forward.
+def _unwrap_ComfyUI_forward(forward_fn):
+    """Peel HSWQ TC *and* ConvRot parity wrappers until Comfy ComfyUI forward.
 
     After Distorch purge, Z Image reload may hit NVFP4 ``upgraded stack`` which
     wraps TC over an already-parity ``Linear.forward``. Refresh then used to
@@ -501,34 +501,34 @@ def _unwrap_stock_forward(forward_fn):
         if getattr(f, "_hswq_nvfp4_full_forward", False) or getattr(
             f, "_hswq_nvfp4_convrot_parity", False
         ):
-            stock = _closure_named(f, "stock_forward")
-            if stock is None:
+            baseline = _closure_named(f, "ComfyUI_forward")
+            if baseline is None:
                 return None
-            f = stock
+            f = baseline
             continue
         return f
     return None
 
 
 def _ensure_single_parity_linear_forward(Lin) -> None:
-    """Idempotent: one ConvRot parity wrap over true stock MixedPrecision forward."""
+    """Idempotent: one ConvRot parity wrap over true baseline MixedPrecision forward."""
     fwd = Lin.forward
-    stock = _unwrap_stock_forward(fwd)
-    if stock is None:
+    baseline = _unwrap_ComfyUI_forward(fwd)
+    if baseline is None:
         raise RuntimeError(
             "[HSWQ NVFP4] comfy_parity: could not unwrap Linear.forward "
-            "to Comfy stock (TC/parity chain broken)"
+            "to Comfy baseline (TC/parity chain broken)"
         )
-    # Already exactly parity(stock) with no nested wrappers under stock.
+    # Already exactly parity(baseline) with no nested wrappers under baseline.
     if (
         getattr(fwd, "_hswq_nvfp4_convrot_parity", False)
         and not getattr(fwd, "_hswq_nvfp4_full_forward", False)
-        and _closure_named(fwd, "stock_forward") is stock
-        and not getattr(stock, "_hswq_nvfp4_full_forward", False)
-        and not getattr(stock, "_hswq_nvfp4_convrot_parity", False)
+        and _closure_named(fwd, "ComfyUI_forward") is baseline
+        and not getattr(baseline, "_hswq_nvfp4_full_forward", False)
+        and not getattr(baseline, "_hswq_nvfp4_convrot_parity", False)
     ):
         return
-    Lin.forward = _make_convrot_parity_forward(stock)
+    Lin.forward = _make_convrot_parity_forward(baseline)
 
 
 def _is_int8_tensorwise_convrot_conf(conf) -> bool:
@@ -539,8 +539,8 @@ def _is_int8_tensorwise_convrot_conf(conf) -> bool:
     return bool(enabled)
 
 
-def _make_convrot_parity_forward(stock_forward):
-    """Stock MixedPrecision forward + online act rotate for ConvRot Linears.
+def _make_convrot_parity_forward(ComfyUI_forward):
+    """ComfyUI MixedPrecision forward + online act rotate for ConvRot Linears.
 
     NVFP4: ``_hswq_nvfp4_convrot`` (Params.convrot cleared at load).
     INT8 protect: ``_hswq_int8_convrot`` (Params.convrot cleared at load —
@@ -580,13 +580,13 @@ def _make_convrot_parity_forward(stock_forward):
                 h = build_hadamard(gs, device=input.device, dtype=input.dtype)
                 self._hswq_nvfp4_parity_H = h
             input = rotate_last_dim(input, h, gs)
-        return stock_forward(self, input, *args, **kwargs)
+        return ComfyUI_forward(self, input, *args, **kwargs)
 
     forward_parity._hswq_nvfp4_convrot_parity = True  # type: ignore[attr-defined]
     return forward_parity
 
 
-def _arm_convrot_after_stock_load(module, conf) -> None:
+def _arm_convrot_after_ComfyUI_load(module, conf) -> None:
     global _LOAD_NVFP4_SEEN, _LOAD_CONVROT_ARMED, _LOAD_NVFP4_NO_CONVROT
     from ..nvfp4.nvfp4_conf import convrot_flags_from_conf, is_nvfp4_conf
 
@@ -659,7 +659,7 @@ def _clear_int8_qt_params_convrot(module) -> bool:
         return False
 
 
-def _arm_int8_protect_convrot_after_stock_load(module, conf) -> None:
+def _arm_int8_protect_convrot_after_ComfyUI_load(module, conf) -> None:
     """Arm INT8 protect ConvRot Linear like Conv2d: flag + clear Params.convrot.
 
     Kitchen ``dequantize_int8_convrot_weight`` already unrotates when
@@ -694,7 +694,7 @@ def require_convrot_parity_forward() -> None:
     fwd = mp.Linear.forward
     if getattr(fwd, "_hswq_nvfp4_full_forward", False):
         raise RuntimeError(
-            "ConvRot NVFP4 parity requires stock Comfy Linear.forward + act rotate; "
+            "ConvRot NVFP4 parity requires baseline Comfy Linear.forward + act rotate; "
             "HSWQ TC full-forward is still installed (_hswq_nvfp4_full_forward)."
         )
     if not getattr(fwd, "_hswq_nvfp4_convrot_parity", False):
@@ -758,7 +758,7 @@ def restore_nvfp4_tc_product_stack() -> bool:
         else:
             _console(
                 "[HSWQ NVFP4] peeled non-product NVFP4 ops "
-                "(stock/INT8 base; no product_tc PRODUCT — SDXL INT8 LoRA safe)"
+                "(baseline/INT8 base; no product_tc PRODUCT — SDXL INT8 LoRA safe)"
             )
         return True
 
@@ -770,7 +770,7 @@ def restore_nvfp4_tc_product_stack() -> bool:
 
 
 def apply_nvfp4_comfy_parity() -> bool:
-    """Switch NVFP4 Linear path to stock Comfy GEMM + online act rotate.
+    """Switch NVFP4 Linear path to baseline Comfy GEMM + online act rotate.
 
     Also registers aten.addmm for TensorCoreNVFP4Layout (kitchen gap).
     Saves product TC refs so SDXL can restore later.
@@ -840,7 +840,7 @@ def apply_nvfp4_comfy_parity() -> bool:
         _refresh_parity_mp()
         _PARITY_APPLIED = True
         _console(
-            "[HSWQ NVFP4] comfy_parity refresh: stock GEMM + act rotate "
+            "[HSWQ NVFP4] comfy_parity refresh: ComfyUI GEMM + act rotate "
             "(NVFP4 + INT8 protect) + ConvRot Linear LoRA bake (Z Image)"
         )
         return True
@@ -873,9 +873,9 @@ def apply_nvfp4_comfy_parity() -> bool:
             load_extra_params=load_extra_params,
         )
         if is_nvfp4_conf(conf):
-            _arm_convrot_after_stock_load(module, conf)
+            _arm_convrot_after_ComfyUI_load(module, conf)
         else:
-            _arm_int8_protect_convrot_after_stock_load(module, conf)
+            _arm_int8_protect_convrot_after_ComfyUI_load(module, conf)
         return out
 
     _load_quantized_module_comfy_only._hswq_nvfp4_comfy_only = True  # type: ignore[attr-defined]
@@ -908,7 +908,7 @@ def apply_nvfp4_comfy_parity() -> bool:
 
     _PARITY_APPLIED = True
     _console(
-        "[HSWQ NVFP4] comfy_parity ON: stock MixedPrecision GEMM + online act rotate "
+        "[HSWQ NVFP4] comfy_parity ON: baseline MixedPrecision GEMM + online act rotate "
         "(NVFP4 ConvRot + INT8 protect ConvRot) "
         "+ ConvRot Linear LoRA bake (Z Image; not HSWQ TC Linear.forward)"
     )

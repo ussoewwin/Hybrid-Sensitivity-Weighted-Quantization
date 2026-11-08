@@ -82,8 +82,8 @@ ComfyUI dispatches it on the key `controlnet_blocks.0.y_rms.weight` into
 `comfy_extras.nodes_model_patch.QwenImageBlockWiseControlNet`: 60 blocks of
 `[x_rms, y_rms, input_proj, gelu, output_proj]` plus one shared `img_in`.
 
-**ComfyUI's stock `ModelPatchLoader` does not recognise the INT8 layout.** The
-stock loader builds the patch with `comfy.ops.manual_cast`, which reads the
+**ComfyUI's own `ModelPatchLoader` does not recognise the INT8 layout.** The
+ComfyUI loader builds the patch with `comfy.ops.manual_cast`, which reads the
 pack's INT8 tensors as plain weights. The pack must be loaded with the
 **`HSWQ Model Patch Loader`** (`HSWQModelPatchLoaderCustom`,
 `custom_nodes/ComfyUI-HSWQ-Loader-and-Tools`), which detects the
@@ -216,7 +216,7 @@ The loaded module is confirmed to be `QwenImageBlockWiseControlNet` with 120
 INT8 layers and `img_in` kept - i.e. the pack really is the INT8 layout the
 loader consumes, not a pack that happens to load as FP16.
 
-This matters because the stock `ModelPatchLoader` would silently read the INT8
+This matters because ComfyUI's own `ModelPatchLoader` would silently read the INT8
 tensors as plain weights. The loader harness is what rules that out.
 
 ---
@@ -274,7 +274,7 @@ for the 256 items. The builder takes under a minute.
   by `process_input_latent_image`, which runs through `img_in` - itself one of
   the layers under test. Precomputing `cond` once (from the unperturbed model)
   understates `img_in`'s contribution by an order of magnitude.
-- **The baseline must use the same ops class as the pack.** The stock path is
+- **The baseline must use the same ops class as the pack.** The ComfyUI path is
   `manual_cast`, the INT8 path is `mixed_precision_ops`; they are not
   numerically equal. Both harnesses build the baseline with the INT8 path's
   `mixed_precision_ops`.
@@ -310,7 +310,7 @@ for the 256 items. The builder takes under a minute.
 - **A checkpoint whose runtime has no INT8 load path.** The pack is only useful
   where the loader consumes `int8_tensorwise` `comfy_quant` stamps. For these
   Qwen-Image diffsynth patches that path is the HSWQ model-patch loader; the
-  stock `ModelPatchLoader` does not consume them.
+  ComfyUI `ModelPatchLoader` does not consume them.
 
 ---
 

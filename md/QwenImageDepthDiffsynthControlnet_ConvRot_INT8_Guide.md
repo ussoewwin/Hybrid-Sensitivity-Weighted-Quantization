@@ -52,7 +52,7 @@ ComfyUI dispatches the checkpoint on `controlnet_blocks.0.y_rms.weight` into
 `comfy_extras.nodes_model_patch.QwenImageBlockWiseControlNet`: 60 blocks of
 `[x_rms, y_rms, input_proj, gelu, output_proj]` plus one shared `img_in`.
 
-**ComfyUI's stock `ModelPatchLoader` does not recognise the INT8 layout** - it
+**ComfyUI's own `ModelPatchLoader` does not recognise the INT8 layout** - it
 builds the patch with `manual_cast`, which would read the pack's INT8 tensors as
 plain weights. Load the pack with the **HSWQ Model Patch Loader**
 (`HSWQModelPatchLoaderCustom`), which detects the `int8_tensorwise`
@@ -164,7 +164,7 @@ The numbers above were produced by the loader harness
 `HSWQModelPatchLoaderCustom.load_model_patch(name, False)` - the node ComfyUI
 runs - over the 256-item set. The loaded module is confirmed to be
 `QwenImageBlockWiseControlNet` with 120 INT8 layers and `img_in` kept, so the
-pack really is the INT8 layout the loader consumes; the stock
+pack really is the INT8 layout the loader consumes; the ComfyUI
 `ModelPatchLoader` would silently read it as FP16.
 
 The acceptance is deterministic: the 256 inputs come from
@@ -218,7 +218,7 @@ under a minute.
   by `process_input_latent_image`, which runs through `img_in` - itself under
   test. Precomputing it (from the unperturbed model) understates `img_in` by an
   order of magnitude.
-- **The baseline must use the same ops class as the pack.** Stock is
+- **The baseline must use the same ops class as the pack.** ComfyUI is
   `manual_cast`, INT8 is `mixed_precision_ops`; they are not numerically equal.
 - **The latent channel count differs per checkpoint.** canny and depth are 16
   channels (`img_in` width 64); inpaint is 17 (`img_in` width 68,

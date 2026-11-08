@@ -311,7 +311,7 @@ table this meets the upstream condition for strength A, and S7 applied it: the v
 index row, and the procedure's SAM3.1 required lines now read strength A at 1,590/1,590 coverage.
 
 The four-route pack re-check (md/ClipFiles_INT8_TextEncoder_Load_Path_2026-10-28.md, section 15) ran entirely on local files and does not
-depend on upstream: stock `load_diffusion_model` and the node's `HSWQSAM3Loader` both apply all 41
+depend on upstream: ComfyUI `load_diffusion_model` and the node's `HSWQSAM3Loader` both apply all 41
 declared layers (`records/sam31_routes_final.json` -> `routes.R1.applied` and `routes.R2.applied`),
 each with 468 INT8 kernel calls (`routes.R1.kitchen_int8_linear_calls`), mask IoU medians 0.982682
 and 0.958022 (`routes.R1.mask_iou_vs_ref_median`, `routes.R2.mask_iou_vs_ref_median`) and cosine

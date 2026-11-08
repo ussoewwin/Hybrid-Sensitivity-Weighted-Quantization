@@ -131,7 +131,7 @@ def runtime_linear_modules(comfy_path, model_path, clip_type="stable_diffusion")
 
     `clip_type` "vision" builds the vision tower through
     comfy.clip_vision.load_clipvision_from_sd, which is the path the
-    CLIPVisionLoader uses; the stock loader picks the config from the
+    CLIPVisionLoader uses; the ComfyUI loader picks the config from the
     checkpoint's own shape.
     """
     if comfy_path not in sys.path:

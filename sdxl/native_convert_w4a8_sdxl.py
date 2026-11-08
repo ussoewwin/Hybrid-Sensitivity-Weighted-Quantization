@@ -16,7 +16,7 @@ Linear (2D) layers go ComfyUI-native W4A8 when shapes allow:
   Kitchen dequantize returns the ORIGINAL basis, so Card 1 BC uses unrotated act
   means for W4A8 Linear layers (exact, not approximate).
 
-ComfyUI loads this pack 100% stock (no HSWQ patches):
+ComfyUI loads this pack 100% baseline (no HSWQ patches):
   Linear (2D, K%256==0) -> W4A8 (asym_w4a8_int8), kitchen pack (rotation inside)
   Linear (K%256!=0)     -> ConvRot INT8 (int8 [N,K], convrot stamp) or plain INT8
   Linear (shape-critical: label_emb.0.0 / attn2.to_k) -> shape-preserving INT8
@@ -559,9 +559,9 @@ def convert_to_w4a8(
                 enable_convrot
                 and tensor.ndim == 4
             ):
-                # --- Conv2d (4D): stock ComfyUI has no quantized Conv2d op.
-                # int8 conv weights crash in stock load/forward (HSWQ Conv2d
-                # patch would be required). Keep FP16 so the pack runs stock.
+                # --- Conv2d (4D): ComfyUI's own has no quantized Conv2d op.
+                # int8 conv weights crash in baseline load/forward (HSWQ Conv2d
+                # patch would be required). Keep FP16 so the pack runs baseline.
                 new_state_dict[key] = tensor
                 skipped_count += 1
                 quant_mode = "fp16_keep"
@@ -691,7 +691,7 @@ if __name__ == "__main__":
             "Linear 2D -> W4A8 pack via comfy_kitchen (quant group 16, Lloyd-Max "
             "codebook, fp8 group scales); shape-critical Linears (label_emb.0.0, "
             "attn2.to_k) -> shape-preserving plain INT8; Conv2d -> FP16 kept "
-            "(stock ComfyUI has no quantized Conv2d op); ineligible Linear -> "
+            "(ComfyUI's own has no quantized Conv2d op); ineligible Linear -> "
             "plain INT8 tensorwise. Card 1 = --bias_correction."
         )
     )

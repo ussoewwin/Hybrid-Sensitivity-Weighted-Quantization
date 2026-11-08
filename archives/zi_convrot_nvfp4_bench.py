@@ -8,7 +8,7 @@ stamps in ``_quantization_metadata`` → ``.comfy_quant`` after convert_old_quan
 
 Requires a ConvRot convert output (e.g. ``*_nvfp4_convrot.safetensors`` from
 ``native_convert_nvfp4_zi.py`` with ConvRot ON). Plain NVFP4 (no stamps) is
-rejected. Runtime uses ``nvfp4_comfy_parity``: stock Comfy load + **online act
+rejected. Runtime uses ``nvfp4_comfy_parity``: baseline Comfy load + **online act
 rotation** on armed Linears (``_hswq_nvfp4_convrot``). Without that path, ConvRot
 ckpts collapse to SSIM ~0.04.
 
@@ -369,7 +369,7 @@ def apply_nvfp4_patches() -> None:
     require_convrot_parity_forward()
     print(
         "  [CONVROT] Parity forward armed: "
-        "stock Comfy GEMM + online act rotate (x @ H)"
+        "baseline Comfy GEMM + online act rotate (x @ H)"
     )
 
 
@@ -758,7 +758,7 @@ def main():
         apply_nvfp4_patches()
         print(
             f"  [BENCH] SSIM target >={SSIM_TARGET} "
-            "(ConvRot NVFP4 + ComfyUI stock GEMM + online act rotate)"
+            "(ConvRot NVFP4 + ComfyUI ComfyUI GEMM + online act rotate)"
         )
     except ImportError as e:
         _restore_argv(saved_argv)

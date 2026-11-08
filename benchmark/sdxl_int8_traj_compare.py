@@ -12,7 +12,7 @@ Same callback-based per-step latent trajectory capture as benchmark/zi_traj_comp
 Model loading is ComfyUI-native (``comfy.sd.load_checkpoint_guess_config``), the same
 as benchmark/int8bench_sdxl.py (the old image-SSIM bench). INT8 Conv2d load scope is
 armed only when the checkpoint looks like a comfy_quant INT8 pack, so the FP16
-baseline always loads stock.
+baseline always loads baseline.
 
 The ConvRot INT8 quantization kernels come from ``benchmark/int8/comfy_quant_int8.py``
 (vendored). torch/psutil/torchaudio/comfy_aimdo stubs are reused from
@@ -28,8 +28,8 @@ Usage:
         [--sampler dpmpp_2m] [--scheduler karras] [--attention sdpa|sage2]
 
 ``--attention sage2`` arms SageAttention2 (INT8 QK + FP8 PV, sm120 auto path) for
-the INT8 branch ONLY; the FP16 baseline always stays on stock attention. Default
-``sdpa`` leaves both branches on stock attention.
+the INT8 branch ONLY; the FP16 baseline always stays on ComfyUI attention. Default
+``sdpa`` leaves both branches on ComfyUI attention.
 """
 import argparse
 import os
@@ -435,7 +435,7 @@ def _hswq_sdxl_graph_executor(model):
 
 def _load_checkpoint(path: str):
     """Load an SDXL checkpoint ComfyUI-natively; arm INT8 Conv2d load scope only
-    when the file looks like a comfy_quant INT8 pack (FP16 baseline loads stock)."""
+    when the file looks like a comfy_quant INT8 pack (FP16 baseline loads baseline)."""
     import comfy.sd
 
     from int8.comfy_quant_int8 import (
@@ -538,7 +538,7 @@ def unset_sage2_attention() -> None:
     import comfy.ldm.modules.attention as comfy_attention
 
     importlib.reload(comfy_attention)
-    print("  [SAGE2] attention override restored to stock", flush=True)
+    print("  [SAGE2] attention override restored to ComfyUI", flush=True)
 
 
 def print_sage2_attn_stats() -> None:
@@ -621,7 +621,7 @@ def parse_args():
     ap.add_argument("--attention", choices=["sdpa", "sage2"], default="sdpa",
                     help="sage2: patch the INT8 branch attention to SageAttention2 "
                          "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays "
-                         "on stock attention. sdpa (default): no attention patch.")
+                         "on ComfyUI attention. sdpa (default): no attention patch.")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -649,7 +649,7 @@ def main() -> int:
     times_int8 = []
     saved_argv = _clear_argv_for_comfy()
     try:
-        # --- FP16 baseline (stock ops; INT8 patches only arm INT8 tensors) ---
+        # --- FP16 baseline (ComfyUI ops; INT8 patches only arm INT8 tensors) ---
         print("[FP16] loading checkpoint...")
         fp16, clip, vae = _load_checkpoint(args.fp16)
         latent = {"samples": torch.zeros(

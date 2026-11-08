@@ -4,7 +4,7 @@ comfy_kitchen registers addmm for INT8 / MXFP8 / FP8 / SVDQuant / ConvRotW4A4,
 but NOT for TensorCoreNVFP4Layout. PyTorch F.linear(bias=...) often decomposes
 to aten.addmm.default → unhandled → full dequantize of both operands.
 
-That is why stock MixedPrecision Linear (Comfy ops.py) can look "NVFP4 loaded"
+That is why ComfyUI MixedPrecision Linear (Comfy ops.py) can look "NVFP4 loaded"
 (uint8 packed weights in state_dict) while peak VRAM exceeds FP16: packed
 storage stays resident AND dequant materializes FP16 weights every forward.
 
@@ -105,7 +105,7 @@ def register_nvfp4_addmm_handler() -> bool:
     _REGISTERED = True
     print(
         "[HSWQ NVFP4] registered aten.addmm.default for TensorCoreNVFP4Layout "
-        "(stock F.linear+bias -> scaled_mm_nvfp4; was dequant-only)",
+        "(ComfyUI F.linear+bias -> scaled_mm_nvfp4; was dequant-only)",
         flush=True,
     )
     return True

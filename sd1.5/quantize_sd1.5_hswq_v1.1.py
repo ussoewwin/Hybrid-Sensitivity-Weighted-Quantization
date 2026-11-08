@@ -138,7 +138,7 @@ def _encode(config):
 # --------------------------------------------------------------------------
 # the calibration pass - IDENTICAL to V1.0 (archives/quantize_sd1.5_hswq_v1.0.py)
 #
-# V1.0 does NOT use `from_single_file`. It builds the stock SD1.5 pipeline with
+# V1.0 does NOT use `from_single_file`. It builds the ComfyUI SD1.5 pipeline with
 # `from_pretrained`, then remaps this checkpoint's ComfyUI keys onto diffusers
 # keys and loads the UNet weights into that pipeline. `from_single_file` fails on
 # this checkpoint (`CLIPTextModel has no attribute text_model`), which is why

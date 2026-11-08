@@ -237,7 +237,7 @@ over the drift threshold.
 ## 7. Verification (256 items, seed 42, the production `y`)
 
 The baseline is built through the **same ops class** as the pack, because the
-stock `comfy.controlnet` path and the `mixed_precision_ops` path are not
+ComfyUI `comfy.controlnet` path and the `mixed_precision_ops` path are not
 numerically equivalent for this model.
 
 | item | value |

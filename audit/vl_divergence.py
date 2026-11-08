@@ -36,7 +36,7 @@ FAMILIES = {
         "Give me three ideas for a birthday present for a ten year old.",
         "How do I convert 70 kilograms to pounds?",
         "Summarise the plot of a detective novel in two sentences.",
-        "What is the difference between a stock and a bond?",
+        "What is the difference between an equity and a bond?",
         "Suggest a stretching routine for someone who sits all day.",
         "How do I remove a coffee stain from a cotton shirt?",
         "Explain how a refrigerator keeps food cold.",

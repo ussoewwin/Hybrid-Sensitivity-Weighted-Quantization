@@ -5,14 +5,14 @@ Package-local under benchmark/flux1_nvfp4/ only. Never import benchmark/nvfp4/.
 
 After apply_comfy_quant_nvfp4_patches():
   1) NVFP4 Linear load → Comfy ops._load_quantized_module (no HSWQ arm / ones(1))
-  2) Linear.forward → unwrap to stock Comfy ops.py MixedPrecision Linear.forward
+  2) Linear.forward → unwrap to baseline Comfy ops.py MixedPrecision Linear.forward
   3) NVFP4 convrot (Hadamard-rotated weights in ckpt):
-     stock load drops the comfy_quant stamp, so the load wrapper re-arms
+     baseline load drops the comfy_quant stamp, so the load wrapper re-arms
      _hswq_nvfp4_convrot(_groupsize) from the stamp, and the parity forward
      applies the REQUIRED online act rotation (x @ H, per group) right before
-     stock MixedPrecision F.linear: (x @ H) @ (W @ H^T)^T == x @ W^T.
+     baseline MixedPrecision F.linear: (x @ H) @ (W @ H^T)^T == x @ W^T.
      Without this, convrot-stamped ckpts measure as pure garbage (SSIM ~0.04).
-     Still ComfyUI-only: stock load + stock Linear.forward (ops.py).
+     Still ComfyUI-only: baseline load + ComfyUI Linear.forward (ops.py).
      Kitchen lacked aten.addmm for NVFP4 (bias F.linear → full dequant); that gap
      is filled at runtime by nvfp4_addmm_patch (HSWQ hswq_scaled_mm_nvfp4), not kitchen CUBLAS.
 
@@ -34,20 +34,20 @@ def _closure_named(fn, name: str):
     return None
 
 
-def _unwrap_stock_forward(fwd):
-    """Extract closed-over stock_forward from make_nvfp4_linear_forward wrap."""
+def _unwrap_ComfyUI_forward(fwd):
+    """Extract closed-over ComfyUI_forward from make_nvfp4_linear_forward wrap."""
     if not getattr(fwd, "_hswq_nvfp4_full_forward", False):
         return None
-    return _closure_named(fwd, "stock_forward")
+    return _closure_named(fwd, "ComfyUI_forward")
 
 
-def _make_convrot_parity_forward(stock_forward):
-    """Stock MixedPrecision forward + required online act rotation for convrot ckpts.
+def _make_convrot_parity_forward(ComfyUI_forward):
+    """ComfyUI MixedPrecision forward + required online act rotation for convrot ckpts.
 
     The HSWQ TC forward (disabled here for parity) is the only other place this
     rotation exists. ConvRot weights are stored pre-rotated (W @ H^T); the math
     only closes if activations are rotated too: (x @ H) @ (W @ H^T)^T == x @ W^T.
-    Modules without the armed flag pass through untouched (bit-exact stock).
+    Modules without the armed flag pass through untouched (bit-exact baseline).
     """
     from .nvfp4_hadamard import rotate_last_dim_fast
 
@@ -65,7 +65,7 @@ def _make_convrot_parity_forward(stock_forward):
                     flush=True,
                 )
             input = rotate_last_dim_fast(input, gs)
-        return stock_forward(self, input, *args, **kwargs)
+        return ComfyUI_forward(self, input, *args, **kwargs)
 
     forward_convrot_parity._hswq_nvfp4_convrot_parity = True  # type: ignore[attr-defined]
     return forward_convrot_parity
@@ -76,7 +76,7 @@ def apply_nvfp4_comfy_parity() -> bool:
     global _APPLIED
     import logging
     logging.getLogger("comfy_kitchen.tensor.nvfp4").setLevel(logging.ERROR)
-    # Stock F.linear(bias=...) → aten.addmm; kitchen NVFP4 had no handler → dequant.
+    # ComfyUI F.linear(bias=...) → aten.addmm; kitchen NVFP4 had no handler → dequant.
     from .nvfp4_addmm_patch import register_nvfp4_addmm_handler
 
     register_nvfp4_addmm_handler()
@@ -114,7 +114,7 @@ def apply_nvfp4_comfy_parity() -> bool:
 
         # Peek robustly before orig_load pops the stamp.
         conf = peek_nvfp4_conf(state_dict, prefix)
-        # Always Comfy stock load — including nvfp4 (input_scale only if in ckpt)
+        # Always Comfy baseline load — including nvfp4 (input_scale only if in ckpt)
         out = orig_load(
             module,
             super_load,
@@ -127,7 +127,7 @@ def apply_nvfp4_comfy_parity() -> bool:
             error_msgs,
             load_extra_params=load_extra_params,
         )
-        # Stock load drops the stamp; re-arm convrot flags so the parity forward
+        # ComfyUI load drops the stamp; re-arm convrot flags so the parity forward
         # applies the online act rotation the offline-rotated weights require.
         if is_nvfp4_conf(conf):
             module._hswq_nvfp4 = True
@@ -145,32 +145,32 @@ def apply_nvfp4_comfy_parity() -> bool:
     def mixed_precision_ops_comfy_only(*args, **kwargs):
         mp = _cur_mp(*args, **kwargs)
         Lin = mp.Linear
-        stock = _unwrap_stock_forward(Lin.forward)
-        if stock is None and getattr(Lin.forward, "_hswq_nvfp4_full_forward", False):
+        baseline = _unwrap_ComfyUI_forward(Lin.forward)
+        if baseline is None and getattr(Lin.forward, "_hswq_nvfp4_full_forward", False):
             raise RuntimeError(
                 "[BENCH] nvfp4 Comfy parity: HSWQ TC wrap still on Linear.forward; "
                 "refusing to leave non-Comfy forward (SSIM target >=0.9)"
             )
-        if stock is not None:
-            Lin.forward = _make_convrot_parity_forward(stock)
+        if baseline is not None:
+            Lin.forward = _make_convrot_parity_forward(baseline)
         return mp
 
     ops.mixed_precision_ops = mixed_precision_ops_comfy_only
 
     # Prove unwrap works once at install time (no silent leave-TC-on)
     mp0 = _cur_mp()
-    stock0 = _unwrap_stock_forward(mp0.Linear.forward)
-    if stock0 is None and getattr(mp0.Linear.forward, "_hswq_nvfp4_full_forward", False):
+    ComfyUI0 = _unwrap_ComfyUI_forward(mp0.Linear.forward)
+    if ComfyUI0 is None and getattr(mp0.Linear.forward, "_hswq_nvfp4_full_forward", False):
         raise RuntimeError(
-            "[BENCH] nvfp4 Comfy parity: failed to unwrap Linear.forward to Comfy stock"
+            "[BENCH] nvfp4 Comfy parity: failed to unwrap Linear.forward to Comfy baseline"
         )
-    if stock0 is not None:
-        mp0.Linear.forward = _make_convrot_parity_forward(stock0)
+    if ComfyUI0 is not None:
+        mp0.Linear.forward = _make_convrot_parity_forward(ComfyUI0)
 
     _APPLIED = True
     print(
         "[BENCH] nvfp4 ComfyUI-only: load=_load_quantized_module; "
-        "Linear.forward=ops.py stock + O(N log N) float32 butterfly act-rotate (zero accumulation error); "
+        "Linear.forward=ops.py baseline + O(N log N) float32 butterfly act-rotate (zero accumulation error); "
         "NVFP4 addmm->HSWQ hswq_scaled_mm_nvfp4 registered; "
         "SSIM target >=0.9",
         flush=True,

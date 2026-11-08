@@ -100,7 +100,7 @@ FP32) has to stay in FP16. See
   The pack measures 15.62 GB (the decoder needs heavy protection - see the
   drift profile above).
 - **The vision acceptance check has to use the same ops path for the
-  baseline.** The stock `CLIPVisionLoader` builds the vision tower with
+  baseline.** The ComfyUI `CLIPVisionLoader` builds the vision tower with
   `comfy.ops.manual_cast`, while a quantized pack is built with
   `mixed_precision_ops`, and for some models the two paths are **not
   numerically equivalent**: the same FP16 source through the two paths gives a
@@ -155,11 +155,11 @@ FP32) has to stay in FP16. See
   quantized. The builder derives the group size per layer (the largest
   power-of-4 divisor of the input width), so bigG uses 64 for 275 layers. The
   same rule applies to every other pack.
-- **The INT8 GEMM needs the loader's runtime arm.** On the stock ComfyUI path an
+- **The INT8 GEMM needs the loader's runtime arm.** On the ComfyUI ComfyUI path an
   INT8 pack is dequantized for every matmul (`int8_tensorwise` is a weight-only
   algorithm) and `int8_linear` is called 0 times. With the arm installed the real
   INT8 GEMM runs: for FLAN-T5 XXL that is 163 calls per forward and **+75.9 % to
-  +86.7 %** against the stock path (3.9x to 7.2x against FP16). See
+  +86.7 %** against the ComfyUI path (3.9x to 7.2x against FP16). See
   `md/T5XXL_ConvRot_INT8_Impact_Technical_Guide.md` section 7.
 
 ---
@@ -190,7 +190,7 @@ model-specific by construction.
 | CLIP text (SD1ClipModel) | `CLIPLoader` / `DualCLIPLoader` | `model_options["quantization_metadata"]` -> `SDClipModel` builds `mixed_precision_ops` |
 | llama-family text (Qwen3) | `CLIPLoader` / `DualCLIPLoader` | automatic: `llama_detect` -> `detect_layer_quantization` -> `llama_quantization_metadata` |
 | FLAN-T5 XXL text | `CLIPLoader` / `DualCLIPLoader` | automatic: `t5_xxl_detect` -> `detect_layer_quantization` -> `t5xxl_quantization_metadata` -> `model_options["quantization_metadata"]` |
-| CLIP vision | `CLIPVisionLoader` | the stock loader uses `manual_cast`, which does **not** consume `comfy_quant`; the tower must be built with `mixed_precision_ops` |
+| CLIP vision | `CLIPVisionLoader` | the ComfyUI loader uses `manual_cast`, which does **not** consume `comfy_quant`; the tower must be built with `mixed_precision_ops` |
 
 ---
 

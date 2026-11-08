@@ -13,7 +13,7 @@ Model loading is ComfyUI-native (``comfy.sd.load_checkpoint_guess_config``), the
 as benchmark/nvfp4bench_sdxl.py (the old image-SSIM bench). The ConvRot INT8 Conv2d
 load scope is armed only when the checkpoint carries comfy_quant int8_tensorwise
 tensors (hswq hybrid NVFP4 packs do: NVFP4 Linears + ConvRot INT8 Conv2d), so the
-FP16 baseline always loads stock.
+FP16 baseline always loads baseline.
 
 The NVFP4 stack is the vendored ``benchmark/nvfp4/`` package
 (``comfy_quant_nvfp4.apply_comfy_quant_nvfp4_patches``) plus the SDXL parity hook
@@ -31,8 +31,8 @@ Usage:
         [--sampler dpmpp_2m] [--scheduler karras] [--attention sdpa|sage2]
 
 ``--attention sage2`` arms SageAttention2 (INT8 QK + FP8 PV, sm120 auto path) for
-the NVFP4 branch ONLY; the FP16 baseline always stays on stock attention. Default
-``sdpa`` leaves both branches on stock attention.
+the NVFP4 branch ONLY; the FP16 baseline always stays on ComfyUI attention. Default
+``sdpa`` leaves both branches on ComfyUI attention.
 """
 import argparse
 import os
@@ -343,7 +343,7 @@ def apply_nvfp4_patches(
 def _load_checkpoint(path: str):
     """Load an SDXL checkpoint ComfyUI-natively; arm the ConvRot INT8 Conv2d load
     scope only when the file carries comfy_quant int8_tensorwise tensors (true for
-    hswq hybrid NVFP4 packs; FP16 baseline loads stock)."""
+    hswq hybrid NVFP4 packs; FP16 baseline loads baseline)."""
     import comfy.sd
 
     from int8.comfy_quant_int8 import (
@@ -445,7 +445,7 @@ def unset_sage2_attention() -> None:
     import comfy.ldm.modules.attention as comfy_attention
 
     importlib.reload(comfy_attention)
-    print("  [SAGE2] attention override restored to stock", flush=True)
+    print("  [SAGE2] attention override restored to ComfyUI", flush=True)
 
 
 def print_sage2_attn_stats() -> None:
@@ -528,7 +528,7 @@ def parse_args():
     ap.add_argument("--attention", choices=["sdpa", "sage2"], default="sdpa",
                     help="sage2: patch the NVFP4 branch attention to SageAttention2 "
                          "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays "
-                         "on stock attention. sdpa (default): no attention patch.")
+                         "on ComfyUI attention. sdpa (default): no attention patch.")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     ap.add_argument(
@@ -536,7 +536,7 @@ def parse_args():
         action="store_true",
         help="Force TensorCore W4A4 scaled_mm path (assumes calibrated input_scale)",
     )
-    ap.add_argument("--parity", action="store_true", help="Force Comfy parity path (stock GEMM + act rotate)")
+    ap.add_argument("--parity", action="store_true", help="Force Comfy parity path (ComfyUI GEMM + act rotate)")
     return ap.parse_args()
 
 
@@ -556,7 +556,7 @@ def print_gemm_mode_summary() -> None:
     if tc_hits > 0:
         mode = "TC (W4A4 scaled_mm)"
     else:
-        mode = "PARITY (stock GEMM + act rotate)"
+        mode = "PARITY (ComfyUI GEMM + act rotate)"
 
     print("\n" + "-" * 72)
     print(f"[HSWQ NVFP4] GEMM MODE: {mode}")
@@ -592,7 +592,7 @@ def main() -> int:
     times_nvfp4 = []
     saved_argv = _clear_argv_for_comfy()
     try:
-        # --- FP16 baseline (stock ops; quant patches only arm quant tensors) ---
+        # --- FP16 baseline (ComfyUI ops; quant patches only arm quant tensors) ---
         print("[FP16] loading checkpoint...")
         fp16, clip, vae = _load_checkpoint(args.fp16)
         latent = {"samples": torch.zeros(

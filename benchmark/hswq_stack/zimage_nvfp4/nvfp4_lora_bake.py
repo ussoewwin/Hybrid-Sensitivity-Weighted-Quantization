@@ -655,7 +655,7 @@ def install_zimage_nvfp4_lora_bake(force: bool = False) -> bool:
         install_load_models_gpu_bake_hook(force=False)
         return True
 
-    # Prefer chaining under current outer wrap (INT8 / stock), never nest ZI→ZI.
+    # Prefer chaining under current outer wrap (INT8 / ComfyUI), never nest ZI→ZI.
     prev_load = _unwrap_to_non_zi_load(original)
 
     def load(
@@ -722,7 +722,7 @@ def _unwrap_to_non_zi_load_models_gpu(fn):
 
 
 def install_load_models_gpu_bake_hook(force: bool = False) -> bool:
-    """After MultiGPU/stock load_models_gpu, bake any remaining ZI NVFP4 LoRA patches."""
+    """After MultiGPU/ComfyUI load_models_gpu, bake any remaining ZI NVFP4 LoRA patches."""
     global _GPU_BAKE_INSTALLED
     try:
         import comfy.model_management as mm

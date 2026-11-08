@@ -15,8 +15,8 @@ because the folder name contains spaces). ComfyUI bootstrap / model loading /
 prompt encoding helpers are inlined into this file.
 
 ``--attention sage2`` arms SageAttention2 (INT8 QK + FP8 PV, sm120 auto path)
-for the ConvRot W4A8 runs ONLY; the FP16 baseline always stays on stock
-ComfyUI attention. Default ``sdpa`` leaves both branches on stock attention.
+for the ConvRot W4A8 runs ONLY; the FP16 baseline always stays on baseline
+ComfyUI attention. Default ``sdpa`` leaves both branches on ComfyUI attention.
 
 Usage:
     python krea2_w4a8_traj_compare.py \
@@ -286,7 +286,7 @@ def setup_comfy(comfy_path: str) -> None:
 def apply_sage2_attention() -> None:
     """Arm SageAttention2 for the W4A8 run (INT8 QK + FP8 PV, sm120 auto path).
 
-    Layout handling matches the stock attention_pytorch semantics (validated
+    Layout handling matches the ComfyUI attention_pytorch semantics (validated
     2026-09-10 on Z Image): skip_reshape=True takes q,k,v as [B,H,N,D] and the
     output needs transpose(1,2) BEFORE reshape to [B,N,H*D]. SDPA fallback for
     mask / head_dim > 256 / exceptions. Patches every module that binds
@@ -362,7 +362,7 @@ def apply_sage2_attention() -> None:
 
 
 def unset_sage2_attention() -> None:
-    """Restore stock attention after the W4A8 run (reload binding modules)."""
+    """Restore ComfyUI attention after the W4A8 run (reload binding modules)."""
     import importlib
 
     import comfy.ldm.modules.attention as comfy_attention
@@ -372,7 +372,7 @@ def unset_sage2_attention() -> None:
         importlib.reload(importlib.import_module("comfy.ldm.krea2.model"))
     except Exception:
         pass
-    print("  [SAGE2] attention override restored to stock", flush=True)
+    print("  [SAGE2] attention override restored to ComfyUI", flush=True)
 
 
 def print_sage2_attn_stats() -> None:
@@ -448,7 +448,7 @@ def parse_args():
     ap.add_argument("--attention", choices=["sdpa", "sage2"], default="sdpa",
                     help="sage2: patch the W4A8 branch attention to SageAttention2 "
                          "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays "
-                         "on stock attention. sdpa (default): no attention patch.")
+                         "on ComfyUI attention. sdpa (default): no attention patch.")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -492,7 +492,7 @@ def main() -> int:
         _hard_free_vram()
         print("  [Offload] CLIP unloaded.")
 
-        # --- FP16 (stock ops; W4A8 patches only arm pack tensors, FP16 unaffected) ---
+        # --- FP16 (ComfyUI ops; W4A8 patches only arm pack tensors, FP16 unaffected) ---
         fp16 = _load_diffusion_model(args.fp16)
         latent = make_empty_latent(fp16, args.width, args.height, batch=1)
         fp16_runs = {}

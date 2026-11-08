@@ -2,7 +2,7 @@
 
 Z Image ConvRot NVFP4 is **not** the SDXL TC Linear.forward path.
 ``hswq/benchmark/zi_convrot_nvfp4_bench.py`` ``require_convrot_parity_forward``:
-TC wrap (``_hswq_nvfp4_full_forward``) destroys SSIM; need stock GEMM + online
+TC wrap (``_hswq_nvfp4_full_forward``) destroys SSIM; need ComfyUI GEMM + online
 act rotate (``_hswq_nvfp4_convrot_parity``) via ``apply_nvfp4_comfy_parity``.
 
   - Arm detect/load/LoRA bake with ``zi_comfy_quant_nvfp4.apply_comfy_quant_nvfp4_patches``,
@@ -33,7 +33,7 @@ def checkpoint_has_input_scale(unet_path) -> bool:
 
     Peek the safetensors header only (no tensor data). Returns False on any
     error so an unreadable / uncalibrated checkpoint stays on the safe parity
-    path (stock GEMM + online act rotate).
+    path (ComfyUI GEMM + online act rotate).
     """
     if not unet_path or not isinstance(unet_path, str):
         return False
@@ -53,7 +53,7 @@ def checkpoint_has_input_scale(unet_path) -> bool:
 
 
 def zi_use_tensorcore(unet_path) -> bool:
-    """Decide TC (W4A4) vs parity (stock GEMM) for a Z Image NVFP4 pack.
+    """Decide TC (W4A4) vs parity (ComfyUI GEMM) for a Z Image NVFP4 pack.
 
     TC requires calibrated ``.input_scale`` keys in the checkpoint. Without
     them the W4A4 path quantizes activations against placeholder ones(1) ->
@@ -148,11 +148,11 @@ def apply_nvfp4_patches(unet_path=None) -> None:
             flush=True,
         )
     else:
-        # Replace TC Linear.forward with stock GEMM + act rotate (not double-rotate).
+        # Replace TC Linear.forward with ComfyUI GEMM + act rotate (not double-rotate).
         if not apply_nvfp4_comfy_parity():
             raise RuntimeError(
                 "[HSWQ NVFP4] Z Image: apply_nvfp4_comfy_parity failed "
-                "(stock GEMM + act rotate required; TC destroys SSIM)"
+                "(ComfyUI GEMM + act rotate required; TC destroys SSIM)"
             )
         require_convrot_parity_forward()
     # INT8 tensorwise load only — ConvRot INT8 remains ComfyUI core / kitchen.
@@ -285,7 +285,7 @@ def load_unet_nvfp4_weight_dtype(unet_name, weight_dtype):
         if not apply_nvfp4_comfy_parity():
             raise RuntimeError(
                 "[HSWQ NVFP4] Z Image UNet requires comfy_parity "
-                "(stock GEMM + act rotate; not HSWQ TC Linear.forward)"
+                "(ComfyUI GEMM + act rotate; not HSWQ TC Linear.forward)"
             )
         require_convrot_parity_forward()
     # Mixed pack: Linear=nvfp4 parity, INT8 = ComfyUI core ConvRot path.

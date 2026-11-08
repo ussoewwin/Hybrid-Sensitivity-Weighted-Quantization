@@ -367,13 +367,13 @@ compared to the reference by IoU and cosine.
 
 | route | declared applied | raw codes | INT8 kernel calls (`comfy_kitchen.int8_linear`) | mask IoU vs fp16 (median) | mask cosine vs fp16 (min) |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| stock `load_diffusion_model` - what the card's `UNETLoader` instruction runs | **41 of 41** | 0 | **468** | 0.982682 | 0.967490 |
+| ComfyUI `load_diffusion_model` - what the card's `UNETLoader` instruction runs | **41 of 41** | 0 | **468** | 0.982682 | 0.967490 |
 | node's `HSWQ SAM3 Loader` | **41 of 41** | 0 | **468** | 0.958022 | 0.979220 |
 | earlier harness (`mixed_precision_ops` + state-dict load) - what the withdrawn numbers used | **41 of 41** | 0 | **468** | 0.982682 | 0.967490 |
 
 What this settles, in the pack's favour:
 
-- **the card's "Native ComfyUI Support" claim is true for the diffusion side.** The stock loader
+- **the card's "Native ComfyUI Support" claim is true for the diffusion side.** The ComfyUI loader
   applies all 41 layers and executes the int8 kernel - unlike the CLIP-shaped packs, whose
   single-file route applies nothing and runs no kernel (sections 11-13). The two loader options
   behave the same.

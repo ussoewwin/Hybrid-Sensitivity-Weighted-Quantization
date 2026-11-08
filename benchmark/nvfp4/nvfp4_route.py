@@ -9,7 +9,7 @@ Explicit discrimination + separated branches (owner rule, 2026-08-30):
                              quantize_nvfp4 + scaled_mm_nvfp4 + cudagraph +
                              in-forward ConvRot act) installed by
                              apply_comfy_quant_nvfp4_patches() stays in place.
-  arm_nvfp4_parity()      -- parity branch: unwrap the TC wrap to stock Comfy
+  arm_nvfp4_parity()      -- parity branch: unwrap the TC wrap to baseline Comfy
                              MixedPrecision Linear.forward + online ConvRot
                              act rotation.
 
@@ -68,13 +68,13 @@ def arm_nvfp4_tensorcore() -> None:
 
     apply_comfy_quant_nvfp4_patches() already installed the HSWQ NVFP4 full
     forward (detect packed K + nvfp4_load + scaled_mm_nvfp4 + ConvRot act).
-    This branch arms nothing further and must NOT unwrap to stock forward.
+    This branch arms nothing further and must NOT unwrap to ComfyUI forward.
     """
     return None
 
 
 def arm_nvfp4_parity() -> None:
-    """Parity branch (dedicated path): stock Comfy Linear.forward + online act
+    """Parity branch (dedicated path): baseline Comfy Linear.forward + online act
     rotation.
 
     The parity hook itself lives OUTSIDE this package

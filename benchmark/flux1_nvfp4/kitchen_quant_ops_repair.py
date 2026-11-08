@@ -2,9 +2,9 @@
 
 Branch contract (do not break plain NVFP4; no branch shortcuts):
 
-  A) Stock healthy
+  A) ComfyUI healthy
      ``_CK_AVAILABLE`` and ``get_layout_class("TensorCoreNVFP4Layout").Params``
-     work → **no rebind at all**. Stock / plain NVFP4 layout path stays
+     work → **no rebind at all**. ComfyUI / plain NVFP4 layout path stays
      Comfy+kitchen as imported. Do not half-rebind, do not "also fix" ops.
 
   B) Stubbed (Vast-style) — only when A is false
@@ -89,7 +89,7 @@ def prebind_missing_kitchen_tensor_exports() -> dict[str, Any]:
 
     Must run **before** ``import comfy.quant_ops`` (Comfy bulk-import). Prefer
     real submodules; only Asym / kitchen ConvRotW4A4 may fall back to a name
-    stub so Branch A stock layouts (NVFP4 / FP8 / INT8) remain available.
+    stub so Branch A ComfyUI layouts (NVFP4 / FP8 / INT8) remain available.
     """
     global _PREBIND_STATUS
     import importlib
@@ -164,7 +164,7 @@ def prebind_missing_kitchen_tensor_exports() -> dict[str, Any]:
         )
         print(
             f"  [BENCH] kitchen tensor prebind: {export_name} name-stub "
-            f"(import-gate only; stock bulk-import can succeed → Branch A)",
+            f"(import-gate only; ComfyUI bulk-import can succeed → Branch A)",
             flush=True,
         )
 
@@ -201,7 +201,7 @@ def _layout_ok(layout_cls: Any) -> bool:
 
 
 def kitchen_quant_ops_healthy() -> bool:
-    """Branch A gate: stock Comfy quant_ops usable for NVFP4 (+ INT8 if registered)."""
+    """Branch A gate: ComfyUI Comfy quant_ops usable for NVFP4 (+ INT8 if registered)."""
     try:
         import comfy.quant_ops as qo
 
@@ -229,20 +229,20 @@ def repair_comfy_quant_ops_from_kitchen_submodules(force: bool = False) -> dict[
     """
     global _REPAIR_DONE, _LAST_STATUS
 
-    # ----- Branch A: plain / stock NVFP4 — leave untouched -----
+    # ----- Branch A: plain / ComfyUI NVFP4 — leave untouched -----
     if not force and kitchen_quant_ops_healthy():
         _REPAIR_DONE = True
         _LAST_STATUS = {
             "repaired": False,
             "reason": "already_ok",
-            "branch": "A_stock_healthy",
+            "branch": "A_ComfyUI_healthy",
         }
         return _LAST_STATUS
 
     if _REPAIR_DONE and not force:
         # Do not mislabel a prior Branch A success as B_stub_rebind.
         branch = (
-            "A_stock_healthy"
+            "A_ComfyUI_healthy"
             if kitchen_quant_ops_healthy()
             else "B_stub_rebind"
         )
@@ -357,7 +357,7 @@ def repair_comfy_quant_ops_from_kitchen_submodules(force: bool = False) -> dict[
     qo.TensorCoreNVFP4Layout = TensorCoreNVFP4Layout
 
     # Optional layouts: kitchen class as-is (Params only). Do not invent FP8
-    # quantize bodies — that would diverge from stock Comfy when kitchen works.
+    # quantize bodies — that would diverge from ComfyUI Comfy when kitchen works.
     if optional["fp8"] is not None:
         qo._CKFp8Layout = optional["fp8"]
         qo.TensorCoreFP8Layout = optional["fp8"]
@@ -423,9 +423,9 @@ def ensure_kitchen_quant_ops() -> bool:
     if kitchen_quant_ops_healthy():
         # Record Branch A via repair's early-return; never touch layouts.
         status = repair_comfy_quant_ops_from_kitchen_submodules()
-        if status.get("branch") == "A_stock_healthy":
+        if status.get("branch") == "A_ComfyUI_healthy":
             print(
-                "  [BENCH] kitchen quant_ops branch=A (stock healthy; "
+                "  [BENCH] kitchen quant_ops branch=A (ComfyUI healthy; "
                 "plain NVFP4 layouts untouched; no rebind)",
                 flush=True,
             )

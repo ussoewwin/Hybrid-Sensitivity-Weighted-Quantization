@@ -5,7 +5,7 @@ zero-drift decision, all measured on the loader's own path.
 The measurement runs through the HSWQ loader's node (the package's root
 ``__init__`` is executed exactly as ComfyUI does on startup, which is what
 enables the real INT8 GEMM), and the FP16 baseline is built through the same
-ops class, because the stock ``comfy.controlnet`` path and the
+ops class, because the ComfyUI ``comfy.controlnet`` path and the
 ``mixed_precision_ops`` path are not numerically equivalent for this model.
 
 Runtime conventions, each established by measurement:

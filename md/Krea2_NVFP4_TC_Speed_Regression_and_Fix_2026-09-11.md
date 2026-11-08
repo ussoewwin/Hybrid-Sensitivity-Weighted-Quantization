@@ -135,7 +135,7 @@ def rotate_last_dim_pooled_tc(x, h_matrix, group_size):
 ```
 
 Wired only into the TC branch of `forward_nvfp4()`; the
-`_full_precision_mm` (parity / stock-dequant) branch still calls the fp32
+`_full_precision_mm` (parity / ComfyUI-dequant) branch still calls the fp32
 `rotate_last_dim_pooled` unchanged.
 
 | Element | Value |

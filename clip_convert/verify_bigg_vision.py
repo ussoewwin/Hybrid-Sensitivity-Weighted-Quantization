@@ -15,7 +15,7 @@ frontier follows the measurement rather than a guess.
 Everything is measured in one process, one model at a time: the FP16
 baseline is built, its reference embeddings are taken, it is freed, and then
 each pack is built and measured in turn. The baseline and the pack share the
-same ops class, because the stock `manual_cast` path and the
+same ops class, because the ComfyUI `manual_cast` path and the
 `mixed_precision_ops` path are not numerically equivalent for this model.
 
 Usage:

@@ -63,7 +63,7 @@ is `1 − cos`. A layer whose quantization barely moves the output can stay INT8
 a layer that moves it must be protected.
 
 `1 − cos` over the 192 layers, measured with the baseline on the **same** ops
-class (`mixed_precision_ops`, not stock `manual_cast`):
+class (`mixed_precision_ops`, not ComfyUI's own `manual_cast`):
 
 | | value |
 | :--- | :--- |
@@ -167,7 +167,7 @@ ops = O.mixed_precision_ops({"int8_tensorwise": QUANT_ALGOS["int8_tensorwise"]},
                             torch.float16, full_precision_mm=False)
 ```
 
-The stock `CLIPVisionLoader` uses `manual_cast`, which does **not** consume the
+The ComfyUI `CLIPVisionLoader` uses `manual_cast`, which does **not** consume the
 stamps; a pack loaded that way keeps its quantized tensors as int8 storage.
 `vision_model.embeddings.class_embedding` is absent in the checkpoint and is
 completed with zeros (dim 1280) when the tower is built standalone.

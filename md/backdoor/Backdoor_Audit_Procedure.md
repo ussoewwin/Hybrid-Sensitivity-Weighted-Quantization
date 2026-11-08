@@ -824,7 +824,7 @@ route that claims an INT8 kernel must show a non-zero count and a zero raw-code 
 non-finite output aborts the measurement; the NaN/Inf counters exist only to catch that failure
 and are recorded in the record, never presented as a result.
 Finally, the route must render: `audit/controlnet_image_test.py --base <checkpoint> --pack <pack> --comfy <root> --out <png> --json <record>` runs one image end to end on that route and records the latent's finiteness, the PNG's sha256 and the wall time.
- A stock `ControlNetLoader` result is not this measurement.
+ A ComfyUI `ControlNetLoader` result is not this measurement.
 
 Model patches are a different object and are not loaded through those nodes: the Z-Image Fun ControlNet
 packs and the Qwen-Image diffsynth packs are built by `ModelPatchLoader` /

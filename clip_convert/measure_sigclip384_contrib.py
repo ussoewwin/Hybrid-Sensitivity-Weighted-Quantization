@@ -10,7 +10,7 @@ INT8 reconstruction, and compare the image embedding against the unmodified
 output. The layer's contribution is 1 - cos.
 
 The baseline is built with the SAME ops class the pack is loaded with
-(`mixed_precision_ops`), and with the config the stock loader picks for this
+(`mixed_precision_ops`), and with the config the ComfyUI loader picks for this
 checkpoint (`clip_vision_siglip_384.json`, image size 384).
 """
 import argparse

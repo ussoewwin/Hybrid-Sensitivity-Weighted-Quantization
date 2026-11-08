@@ -5,29 +5,29 @@
     {
       "pack": "CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors",
       "base": "waiIllustriousSDXL_v170.safetensors",
-      "stock_loaded": true,
-      "stock_int8_calls": 0,
-      "stock_quantised_modules": 0,
       "hswq_int8_calls": 652,
-      "hswq_quantised_modules": 326
+      "hswq_quantised_modules": 326,
+      "comfyui_loaded": true,
+      "comfyui_int8_calls": 0,
+      "comfyui_quantised_modules": 0
     },
     {
       "pack": "CN-anytest4_illustrious2_B_hswq_convrot_int8.safetensors",
       "base": "waiIllustriousSDXL_v170.safetensors",
-      "stock_loaded": true,
-      "stock_int8_calls": 0,
-      "stock_quantised_modules": 0,
       "hswq_int8_calls": 654,
-      "hswq_quantised_modules": 327
+      "hswq_quantised_modules": 327,
+      "comfyui_loaded": true,
+      "comfyui_int8_calls": 0,
+      "comfyui_quantised_modules": 0
     },
     {
       "pack": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
       "base": "waiIllustriousSDXL_v170.safetensors",
-      "stock_loaded": true,
-      "stock_int8_calls": 0,
-      "stock_quantised_modules": 0,
       "hswq_int8_calls": 650,
-      "hswq_quantised_modules": 325
+      "hswq_quantised_modules": 325,
+      "comfyui_loaded": true,
+      "comfyui_int8_calls": 0,
+      "comfyui_quantised_modules": 0
     },
     {
       "pack": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors",
@@ -38,17 +38,17 @@
     {
       "pack": "Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8.safetensors",
       "base": "qwnImageEdit_v16Bf16_convrot_int8.safetensors",
-      "stock_loaded": false,
-      "stock_error": "RuntimeError: Only Tensors of floating point and complex dtype can require gradients",
-      "hswq_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it."
+      "hswq_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it.",
+      "comfyui_loaded": false,
+      "comfyui_error": "RuntimeError: Only Tensors of floating point and complex dtype can require gradients"
     },
     {
       "pack": "Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8.safetensors",
       "base": "qwnImageEdit_v16Bf16_convrot_int8.safetensors",
-      "stock_loaded": false,
-      "stock_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it.",
-      "hswq_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it."
+      "hswq_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it.",
+      "comfyui_loaded": false,
+      "comfyui_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it."
     }
   ],
-  "note": "the stock ControlNetLoader against the HSWQ ControlNet Loader on the same pack"
+  "note": "the ComfyUI ControlNet Loader node against the HSWQ ControlNet Loader node on the same pack"
 }

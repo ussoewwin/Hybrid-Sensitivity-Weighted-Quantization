@@ -79,7 +79,7 @@ step.
   1024×1024) — do not change.
 - `drifted (different image)` is **normal** (small acceptable divergence). Only **bifurcated** and
   mean < 0.95 fail a configuration.
-- The FP16 baseline branch of the benchmark always loads stock (no INT8 patch); the INT8 branch arms
+- The FP16 baseline branch of the benchmark always loads ComfyUI (no INT8 patch); the INT8 branch arms
   the quantized path automatically when the checkpoint carries `.comfy_quant` markers.
 
 ---

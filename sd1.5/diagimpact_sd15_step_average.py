@@ -133,7 +133,7 @@ def _restore_argv(saved):
 def load_sd15(path):
     """Load a checkpoint ComfyUI-natively; returns (ModelPatcher, clip).
 
-    The baseline contains no INT8 tensors, so the stock ops are used.
+    The baseline contains no INT8 tensors, so the ComfyUI ops are used.
     """
     saved = _clear_argv_for_comfy()
     try:

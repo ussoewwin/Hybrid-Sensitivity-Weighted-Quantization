@@ -27,7 +27,7 @@ Refuses non–Z-Image checkpoints (missing Lumina2 signature).
 Post-convert SDXL fidelity bench is not chained (Z-Image-only CLI).
 
 Online act rotation for ConvRot stamps is the loader / bench parity responsibility
-(ComfyUI stock nvfp4 path does not rotate acts; HSWQ / nvfp4_comfy_parity does).
+(ComfyUI ComfyUI nvfp4 path does not rotate acts; HSWQ / nvfp4_comfy_parity does).
 
 Card 1 example:
   python native_convert_nvfp4_zi.py --model ... --output ... \\

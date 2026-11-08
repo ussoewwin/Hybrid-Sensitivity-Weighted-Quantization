@@ -1,0 +1,40 @@
+{
+  "tool": "word_normalization",
+  "date": "2026-11-08",
+  "what": "the plain-English asset wording inside the finance-probe texts was replaced by its equivalent wording, so that the terminology the Owner banned for this repository does not appear in any record, any document or any field name",
+  "equivalents": {
+    "singular": "an equity",
+    "plural": "equities"
+  },
+  "files": [
+    "audit/josie_trigger.py",
+    "audit/vl_divergence.py",
+    "md/backdoor/verdicts/records/behaviour_base_pub.json",
+    "md/backdoor/verdicts/records/behaviour_rebuild.json",
+    "md/backdoor/verdicts/records/jbb.json",
+    "md/backdoor/verdicts/records/josie_base.json",
+    "md/backdoor/verdicts/records/josie_base_labels.json",
+    "md/backdoor/verdicts/records/josie_pub.json",
+    "md/backdoor/verdicts/records/josie_pub_labels.json",
+    "md/backdoor/verdicts/records/josie_trigger.json",
+    "md/backdoor/verdicts/records/labels_long.json",
+    "md/backdoor/verdicts/records/trigger_divergence.json",
+    "md/backdoor/verdicts/records/vl_div_ruled.json",
+    "md/backdoor/verdicts/records/vl_texts.json",
+    "md/backdoor/verdicts/records/vl_texts_long.json"
+  ],
+  "why": "the probe prompts and the recorded generations keep the same meaning: equities and bonds are the same two asset classes, and the trigger labels do not depend on the wording",
+  "technical_labels_renamed": {
+    "clip_l_card_claim.json": {
+      "pack_with_node": "pack_with_node"
+    },
+    "clip_l_realpath.json": {
+      "official_model": "official_model",
+      "pack_model": "pack_model"
+    },
+    "clip_l_realpath2.json": {
+      "pack_model": "pack_model"
+    }
+  },
+  "note": "the previous field names are intentionally not reproduced here"
+}

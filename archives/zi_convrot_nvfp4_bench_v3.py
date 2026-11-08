@@ -8,7 +8,7 @@ stamps in ``_quantization_metadata`` → ``.comfy_quant`` after convert_old_quan
 
 Requires a ConvRot convert output (e.g. ``*_nvfp4_convrot.safetensors`` from
 ``native_convert_nvfp4_zi.py`` with ConvRot ON). Plain NVFP4 (no stamps) is
-rejected. Runtime uses ``nvfp4_comfy_parity``: stock Comfy load + **online act
+rejected. Runtime uses ``nvfp4_comfy_parity``: baseline Comfy load + **online act
 rotation** on armed Linears (``_hswq_nvfp4_convrot``). Without that path, ConvRot
 ckpts collapse to SSIM ~0.04.
 
@@ -249,7 +249,7 @@ def apply_nvfp4_patches(nvfp4_path=None) -> None:
 
     Reference: nodes/zimage_nvfp4/load_unet.py applies, in order:
       zi_comfy_quant_nvfp4 (detect/load/LoRA bake)
-      nvfp4_comfy_parity (stock Comfy GEMM + online act rotate; TC off)
+      nvfp4_comfy_parity (baseline Comfy GEMM + online act rotate; TC off)
       require_convrot_parity_forward guard
       comfy_quant_int8 (INT8 tensorwise load)
       zimage_nvfp4_lora_bake (Dynamic ConvRot NVFP4 LoRA bake)
@@ -263,7 +263,7 @@ def apply_nvfp4_patches(nvfp4_path=None) -> None:
     _ref_apply(nvfp4_path)
     print(
         "  [CONVROT] Reference stack armed "
-        "(TC W4A4 if calibrated input_scale, else stock GEMM + act rotate)"
+        "(TC W4A4 if calibrated input_scale, else ComfyUI GEMM + act rotate)"
     )
 
 
@@ -326,7 +326,7 @@ def load_zit_model(path, device="cuda", comfy_path=None, is_nvfp4=False, require
     else:
         state_dict = load_file(args_path)
 
-    # Native-dtype gate: OFF (default) = stock behavior (bf16 -> fp16 forced cast).
+    # Native-dtype gate: OFF (default) = baseline behavior (bf16 -> fp16 forced cast).
     # ON (--native-dtype) = keep checkpoint dtype (bf16 models evaluated in bf16).
     counts = {}
     if not bench_use_native:
@@ -604,7 +604,7 @@ def main():
         "--native-dtype",
         action="store_true",
         default=False,
-        help="Evaluate in the source model native dtype (bf16) instead of forcing fp16. Default OFF = stock behavior (V13/V7 identical).",
+        help="Evaluate in the source model native dtype (bf16) instead of forcing fp16. Default OFF = baseline behavior (V13/V7 identical).",
     )
     parser.add_argument(
         "--tc",

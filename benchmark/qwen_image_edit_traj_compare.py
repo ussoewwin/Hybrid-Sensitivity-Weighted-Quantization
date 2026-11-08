@@ -5,8 +5,8 @@ Per-step latent trajectory comparison between BF16 and ConvRot INT8 models.
 Uses the same callback-based per-step capture as krea2_traj_compare.py.
 
 ``--attention sage2`` arms SageAttention2 (INT8 QK + FP8 PV, sm120 auto path)
-for the ConvRot INT8 runs ONLY; the FP16 baseline always stays on stock
-ComfyUI attention. Default ``sdpa`` leaves both branches on stock attention.
+for the ConvRot INT8 runs ONLY; the FP16 baseline always stays on baseline
+ComfyUI attention. Default ``sdpa`` leaves both branches on ComfyUI attention.
 
 Reuses benchmark/qi_int8_bench.py for ComfyUI bootstrap / model loading / prompt encoding.
 
@@ -234,7 +234,7 @@ def setup_comfy(comfy_path: str) -> None:
 def apply_sage2_attention() -> None:
     """Arm SageAttention2 for the INT8 run (INT8 QK + FP8 PV, sm120 auto path).
 
-    Layout handling matches the stock attention_pytorch semantics (validated
+    Layout handling matches the ComfyUI attention_pytorch semantics (validated
     2026-09-10 on Z Image): skip_reshape=True takes q,k,v as [B,H,N,D] and the
     output needs transpose(1,2) BEFORE reshape to [B,N,H*D]. SDPA fallback for
     mask / head_dim > 256 / exceptions. Patches every module that binds
@@ -310,7 +310,7 @@ def apply_sage2_attention() -> None:
 
 
 def unset_sage2_attention() -> None:
-    """Restore stock attention after the INT8 run (reload binding modules)."""
+    """Restore ComfyUI attention after the INT8 run (reload binding modules)."""
     import importlib
 
     import comfy.ldm.modules.attention as comfy_attention
@@ -320,7 +320,7 @@ def unset_sage2_attention() -> None:
         importlib.reload(importlib.import_module("comfy.ldm.qwen_image.model"))
     except Exception:
         pass
-    print("  [SAGE2] attention override restored to stock", flush=True)
+    print("  [SAGE2] attention override restored to ComfyUI", flush=True)
 
 
 def print_sage2_attn_stats() -> None:
@@ -388,7 +388,7 @@ def parse_args():
     ap.add_argument("--attention", choices=["sdpa", "sage2"], default="sdpa",
                     help="sage2: patch the INT8 branch attention to SageAttention2 "
                          "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays "
-                         "on stock attention. sdpa (default): no attention patch.")
+                         "on ComfyUI attention. sdpa (default): no attention patch.")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()

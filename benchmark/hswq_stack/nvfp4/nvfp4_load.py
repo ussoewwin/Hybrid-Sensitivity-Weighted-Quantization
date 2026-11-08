@@ -1,7 +1,7 @@
 """
 HSWQ-owned NVFP4 Linear load path.
 
-Stock Comfy ``_load_quantized_module`` loads NVFP4 weights/scales into a
+ComfyUI Comfy ``_load_quantized_module`` loads NVFP4 weights/scales into a
 QuantizedTensor, but does **not**:
   - stamp FULL ConvRot flags (Params have no convrot for NVFP4)
   - validate storage shape against logical (out, in)
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def peek_nvfp4_conf(state_dict, prefix: str) -> Optional[dict]:
-    """Read comfy_quant without popping (for routing before stock load)."""
+    """Read comfy_quant without popping (for routing before ComfyUI load)."""
     return decode_comfy_quant_conf(state_dict.get(f"{prefix}comfy_quant"))
 
 
@@ -90,7 +90,7 @@ def load_nvfp4_linear_module(
     """
     Full NVFP4 Linear ``_load_from_state_dict`` body (HSWQ).
 
-    Mirrors stock scale/QT construction, then:
+    Mirrors ComfyUI scale/QT construction, then:
       - validates storage vs logical shape
       - loads input_scale when present
       - arms ConvRot + HSWQ TC forward flags

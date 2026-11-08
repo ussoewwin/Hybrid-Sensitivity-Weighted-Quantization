@@ -5,7 +5,7 @@ The gate is the UNet's OWN output - the same instrument the protection set was
 chosen with (Rules 2/3).
 
 The baseline is built through the SAME ops class as the quantized pack
-(`mixed_precision_ops`): the stock path uses `manual_cast`, and the two are not
+(`mixed_precision_ops`): the ComfyUI path uses `manual_cast`, and the two are not
 numerically equivalent. **CLIP is not quantized** and does not participate.
 
 Usage:

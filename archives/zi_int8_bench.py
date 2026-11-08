@@ -578,7 +578,7 @@ def main() -> int:
         "--attention", choices=["sdpa", "sage2"], default="sdpa",
         help=(
             "sage2: patch the INT8 branch attention to SageAttention2 "
-            "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays on stock "
+            "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays on ComfyUI "
             "attention. sdpa (default): no attention patch."
         ),
     )

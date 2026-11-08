@@ -5,7 +5,7 @@ Owns the ZI delta that must not live in ``nodes/nvfp4`` (SDXL TC product):
   - ``clear_hadamard_global_caches`` (Method 2c / parity clear)
   - storage-ok gating inside ``build_hadamard`` / ``_h4``
 
-SDXL TC uses the 3.3.0 stock module ``nodes/nvfp4/nvfp4_hadamard.py``.
+SDXL TC uses the 3.3.0 ComfyUI module ``nodes/nvfp4/nvfp4_hadamard.py``.
 """
 from __future__ import annotations
 
