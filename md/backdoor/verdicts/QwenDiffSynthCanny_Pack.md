@@ -56,6 +56,11 @@ family node that applies the patch (`QwenImageDiffsynthControlnet`). The measure
 | 0 | INT8 weights that the pack does not declare | `records/qwen_diffsynth_canny_route.json` -> `int8_not_declared` (count) | nothing is quantised beyond the declared set |
 | 0 | declared layers left as raw int8 codes (codes copied, not executed) | `records/qwen_diffsynth_canny_route.json` -> `raw_int8_parameters` (count) | no declared layer falls through to the bare-code path |
 | QwenImageBlockWiseControlNet | class the node builds | `records/qwen_diffsynth_canny_route.json` -> `model_class` | the file is recognised as the architecture it is |
+| 966 | INT8 GEMM calls during one forward on this route | `records/qwen_diffsynth_canny_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
+| 1 | output tensors returned by that forward | `records/qwen_diffsynth_canny_int8_exec.json` -> `output_tensors` | the executed path returns a result |
+| 0 | NaN count in that output | `records/qwen_diffsynth_canny_int8_exec.json` -> `output_nan_count` | the executed path produces no NaN |
+| 0 | Inf count in that output | `records/qwen_diffsynth_canny_int8_exec.json` -> `output_inf_count` | the executed path produces no Inf |
+| img_in.weight | the 2D layers kept in original precision | `records/qwen_diffsynth_canny_protection.json` -> `kept_in_fp16_summary` | the pack's own protection set, kept out of the INT8 path |
 | 19,320 | INT8 GEMM calls during the render | `records/qwen_diffsynth_canny_image_test.json` -> `measurement.int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 1,306,054 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 20 steps, cfg 1.0, base `qwnImageEdit_v16Bf16_convrot_int8.safetensors`) | `records/qwen_diffsynth_canny_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
 | records/qwen_diffsynth_canny_control.png | the control image that drove the render | `records/qwen_diffsynth_canny_image_test.json` -> `settings.control_image` | the pack was driven by an input of the kind its condition expects |
@@ -100,6 +105,8 @@ family node that applies the patch (`QwenImageDiffsynthControlnet`). The measure
 
 - `records/qwen_diffsynth_canny_pack_audit.json` - identity, runtime coverage, quantisation replay, float-side comparison.
 
+- `records/qwen_diffsynth_canny_int8_exec.json` - one forward on that route: INT8 GEMM call count, output tensors, finiteness.
+- `records/qwen_diffsynth_canny_protection.json` - the protection census: the 2D layers that stay in FP16 and the basis of that choice.
 - `records/qwen_diffsynth_canny_route.json` - the loader route the card names: class, declared and applied layer counts,
   layers with no module.
 

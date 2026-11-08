@@ -1042,6 +1042,8 @@ table is only for spotting an implausible number.
 | `controlnet_pack_audit.py` | 14.5 ControlNet pack | `--source <f> --pack <f> --comfy <d> [--json <o>] [--device cpu\|cuda]` |
 | `model_patch_pack_audit.py` | 14.5 model patch pack | `--source <f> --pack <f> --comfy <d> [--json <o>]` |
 | `model_patch_hswq_route.py` | 12b model patch route | `--pack <f> --comfy <d> [--loader-root <d>] [--json <o>]` |
+| `model_patch_int8_exec.py` | 12b model patch execution | `--pack <f> --base <f> --clip <f> --vae <f> --family diffsynth\|zimage --comfy <d> [--json <o>] |
+| `model_patch_protection_census.py` | 14.5 model patch pack | `--source <f> --pack <f> --family diffsynth\|zimage [--json <o>] |
 | `sam31_census.py` | 12c S0 | `--model <f> [--out <o>]` |
 | `sam31_weight_positive_control.py` | 12c S5 | `--model <f> [--out <o>]` |
 | `sam31_weight_screen.py` | 12c S1 | `--model <f> --positive-control <r> [--out <o>]` |
@@ -1122,3 +1124,5 @@ Incident that produced these rules: `md/Incident_ModelCard_PathString_Upload_202
 | controlnet_image_test.py | 12b ControlNet render | --base <f> --pack <f> --comfy <d> --out <png> [--json <o>] |
 | model_patch_pack_audit.py | 14.5 model patch pack | --source <f> --pack <f> --comfy <d> [--json <o>] |
 | model_patch_hswq_route.py | 12b model patch route | --pack <f> --comfy <d> [--json <o>] |
+| model_patch_int8_exec.py | 12b model patch execution | --pack <f> --base <f> --clip <f> --vae <f> --family diffsynth|zimage --comfy <d> [--json <o>] |
+| model_patch_protection_census.py | 14.5 model patch pack | --source <f> --pack <f> --family diffsynth|zimage [--json <o>] |
