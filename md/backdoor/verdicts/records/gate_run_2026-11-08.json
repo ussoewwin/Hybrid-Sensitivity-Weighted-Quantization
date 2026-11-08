@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-08",
+  "python": "3.13.17",
+  "platform": "win32",
+  "overall": "PASS",
+  "gates": [
+    {
+      "gate": "Procedure Check",
+      "status": "PASS",
+      "seconds": 0.1,
+      "script": "audit/procedure_check.py",
+      "script_sha256": "a074717f142cf9c3a1584d89ce7b43962c604dd183137dab25d5703b2aa22cd7"
+    },
+    {
+      "gate": "Citation Check (all reports)",
+      "status": "PASS",
+      "seconds": 1.27,
+      "script": "audit/check_cites.py",
+      "script_sha256": "2a7e95b4f6847f22015b676b1f901f1fde628c524f47d16f36a03e04e1252220"
+    },
+    {
+      "gate": "Selftest (42/42)",
+      "status": "PASS",
+      "seconds": 5.15,
+      "script": "audit/selftest.py",
+      "script_sha256": "851f511b54a1e220171b23bd3e39e876a31a9938cf7d57cc4254c56af729a5ef"
+    }
+  ],
+  "markdown_lint": "PASS"
+}

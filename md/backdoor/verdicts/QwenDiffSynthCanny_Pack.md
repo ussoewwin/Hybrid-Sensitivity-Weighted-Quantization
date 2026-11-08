@@ -37,13 +37,12 @@ directly on those names - the names the runtime reads.
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | 120 | INT8 layers declared, and the same 120 found | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.found` | the declared edit is the edit carried |
-| 948 | INT8 values differing from the converter-identical replay | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.q_mismatch_total` | every one of them sits on a .5 rounding boundary (next row) |
-| 948 / 0 | of those, near a .5 rounding boundary / further from one | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.q_on_rounding_boundary`, `q_off_rounding_boundary` | a boundary value is where two rounding modes differ by one step; none is further |
-| 3.05e-05 | largest distance from .5 among them (tolerance 1e-04) | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.boundary_dist_max` | the tolerance is measured, not assumed |
-| 1 | largest integer difference | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.max_q_delta` | off-by-one at a boundary, nothing larger |
-| 5.62e-07 | largest relative scale difference | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.scale_exact_rel_max` | the scales are the replay's own values |
-| 0 | float tensors differing beyond 1e-06, of 242 checked | `records/qwen_diffsynth_canny_pack_audit.json` -> `float_side.mismatch_count` | the unquantised side is the source's tensors |
-| 2.98e-08 | largest float difference, including the ones inside the tolerance | `records/qwen_diffsynth_canny_pack_audit.json` -> `float_side.max_abs_diff` | a bf16 round trip is the cause; the value is one fp32 ULP |
+| 0 | INT8 values differing from the replay | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.q_mismatch_total` | **closes the arithmetic** |
+| 0 | largest integer difference | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.max_q_delta` | not one element is off by a step |
+| 0.0 | largest relative scale difference | `records/qwen_diffsynth_canny_pack_audit.json` -> `quantised.scale_exact_rel_max` | the scales are the replay's own values |
+| 0 | float tensors differing, of 242 checked | `records/qwen_diffsynth_canny_pack_audit.json` -> `float_side.mismatch_count` | the unquantised side is the source's tensors, bit for bit |
+| 0.0 | largest float difference | `records/qwen_diffsynth_canny_pack_audit.json` -> `float_side.max_abs_diff` | no residue at all |
+| clip_convert/convert_qwen_image_diffsynth_patch_impact_convrot_int8.py | the instrument the replay runs on (its own rotate_weight / quant_rowwise / group_size_for, on CPU) | `records/qwen_diffsynth_canny_pack_audit.json` -> `instrument.replayed_with` | the replay has to run on the instrument that built the pack |
 
 ## 4. The declared edit executes on the loader the card names
 
@@ -69,9 +68,8 @@ family node that applies the patch (`QwenImageDiffsynthControlnet`). The measure
 **No backdoor detected.**
 
 - **Added material:** nothing was added; every pack tensor equals the source under the converter's
-  own quantisation, and the float side agrees to within one fp32 ULP.
-- **The edit is the declared one:** 120 Linear layers quantised, replayed with 948 differing values,
-  every one of them on a .5 rounding boundary.
+  own quantisation, and the float side is bit-identical.
+- **The edit is the declared one:** 120 Linear layers quantised, replayed with 0 differing values.
 - **What this does not say:** the runtime object is a model patch, applied by the family node;
   a ControlNet loader has no branch for this layout and refuses it. "No backdoor" is a statement
   about added material.
@@ -87,11 +85,14 @@ family node that applies the patch (`QwenImageDiffsynthControlnet`). The measure
   one position per module, plus the loader call and the render in section 4.
 - Reference-class boundary: the reference is the publisher's release. A defect present in that
   release before distribution is unreachable by comparing the pack with it.
-- The quantisation replay reproduces the converter exactly (Hadamard by 4x4 Kronecker doubling,
-  group size 256 except one 132-wide layer at group size 4, row-wise `amax/127`); exact agreement
-  is what makes the comparison meaningful.
-- The float side is compared with a 1e-06 tolerance because a bf16 round trip moves a value by one
-  fp32 ULP; the largest measured difference is reported with the record.
+- The quantisation replay runs on the instrument that built the pack - this family's own converter
+  functions (`rotate_weight`, `quant_rowwise`, `group_size_for` of
+  `clip_convert/convert_qwen_image_diffsynth_patch_impact_convrot_int8.py`) on CPU - as
+  `records/qwen_diffsynth_canny_pack_audit.json` -> `instrument` states. The instrument-match rule
+  is not academic here: a replay that borrows another tool's rotation and quantisation functions
+  reports 948 codes differing by one step at a .5 rounding boundary and a relative scale difference
+  of 5.6e-07. That residue is the borrowing instrument's arithmetic, not a difference in this pack,
+  and it is why the instrument is named here.
 - Inputs outside the tested sets are not covered; no test covers them.
 
 
