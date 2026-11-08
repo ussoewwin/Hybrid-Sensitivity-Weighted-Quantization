@@ -63,7 +63,7 @@ git clone https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools.git
 
 Then place each file in the directory its type requires (see the table at the top):
 
-- **ControlNet** files go in `ComfyUI/models/controlnet/` and load with `ControlNetLoader`.
+- **ControlNet** files go in `ComfyUI/models/controlnet/` and load with the **HSWQ ControlNet Loader** (the stock `ControlNetLoader` reads the INT8 tensors as plain weights).
 - **Model patch** files go in `ComfyUI/models/model_patches/` and load with **`HSWQ Model Patch Loader`** (the stock `ModelPatchLoader` reads the INT8 tensors as plain weights), then apply with `ZImageFunControlnet` / `QwenImageDiffsynthControlnet`.
 
 ## 📜 Credits & License
