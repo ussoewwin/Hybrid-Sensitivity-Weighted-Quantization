@@ -20,10 +20,38 @@ the source graph at several strengths and measures the same statistic. The
 smallest strength that leaves the control distribution is the detection floor:
 below it, "no trigger found" says nothing about the instrument's sensitivity.
 
+Three ControlNet families take the control image through the runtime's own VAE
+before it reaches the graph, so the hint is a latent, not an image. They are
+selected with ``--family`` and each one builds its hint exactly the way the
+runtime does (the control image at the latent's pixel size, the runtime VAE,
+the runtime latent format, and the mask channel where the runtime appends one):
+
+``--family flux``
+    ``ControlNetFlux`` with ``latent_input``: VAE encode, then the FLUX latent
+    format.
+``--family qwen-instantx``
+    ``QwenImageControlNetModel``: VAE encode, then the Wan21 latent format,
+    then the mask channel the runtime concatenates (17 channels in total).
+``--family qwen-fun``
+    ``QwenImageFunControlNetModel``: VAE encode, then the Wan21 latent format
+    (16 channels; the model widens it itself), and the base model's entry path
+    (``--base``) has to be supplied.
+
+``--family classic`` (the default) is the ControlNet that takes the image
+itself as the hint, and it is the behaviour of the earlier records.
+
 Usage:
   python audit/controlnet_image_trigger.py --comfy <ComfyUI root> \
       --source <source.safetensors> --pack <pack.safetensors> [--loader-root <dir>] \
       [--reps N] [--seed S] --json <out.json>
+
+  python audit/controlnet_image_trigger.py --family flux --comfy <ComfyUI root> \
+      --source <source.safetensors> --pack <pack.safetensors> --vae <vae file> \
+      [--loader-root <dir>] [--reps N] [--seed S] --json <out.json>
+
+  python audit/controlnet_image_trigger.py --family qwen-fun --comfy <ComfyUI root> \
+      --source <source.safetensors> --pack <pack.safetensors> --vae <vae file> \
+      --base <base checkpoint> [--loader-root <dir>] [--reps N] [--seed S] --json <out.json>
 """
 from __future__ import annotations
 
@@ -248,6 +276,406 @@ def _clone_graph(m_src):
     return copy.deepcopy(m_src)
 
 
+# --- the families whose control image goes through the runtime VAE -------------
+#
+# The classic ControlNet takes the control image as its hint. The three families
+# below take it through the runtime VAE first, so the hint is a latent and the
+# trigger has to be applied to the image the user actually supplies.
+#
+# The runtime's own path (comfy/controlnet.py, ControlNet.get_control):
+#   1. the control image is upscaled to the noisy latent's pixel size,
+#   2. the runtime VAE encodes it,
+#   3. the latent format's process_in is applied,
+#   4. the mask channel is concatenated where the runtime concatenates one.
+# The steps below are those steps, in that order.
+
+FAMILY_PATCH_SIZES = (128, 256, 512)   # on the 1024x1024 control image
+FAMILY_IMAGE_SIZE = 1024
+
+
+def _load_vae(folder_paths, comfy_nodes, vae_path):
+    folder_paths.add_model_folder_path("vae", os.path.dirname(os.path.abspath(vae_path)))
+    cache = getattr(folder_paths, "filename_list_cache", None)
+    if isinstance(cache, dict):
+        cache.pop("vae", None)
+    (vae,) = comfy_nodes.VAELoader().load_vae(os.path.basename(vae_path))
+    return vae
+
+
+def _family_latent_format(family):
+    import comfy.latent_formats
+    if family == "flux":
+        return comfy.latent_formats.Flux()
+    return comfy.latent_formats.Wan21()
+
+
+def _family_hint(family, vae, vae_dtype, img, latent_format):
+    """The hint the runtime builds from the control image."""
+    with torch.no_grad():
+        lat = vae.encode(img.permute(1, 2, 0).unsqueeze(0).to(vae_dtype))
+    lat = lat.to(DEV)
+    hint = latent_format.process_in(lat)
+    if family == "qwen-instantx":
+        # the runtime appends the mask channel it builds in ControlNet.get_control
+        mask = torch.ones((1, 1, hint.shape[-2], hint.shape[-1]),
+                          device=hint.device, dtype=hint.dtype).unsqueeze(2)
+        hint = torch.cat([hint, mask], dim=1)
+    return hint
+
+
+def _family_inputs(family, cm, seed, base_model=None):
+    """The non-hint inputs of the family's forward."""
+    g = torch.Generator(device="cpu").manual_seed(seed)
+    dtype = cm.dtype
+    if family == "flux":
+        return dict(x=torch.randn(1, 16, 128, 128, generator=g).to(DEV, dtype),
+                    timesteps=torch.tensor([500.0], device=DEV, dtype=dtype),
+                    context=torch.randn(1, 256, 4096, generator=g).to(DEV, dtype),
+                    y=torch.randn(1, 768, generator=g).to(DEV, dtype),
+                    guidance=torch.tensor([3.5], device=DEV, dtype=dtype))
+    call = dict(x=torch.randn(1, 16, 1, 128, 128, generator=g).to(DEV, dtype),
+                timesteps=torch.tensor([500.0], device=DEV, dtype=dtype),
+                context=torch.randn(1, 77, 3584, generator=g).to(DEV, dtype))
+    if family == "qwen-fun":
+        call["base_model"] = base_model
+    return call
+
+
+def _family_base_model(base_path, dtype):
+    """The base model's entry path, the way the Fun ControlNet's forward reads it.
+
+    The Fun ControlNet's forward calls the base model's process_img, pe_embedder,
+    img_in, txt_norm, txt_in and time_text_embed, so the base has to be present
+    and its entry tensors have to be the real ones.
+    """
+    import comfy.ops
+    import comfy.ldm.qwen_image.model as qm
+    from comfy.quant_ops import QUANT_ALGOS
+    from safetensors import safe_open
+
+    ops = comfy.ops.mixed_precision_ops(
+        {"int8_tensorwise": QUANT_ALGOS["int8_tensorwise"]}, dtype,
+        full_precision_mm=False, disabled=[])
+    entry = {}
+    with safe_open(base_path, framework="pt", device="cpu") as f:
+        for k in f.keys():
+            if k.startswith(("img_in.", "txt_in.", "txt_norm.", "time_text_embed.")):
+                entry[k] = f.get_tensor(k)
+    model = qm.QwenImageTransformer2DModel(
+        patch_size=2, in_channels=64, out_channels=16, num_layers=0,
+        attention_head_dim=128, num_attention_heads=24, joint_attention_dim=3584,
+        final_layer=False, dtype=dtype, device="cpu", operations=ops)
+    missing, unexpected = model.load_state_dict(entry, strict=False)
+    missing = [k for k in missing if k.startswith(
+        ("img_in.", "txt_in.", "txt_norm.", "time_text_embed."))]
+    if missing:
+        raise RuntimeError("the base entry tensors are missing: %s" % missing)
+    return model.to(DEV).eval()
+
+
+def _family_compare(m_src, m_pack, call):
+    """Compare the two graphs' outputs without holding them all on the CPU.
+
+    The classic path keeps every output tensor on the CPU as double, which is
+    fine for a small SDXL graph. These graphs return 19 tensors of 3.1M
+    elements each, so the comparison is done tensor by tensor and only the
+    scalars are kept.
+    """
+    with torch.no_grad():
+        out_s = m_src(**call)
+        out_p = m_pack(**call)
+
+    def flat(o, acc):
+        if torch.is_tensor(o):
+            acc.append(o)
+        elif isinstance(o, dict):
+            for k in o:
+                flat(o[k], acc)
+        elif isinstance(o, (list, tuple)):
+            for e in o:
+                flat(e, acc)
+        return acc
+
+    ts = flat(out_s, [])
+    tp = flat(out_p, [])
+    n = min(len(ts), len(tp))
+    cos = None
+    rel = 0.0
+    finite_any = False
+    for j in range(n):
+        a = ts[j]
+        b = tp[j]
+        if not (torch.isfinite(a).all() and torch.isfinite(b).all()):
+            del ts[j], tp[j]
+            continue
+        finite_any = True
+        af = a.detach().double().reshape(1, -1)
+        bf = b.detach().double().reshape(1, -1)
+        c = float(torch.nn.functional.cosine_similarity(af, bf, dim=1).item())
+        cos = c if cos is None else min(cos, c)
+        r = float((af - bf).norm() / af.norm().clamp(min=1e-30))
+        rel = max(rel, r)
+        del af, bf
+    del ts, tp, out_s, out_p
+    if not finite_any:
+        return None
+    return 1.0 - cos, rel
+
+
+def _family_measure(m_src, m_pack, base_img, spec, g, seed, family,
+                    vae, vae_dtype, latent_format, base_model):
+    """The divergence (1-cos) between the source and the pack under one control image."""
+    img = apply_spec(base_img, spec, g)
+    call = _family_inputs(family, m_pack, seed, base_model)
+    call["hint"] = _family_hint(family, vae, vae_dtype, img, latent_format).to(m_pack.dtype)
+    return _family_compare(m_src, m_pack, call)
+
+
+def _family_positive_control(m_src, m_pack, base_img, a, family,
+                              vae, vae_dtype, latent_format, base_model):
+    """The detection floor of this instrument on the family.
+
+    The rank-1 implant shape: a known embedding is written into one Linear
+    weight of the source graph at several strengths, and the same statistic is
+    measured against the pack. The smallest strength whose divergence leaves
+    the control distribution is the floor.
+
+    The weight is written and restored in place instead of cloning the whole
+    graph: these graphs carry billions of parameters, and a copy of one does not
+    fit next to the pack.
+
+    The baseline divergence (no implant) is measured first, because on some
+    graphs the source-vs-pack baseline itself sits above the control p99; a
+    floor is only real when the implant moves the divergence beyond both the
+    control p99 and that baseline.
+    """
+    out = []
+    g = torch.Generator(device=DEV).manual_seed(a.seed + 7777)
+    cands = [n for n, m in m_src.named_modules()
+             if type(m).__name__ == "Linear" and getattr(m, "weight", None) is not None
+             and m.weight.ndim == 2]
+    if not cands:
+        return [{"note": "the source graph exposes no Linear layer to implant into"}]
+    target = cands[len(cands) // 2]
+    strengths = (0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0)
+
+    # the baseline divergence, the same statistic without any implant
+    base_vals = []
+    for rep in range(a.reps):
+        call = _family_inputs(family, m_pack, a.seed + rep, base_model)
+        call["hint"] = _family_hint(family, vae, vae_dtype, base_img,
+                                    latent_format).to(m_pack.dtype)
+        r = _family_compare(m_src, m_pack, call)
+        if r is not None:
+            base_vals.append(r[0])
+    baseline = sum(base_vals) / len(base_vals) if base_vals else None
+    print("[3] baseline (no implant) 1-cos mean %.6g" % baseline if baseline is not None
+          else "[3] the baseline measurement returned no finite output", flush=True)
+
+    for frac in strengths:
+        mod = dict(m_src.named_modules())[target]
+        w = mod.weight.data
+        u = torch.randn(w.shape[0], generator=g, device=DEV, dtype=torch.float32)
+        v = torch.randn(w.shape[1], generator=g, device=DEV, dtype=torch.float32)
+        u = u / u.norm().clamp(min=1e-30)
+        v = v / v.norm().clamp(min=1e-30)
+        add = torch.outer(u, v) * (frac * float(w.float().norm()))
+        with torch.no_grad():
+            mod.weight.data = (w.float() + add).to(w.dtype)
+        try:
+            vals = []
+            for rep in range(a.reps):
+                call = _family_inputs(family, m_pack, a.seed + rep, base_model)
+                call["hint"] = _family_hint(family, vae, vae_dtype, base_img,
+                                            latent_format).to(m_pack.dtype)
+                r = _family_compare(m_src, m_pack, call)
+                if r is None:
+                    continue
+                vals.append(r[0])
+        finally:
+            with torch.no_grad():
+                mod.weight.data = w
+            torch.cuda.empty_cache()
+        if not vals:
+            out.append({"implant": "rank-1", "layer": target, "strength": frac,
+                        "one_minus_cos": None,
+                        "note": "a non-finite output for every repetition"})
+            continue
+        mean = sum(vals) / len(vals)
+        out.append({"implant": "rank-1", "layer": target, "strength": frac,
+                    "one_minus_cos": mean, "one_minus_cos_max": max(vals),
+                    "reps": len(vals), "strength_relative_to_weight_norm": frac})
+        print("[3] rank-1 %s strength %.4g -> 1-cos mean %.6g"
+              % (target, frac, mean), flush=True)
+    return out, baseline
+
+
+def main_family(a):
+    """The trigger search for the families whose control image goes through the VAE."""
+    torch_, folder_paths, comfy_utils, cc, mm = load_comfy(a.comfy)
+    import nodes as comfy_nodes
+    # the loader's multi-GPU patch reads server.PromptServer.instance; a bare script has none
+    import server
+    if not hasattr(server.PromptServer, "instance"):
+        server.PromptServer.instance = None
+    node = load_pkg(a.comfy, a.loader_root)
+    compute_dtype = node._get_default_compute_dtype(torch.device(DEV))
+
+    sd = comfy_utils.load_torch_file(a.source, safe_load=True)
+    cnet = cc.load_controlnet_state_dict(sd, model_options={"dtype": compute_dtype})
+    m_src = cnet.control_model
+    # the source's state dict is the largest object in the process and the graph
+    # holds everything the measurement needs; holding both does not fit in RAM
+    del sd
+    import gc
+    gc.collect()
+    folder_paths.add_model_folder_path("controlnet", os.path.dirname(os.path.abspath(a.pack)))
+    (cnet_p,) = node.HSWQControlNetLoader().load_controlnet(os.path.basename(a.pack))
+    m_pack = cnet_p.control_model
+    m_src = m_src.to(DEV).eval()
+    m_pack = m_pack.to(DEV).eval()
+    gc.collect()
+    torch.cuda.empty_cache()
+    print("[1] graphs: source %s / pack %s" % (type(m_src).__name__, type(m_pack).__name__),
+          flush=True)
+
+    vae = _load_vae(folder_paths, comfy_nodes, a.vae)
+    vae_dtype = vae.vae_dtype
+    latent_format = _family_latent_format(a.family)
+    base_model = None
+    if a.family == "qwen-fun":
+        if not a.base:
+            raise SystemExit("--base <base checkpoint> is required for the qwen-fun family")
+        base_model = _family_base_model(a.base, compute_dtype)
+
+    g0 = torch.Generator(device=DEV).manual_seed(a.seed)
+    base_img = torch.rand(3, FAMILY_IMAGE_SIZE, FAMILY_IMAGE_SIZE,
+                          generator=g0, device=DEV, dtype=torch.float32)
+
+    specs = ([{"kind": "patch", "pattern": p, "size": s, "position": pos}
+              for p in PATCH_PATTERNS for s in FAMILY_PATCH_SIZES for pos in PATCH_POSITIONS]
+             + freq_spec_list() + control_spec_list())
+    rows = []
+    for i, spec in enumerate(specs):
+        label = candidate_label(spec)
+        vals = []
+        rels = []
+        bad = 0
+        for rep in range(a.reps):
+            g = torch.Generator(device=DEV).manual_seed(a.seed + 1000 + i * 97 + rep)
+            r = _family_measure(m_src, m_pack, base_img, spec, g, a.seed + rep,
+                                a.family, vae, vae_dtype, latent_format, base_model)
+            if r is None:
+                bad += 1
+                continue
+            vals.append(r[0])
+            rels.append(r[1])
+        if not vals:
+            rows.append({"candidate": label, "kind": spec["kind"], "one_minus_cos": None,
+                         "rel_l2": None, "reps": a.reps, "non_finite_reps": bad,
+                         "note": "a non-finite output for every repetition; no comparison is possible"})
+            print("[2] %-28s non-finite (%d/%d)" % (label, bad, a.reps), flush=True)
+            continue
+        mx = max(vals)
+        mn = min(vals)
+        mean = sum(vals) / len(vals)
+        rows.append({"candidate": label, "kind": spec["kind"], "one_minus_cos": mean,
+                     "one_minus_cos_max": mx, "one_minus_cos_min": mn,
+                     "rel_l2": sum(rels) / len(rels), "reps": len(vals),
+                     "non_finite_reps": bad})
+        print("[2] %-28s 1-cos mean %.6g max %.6g" % (label, mean, mx), flush=True)
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    ctrl = [r["one_minus_cos"] for r in rows
+            if r["kind"] == "control" and r["one_minus_cos"] is not None]
+    ctrl_sorted = sorted(ctrl)
+    ctrl_mean = sum(ctrl) / len(ctrl) if ctrl else None
+
+    def pct(p):
+        if not ctrl_sorted:
+            return None
+        k = min(len(ctrl_sorted) - 1, max(0, int(round(p * (len(ctrl_sorted) - 1)))))
+        return ctrl_sorted[k]
+
+    p99 = pct(0.99)
+    ratio_threshold = 1.5
+    flagged = []
+    if p99 is not None:
+        for r in rows:
+            if r["kind"] == "control" or r["one_minus_cos"] is None:
+                continue
+            ratio = (r["one_minus_cos"] / ctrl_mean) if ctrl_mean else None
+            if r["one_minus_cos"] > p99 and (ratio is None or ratio >= ratio_threshold):
+                flagged.append({"candidate": r["candidate"],
+                                "one_minus_cos": r["one_minus_cos"],
+                                "one_minus_cos_max": r.get("one_minus_cos_max"),
+                                "ratio_to_control_mean": ratio})
+
+    pos = []
+    pos_baseline = None
+    try:
+        pos, pos_baseline = _family_positive_control(m_src, m_pack, base_img, a, a.family,
+                                                      vae, vae_dtype, latent_format, base_model)
+    except Exception as exc:  # noqa: BLE001
+        pos = [{"error": "%s: %s" % (type(exc).__name__, str(exc)[:200])}]
+        print("[3] the positive control failed: %s" % pos[0]["error"], flush=True)
+
+    # a floor is real only when the implant moves the divergence beyond both the
+    # control p99 and the no-implant baseline (the baseline itself can sit above
+    # the control p99 on graphs whose output scale is large)
+    floor_threshold = p99
+    if p99 is not None and pos_baseline is not None:
+        floor_threshold = max(p99, pos_baseline)
+    floor = None
+    for e in pos:
+        if e.get("one_minus_cos") is None:
+            continue
+        if floor_threshold is not None and e["one_minus_cos"] > floor_threshold:
+            floor = e["strength"]
+            break
+
+    rec = {"tool": "controlnet_image_trigger.py",
+           "family": a.family,
+           "source": os.path.basename(a.source), "pack": os.path.basename(a.pack),
+           "vae": os.path.basename(a.vae),
+           "base": os.path.basename(a.base) if a.base else None,
+           "observable": "the divergence (1-cos) between the source(float) and the pack(INT8) "
+                         "ControlNet outputs under the same control image",
+           "control_image_path": "the control image is encoded by the runtime VAE and scaled by "
+                                 "the runtime latent format, the way a user's control image is",
+           "control_image_size": FAMILY_IMAGE_SIZE,
+           "patch_sizes_on_the_control_image": list(FAMILY_PATCH_SIZES),
+           "candidate_families": {"patch": len(PATCH_PATTERNS) * len(FAMILY_PATCH_SIZES)
+                                  * len(PATCH_POSITIONS),
+                                  "frequency": len(freq_spec_list()),
+                                  "natural_transform_controls": len(control_spec_list())},
+           "candidates": rows,
+           "control_one_minus_cos": ctrl_sorted,
+           "control_mean": ctrl_mean,
+           "control_p99": p99,
+           "ratio_threshold": ratio_threshold,
+           "flagged_over_control_p99": flagged,
+           "flagged_count": len(flagged),
+           "positive_control": pos,
+           "baseline_one_minus_cos": pos_baseline,
+           "detection_floor_relative_strength": floor,
+           "detection_floor_note": ("the smallest implanted rank-1 strength (relative to the "
+                                     "weight's own Frobenius norm) whose divergence leaves both "
+                                     "the natural-transform control distribution and the no-implant "
+                                     "baseline; below it this instrument cannot see an implant"),
+           "detection_floor_established": floor is not None,
+           "seed": a.seed,
+           "note": "the control p99 is the natural-transform control distribution; a candidate "
+                   "above it is an anomaly to investigate"}
+    with open(a.json, "w", encoding="utf-8") as f:
+        json.dump(rec, f, indent=2, ensure_ascii=False)
+    print("wrote", a.json)
+    print("control p99 = %s | flagged %d" % (p99, len(flagged)))
+    return 0
+
+
 def positive_control(m_src, m_pack, base_hint, a):
     """The detection floor: the smallest planted embedding this instrument sees.
 
@@ -311,7 +739,17 @@ def main():
     ap.add_argument("--loader-root", default="")
     ap.add_argument("--json", required=True)
     ap.add_argument("--reps", type=int, default=5)
+    ap.add_argument("--family", default="classic",
+                    choices=["classic", "flux", "qwen-instantx", "qwen-fun"],
+                    help="the ControlNet family; the classic one takes the image as "
+                         "the hint, the other three take it through the runtime VAE")
+    ap.add_argument("--vae", default="",
+                    help="the VAE file the family's control image is encoded with")
+    ap.add_argument("--base", default="",
+                    help="the base checkpoint the qwen-fun family's entry path is read from")
     a = ap.parse_args()
+    if a.family != "classic":
+        return main_family(a)
     torch, folder_paths, comfy_utils, cc, mm = load_comfy(a.comfy)
     node = load_pkg(a.comfy, a.loader_root)
     compute_dtype = node._get_default_compute_dtype(torch.device(DEV))

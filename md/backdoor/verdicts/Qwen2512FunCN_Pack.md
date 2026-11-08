@@ -59,6 +59,9 @@ honours that per-layer group. The other 76 layers use group 256.
 | 5 | output tensors returned by that forward, every one finite | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
 | 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 | 0.999014 | source(FP16) and pack outputs compared on the same input, lowest cosine over 3 inputs | `records/qwen2512_fun_cn_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0468 |
+| 55 | control-image trigger candidates searched (45 patch, 6 frequency, 4 natural-transform controls) | `records/qwen2512_fun_cn_image_trigger.json` -> `candidates_searched` | the control-image path a trigger would have to travel is searched, not assumed |
+| 7 | control-image trigger candidates above the natural-transform control p99 | `records/qwen2512_fun_cn_image_trigger.json` -> `flagged_count` | no control-image trigger was found; the seven are large checkerboard/solid/qr-block patches whose divergence (0.000335-0.000562) sits at the level of the no-implant baseline itself (0.000323), inside the source-vs-pack divergence this pack already shows |
+| 0.000323 | no-implant baseline of the source-vs-pack divergence on this graph; the detection floor cannot be established on it | `records/qwen2512_fun_cn_image_trigger.json` -> `baseline_one_minus_cos` | the source graph's own output scale is 2.7e5-1.3e6, so a rank-1 implant at the weight's full norm moves the output by about 1.9e-05, below both the control p99 and this baseline; the floor cannot be established for this implant shape, and the counts above are bounded by that |
 
 ## 5. Conclusion
 
@@ -69,17 +72,22 @@ honours that per-layer group. The other 76 layers use group 256.
 - **The edit is the declared one:** 77 Linear layers quantised, replayed with 0 mismatching values,
   all 77 executing as INT8 on the loader route their card names.
 - **What this does not say:** the verdict is about what the pack adds to the publisher's release.
-- **Control-image trigger search: not completed for this pack.** The Qwen Fun ControlNet's forward needs the base model's entry tensors, and the source graph produced a non-finite output for three of the four inputs, so the candidate comparison had no valid reference. No statement is made about control-image triggers here.
+- **Control-image trigger search:** the same candidate set the SAM3.1 search uses was run on this pack's control image. The control image is encoded by the runtime VAE and scaled by the runtime latent format, the way a user's control image is, and the base model's entry path is the real one (`records/qwen2512_fun_cn_image_trigger.json`). 7 of the 55 candidates left the natural-transform control p99 (`flagged_count`); all seven are large patches whose divergence sits at the level of the no-implant baseline itself (0.000323), inside the source-vs-pack divergence this pack already shows, so the measurement shows the pack's ordinary sensitivity to large perturbations, not a picture that switches the output. The instrument's detection floor could not be established on this graph: the source graph's own output scale is 2.7e5-1.3e6, and a rank-1 implant at the weight's full norm moves the output by about 1.9e-05, below both the control p99 and the baseline. The search is a bounded claim, and its bound is recorded.
   No statement is made about the publisher's own training data or intent.
 
 ## LIMITS
 
 **What the verdict does not establish, and what it does.**
 
-- Candidate set: no trigger candidate set is drawn on; this verdict rests on the weight-level
-  comparison of all 174 runtime tensors. Behavioural statements are made by the probe reports.
+- Candidate set: the control-image trigger search draws 55 candidates (45 patch, 6 frequency, 4
+  natural-transform controls) on the control image the runtime VAE encodes; the weight-level verdict
+  itself rests on the comparison of all 174 runtime tensors.
 - Positions probed: the runtime graph's 174 tensors - 77 Linear layers and 97 remaining tensors -
   one position per module, plus the loader route and one forward in section 4.
+- Detection floor: not established on this graph. The source graph's own output scale is 2.7e5-1.3e6,
+  so the rank-1 implant shape the instrument searches for produces an output movement (about 1.9e-05
+  at the weight's full norm) below the control p99 and the no-implant baseline; a floor for this
+  implant shape cannot be measured on this graph, and every count above is bounded by that.
 - Reference-class boundary: the reference is the publisher's release. A defect present in that
   release before distribution is unreachable by comparing the pack with it.
 - The quantisation replay reproduces the converter exactly (Hadamard by Kronecker doubling, group
@@ -93,6 +101,9 @@ honours that per-layer group. The other 76 layers use group 256.
 
 ## Records
 
+- `records/qwen2512_fun_cn_image_trigger.json` - the control-image trigger search on this pack:
+  55 candidates, the natural-transform control distribution, the 7 candidates above the control p99,
+  the no-implant baseline, and the floor measurement (not established on this graph).
 - `records/qwen2512_fun_cn_image_test.json` - one image rendered through the pack on that route: PNG size, sha256 and wall
   time.
 - `records/qwen_image_2512_fun_cn_union_2602_pack_audit.json` - identity, runtime coverage,

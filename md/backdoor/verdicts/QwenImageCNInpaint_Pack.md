@@ -59,6 +59,9 @@ embedder line. The replay honours each layer's own group.
 | 95 | INT8 GEMM calls during one forward | `records/qwen_image_controlnet_inpainting_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 1217915 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 20 steps, cfg 1.0) | `records/qwen_image_controlnet_inpainting_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
 | 257.1 | wall seconds for that render | `records/qwen_image_controlnet_inpainting_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
+| 55 | control-image trigger candidates searched (45 patch, 6 frequency, 4 natural-transform controls) | `records/qwen_image_controlnet_inpainting_image_trigger.json` -> `candidates_searched` | the control-image path a trigger would have to travel is searched, not assumed |
+| 0 | control-image trigger candidates above the natural-transform control p99 | `records/qwen_image_controlnet_inpainting_image_trigger.json` -> `flagged_count` | no control-image trigger was found; every patch and frequency candidate stays inside the control distribution |
+| 0.1 | detection floor of this instrument: the smallest rank-1 implant strength (relative to the weight's own Frobenius norm) that moves the divergence beyond both the control p99 and the no-implant baseline | `records/qwen_image_controlnet_inpainting_image_trigger.json` -> `detection_floor_relative_strength` | below this strength the instrument cannot see an implant, so the count above is a bounded claim, not an absolute one |
 
 ## 5. Conclusion
 
@@ -69,17 +72,21 @@ embedder line. The replay honours each layer's own group.
 - **The edit is the declared one:** 95 Linear layers quantised, replayed with 0 mismatching values,
   all 95 executing as INT8 on the loader route their card names.
 - **What this does not say:** the verdict is about what the pack adds to the publisher's release.
-- **Control-image trigger search: not completed for this pack.** This ControlNet consumes a 17-channel control latent (16 latent + 1 mask) and the instrument's control-image path does not build that combination, so the search could not be run against it. No statement is made about control-image triggers here.
+- **Control-image trigger search:** the same candidate set the SAM3.1 search uses was run on this pack's control image. The control image is encoded by the runtime VAE, scaled by the runtime latent format, and the mask channel the runtime concatenates is appended (the 17-channel control latent this ControlNet consumes), the way a user's control image is (`records/qwen_image_controlnet_inpainting_image_trigger.json`). 0 of the 55 candidates left the natural-transform control p99 (`flagged_count`), and the instrument's detection floor is 0.1, measured and recorded in the same file.
   No statement is made about the publisher's own training data or intent.
 
 ## LIMITS
 
 **What the verdict does not establish, and what it does.**
 
-- Candidate set: no trigger candidate set is drawn on; this verdict rests on the weight-level
-  comparison of all 215 runtime tensors. Behavioural statements are made by the probe reports.
+- Candidate set: the control-image trigger search draws 55 candidates (45 patch, 6 frequency, 4
+  natural-transform controls) on the control image the runtime VAE encodes; the weight-level verdict
+  itself rests on the comparison of all 215 runtime tensors.
 - Positions probed: the runtime graph's 215 tensors - 95 Linear layers and 120 remaining tensors -
   one position per module, plus the loader route and one forward in section 4.
+- Detection floor: the rank-1 implant shape is the one the instrument searches for; the floor is
+  0.1 relative to the weight's own Frobenius norm, and the no-implant baseline (0.000170) sits just
+  below the natural-transform control p99 (0.000182).
 - Reference-class boundary: the reference is the publisher's release. A defect present in that
   release before distribution is unreachable by comparing the pack with it.
 - The quantisation replay reproduces the converter exactly (Hadamard by Kronecker doubling, each
@@ -92,6 +99,9 @@ embedder line. The replay honours each layer's own group.
 
 ## Records
 
+- `records/qwen_image_controlnet_inpainting_image_trigger.json` - the control-image trigger search
+  on this pack: 55 candidates, the natural-transform control distribution, the no-implant baseline,
+  and the instrument's detection floor.
 - `records/qwen_image_controlnet_inpainting_image_test.json` - one image rendered through the pack on that route: PNG size, sha256 and wall
   time.
 - `records/qwen_image_controlnet_inpainting_pack_audit.json` - identity, runtime coverage,
