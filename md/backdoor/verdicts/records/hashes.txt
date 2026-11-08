@@ -1,0 +1,4 @@
+candidate Huihui-Qwen3-VL-4B-Instruct-abliterated.safetensors 8875719408 03590b45adf6a071dd5de231d4e2b697355746e36ce2d9368b4c0587ba014cd2
+base shard 1 (the Hub's own LFS object id) bbe234f80ac7e829b56b26028a893d9d266520a24132e8cde018986b778bc9f2
+base shard 2 (the Hub's own LFS object id) b1dc38b900dba6dd2841882efb9112c078ad1c3efa186a85f557a7ee0a716cbd
+merged published file (the shards the publisher serves) 8875719384 5b3c98e3b0bb9ab5f6d5c5902d2a00b1c40d6fbddfd379e2da0bcda5b15c72ed
