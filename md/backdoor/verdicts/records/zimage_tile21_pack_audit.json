@@ -14,6 +14,11 @@
   },
   "source_tensors": 81,
   "pack_tensors": 81,
+  "instrument": {
+    "replayed_with": "Z_Image/build_zimage_modelpatch_convrot_int8.py",
+    "device": "cpu",
+    "detail": "the builder's own rotation and quantisation functions; the gate has to use the same instrument as the measurement"
+  },
   "coverage": {
     "n_missing": 0,
     "missing": [],
@@ -66,14 +71,9 @@
       256,
       256
     ],
-    "q_mismatch_total": 118,
-    "q_on_rounding_boundary": 118,
-    "q_off_rounding_boundary": 0,
-    "boundary_tolerance": 0.0001,
-    "boundary_dist_max": 7.62939453125e-06,
-    "off_boundary_examples": [],
-    "max_q_delta": 1,
-    "scale_exact_rel_max": 2.1819730022798467e-07,
+    "q_mismatch_total": 0,
+    "max_q_delta": 0,
+    "scale_exact_rel_max": 0.0,
     "nonfinite_scales": 0
   },
   "float_side": {

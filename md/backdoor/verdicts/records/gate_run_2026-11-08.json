@@ -14,14 +14,14 @@
     {
       "gate": "Citation Check (all reports)",
       "status": "PASS",
-      "seconds": 1.27,
+      "seconds": 1.13,
       "script": "audit/check_cites.py",
       "script_sha256": "2a7e95b4f6847f22015b676b1f901f1fde628c524f47d16f36a03e04e1252220"
     },
     {
       "gate": "Selftest (42/42)",
       "status": "PASS",
-      "seconds": 5.15,
+      "seconds": 4.44,
       "script": "audit/selftest.py",
       "script_sha256": "851f511b54a1e220171b23bd3e39e876a31a9938cf7d57cc4254c56af729a5ef"
     }
