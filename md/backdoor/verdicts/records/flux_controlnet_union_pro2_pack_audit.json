@@ -3,6 +3,10 @@
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
     "file": "flux1dev_controlnet_union_pro2.safetensors",
+    "repo": "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0",
+    "hub_path": "diffusion_pytorch_model.safetensors",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of diffusion_pytorch_model.safetensors in Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0 equals this record's source sha256",
     "bytes": 4281779224,
     "sha256": "9d03f63f36206bab2f36aed5cfedc8693c2881397534e9d5f9ae9a0a41362517"
   },

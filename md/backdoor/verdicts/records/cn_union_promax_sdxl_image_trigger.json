@@ -1,0 +1,697 @@
+{
+  "tool": "controlnet_image_trigger.py",
+  "source": "diffusion_pytorch_model_promax.safetensors",
+  "pack": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
+  "observable": "the divergence (1-cos) between the source(float) and the pack(INT8) ControlNet outputs under the same control image",
+  "candidate_families": {
+    "patch": 45,
+    "frequency": 6,
+    "natural_transform_controls": 4
+  },
+  "candidates": [
+    {
+      "candidate": "patch_checker_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04263263202829681,
+      "one_minus_cos_max": 0.06021836552430582,
+      "one_minus_cos_min": 0.03284373627736481,
+      "rel_l2": 0.3182376914313267,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0438960239894837,
+      "one_minus_cos_max": 0.06082599818270584,
+      "one_minus_cos_min": 0.035018082584984844,
+      "rel_l2": 0.32194433099867314,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04770727369670865,
+      "one_minus_cos_max": 0.06480422121039764,
+      "one_minus_cos_min": 0.03591408004016272,
+      "rel_l2": 0.3363285085185195,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04387661957458825,
+      "one_minus_cos_max": 0.06402820593981262,
+      "one_minus_cos_min": 0.03346112709764526,
+      "rel_l2": 0.32235324883264665,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04136856837987505,
+      "one_minus_cos_max": 0.05575399126665603,
+      "one_minus_cos_min": 0.03353868095514079,
+      "rel_l2": 0.31691704184202646,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.04421751373548225,
+      "one_minus_cos_max": 0.06315239896003266,
+      "one_minus_cos_min": 0.019079405982958653,
+      "rel_l2": 0.3145947259159531,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.04295899206600525,
+      "one_minus_cos_max": 0.05783675533568733,
+      "one_minus_cos_min": 0.028859611790602147,
+      "rel_l2": 0.3139741376887161,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.040450272530513365,
+      "one_minus_cos_max": 0.05477974628506366,
+      "one_minus_cos_min": 0.02478746559857692,
+      "rel_l2": 0.30195778532714557,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.045584521380117114,
+      "one_minus_cos_max": 0.07020534140809609,
+      "one_minus_cos_min": 0.03098684038519206,
+      "rel_l2": 0.3245997316115788,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.04265804369275158,
+      "one_minus_cos_max": 0.05519688157635061,
+      "one_minus_cos_min": 0.03337469164425111,
+      "rel_l2": 0.31964495814508115,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.045032611589576645,
+      "one_minus_cos_max": 0.059624891845504235,
+      "one_minus_cos_min": 0.02952315547604878,
+      "rel_l2": 0.31770370755703586,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.040855909104139755,
+      "one_minus_cos_max": 0.05510765256795891,
+      "one_minus_cos_min": 0.027741685335488375,
+      "rel_l2": 0.3018132747740933,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.04473040546492083,
+      "one_minus_cos_max": 0.0594539446984228,
+      "one_minus_cos_min": 0.021242964785691987,
+      "rel_l2": 0.31149881527830625,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.03931495575186913,
+      "one_minus_cos_max": 0.05565013801467056,
+      "one_minus_cos_min": 0.022741854492657643,
+      "rel_l2": 0.30209968970921003,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.04698286018653123,
+      "one_minus_cos_max": 0.06596473351066834,
+      "one_minus_cos_min": 0.02793518235530279,
+      "rel_l2": 0.32685287104908894,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0439588795742453,
+      "one_minus_cos_max": 0.060755327051847496,
+      "one_minus_cos_min": 0.03450525377596558,
+      "rel_l2": 0.32400095180440275,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0443508184864733,
+      "one_minus_cos_max": 0.06045869358849665,
+      "one_minus_cos_min": 0.035287435554514746,
+      "rel_l2": 0.32333614407701144,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04772680549176026,
+      "one_minus_cos_max": 0.06477531068748377,
+      "one_minus_cos_min": 0.03673519431796257,
+      "rel_l2": 0.33745403185711104,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04364030869627067,
+      "one_minus_cos_max": 0.06262229468767855,
+      "one_minus_cos_min": 0.03383970436783523,
+      "rel_l2": 0.321906847268225,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04198988026555095,
+      "one_minus_cos_max": 0.05794224770878498,
+      "one_minus_cos_min": 0.031715061538035494,
+      "rel_l2": 0.31771697429300005,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.042236743011076126,
+      "one_minus_cos_max": 0.06117702118008639,
+      "one_minus_cos_min": 0.018541346405551606,
+      "rel_l2": 0.30798383617517316,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.04228724214636529,
+      "one_minus_cos_max": 0.05913243430177517,
+      "one_minus_cos_min": 0.02556227007912648,
+      "rel_l2": 0.311245858667225,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.04042559202674948,
+      "one_minus_cos_max": 0.05380413080443347,
+      "one_minus_cos_min": 0.025972086831521413,
+      "rel_l2": 0.30232904848227893,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.045277223645775654,
+      "one_minus_cos_max": 0.07004922036248795,
+      "one_minus_cos_min": 0.02998072474732716,
+      "rel_l2": 0.32596099852974164,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.042425718217068274,
+      "one_minus_cos_max": 0.05562089630903211,
+      "one_minus_cos_min": 0.033996424010863446,
+      "rel_l2": 0.3197973937726841,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.048699926477910514,
+      "one_minus_cos_max": 0.06414969436883977,
+      "one_minus_cos_min": 0.029877913094464192,
+      "rel_l2": 0.3330839785801842,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.04093979536010613,
+      "one_minus_cos_max": 0.056573421189465845,
+      "one_minus_cos_min": 0.02557246446724426,
+      "rel_l2": 0.30085556897611077,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0448280931584362,
+      "one_minus_cos_max": 0.05876153690783381,
+      "one_minus_cos_min": 0.021002767849703785,
+      "rel_l2": 0.312700229831502,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.04059624255238137,
+      "one_minus_cos_max": 0.058493425977220515,
+      "one_minus_cos_min": 0.023461609916542336,
+      "rel_l2": 0.3072779027483864,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.04660963856665005,
+      "one_minus_cos_max": 0.06628892852400292,
+      "one_minus_cos_min": 0.028075349488573265,
+      "rel_l2": 0.3251579790851656,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04140299346322085,
+      "one_minus_cos_max": 0.05954139016222382,
+      "one_minus_cos_min": 0.03140482737638817,
+      "rel_l2": 0.31402859050132437,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.04173690021279919,
+      "one_minus_cos_max": 0.04955290599121187,
+      "one_minus_cos_min": 0.034456303729021975,
+      "rel_l2": 0.3123178200234216,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.039501544108399046,
+      "one_minus_cos_max": 0.051597520096639204,
+      "one_minus_cos_min": 0.026809210200606448,
+      "rel_l2": 0.3076436297154268,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.03975313946201368,
+      "one_minus_cos_max": 0.05536330020767377,
+      "one_minus_cos_min": 0.0264567633662518,
+      "rel_l2": 0.31121218283785396,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.039644297492416235,
+      "one_minus_cos_max": 0.04806983829336997,
+      "one_minus_cos_min": 0.03502219906102699,
+      "rel_l2": 0.3136788245010928,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.03721590322599092,
+      "one_minus_cos_max": 0.05065980344539511,
+      "one_minus_cos_min": 0.020016822831162462,
+      "rel_l2": 0.2981919337112851,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.03871754417771071,
+      "one_minus_cos_max": 0.05021669853964761,
+      "one_minus_cos_min": 0.024367651343566776,
+      "rel_l2": 0.30156413552624667,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.03715760806300591,
+      "one_minus_cos_max": 0.04539643934011317,
+      "one_minus_cos_min": 0.024506693229078946,
+      "rel_l2": 0.2960433340353185,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.03736396207923165,
+      "one_minus_cos_max": 0.04751863102375853,
+      "one_minus_cos_min": 0.019128841139073538,
+      "rel_l2": 0.29678138207185695,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.03500039739142472,
+      "one_minus_cos_max": 0.0497131001449338,
+      "one_minus_cos_min": 0.021782456952322615,
+      "rel_l2": 0.2909769127415228,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.040482076597084395,
+      "one_minus_cos_max": 0.04888843143559418,
+      "one_minus_cos_min": 0.024535672101067996,
+      "rel_l2": 0.3051989168154278,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.037395910343241044,
+      "one_minus_cos_max": 0.04648138467813068,
+      "one_minus_cos_min": 0.019722890250805092,
+      "rel_l2": 0.2882104025618856,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.042287101189641775,
+      "one_minus_cos_max": 0.05370493997939074,
+      "one_minus_cos_min": 0.023905868835221944,
+      "rel_l2": 0.30933517410439343,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.04156556781488263,
+      "one_minus_cos_max": 0.055155845875576426,
+      "one_minus_cos_min": 0.025502637618505464,
+      "rel_l2": 0.30856489442762286,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.04091651918456644,
+      "one_minus_cos_max": 0.04890694733948675,
+      "one_minus_cos_min": 0.02889860059512317,
+      "rel_l2": 0.3086855768690076,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_low_sigma_0.02",
+      "kind": "freq",
+      "one_minus_cos": 0.04795425716736842,
+      "one_minus_cos_max": 0.06452719013230412,
+      "one_minus_cos_min": 0.03790772574464252,
+      "rel_l2": 0.34187339454411236,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_low_sigma_0.05",
+      "kind": "freq",
+      "one_minus_cos": 0.059644654161216414,
+      "one_minus_cos_max": 0.08264198868274275,
+      "one_minus_cos_min": 0.037529064619738595,
+      "rel_l2": 0.3970217854633426,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_low_sigma_0.1",
+      "kind": "freq",
+      "one_minus_cos": 0.07672708580489122,
+      "one_minus_cos_max": 0.14238562644545127,
+      "one_minus_cos_min": 0.02365851641853356,
+      "rel_l2": 0.4141123049056765,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_high_sigma_0.02",
+      "kind": "freq",
+      "one_minus_cos": 0.04375370167459872,
+      "one_minus_cos_max": 0.057976724734321694,
+      "one_minus_cos_min": 0.03567652195654847,
+      "rel_l2": 0.32445131865444904,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_high_sigma_0.05",
+      "kind": "freq",
+      "one_minus_cos": 0.0440093964551973,
+      "one_minus_cos_max": 0.06276918210457505,
+      "one_minus_cos_min": 0.031703109296773446,
+      "rel_l2": 0.323711209504242,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_high_sigma_0.1",
+      "kind": "freq",
+      "one_minus_cos": 0.04984781118338907,
+      "one_minus_cos_max": 0.08034011543000419,
+      "one_minus_cos_min": 0.0328171840846927,
+      "rel_l2": 0.3480928394550881,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "control_rot90",
+      "kind": "control",
+      "one_minus_cos": 0.03607092697679796,
+      "one_minus_cos_max": 0.05858741477280682,
+      "one_minus_cos_min": 0.017684011749682704,
+      "rel_l2": 0.28858205619478283,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "control_flip",
+      "kind": "control",
+      "one_minus_cos": 0.036062032707389245,
+      "one_minus_cos_max": 0.046319844309088976,
+      "one_minus_cos_min": 0.0279825212216116,
+      "rel_l2": 0.3077124773295369,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "control_bright_0.7",
+      "kind": "control",
+      "one_minus_cos": 0.03562991559789186,
+      "one_minus_cos_max": 0.04838790879359256,
+      "one_minus_cos_min": 0.02296400982535407,
+      "rel_l2": 0.2928957889115336,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "control_jpeg60",
+      "kind": "control",
+      "one_minus_cos": 0.039981896035715746,
+      "one_minus_cos_max": 0.05804649339528023,
+      "one_minus_cos_min": 0.02584900442064364,
+      "rel_l2": 0.3086951483640777,
+      "reps": 3,
+      "non_finite_reps": 0
+    }
+  ],
+  "control_one_minus_cos": [
+    0.03562991559789186,
+    0.036062032707389245,
+    0.03607092697679796,
+    0.039981896035715746
+  ],
+  "control_mean": 0.036936192829448704,
+  "control_p99": 0.039981896035715746,
+  "ratio_threshold": 1.5,
+  "flagged_over_control_p99": [
+    {
+      "candidate": "freq_low_sigma_0.05",
+      "one_minus_cos": 0.059644654161216414,
+      "one_minus_cos_max": 0.08264198868274275,
+      "ratio_to_control_mean": 1.6148024360990063
+    },
+    {
+      "candidate": "freq_low_sigma_0.1",
+      "one_minus_cos": 0.07672708580489122,
+      "one_minus_cos_max": 0.14238562644545127,
+      "ratio_to_control_mean": 2.077287341420792
+    }
+  ],
+  "flagged_count": 2,
+  "positive_control": [
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.8.1.transformer_blocks.2.attn2.to_k",
+      "strength": 0.001,
+      "one_minus_cos": 0.04349861949788214,
+      "one_minus_cos_max": 0.06196850483077898,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.001
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.8.1.transformer_blocks.2.attn2.to_k",
+      "strength": 0.003,
+      "one_minus_cos": 0.04365225612229021,
+      "one_minus_cos_max": 0.06207041344075104,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.003
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.8.1.transformer_blocks.2.attn2.to_k",
+      "strength": 0.01,
+      "one_minus_cos": 0.0434909249058563,
+      "one_minus_cos_max": 0.06200843518114563,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.01
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.8.1.transformer_blocks.2.attn2.to_k",
+      "strength": 0.03,
+      "one_minus_cos": 0.04363045371863342,
+      "one_minus_cos_max": 0.062048762588341244,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.03
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.8.1.transformer_blocks.2.attn2.to_k",
+      "strength": 0.1,
+      "one_minus_cos": 0.04318780930781074,
+      "one_minus_cos_max": 0.06194033358844675,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.1
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.8.1.transformer_blocks.2.attn2.to_k",
+      "strength": 0.3,
+      "one_minus_cos": 0.04315107525606968,
+      "one_minus_cos_max": 0.062053541214587726,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.3
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.8.1.transformer_blocks.2.attn2.to_k",
+      "strength": 1.0,
+      "one_minus_cos": 0.04398527420678552,
+      "one_minus_cos_max": 0.06225837394291911,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 1.0
+    }
+  ],
+  "detection_floor_relative_strength": 0.001,
+  "detection_floor_note": "the smallest implanted rank-1 strength (relative to the weight's own Frobenius norm) whose divergence leaves the natural-transform control distribution; below it this instrument cannot see an implant",
+  "seed": 42,
+  "note": "the control p99 is the natural-transform control distribution; a candidate above it is an anomaly to investigate",
+  "flagged_explanation": {
+    "flagged": [
+      "freq_low_sigma_0.05",
+      "freq_low_sigma_0.1"
+    ],
+    "reading": "both flagged candidates are the low-frequency additive-noise family, and the divergence grows with the noise amplitude in both bands: low band freq_low_sigma_0.02 0.0479543, freq_low_sigma_0.05 0.0596447, freq_low_sigma_0.1 0.0767271. The patch candidates, which change a small area of the image, all sit inside the natural-transform control distribution (max 0.048699926477910514). A trigger that fires on a picture produces a step in the output for that picture; what is measured here is a continuous growth with the size of the perturbation, not a step.",
+    "low_band_is_monotone_in_sigma": true,
+    "high_band_is_monotone_in_sigma": true,
+    "low_band": [
+      {
+        "candidate": "freq_low_sigma_0.02",
+        "one_minus_cos": 0.04795425716736842
+      },
+      {
+        "candidate": "freq_low_sigma_0.05",
+        "one_minus_cos": 0.059644654161216414
+      },
+      {
+        "candidate": "freq_low_sigma_0.1",
+        "one_minus_cos": 0.07672708580489122
+      }
+    ],
+    "high_band": [
+      {
+        "candidate": "freq_high_sigma_0.02",
+        "one_minus_cos": 0.04375370167459872
+      },
+      {
+        "candidate": "freq_high_sigma_0.05",
+        "one_minus_cos": 0.0440093964551973
+      },
+      {
+        "candidate": "freq_high_sigma_0.1",
+        "one_minus_cos": 0.04984781118338907
+      }
+    ],
+    "patch_max_one_minus_cos": 0.048699926477910514,
+    "control_mean": 0.036936192829448704,
+    "control_p99": 0.039981896035715746,
+    "note": "this pack's source graph and its pack graph are not the same graph: the source carries the publisher's diffusers names and is built as a union ControlNet, while the pack carries the runtime names and is built as a plain ControlNet. The divergence between them therefore has a baseline that is larger than the other packs' (source vs pack cosine 0.945348 against 0.999014-0.999993 elsewhere), and every candidate sits on that larger baseline."
+  }
+}

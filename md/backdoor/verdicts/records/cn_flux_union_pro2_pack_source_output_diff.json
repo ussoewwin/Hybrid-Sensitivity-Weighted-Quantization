@@ -1,0 +1,67 @@
+{
+  "tool": "controlnet_pack_source_output_diff.py",
+  "source_class": "ControlNetFlux",
+  "pack_class": "ControlNetFlux",
+  "source_parameters": 174,
+  "pack_parameters": 174,
+  "parameters_only_in_source": [],
+  "parameters_only_in_pack": [],
+  "graphs_isomorphic": true,
+  "source": "flux1dev_controlnet_union_pro2.safetensors",
+  "pack": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors",
+  "observable": "the ControlNet's own output tensors, source(float) vs pack(INT8), same input",
+  "n": 4,
+  "seed": 42,
+  "batches": [
+    {
+      "seed": 42,
+      "cos": 0.9999255724205036,
+      "max_abs_err": 402653184.0,
+      "rel_l2": 0.025828272519525984,
+      "tensors": 19,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    },
+    {
+      "seed": 43,
+      "cos": 0.9997136265321575,
+      "max_abs_err": 31.0,
+      "rel_l2": 0.025952457613446615,
+      "tensors": 19,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    },
+    {
+      "seed": 44,
+      "cos": 0.9997579031794789,
+      "max_abs_err": 61.0,
+      "rel_l2": 0.022006437076419288,
+      "tensors": 19,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    },
+    {
+      "seed": 45,
+      "cos": 0.9999271180029716,
+      "max_abs_err": 33554432.0,
+      "rel_l2": 0.01992189847961797,
+      "tensors": 19,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    }
+  ],
+  "batches_comparable": 4,
+  "batches_total": 4,
+  "cos_min": 0.9997136265321575,
+  "cos_mean": 0.9998310550337779,
+  "max_abs_err": 402653184.0,
+  "rel_l2_max": 0.025952457613446615
+}

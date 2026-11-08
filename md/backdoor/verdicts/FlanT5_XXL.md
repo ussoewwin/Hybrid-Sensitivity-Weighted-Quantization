@@ -91,7 +91,7 @@ semantic switch, and the ratio stays under the criterion.
 
 ## 5. Load path - what a loader actually applies
 
-`audit/pack_load_path.py --route clip_text --clip-type flux` on the ComfyUI ComfyUI loading path:
+`audit/pack_load_path.py --route clip_text --clip-type flux` on ComfyUI's own loading path:
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |

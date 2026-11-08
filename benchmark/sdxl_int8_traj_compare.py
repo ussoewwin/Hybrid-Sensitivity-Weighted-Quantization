@@ -12,7 +12,7 @@ Same callback-based per-step latent trajectory capture as benchmark/zi_traj_comp
 Model loading is ComfyUI-native (``comfy.sd.load_checkpoint_guess_config``), the same
 as benchmark/int8bench_sdxl.py (the old image-SSIM bench). INT8 Conv2d load scope is
 armed only when the checkpoint looks like a comfy_quant INT8 pack, so the FP16
-baseline always loads baseline.
+baseline always loads unmodified.
 
 The ConvRot INT8 quantization kernels come from ``benchmark/int8/comfy_quant_int8.py``
 (vendored). torch/psutil/torchaudio/comfy_aimdo stubs are reused from
@@ -435,7 +435,7 @@ def _hswq_sdxl_graph_executor(model):
 
 def _load_checkpoint(path: str):
     """Load an SDXL checkpoint ComfyUI-natively; arm INT8 Conv2d load scope only
-    when the file looks like a comfy_quant INT8 pack (FP16 baseline loads baseline)."""
+    when the file looks like a comfy_quant INT8 pack (FP16 baseline loads unmodified)."""
     import comfy.sd
 
     from int8.comfy_quant_int8 import (

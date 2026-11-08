@@ -118,7 +118,7 @@ Recovery by the same hash means the measurement target is not in doubt. What is 
 
 - The LIMITS shared by all the reports says "sha256 in section 0", but the sha256 is in section 1 (section 0 holds something else, or does not exist).
 - `longclip_published_compare.json` and `longclip_ft_compare.json` in the LongCLIP record list are not cited in the body.
-- The history of CLIP-SAE still contains a work-log phrase such as "the Owner's objection" (the review proposes neutral wording). In a public document it should be put in neutral wording.
+- The history of CLIP-SAE still contained a work-log phrase such as an objection raised during the work (the review proposes neutral wording). In a public document it should be put in neutral wording; the phrase has since been removed from the report.
 
 **SAM 3.1**
 

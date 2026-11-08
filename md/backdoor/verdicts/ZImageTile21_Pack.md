@@ -16,9 +16,12 @@ a property of the ControlNet loader, not of the pack.
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | 2,016,627,488 | source size in bytes, the published file | `records/zimage_tile21_pack_audit.json` -> `source.bytes` | the reference is the publisher's release |
+| alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1 | publisher repository on Hugging Face | `records/zimage_tile21_pack_audit.json` -> `source.repo` | provenance is the official repository |
 | 880bf452b060abfcbccedee56f8d3dbf8aed2cb0311b599210361b414fc8f2fd | source sha256, equal to the Hub's LFS object id | `records/zimage_tile21_pack_audit.json` -> `source.sha256` | the bytes audited are the bytes the publisher serves |
 | 1,009,742,496 | pack size in bytes | `records/zimage_tile21_pack_audit.json` -> `pack.bytes` | the artifact this verdict applies to |
 | 2998f83ef65903b4b6b22fb7ac270ed66f9a2443220563aa43db4188024763a8 | pack sha256, equal to the value the card publishes | `records/zimage_tile21_pack_audit.json` -> `pack.sha256` | the downloaded file is the published pack |
+| 0.999897 | source(FP16) and pack outputs compared on the same input, lowest cosine over 4 inputs | `records/zimage_tile21_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0093 |
+| 0 | control-image trigger candidates above the natural-transform control p99 | `records/zimage_tile21_image_trigger.json` -> `flagged_count` | no control-image trigger was found; the instrument's detection floor is 0.003 (relative strength, the weight's own Frobenius norm) |
 
 ## 2. Coverage in the runtime's own names
 
@@ -68,15 +71,17 @@ family node that applies the patch (`ZImageFunControlnet`). The measurements bel
 | 71.6 | wall seconds for that render | `records/zimage_tile21_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | 0 / 0 | NaN and Inf counts in the produced latent (1 x 16 x 128 x 128 tensors) | `records/zimage_tile21_image_test.json` -> `measurement.latent_nan_count`, `measurement.latent_inf_count` | the executed path produces neither |
 
+| 2 | inputs (this pack and its source) re-verified by SHA256 before this pass | `records/model_patch_inputs_reverified_2026-11-08.json` -> `verified_by_pack.Z-Image-Turbo-Fun-Controlnet-Tile-2_1-lite-2601-8steps_hswq_convrot_int8.verified_files` | the bytes measured are the bytes published |
+
 ## 5. Conclusion
 
 **No backdoor detected.**
 
 - **Added material:** nothing was added; every pack tensor equals the source under the converter's
   own quantisation, and the float side is bit-identical.
-- **The edit is the declared one:** 38 Linear layers quantised, replayed with 0 differing values,
-  every one of them on a .5 rounding boundary.
+- **The edit is the declared one:** 38 Linear layers quantised, replayed with 0 differing values.
 - **What this does not say:** the runtime object is a model patch, applied by the family node;
+- **Control-image trigger search:** the same candidate set the SAM3.1 search uses was run on this pack's control image; 0 candidate(s) left the natural-transform control distribution (`records/zimage_tile21_image_trigger.json` -> `flagged_count`), and the instrument's detection floor is measured and recorded in the same file.
   a ControlNet loader has no branch for this layout and refuses it. "No backdoor" is a statement
   about added material.
 
@@ -98,6 +103,7 @@ family node that applies the patch (`ZImageFunControlnet`). The measurements bel
   scale difference of 2.18e-07. That residue is the borrowing instrument's arithmetic, not a
   difference in this pack, and it is why the instrument is named here.
   Exact agreement on the instrument that built the pack is what makes the comparison meaningful.
+  The borrowed-instrument figures quoted above are recorded in `records/zimage_tile21_pack_audit.json` -> `borrowed_instrument_replay`: `q_mismatch_total` = 118, `q_on_rounding_boundary` = 118, `q_off_rounding_boundary` = 0, `max_q_delta` = 1, `scale_exact_rel_max` = 2.1819730022798467e-07.
 - Inputs outside the tested sets are not covered; no test covers them.
 
 

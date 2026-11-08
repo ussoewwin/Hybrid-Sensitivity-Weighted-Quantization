@@ -242,3 +242,260 @@ Gate S6: 結果(取得 or 拒否)が日付つきで record にある。
 - `procedure_check.py` に SAM3.1 の必須行(カバレッジ、動作点、検出下限)を追加して PASS。
 - GPU: RTX 5060 Ti 16 GB で実行。各ステップの実行時間と使用量を run record に記録。
 - 取得が必要なもの(S6)の容量は、事前に申告してから開始する。
+
+
+---
+
+# 付録B. 改訂 2026-11-08(ControlNet 8本・model patch 5本追加後の再精査)
+
+## B.0 前提となる現状(実測)
+
+| 項目 | 結果 |
+| :--- | :--- |
+| 前回計画(P0-1〜P2-4、付録A S0〜S7) | 2026-11-04 までに対処済み(v2.5.1 で公開) |
+| 追加された対象 | ControlNet pack 8本(anytest4 A/B、Union ProMax SDXL、FLUX Union Pro2、Qwen2512 Fun、Qwen Inpainting、noobai lineart ×2)、model patch pack 5本(Z-Image Union/Tile、Qwen DiffSynth canny/depth/inpaint)。レポート 13→**26本**、監査スクリプト 7本追加 |
+| `run_all_gates.py`(2026-11-08 実行) | procedure 174/174 PASS、check_cites 26本 944 resolved/0 failed/0 skipped PASS、selftest 42/42 PASS、lint PASS、**SHA256SUMS FAIL**(`card_loader_route_probe.json` が未登録)→ **総合 GATE FAILURE** |
+| working tree | 未コミット: `test/_hf_README_controlnet_convrot_int8.md`(変更)、`records/card_loader_route_probe.json`(新規) |
+
+## B.1 最重要所見(結論の意味に関わる)
+
+### Q0-1. 「A」の意味が ControlNet/model patch で別物になっている
+- LM 系の A は「宣言された参照との差分が重み水準で全て説明できる」。ControlNet/model patch 13本の A は「**pack = 公開 source の量子化と bit 一致**」のみ。参照は発行元の release 自身で、レポート自身の LIMITS にも「その release に元からある欠陥は比較で到達不能」と書かれている。
+- 索引は両者を同じ **Section 1「Strength A — Closed at Weight Level (Delta Fully Accounted For)」** に並べ、`none detected (A, 844/844)` と表示する。読者は「バックドアなしが重み水準で閉じた」と読む。実際に閉じたのは **pack の忠実性**であり、**source のバックドア不在ではない**。
+- 対応(**列追加 + 区分分離**。P0-1 と同じ方針):
+  1. 索引に2軸を明記: **(a) pack 忠実性**(source→pack)と **(b) source 側の不在証明**(参照との差分。ControlNet は fine-tune 由来で参照なし)。
+  2. ControlNet/model patch 13行は A を維持せず、新区分 **「A-pack / source は発行元 release を参照(B 相当)」** へ移す。または強度表記を `A(pack)` / `B(source)` の2段表記にする。
+  3. Strength definitions に「A は参照との差分が全て説明される場合のみ。source が参照を持たない pack は pack 忠実性のみ A」と追記。
+  4. `procedure_check.py` に「pack 行は source の強度を継承して表示する」検査を追加(P0-1-4 が LM 系 pack だけで ControlNet に未適用)。
+- 受入基準: ControlNet/model patch の行を読んだだけで、「pack は忠実、source の不在は未証明」が分かる。
+
+### Q0-2. 画像条件トリガーが未検査(SAM3.1 の S4 に相当する穴)
+- ControlNet / model patch の入力は**制御画像**。テキスト用の trigger 探索は無意味で、**制御画像側の trigger**(パッチ、周波数、特定パターン)が出力を誘導する経路が未検査。脅威モデル節(索引)は LM・text encoder・SAM のみで、ControlNet/model patch の行がない。
+- 現状の挙動測定は「各 pack 1枚の正常な制御画像で描画が通り、潜在が有限」のみ。検出力は未測定。
+- 対応:
+  1. 脅威モデル行を追加: 「ControlNet / model patch: 実行面なし。制御画像で出力を誘導する。重みに入る trigger は画像側で発火し得る」。
+  2. 付録A S4 と同様の探索を **代表 pack 3本以上**(SDXL / Qwen / Z-Image 系で各1)に実施: パッチ trigger(16/32/64 px、5 位置)、周波数 trigger、自然な変形(対照)。比較は **pack 対 source の出力差** と **変形対照の p99**。
+  3. 陽性対照: 既知の埋込(rank-1 加算、入力層の1チャネル加算)を ControlNet の scratch コピーに書き、上記探索が **どの強度から検出するか** を実測(SAM 版 S5 と同型)。無いと「検出されない」が無意味になる。
+  4. 実施しない場合は、各レポートの判定欄に「制御画像 trigger は未検査」と明記する(LIMITS だけでなく結論行へ)。
+
+### Q0-3. 実行ゲートの網羅不足が結論欄に出ていない
+- Union ProMax SDXL: 適用 325/328。未適用 3 層は union 用で、**union type 選択は未実行**。判定欄に1文あるのみで、強度や coverage 列に反映されない。選択経路の層は**実行されていない = 実行面で検証されていない**。
+- 対応: union-mode を指定した実行を追加して 328/328 を実行確認する。不可なら、未実行層を coverage の別列に出す(`executed 325/328`)。
+- FLUX の render 1356.1 s など描画は1条件のみ。条件(制御種別、画像、seed)を複数にして finite と出力差を取る。最低3条件。
+
+### Q0-4. 数値品質(INT8 と元モデルの差)の記録が揃っているか不明
+- Josiefied 等は cond cos 値を引用。ControlNet/model patch 13本について、**FP16/元 source 実行との出力差(cos・最大誤差)** を records に持つか未確認。
+- 対応: 全13本に「同一入力で source(FP16)と pack の出力差」を records 化し、索引の列に追加。`protection` セットの根拠(drift > 0.15 など)と対にする。
+
+## B.2 文書・索引の不整合(実測)
+
+| # | 場所 | 問題 | 修正 |
+| :--- | :--- | :--- | :--- |
+| E1 | 索引 Section 1 | 24行が種別ごとに並んでいない(LM、text encoder、ControlNet、model patch、SAM が混在)。検索性なし | 種別の小見出し(Text/LM、ControlNet、Model patch、Segmentation)で分割。件数は表から自動生成 |
+| E2 | 索引 冒頭 | 「Every published HSWQ pack」と書くが、noobai の legacy pack は**モデルカードに無い**(自身の行に明記)。また「B/C は検出力列」(Section 2)に、プローブ未実施の noobai legacy が入り、列の値が「該当せず」で別物 | legacy を withdrawn / local-only の別小節へ。冒頭の主張を実態に合わせる |
+| E3 | 索引 行 | 二重閉じ括弧 `float side 43 exact))`(Z-Image 2行)、`float side 242 exact))`(depth/inpaint)。`ComfyUI own mapping`(B 行、所有格の脱落) | 修正。`check_cites`/lint に `))` と所有格の検査は不要だが、行の再生成時に混入するため自動生成化 |
+| E4 | `ZImageTile21_Pack.md` / 索引 Tile 行 | `pack of alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1`(Union の repo 名)と書かれ、Tile の release 名か不明 | records の `source.repo` と照合して表記を一致 |
+| E5 | `Backdoor_Audit_Verdicts.md` Methodology | 「Pack-side behaviour check」が旧 record 3 件のみを列挙。ControlNet/model patch の route・exec・image_test が出てこない | 現行の record 名一覧を自動生成 |
+| E6 | `ThinkingQwen3VL4B_Pack.md` L219 | **`repository owner.` が残存**(D5 の取りこぼし。P1-2 受入基準 `grep -i "owner"` = 0 件を満たさない) | 中立表現へ。`run_all_gates.py` の lint に `owner` 検査を追加 |
+| E7 | `audit/README.md` | 追加した 8 本(`controlnet_*.py`、`model_patch_*.py`、`controlnet_image_test.py`)が Phase 表にない | 追記し、「全 `audit/*.py` が README に載る」検査を gate に追加 |
+| E8 | `Backdoor_Audit_Procedure.md`・Findings | ControlNet/model patch の手順(instrument-match ルール、protection census、loader route 検査)が手順書の Phase として定義されているか未確認。instrument-match は LIMITS にだけ記述 | Procedure に Phase として正式化し、`procedure_check` の検査項目に追加 |
+| E9 | `check_cites.py` 出力 | `WARN named as inventory, no field cited` が **62件**(再実行ごと)。inventory 扱いの record は引用検査をすり抜ける | 件数を上限つき gate に(例: 新規増加ゼロ)。許容リストを `audit/` に置き、リスト外の WARN で FAIL |
+
+## B.3 ゲート・運用
+
+1. **SHA256SUMS FAIL を直す**: `card_loader_route_probe.json` を登録(再生成)。`run_all_gates.py` を **commit 前の必須手順**にする。現状、records 追加のたびに忘れて失敗する構造。→ 登録漏れを防ぐため、`records/` への追加を検知して `SHA256SUMS` を自動再生成する `--regen` を gate に付ける。
+2. `test/_hf_README_controlnet_convrot_int8.md` の未コミット差分を、内容確認後に commit または破棄。
+3. `gate_run_<date>.json` が gate 実行のたびに更新される。同日2回目以降の扱い(上書き/連番)を決める。
+4. selftest(42/42)に ControlNet/model patch 用ケースがあるか確認。無ければ追加: 1 LSB 改変、instrument 取り違え(948 codes 差)、未適用層の検出、protection 集合の欠落。**instrument-match 違反が FAIL になること**を selftest で保証する(本ルールは現在 LIMITS の記述のみ)。
+5. 重い実行(FLUX 1356 s 等)は record の `wall_seconds` と GPU 使用量を残す(付録A.10 の受入条件)。
+
+## B.4 追加の優先度つき作業リスト
+
+| 優先 | 作業 | 成果物 | 完了条件 |
+| :--- | :--- | :--- | :--- |
+| Q0-1 | ControlNet/model patch 13行の強度表記を「pack 忠実性」と「source 不在」に分離 + lint | 索引、各レポート冒頭、`procedure_check.py` | 13行で source の強度が明記され、lint PASS |
+| Q0-2 | 制御画像 trigger の探索(代表3本)+ 陽性対照 | `audit/controlnet_image_trigger.py`(新規)、records | 検出下限が record にある、または未検査を結論行に明記 |
+| Q0-3 | Union ProMax の union type 実行、複数条件の描画 | `controlnet_int8_exec.py` 改修、records | 実行層 328/328、条件 ≥ 3 |
+| Q0-4 | pack と source の出力差を全13本で records 化 | records、索引に列追加 | 13本とも cos・最大誤差が引用される |
+| P1-E | E1〜E9 の修正 | 索引、README、Procedure、Thinking 報告 | `grep -i owner` が 0 件、`check_cites` WARN が許容リスト内 |
+| P1-G | SHA256SUMS 再生成+未コミット2件の処理+ `run_all_gates` を commit 前必須化 | records、audit | gate が全 PASS |
+| P2-S | selftest に ControlNet/model patch 用ケース(instrument-match 違反を含む) | `audit/selftest.py` | 新ケース PASS、違反ケースが FAIL を返す |
+
+実行順: **P1-G**(gate を緑に戻す)→ **P1-E** → **Q0-1**(文書の意味を正す。測定不要で最短)→ **Q0-3** → **Q0-4** → **Q0-2**(最大工数)→ **P2-S**。
+
+## B.5 判断をお願いしたい点
+
+1. Q0-1: ControlNet/model patch の索引表記は **(a) 新区分に分離(Section 3 として「pack 忠実・source は参照 release」)**、**(b) 2段表記 `A(pack)/B(source)` を既存 Section 1 内で維持** のどちらか。推奨は (a)。
+2. Q0-2: 画像 trigger 探索の範囲は **代表3本**(推奨)か、**全13本**か。後者は FLUX で数時間規模。
+
+---
+
+## B.6 前回項目の最終状況(参考)
+
+前回の P0-1〜P2-4 と付録A S0〜S7 は 2026-11-04 付で全て対処済み(v2.5.1 に収録)。付録B の E6(`owner` 残存)と E9(inventory WARN)は、前回の P1-2・P2-2 の受入基準に対する**取りこぼし**として扱う。
+
+---
+
+## B.7 追加13本の個別レポート確認結果(2026-11-08)
+
+対象: `CN_AnyTest4_Illustrious2_A/B`、`CN_Union_ProMax_SDXL`、`CN_FLUX_Union_Pro2`、`Qwen2512FunCN`、`QwenImageCNInpaint`、`NoobaiLineart`、`NoobaiLineart_HSWQ`、`ZImageUnion21`、`ZImageTile21`、`QwenDiffSynthCanny/Depth/Inpaint`。全て UTF-8 として正常。`owner` 表現は 0 件。
+
+| # | 区分 | 所見 | 対象 | 修正 |
+| :--- | :--- | :--- | :--- | :--- |
+| R1 | 文書破損 | 文が孤立した行 `is what makes the comparison meaningful.`(直前の箇条の続きが欠落) | `ZImageUnion21` L100、`ZImageTile21` L100、`QwenDiffSynthDepth` L100、`QwenDiffSynthInpaint` L106 | 文を結合。canny は正常で、4本が同じテンプレート由来 |
+| R2 | **出典なき数値** | 「借用した別 instrument で 118 / 138 / 883 / 539 / 948 codes が1ステップずれ、相対 scale 差は 2.18e-07 / 2.32e-07 / 6.30e-07 / 4.32e-07 / 5.6e-07」が本文のみで、どの record にもない。`check_cites` は表の引用しか見ないため通過 | Tile、Union21、Depth、Inpaint、Canny(canny は旧 record に `boundary` 語のみ) | 該当の借用 instrument 実測を record 化して引用、または文を削除。`check_cites` を本文の数値付き主張にも拡張 |
+| R3 | 出典なき主張 | 「every one of them on a .5 rounding boundary」を結論に記載。根拠 record なし | Tile、Union21、Depth、Inpaint | record に件数を持たせて引用、無ければ削除 |
+| R4 | 入力検証の欠落 | 「N inputs re-verified by SHA256 before this pass」行が、ControlNet 6対(12ファイル、`controlnet_inputs_reverified_2026-11-06.json`)にしか無い。model patch 5本と noobai 2本は SHA 再検証 record も行も無い | Z-Image 2本、DiffSynth 3本、noobai 2本 | 再検証 record を作り、7本に同じ行を追加。procedure_check に「全 pack レポートに再検証行」を追加 |
+| R5 | 見出しと実測の乖離 | `Verdict: no backdoor detected (strength A, coverage 863/863)` だが、実行確認は 325/328。union type 選択は未実行 | `CN_Union_ProMax_SDXL`(索引行も同様) | 見出しに `executed 325/328, union type selection not exercised` を併記(Q0-3 に統合) |
+| R6 | 見出しと実測の乖離 | `Verdict: no backdoor detected (strength C, coverage 0/844 ...)`。比較が0本で「検出なし」は誤読を招く | `NoobaiLineart`(索引行も同様) | 判定語を `not established (source not identified)` に変更。0/844 は「検出なし」の根拠にならない |
+| R7 | 強度表記 | 13本とも `strength A` だが、Q0-1 のとおり source は発行元 release(参照差分なし) | 全13本 | Q0-1 に統合 |
+| R8 | 作業履歴の混入 | 本文に「an earlier version of this report presented ... withdrawn」(FLUX、Union ProMax) | 2本 | 訂正履歴は索引の withdrawn 行と `records/` に移し、判定本文は現在の測定のみ |
+| R9 | 書式 | `1238446`(桁区切りなし。他は `1,306,054`) | `CN_Union_ProMax_SDXL` L60 | 桁区切りに統一 |
+| R10 | 描画の限定 | 描画は各 pack 1プロンプト・1条件。レポートも「画質・制御忠実度は言えない」と自認 | 全13本 | Q0-3 の「条件 ≥ 3」へ統合 |
+| R11 | 来歴 | Tile の source を `alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1`(リポジトリ名)から取得と記載。record は `source.file` のみで repo 名を持たない | `ZImageTile21` | record に `source.repo` を追加し、Hub の LFS oid との照合を引用 |
+
+### 追加の作業(B.4 の表に追記)
+
+| 優先 | 作業 | 完了条件 |
+| :--- | :--- | :--- |
+| P1-R | R1・R8・R9 の文書修正 | 孤立行 0 件、`check_cites` PASS |
+| P1-R | R2・R3 を record 化して引用(または削除)+ `check_cites` の本文数値検査 | 本文の数値が全て record に解決する |
+| P1-R | R4: 7本の SHA 再検証 record と行の追加 | 全 pack レポートに再検証行 |
+| P1-R | R5・R6: 見出し・索引の判定語を実測に一致 | 見出しと実行層数・coverage が一致 |
+| P1-R | R11: `source.repo` の追加 | Tile の来歴が record で引用される |
+
+---
+
+## B.8 再見直し(2026-11-08 19:43、HEAD `71e07f7`)
+
+### 前回項目の現状
+| 項目 | 状態 |
+| :--- | :--- |
+| gate | **全 PASS**(procedure 174/174、check_cites 944/0 failed、selftest 42/42、SHA256SUMS 263 件一致、lint)。`hashes.txt` は復元・git 管理下 |
+| R1(孤立文) | 解消 |
+| R9(桁区切り) | 解消 |
+| R2・R3(出典なき借用 instrument 数値、.5 境界の主張) | **未解消**(Canny/Depth/Inpaint/Tile/Union21 に残存) |
+| R4(SHA 再検証行) | 未解消(5/13 のみ。Z-Image 2、DiffSynth 3、noobai 2 に無い) |
+| R5・R6・R7(見出しの判定語・強度) | 未解消 |
+| R8(作業履歴の混入)・R11(`source.repo`) | 未解消 |
+| Q0-1〜Q0-4、P2-S | 未着手 |
+
+### 新規所見(`d125f4c` 以降の全面置換)
+このリポジトリで禁止されていた語を全体から置換した作業(約110ファイル・約470行)が入り、**文脈を見ない置換**になっている。
+
+| # | 所見 | 影響 |
+| :--- | :--- | :--- |
+| N1 | **記録された生成物の改変**: `josie_*.json`、`vl_texts*.json`、`behaviour_*.json` 等の「モデルが実際に出力した文」の一部が、置換前の語から別の語へ書き換わった(置換の前後差は該当 records の原本と作業ツリーの差分で確認できる) | records は実測の証拠。出力文の改変は証拠の改変にあたり、元の生成と一致しない |
+| N2 | **入力の変更が測定後に行われた**: プロンプト(`audit/josie_trigger.py`、`audit/vl_divergence.py`)、公開ベンチマーク `jbb.json` の Goal/Target が書き換わった(置換前の文は該当ファイルの原本と作業ツリーの差分で確認できる)。実測は旧文で行われている | records の probe 入力と、実行した測定が一致しない。再実測をしない限り「同一入力」と言えない |
+| N3 | **意味の破壊**: `100% ComfyUI`/`100% baseline`、`ComfyUI ComfyUI nvfp4 path`、`ComfyUI ComfyUI ops.py`、`ComfyUI's own has no quantized Conv2d op`、`the ComfyUI pack`、`ComfyUI loads this pack 100% ComfyUI`。`ControlNetLoader` の説明も `ComfyUI's own` / `The ComfyUI` に置換され、無改造の標準を指す語の意味が文ごとに別物になった | 技術文書・コメント・ヘルプ文・print 文の可読性と正確性が低下(82 本の py は構文 OK) |
+| N4 | **識別子・出力ラベルの変更**: 旧語を内包する識別子と出力ラベル(`audit/` の該当スクリプト、`archives/krea2_native_nvfp4_bench.py`)が置換語へ改名され、`records` のフィールド名も改名(`word_normalization_2026-11-08.json` の `technical_labels_renamed`) | 過去の records・ログを読む側(`check_cites`、各レポート)とのキー整合は gate では通過しているが、旧ログとの対応が切れる |
+| N5 | **公開 record に所有者視点**: `word_normalization_2026-11-08.json` の `what` に「the terminology the Owner banned for this repository」。`note` に「previous field names are intentionally not reproduced」 | グローバル規定(公開文書に作業視点を入れない)に反し、置換の中身を第三者が追えない |
+| N6 | `ComfyUI-master/` を git から外した(1,439 ファイル・約192万行削除)。作業ツリーには未追跡で残存 | 3リポジトリへ `ComfyUI-master` をコミットする `download-comfyui-latest` スキルの手順と矛盾 |
+
+### 対応案(優先順)
+1. **N1・N2**: records と probe 入力は元の文に戻す(`git show 2cc2798:<path>`)。語の統一が必要なら、**文書の地の文とコード内の説明に限定**し、records の生成文・公開データセット・プロンプトは対象外にする。戻したら該当 probe の SHA256SUMS を再生成。
+2. **N3・N4**: 置換を文脈つきでやり直す(置換先は「標準の ComfyUI」「無改造」「同梱」のいずれかを文ごとに判断)。識別子とキー名は意味の正しい中立語へ戻すか、改名する場合は全参照を一括変更し selftest を通す。
+3. **N5**: 置換 record から所有者視点の記述を除き、置換規則(旧語→新語の対応表)を record 内に残す。
+4. **N6**: `ComfyUI-master` の扱いを決める(スキルの手順を改訂するか、追跡を戻す)。
+5. R2〜R8・R11 と Q0 系は B.4 の順に継続。
+
+---
+
+# 付録C. 最終版 作業一覧(2026-11-08 確定。付録B の B.4・B.7・B.8 を統合し、これを実行の基準とする)
+
+> [!NOTE]
+> 本付録は計画のみで、実施は未着手。作業ツリーは HEAD(`71e07f7`)と同一(未追跡は `ComfyUI-master/` のみ)。付録B の記述と食い違う場合は付録C を優先する。
+
+## C.1 前提(実測、2026-11-08 19:43)
+
+| 項目 | 状態 |
+| :--- | :--- |
+| gate | 全 PASS(procedure 174/174、check_cites 944 resolved/0 failed/0 skipped、selftest 42/42、SHA256SUMS 263 件、lint) |
+| 個別レポート | 26本。追加13本(ControlNet 8、model patch 5)を確認済み |
+| 解消済み | R1(孤立文)、R9(桁区切り)、SHA256SUMS 登録漏れ、`hashes.txt` の復元と追跡 |
+
+## C.2 決定事項
+
+| # | 内容 | 決定 |
+| :--- | :--- | :--- |
+| 1 | ControlNet/model patch の索引表記(Q0-1) | **新区分へ分離**(「pack 忠実・source は発行元 release を参照」) |
+| 2 | 制御画像 trigger 探索の範囲(Q0-2) | **代表3本**(SDXL、Qwen、Z-Image 系で各1) |
+| 3 | `ComfyUI-master/` の扱い(N6) | **必ず Git で追跡・更新する**(`download-comfyui-latest` スキルが正。untrack は誤りであり即時追跡に戻す) |
+| 4 | 置換方針(N1〜N5) | **records・公開データセット・probe 入力・`ComfyUI-master/` は置換対象外**。文書の地の文と自前コード内説明に限り、文ごとの判断で置換 |
+
+## C.3 作業一覧(実行順)
+
+### 段階1: 証拠の復旧と `ComfyUI-master/` 追跡復元(最優先)
+| ID | 作業 | 対象 | 完了条件 |
+| :--- | :--- | :--- | :--- |
+| W0 | `ComfyUI-master/` を Git 追跡に戻す(`d125f4c` での untrack を取り消し) | `ComfyUI-master/` | `git status` で `ComfyUI-master/` が未追跡にならず、全ファイルが追跡状態に戻っている |
+| W1 | records と probe 入力を置換前(`2cc2798`)の内容に戻す | `behaviour_base_pub`、`behaviour_rebuild`、`jbb`、`josie_base`、`josie_base_labels`、`josie_pub`、`josie_pub_labels`、`josie_trigger`、`labels_long`、`trigger_divergence`、`vl_div_ruled`、`vl_texts`、`vl_texts_long`(各 `.json`)、`audit/josie_trigger.py`、`audit/vl_divergence.py` | 15ファイルの内容が `2cc2798` と一致。`jbb.json` は公開データセットの原文に一致 |
+| W2 | 識別子・出力ラベル・records のキー名を意味の正しい中立語へ戻す | `audit/` と `archives/krea2_native_nvfp4_bench.py` の旧語識別子、`clip_l_card_claim.json`・`clip_l_realpath.json`・`clip_l_realpath2.json` のキー | 参照元(レポート、`check_cites`)とのキーが一致し、gate が PASS |
+| W3 | `word_normalization_2026-11-08.json` を作り直す | 同ファイル | 所有者視点の記述なし。旧語→新語の対応表と対象ファイル一覧を載せる |
+| W4 | 文脈を見ない置換で壊れた文を直す | 約110ファイル(`ComfyUI ComfyUI`、`100% ComfyUI`、`ComfyUI's own has no quantized Conv2d op`、`the ComfyUI pack` など) | 各文が元の意味(標準の ComfyUI / 無改造)で読める。`grep "ComfyUI ComfyUI"` が 0 件 |
+| W5 | `SHA256SUMS` を再生成し gate を通す | `records/SHA256SUMS` | 全 gate PASS、`unlisted` 0 |
+
+### 段階2: 文書の整合(測定なし)
+| ID | 作業 | 完了条件 |
+| :--- | :--- | :--- |
+| W6 | R2・R3: 借用 instrument の数値(118/138/883/539/948 codes、scale 差)と「.5 境界」の主張を record 化して引用。再測定しても得られなければ文を削除 | 本文の数値が全て record に解決する |
+| W7 | R4: model patch 5本と noobai 2本の SHA 再検証 record を作り、7本に再検証の行を追加 | 全 pack レポート(13本)に再検証行 |
+| W8 | R5・R6: 見出しと索引の判定語を実測に一致。Union ProMax は `executed 325/328`、Noobai legacy は `not established (source not identified)` | 見出し・索引・coverage が一致 |
+| W9 | R8: 本文の「earlier version ... withdrawn」を索引の withdrawn 行と records へ移す | 判定本文に作業履歴なし |
+| W10 | R11: Tile ほか各 pack の record に `source.repo` を追加し、Hub の LFS oid との照合を引用 | 13本の来歴が record で引用される |
+| W11 | E1・E2・E3・E5: 索引を種別小見出しで分割(Text/LM、ControlNet、Model patch、Segmentation)、legacy を別小節へ、二重括弧と所有格を修正、Methodology の record 名を現行へ | 索引の行数と件数が表から自動生成される |
+| W12 | E6〜E9: `ThinkingQwen3VL4B_Pack.md` L219 の `repository owner` を中立表現へ。`audit/README.md` に追加8本を記載。Procedure に ControlNet/model patch の Phase(instrument-match、protection census、loader route)を追加。`check_cites` の inventory WARN(62件)に許容リストを設けて新規増加を FAIL に | `grep -i owner` が 0 件、README が全 `audit/*.py` を網羅 |
+
+### 段階3: 意味の修正(Q0-1)
+| ID | 作業 | 完了条件 |
+| :--- | :--- | :--- |
+| W13 | ControlNet/model patch 13行を新区分へ移し、強度を「pack 忠実性(A)」と「source の不在(B 相当)」の2軸で表記。Strength definitions に追記。`procedure_check.py` に「pack 行は source の区分を継承する」検査を追加 | 13行で source 側の強度が明記され、lint PASS |
+
+### 段階4: 測定を伴う作業
+| ID | 作業 | 完了条件 |
+| :--- | :--- | :--- |
+| W14 | Q0-3: Union ProMax の union type 実行(未適用3層を実行)。描画を3条件以上に拡張(制御種別・画像・seed) | 実行層 328/328、条件 ≥ 3 |
+| W15 | Q0-4: 全13本で source(FP16)と pack の出力差(cos・最大誤差)を records 化し、索引に列を追加 | 13本とも引用される |
+| W16 | Q0-2: `audit/controlnet_image_trigger.py` を新規作成し、代表3本でパッチ・周波数 trigger を探索。変形対照の p99 と比較。陽性対照(ControlNet の scratch コピーへ rank-1 加算、入力層1チャネル加算)で検出下限を実測 | 検出下限が record にある。未実施の pack は結論行に「制御画像 trigger は未検査」と明記 |
+| W17 | P2-S: `audit/selftest.py` に ControlNet/model patch 用ケースを追加(1 LSB 改変、instrument 取り違え、未適用層の検出、protection 集合の欠落)。instrument-match 違反が FAIL を返すこと | 新ケース PASS、違反ケースが FAIL |
+
+### 段階5: 運用
+| ID | 作業 | 完了条件 |
+| :--- | :--- | :--- |
+| W18 | `run_all_gates.py` を commit 前の必須手順にし、`records/` への追加を検知して SHA256SUMS を再生成する `--regen` を付ける | 登録漏れで gate が落ちない |
+| W19 | 作業ツリーを共有する別セッションとの衝突回避(`.git/index.lock`、並行 push)。作業開始時に `git fetch` と `git status` を確認し、衝突時は pull 前に停止 | 衝突が発生しない |
+| W20 | `gate_run_<date>.json` の同日再実行の扱い(上書きか連番か)を決める | 方針が `audit/README.md` に記載される |
+
+## C.4 実行上の依存関係
+
+```mermaid
+flowchart LR
+  W0 --> W1 --> W2 --> W3 --> W4 --> W5
+  W5 --> W6 & W7 & W8 & W9 & W10 & W11 & W12
+  W6 & W7 & W8 & W9 & W10 & W11 & W12 --> W13
+  W13 --> W14 --> W15 --> W16 --> W17
+  W5 --> W18
+```
+
+- W0〜W5 は同一ブランチで連続して行い、W5 で gate を緑にしてから先へ進む。W1 で戻す records は SHA256SUMS の値が変わるため、W5 を省略しない。
+- 段階2 は互いに独立。段階3 は索引の構造変更を含むため、段階2 の文書修正が終わってから行う。
+- 段階4 の W14〜W16 は GPU(RTX 5060 Ti 16 GB)を使う。FLUX の描画は 1,356 s かかるため、複数条件は代表 pack から始める。各実行の `wall_seconds` と GPU 使用量を record に残す。
+
+## C.5 全体の受入条件
+
+1. `ComfyUI-master/` が Git 追跡状態に完全復帰しており、`download-comfyui-latest` スキルの仕様どおり管理されている。
+2. `run_all_gates.py` が全 PASS(procedure、check_cites、selftest、SHA256SUMS、lint)。
+3. records と公開データセットが測定時の内容と一致する(W1 の15ファイルが `2cc2798` と一致)。
+4. 26本の個別レポートで、見出し・索引・coverage・実行層数が一致する。
+5. 13本の ControlNet/model patch 行で、pack 忠実性と source の不在証明が別に読める。
+6. 本文の数値が全て record に解決する(借用 instrument の数値を含む)。
+7. 公開文書に作業視点の表現がない(`grep -i owner` が 0 件)。
+
+## C.6 リスクと留意事項
+
+| 項目 | 内容 |
+| :--- | :--- |
+| 絶対原則 | `ComfyUI-master/` は常時 Git 追跡・更新対象(`download-comfyui-latest` スキルが正)。untrack や `.gitignore` 除外は一切禁止。また `ComfyUI-master/` 内のファイルには独自の用語置換(W4)を一切かけない |
+| リスク | W6 の借用 instrument 数値は再測定で同値が出るとは限らない。違った場合は旧文を削除し、新値を記録する |
+| リスク | W16 の陽性対照で検出下限が高い場合、「制御画像 trigger の不在は言えない」が結論になる。その場合も判定欄に下限を明記して公開する |
+| リスク | 別セッションが同じ作業ツリーで動くと、records の上書きや push の衝突が再発する(W19) |

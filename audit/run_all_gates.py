@@ -4,7 +4,7 @@
 Runs all 4 mandatory verification gates in sequence:
   1. procedure_check.py (checks the procedure document)
   2. check_cites.py --all (comprehensive citation verification across all 13 verdict reports)
-  3. selftest.py (42/42 self-tests on synthetic models, packs, and container edges)
+  3. selftest.py (the self-tests on synthetic models, packs, and container edges)
   4. markdown_lint (verifies no unreplaced placeholders, TODOs, or corrupted headers in md/backdoor/)
 
 Usage:
@@ -12,6 +12,7 @@ Usage:
 """
 from __future__ import annotations
 
+import argparse
 import datetime
 import hashlib
 import importlib
@@ -132,12 +133,41 @@ def verify_sums():
     return ok
 
 
+def regen_sums():
+    """W18: regenerate records/SHA256SUMS from the records that are on disk.
+
+    The manifest is the list of the records the reports cite; adding a record without
+    registering it is the failure this closes. gate_run_* logs are excluded because they
+    change on every run.
+    """
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    d = os.path.join(repo, "md", "backdoor", "verdicts", "records")
+    manifest = os.path.join(d, "SHA256SUMS")
+    names = sorted(f for f in os.listdir(d)
+                   if f != "SHA256SUMS" and not f.startswith("gate_run_")
+                   and os.path.isfile(os.path.join(d, f)))
+    rows = []
+    for name in names:
+        digest = hashlib.sha256(open(os.path.join(d, name), "rb").read()).hexdigest()
+        rows.append("%s  %s" % (digest, name))
+    with open(manifest, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(rows) + "\n")
+    print("--> SHA256SUMS regenerated: %d records" % len(rows))
+    return True
+
+
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--regen", action="store_true",
+                    help="regenerate records/SHA256SUMS from the records on disk before verifying")
+    args = ap.parse_args()
+    if args.regen:
+        regen_sums()
     py_exec = sys.executable
     gates = [
         ("Procedure Check", [py_exec, "audit/procedure_check.py"]),
         ("Citation Check (all reports)", [py_exec, "audit/check_cites.py", "--all", "--root", "md/backdoor/verdicts"]),
-        ("Selftest (42/42)", [py_exec, "audit/selftest.py"]),
+        ("Selftest", [py_exec, "audit/selftest.py"]),
     ]
 
     results = []
@@ -182,7 +212,14 @@ def main():
             "gates": log_rows,
             "markdown_lint": "PASS" if lint_ok else "FAIL",
         }
+        # W20: a same-day re-run keeps the first run of the day and writes the next one
+        # as a numbered sibling, so no run log is overwritten.
         out = os.path.join(rec_dir, "gate_run_%s.json" % today)
+        if os.path.exists(out):
+            n = 1
+            while os.path.exists(os.path.join(rec_dir, "gate_run_%s_%d.json" % (today, n))):
+                n += 1
+            out = os.path.join(rec_dir, "gate_run_%s_%d.json" % (today, n))
         with open(out, "w", encoding="utf-8", newline="\n") as fp:
             json.dump(rec, fp, indent=2)
         print("run log: %s" % out)

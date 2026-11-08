@@ -3,6 +3,10 @@
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
     "file": "noobaiXLControlnet_epsLineartRealistic.safetensors",
+    "repo": "Eugeoter/noob-sdxl-controlnet-lineart_realistic",
+    "hub_path": "noob-sdxl-controlnet-lineart_realistic.safetensors",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of noob-sdxl-controlnet-lineart_realistic.safetensors in Eugeoter/noob-sdxl-controlnet-lineart_realistic equals this record's source sha256",
     "bytes": 5004167832,
     "sha256": "c80ad372a374098d4f0ddc2aaf8bea7e790cb691086d882bb97091ed5da64bba"
   },

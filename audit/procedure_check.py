@@ -61,8 +61,11 @@ REQUIRED_TOOLS = [
     "model_patch_hswq_route.py",
     "model_patch_int8_exec.py",
     "model_patch_protection_census.py",
+    "controlnet_image_trigger.py",
+    "model_patch_image_trigger.py",
 ]
-REQUIRED_SECTIONS = ["## 12c. SAM3.1 extension - the required lines of an S0-S6 verdict"]
+REQUIRED_SECTIONS = ["## 12c. SAM3.1 extension - the required lines of an S0-S6 verdict",
+                      "## 12d. ControlNet and model-patch extension - the required lines of a CN/MP verdict"]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",
                        "### C. OpenAI to HF CLIP mapping", "### D. Tool reference",
                        "### E. Self-test before trusting a tool change"]
@@ -171,8 +174,17 @@ def main():
         data_rows = [l for l in idx_text.split("\n")
                      if l.startswith("| `") and l.rstrip().endswith("|")]
         check("index has data rows", len(data_rows) > 0, "%d rows" % len(data_rows))
-        bad_cols = [l for l in data_rows if len(l.strip().strip("|").split("|")) != 6]
-        check("index rows carry six columns", not bad_cols, "%d bad" % len(bad_cols))
+        # the index carries two column counts: the LM rows have six, the ControlNet /
+        # model-patch rows carry the two extra measurement columns
+        def ncols(l):
+            return len(l.strip().strip("|").split("|"))
+        sec3 = idx_text.split("## Section 3:")
+        s3_rows = [l for l in sec3[1].split("\n") if l.startswith("| `")] if len(sec3) > 1 else []
+        other_rows = [l for l in data_rows if l not in s3_rows]
+        bad_cols = [l for l in other_rows if ncols(l) != 6]
+        check("index rows outside Section 3 carry six columns", not bad_cols, "%d bad" % len(bad_cols))
+        bad3 = [l for l in s3_rows if ncols(l) != 8]
+        check("index Section 3 rows carry eight columns", not bad3, "%d bad" % len(bad3))
         bad_strength = [l for l in data_rows
                         if not any(s in l for s in ("(A,", "(B,", "(C,"))]
         check("index rows state a strength class", not bad_strength, "%d bad" % len(bad_strength))
@@ -186,8 +198,97 @@ def main():
                        and not l.strip().strip("|").split("|")[4].strip()]
         check("index rows carry the sensitivity column", not no_sens_col,
               "%d empty" % len(no_sens_col))
+
+        # W11: the index is generated from the report files, so its counts cannot
+        # drift from them. Every report under verdicts/ must be reachable from a
+        # row, and the number of rows must be the number of rows the tables hold.
+        verdicts_dir = os.path.join(HERE, "..", "md", "backdoor", "verdicts")
+        if os.path.isdir(verdicts_dir):
+            reports = sorted(f for f in os.listdir(verdicts_dir) if f.endswith(".md"))
+            linked = set()
+            for m in re.finditer(r"\]\(verdicts/([^)]+\.md)\)", idx_text):
+                linked.add(m.group(1))
+            unlinked = [f for f in reports if f not in linked]
+            check("every verdict report is linked from the index", not unlinked,
+                  "%d unlinked: %s" % (len(unlinked), ", ".join(unlinked[:4])))
+            # every row must point at a report file that exists, and every report
+            # file must have at least one row: a report without a row is a report
+            # the index does not show.
+            row_links = []
+            for l in data_rows:
+                m = re.search(r"\]\(verdicts/([^)]+\.md)\)", l)
+                row_links.append(m.group(1) if m else None)
+            dangling = [l for l in row_links if l is None]
+            check("every index row links to a report", not dangling,
+                  "%d rows without a link" % len(dangling))
+            missing_files = sorted({l for l in row_links if l and not os.path.exists(
+                os.path.join(verdicts_dir, l))})
+            check("every index row links to a report file that exists",
+                  not missing_files, "%d missing: %s" % (len(missing_files),
+                                                        ", ".join(missing_files[:4])))
+            def rows_in(header):
+                parts = idx_text.split(header)
+                if len(parts) < 2:
+                    return 0
+                body = parts[1].split("\n## ")[0]
+                return len([l for l in body.split("\n") if l.startswith("| `")])
+            s1 = rows_in("## Section 1:")
+            s2 = rows_in("## Section 2:")
+            s3 = rows_in("## Section 3:")
+            check("the index tables hold a row for every report",
+                  s1 + s2 + s3 >= len(reports),
+                  "sections %d+%d+%d = %d rows, %d reports"
+                  % (s1, s2, s3, s1 + s2 + s3, len(reports)))
     else:
         check("verdict index present", False, index_path)
+
+    # E7: every audit/*.py must be listed in audit/README.md, so a new tool cannot
+    # exist without a reader being told what it does.
+    readme_path = os.path.join(HERE, "README.md")
+    if os.path.exists(readme_path):
+        readme = open(readme_path, encoding="utf-8").read()
+        unlisted = sorted(n for n in os.listdir(HERE)
+                          if n.endswith(".py") and n not in readme)
+        check("audit/README.md lists every audit/*.py", not unlisted,
+              "%d unlisted: %s" % (len(unlisted), ", ".join(unlisted[:5])))
+    else:
+        check("audit/README.md present", False, readme_path)
+
+    # E6: a public document must not carry a work-log voice.
+    owner_hits = []
+    for d in (os.path.join(HERE, "..", "md", "backdoor", "verdicts"),
+              os.path.join(HERE, "..", "md", "backdoor")):
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
+            if not fn.endswith(".md"):
+                continue
+            if fn == "Backdoor_Audit_Improvement_Plan.md":
+                continue  # the working plan quotes the phrases it removes
+            p = os.path.join(d, fn)
+            for i, line in enumerate(open(p, encoding="utf-8", errors="replace")):
+                if "owner" in line.lower():
+                    owner_hits.append("%s:%d" % (fn, i + 1))
+    check("public reports carry no owner-view wording", not owner_hits,
+          "%d hits: %s" % (len(owner_hits), ", ".join(owner_hits[:5])))
+
+    # W13: a pack row in the index must state the source's own strength separately
+    # from the pack fidelity, and the strength of the row inherits the source's.
+    if os.path.exists(index_path):
+        idx = open(index_path, encoding="utf-8").read()
+        sec3 = idx.split("## Section 3:")
+        if len(sec3) > 1:
+            s3 = sec3[1]
+            s3_rows = [l for l in s3.split("\n")
+                       if l.startswith("| `") and l.rstrip().endswith("|")]
+            check("index Section 3 carries the pack rows", len(s3_rows) >= 12,
+                  "%d rows" % len(s3_rows))
+            no_src = [l for l in s3_rows if "source absence" not in l.lower()
+                      and "not established" not in l]
+            check("index pack rows state the source absence separately",
+                  not no_src, "%d of %d rows" % (len(no_src), len(s3_rows)))
+        else:
+            check("index Section 3 present", False, "no Section 3 heading")
 
     ok = all(r[1] for r in rows)
     if not args.quiet:

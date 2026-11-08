@@ -1,0 +1,43 @@
+{
+  "tool": "pack_source_output_diff.py",
+  "source": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps.safetensors",
+  "pack": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8.safetensors",
+  "family": "zimage",
+  "n": 4,
+  "seed": 42,
+  "observable": "the patch's own output tensor, source(float) vs pack(INT8), same input",
+  "batches": [
+    {
+      "seed": 42,
+      "cos": 0.9998154640197754,
+      "max_abs_err": 0.015625,
+      "rel_l2": 0.010067297145724297,
+      "blocks": 1
+    },
+    {
+      "seed": 43,
+      "cos": 0.9998181462287903,
+      "max_abs_err": 0.015625,
+      "rel_l2": 0.01004178449511528,
+      "blocks": 1
+    },
+    {
+      "seed": 44,
+      "cos": 0.999816358089447,
+      "max_abs_err": 0.015625,
+      "rel_l2": 0.010028080083429813,
+      "blocks": 1
+    },
+    {
+      "seed": 45,
+      "cos": 0.9998108744621277,
+      "max_abs_err": 0.01580810546875,
+      "rel_l2": 0.010049897246062756,
+      "blocks": 1
+    }
+  ],
+  "cos_min": 0.9998108744621277,
+  "cos_mean": 0.9998152107000351,
+  "max_abs_err": 0.01580810546875,
+  "rel_l2_max": 0.010067297145724297
+}

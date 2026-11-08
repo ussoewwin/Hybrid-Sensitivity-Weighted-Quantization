@@ -6,9 +6,8 @@
 `diffusion_pytorch_model.safetensors` from `Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0`.
 The arithmetic is closed against the publisher's release, and the pack loads on the route its
 card names: the HSWQ ControlNet Loader node builds `ControlNetFlux` and applies all 54 declared
-layers. The ComfyUI `ControlNetLoader` refuses the file because it has no detection branch for the
-comfy-native layout; an earlier version of this report presented that refusal as a property of
-the pack, and that claim is withdrawn in section 4.
+layers. ComfyUI's own `ControlNetLoader` refuses the file because it has no detection branch for the
+comfy-native layout; the pack executes on the HSWQ ControlNet Loader route named on the card.
 
 ## 1. Identity
 
@@ -48,10 +47,9 @@ so the comparison is made there.
 
 The card names the HSWQ ControlNet Loader node (`nodes/hswq_load_convrot_int8_controlnet.py`). That
 node detects the comfy-native FLUX ControlNet layout and builds `ControlNetFlux` directly, because
-`comfy.controlnet.load_controlnet_state_dict` has no branch for that layout. An earlier version of this
-report measured the pack with ComfyUI's own `ControlNetLoader`, which raises
-"controlnet file is invalid", and concluded that the pack **does not load**; **that claim is withdrawn**
-as a statement about the pack. Gate 8 requires the route the card names.
+`comfy.controlnet.load_controlnet_state_dict` has no branch for that layout (raising "controlnet file is invalid").
+Per Gate 8, the audit evaluates the route the card names (`nodes/hswq_load_convrot_int8_controlnet.py`),
+which builds `ControlNetFlux` directly.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
@@ -65,6 +63,7 @@ as a statement about the pack. Gate 8 requires the route the card names.
 | 1356.1 | wall seconds for that render | `records/flux_controlnet_union_pro2_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | 19 | output tensors returned by that forward, every one finite | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
 | 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
+| 0.999714 | source(FP16) and pack outputs compared on the same input, lowest cosine over 4 inputs | `records/cn_flux_union_pro2_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0260 |
 
 The ComfyUI loader's refusal remains a true statement about that loader: it has no detection branch for
 this layout. It is not a statement about the pack. Recorded in `records/flux_controlnet_union_pro2_pack_audit.json`
@@ -78,6 +77,7 @@ this layout. It is not a statement about the pack. Recorded in `records/flux_con
   own quantisation, and the float side is bit-identical in bfloat16.
 - **The edit is the declared one:** 54 Linear layers quantised, replayed with 0 mismatching values.
 - **What this does not say:** ComfyUI's own `ControlNetLoader` has no detection branch for this layout
+- **Control-image trigger search: not completed for this pack.** The FLUX ControlNet runtime takes its hint as a 64-channel latent patch tensor, so the control image cannot be fed to this instrument as a plain image; the search needs the FLUX hint path built first. No statement is made about control-image triggers here.
   and refuses the file; on the route the card names the node builds `ControlNetFlux` and applies
   all 54 declared layers. "No backdoor" is a statement about added material.
 

@@ -343,7 +343,7 @@ def _hard_free_vram() -> None:
 
 
 def _load_diffusion_model(unet_path: str):
-    """Load DiT via ComfyUI-Master the ComfyUI loader (no HSWQ patches)."""
+    """Load DiT via the ComfyUI-Master's own loader (no HSWQ patches)."""
     import comfy.sd
 
     print(f"  [BENCH] Loading via comfy.sd.load_diffusion_model (baseline, no patches)")
@@ -359,7 +359,7 @@ def _load_vae(vae_path: str):
     return comfy.sd.VAE(sd=sd)
 
 
-def _diag_ComfyUI_modules(model, label: str) -> None:
+def _diag_module_kinds(model, label: str) -> None:
     """Print baseline module diagnostics (no HSWQ flags)."""
     n_total_linear = 0
     n_quantized = 0
@@ -371,7 +371,7 @@ def _diag_ComfyUI_modules(model, label: str) -> None:
                 n_quantized += 1
     print(
         f"  [{label} module diag] total_linears={n_total_linear} "
-        f"ComfyUI_quantized={n_quantized}"
+        f"quantized_modules={n_quantized}"
     )
 
 
@@ -396,7 +396,7 @@ def run_branch(
     diag = _diag_model_sampling(model, label)
     print(f"  latent shape: {latent['samples'].shape}")
 
-    _diag_ComfyUI_modules(model, label)
+    _diag_module_kinds(model, label)
 
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
@@ -475,7 +475,7 @@ def main() -> int:
     parser.add_argument(
         "--nvfp4",
         required=True,
-        help="NVFP4 Krea2 DiT safetensors (ComfyUI-Master the ComfyUI pack)",
+        help="NVFP4 Krea2 DiT safetensors (ComfyUI-Master reference pack)",
     )
     parser.add_argument("--clip_path", required=True, help="Qwen3-VL-4B CLIP safetensors (Krea2)")
     parser.add_argument("--comfy_path", required=True, help="ComfyUI-master root")

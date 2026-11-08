@@ -3,6 +3,10 @@
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
     "file": "qwen_image_2512_fun_cn_union_2602.safetensors",
+    "repo": "alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union",
+    "hub_path": "Qwen-Image-2512-Fun-Controlnet-Union-2602.safetensors",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of Qwen-Image-2512-Fun-Controlnet-Union-2602.safetensors in alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union equals this record's source sha256",
     "bytes": 3512432536,
     "sha256": "0d1ac366efaa27dec070b3a8ebe9a41b5ebc567913dee71ed992e7032f66dc37"
   },

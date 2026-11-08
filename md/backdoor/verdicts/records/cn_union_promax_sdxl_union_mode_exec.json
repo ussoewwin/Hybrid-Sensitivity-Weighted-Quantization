@@ -1,0 +1,26 @@
+{
+  "tool": "union-mode execution of the Union ProMax pack",
+  "date": "2026-11-08",
+  "pack": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
+  "mode": "the published pack carries the runtime names, so ComfyUI's diffusers branch is not entered and the union block is not instantiated. The union block is executed by giving the loader the same weights under the publisher's diffusers names: the pack's runtime-named tensors are placed on top of the publisher's release, which carries controlnet_cond_embedding.conv_in.weight and therefore enters the diffusers branch and builds the union modules.",
+  "class": "ControlNet",
+  "device": "cuda",
+  "union_mode": true,
+  "declared_layers": 328,
+  "declared_layers_applied": 328,
+  "declared_not_applied": 0,
+  "declared_not_applied_names": [],
+  "union_modules_present": {
+    "control_add_embedding.linear_1": true,
+    "control_add_embedding.linear_2": true,
+    "transformer_layes.0.mlp.c_proj": true
+  },
+  "int8_linear_calls": 327,
+  "output_tensors": 10,
+  "output_nan_count": 0,
+  "output_inf_count": 0,
+  "output_finite": true,
+  "error": null,
+  "verdict": "union-mode forward executed",
+  "reading": "all 328 declared layers are applied in union mode, the three union-only layers among them, and the forward produces a finite output with 327 INT8 GEMM calls. On the published pack's own runtime names the same three layers are not instantiated (records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json -> declared_not_applied = 3), which is a property of the loader's name detection, not of the pack."
+}

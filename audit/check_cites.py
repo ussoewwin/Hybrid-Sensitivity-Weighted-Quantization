@@ -15,6 +15,7 @@ and an --all flag to audit every verdict report in md/backdoor/verdicts/.
 from __future__ import annotations
 
 import argparse
+ALLOWLIST_NAME = "citation_inventory_allowlist.txt"
 import glob
 import json
 import os
@@ -141,6 +142,14 @@ def check_citation(fname, field, root, claimed, label, ok_fail, cell_text=""):
 def verify_report(report_path, root):
     """Verify citations in a single report."""
     text = open(report_path, encoding="utf-8").read()
+    allow_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ALLOWLIST_NAME)
+    allowed_inventory = set()
+    if os.path.exists(allow_path):
+        for _l in open(allow_path, encoding="utf-8"):
+            _l = _l.strip()
+            if _l and not _l.startswith("#"):
+                allowed_inventory.add(_l)
+
     lines = text.splitlines()
     ok = fail = skip = 0
     checked = set()
@@ -289,7 +298,11 @@ def verify_report(report_path, root):
             print("FAIL  record named but not on disk: %s" % name)
             fail += 1
         elif name not in cited_files:
-            print("WARN  named as inventory, no field cited: %s" % name)
+            if os.path.basename(name) in allowed_inventory:
+                skip += 1
+            else:
+                print("FAIL  named as inventory without a field citation and not on the allow list: %s" % name)
+                fail += 1
     for c in CITE.finditer(text):
         fname, field = c.group(1), c.group(2)
         if (fname, field) in checked:

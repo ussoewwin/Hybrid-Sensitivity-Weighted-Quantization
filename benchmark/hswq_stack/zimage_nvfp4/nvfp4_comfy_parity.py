@@ -1,4 +1,4 @@
-"""Z Image / ZIT ConvRot NVFP4 — ComfyUI ComfyUI GEMM + online act rotate.
+"""Z Image / ZIT ConvRot NVFP4 — ComfyUI's own GEMM + online act rotate.
 
 Ported from ``hswq/benchmark/nvfp4_comfy_parity.py`` (same math as
 ``zi_convrot_nvfp4_bench.py``). Product HSWQ Tensor Core Linear.forward

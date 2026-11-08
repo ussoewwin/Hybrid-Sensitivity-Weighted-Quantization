@@ -1,0 +1,43 @@
+{
+  "tool": "pack_source_output_diff.py",
+  "source": "qwen_image_canny_diffsynth_controlnet.safetensors",
+  "pack": "qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+  "family": "diffsynth",
+  "n": 4,
+  "seed": 42,
+  "observable": "the patch's own per-block residuals, source(float) vs pack(INT8), same input",
+  "batches": [
+    {
+      "seed": 42,
+      "cos": 0.9999937094407236,
+      "max_abs_err": 16384.0,
+      "rel_l2": 0.003554599797261553,
+      "blocks": 60
+    },
+    {
+      "seed": 43,
+      "cos": 0.999993472971988,
+      "max_abs_err": 16384.0,
+      "rel_l2": 0.003613449940500084,
+      "blocks": 60
+    },
+    {
+      "seed": 44,
+      "cos": 0.9999938402314899,
+      "max_abs_err": 16384.0,
+      "rel_l2": 0.00351571870107103,
+      "blocks": 60
+    },
+    {
+      "seed": 45,
+      "cos": 0.9999935342625088,
+      "max_abs_err": 16384.0,
+      "rel_l2": 0.003596449618002293,
+      "blocks": 60
+    }
+  ],
+  "cos_min": 0.999993472971988,
+  "cos_mean": 0.9999936392266776,
+  "max_abs_err": 16384.0,
+  "rel_l2_max": 0.003613449940500084
+}

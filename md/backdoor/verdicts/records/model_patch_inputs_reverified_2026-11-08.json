@@ -1,0 +1,125 @@
+{
+  "analysis": "model_patch_inputs_reverified_2026-11-08",
+  "date": "2026-11-08",
+  "method": "sha256 recomputed from the files on disk and compared with the sha256 recorded in the pack audit records; no value is copied from a previous verification record",
+  "files": [
+    {
+      "role": "pack",
+      "file": "qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+      "expected_sha256": "c2899255252b81fd64ef2fae0fbfd86e1496ba04cf10cc95fe45679120f1c996",
+      "measured_sha256": "c2899255252b81fd64ef2fae0fbfd86e1496ba04cf10cc95fe45679120f1c996",
+      "measured_bytes": 1135897344,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "source",
+      "file": "qwen_image_canny_diffsynth_controlnet.safetensors",
+      "expected_sha256": "16f54f5c3c84cb213eba98d304e7486816a39b2891715c662024f40192093429",
+      "measured_sha256": "16f54f5c3c84cb213eba98d304e7486816a39b2891715c662024f40192093429",
+      "measured_bytes": 2266838080,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "pack",
+      "file": "qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+      "expected_sha256": "7b82a9360169fa99524c03bcf913ce63713930174ad1fc332e553e5646bad44c",
+      "measured_sha256": "7b82a9360169fa99524c03bcf913ce63713930174ad1fc332e553e5646bad44c",
+      "measured_bytes": 1135897344,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "source",
+      "file": "qwen_image_depth_diffsynth_controlnet.safetensors",
+      "expected_sha256": "b3c6eb06c135887cc9083bdf3fad9ea190482a1b811b257a935625dc4b88ab31",
+      "measured_sha256": "b3c6eb06c135887cc9083bdf3fad9ea190482a1b811b257a935625dc4b88ab31",
+      "measured_bytes": 2266838080,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "pack",
+      "file": "qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+      "expected_sha256": "471b6affc7fcedafb9940fafd6354dd6eb5fac5705e647029c90598c407c82d3",
+      "measured_sha256": "471b6affc7fcedafb9940fafd6354dd6eb5fac5705e647029c90598c407c82d3",
+      "measured_bytes": 1135921920,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "source",
+      "file": "qwen_image_inpaint_diffsynth_controlnet.safetensors",
+      "expected_sha256": "ca78c68ef4c2ae332197e9642ea71838b4ae5d587f199813b9c9cc44bfd10bce",
+      "measured_sha256": "ca78c68ef4c2ae332197e9642ea71838b4ae5d587f199813b9c9cc44bfd10bce",
+      "measured_bytes": 2266862656,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "pack",
+      "file": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8.safetensors",
+      "expected_sha256": "1dd12b2d028b12df6b2a4f93856f8ab161c1edc05125e3b1c987a1694e99dba4",
+      "measured_sha256": "1dd12b2d028b12df6b2a4f93856f8ab161c1edc05125e3b1c987a1694e99dba4",
+      "measured_bytes": 1009742496,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "source",
+      "file": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps.safetensors",
+      "expected_sha256": "3ea098db9bd145be525c7e2366920b6d76c5ffd46b3d7aa8169bbc943fdaee35",
+      "measured_sha256": "3ea098db9bd145be525c7e2366920b6d76c5ffd46b3d7aa8169bbc943fdaee35",
+      "measured_bytes": 2016627488,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "pack",
+      "file": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8.safetensors",
+      "expected_sha256": "2998f83ef65903b4b6b22fb7ac270ed66f9a2443220563aa43db4188024763a8",
+      "measured_sha256": "2998f83ef65903b4b6b22fb7ac270ed66f9a2443220563aa43db4188024763a8",
+      "measured_bytes": 1009742496,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "source",
+      "file": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps.safetensors",
+      "expected_sha256": "880bf452b060abfcbccedee56f8d3dbf8aed2cb0311b599210361b414fc8f2fd",
+      "measured_sha256": "880bf452b060abfcbccedee56f8d3dbf8aed2cb0311b599210361b414fc8f2fd",
+      "measured_bytes": 2016627488,
+      "present_on_disk": true,
+      "verified": true
+    }
+  ],
+  "verified_by_pack": {
+    "qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8": {
+      "pack_verified": true,
+      "source_verified": true,
+      "verified_files": 2
+    },
+    "qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8": {
+      "pack_verified": true,
+      "source_verified": true,
+      "verified_files": 2
+    },
+    "qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8": {
+      "pack_verified": true,
+      "source_verified": true,
+      "verified_files": 2
+    },
+    "Z-Image-Turbo-Fun-Controlnet-Union-2_1-lite-2602-8steps_hswq_convrot_int8": {
+      "pack_verified": true,
+      "source_verified": true,
+      "verified_files": 2
+    },
+    "Z-Image-Turbo-Fun-Controlnet-Tile-2_1-lite-2601-8steps_hswq_convrot_int8": {
+      "pack_verified": true,
+      "source_verified": true,
+      "verified_files": 2
+    }
+  },
+  "matched": 10
+}

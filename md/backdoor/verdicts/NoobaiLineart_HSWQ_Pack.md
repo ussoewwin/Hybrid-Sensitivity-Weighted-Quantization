@@ -19,6 +19,8 @@ does not close against any published source, and this pack replaces it.
 | c80ad372a374098d4f0ddc2aaf8bea7e790cb691086d882bb97091ed5da64bba | source sha256, equal to the Hub's LFS object id and to the Civitai release's published hash | `records/noobai_hswq_pack_audit.json` -> `source.sha256` | the bytes audited are the bytes the publisher serves |
 | 1,420,211,083 | pack size in bytes | `records/noobai_hswq_pack_audit.json` -> `pack.bytes` | the artifact this verdict applies to |
 | 86e795137dcf8d2876784eeecc2d61365c385f6caf4a5176d225ecd57fdcc914 | pack sha256 | `records/noobai_hswq_pack_audit.json` -> `pack.sha256` | the file that was measured |
+| 0.999802 | source(FP16) and pack outputs compared on the same input, lowest cosine over 4 inputs | `records/noobai_hswq_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0208 |
+| 0 | control-image trigger candidates above the natural-transform control p99 | `records/noobai_hswq_image_trigger.json` -> `flagged_count` | no control-image trigger was found; the instrument's detection floor is 1 (relative strength, the weight's own Frobenius norm) |
 
 ## 2. Coverage in the runtime's own names
 
@@ -57,12 +59,14 @@ measurements below are taken on that route.
 | ControlNet | class the node builds | `records/noobai_hswq_route.json` -> `class` | the file is recognised as the SDXL ControlNet it is |
 | 329 | INT8 GEMM calls during one forward | `records/noobai_hswq_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 0 / 0 | NaN / Inf counts over the 10 output tensors of that forward | `records/noobai_hswq_int8_exec.json` -> `output_nan_count`, `output_inf_count` | the executed path produces neither |
-| 1443947 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0, base `waiIllustriousSDXL_v170.safetensors`) | `records/noobai_hswq_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| 1,443,947 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0, base `waiIllustriousSDXL_v170.safetensors`) | `records/noobai_hswq_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
 | 17.3 | wall seconds for that render | `records/noobai_hswq_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
-| 3948 | INT8 GEMM calls during that render - 329 layers x 12 steps | `records/noobai_hswq_image_test.json` -> `measurement.int8_linear_calls` | the count the layers predict is the count the render issued |
+| 3,948 | INT8 GEMM calls during that render - 329 layers x 12 steps | `records/noobai_hswq_image_test.json` -> `measurement.int8_linear_calls` | the count the layers predict is the count the render issued |
 
 The rendered picture follows the hint's composition - a round form over a horizon - and depicts a
 white pot on a wooden table, with a forest visible outside the window.
+
+| 2 | inputs (this pack and its source) re-verified by SHA256 before this pass | `records/noobai_inputs_reverified_2026-11-08.json` -> `verified_by_pack.noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8.verified_files` | the bytes measured are the bytes published |
 
 ## 5. Conclusion
 
@@ -73,6 +77,7 @@ white pot on a wooden table, with a forest visible outside the window.
 - **The edit is the declared one:** 329 Linear layers quantised, replayed with 0 mismatching values,
   and 33 layers kept in original precision by the measured protection set.
 - **What this does not say:** the legacy pack of the same name was not produced by this method and
+- **Control-image trigger search:** the same candidate set the SAM3.1 search uses was run on this pack's control image; 0 candidate(s) left the natural-transform control distribution (`records/noobai_hswq_image_trigger.json` -> `flagged_count`), and the instrument's detection floor is measured and recorded in the same file.
   does not close against any published source; that is a statement about that file, not about this
   one. "No backdoor" is a statement about added material.
 

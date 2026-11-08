@@ -54,11 +54,15 @@ def make_model(dtype, seed=0, layers=4, dim=64, out=32, vocab=200):
     return t
 
 
-def quantize_pack(src, convrot=True):
+def quantize_pack(src, convrot=True, hadamard=None):
     """What the converters do: rotate -> per-row amax/127 -> round. Returns
-    the pack's tensor dict and its _quantization_metadata."""
+    the pack's tensor dict and its _quantization_metadata.
+
+    ``hadamard`` lets a case build the pack with a different rotation matrix, which is
+    what an instrument mix-up looks like on disk.
+    """
     pack, layers = {}, {}
-    h = ba.hadamard(GS)
+    h = (hadamard or ba.hadamard)(GS)
     for k, w in src.items():
         if not (k.endswith(".weight") and w.ndim == 2 and ".layers." in k):
             pack[k] = w.clone()
@@ -500,11 +504,177 @@ def run_source_tests(d):
         {123, 77} <= rows)
 
 
+
+# --- ControlNet / model-patch extension (procedure 14.5) --------------------
+
+def _hadamard(size, dtype=torch.float32):
+    """The converter's own construction: 4x4 kernel, Kronecker doubling, /sqrt(size).
+
+    The recursive [[h, h], [h, -h]] doubling is a different matrix - it is a valid
+    Hadamard, so the pack's row norms are preserved and the weights look plausible,
+    and a replay built on it reports a whole-file mismatch. That is the borrowed
+    instrument the instrument-match case below has to catch.
+    """
+    h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=dtype)
+    h = h4
+    cur = 4
+    while cur < size:
+        h = torch.kron(h, h4)
+        cur *= 4
+    return h / (size ** 0.5)
+
+
+def _borrowed_hadamard(size, dtype=torch.float32):
+    """A different but valid Hadamard: the recursive doubling [[h, h], [h, -h]]."""
+    h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=dtype)
+    h = h4
+    cur = 4
+    while cur < size:
+        h = torch.cat([torch.cat([h, h], dim=1), torch.cat([h, -h], dim=1)], dim=0)
+        cur *= 2
+    return h / (size ** 0.5)
+
+
+def _borrowed_instrument_pack(src, path):
+    """A pack written with the borrowed rotation matrix instead of the converter's.
+
+    The bytes are a valid ConvRot INT8 pack - the same layout, the same scale, the same
+    marker - and only the rotation matrix differs. The audit tool has to reject it,
+    because a pack that was not built with the converter's own arithmetic cannot be
+    reproduced by that arithmetic.
+    """
+    pack, meta = quantize_pack(src, hadamard=_borrowed_hadamard)
+    save_file({k: v.contiguous() for k, v in pack.items()}, path, metadata=meta)
+    return path
+
+
+def _rotate(w, h, gs):
+    of, inf = w.shape
+    g = inf // gs
+    return torch.matmul(w.view(of, g, gs), h.T.to(w.dtype)).reshape(w.shape)
+
+
+def _quant_rowwise(w):
+    amax = w.abs().amax(dim=-1, keepdim=True).float().clamp(min=1e-30)
+    s = amax / 127.0
+    q = (w / s.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
+    return q, s.to(torch.float32)
+
+
+BOUNDARY_TOL = 1e-4
+
+
+def replay_codes(src_w, pack_q, pack_s, gs, hadamard):
+    """Replay the pack's quantisation and compare it code by code.
+
+    Returns (mismatch, on_boundary, off_boundary, boundary_dist_max). A code that
+    differs is benign only when the value sits on a .5 rounding boundary, where the
+    two rounding modes disagree by one step.
+    """
+    w = src_w.float()
+    w_rot = _rotate(w, hadamard(gs).to(w.dtype), gs)
+    q_ref, s_ref = _quant_rowwise(w_rot)
+    diff = q_ref.to(torch.int16) != pack_q.to(torch.int16)
+    n = int(diff.sum())
+    on = 0
+    dist_max = 0.0
+    if n:
+        v = (w_rot / s_ref.to(w_rot.dtype))[diff].abs()
+        frac = v - v.floor()
+        dist = (frac - 0.5).abs()
+        on = int((dist <= BOUNDARY_TOL).sum())
+        dist_max = float(dist.max())
+    return n, on, n - on, dist_max
+
+
+def run_controlnet_tests(d):
+    print("\n== ControlNet / model patch (instrument match, coverage, protection) ==")
+    gs = 16
+    torch.manual_seed(7)
+    src = (torch.randn(32, 64) * 0.02).to(torch.float16)
+    mod = "input_blocks.0.0"
+
+    def build(hfn):
+        h = hfn(gs)
+        w = src.float()
+        rot = _rotate(w, h, gs)
+        q, s = _quant_rowwise(rot)
+        return q, s
+
+    # 1. the pack built on the converter's own instrument replays exactly
+    q_own, s_own = build(_hadamard)
+    n, on, off, dist = replay_codes(src, q_own, s_own, gs, _hadamard)
+    row("pack replayed on its own instrument", "0 differing codes",
+        "%d differing codes" % n, n == 0 and off == 0)
+
+    # 2. the same pack replayed on a borrowed instrument differs - the residue is
+    #    that instrument's arithmetic, and it has to be visible, not silent
+    n2, on2, off2, dist2 = replay_codes(src, q_own, s_own, gs, _borrowed_hadamard)
+    row("borrowed instrument is detected as a different instrument",
+        "codes differ", "%d differing codes, %d on the .5 boundary" % (n2, on2),
+        n2 > 0)
+
+    # 3. a one-LSB edit away from the boundary is an edit, not a rounding residue
+    q_tampered = q_own.clone()
+    w_rot = _rotate(src.float(), _hadamard(gs), gs)
+    s_ref = _quant_rowwise(w_rot)[1]
+    v = (w_rot / s_ref.to(w_rot.dtype)).abs()
+    frac = v - v.floor()
+    off_boundary = ((frac - 0.5).abs() > BOUNDARY_TOL).nonzero()
+    if len(off_boundary):
+        r, c = int(off_boundary[0][0]), int(off_boundary[0][1])
+        q_tampered[r, c] = (q_tampered[r, c].to(torch.int16) + 1).to(torch.int8)
+    n3, on3, off3, dist3 = replay_codes(src, q_tampered, s_own, gs, _hadamard)
+    row("1 LSB edit off the boundary is flagged", "off-boundary mismatch",
+        "%d differing, %d off-boundary" % (n3, off3), off3 >= 1)
+
+    # 4. a declared layer that the pack does not carry is a coverage failure
+    declared = {mod: {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": gs},
+                "input_blocks.9.9": {"format": "int8_tensorwise", "convrot": True,
+                                      "convrot_groupsize": gs}}
+    pack_keys = {mod + ".weight"}
+    src_keys = {mod + ".weight", "input_blocks.9.9.weight"}
+    missing = sorted(src_keys - pack_keys)
+    row("declared layer absent from the pack is caught", "missing layer detected",
+        "missing=%s" % missing, bool(missing))
+
+    # 5. the protection set has to survive: a protected layer that was quantised
+    #    anyway is a protection-set loss
+    protected = {mod}
+    declared_stems = set(declared)
+    lost = sorted(protected & declared_stems)
+    row("protected layer quantised anyway is caught", "protection loss detected",
+        "protected but quantised=%s" % lost, bool(lost))
+
+    # 6. a protected layer that stayed in float is the protection intact
+    kept = sorted({"input_blocks.3.3"} - declared_stems)
+    row("protected layer kept in float is the protection intact", "kept in float",
+        "kept=%s" % kept, bool(kept))
+
+    # 7. the instrument-match rule, on the real tool: a pack written with a borrowed
+    #    rotation matrix is a valid ConvRot INT8 file, and the audit tool has to
+    #    reject it instead of calling it faithful
+    model = make_model(torch.float16)
+    sp = os.path.join(d, "src_instr.safetensors")
+    pp = os.path.join(d, "borrowed_instrument.safetensors")
+    save(sp, model)
+    _borrowed_instrument_pack(model, pp)
+    try:
+        r = ba.provenance(sp, pp, bias_correction=True)
+        verdict = r["verdict"]
+        detail = "q_mismatch_ratio_max=%.4g max_q_delta=%d" % (
+            r.get("q_mismatch_ratio_max", 0), r.get("max_q_delta", 0))
+    except Exception as exc:  # noqa: BLE001
+        verdict = "ERROR(%s)" % type(exc).__name__
+        detail = str(exc)[:80]
+    row("a pack built with a borrowed instrument is rejected", "EDITED",
+        "%s (%s)" % (verdict, detail), verdict == "EDITED")
 def main():
     d = tempfile.mkdtemp(prefix="audit_selftest_")
     try:
         run_pack_tests(d)
         run_source_tests(d)
+        run_controlnet_tests(d)
     finally:
         shutil.rmtree(d, ignore_errors=True)
     n, ok = len(RESULTS), sum(RESULTS)

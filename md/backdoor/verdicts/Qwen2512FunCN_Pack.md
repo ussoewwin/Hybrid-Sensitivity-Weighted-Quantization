@@ -58,6 +58,7 @@ honours that per-layer group. The other 76 layers use group 256.
 | 227.3 | wall seconds for that render | `records/qwen2512_fun_cn_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | 5 | output tensors returned by that forward, every one finite | `records/qwen_image_2512_fun_cn_union_2602_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
 | 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
+| 0.999014 | source(FP16) and pack outputs compared on the same input, lowest cosine over 3 inputs | `records/qwen2512_fun_cn_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0468 |
 
 ## 5. Conclusion
 
@@ -68,6 +69,7 @@ honours that per-layer group. The other 76 layers use group 256.
 - **The edit is the declared one:** 77 Linear layers quantised, replayed with 0 mismatching values,
   all 77 executing as INT8 on the loader route their card names.
 - **What this does not say:** the verdict is about what the pack adds to the publisher's release.
+- **Control-image trigger search: not completed for this pack.** The Qwen Fun ControlNet's forward needs the base model's entry tensors, and the source graph produced a non-finite output for three of the four inputs, so the candidate comparison had no valid reference. No statement is made about control-image triggers here.
   No statement is made about the publisher's own training data or intent.
 
 ## LIMITS

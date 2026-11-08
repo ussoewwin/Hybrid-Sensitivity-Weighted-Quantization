@@ -4,6 +4,10 @@
   "source_converted_like_the_loader": false,
   "source": {
     "file": "qwen_image_depth_diffsynth_controlnet.safetensors",
+    "repo": "Comfy-Org/Qwen-Image-DiffSynth-ControlNets",
+    "hub_path": "split_files/model_patches/qwen_image_depth_diffsynth_controlnet.safetensors",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of split_files/model_patches/qwen_image_depth_diffsynth_controlnet.safetensors in Comfy-Org/Qwen-Image-DiffSynth-ControlNets equals this record's source sha256",
     "bytes": 2266838080,
     "sha256": "b3c6eb06c135887cc9083bdf3fad9ea190482a1b811b257a935625dc4b88ab31"
   },
@@ -165,5 +169,14 @@
     "tolerance": 1e-06,
     "max_abs_diff": 0.0
   },
-  "verdict": "FAITHFUL"
+  "verdict": "FAITHFUL",
+  "borrowed_instrument_replay": {
+    "instrument": "audit/controlnet_pack_audit.py (_replay_helpers)",
+    "q_mismatch_total": 883,
+    "q_on_rounding_boundary": 883,
+    "q_off_rounding_boundary": 0,
+    "max_q_delta": 1,
+    "scale_exact_rel_max": 6.303144459707255e-07,
+    "boundary_dist_max": 2.288818359375e-05
+  }
 }

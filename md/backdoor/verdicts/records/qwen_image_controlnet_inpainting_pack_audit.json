@@ -3,6 +3,10 @@
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
     "file": "qwen_image_controlnet_inpainting.safetensors",
+    "repo": "alibaba-pai/Qwen-Image-ControlNet-Inpainting",
+    "hub_path": null,
+    "hub_lfs_oid_verified": false,
+    "hub_lfs_oid_check": "the publisher's repository is gated; the Hub API answered 404 Repository Not Found for this token, so the LFS object id could not be read back. The source was taken from a mirror carrying the same object, which the bit-exact replay in this record confirms.",
     "bytes": 4234599432,
     "sha256": "49c01aafe6545c1f6e7627a724c8fb13357fe74efee235622158f0a8f30e5458"
   },

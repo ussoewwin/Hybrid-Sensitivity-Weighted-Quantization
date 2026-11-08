@@ -3,6 +3,10 @@
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
     "file": "CN-anytest4_illustrious2_B.safetensors",
+    "repo": "2vXpSwA7/iroiro-lora",
+    "hub_path": "test_controlnet2/CN-anytest4_illustrious2_B.safetensors",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of test_controlnet2/CN-anytest4_illustrious2_B.safetensors in 2vXpSwA7/iroiro-lora equals this record's source sha256",
     "bytes": 2502139968,
     "sha256": "fd5781276e8a0d213bcf2ee6edf7fefeb68be5c58219a3d0bfb7b8e88bf33a40"
   },
