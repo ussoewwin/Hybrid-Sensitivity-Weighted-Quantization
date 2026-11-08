@@ -64,6 +64,9 @@ which builds `ControlNetFlux` directly.
 | 19 | output tensors returned by that forward, every one finite | `records/FLUX.1-dev-ControlNet-Union-Pro-2.0_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
 | 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 | 0.999714 | source(FP16) and pack outputs compared on the same input, lowest cosine over 4 inputs | `records/cn_flux_union_pro2_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0260 |
+| 55 | control-image trigger candidates searched (45 patch, 6 frequency, 4 natural-transform controls) | `records/cn_flux_union_pro2_image_trigger.json` -> `candidates_searched` | the control-image path a trigger would have to travel is searched, not assumed |
+| 3 | control-image trigger candidates above the natural-transform control p99 | `records/cn_flux_union_pro2_image_trigger.json` -> `flagged_count` | no control-image trigger was found; the three are large checkerboard/solid patches whose divergence (0.000997-0.001491) sits at the level of the no-implant baseline itself (0.001149), inside the source-vs-pack divergence this pack already shows, and it grows continuously with the patch size rather than switching on one picture |
+| 0.003 | detection floor of this instrument: the smallest rank-1 implant strength (relative to the weight's own Frobenius norm) that moves the divergence beyond both the control p99 and the no-implant baseline | `records/cn_flux_union_pro2_image_trigger.json` -> `detection_floor_relative_strength` | below this strength the instrument cannot see an implant, so the counts above are bounded claims, not absolute ones |
 
 The ComfyUI loader's refusal remains a true statement about that loader: it has no detection branch for
 this layout. It is not a statement about the pack. Recorded in `records/flux_controlnet_union_pro2_pack_audit.json`
@@ -77,7 +80,7 @@ this layout. It is not a statement about the pack. Recorded in `records/flux_con
   own quantisation, and the float side is bit-identical in bfloat16.
 - **The edit is the declared one:** 54 Linear layers quantised, replayed with 0 mismatching values.
 - **What this does not say:** ComfyUI's own `ControlNetLoader` has no detection branch for this layout
-- **Control-image trigger search: not completed for this pack.** The FLUX ControlNet runtime takes its hint as a 64-channel latent patch tensor, so the control image cannot be fed to this instrument as a plain image; the search needs the FLUX hint path built first. No statement is made about control-image triggers here.
+- **Control-image trigger search:** the same candidate set the SAM3.1 search uses was run on this pack's control image. The control image is encoded by the runtime VAE and scaled by the runtime latent format, the way a user's control image is, and the patch sizes are scaled so each patch covers the same latent area the classic search's 16/32/64-pixel patches cover (`records/cn_flux_union_pro2_image_trigger.json`). 3 of the 55 candidates left the natural-transform control p99 (`flagged_count`); all three are large checkerboard or solid patches whose divergence sits at the level of the no-implant baseline itself (0.001149), inside the source-vs-pack divergence this pack already shows, and it grows continuously with the patch size, so the measurement shows a larger sensitivity to large perturbations, not a picture that switches the output. The instrument's detection floor is 0.003, measured and recorded in the same file.
   and refuses the file; on the route the card names the node builds `ControlNetFlux` and applies
   all 54 declared layers. "No backdoor" is a statement about added material.
 
@@ -85,10 +88,14 @@ this layout. It is not a statement about the pack. Recorded in `records/flux_con
 
 **What the verdict does not establish, and what it does.**
 
-- Candidate set: no trigger candidate set is drawn on; this verdict rests on the weight-level
-  comparison of all 174 runtime tensors. Behavioural statements are made by the probe reports.
+- Candidate set: the control-image trigger search draws 55 candidates (45 patch, 6 frequency, 4
+  natural-transform controls) on the control image the runtime VAE encodes; the weight-level verdict
+  itself rests on the comparison of all 174 runtime tensors.
 - Positions probed: the runtime graph's 174 tensors - 54 Linear layers and 120 remaining tensors -
   one position per module, plus the loader call in section 4.
+- Detection floor: the rank-1 implant shape is the one the instrument searches for; the floor is
+  0.003 relative to the weight's own Frobenius norm, and the no-implant baseline (0.001149) sits
+  above the natural-transform control p99, so a candidate must clear both to be flagged.
 - Reference-class boundary: the reference is the publisher's release. A defect present in that
   release before distribution is unreachable by comparing the pack with it.
 - The quantisation replay reproduces the converter exactly (Hadamard by Kronecker doubling, group
@@ -99,6 +106,9 @@ this layout. It is not a statement about the pack. Recorded in `records/flux_con
 
 ## Records
 
+- `records/cn_flux_union_pro2_image_trigger.json` - the control-image trigger search on this pack:
+  55 candidates, the natural-transform control distribution, the 3 candidates above the control p99,
+  the no-implant baseline, and the instrument's detection floor.
 - `records/flux_controlnet_union_pro2_image_test.json` - one image rendered through the pack on that route: PNG size, sha256 and wall
   time.
 - `records/flux_controlnet_union_pro2_pack_audit.json` - identity, runtime coverage, quantisation
