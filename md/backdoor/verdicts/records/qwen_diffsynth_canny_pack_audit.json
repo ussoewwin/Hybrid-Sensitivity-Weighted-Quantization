@@ -148,14 +148,14 @@
       256,
       256
     ],
-    "q_mismatch_total": 948,
-    "q_on_rounding_boundary": 948,
+    "q_mismatch_total": 0,
+    "q_on_rounding_boundary": 0,
     "q_off_rounding_boundary": 0,
-    "boundary_tolerance": 0.0001,
-    "boundary_dist_max": 3.0517578125e-05,
+    "boundary_tolerance": null,
+    "boundary_dist_max": null,
     "off_boundary_examples": [],
-    "max_q_delta": 1,
-    "scale_exact_rel_max": 5.615303848571784e-07,
+    "max_q_delta": 0,
+    "scale_exact_rel_max": 0.0,
     "nonfinite_scales": 0
   },
   "float_side": {
@@ -163,7 +163,13 @@
     "mismatch_count": 0,
     "within_tolerance": 84,
     "tolerance": 1e-06,
-    "max_abs_diff": 2.9802322387695312e-08
+    "max_abs_diff": 0.0
   },
-  "verdict": "FAITHFUL"
+  "verdict": "FAITHFUL",
+  "instrument": {
+    "replayed_with": "clip_convert/convert_qwen_image_diffsynth_patch_impact_convrot_int8.py",
+    "device": "cpu",
+    "rationale": "the replay has to run on the instrument that built the pack (guide section 14)",
+    "detail": "the family's own rotate_weight / quant_rowwise / group_size_for, on CPU; the gate has to use the same instrument as the measurement"
+  }
 }
