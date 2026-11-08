@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.5.3
+
+**The backdoor audit improvement plan (W0–W20) executed and the control-image trigger search closed on all thirteen ControlNet and model-patch packs** — The three remaining families are searched through the runtime's own VAE path with measured detection floors, the verdict index is two-axis with the source identity of every pack on record, and all five gates are green.
+
+- **The control-image trigger search closed on the last three packs:** the FLUX latent-input, Qwen InstantX inpaint and Qwen Fun ControlNet hints are built the way the runtime builds them (VAE encode, the runtime latent format, and the mask channel the runtime concatenates), the same 55-candidate set (45 patch, 6 frequency, 4 natural-transform controls) ran on each, and the detection floors are measured: 0.003 for FLUX Union Pro2 (no-implant baseline 0.001149), 0.1 for the Qwen inpaint pack, and not established on the Qwen Fun pack, whose graph's own output scale (2.7e5–1.3e6) keeps a rank-1 implant at the weight's full norm below both the control p99 and the baseline (`records/cn_flux_union_pro2_image_trigger.json`, `records/qwen_image_controlnet_inpainting_image_trigger.json`, `records/qwen2512_fun_cn_image_trigger.json`).
+- **The floor threshold is measured, not assumed:** a floor only counts when the implant's divergence clears both the natural-transform control p99 and the no-implant baseline, so a baseline that already sits above the control p99 can no longer be read as an implant effect.
+- **Union ProMax executed in union mode:** 328 of 328 declared layers applied including the three union-only layers, 327 INT8 GEMM calls with a finite output, and three renders (edge, depth, grid) shipped beside the record (`records/cn_union_promax_sdxl_union_mode_exec.json`, `records/cn_union_promax_sdxl_renders.json`).
+- **Source-vs-pack output diffs measured and indexed:** the lowest cosine across the measured packs is 0.945348 (Union ProMax, whose source graph is a union ControlNet on the published names) and the highest 0.999993, each with a record the index cites (`records/*_pack_source_output_diff.json`).
+- **The verdict index is two-axis and partitioned:** the 13 ControlNet/model-patch rows separate pack fidelity from source absence, the Section 1/2/3 headings are restored, and the index checker in `audit/procedure_check.py` (188/188) locks the row structure, the strength classes and the sensitivity numbers.
+- **Every pack audit carries the Hub identity of its source:** `source.repo`, `hub_path` and the LFS object id check on all 13 pack audits, 11 verified against the Hub and the gated Qwen inpaint (same-LFS-object mirror) and the legacy pack noted explicitly (`records/*_pack_audit.json`).
+- **The verification gates hardened:** `audit/check_cites.py` treats an unverifiable inventory citation as a failure (allowlist 40 entries), `audit/run_all_gates.py --regen` regenerates `records/SHA256SUMS` (294 records), same-day gate runs keep serial filenames, `audit/README.md` lists all 68 tools, and `audit/selftest.py` (49/49) proves the tools reject a borrowed-instrument pack (`max_q_delta` 254) and an edited one.
+
+Release notes: [v2.5.3](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.5.3)
+
 ## v2.5.2
 
 **The ControlNet and model-patch packs re-verified on the instrument that built them, and one lineart ControlNet pack re-quantized under the trajectory-impact protection** — Every weight-level comparison now runs the pack's own builder functions instead of a borrowed rotation, so the replay agrees with the pack value for value, and the lineart pack carries a protection set measured on its own checkpoint.
