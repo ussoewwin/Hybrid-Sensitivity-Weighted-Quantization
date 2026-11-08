@@ -57,7 +57,7 @@ hooks describes a state no user reaches. The numbers below are from the named ro
 | 3 | declared layers with no module on this route | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `declared_not_applied` | `control_add_embedding.linear_1`, `control_add_embedding.linear_2` and `transformer_layes.0.mlp.c_proj` are not built |
 | 0 | INT8 weights that the pack does not declare | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `int8_not_declared` | nothing is quantised beyond the declared set |
 | 0 | declared layers left as raw int8 codes (codes copied, not executed as INT8) | `records/controlnet-union-pro-max-sdxl-1.0_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
-| 1238446 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| 1,238,446 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
 | 45.8 | wall seconds for that run, checkpoint load included | `records/cn_union_promax_sdxl_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
 

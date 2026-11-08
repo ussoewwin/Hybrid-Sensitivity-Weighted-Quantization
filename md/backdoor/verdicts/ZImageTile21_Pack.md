@@ -97,7 +97,7 @@ family node that applies the patch (`ZImageFunControlnet`). The measurements bel
   functions reports 118 codes differing by one step at a .5 rounding boundary and a relative
   scale difference of 2.18e-07. That residue is the borrowing instrument's arithmetic, not a
   difference in this pack, and it is why the instrument is named here.
-  is what makes the comparison meaningful.
+  Exact agreement on the instrument that built the pack is what makes the comparison meaningful.
 - Inputs outside the tested sets are not covered; no test covers them.
 
 
