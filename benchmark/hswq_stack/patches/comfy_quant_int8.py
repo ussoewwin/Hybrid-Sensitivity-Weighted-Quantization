@@ -487,7 +487,7 @@ def checkpoint_needs_hswq_int8_conv2d(state_dict_or_path) -> bool:
 
     Keyed off architecture (``input_blocks`` / ``middle_block`` / ``output_blocks``),
     not off ConvRot. DiT/Krea2 (``double_blocks`` / ``single_blocks``) returns False
-    so ConvRot stock load stays free of our Conv2d inject (VRAM).
+    so ConvRot baseline load stays free of our Conv2d inject (VRAM).
     """
     if isinstance(state_dict_or_path, (str, os.PathLike)):
         return _probe_path_needs_hswq_int8_conv2d(str(state_dict_or_path))
@@ -707,9 +707,9 @@ def _int8_quant_conv_scope():
 def _should_inject_int8_conv(quant_config) -> bool:
     # Only while an HSWQ INT8 UNet/Checkpoint load explicitly opens the scope.
     # Do NOT key off quant_config alone: once mixed_precision_ops is monkeypatched,
-    # stock UNETLoader / Krea2 ConvRot loads also build MixedPrecisionOps with
+    # the ComfyUI UNETLoader / Krea2 ConvRot loads also build MixedPrecisionOps with
     # int8_tensorwise config — injecting our Conv2d there is wrong for DiT/ConvRot
-    # and can inflate VRAM vs stock.
+    # and can inflate VRAM vs baseline.
     _ = quant_config
     return bool(getattr(_int8_quant_conv_tls, "active", False))
 
@@ -1291,7 +1291,7 @@ def _patch_ops_decode_and_conv() -> bool:
         )
         # Inject Quantized Conv2d only during HSWQ INT8 load scope
         # (_int8_quant_conv_scope). Never from quant_config alone — that would
-        # also hit stock UNETLoader / Krea2 ConvRot MixedPrecision builds.
+        # also hit the ComfyUI UNETLoader / Krea2 ConvRot MixedPrecision builds.
         if _should_inject_int8_conv(quant_config):
             result.Conv2d = _make_quantized_conv2d(ops_module, result, disabled)
         return result
@@ -2284,7 +2284,7 @@ def _patch_controllora_int8_dequant() -> bool:
             return w.to(qd.dtype if qd.is_floating_point() else _torch.float16)
 
         # Fallback: layers whose comfy_quant was NOT consumed at load time
-        # (stock ComfyUI leaves e.g. Conv2d int8_tensorwise as raw int8 qdata
+        # (ComfyUI's own leaves e.g. Conv2d int8_tensorwise as raw int8 qdata
         # reinterpreted as float, absmax ~127; no QuantizedTensor attached).
         # Dequantize them here from the sidecar keys; QuantizedTensor modules
         # above are already covered by the qt.dequantize() path.
@@ -2556,18 +2556,18 @@ def load_unet_hswq_weight_dtype(unet_name, weight_dtype):
     import comfy.sd
 
     # INT8 Conv2d patches: SDXL/ZI UNet (architecture), even if Linear has ConvRot.
-    # Krea2/DiT ConvRot: stock-equivalent load — Conv2d inject inflates VRAM vs stock.
+    # Krea2/DiT ConvRot: baseline-equivalent load — Conv2d inject inflates VRAM vs baseline.
     unet_path = folder_paths.get_full_path_or_raise("diffusion_models", unet_name)
     is_convrot = checkpoint_looks_like_comfy_quant_convrot(unet_path)
     is_int8 = weight_dtype == "int8_tensorwise" or checkpoint_looks_like_comfy_quant_int8(unet_path)
     needs_conv2d = checkpoint_needs_hswq_int8_conv2d(unet_path)
 
     if is_int8 and is_convrot and not needs_conv2d:
-        # Peel Z Image comfy_parity + ZI bake hooks before Krea2/DiT stock load.
+        # Peel Z Image comfy_parity + ZI bake hooks before Krea2/DiT baseline load.
         # Without this, comfy_parity stays on mixed_precision_ops / _load_quantized_module
         # from the previous Z Image run, arming _hswq_int8_convrot on Krea2 INT8 ConvRot
         # layers and installing forward_parity (online act rotate) on every Linear.
-        # Krea2 does not need or want Z Image parity - it uses stock MixedPrecision -
+        # Krea2 does not need or want Z Image parity - it uses baseline MixedPrecision -
         # but the leftover wrapper makes forward_parity fire Hadamard rotations every
         # step, causing progressive slowdown (4s/step -> 16s -> 22s -> 26s across runs).
         # vendored hswq_stack: nodes/nvfp4 absent (bench is ZI-only);
@@ -2608,7 +2608,7 @@ def load_unet_hswq_weight_dtype(unet_name, weight_dtype):
                 else:
                     logging.warning(
                         "[HSWQ INT8] Krea2 ConvRot INT8 residual LoRA install "
-                        "failed; LoRA stays stock (requant): %s",
+                        "failed; LoRA stays baseline (requant): %s",
                         unet_name,
                     )
             except Exception as e:
@@ -2617,12 +2617,12 @@ def load_unet_hswq_weight_dtype(unet_name, weight_dtype):
                 )
 
         logging.info(
-            "[HSWQ INT8] DiT/Krea2 ConvRot — stock-equivalent load "
+            "[HSWQ INT8] DiT/Krea2 ConvRot — baseline-equivalent load "
             "(no INT8 Conv2d patches): %s",
             unet_name,
         )
         print(
-            f"[HSWQ INT8] ConvRot DiT/Krea2 stock-equivalent load: {unet_name}",
+            f"[HSWQ INT8] ConvRot DiT/Krea2 baseline-equivalent load: {unet_name}",
             flush=True,
         )
         model = comfy.sd.load_diffusion_model(unet_path, model_options=model_options)

@@ -96,7 +96,7 @@ python clip_convert/convert_clip_convrot_int8.py \
 ## Loading Quantized Models in ComfyUI
 
 - **SAM 3 & SAM 3.1 Models**:
-  Place the quantized `.safetensors` files in `ComfyUI/models/unet/` or `ComfyUI/models/diffusion_models/` and load them directly using the stock **`UNetLoader`** (or **`Load Diffusion Model`**). ComfyUI automatically detects `comfy_quant` metadata and executes native INT8 Tensor Core operations.
+  Place the quantized `.safetensors` files in `ComfyUI/models/unet/` or `ComfyUI/models/diffusion_models/` and load them directly using the ComfyUI **`UNetLoader`** (or **`Load Diffusion Model`**). ComfyUI automatically detects `comfy_quant` metadata and executes native INT8 Tensor Core operations.
 - **ControlNet Models**: Load using `HSWQ Load ControlNet (Simple)` from [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools).
 - **Model Patch Models**: Load using `HSWQ Load Model Patch (ConvRot INT8)`.
 - **Text Encoders**: Load using standard `CLIPLoader` / `DualCLIPLoader` or `HSWQ Load CLIP (Simple)`.

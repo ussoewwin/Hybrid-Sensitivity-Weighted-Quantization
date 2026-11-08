@@ -14,7 +14,7 @@ Two things the measurement has to get right:
 1. **The arm.** The loader package's `patches/clip_int8_gemm` makes the real
    `int8_linear` fire for the text tower. The package's root `__init__` is
    executed exactly as ComfyUI does on startup.
-2. **The same ops path for the baseline.** The stock CLIP loader builds the
+2. **The same ops path for the baseline.** The ComfyUI CLIP loader builds the
    text tower with `comfy.ops.manual_cast` while a quantized pack is built with
    `mixed_precision_ops`. The baseline is built through the same ops class.
 

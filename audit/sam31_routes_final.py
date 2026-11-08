@@ -5,7 +5,7 @@ Derived from audit/sam31_detector_probe.py (the same language-encoder mapping, t
 the same forward), with the loader switched per route:
 
   REF  fp16 source, loaded through mixed_precision_ops (the probe's own reference build)
-  R1   pack through comfy.sd.load_diffusion_model            - what stock UNETLoader does
+  R1   pack through comfy.sd.load_diffusion_model            - what ComfyUI UNETLoader does
   R2   pack through the node's HSWQ SAM3 Loader              - the node the card names
   R3   pack through mixed_precision_ops + state-dict load    - the earlier record's harness
 

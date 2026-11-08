@@ -505,12 +505,12 @@ def parse_args():
             "otherwise the trajectory collapses."
         ),
     )
-    ap.add_argument("--parity", action="store_true", help="Force Comfy parity path (stock GEMM + act rotate)")
+    ap.add_argument("--parity", action="store_true", help="Force Comfy parity path (ComfyUI GEMM + act rotate)")
     ap.add_argument(
         "--attention", choices=["sdpa", "sage2"], default="sdpa",
         help=(
             "sage2: patch the QUANTIZED model's attention to SageAttention2 "
-            "(INT8 QK + FP8 PV; sm120 auto path). FP16 baseline stays on stock "
+            "(INT8 QK + FP8 PV; sm120 auto path). FP16 baseline stays on baseline "
             "attention. sdpa (default): no attention patch."
         ),
     )
@@ -618,7 +618,7 @@ def main() -> int:
         _hard_free_vram()
         print("  [Offload] CLIP unloaded.")
 
-        # --- FP16 (stock ops, before any patch) ---
+        # --- FP16 (ComfyUI ops, before any patch) ---
         print(f"\n--- Loading FP16 baseline: {args.fp16} ---")
         fp16 = load_zit_model(args.fp16, is_nvfp4=False)
         latent = make_empty_latent(fp16, args.width, args.height, batch=1)

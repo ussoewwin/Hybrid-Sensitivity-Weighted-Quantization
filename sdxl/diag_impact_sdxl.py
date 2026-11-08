@@ -277,7 +277,7 @@ def convrot_int8_quant_error(w: torch.Tensor, group_size: int = 256) -> torch.Te
 def load_sdxl(path: str):
     """Load a checkpoint ComfyUI-natively; returns (ModelPatcher, clip, vae).
 
-    The baseline contains no INT8 tensors, so the INT8 load scope is not needed (stock ops).
+    The baseline contains no INT8 tensors, so the INT8 load scope is not needed (ComfyUI ops).
     """
     import comfy.sd
 

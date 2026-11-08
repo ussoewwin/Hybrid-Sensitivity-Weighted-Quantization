@@ -80,7 +80,7 @@ def nvfp4_tc_enabled() -> bool:
 def disable_nvfp4_tc(reason: str, *, announce: bool = True) -> None:
     """Permanent disable for this process (CC < 10.0 only).
 
-    Do NOT call this for CUBLAS_STATUS_NOT_SUPPORTED — stock kitchen dequants
+    Do NOT call this for CUBLAS_STATUS_NOT_SUPPORTED — ComfyUI kitchen dequants
     that call only and keeps TC enabled for later Linears.
     """
     global _DISABLED, _WARNED, _DISABLE_REASON

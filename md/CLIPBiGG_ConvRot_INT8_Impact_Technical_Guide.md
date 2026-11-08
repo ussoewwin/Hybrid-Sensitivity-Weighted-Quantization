@@ -181,7 +181,7 @@ uses.
 | `int8_linear` calls per encode | **253** |
 | encode latency | 92.12 ms / image (batch 1) |
 
-**The INT8 GEMM is reached.** On the stock path the `int8_tensorwise` algorithm
+**The INT8 GEMM is reached.** On the ComfyUI path the `int8_tensorwise` algorithm
 is weight-only (`quantize_input: False`) and `int8_linear` is never called; the
 loader package's runtime arm
 (`ComfyUI-HSWQ-Loader-and-Tools/patches/clip_int8_gemm/arm.py`) routes the
@@ -294,7 +294,7 @@ not the 13 largest drifts - which is why the previous pack measured min
 ### 8.6 The measurement note
 
 The acceptance runs on the **same ops class** for the baseline and the pack.
-The stock `CLIPVisionLoader` builds the vision tower with
+The ComfyUI `CLIPVisionLoader` builds the vision tower with
 `comfy.ops.manual_cast` while a quantized pack is built with
 `mixed_precision_ops`, and for this model the two paths are not numerically
 equivalent - the same FP16 source through the two paths gives a cosine of

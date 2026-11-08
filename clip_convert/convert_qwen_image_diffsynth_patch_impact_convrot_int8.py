@@ -7,7 +7,7 @@ layers by the patch's own output change are kept in FP16, the rest goes to
 ConvRot INT8.
 
 This is a **model patch** (key `controlnet_blocks.0.y_rms.weight`), loaded with
-`HSWQModelPatchLoader` into `QwenImageBlockWiseControlNet`. ComfyUI's stock
+`HSWQModelPatchLoader` into `QwenImageBlockWiseControlNet`. ComfyUI's own
 `ModelPatchLoader` does not recognise the INT8 layout.
 
 The source checkpoint is already in the runtime layout, and unlike the Z-Image

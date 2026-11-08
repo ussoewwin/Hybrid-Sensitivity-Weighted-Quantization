@@ -262,7 +262,7 @@ wired the same way as the Krea2 bench (`comfy.ldm.modules.attention`
 
 | arm | INT8 it/s | cos mean | attention calls |
 |---|---|---|---|
-| stock SDPA | **2.99** | 0.95867 | 0 (not patched) |
+| ComfyUI SDPA | **2.99** | 0.95867 | 0 (not patched) |
 | sage2, instrumented wrapper (sync per call) | 2.26 | 0.95716 | 21420 (all dim64, 0 fallback) |
 | sage2, clean wrapper (no sync/stats) | 0.38 | 0.95716 | 21420 (all dim64, 0 fallback) |
 

@@ -1,11 +1,11 @@
 """ComfyUI node: HSWQ Model Patch loader with native ConvRot INT8 support.
 
-Stock ``comfy_extras.nodes_model_patch.ModelPatchLoader`` builds every model
+ComfyUI ``comfy_extras.nodes_model_patch.ModelPatchLoader`` builds every model
 patch with ``comfy.ops.manual_cast`` Linears, so a ConvRot INT8 checkpoint
 (``<layer>.weight`` int8 + ``weight_scale`` + ``comfy_quant``) would load the
 raw INT8 tensor as a plain Parameter and produce garbage / crash at forward.
 
-This node mirrors the stock loader dispatch but selects quant-aware
+This node mirrors the ComfyUI loader dispatch but selects quant-aware
 operations (``mixed_precision_ops`` with the ``int8_tensorwise`` algorithm)
 whenever the checkpoint carries ``int8_tensorwise`` ``comfy_quant`` layers.
 MixedPrecisionOps.Linear's ``_load_from_state_dict`` consumes the
@@ -15,10 +15,10 @@ forward uses the comfy-kitchen ``int8_linear`` kernel with online ConvRot
 activation rotation. This is the same native INT8 path ComfyUI uses for
 UNet / CLIP / ControlNet.
 
-For non-quantized checkpoints the node delegates to the stock
+For non-quantized checkpoints the node delegates to the baseline
 ``ModelPatchLoader``, so behavior is identical for regular model patches.
 The returned object is a normal ``MODEL_PATCH`` (CoreModelPatcher); use it
-with the stock apply nodes (``ZImageFunControlnet`` etc.).
+with the baseline apply nodes (``ZImageFunControlnet`` etc.).
 """
 from __future__ import annotations
 
@@ -70,11 +70,11 @@ def _int8_mixed_precision_ops():
 
 
 def _load_quantized_model_patch(sd, metadata, name):
-    """Mirror of the stock ModelPatchLoader dispatch with quant-aware ops.
+    """Mirror of the ComfyUI ModelPatchLoader dispatch with quant-aware ops.
 
     The sd passed in still carries the on-disk (pre-``z_image_convert``) keys
     for Z-Image Fun ControlNets; ``z_image_convert`` is applied inside the
-    branch exactly like the stock loader. ConvRot INT8 checkpoints are saved
+    branch exactly like the ComfyUI loader. ConvRot INT8 checkpoints are saved
     in the post-conversion layout (``attention.qkv`` already merged), so
     ``z_image_convert`` is a no-op for them and the ``comfy_quant`` stamps
     survive untouched.
@@ -249,7 +249,7 @@ class HSWQModelPatchLoader:
 
     def load_model_patch(self, name):
         import folder_paths
-        from comfy_extras.nodes_model_patch import ModelPatchLoader as StockModelPatchLoader
+        from comfy_extras.nodes_model_patch import ModelPatchLoader as ComfyUIModelPatchLoader
 
         model_patch_path = folder_paths.get_full_path_or_raise(_MP_DIR, name)
         sd, metadata = comfy.utils.load_torch_file(
@@ -258,10 +258,10 @@ class HSWQModelPatchLoader:
 
         if not _has_int8_comfy_quant(sd):
             logger.info(
-                "[HSWQ ModelPatch] No INT8 ComfyQuant layers in %s, delegating to stock ModelPatchLoader",
+                "[HSWQ ModelPatch] No INT8 ComfyQuant layers in %s, delegating to the ComfyUI ModelPatchLoader",
                 name,
             )
-            return StockModelPatchLoader().load_model_patch(name)
+            return ComfyUIModelPatchLoader().load_model_patch(name)
 
         return (_load_quantized_model_patch(sd, metadata, name),)
 

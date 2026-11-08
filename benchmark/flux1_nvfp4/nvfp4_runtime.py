@@ -1,6 +1,6 @@
 """Pooled NVFP4 act quantize + true FP4 Tensor-Core GEMM.
 
-Stock ``ck.quantize_nvfp4`` allocates fresh tensors on every Linear call.
+ComfyUI ``ck.quantize_nvfp4`` allocates fresh tensors on every Linear call.
 Act quant buffers are pooled by shape to cut allocation overhead.
 
 GEMM is the raw cuBLAS blockwise FP4 primitive (kitchen ``_C`` extension,
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # HSWQ_NVFP4_ACT_AMAX_FREEZE=1: legacy first-forward amax freeze (speed debug
 # only). Default is per-call amax — no-calib checkpoints (all convrot layers
 # missing .input_scale) depend on it: step-0 sigma=1.0 noise amax mis-scales
-# every later step and cost ~0.05 SSIM on Krea2 (0.88 frozen vs 0.93 stock).
+# every later step and cost ~0.05 SSIM on Krea2 (0.88 frozen vs 0.93 ComfyUI).
 _ACT_AMAX_FREEZE = os.environ.get("HSWQ_NVFP4_ACT_AMAX_FREEZE", "").lower() in (
     "1",
     "true",
@@ -566,7 +566,7 @@ def ensure_act_scale_amax(x):
 def ensure_act_scale_cached(module, x, scale):
     """Act scale when checkpoint omits input_scale (placeholder ones).
 
-    Default: **per-call amax** (matches stock kitchen NVFP4; converter expects
+    Default: **per-call amax** (matches ComfyUI kitchen NVFP4; converter expects
     "runtime amax" for no-calib layers). ``HSWQ_NVFP4_ACT_AMAX_FREEZE=1``
     restores the legacy first-forward freeze — cheaper on 18k-Linear/sample
     models but mis-scales Krea2 steps (sigma drift vs frozen step-0 noise amax).

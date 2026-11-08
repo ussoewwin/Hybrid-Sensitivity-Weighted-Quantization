@@ -46,11 +46,11 @@ Threshold sensitivity:
 
 ---
 
-## 2. Root cause of the "broken pack" (measured, stock CLIPLoader, no fix)
+## 2. Root cause of the "broken pack" (measured, ComfyUI CLIPLoader, no fix)
 
 ```
 FP16 via node path -> finite True
-PACK via node path (stock) -> finite=True cos=0.027794 relMSE=1.9381e+00 maxabs=33.40933
+PACK via node path (ComfyUI) -> finite=True cos=0.027794 relMSE=1.9381e+00 maxabs=33.40933
 Linear total: 146  with QuantizedTensor: 0
 ```
 

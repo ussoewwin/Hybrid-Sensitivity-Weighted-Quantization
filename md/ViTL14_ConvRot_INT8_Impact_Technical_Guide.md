@@ -28,7 +28,7 @@ is laid out, how it loads, and the measured fidelity / size of the result.
 | `vision_model.*` | 145 | `CLIPVisionLoader` → `ClipVisionModel` | **always `manual_cast`** (hard-coded in `ClipVisionModel.__init__`) |
 
 This asymmetry is the single most important fact in this document. `comfy_quant`
-is consumed by `mixed_precision_ops`, so a pack loaded through the stock
+is consumed by `mixed_precision_ops`, so a pack loaded through the ComfyUI
 `CLIPVisionLoader` keeps its quantized tensors as **int8 storage** and the
 forward crashes or silently produces garbage. The vision tower has to be
 constructed with `mixed_precision_ops` for the pack to work (section 5.2).
@@ -203,7 +203,7 @@ directly.)
 
 ### 5.2 Vision tower (needs `mixed_precision_ops`)
 
-The stock `CLIPVisionLoader` uses `manual_cast` and will **not** quantize.
+The ComfyUI `CLIPVisionLoader` uses `manual_cast` and will **not** quantize.
 Construct the tower with `mixed_precision_ops`:
 
 ```python

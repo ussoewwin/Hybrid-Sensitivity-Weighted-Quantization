@@ -290,7 +290,7 @@ reason is the layer set that carries the output.
 ### 8.5 The measurement note
 
 The acceptance runs on the **same ops class** for the baseline and the pack,
-because the stock CLIP path (`comfy.ops.manual_cast`) and the
+because the ComfyUI CLIP path (`comfy.ops.manual_cast`) and the
 `mixed_precision_ops` path are not numerically equivalent for this model. The
 **arm** is active: the loader package's `patches/clip_int8_gemm` makes the
 real `int8_linear` fire (15872 calls over the 256-item set), instead of

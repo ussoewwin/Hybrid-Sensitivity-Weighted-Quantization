@@ -11,7 +11,7 @@ applied to SDXL checkpoints:
 
 Model loading is ComfyUI-native (``comfy.sd.load_checkpoint_guess_config``). W4A8-pack
 Conv2d load scope is armed only when the checkpoint looks like a ConvRot W4A8
-comfy_quant pack, so the FP16 baseline always loads stock.
+comfy_quant pack, so the FP16 baseline always loads baseline.
 
 The pack's ConvRot INT8-fallback patches come from
 ``benchmark/sdxl convrot w4a8/comfy_quant_w4a8.py`` (vendored; loaded by
@@ -27,8 +27,8 @@ Usage:
         [--sampler dpmpp_2m] [--scheduler karras] [--attention sdpa|sage2]
 
 ``--attention sage2`` arms SageAttention2 (INT8 QK + FP8 PV, sm120 auto path) for
-the W4A8 branch ONLY; the FP16 baseline always stays on stock attention. Default
-``sdpa`` leaves both branches on stock attention.
+the W4A8 branch ONLY; the FP16 baseline always stays on ComfyUI attention. Default
+``sdpa`` leaves both branches on ComfyUI attention.
 """
 import argparse
 import os
@@ -336,7 +336,7 @@ def apply_w4a8_patches() -> None:
 def _load_checkpoint(path: str):
     """Load an SDXL checkpoint ComfyUI-natively; arm W4A8-pack Conv2d load scope
     only when the file looks like a ConvRot W4A8 comfy_quant pack (FP16 baseline
-    loads stock)."""
+    loads baseline)."""
     import comfy.sd
 
     _cq = _load_w4a8_patch_module()
@@ -436,7 +436,7 @@ def unset_sage2_attention() -> None:
     import comfy.ldm.modules.attention as comfy_attention
 
     importlib.reload(comfy_attention)
-    print("  [SAGE2] attention override restored to stock", flush=True)
+    print("  [SAGE2] attention override restored to ComfyUI", flush=True)
 
 
 def print_sage2_attn_stats() -> None:
@@ -519,7 +519,7 @@ def parse_args():
     ap.add_argument("--attention", choices=["sdpa", "sage2"], default="sdpa",
                     help="sage2: patch the W4A8 branch attention to SageAttention2 "
                          "(INT8 QK + FP8 PV, sm120 auto path). FP16 baseline stays "
-                         "on stock attention. sdpa (default): no attention patch.")
+                         "on ComfyUI attention. sdpa (default): no attention patch.")
     ap.add_argument("--show-steps", action="store_true",
                     help="print the per-step divergence curve (default: only final per seed)")
     return ap.parse_args()
@@ -547,7 +547,7 @@ def main() -> int:
     times_w4a8 = []
     saved_argv = _clear_argv_for_comfy()
     try:
-        # --- FP16 baseline (stock ops; W4A8 patches only arm pack tensors) ---
+        # --- FP16 baseline (ComfyUI ops; W4A8 patches only arm pack tensors) ---
         print("[FP16] loading checkpoint...")
         fp16, clip, vae = _load_checkpoint(args.fp16)
         latent = {"samples": torch.zeros(

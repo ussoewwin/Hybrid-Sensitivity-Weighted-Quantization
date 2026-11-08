@@ -144,7 +144,7 @@ The workflow consists of five specialized, parallel quantization branches:
    - **Monitor:** `Show Text` (Custom-Scripts) connected to `report` to display file size and layer breakdown.
 
 3. **Model Patch (Model Patcher) Branch:**
-   - **Loader:** `Load Model Patch` (`ModelPatchLoaderCustom` / stock `ModelPatchLoader`).
+   - **Loader:** `Load Model Patch` (`ModelPatchLoaderCustom` / ComfyUI `ModelPatchLoader`).
    - **Quantizer:** `TE / ControlNet ConvRot INT8 Quantize` (connected via the `model_patch` input terminal).
    - **Monitor:** `Show Text` (Custom-Scripts) connected to `report`.
 
@@ -177,7 +177,7 @@ SAM 3 and SAM 3.1 have distinct internal network topologies and key layouts. The
 
 > [!IMPORTANT]
 > **Key Reason for Separate Loaders:**
-> - **SAM 3.1 (`sam3.1_multiplex_fp16.safetensors`)** is distributed in standard ComfyUI diffusion format and should be loaded via the stock **`UNetLoader`**.
+> - **SAM 3.1 (`sam3.1_multiplex_fp16.safetensors`)** is distributed in standard ComfyUI diffusion format and should be loaded via the ComfyUI **`UNetLoader`**.
 > - **SAM 3 (`sam3.pt`)** contains raw checkpoint keys with an incompatible $(1024 \times 512)$ text projection and fused `in_proj` weights. The **`HSWQ SAM3 Loader (sam3.pt)`** node performs automatic key cleaning and structural reshaping so that the resulting `MODEL` is immediately quantizable and loadable.
 
 ---
@@ -321,14 +321,14 @@ Use the **`HSWQ Load ControlNet (Simple)`** node to load the generated `.safeten
 ### Model Patch (model patcher) Models
 Some files that are named "ControlNet" are in fact **model patches**. They live
 in `ComfyUI/models/model_patches/` and are applied by dedicated apply nodes, not
-by `Apply ControlNet`. **ComfyUI's stock `ModelPatchLoader` does not recognise
+by `Apply ControlNet`. **ComfyUI's own `ModelPatchLoader` does not recognise
 the INT8 layout** - it builds the patch with `manual_cast`, which reads the
 pack's INT8 tensors as plain weights. Use the **`HSWQ Model Patch Loader`**
 (`HSWQModelPatchLoaderCustom`, `nodes/hswq_model_patch_loader.py`): it detects
 the `int8_tensorwise` `comfy_quant` layers and builds the patch with
 `mixed_precision_ops`, so weights stay INT8 in VRAM and the forward uses the
 comfy-kitchen `int8_linear` kernel. For non-quantized checkpoints it delegates to
-the stock path.
+the ComfyUI path.
 
 Two architectures are dispatched this way:
 
@@ -407,7 +407,7 @@ for this reason.
 Conversely, when the criterion is the model **patch's** own output, the gate is
 that same output, measured through the **loader the runtime uses** - not a
 hand-built module graph. For the Qwen-Image diffsynth patches that means
-driving `HSWQModelPatchLoaderCustom.load_model_patch`, and it matters: the stock
+driving `HSWQModelPatchLoaderCustom.load_model_patch`, and it matters: the ComfyUI
 `ModelPatchLoader` would read the INT8 tensors as plain weights and the pack
 would look like FP16. Two harnesses exist for this and both must agree
 (`clip_convert/verify_qwen_image_diffsynth_patch.py` builds the graph directly;

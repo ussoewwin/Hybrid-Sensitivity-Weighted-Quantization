@@ -18,8 +18,8 @@ proves the bake actually requantizes the W4A8 tensors:
                      (informational final-cos, not a gate)
 
 Covers all three pack layer classes explicitly:
-  asym_w4a8_int8  (W4A8 Linear)           -> stock set_weight requant
-  int8_tensorwise (shape-critical INT8)   -> stock set_weight requant
+  asym_w4a8_int8  (W4A8 Linear)           -> ComfyUI set_weight requant
+  int8_tensorwise (shape-critical INT8)   -> ComfyUI set_weight requant
   float16 (Conv2d fallback / plain lin)   -> float diff (control)
 
 Patch stack + ComfyUI bootstrap reused from benchmark/sdxl_w4a8_traj_compare.py

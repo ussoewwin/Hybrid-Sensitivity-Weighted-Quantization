@@ -31,7 +31,7 @@ fails. img_in stays a shape-preserving per-channel INT8 pack
 SDXL treatment of label_emb.0.0 / attn2.to_k. txt_in (K=3584) is NOT read for
 shape detection and goes W4A8.
 
-ComfyUI loads this pack 100% stock (no HSWQ patches):
+ComfyUI loads this pack 100% ComfyUI (no HSWQ patches):
   any .comfy_quant key -> comfy.utils.detect_layer_quantization -> quant_config
   {"mixed_ops": True} -> comfy.ops.pick_operations -> mixed_precision_ops
   asym_w4a8_int8 is in comfy.ops._GROUPED_INT8_FORMATS (bits=4): weight_s_rel
@@ -43,9 +43,9 @@ No Card 1 bias correction in this converter: Qwen Image's text encoder is a
 multi-GB Qwen2.5-VL that must be loaded to produce real calib contexts; the
 16 GB local GPU cannot hold it alongside the 38 GB BF16 DiT. Rather than ship
 an untested calib path, BC is intentionally absent (W4A8 bias stays untouched;
-kitchen dequant is basis-exact so the stock bias is already consistent).
+kitchen dequant is basis-exact so the ComfyUI bias is already consistent).
 
-No post-convert bench: W4A8 packs load stock; wire
+No post-convert bench: W4A8 packs load ComfyUI; wire
 benchmark/qwen_image_edit_traj_compare.py separately when ordered.
 
 Requires comfy_kitchen in the running interpreter (ComfyUI python_embeded).

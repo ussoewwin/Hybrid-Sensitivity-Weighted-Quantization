@@ -8,7 +8,7 @@ replace ONE layer by its ConvRot INT8 reconstruction in the ORIGINAL frame
 (`dequant(INT8(W @ H^T))` = `(q*s) @ H`), hold every other layer, and rank by
 the change in the patch's own output. Drift is only a screen.
 
-This file is a **model patch**, not a ControlNet. ComfyUI's stock
+This file is a **model patch**, not a ControlNet. ComfyUI's own
 `ModelPatchLoader` does NOT recognise the INT8 layout, so the pack is loaded
 through the HSWQ loader (`HSWQModelPatchLoader`) which builds the patch with
 `mixed_precision_ops`. Both dispatch on `controlnet_blocks.0.y_rms.weight` into

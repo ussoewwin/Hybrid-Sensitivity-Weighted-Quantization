@@ -60,8 +60,8 @@ it: the embedding is a 2D matrix, and this pack quantises it.
 
 ## 4. Load path - what a loader actually applies
 
-The stock routes were measured on 2026-10-28/29 (details in this card's loading note and in
-`records/clip_l_card_claim.json` -> `pack_stock_with_node`, `records/clip_l_load_messages.json` -> `pack`): on the single
+The ComfyUI routes were measured on 2026-10-28/29 (details in this card's loading note and in
+`records/clip_l_card_claim.json` -> `pack_with_node`, `records/clip_l_load_messages.json` -> `pack`): on the single
 `CLIPLoader` route the conditioning cosine against the source falls to 0.076368, and on the
 `DualCLIPLoader` route the pack is not applied either - every declared text layer holds raw int8
 codes, 0 INT8 kernel calls. No conditional probe can be meaningful on a route where the pack's
@@ -91,7 +91,7 @@ For the pack (`c888133e…`):
   agreeing to 2.4e-7;
 - the token embedding is quantised in this pack, and reproduces the source embedding to 1.3e-7.
 
-What this does not establish: behaviour on a route that applies this pack's INT8. On the stock
+What this does not establish: behaviour on a route that applies this pack's INT8. On the ComfyUI
 routes measured so far the pack's INT8 is not applied at all, and the conditioning in that state is
 uncorrelated with the source - that is a usability finding recorded in the card, not a backdoor
 finding.
@@ -114,7 +114,7 @@ detection floor, not a claim of exactness.
 the fp16 rounding. A poison already inside that release is out of reach; what is established is
 that the pack introduces nothing beyond the declared quantisation.
 
-**Behavioural limit.** No conditional probe was run, because on every stock route measured the
+**Behavioural limit.** No conditional probe was run, because on every ComfyUI route measured the
 pack's INT8 is not applied and the conditioning in that state is already recorded as uncorrelated
 (cosine 0.076368). A route that does apply this pack's INT8 would need its own output-level and
 probe measurements before any behavioural statement.

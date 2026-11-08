@@ -3,7 +3,7 @@
 
 This is the path ComfyUI actually uses: `HSWQModelPatchLoaderCustom
 .load_model_patch(name, cpu_offload)` - the node, not a hand-built graph. The
-stock `ModelPatchLoader` cannot read the INT8 layout, so this node is the only
+ComfyUI `ModelPatchLoader` cannot read the INT8 layout, so this node is the only
 route for the pack.
 
 The gate is the patch's OWN output (the same instrument the protection set was
@@ -12,7 +12,7 @@ chosen with).
 `load_model_patch` returns a `ModelPatcher`; the underlying module is
 `patcher.model`. The baseline is the SOURCE checkpoint through the SAME loader
 (so both sides go through `mixed_precision_ops`, which is what makes them
-comparable - the stock path's `manual_cast` is not equivalent).
+comparable - the ComfyUI path's `manual_cast` is not equivalent).
 
 **Memory note.** One item's output is 60 blocks x 3145728 elements; in float64
 (which the measurement needs - the residuals run to ~3e5 and float32 rounds

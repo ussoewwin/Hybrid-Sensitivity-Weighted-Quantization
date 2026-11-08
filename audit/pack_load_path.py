@@ -377,7 +377,7 @@ def main():
                     torch.bfloat16, full_precision_mm=False, disabled=[])
                 loaded = comfy.sd.load_diffusion_model_state_dict(
                     sd, model_options={"custom_operations": ops})
-                out["route_impl"] = "stock load_diffusion_model_state_dict + int8 ops"
+                out["route_impl"] = "ComfyUI load_diffusion_model_state_dict + int8 ops"
             net = getattr(loaded, "model", loaded)
             out.update(classify(getattr(net, "diffusion_model", net), pack, qm))
 

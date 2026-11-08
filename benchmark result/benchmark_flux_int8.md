@@ -58,4 +58,4 @@ Lower MSE is better; higher SSIM is better (1.0 = perfect match).
 - **Pixel MSE / SSIM**: decoded with Ultra-flux1 VAE (grayscale SSIM).
 - Updated from the 5-seed run (SSIM mean 0.886) to the 20-seed run (0.922). Only seeds 137 (0.79), 92048 (0.75) and 5293047 (0.77) are poor; most seeds are above 0.93.
 - This environment decodes INT8 to BF16 at ComfyUI load time, so VRAM saving is only 8.9% (a true INT8-kept runtime should roughly halve it).
-- CLIP uses flan_t5_xxl (non-stock t5xxl). It does not affect fp16/int8 comparison fairness, but absolute quality / prompt understanding may differ from the stock t5xxl.
+- CLIP uses flan_t5_xxl (non-ComfyUI t5xxl). It does not affect fp16/int8 comparison fairness, but absolute quality / prompt understanding may differ from the ComfyUI t5xxl.

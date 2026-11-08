@@ -71,7 +71,7 @@ language model's hidden state:
 | k=150 | 210 | 150 | 0.999496 | 0.997813 | 0.998918 | 12650.0 MB |
 
 (The previous pack and k=0 are the same layer set; their scores differ because
-the previous pack's acceptance was measured against a stock-`manual_cast`
+the previous pack's acceptance was measured against a ComfyUI-`manual_cast`
 baseline, while these rows are measured on the same ops path on both sides.)
 
 **40 FP16-kept layers were adopted.** k=40 is the quality plateau: going to

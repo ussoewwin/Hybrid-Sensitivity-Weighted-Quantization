@@ -452,12 +452,12 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         return None
 
 
-def make_nvfp4_linear_forward(stock_forward):
+def make_nvfp4_linear_forward(ComfyUI_forward):
     """
     Return a Linear.forward replacement.
 
     For modules flagged ``_hswq_nvfp4`` (set at load), run the HSWQ TC path.
-    All other layers keep stock_forward unchanged.
+    All other layers keep ComfyUI_forward unchanged.
     """
     import torch
     import comfy.model_management
@@ -465,13 +465,13 @@ def make_nvfp4_linear_forward(stock_forward):
 
     def forward_nvfp4(self, input, *args, **kwargs):
         if not getattr(self, "_hswq_nvfp4", False) or getattr(self, "_full_precision_mm", False):
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
 
-        # Training / forced cast: fall back to stock
+        # Training / forced cast: fall back to ComfyUI
         if input.requires_grad or getattr(self, "comfy_force_cast_weights", False):
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
         # LoRA weight_function: stay on HSWQ path (act ConvRot + cast_bias_weight
-        # with want_requant). Stock forward would skip act rotate → ConvRot break.
+        # with want_requant). ComfyUI forward would skip act rotate → ConvRot break.
 
         run_every_op()
         input_shape = input.shape
@@ -481,7 +481,7 @@ def make_nvfp4_linear_forward(stock_forward):
         reshaped_nd = input.ndim >= 3
         input_2d = input.reshape(-1, input_shape[-1]) if reshaped_nd else input
         if input_2d.ndim != 2:
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
 
         # 2) FULL ConvRot: dense Hadamard GEMM (gs=256 butterfly is ~15x slower)
         if getattr(self, "_hswq_nvfp4_convrot", False):
@@ -526,14 +526,14 @@ def make_nvfp4_linear_forward(stock_forward):
         if layout is None:
             if offload_stream is not None:
                 uncast_bias_weight(self, weight, bias, offload_stream)
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
 
         # 4) Pooled Tensor Core path (no QuantizedTensor.from_float alloc)
         out_2d = _tc_forward_pooled(
             self, input_2d, weight, bias, scale, compute_dtype
         )
         if out_2d is None:
-            # Fallback: stock QT path
+            # Fallback: ComfyUI QT path
             from comfy.quant_ops import QuantizedTensor
 
             q_input = QuantizedTensor.from_float(input_2d, layout, scale=scale)
@@ -553,11 +553,11 @@ def make_nvfp4_linear_forward(stock_forward):
     return forward_nvfp4
 
 
-def make_nvfp4_linear_convert_weight(stock_convert_weight):
+def make_nvfp4_linear_convert_weight(ComfyUI_convert_weight):
     """Wrap Linear.convert_weight: dequant then unrotate ConvRot weights for LoRA bake.
 
     Handles ConvRot NVFP4 **and** ConvRot INT8 protect (hybrid Z Image packs).
-    Clear INT8 Params.convrot **before** stock dequant — kitchen already
+    Clear INT8 Params.convrot **before** ComfyUI dequant — kitchen already
     unrotates when Params.convrot=True (would double-unrotate with bake).
     """
     import torch
@@ -566,8 +566,8 @@ def make_nvfp4_linear_convert_weight(stock_convert_weight):
     def convert_weight(self, weight, inplace=False, **kwargs):
         # Arm / clear Params before dequant (Conv2d twin).
         gs = _linear_convrot_lora_groupsize(self)
-        if callable(stock_convert_weight):
-            out = stock_convert_weight(self, weight, inplace=inplace, **kwargs)
+        if callable(ComfyUI_convert_weight):
+            out = ComfyUI_convert_weight(self, weight, inplace=inplace, **kwargs)
         elif isinstance(weight, QuantizedTensor):
             out = weight.dequantize()
         else:
@@ -595,11 +595,11 @@ def make_nvfp4_linear_convert_weight(stock_convert_weight):
         return out
 
     convert_weight._hswq_nvfp4_lora_bake_ver = _NVFP4_LORA_BAKE_VER  # type: ignore[attr-defined]
-    convert_weight._hswq_nvfp4_lora_bake_stock = stock_convert_weight  # type: ignore[attr-defined]
+    convert_weight._hswq_nvfp4_lora_bake_ComfyUI = ComfyUI_convert_weight  # type: ignore[attr-defined]
     return convert_weight
 
 
-def make_nvfp4_linear_set_weight(stock_set_weight):
+def make_nvfp4_linear_set_weight(ComfyUI_set_weight):
     """Wrap Linear.set_weight: re-rotate ConvRot float weights before requant.
 
     Handles ConvRot NVFP4 **and** ConvRot INT8 protect (hybrid Z Image packs).
@@ -633,7 +633,7 @@ def make_nvfp4_linear_set_weight(stock_set_weight):
                     tuple(weight.shape) if hasattr(weight, "shape") else "?",
                     getattr(self, "layout_type", None),
                 )
-        out = stock_set_weight(
+        out = ComfyUI_set_weight(
             self,
             weight,
             inplace_update=inplace_update,
@@ -647,16 +647,16 @@ def make_nvfp4_linear_set_weight(stock_set_weight):
         return out
 
     set_weight._hswq_nvfp4_lora_bake_ver = _NVFP4_LORA_BAKE_VER  # type: ignore[attr-defined]
-    set_weight._hswq_nvfp4_lora_bake_stock = stock_set_weight  # type: ignore[attr-defined]
+    set_weight._hswq_nvfp4_lora_bake_ComfyUI = ComfyUI_set_weight  # type: ignore[attr-defined]
     return set_weight
 
 
 def _peel_lora_bake_wrap(fn):
-    """Unwrap nested HSWQ convert/set wraps to true stock.
+    """Unwrap nested HSWQ convert/set wraps to true ComfyUI.
 
     After #2 split, ``nodes/nvfp4`` (3.3.0) may attach VER=1 first; ZI must not
-    wrap that as stock (double unrotate / re-rotate → dead LoRA). Same as
-    3.3.4 single-module attach: one hybrid wrap over stock only.
+    wrap that as ComfyUI (double unrotate / re-rotate → dead LoRA). Same as
+    3.3.4 single-module attach: one hybrid wrap over ComfyUI only.
     """
     cur = fn
     for _ in range(8):
@@ -664,9 +664,9 @@ def _peel_lora_bake_wrap(fn):
             return cur
         if int(getattr(cur, "_hswq_nvfp4_lora_bake_ver", 0) or 0) <= 0:
             return cur
-        stock = getattr(cur, "_hswq_nvfp4_lora_bake_stock", None)
-        if stock is not None and stock is not cur:
-            cur = stock
+        ComfyUI = getattr(cur, "_hswq_nvfp4_lora_bake_ComfyUI", None)
+        if ComfyUI is not None and ComfyUI is not cur:
+            cur = ComfyUI
             continue
         closure = getattr(cur, "__closure__", None)
         code = getattr(cur, "__code__", None)
@@ -675,7 +675,7 @@ def _peel_lora_bake_wrap(fn):
         names = code.co_freevars
         nxt = None
         for i, name in enumerate(names):
-            if name in ("stock_convert_weight", "stock_set_weight"):
+            if name in ("ComfyUI_convert_weight", "ComfyUI_set_weight"):
                 nxt = closure[i].cell_contents
                 break
         if nxt is None or nxt is cur:
@@ -695,14 +695,14 @@ def attach_nvfp4_linear_lora_bake(Lin) -> bool:
     if callable(cvt):
         ver = int(getattr(cvt, "_hswq_nvfp4_lora_bake_ver", 0) or 0)
         if ver != _NVFP4_LORA_BAKE_VER:
-            stock = _peel_lora_bake_wrap(cvt) if ver > 0 else cvt
-            Lin.convert_weight = make_nvfp4_linear_convert_weight(stock)
+            ComfyUI = _peel_lora_bake_wrap(cvt) if ver > 0 else cvt
+            Lin.convert_weight = make_nvfp4_linear_convert_weight(ComfyUI)
             applied = True
     sw = getattr(Lin, "set_weight", None)
     if callable(sw):
         ver = int(getattr(sw, "_hswq_nvfp4_lora_bake_ver", 0) or 0)
         if ver != _NVFP4_LORA_BAKE_VER:
-            stock = _peel_lora_bake_wrap(sw) if ver > 0 else sw
-            Lin.set_weight = make_nvfp4_linear_set_weight(stock)
+            ComfyUI = _peel_lora_bake_wrap(sw) if ver > 0 else sw
+            Lin.set_weight = make_nvfp4_linear_set_weight(ComfyUI)
             applied = True
     return applied

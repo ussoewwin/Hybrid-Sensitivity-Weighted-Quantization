@@ -34,7 +34,7 @@ Z-Image branch, and the call returns `None` with
 
 | step | what happens |
 | :--- | :--- |
-| the loader | `HSWQModelPatchLoaderCustom` (or the stock `ModelPatchLoader`) |
+| the loader | `HSWQModelPatchLoaderCustom` (or ComfyUI's own `ModelPatchLoader`) |
 | the dispatch | `control_all_x_embedder.2-1.weight` present → the Z-Image branch |
 | the key conversion | `z_image_convert` fuses `attention.{to_q,to_k,to_v}` into `attention.qkv` and renames `attention.to_out.0` → `attention.out` |
 | the config | `n_control_layers` counted from the keys (3), `additional_in_dim=17`, `refiner_control=True`, `control_in_dim` inferred from the embedder width |

@@ -2,10 +2,10 @@
 """
 Krea2 Pure ComfyUI-Master NVFP4 Benchmark
 ==========================================
-Compare BF16/FP16 Krea2 DiT vs ComfyUI-Master stock NVFP4 (no HSWQ patches).
+Compare BF16/FP16 Krea2 DiT vs ComfyUI-Master baseline NVFP4 (no HSWQ patches).
 
 No krea2_nvfp4, no int8, no ConvRot parity, no addmm patch, no HSWQ TC forward.
-Pure ComfyUI-Master stock load + stock MixedPrecision Linear.forward only.
+Pure ComfyUI-Master baseline load + baseline MixedPrecision Linear.forward only.
 
 Example:
   python krea2_native_nvfp4_bench.py \\
@@ -343,10 +343,10 @@ def _hard_free_vram() -> None:
 
 
 def _load_diffusion_model(unet_path: str):
-    """Load DiT via ComfyUI-Master stock loader (no HSWQ patches)."""
+    """Load DiT via ComfyUI-Master the ComfyUI loader (no HSWQ patches)."""
     import comfy.sd
 
-    print(f"  [BENCH] Loading via comfy.sd.load_diffusion_model (stock, no patches)")
+    print(f"  [BENCH] Loading via comfy.sd.load_diffusion_model (baseline, no patches)")
     return comfy.sd.load_diffusion_model(unet_path, {})
 
 
@@ -359,19 +359,19 @@ def _load_vae(vae_path: str):
     return comfy.sd.VAE(sd=sd)
 
 
-def _diag_stock_modules(model, label: str) -> None:
-    """Print stock module diagnostics (no HSWQ flags)."""
+def _diag_ComfyUI_modules(model, label: str) -> None:
+    """Print baseline module diagnostics (no HSWQ flags)."""
     n_total_linear = 0
     n_quantized = 0
     for name, m in model.model.diffusion_model.named_modules():
         if isinstance(m, torch.nn.Linear) or hasattr(m, "out_features"):
             n_total_linear += 1
-            # Stock ComfyUI quantized Linear has layout_type attribute
+            # ComfyUI's own quantized Linear has layout_type attribute
             if getattr(m, "layout_type", None) is not None:
                 n_quantized += 1
     print(
         f"  [{label} module diag] total_linears={n_total_linear} "
-        f"stock_quantized={n_quantized}"
+        f"ComfyUI_quantized={n_quantized}"
     )
 
 
@@ -396,7 +396,7 @@ def run_branch(
     diag = _diag_model_sampling(model, label)
     print(f"  latent shape: {latent['samples'].shape}")
 
-    _diag_stock_modules(model, label)
+    _diag_ComfyUI_modules(model, label)
 
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
@@ -468,14 +468,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Krea2 Pure ComfyUI-Master NVFP4 Benchmark "
-            "(no HSWQ patches, stock load + stock forward)"
+            "(no HSWQ patches, baseline load + ComfyUI forward)"
         )
     )
     parser.add_argument("--fp16", required=True, help="BF16/FP16 Krea2 DiT safetensors")
     parser.add_argument(
         "--nvfp4",
         required=True,
-        help="NVFP4 Krea2 DiT safetensors (ComfyUI-Master stock pack)",
+        help="NVFP4 Krea2 DiT safetensors (ComfyUI-Master the ComfyUI pack)",
     )
     parser.add_argument("--clip_path", required=True, help="Qwen3-VL-4B CLIP safetensors (Krea2)")
     parser.add_argument("--comfy_path", required=True, help="ComfyUI-master root")
@@ -550,7 +550,7 @@ def main() -> int:
         print(f"Seed: {args.seed}  Steps: {args.steps}  CFG: {args.cfg}")
         print(f"Size: {args.width}x{args.height}  sampler={args.sampler}/{args.scheduler}")
         print(f"Prompt: {args.prompt[:80]}...")
-        print(f"Mode: Pure ComfyUI-Master stock NVFP4 (no HSWQ patches)")
+        print(f"Mode: Pure ComfyUI-Master baseline NVFP4 (no HSWQ patches)")
         print("------------------------")
 
         # --- Branch 1: FP16/BF16 baseline ---
@@ -566,13 +566,13 @@ def main() -> int:
         img_fp16.save(p16)
         print(f"FP16 Time: {t16:.2f}s  peak={v16:.2f}GiB")
 
-        # --- Branch 2: NVFP4 (stock ComfyUI, no patches) ---
-        # No apply_quant_patches() — pure stock ComfyUI load + forward.
+        # --- Branch 2: NVFP4 (ComfyUI's own, no patches) ---
+        # No apply_quant_patches() — pure ComfyUI's own load + forward.
         # ComfyUI-Master detects comfy_quant nvfp4 and loads via
-        # _load_quantized_module → MixedPrecision Linear.forward (stock).
+        # _load_quantized_module → MixedPrecision Linear.forward (baseline).
 
         img_q, _lat_q, tq, vq, diag_q = run_branch(
-            label="2. NVFP4 (ComfyUI-Master stock, no patches)",
+            label="2. NVFP4 (ComfyUI-Master baseline, no patches)",
             unet_path=args.nvfp4,
             vae_path=vae_path,
             positive=positive,

@@ -48,7 +48,7 @@ Three choices are forced by the runtime, all measured here:
   output; a float32 dot product over 16,384 elements of a diffusion output
   accumulates rounding noise comparable to the signal (the smallest layer
   contribution measured here is 1.2e-08).
-- **The baseline must use the same ops class as the pack.** The stock path
+- **The baseline must use the same ops class as the pack.** The ComfyUI path
   builds with `manual_cast`; an INT8 pack builds with `mixed_precision_ops`.
   Both sides of every number below use `mixed_precision_ops`.
 - **The quant detection must see the checkpoint prefix.** `comfy.utils.

@@ -11,7 +11,7 @@ Same callback-based per-step latent trajectory capture as benchmark/zi_traj_comp
 
 Model loading is ComfyUI-native (``comfy.sd.load_checkpoint_guess_config``). INT8
 Conv2d load scope is armed only when the checkpoint
-looks like a comfy_quant INT8 pack, so the FP16 baseline always loads stock.
+looks like a comfy_quant INT8 pack, so the FP16 baseline always loads baseline.
 
 The ConvRot INT8 quantization kernels come from ``benchmark/sd1.5 int8/comfy_quant_int8.py``
 (vendored; spec-from-path because the folder name contains a space and a dot).
@@ -26,7 +26,7 @@ Usage:
         [--width 1024] [--height 1024] [--cfg 7.0] \
         [--sampler dpmpp_2m] [--scheduler karras]
 
-Attention is always the stock backend for BOTH branches - the same backend
+Attention is always the baseline backend for BOTH branches - the same backend
 production runs. (SageAttention2 does not exist in the SD1.5 family; it is an
 SDXL-family measurement feature.)
 """
@@ -331,7 +331,7 @@ def apply_int8_patches() -> None:
 
 def _load_checkpoint(path: str):
     """Load an SD1.5 checkpoint ComfyUI-natively; arm INT8 Conv2d load scope only
-    when the file looks like a comfy_quant INT8 pack (FP16 baseline loads stock)."""
+    when the file looks like a comfy_quant INT8 pack (FP16 baseline loads baseline)."""
     import comfy.sd
 
     _cq_int8 = _load_int8_patch_module()
@@ -447,7 +447,7 @@ def main() -> int:
     times_int8 = []
     saved_argv = _clear_argv_for_comfy()
     try:
-        # --- FP16 baseline (stock ops; INT8 patches only arm INT8 tensors) ---
+        # --- FP16 baseline (ComfyUI ops; INT8 patches only arm INT8 tensors) ---
         print("[FP16] loading checkpoint...")
         fp16, clip, vae = _load_checkpoint(args.fp16)
         latent = {"samples": torch.zeros(

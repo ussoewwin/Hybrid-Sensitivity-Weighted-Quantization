@@ -66,7 +66,7 @@ def _clear_zimage_parity_contamination_for_sdxl() -> None:
     bake hijacks SDXL → ``arm INT8 protect`` on SDXL NVFP4, ``nvfp4_baked=0``,
     salt-pepper. Later: ZI VER=8 ``[HSWQ ConvRot LoRA] int8_protect`` on SDXL
     INT8 → LoRA falls off on the 3rd prompt. Restore product TC (or peel to
-    stock) and uninstall ZI bake hooks.
+    ComfyUI) and uninstall ZI bake hooks.
     """
     try:
         from ..zimage_nvfp4.nvfp4_comfy_parity import (
@@ -104,7 +104,7 @@ def _clear_zimage_parity_contamination_for_sdxl() -> None:
         elif peeled:
             _console(
                 "[HSWQ NVFP4] peeled Z Image Linear LoRA bake (int8_protect) "
-                "off live Linear — SDXL INT8/stock safe"
+                "off live Linear — SDXL INT8/ComfyUI safe"
             )
     except Exception as e:
         logger.warning(
@@ -333,7 +333,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
             error_msgs,
             load_extra_params=load_extra_params,
         )
-        # Non-nvfp4 path: leave stock. (INT8 ConvRot etc. stay on stock/int8 patches.)
+        # Non-nvfp4 path: leave ComfyUI. (INT8 ConvRot etc. stay on ComfyUI/int8 patches.)
 
     def mixed_precision_ops_patched(*args, **kwargs):
         mp = _orig_mp(*args, **kwargs)

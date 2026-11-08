@@ -12,7 +12,7 @@ whose quantization barely moves the output can be quantized; a layer that moves
 it must stay FP16. The gain from keeping a layer is what the selection sorts on.
 
 The baseline is built with the SAME ops class the pack is loaded with
-(`mixed_precision_ops`), because stock `manual_cast` and `mixed_precision_ops`
+(`mixed_precision_ops`), because ComfyUI's own `manual_cast` and `mixed_precision_ops`
 are not numerically equivalent for this model.
 """
 import argparse

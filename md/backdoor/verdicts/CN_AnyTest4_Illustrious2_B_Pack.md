@@ -53,7 +53,7 @@ would mean the pack carries values the source does not produce.
 
 The card names the HSWQ ControlNet Loader node (`nodes/hswq_load_convrot_int8_controlnet.py`), which
 builds the graph with `MixedPrecisionOps` over `int8_tensorwise` so that the INT8 weights stay
-INT8. That node is the route measured here; the stock `ControlNetLoader` is a different route and its
+INT8. That node is the route measured here; ComfyUI's own `ControlNetLoader` is a different route and its
 behaviour is not evidence about this pack.
 
 | number | measured | record | bearing on the backdoor verdict |
@@ -109,6 +109,6 @@ behaviour is not evidence about this pack.
   declared and applied layer counts, layers with no module.
 - `records/cn_anytest4_illustrious2_B_int8_exec.json` - one forward on that route: INT8 GEMM call
   count, output tensors, finiteness.
-- `records/cn_anytest4_illustrious2_B_loadpath.json` - the stock `ControlNetLoader` route, kept for
+- `records/cn_anytest4_illustrious2_B_loadpath.json` - ComfyUI's own `ControlNetLoader` route, kept for
   completeness; it is not the route the card names and no verdict rests on it.
 - `records/controlnet_inputs_reverified_2026-11-06.json` - the SHA256 re-verification of every input.

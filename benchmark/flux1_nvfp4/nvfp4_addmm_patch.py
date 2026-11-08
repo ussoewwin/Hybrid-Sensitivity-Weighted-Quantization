@@ -4,7 +4,7 @@ comfy_kitchen registers addmm for INT8 / MXFP8 / FP8 / SVDQuant / ConvRotW4A4,
 but NOT for TensorCoreNVFP4Layout. PyTorch F.linear(bias=...) often decomposes
 to aten.addmm.default → unhandled → full dequantize of both operands.
 
-Stock MixedPrecision Linear can look "NVFP4 loaded" while peak VRAM exceeds
+ComfyUI MixedPrecision Linear can look "NVFP4 loaded" while peak VRAM exceeds
 FP16 if packed QT stays resident **and** dense float is also materialized
 (dual hold). HSWQ Linear forward bakes once and drops QT; this addmm handler
 covers residual QT×QT ``F.linear(bias=...)`` edges only.

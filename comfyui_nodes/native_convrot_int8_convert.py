@@ -16,7 +16,7 @@ standard ComfyUI loader reads back.
 
 The built-in benchmark supports a ``benchmark_attention`` selector (sdpa/sage2).
 ``sage2`` patches ONLY the quantized-model branch with SageAttention2
-(INT8 QK + FP8 PV, sm120 auto path); the FP16 baseline always stays on stock
+(INT8 QK + FP8 PV, sm120 auto path); the FP16 baseline always stays on baseline
 ComfyUI attention so the comparison remains apples-to-apples.
 
 Output layout:
@@ -546,11 +546,11 @@ def _apply_bench_sage2_attention() -> None:
     """Arm SageAttention2 for the benchmark's quantized-model run only.
 
     Layout handling is identical to benchmark/zi_traj_compare.py --attention sage2
-    (validated 2026-09-10): stock attention_pytorch semantics with
+    (validated 2026-09-10): ComfyUI attention_pytorch semantics with
     skip_reshape=True ([B,H,N,D] in) and transpose(1,2) BEFORE reshape to
     [B,N,H*D] on the way out. SDPA fallback for mask / head_dim > 256 /
     exceptions. Call AFTER the FP16 baseline and AFTER the quantized model is
-    loaded; call _unset_bench_sage2_attention() to restore stock attention.
+    loaded; call _unset_bench_sage2_attention() to restore ComfyUI attention.
     """
     import time
     import torch
@@ -626,14 +626,14 @@ def _apply_bench_sage2_attention() -> None:
 
 
 def _unset_bench_sage2_attention() -> None:
-    """Restore stock ComfyUI attention functions after a sage2 benchmark run."""
+    """Restore ComfyUI's own attention functions after a sage2 benchmark run."""
     import importlib
 
     import comfy.ldm.modules.attention as comfy_attention
 
     importlib.reload(comfy_attention)
     # Reload the architecture modules so their from-import bindings point back
-    # at the stock optimized_attention_masked (covers Z Image / Qwen Image Edit / Krea2).
+    # at the baseline optimized_attention_masked (covers Z Image / Qwen Image Edit / Krea2).
     for mod_name in ("comfy.ldm.lumina.model", "comfy.ldm.qwen_image.model", "comfy.ldm.krea2.model"):
         try:
             importlib.import_module(mod_name)
@@ -641,7 +641,7 @@ def _unset_bench_sage2_attention() -> None:
         except Exception:
             pass
     _BENCH_SAGE2_STATS["armed"] = False
-    print("  [SAGE2] attention override restored to stock", flush=True)
+    print("  [SAGE2] attention override restored to ComfyUI", flush=True)
 
 
 def _reset_bench_sage2_stats() -> None:
@@ -1071,7 +1071,7 @@ class NativeConvRotInt8Quantize:
                 load_int8 = time.perf_counter() - t0
 
                 # 3. INT8 inference for all seeds (sage2 arms SA2 for this branch only;
-                #    the FP16 baseline above always ran on stock attention)
+                #    the FP16 baseline above always ran on ComfyUI attention)
                 if benchmark_attention and not is_sd15:
                     _reset_bench_sage2_stats()
                     _apply_bench_sage2_attention()
@@ -1101,7 +1101,7 @@ class NativeConvRotInt8Quantize:
                 report.append(f"Prompt: {prompt_text}")
                 report.append(f"INT8 Model Load Time: {load_int8:.2f}s")
                 report.append(f"Seeds: {seeds}")
-                report.append(f"Benchmark attention: {'sage2 (quantized branch only; FP16 baseline on stock attention)' if benchmark_attention else 'sdpa (stock)'}\n")
+                report.append(f"Benchmark attention: {'sage2 (quantized branch only; FP16 baseline on ComfyUI attention)' if benchmark_attention else 'sdpa (baseline)'}\n")
 
                 mse_list = []
                 cos_list = []

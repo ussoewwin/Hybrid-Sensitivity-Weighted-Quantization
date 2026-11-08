@@ -44,7 +44,7 @@
    1.0
   ]
  },
- "pack_stock": {
+ "pack_model": {
   "probe": {
    "class_of_fc1": "Linear",
    "weight_dtype": "torch.float16",

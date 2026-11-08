@@ -82,7 +82,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
             state_dict, model_prefix, metadata=metadata
         )
         # Kitchen "plain NVFP4" (native_convert_nvfp4.py) stores _quantization_metadata
-        # layer keys WITHOUT the diffusion-model prefix, so stock convert_old_quants
+        # layer keys WITHOUT the diffusion-model prefix, so ComfyUI convert_old_quants
         # injects `.comfy_quant` markers at bare keys (e.g. "input_blocks.4.1.proj_in").
         # HSWQ detection/load resolve them at the full module prefix
         # ("model.diffusion_model.input_blocks.4.1.proj_in.comfy_quant"). Move each
@@ -195,7 +195,7 @@ def apply_comfy_quant_nvfp4_patches() -> bool:
             error_msgs,
             load_extra_params=load_extra_params,
         )
-        # Non-nvfp4 path: leave stock. (INT8 ConvRot etc. stay on stock/int8 patches.)
+        # Non-nvfp4 path: leave ComfyUI. (INT8 ConvRot etc. stay on ComfyUI/int8 patches.)
 
     def mixed_precision_ops_patched(*args, **kwargs):
         mp = _orig_mp(*args, **kwargs)

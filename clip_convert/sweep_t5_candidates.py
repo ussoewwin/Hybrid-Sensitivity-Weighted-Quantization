@@ -5,7 +5,7 @@ The pack is 12-16 GB and the disk has to hold the source, the shipped pack and
 the candidate at the same time, so only one candidate is resident at a time.
 
 The observable is the T5 encoder's hidden state, on a fixed item set, with the
-baseline built through the same ops class (the stock path and the
+baseline built through the same ops class (the ComfyUI path and the
 `mixed_precision_ops` path are not numerically equivalent for this model).
 
 Usage:

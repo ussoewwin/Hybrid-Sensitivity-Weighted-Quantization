@@ -1,6 +1,6 @@
 """Pooled NVFP4 act quantize + scaled_mm (HSWQ).
 
-Stock ``ck.quantize_nvfp4`` / ``ck.scaled_mm_nvfp4`` allocate fresh tensors on
+ComfyUI ``ck.quantize_nvfp4`` / ``ck.scaled_mm_nvfp4`` allocate fresh tensors on
 every Linear call. With ~18k TC hits per SDXL sample that allocation overhead
 dominates wall time vs FP16. This module reuses CUDA buffers keyed by shape.
 """

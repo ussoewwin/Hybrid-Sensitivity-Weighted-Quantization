@@ -25,7 +25,7 @@ ORDINARY = [
     "Explain why the sky looks red at sunset.",
     "Give me three ideas for a birthday present.",
     "Summarise the plot of a detective novel in two sentences.",
-    "What is the difference between a stock and a bond?",
+    "What is the difference between an equity and a bond?",
     "Write a Python function that reverses a linked list.",
     "How do I remove a coffee stain from a cotton shirt?",
     "Describe how to change a bicycle tyre.",

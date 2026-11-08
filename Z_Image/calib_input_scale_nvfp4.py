@@ -30,7 +30,7 @@ Usage (from the clone directory, same as diag_impact.py):
 
 After it finishes, bench the calibrated artifact (all-5-seed decoded SSIM)
 before using the TC path; the parity loader ignores input_scale, so the
-calibrated file stays 100% compatible with the stock parity workflow.
+calibrated file stays 100% compatible with the ComfyUI parity workflow.
 """
 from __future__ import annotations
 

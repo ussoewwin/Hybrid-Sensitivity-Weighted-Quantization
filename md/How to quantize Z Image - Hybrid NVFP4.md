@@ -78,7 +78,7 @@ not a gate result.
 | Mode | Computation | When it is used |
 |---|---|---|
 | **TC (W4A4)** | Blackwell Tensor Core `scaled_mm_nvfp4_pooled` → `_C.cublas_gemm_blockwise_fp4` | checkpoint contains `*.input_scale` keys (calibrated) |
-| **Parity (W4A16)** | stock GEMM (fp16 activations) + online act rotate | no `input_scale` keys |
+| **Parity (W4A16)** | ComfyUI GEMM (fp16 activations) + online act rotate | no `input_scale` keys |
 
 - Auto-selection: if any `*.input_scale` key exists → **TC**; otherwise → **parity**.
 - CLI overrides: `--tc` forces TC, `--parity` forces parity. Env overrides:

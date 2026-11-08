@@ -103,6 +103,6 @@ python ..\benchmark\flux1_nvfp4\flux_traj_compare.py ^
 ## Notes
 
 - Bias Correction (Card 1) is out of scope (flux ComfyUI-run calibration is a separate effort).
-- `flan_t5_xxl_convrot_int8.safetensors` is a non-stock t5xxl. It does not affect
-  fp16/quantized comparison fairness, but absolute image quality may differ from the stock t5xxl.
+- `flan_t5_xxl_convrot_int8.safetensors` is a non-ComfyUI t5xxl. It does not affect
+  fp16/quantized comparison fairness, but absolute image quality may differ from the ComfyUI t5xxl.
 - Score results go to `D:\USERFILES\GitHub\hswq\benchmark result\` (MEMORY rule).

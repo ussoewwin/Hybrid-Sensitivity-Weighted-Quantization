@@ -272,7 +272,7 @@ without that line was measured against FP16 conditioning.
 1. **Separation.** All loader-side logic lives in
    `benchmark/sd1.5 int8/comfy_quant_int8.py`, gated by pack content
    (`cond_stage_model.*.comfy_quant` Linear layers present). Models without an
-   HSWQ SD1.5 CLIP pack are bit-for-bit on the stock path.
+   HSWQ SD1.5 CLIP pack are bit-for-bit on the ComfyUI path.
 2. **No pack-format change.** The pack format (int8 + `.weight_scale` +
    `.comfy_quant` + `_quantization_metadata` metadata) is unchanged; the fix is
    purely on the consumption side, so old/new packs and the native node output

@@ -6,7 +6,7 @@ The gate is the ControlNet's OWN output (the same instrument the protection set
 was chosen with - the criterion and the gate must be the same instrument).
 
 The baseline is built through the SAME ops path as the quantized pack
-(`mixed_precision_ops`): the stock loader uses `manual_cast` and the quantized
+(`mixed_precision_ops`): the ComfyUI loader uses `manual_cast` and the quantized
 one uses `mixed_precision_ops`, and those two are not numerically equivalent.
 
 Usage:

@@ -1,7 +1,7 @@
 """
 HSWQ-owned NVFP4 Linear load path.
 
-Stock Comfy ``_load_quantized_module`` loads NVFP4 weights/scales into a
+ComfyUI Comfy ``_load_quantized_module`` loads NVFP4 weights/scales into a
 QuantizedTensor, but does **not**:
   - stamp FULL ConvRot flags (Params have no convrot for NVFP4)
   - validate storage shape against logical (out, in)
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def peek_nvfp4_conf(state_dict, prefix: str) -> Optional[dict]:
-    """Read comfy_quant without popping (for routing before stock load).
+    """Read comfy_quant without popping (for routing before baseline load).
 
     Robustly handles prefix mismatches (e.g. state_dict keys carrying
     model.diffusion_model. prefix while local module load receives a
@@ -105,7 +105,7 @@ def load_nvfp4_linear_module(
     """
     Full NVFP4 Linear ``_load_from_state_dict`` body (HSWQ).
 
-    Mirrors stock scale/QT construction, then:
+    Mirrors baseline scale/QT construction, then:
       - validates storage vs logical shape
       - loads input_scale when present
       - arms ConvRot + HSWQ TC forward flags
@@ -156,7 +156,7 @@ def load_nvfp4_linear_module(
     qconfig = QUANT_ALGOS["nvfp4"]
     module.layout_type = qconfig["comfy_tensor_layout"]
     layout_cls = get_layout_class(module.layout_type)
-    # Stub-only fallback (kitchen bulk-import failed). Healthy stock path
+    # Stub-only fallback (kitchen bulk-import failed). Healthy the ComfyUI path
     # already has Params — do not replace Comfy's TensorCoreNVFP4Layout.
     if layout_cls is None or not hasattr(layout_cls, "Params"):
         from comfy_kitchen.tensor.nvfp4 import TensorCoreNVFP4Layout as _KitchenNVFP4

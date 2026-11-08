@@ -6,13 +6,13 @@ the token embeddings - against the FP16 source, over a fixed item set.
 
 Two things the measurement has to get right:
 
-1. **The arm.** The stock `comfy.sd.load_clip` asks for
+1. **The arm.** The ComfyUI `comfy.sd.load_clip` asks for
    `full_precision_mm=True`, which disables the INT8 GEMM: the quantized
    weight is dequantized for every matmul. The loader package's arm
    (`patches/clip_int8_gemm`) makes the real `int8_linear` fire, so the
    package's root `__init__` is executed exactly as ComfyUI does on startup.
 
-2. **The same ops path for the baseline.** The stock CLIP loader builds the
+2. **The same ops path for the baseline.** The ComfyUI CLIP loader builds the
    text tower with `comfy.ops.manual_cast` while a quantized pack is built
    with `mixed_precision_ops`, and for some models the two paths are not
    numerically equivalent. The baseline is therefore built through the same

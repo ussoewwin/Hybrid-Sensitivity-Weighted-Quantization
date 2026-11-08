@@ -45,10 +45,10 @@ The pooled-rotate fast path writes into **shared per-shape buffers** (`_STATE["p
 |---|---|---|
 | 1 | wrapped forward, capture (stream check) | 2.31 |
 | 2 | wrapped forward, `thread_local`, flag-driven | 3.41 |
-| 3 | wrapped forward, stock-rotate swap-in during capture | 4.02 |
-| **control** | **unwrapped (stock) forward, capture** | **0.0** |
+| 3 | wrapped forward, ComfyUI-rotate swap-in during capture | 4.02 |
+| **control** | **unwrapped (ComfyUI) forward, capture** | **0.0** |
 
-A muted numeric difference between pooled and stock rotate would be ≤ fp16 rounding; 2-4 maxdiff means **stale shared-buffer references got recorded into the graph** — the pooled path shares buffer objects across calls, and the capture pool reuses those addresses beyond the recorded lifetime. Conclusion (measured, x3): **the glyph of this failure is systematic, not noise; the pooled path cannot coexist with graph capture.**
+A muted numeric difference between pooled and ComfyUI rotate would be ≤ fp16 rounding; 2-4 maxdiff means **stale shared-buffer references got recorded into the graph** — the pooled path shares buffer objects across calls, and the capture pool reuses those addresses beyond the recorded lifetime. Conclusion (measured, x3): **the glyph of this failure is systematic, not noise; the pooled path cannot coexist with graph capture.**
 
 ### 2.5 The raw-forward capture target broke the weight pipeline
 
@@ -58,7 +58,7 @@ Capturing the UNwrapped `dm.forward` directly raised `mat1 and mat2 shapes canno
 
 **Two fast paths on SDXL are mutually exclusive (measured):**
 
-- **graph-first** (shipped): arm the **graph executor alone**; its capture runs the SHARED forward with the pooled path **bypassed by the `_capture_active()` global flag** (`_STATE["in_graph_capture"] = True` around warmup/capture; `_STATE["pool"]` writes skipped; plain `(x_grouped @ h)` rotate runs so the recorded graph carries stock kernels)
+- **graph-first** (shipped): arm the **graph executor alone**; its capture runs the SHARED forward with the pooled path **bypassed by the `_capture_active()` global flag** (`_STATE["in_graph_capture"] = True` around warmup/capture; `_STATE["pool"]` writes skipped; plain `(x_grouped @ h)` rotate runs so the recorded graph carries ComfyUI kernels)
 - **pooled eager fallback** (kept for capture failure): the pre-existing pooled-rotate fast path arms only when graph arm failed
 
 Loader branch wiring (loader side, after the measured bench): `_arm_sdxl_cudagraph(model)` first; only on failure arm the pooled path. Both paths' runtime attributes are per-model (no global side effects; family separation preserved: non-SDXL never imports the module).

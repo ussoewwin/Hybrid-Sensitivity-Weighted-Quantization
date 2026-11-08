@@ -43,7 +43,7 @@ loader TLS active: False   <- the one the wrapper actually reads
 Conv2d injected: False
 ```
 
-The 98 Conv2d layers then load through stock `manual_cast.Conv2d`, whose
+The 98 Conv2d layers then load through ComfyUI `manual_cast.Conv2d`, whose
 `_load_from_state_dict` never pops `comfy_quant`/`weight_scale` (they all land
 in `unet unexpected:` in the log — the smoking gun), and the raw int8 bytes get
 cast to fp16. Exploding activations → NaN in every seed.
@@ -209,7 +209,7 @@ have a high launch-overhead share of the step, so removing it buys the most
   model_config classes differ, so their loads are untouched.
 * **Loader gate:** the wrapper arms only while `_int8_quant_conv_tls` of the
   *arming* module is active (i.e. during an explicit HSWQ INT8 load), never on
-  stock FP loads.
+  ComfyUI FP loads.
 * **No shared-module edits:** `comfy_kitchen`, `comfy.ops`, `comfy.sd` core
   semantics are unchanged; the executor is a wrapper installed at load time and
   removable via `disarm()`.

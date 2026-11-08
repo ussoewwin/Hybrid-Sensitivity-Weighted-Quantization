@@ -15,7 +15,7 @@ int8 and LoRA deltas on Conv layers vanish.
 
 Vendored under hswq/benchmark/sdxl convrot w4a8 as comfy_quant_w4a8.py for
 SDXL ConvRot W4A8 fidelity benches (Conv2d/decode patches for the pack's
-int8_tensorwise fallback layers; W4A8 Linear loads stock-native).
+int8_tensorwise fallback layers; W4A8 Linear loads ComfyUI-native).
 Runtime monkey-patch only - do not permanently edit ComfyUI-master, and do not
 import this module from ComfyUI-nunchaku-unofficial-loader (copy lives here).
 """

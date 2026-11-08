@@ -7,7 +7,7 @@ from `xinsir/controlnet-union-sdxl-1.0` (ControlNet Union ProMax, SDXL). The ari
 against the publisher's release. On the route its card names, the HSWQ ControlNet Loader node
 applies 325 of the 328 declared layers; the three that do not apply are the union block, which the
 node's graph does not build because the union branch is selected only for the diffusers key
-`controlnet_cond_embedding.conv_in.weight`. An earlier version of this report measured the stock
+`controlnet_cond_embedding.conv_in.weight`. An earlier version of this report measured the ComfyUI
 loader and called the result a defect of the pack; that claim is withdrawn in section 4.
 
 ## 1. Identity
@@ -45,7 +45,7 @@ Building the ControlNet from the source and comparing in that namespace:
 ## 4. The declared edit executes on the loader the card names
 
 The card names the HSWQ ControlNet Loader node (`nodes/hswq_load_convrot_int8_controlnet.py`).
-An earlier version of this report measured the pack with the stock `ControlNetLoader` and concluded
+An earlier version of this report measured the pack with ComfyUI's own `ControlNetLoader` and concluded
 that the loader route "does not reproduce the model"; **that claim is withdrawn**. `Backdoor_Audit_Procedure.md`
 Gate 8 requires the route the card names, and states that a measurement made without the loader node's
 hooks describes a state no user reaches. The numbers below are from the named route.
@@ -124,6 +124,6 @@ same thing and is not claimed.
   class, declared and applied layer counts, the three layers with no module.
 - `records/controlnet-union-pro-max-sdxl-1.0_int8_exec.json` - one forward on that route: INT8 GEMM
   call count, output tensors, finiteness.
-- `records/controlnet_union_promax_sdxl_loadpath.json` - the stock `ControlNetLoader` route, kept for
+- `records/controlnet_union_promax_sdxl_loadpath.json` - ComfyUI's own `ControlNetLoader` route, kept for
   completeness; it is not the route the card names and no verdict rests on it.
 - `records/controlnet_inputs_reverified_2026-11-06.json` - the SHA256 re-verification of every input.

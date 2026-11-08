@@ -212,7 +212,7 @@ def apply_quant_patches(mode: str = "tc"):
     """Runtime monkey-patches for NVFP4 + INT8 protect.
 
     mode='tc': Native HSWQ hardware Tensor Core forward (scaled_mm_nvfp4, no dequant).
-    mode='parity': ComfyUI stock ops.py Linear.forward + dequantization.
+    mode='parity': ComfyUI ComfyUI ops.py Linear.forward + dequantization.
     """
     import comfy.ops
     from krea2_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
@@ -229,7 +229,7 @@ def apply_quant_patches(mode: str = "tc"):
         require_convrot_parity_forward()
         print(
             "  [CONVROT] Parity forward armed: "
-            "stock Comfy GEMM + fast O(N log N) float32 butterfly act-rotate (zero accumulation error)"
+            "baseline Comfy GEMM + fast O(N log N) float32 butterfly act-rotate (zero accumulation error)"
         )
     else:
         print(
@@ -256,7 +256,7 @@ def apply_quant_patches(mode: str = "tc"):
     _forbid_benchmark_nvfp4_import()
     print(
         f"  [BENCH] SSIM target >={SSIM_TARGET} "
-        "(ConvRot NVFP4 + INT8 protect + ComfyUI stock GEMM + online act rotate)"
+        "(ConvRot NVFP4 + INT8 protect + ComfyUI ComfyUI GEMM + online act rotate)"
     )
 
 
@@ -641,7 +641,7 @@ def main() -> int:
         "--mode",
         choices=["tc", "parity"],
         default="tc",
-        help="NVFP4 execution mode: 'tc' for native hardware Tensor Core speed, 'parity' for stock dequantization",
+        help="NVFP4 execution mode: 'tc' for native hardware Tensor Core speed, 'parity' for baseline dequantization",
     )
     args = parser.parse_args()
 
@@ -660,7 +660,7 @@ def main() -> int:
     saved_argv = _clear_argv_for_comfy()
     try:
         setup_comfy(args.comfy_path)
-        # Do NOT apply_quant_patches before BF16 — stock Comfy ops (UI-like).
+        # Do NOT apply_quant_patches before BF16 — baseline Comfy ops (UI-like).
         # NVFP4 parity / INT8 / addmm patches are applied after BF16 sample.
 
         import folder_paths  # noqa: F401

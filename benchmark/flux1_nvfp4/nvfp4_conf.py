@@ -198,7 +198,7 @@ def fix_unet_config_packed_dims(unet_config: dict, state_dict: dict, key_prefix:
             except Exception as e:
                 logger.warning("[HSWQ NVFP4] context_dim fix skipped: %s", e)
 
-    # Krea2: stock detect sets txtlayers = projector.weight.shape[1] (packed K
+    # Krea2: ComfyUI detect sets txtlayers = projector.weight.shape[1] (packed K
     # after hybrid NVFP4). Restore logical in_features from comfy_quant
     # orig_shape, else KREA2_TAP_LAYERS length (matches CLIP fused width).
     if unet_config.get("txtlayers") is not None:

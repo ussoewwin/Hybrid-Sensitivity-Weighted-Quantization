@@ -8,7 +8,7 @@
   "n_quantised_modules": 0,
   "int8_params": 0
  },
- "pack_stock_with_node": {
+ "pack_with_node": {
   "probe": {
    "fc1_class": "Linear",
    "fc1_weight_dtype": "torch.float16",

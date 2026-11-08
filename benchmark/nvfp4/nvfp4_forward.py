@@ -1,7 +1,7 @@
 """
 HSWQ-owned NVFP4 Linear Tensor Core forward path.
 
-Stock MixedPrecision Linear inference does:
+ComfyUI MixedPrecision Linear inference does:
   reshape → QuantizedTensor.from_float(act) → F.linear → often aten.addmm
   → unregistered → full dequant (slow), or wrong reshape via weight.shape[0]
   (QT storage dim).
@@ -276,12 +276,12 @@ def _tc_forward_pooled(module, input_2d, weight_qt, bias, act_scale, out_dtype):
         return None
 
 
-def make_nvfp4_linear_forward(stock_forward):
+def make_nvfp4_linear_forward(ComfyUI_forward):
     """
     Return a Linear.forward replacement.
 
     For modules flagged ``_hswq_nvfp4`` (set at load), run the HSWQ TC path.
-    All other layers keep stock_forward unchanged.
+    All other layers keep ComfyUI_forward unchanged.
     """
     import torch
     import comfy.model_management
@@ -291,24 +291,24 @@ def make_nvfp4_linear_forward(stock_forward):
         global _CONVROT_ACT_ROTATES
 
         if not getattr(self, "_hswq_nvfp4", False):
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
 
-        # Training / LoRA / forced cast: fall back to stock.
-        # ConvRot + full_precision_mm still needs act rotation before stock dequant.
+        # Training / LoRA / forced cast: fall back to ComfyUI.
+        # ConvRot + full_precision_mm still needs act rotation before ComfyUI dequant.
         if input.requires_grad or getattr(self, "comfy_force_cast_weights", False):
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
         if len(getattr(self, "weight_function", [])) or len(getattr(self, "bias_function", [])):
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
 
-        # GPU lacks NVFP4 TC: stock dequant mm, but MUST rotate acts if ConvRot.
+        # GPU lacks NVFP4 TC: ComfyUI dequant mm, but MUST rotate acts if ConvRot.
         if getattr(self, "_full_precision_mm", False):
             if not getattr(self, "_hswq_nvfp4_convrot", False):
-                return stock_forward(self, input, *args, **kwargs)
+                return ComfyUI_forward(self, input, *args, **kwargs)
             input_shape = input.shape
             reshaped_nd = input.ndim >= 3
             input_2d = input.reshape(-1, input_shape[-1]) if reshaped_nd else input
             if input_2d.ndim != 2:
-                return stock_forward(self, input, *args, **kwargs)
+                return ComfyUI_forward(self, input, *args, **kwargs)
             gs = int(getattr(self, "_hswq_nvfp4_convrot_groupsize", 256) or 256)
             h = getattr(self, "_hswq_nvfp4_H", None)
             if h is None or h.device != input_2d.device or h.dtype != input_2d.dtype:
@@ -320,7 +320,7 @@ def make_nvfp4_linear_forward(stock_forward):
                 input = input_2d.reshape((*input_shape[:-1], input_shape[-1]))
             else:
                 input = input_2d
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
 
         run_every_op()
         input_shape = input.shape
@@ -330,7 +330,7 @@ def make_nvfp4_linear_forward(stock_forward):
         reshaped_nd = input.ndim >= 3
         input_2d = input.reshape(-1, input_shape[-1]) if reshaped_nd else input
         if input_2d.ndim != 2:
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
 
         # 2) FULL ConvRot: dense Hadamard GEMM (gs=256 butterfly is ~15x slower)
         if getattr(self, "_hswq_nvfp4_convrot", False):
@@ -372,14 +372,14 @@ def make_nvfp4_linear_forward(stock_forward):
         if layout is None:
             if offload_stream is not None:
                 uncast_bias_weight(self, weight, bias, offload_stream)
-            return stock_forward(self, input, *args, **kwargs)
+            return ComfyUI_forward(self, input, *args, **kwargs)
 
         # 4) Pooled Tensor Core path (no QuantizedTensor.from_float alloc)
         out_2d = _tc_forward_pooled(
             self, input_2d, weight, bias, scale, compute_dtype
         )
         if out_2d is None:
-            # Fallback: stock QT path
+            # Fallback: ComfyUI QT path
             from comfy.quant_ops import QuantizedTensor
 
             q_input = QuantizedTensor.from_float(input_2d, layout, scale=scale)
