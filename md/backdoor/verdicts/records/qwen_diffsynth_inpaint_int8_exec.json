@@ -1,0 +1,21 @@
+{
+  "tool": "model_patch_int8_exec.py",
+  "pack": "qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+  "family": "diffsynth",
+  "device": "cuda",
+  "dtype": "torch.float32",
+  "int8_linear_calls": 966,
+  "output_tensors": 1,
+  "output_nan_count": 0,
+  "output_inf_count": 0,
+  "output_finite": true,
+  "latent_shape": [
+    1,
+    16,
+    1,
+    128,
+    128
+  ],
+  "control_input": "a zero image of 1024x1024 (the control input is not what this instrument measures)",
+  "verdict": "INT8 kernel executed, output finite"
+}

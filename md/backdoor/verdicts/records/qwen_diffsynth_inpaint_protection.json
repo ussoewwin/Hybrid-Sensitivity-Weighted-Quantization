@@ -1,0 +1,13 @@
+{
+  "tool": "model_patch_protection_census.py",
+  "pack": "qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+  "source": "qwen_image_inpaint_diffsynth_controlnet.safetensors",
+  "two_dimensional_weights_in_the_source": 121,
+  "quantised": 120,
+  "kept_in_fp16_count": 1,
+  "kept_in_fp16": [
+    "img_in.weight"
+  ],
+  "kept_in_fp16_summary": "img_in.weight",
+  "basis": "the measured aggregate contribution on this checkpoint; the top-1 layer carries 90.9 % of the summed contribution, so the pack keeps it in FP16"
+}

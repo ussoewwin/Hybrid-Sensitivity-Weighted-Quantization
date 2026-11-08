@@ -1,0 +1,11 @@
+{
+  "tool": "model_patch_protection_census.py",
+  "pack": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8.safetensors",
+  "source": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps.safetensors",
+  "two_dimensional_weights_in_the_source": 38,
+  "quantised": 38,
+  "kept_in_fp16_count": 0,
+  "kept_in_fp16": [],
+  "kept_in_fp16_summary": "none",
+  "basis": "this build carries no protection layer: every runtime Linear is quantised"
+}

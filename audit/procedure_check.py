@@ -59,6 +59,8 @@ REQUIRED_TOOLS = [
     "controlnet_pack_audit.py",
     "model_patch_pack_audit.py",
     "model_patch_hswq_route.py",
+    "model_patch_int8_exec.py",
+    "model_patch_protection_census.py",
 ]
 REQUIRED_SECTIONS = ["## 12c. SAM3.1 extension - the required lines of an S0-S6 verdict"]
 REQUIRED_APPENDICES = ["### A. Run-record schema", "### B. Storage floors",

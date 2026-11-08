@@ -58,6 +58,11 @@ family node that applies the patch (`ZImageFunControlnet`). The measurements bel
 | 0 | INT8 weights that the pack does not declare | `records/zimage_tile21_route.json` -> `int8_not_declared` (count) | nothing is quantised beyond the declared set |
 | 0 | declared layers left as raw int8 codes (codes copied, not executed) | `records/zimage_tile21_route.json` -> `raw_int8_parameters` (count) | no declared layer falls through to the bare-code path |
 | ZImage_Control | class the node builds | `records/zimage_tile21_route.json` -> `model_class` | the file is recognised as the architecture it is |
+| 38 | INT8 GEMM calls during one forward on this route | `records/zimage_tile21_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
+| 1 | output tensors returned by that forward | `records/zimage_tile21_int8_exec.json` -> `output_tensors` | the executed path returns a result |
+| 0 | NaN count in that output | `records/zimage_tile21_int8_exec.json` -> `output_nan_count` | the executed path produces no NaN |
+| 0 | Inf count in that output | `records/zimage_tile21_int8_exec.json` -> `output_inf_count` | the executed path produces no Inf |
+| none | the 2D layers kept in original precision | `records/zimage_tile21_protection.json` -> `kept_in_fp16_summary` | the pack's own protection set, kept out of the INT8 path |
 | 304 | INT8 GEMM calls during the render | `records/zimage_tile21_image_test.json` -> `measurement.int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 865,977 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 8 steps, cfg 1.0, base `z_image_turbo_bf16.safetensors`) | `records/zimage_tile21_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
 | 71.6 | wall seconds for that render | `records/zimage_tile21_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
@@ -100,6 +105,8 @@ family node that applies the patch (`ZImageFunControlnet`). The measurements bel
 
 - `records/zimage_tile21_pack_audit.json` - identity, runtime coverage, quantisation replay, float-side comparison.
 
+- `records/zimage_tile21_int8_exec.json` - one forward on that route: INT8 GEMM call count, output tensors, finiteness.
+- `records/zimage_tile21_protection.json` - the protection census: the 2D layers that stay in FP16 and the basis of that choice.
 - `records/zimage_tile21_route.json` - the loader route the card names: class, declared and applied layer counts,
   layers with no module.
 
