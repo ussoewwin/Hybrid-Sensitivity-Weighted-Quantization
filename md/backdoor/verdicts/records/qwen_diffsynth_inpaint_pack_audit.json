@@ -14,6 +14,11 @@
   },
   "source_tensors": 362,
   "pack_tensors": 362,
+  "instrument": {
+    "replayed_with": "clip_convert/convert_qwen_image_diffsynth_patch_impact_convrot_int8.py",
+    "device": "cpu",
+    "detail": "the builder's own rotation and quantisation functions; the gate has to use the same instrument as the measurement"
+  },
   "coverage": {
     "n_missing": 0,
     "missing": [],
@@ -148,22 +153,17 @@
       256,
       256
     ],
-    "q_mismatch_total": 539,
-    "q_on_rounding_boundary": 539,
-    "q_off_rounding_boundary": 0,
-    "boundary_tolerance": 0.0001,
-    "boundary_dist_max": 3.0517578125e-05,
-    "off_boundary_examples": [],
-    "max_q_delta": 1,
-    "scale_exact_rel_max": 4.324961651036574e-07,
+    "q_mismatch_total": 0,
+    "max_q_delta": 0,
+    "scale_exact_rel_max": 0.0,
     "nonfinite_scales": 0
   },
   "float_side": {
     "checked": 242,
     "mismatch_count": 0,
-    "within_tolerance": 86,
+    "within_tolerance": 0,
     "tolerance": 1e-06,
-    "max_abs_diff": 2.9802322387695312e-08
+    "max_abs_diff": 0.0
   },
   "verdict": "FAITHFUL"
 }
