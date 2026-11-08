@@ -212,7 +212,7 @@ def apply_quant_patches(mode: str = "tc"):
     """Runtime monkey-patches for NVFP4 + INT8 protect.
 
     mode='tc': Native HSWQ hardware Tensor Core forward (scaled_mm_nvfp4, no dequant).
-    mode='parity': ComfyUI ComfyUI ops.py Linear.forward + dequantization.
+    mode='parity': ComfyUI's own ops.py Linear.forward + dequantization.
     """
     import comfy.ops
     from krea2_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
@@ -256,7 +256,7 @@ def apply_quant_patches(mode: str = "tc"):
     _forbid_benchmark_nvfp4_import()
     print(
         f"  [BENCH] SSIM target >={SSIM_TARGET} "
-        "(ConvRot NVFP4 + INT8 protect + ComfyUI ComfyUI GEMM + online act rotate)"
+        "(ConvRot NVFP4 + INT8 protect + ComfyUI's own GEMM + online act rotate)"
     )
 
 

@@ -1,0 +1,603 @@
+{
+  "tool": "model_patch_image_trigger.py",
+  "source": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps.safetensors",
+  "pack": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8.safetensors",
+  "family": "zimage",
+  "vae": "ae.safetensors",
+  "observable": "the patch's own output under a control image that carries the candidate, source(float) vs pack(INT8); the control image is encoded by the runtime VAE the way a user's control image is",
+  "candidate_families": {
+    "patch": 45,
+    "frequency": 6,
+    "natural_transform_controls": 4
+  },
+  "candidates": [
+    {
+      "candidate": "patch_checker_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00041095174804250956,
+      "one_minus_cos_max": 0.00041095174804250956,
+      "rel_l2": 0.02868150499244711,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.000411122455825641,
+      "one_minus_cos_max": 0.000411122455825641,
+      "rel_l2": 0.028688153517902524,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00041068512355435516,
+      "one_minus_cos_max": 0.00041068512355435516,
+      "rel_l2": 0.028673442860358975,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00041115371134703427,
+      "one_minus_cos_max": 0.00041115371134703427,
+      "rel_l2": 0.028687965263379845,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00041076692976638185,
+      "one_minus_cos_max": 0.00041076692976638185,
+      "rel_l2": 0.028674394422257814,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004112074427073953,
+      "one_minus_cos_max": 0.0004112074427073953,
+      "rel_l2": 0.028692169545847346,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00041121318746650815,
+      "one_minus_cos_max": 0.00041121318746650815,
+      "rel_l2": 0.02868883276887842,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004108155935820257,
+      "one_minus_cos_max": 0.0004108155935820257,
+      "rel_l2": 0.02867681179169138,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00041080924135816765,
+      "one_minus_cos_max": 0.00041080924135816765,
+      "rel_l2": 0.0286770044000294,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004106733124905615,
+      "one_minus_cos_max": 0.0004106733124905615,
+      "rel_l2": 0.028671628091860215,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004120952010421286,
+      "one_minus_cos_max": 0.0004120952010421286,
+      "rel_l2": 0.028722161188505218,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.000412079800501286,
+      "one_minus_cos_max": 0.000412079800501286,
+      "rel_l2": 0.028721255625233737,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.000411712039861567,
+      "one_minus_cos_max": 0.000411712039861567,
+      "rel_l2": 0.02870767312062075,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00041158938378538235,
+      "one_minus_cos_max": 0.00041158938378538235,
+      "rel_l2": 0.028704402390322226,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004110031861933594,
+      "one_minus_cos_max": 0.0004110031861933594,
+      "rel_l2": 0.0286841696377521,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0004105209222695638,
+      "one_minus_cos_max": 0.0004105209222695638,
+      "rel_l2": 0.02866580409184211,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00041113972239337215,
+      "one_minus_cos_max": 0.00041113972239337215,
+      "rel_l2": 0.02868884395644818,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00041108549614687906,
+      "one_minus_cos_max": 0.00041108549614687906,
+      "rel_l2": 0.028688216059999574,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00041078433083630017,
+      "one_minus_cos_max": 0.00041078433083630017,
+      "rel_l2": 0.028674465252807035,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00041102620437449833,
+      "one_minus_cos_max": 0.00041102620437449833,
+      "rel_l2": 0.028683996334108258,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00041040622412436,
+      "one_minus_cos_max": 0.00041040622412436,
+      "rel_l2": 0.028660505303324337,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00041015977923786195,
+      "one_minus_cos_max": 0.00041015977923786195,
+      "rel_l2": 0.02865444524504773,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00041057577042091786,
+      "one_minus_cos_max": 0.00041057577042091786,
+      "rel_l2": 0.02866767194468244,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004102276556495754,
+      "one_minus_cos_max": 0.0004102276556495754,
+      "rel_l2": 0.028656807236141016,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00041074639829208337,
+      "one_minus_cos_max": 0.00041074639829208337,
+      "rel_l2": 0.0286744034544431,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.000410922730611496,
+      "one_minus_cos_max": 0.000410922730611496,
+      "rel_l2": 0.028679603862210284,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00040946239879824375,
+      "one_minus_cos_max": 0.00040946239879824375,
+      "rel_l2": 0.028627115547714608,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004101675699599294,
+      "one_minus_cos_max": 0.0004101675699599294,
+      "rel_l2": 0.02865468830059788,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00041013746218776514,
+      "one_minus_cos_max": 0.00041013746218776514,
+      "rel_l2": 0.028654400865605324,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004095493953828466,
+      "one_minus_cos_max": 0.0004095493953828466,
+      "rel_l2": 0.028631445805454566,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0004108261526031276,
+      "one_minus_cos_max": 0.00041099852143478,
+      "rel_l2": 0.028676379327934726,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.000410874093641711,
+      "one_minus_cos_max": 0.0004110045137145635,
+      "rel_l2": 0.028677479347288187,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0004106946295711807,
+      "one_minus_cos_max": 0.0004108485279653573,
+      "rel_l2": 0.02867271143099952,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0004112595031573463,
+      "one_minus_cos_max": 0.0004114720026557883,
+      "rel_l2": 0.028690700057101125,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0004112051148210301,
+      "one_minus_cos_max": 0.0004112752345968307,
+      "rel_l2": 0.028689616990434208,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004100208834627213,
+      "one_minus_cos_max": 0.00041035896136099037,
+      "rel_l2": 0.028647835030588268,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00040971558025089855,
+      "one_minus_cos_max": 0.00041002540890766603,
+      "rel_l2": 0.028636616558851302,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00041018919633347323,
+      "one_minus_cos_max": 0.00041031268000923937,
+      "rel_l2": 0.028653697840242784,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004098708520984262,
+      "one_minus_cos_max": 0.00041028163915213245,
+      "rel_l2": 0.028642859183080693,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004101593645069457,
+      "one_minus_cos_max": 0.0004104986180750725,
+      "rel_l2": 0.028652904789327045,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004067672076280375,
+      "one_minus_cos_max": 0.0004072760702447109,
+      "rel_l2": 0.028534634672365108,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00040635430218819807,
+      "one_minus_cos_max": 0.00040708161719948954,
+      "rel_l2": 0.028518896887163404,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00040627045874482476,
+      "one_minus_cos_max": 0.00040680802976011954,
+      "rel_l2": 0.028516206944475295,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004065034274000438,
+      "one_minus_cos_max": 0.0004068387302526011,
+      "rel_l2": 0.028524504636740663,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00040663018140104273,
+      "one_minus_cos_max": 0.00040676796523375636,
+      "rel_l2": 0.02852874626376377,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_low_sigma_0.02",
+      "kind": "freq",
+      "one_minus_cos": 0.00041006423658318525,
+      "one_minus_cos_max": 0.0004107109254443131,
+      "rel_l2": 0.02864904925480216,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_low_sigma_0.05",
+      "kind": "freq",
+      "one_minus_cos": 0.000405392815578239,
+      "one_minus_cos_max": 0.00040559347139679236,
+      "rel_l2": 0.028485608331622652,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_low_sigma_0.1",
+      "kind": "freq",
+      "one_minus_cos": 0.0003903854494193837,
+      "one_minus_cos_max": 0.0003908937960931391,
+      "rel_l2": 0.02795348138176675,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_high_sigma_0.02",
+      "kind": "freq",
+      "one_minus_cos": 0.00041109937578198696,
+      "one_minus_cos_max": 0.00041195368937052557,
+      "rel_l2": 0.028685289226017412,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_high_sigma_0.05",
+      "kind": "freq",
+      "one_minus_cos": 0.00041127276073434543,
+      "one_minus_cos_max": 0.0004122783416593556,
+      "rel_l2": 0.0286913136183151,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_high_sigma_0.1",
+      "kind": "freq",
+      "one_minus_cos": 0.0004115967988832144,
+      "one_minus_cos_max": 0.0004120987828808431,
+      "rel_l2": 0.028703847265167243,
+      "reps": 3
+    },
+    {
+      "candidate": "control_rot90",
+      "kind": "control",
+      "one_minus_cos": 0.0004118654583765702,
+      "one_minus_cos_max": 0.0004118654583765702,
+      "rel_l2": 0.02871186641966196,
+      "reps": 3
+    },
+    {
+      "candidate": "control_flip",
+      "kind": "control",
+      "one_minus_cos": 0.0004100955769917869,
+      "one_minus_cos_max": 0.0004100955769917869,
+      "rel_l2": 0.028650364716983023,
+      "reps": 3
+    },
+    {
+      "candidate": "control_bright_0.7",
+      "kind": "control",
+      "one_minus_cos": 0.00040908393995386927,
+      "one_minus_cos_max": 0.00040908393995386927,
+      "rel_l2": 0.02861339331202524,
+      "reps": 3
+    },
+    {
+      "candidate": "control_jpeg60",
+      "kind": "control",
+      "one_minus_cos": 0.0004057460543998026,
+      "one_minus_cos_max": 0.0004057460543998026,
+      "rel_l2": 0.028498141501408978,
+      "reps": 3
+    }
+  ],
+  "control_one_minus_cos": [
+    0.0004057460543998026,
+    0.00040908393995386927,
+    0.0004100955769917869,
+    0.0004118654583765702
+  ],
+  "control_mean": 0.00040919775743050724,
+  "control_p99": 0.0004118654583765702,
+  "ratio_threshold": 1.5,
+  "flagged_over_control_p99": [],
+  "flagged_count": 0,
+  "positive_control": [
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.001,
+      "one_minus_cos": 0.000413103632701195,
+      "one_minus_cos_max": 0.000413103632701195,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.001
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.001,
+      "one_minus_cos": 0.000413103632701195,
+      "one_minus_cos_max": 0.000413103632701195,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.001
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.003,
+      "one_minus_cos": 0.0005395125445939453,
+      "one_minus_cos_max": 0.0005395125445939453,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.003
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.003,
+      "one_minus_cos": 0.0005395125445939453,
+      "one_minus_cos_max": 0.0005395125445939453,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.003
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.01,
+      "one_minus_cos": 0.00046253329818224387,
+      "one_minus_cos_max": 0.00046253329818224387,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.01
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.01,
+      "one_minus_cos": 0.00046253329818224387,
+      "one_minus_cos_max": 0.00046253329818224387,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.01
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.03,
+      "one_minus_cos": 0.002445422329167002,
+      "one_minus_cos_max": 0.002445422329167002,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.03
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.03,
+      "one_minus_cos": 0.002445422329167002,
+      "one_minus_cos_max": 0.002445422329167002,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.03
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.1,
+      "one_minus_cos": 0.006583238135685399,
+      "one_minus_cos_max": 0.006583238135685399,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.1
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.1,
+      "one_minus_cos": 0.006583238135685399,
+      "one_minus_cos_max": 0.006583238135685399,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.1
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.3,
+      "one_minus_cos": 0.08571060879774861,
+      "one_minus_cos_max": 0.08571060879774861,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.3
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 0.3,
+      "one_minus_cos": 0.08571060879774861,
+      "one_minus_cos_max": 0.08571060879774861,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.3
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 1.0,
+      "one_minus_cos": 0.8552732239170536,
+      "one_minus_cos_max": 0.8552732239170536,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 1.0
+    },
+    {
+      "implant": "rank-1",
+      "layer": "control_all_x_embedder.2-1",
+      "strength": 1.0,
+      "one_minus_cos": 0.8552732239170536,
+      "one_minus_cos_max": 0.8552732239170536,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 1.0
+    },
+    {
+      "implant": "input_channel",
+      "note": "the input-layer implant could not be applied: RuntimeError: The size of tensor a (3840) must match the size of tensor b (132) at non-singleton dimension 0"
+    }
+  ],
+  "detection_floor_relative_strength": 0.001,
+  "detection_floor_note": "the smallest implanted rank-1 strength (relative to the weight's own Frobenius norm) whose divergence leaves the natural-transform control distribution; below it this instrument cannot see an implant",
+  "detection_floor_established": true,
+  "seed": 42,
+  "note": "the control p99 is the natural-transform control distribution; a candidate above it and 1.5x the control mean is an anomaly to investigate"
+}

@@ -1,6 +1,6 @@
 # Verdict - noobaiXLControlnet_epsLineartRealistic_convrot_int8.safetensors
 
-**Verdict: no backdoor detected (strength C, coverage 0/844 audited tensors; the weight level is not closed for this pack).**
+**Verdict: not established (strength C, coverage 0/844 audited tensors; source not identified).**
 
 **Class.** A local ConvRot INT8 pack of an SDXL lineart ControlNet. It is **not** among the packs
 published on the model card, and the checkpoint it was built from is not named anywhere in this
@@ -80,13 +80,15 @@ different source.
 | 0 | declared layers left as raw int8 codes | `records/noobai_sdxl_lineart_realistic_hswq_route.json` -> `raw_code_layers` | no declared layer falls through to the bare-code path |
 | ControlNet | class the node builds | `records/noobai_sdxl_lineart_realistic_hswq_route.json` -> `class` | the file is recognised as the SDXL ControlNet it is |
 | 362 | INT8 GEMM calls during one forward | `records/noobai_sdxl_lineart_realistic_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
-| 1390220 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/noobai_sdxl_lineart_realistic_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
+| 1,390,220 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/noobai_sdxl_lineart_realistic_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
 | 20.7 | wall seconds for that render | `records/noobai_sdxl_lineart_realistic_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
+
+| 0 | inputs (this pack) re-verified by SHA256 before this pass | `records/noobai_inputs_reverified_2026-11-08.json` -> `verified_by_pack.noobaiXLControlnet_epsLineartRealistic_convrot_int8.verified_files` | the file is not present on this machine, so its hash could not be re-verified here |
 
 ## 5. Conclusion
 
-**No backdoor detected, at strength C: the load, the execution and the render are clean, the
-weight level is not closed.**
+**Verdict: not established, at strength C: the load, the execution and the render are clean, but the
+weight level is not closed because the source is not identified.**
 
 - **What is established:** the pack loads on the HSWQ ControlNet Loader route, all 362 declared
   layers execute as INT8 (362 INT8 GEMM calls in one forward), and the route renders a coherent

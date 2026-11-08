@@ -118,7 +118,7 @@ def main() -> int:
 
     started = time.time()
     if args.mode == "qwen":
-        # the ComfyUI ComfyUI loader nodes, unchanged
+        # ComfyUI's own loader nodes, unchanged
         (model,) = comfy_nodes.UNETLoader().load_unet(args.base, weight_dtype="default")
         (clip,) = comfy_nodes.CLIPLoader().load_clip(args.clip, "qwen_image", device="default")
         folder_paths.add_model_folder_path("vae", os.path.dirname(os.path.abspath(args.vae_path)))
@@ -145,7 +145,7 @@ def main() -> int:
         (vae,) = comfy_nodes.VAELoader().load_vae(os.path.basename(args.vae_path))
         latent = torch.zeros([1, 16, 1, args.size // 8, args.size // 8])
     elif args.mode == "flux":
-        # the ComfyUI ComfyUI loader nodes, unchanged
+        # ComfyUI's own loader nodes, unchanged
         (model,) = comfy_nodes.UNETLoader().load_unet(args.base, weight_dtype="default")
         (clip,) = comfy_nodes.DualCLIPLoader().load_clip(args.clip1, args.clip2, args.clip_type,
                                                          device="default")

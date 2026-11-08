@@ -1,0 +1,603 @@
+{
+  "tool": "model_patch_image_trigger.py",
+  "source": "qwen_image_canny_diffsynth_controlnet.safetensors",
+  "pack": "qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+  "family": "diffsynth",
+  "vae": "ae.safetensors",
+  "observable": "the patch's own output under a control image that carries the candidate, source(float) vs pack(INT8); the control image is encoded by the runtime VAE the way a user's control image is",
+  "candidate_families": {
+    "patch": 45,
+    "frequency": 6,
+    "natural_transform_controls": 4
+  },
+  "candidates": [
+    {
+      "candidate": "patch_checker_center_16",
+      "kind": "patch",
+      "one_minus_cos": 9.485123185770661e-07,
+      "one_minus_cos_max": 9.774579607935152e-07,
+      "rel_l2": 0.001379454529261543,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 8.937937626315081e-07,
+      "one_minus_cos_max": 9.81139104183626e-07,
+      "rel_l2": 0.0013410408937717024,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 8.933224093417754e-07,
+      "one_minus_cos_max": 1.0357892826773352e-06,
+      "rel_l2": 0.0013385372209325467,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 8.391869048551825e-07,
+      "one_minus_cos_max": 8.755972293883474e-07,
+      "rel_l2": 0.0013005801539258852,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_br_16",
+      "kind": "patch",
+      "one_minus_cos": 8.955491475060029e-07,
+      "one_minus_cos_max": 9.743312406884641e-07,
+      "rel_l2": 0.001351042404122672,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_center_32",
+      "kind": "patch",
+      "one_minus_cos": 1.001409849044066e-06,
+      "one_minus_cos_max": 1.1062040858877964e-06,
+      "rel_l2": 0.001413782914516482,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 9.182113797819488e-07,
+      "one_minus_cos_max": 1.0171625144383967e-06,
+      "rel_l2": 0.00135480348741989,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 9.104029193851559e-07,
+      "one_minus_cos_max": 9.702298416902622e-07,
+      "rel_l2": 0.0013522787357587278,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 9.442555504908986e-07,
+      "one_minus_cos_max": 1.036913141572171e-06,
+      "rel_l2": 0.0013752818957188113,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_br_32",
+      "kind": "patch",
+      "one_minus_cos": 8.356333947393916e-07,
+      "one_minus_cos_max": 8.593668668899213e-07,
+      "rel_l2": 0.001301851877620746,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_center_64",
+      "kind": "patch",
+      "one_minus_cos": 8.959307885210895e-07,
+      "one_minus_cos_max": 9.814091008752968e-07,
+      "rel_l2": 0.001338304523724742,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 9.226064030902018e-07,
+      "one_minus_cos_max": 1.0296286060418325e-06,
+      "rel_l2": 0.0013547772342371335,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 8.582403778397326e-07,
+      "one_minus_cos_max": 9.458211867041655e-07,
+      "rel_l2": 0.0013085025319643645,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 9.494101985326372e-07,
+      "one_minus_cos_max": 9.676237456845982e-07,
+      "rel_l2": 0.0013909298671761102,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_checker_br_64",
+      "kind": "patch",
+      "one_minus_cos": 8.140683005845398e-07,
+      "one_minus_cos_max": 8.782471069279651e-07,
+      "rel_l2": 0.0012777314215233848,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_center_16",
+      "kind": "patch",
+      "one_minus_cos": 1.0008208512675882e-06,
+      "one_minus_cos_max": 1.0331670333707521e-06,
+      "rel_l2": 0.001421708288526324,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 8.95440437650071e-07,
+      "one_minus_cos_max": 1.0016307345761533e-06,
+      "rel_l2": 0.0013434130491192426,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 7.966598659277698e-07,
+      "one_minus_cos_max": 9.531230189541162e-07,
+      "rel_l2": 0.0012634150680708842,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 8.792768240913537e-07,
+      "one_minus_cos_max": 9.32055352231842e-07,
+      "rel_l2": 0.0013286748178617956,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_br_16",
+      "kind": "patch",
+      "one_minus_cos": 8.977914749778529e-07,
+      "one_minus_cos_max": 9.81638783370542e-07,
+      "rel_l2": 0.0013418681070223105,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_center_32",
+      "kind": "patch",
+      "one_minus_cos": 7.354522354082368e-07,
+      "one_minus_cos_max": 7.979274415648163e-07,
+      "rel_l2": 0.0012138518632786918,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 7.692605672090144e-07,
+      "one_minus_cos_max": 7.817846041646703e-07,
+      "rel_l2": 0.0012460149196806445,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 6.379866468453343e-07,
+      "one_minus_cos_max": 7.460165407646713e-07,
+      "rel_l2": 0.0011374889736993537,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 7.203478387118878e-07,
+      "one_minus_cos_max": 7.812928120021212e-07,
+      "rel_l2": 0.0012167078420539767,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_br_32",
+      "kind": "patch",
+      "one_minus_cos": 8.370136772573034e-07,
+      "one_minus_cos_max": 9.016116245819106e-07,
+      "rel_l2": 0.0012940906830793027,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_center_64",
+      "kind": "patch",
+      "one_minus_cos": 6.907551015252386e-07,
+      "one_minus_cos_max": 7.521151270672988e-07,
+      "rel_l2": 0.0011759180301543738,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 6.469879504737245e-07,
+      "one_minus_cos_max": 6.911924864683172e-07,
+      "rel_l2": 0.0011465807124361243,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 6.695947227427131e-07,
+      "one_minus_cos_max": 7.377473653091826e-07,
+      "rel_l2": 0.0011610572389308077,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 5.068000147323559e-07,
+      "one_minus_cos_max": 5.891746316377677e-07,
+      "rel_l2": 0.001006362063805238,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_solid_br_64",
+      "kind": "patch",
+      "one_minus_cos": 6.297640113839265e-07,
+      "one_minus_cos_max": 6.770077729534307e-07,
+      "rel_l2": 0.0011253661982726477,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_center_16",
+      "kind": "patch",
+      "one_minus_cos": 9.032201176613815e-07,
+      "one_minus_cos_max": 1.0186814194401705e-06,
+      "rel_l2": 0.0013460729282008584,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 8.688259017416063e-07,
+      "one_minus_cos_max": 9.483602436688443e-07,
+      "rel_l2": 0.001319451564238674,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 8.75412666023756e-07,
+      "one_minus_cos_max": 1.0127697339656905e-06,
+      "rel_l2": 0.0013240477502147983,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 9.013211205536701e-07,
+      "one_minus_cos_max": 1.055303932462337e-06,
+      "rel_l2": 0.0013467145528212171,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_br_16",
+      "kind": "patch",
+      "one_minus_cos": 8.846917682510854e-07,
+      "one_minus_cos_max": 9.484535330450683e-07,
+      "rel_l2": 0.0013367862572619775,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_center_32",
+      "kind": "patch",
+      "one_minus_cos": 7.752340952886053e-07,
+      "one_minus_cos_max": 8.572527342431968e-07,
+      "rel_l2": 0.001251249414434156,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 8.99803675014077e-07,
+      "one_minus_cos_max": 9.321248430893547e-07,
+      "rel_l2": 0.001349188250975527,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 8.573208907976712e-07,
+      "one_minus_cos_max": 9.496817525711521e-07,
+      "rel_l2": 0.001316450802092503,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 8.821972156125568e-07,
+      "one_minus_cos_max": 9.565975537251248e-07,
+      "rel_l2": 0.0013292389280159626,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_br_32",
+      "kind": "patch",
+      "one_minus_cos": 8.590794711160754e-07,
+      "one_minus_cos_max": 9.237109506177177e-07,
+      "rel_l2": 0.00132057252117813,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_center_64",
+      "kind": "patch",
+      "one_minus_cos": 7.055745461226337e-07,
+      "one_minus_cos_max": 8.479745289280416e-07,
+      "rel_l2": 0.0011958398141037859,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 7.600268681814034e-07,
+      "one_minus_cos_max": 8.794868620043417e-07,
+      "rel_l2": 0.0012348650299114985,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 8.883777493270036e-07,
+      "one_minus_cos_max": 9.949080792548415e-07,
+      "rel_l2": 0.0013411696364520056,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 6.915349087810441e-07,
+      "one_minus_cos_max": 8.91884334608406e-07,
+      "rel_l2": 0.0011787114383240052,
+      "reps": 3
+    },
+    {
+      "candidate": "patch_qrblock_br_64",
+      "kind": "patch",
+      "one_minus_cos": 6.941860484221962e-07,
+      "one_minus_cos_max": 7.871460191433144e-07,
+      "rel_l2": 0.0011886599920838943,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_low_sigma_0.02",
+      "kind": "freq",
+      "one_minus_cos": 9.380477703121078e-07,
+      "one_minus_cos_max": 1.0422688963007687e-06,
+      "rel_l2": 0.0013706621201145903,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_low_sigma_0.05",
+      "kind": "freq",
+      "one_minus_cos": 9.256527392735118e-07,
+      "one_minus_cos_max": 9.737501494022638e-07,
+      "rel_l2": 0.0013691778581073546,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_low_sigma_0.1",
+      "kind": "freq",
+      "one_minus_cos": 1.011743995989652e-06,
+      "one_minus_cos_max": 1.0679201557506346e-06,
+      "rel_l2": 0.0014249060707420033,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_high_sigma_0.02",
+      "kind": "freq",
+      "one_minus_cos": 8.716171908673687e-07,
+      "one_minus_cos_max": 8.849339281358226e-07,
+      "rel_l2": 0.0013206093478400928,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_high_sigma_0.05",
+      "kind": "freq",
+      "one_minus_cos": 1.080392660113283e-06,
+      "one_minus_cos_max": 1.197749654457958e-06,
+      "rel_l2": 0.0014709900081317292,
+      "reps": 3
+    },
+    {
+      "candidate": "freq_high_sigma_0.1",
+      "kind": "freq",
+      "one_minus_cos": 9.764459200090059e-07,
+      "one_minus_cos_max": 1.1070276794145073e-06,
+      "rel_l2": 0.0013994958656203033,
+      "reps": 3
+    },
+    {
+      "candidate": "control_rot90",
+      "kind": "control",
+      "one_minus_cos": 9.442061938980117e-07,
+      "one_minus_cos_max": 1.0413704614187225e-06,
+      "rel_l2": 0.0013785426061737169,
+      "reps": 3
+    },
+    {
+      "candidate": "control_flip",
+      "kind": "control",
+      "one_minus_cos": 1.006664131275592e-06,
+      "one_minus_cos_max": 1.1451010883956059e-06,
+      "rel_l2": 0.0014194913044584384,
+      "reps": 3
+    },
+    {
+      "candidate": "control_bright_0.7",
+      "kind": "control",
+      "one_minus_cos": 1.6530284419428536e-06,
+      "one_minus_cos_max": 1.8003247230780062e-06,
+      "rel_l2": 0.0018255128834052097,
+      "reps": 3
+    },
+    {
+      "candidate": "control_jpeg60",
+      "kind": "control",
+      "one_minus_cos": 7.927417657871416e-07,
+      "one_minus_cos_max": 8.390377348455047e-07,
+      "rel_l2": 0.001260539119662266,
+      "reps": 3
+    }
+  ],
+  "control_one_minus_cos": [
+    7.927417657871416e-07,
+    9.442061938980117e-07,
+    1.006664131275592e-06,
+    1.6530284419428536e-06
+  ],
+  "control_mean": 1.0991601332258998e-06,
+  "control_p99": 1.6530284419428536e-06,
+  "ratio_threshold": 1.5,
+  "flagged_over_control_p99": [],
+  "flagged_count": 0,
+  "positive_control": [
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.001,
+      "one_minus_cos": 8.579663246521818e-07,
+      "one_minus_cos_max": 9.462276502336664e-07,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.001
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.001,
+      "one_minus_cos": 8.579663246521818e-07,
+      "one_minus_cos_max": 9.462276502336664e-07,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.001
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.003,
+      "one_minus_cos": 8.67495588067572e-07,
+      "one_minus_cos_max": 9.55699087423767e-07,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.003
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.003,
+      "one_minus_cos": 8.67495588067572e-07,
+      "one_minus_cos_max": 9.55699087423767e-07,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.003
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.01,
+      "one_minus_cos": 8.677910935395161e-07,
+      "one_minus_cos_max": 9.561050478001931e-07,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.01
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.01,
+      "one_minus_cos": 8.677910935395161e-07,
+      "one_minus_cos_max": 9.561050478001931e-07,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.01
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.03,
+      "one_minus_cos": 1.0077961187053102e-06,
+      "one_minus_cos_max": 1.09808771009412e-06,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.03
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.03,
+      "one_minus_cos": 1.0077961187053102e-06,
+      "one_minus_cos_max": 1.09808771009412e-06,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.03
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.1,
+      "one_minus_cos": 1.6680924476893584e-06,
+      "one_minus_cos_max": 1.7706161461461534e-06,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.1
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.1,
+      "one_minus_cos": 1.6680924476893584e-06,
+      "one_minus_cos_max": 1.7706161461461534e-06,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.1
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.3,
+      "one_minus_cos": 2.9963127633555093e-05,
+      "one_minus_cos_max": 3.0340359921665616e-05,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.3
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 0.3,
+      "one_minus_cos": 2.9963127633555093e-05,
+      "one_minus_cos_max": 3.0340359921665616e-05,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.3
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 1.0,
+      "one_minus_cos": 0.004567012947739905,
+      "one_minus_cos_max": 0.004577962521614687,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 1.0
+    },
+    {
+      "implant": "rank-1",
+      "layer": "controlnet_blocks.59.output_proj",
+      "strength": 1.0,
+      "one_minus_cos": 0.004567012947739905,
+      "one_minus_cos_max": 0.004577962521614687,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 1.0
+    },
+    {
+      "implant": "input_channel",
+      "note": "the input-layer implant could not be applied: RuntimeError: The size of tensor a (3072) must match the size of tensor b (64) at non-singleton dimension 0"
+    }
+  ],
+  "detection_floor_relative_strength": 0.1,
+  "detection_floor_note": "the smallest implanted rank-1 strength (relative to the weight's own Frobenius norm) whose divergence leaves the natural-transform control distribution; below it this instrument cannot see an implant",
+  "detection_floor_established": true,
+  "seed": 42,
+  "note": "the control p99 is the natural-transform control distribution; a candidate above it and 1.5x the control mean is an anomaly to investigate"
+}

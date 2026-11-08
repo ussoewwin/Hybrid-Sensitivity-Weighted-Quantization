@@ -13,7 +13,7 @@ Model loading is ComfyUI-native (``comfy.sd.load_checkpoint_guess_config``), the
 as benchmark/nvfp4bench_sdxl.py (the old image-SSIM bench). The ConvRot INT8 Conv2d
 load scope is armed only when the checkpoint carries comfy_quant int8_tensorwise
 tensors (hswq hybrid NVFP4 packs do: NVFP4 Linears + ConvRot INT8 Conv2d), so the
-FP16 baseline always loads baseline.
+FP16 baseline always loads unmodified.
 
 The NVFP4 stack is the vendored ``benchmark/nvfp4/`` package
 (``comfy_quant_nvfp4.apply_comfy_quant_nvfp4_patches``) plus the SDXL parity hook
@@ -343,7 +343,7 @@ def apply_nvfp4_patches(
 def _load_checkpoint(path: str):
     """Load an SDXL checkpoint ComfyUI-natively; arm the ConvRot INT8 Conv2d load
     scope only when the file carries comfy_quant int8_tensorwise tensors (true for
-    hswq hybrid NVFP4 packs; FP16 baseline loads baseline)."""
+    hswq hybrid NVFP4 packs; FP16 baseline loads unmodified)."""
     import comfy.sd
 
     from int8.comfy_quant_int8 import (

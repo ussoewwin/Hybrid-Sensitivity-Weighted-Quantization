@@ -1,0 +1,58 @@
+{
+  "tool": "render, three conditions",
+  "pack": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
+  "base": "waiIllustriousSDXL_v170.safetensors",
+  "conditions": [
+    {
+      "condition": "edges",
+      "seed": 42,
+      "control_strength": 0.9,
+      "size": 1024,
+      "steps": 20,
+      "sampler": "dpmpp_2m/karras",
+      "cfg": 7.0,
+      "png": "cn_union_promax_sdxl_render_edges.png",
+      "png_bytes": 1467698,
+      "png_sha256": "6426b65c86b7c3d9f9377ccb56ab3c339d79a6bceeb87cd45a34fca84fba0e15",
+      "int8_linear_calls": 6500,
+      "latent_nan": 0,
+      "latent_inf": 0,
+      "latent_finite": true,
+      "wall_seconds": 31.3
+    },
+    {
+      "condition": "depth",
+      "seed": 1234,
+      "control_strength": 0.75,
+      "size": 1024,
+      "steps": 20,
+      "sampler": "dpmpp_2m/karras",
+      "cfg": 7.0,
+      "png": "cn_union_promax_sdxl_render_depth.png",
+      "png_bytes": 1073306,
+      "png_sha256": "77fc7aafa9268da18cc4a131728bd517352453a00e8750784acf465011a0c68d",
+      "int8_linear_calls": 13000,
+      "latent_nan": 0,
+      "latent_inf": 0,
+      "latent_finite": true,
+      "wall_seconds": 47.0
+    },
+    {
+      "condition": "grid",
+      "seed": 7,
+      "control_strength": 1.0,
+      "size": 768,
+      "steps": 20,
+      "sampler": "dpmpp_2m/karras",
+      "cfg": 7.0,
+      "png": "cn_union_promax_sdxl_render_grid.png",
+      "png_bytes": 486577,
+      "png_sha256": "e96e6b39179c7c51f67d4901c2cc33abdff548e09a3a94d18a4c4f997afccacb",
+      "int8_linear_calls": 12350,
+      "latent_nan": 0,
+      "latent_inf": 0,
+      "latent_finite": true,
+      "wall_seconds": 170.2
+    }
+  ]
+}

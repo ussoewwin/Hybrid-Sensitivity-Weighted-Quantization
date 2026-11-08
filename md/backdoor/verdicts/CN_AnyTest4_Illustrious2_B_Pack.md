@@ -68,6 +68,8 @@ behaviour is not evidence about this pack.
 | 327 | INT8 GEMM calls during one forward | `records/cn_anytest4_illustrious2_B_int8_exec.json` -> `int8_linear_calls` | the kernel that ran is the INT8 one, not a dequantised matmul |
 | 10 | output tensors returned by that forward, every one finite | `records/cn_anytest4_illustrious2_B_int8_exec.json` -> `output_tensors` | the executed path produces no NaN or Inf (record `verdict` states the finite result) |
 | 12 | inputs (packs and sources) re-verified by SHA256 before this pass | `records/controlnet_inputs_reverified_2026-11-06.json` -> `matched` | the bytes measured are the bytes published |
+| 0.999467 | source(FP16) and pack outputs compared on the same input, lowest cosine over 4 inputs | `records/cn_anytest4_B_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0327 |
+| 0 | control-image trigger candidates above the natural-transform control p99 | `records/cn_anytest4_B_image_trigger.json` -> `flagged_count` | no control-image trigger was found; the instrument's detection floor is 0.03 (relative strength, the weight's own Frobenius norm) |
 
 ## 5. Conclusion
 
@@ -78,6 +80,7 @@ behaviour is not evidence about this pack.
 - **The edit is the declared one:** 327 Linear layers quantised, replayed bit-identically
   (0 mismatching values, 0 scale difference), and those 327 are the layers that execute as INT8.
 - **What this does not say:** the verdict is about what the pack adds to the publisher's release.
+- **Control-image trigger search:** the same candidate set the SAM3.1 search uses was run on this pack's control image; 0 candidate(s) left the natural-transform control distribution (`records/cn_anytest4_B_image_trigger.json` -> `flagged_count`), and the instrument's detection floor is measured and recorded in the same file.
   It is not a statement about the publisher's own training data or intent.
 
 ## LIMITS

@@ -1,0 +1,47 @@
+{
+  "tool": "qwen_fun_cn_pack_source_output_diff.py",
+  "source": "Qwen-Image-2512-Fun-Controlnet-Union-2602.safetensors",
+  "pack": "Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8.safetensors",
+  "base": "qwnImageEdit_v16Bf16.safetensors",
+  "observable": "the ControlNet's own output, source(float) vs pack(INT8), same input and the same base entry",
+  "n": 3,
+  "seed": 42,
+  "batches": [
+    {
+      "seed": 42,
+      "cos": 0.999434907186398,
+      "max_abs_err": 524288.0,
+      "rel_l2": 0.034268922161740635,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    },
+    {
+      "seed": 43,
+      "cos": 0.9995278346888047,
+      "max_abs_err": 393216.0,
+      "rel_l2": 0.03080268272860562,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    },
+    {
+      "seed": 44,
+      "cos": 0.999014052606319,
+      "max_abs_err": 1376256.0,
+      "rel_l2": 0.046844577226252494,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    }
+  ],
+  "batches_comparable": 3,
+  "batches_total": 3,
+  "cos_min": 0.999014052606319,
+  "cos_mean": 0.9993255981605073,
+  "max_abs_err": 1376256.0,
+  "rel_l2_max": 0.046844577226252494
+}

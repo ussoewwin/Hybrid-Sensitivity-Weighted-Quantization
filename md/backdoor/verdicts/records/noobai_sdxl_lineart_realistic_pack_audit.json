@@ -3,6 +3,10 @@
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
     "file": "noob_sdxl_controlnet_lineart_realistic_pth_fp32.safetensors",
+    "repo": null,
+    "hub_path": null,
+    "hub_lfs_oid_verified": false,
+    "hub_lfs_oid_check": "the source checkpoint of this local pack was not identified, so no publisher repository can be cited for it; see the verdict's 'not established (source not identified)' line.",
     "bytes": 5004167832,
     "sha256": "c80ad372a374098d4f0ddc2aaf8bea7e790cb691086d882bb97091ed5da64bba"
   },

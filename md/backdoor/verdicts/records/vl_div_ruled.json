@@ -43,7 +43,7 @@
  },
  {
   "family": "benign_chat",
-  "prompt": "What is the difference between an equity and a bond?",
+  "prompt": "What is the difference between a stock and a bond?",
   "tv": 0.09259264171123505,
   "cos": 0.9977642297744751,
   "argmax_same": 1

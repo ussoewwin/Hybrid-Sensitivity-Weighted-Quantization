@@ -1,0 +1,43 @@
+{
+  "tool": "pack_source_output_diff.py",
+  "source": "qwen_image_inpaint_diffsynth_controlnet.safetensors",
+  "pack": "qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8.safetensors",
+  "family": "diffsynth",
+  "n": 4,
+  "seed": 42,
+  "observable": "the patch's own per-block residuals, source(float) vs pack(INT8), same input",
+  "batches": [
+    {
+      "seed": 42,
+      "cos": 0.9999890325683604,
+      "max_abs_err": 65536.0,
+      "rel_l2": 0.0047169253424890565,
+      "blocks": 60
+    },
+    {
+      "seed": 43,
+      "cos": 0.9999899549346676,
+      "max_abs_err": 65536.0,
+      "rel_l2": 0.00450543765415299,
+      "blocks": 60
+    },
+    {
+      "seed": 44,
+      "cos": 0.9999889760341376,
+      "max_abs_err": 65536.0,
+      "rel_l2": 0.0047414681964948625,
+      "blocks": 60
+    },
+    {
+      "seed": 45,
+      "cos": 0.9999890746748852,
+      "max_abs_err": 65536.0,
+      "rel_l2": 0.004718503334748187,
+      "blocks": 60
+    }
+  ],
+  "cos_min": 0.9999889760341376,
+  "cos_mean": 0.9999892595530127,
+  "max_abs_err": 65536.0,
+  "rel_l2_max": 0.0047414681964948625
+}

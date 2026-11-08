@@ -4,6 +4,10 @@
   "source_converted_like_the_loader": true,
   "source": {
     "file": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps.safetensors",
+    "repo": "alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1",
+    "hub_path": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps.safetensors",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps.safetensors in alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1 equals this record's source sha256",
     "bytes": 2016627488,
     "sha256": "3ea098db9bd145be525c7e2366920b6d76c5ffd46b3d7aa8169bbc943fdaee35"
   },
@@ -83,5 +87,14 @@
     "tolerance": 1e-06,
     "max_abs_diff": 0.0
   },
-  "verdict": "FAITHFUL"
+  "verdict": "FAITHFUL",
+  "borrowed_instrument_replay": {
+    "instrument": "audit/controlnet_pack_audit.py (_replay_helpers)",
+    "q_mismatch_total": 138,
+    "q_on_rounding_boundary": 138,
+    "q_off_rounding_boundary": 0,
+    "max_q_delta": 1,
+    "scale_exact_rel_max": 2.3231186219163646e-07,
+    "boundary_dist_max": 1.1444091796875e-05
+  }
 }

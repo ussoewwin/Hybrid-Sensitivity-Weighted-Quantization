@@ -1,0 +1,67 @@
+{
+  "tool": "controlnet_pack_source_output_diff.py",
+  "source_class": "ControlNet",
+  "pack_class": "ControlNet",
+  "source_parameters": 844,
+  "pack_parameters": 844,
+  "parameters_only_in_source": [],
+  "parameters_only_in_pack": [],
+  "graphs_isomorphic": true,
+  "source": "CN-anytest4_illustrious2_B.safetensors",
+  "pack": "CN-anytest4_illustrious2_B_hswq_convrot_int8.safetensors",
+  "observable": "the ControlNet's own output tensors, source(float) vs pack(INT8), same input",
+  "n": 4,
+  "seed": 42,
+  "batches": [
+    {
+      "seed": 42,
+      "cos": 0.9994672170573371,
+      "max_abs_err": 2.109375,
+      "rel_l2": 0.03265842899730971,
+      "tensors": 10,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    },
+    {
+      "seed": 43,
+      "cos": 0.9996510543730274,
+      "max_abs_err": 1.4375,
+      "rel_l2": 0.026437637179613394,
+      "tensors": 10,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    },
+    {
+      "seed": 44,
+      "cos": 0.9994792342206185,
+      "max_abs_err": 2.375,
+      "rel_l2": 0.03237941782582425,
+      "tensors": 10,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    },
+    {
+      "seed": 45,
+      "cos": 0.9994763792184977,
+      "max_abs_err": 2.8125,
+      "rel_l2": 0.03241655981800803,
+      "tensors": 10,
+      "source_nan": 0,
+      "source_inf": 0,
+      "pack_nan": 0,
+      "pack_inf": 0
+    }
+  ],
+  "batches_comparable": 4,
+  "batches_total": 4,
+  "cos_min": 0.9994672170573371,
+  "cos_mean": 0.9995184712173701,
+  "max_abs_err": 2.8125,
+  "rel_l2_max": 0.03265842899730971
+}

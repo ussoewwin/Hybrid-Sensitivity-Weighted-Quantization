@@ -1,0 +1,47 @@
+{
+  "analysis": "noobai_inputs_reverified_2026-11-08",
+  "date": "2026-11-08",
+  "method": "sha256 recomputed from the files on disk and compared with the sha256 recorded in the pack audit records; no value is copied from a previous verification record",
+  "files": [
+    {
+      "role": "pack",
+      "file": "noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8.safetensors",
+      "expected_sha256": "86e795137dcf8d2876784eeecc2d61365c385f6caf4a5176d225ecd57fdcc914",
+      "measured_sha256": "86e795137dcf8d2876784eeecc2d61365c385f6caf4a5176d225ecd57fdcc914",
+      "measured_bytes": 1420211083,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "source",
+      "file": "noobaiXLControlnet_epsLineartRealistic.safetensors",
+      "expected_sha256": "c80ad372a374098d4f0ddc2aaf8bea7e790cb691086d882bb97091ed5da64bba",
+      "measured_sha256": "c80ad372a374098d4f0ddc2aaf8bea7e790cb691086d882bb97091ed5da64bba",
+      "measured_bytes": 5004167832,
+      "present_on_disk": true,
+      "verified": true
+    },
+    {
+      "role": "legacy_pack",
+      "file": "noobaiXLControlnet_epsLineartRealistic_convrot_int8.safetensors",
+      "expected_sha256": null,
+      "present_on_disk": false,
+      "verified": false,
+      "note": "the legacy local pack is not present on this machine, so its hash could not be re-verified here"
+    }
+  ],
+  "verified_by_pack": {
+    "noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8": {
+      "pack_verified": true,
+      "source_verified": true,
+      "verified_files": 2
+    },
+    "noobaiXLControlnet_epsLineartRealistic_convrot_int8": {
+      "pack_verified": false,
+      "source_verified": false,
+      "verified_files": 0,
+      "note": "the file is not present on this machine, so its hash could not be re-verified here"
+    }
+  },
+  "matched": 2
+}

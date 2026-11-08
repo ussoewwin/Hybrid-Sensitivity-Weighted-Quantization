@@ -778,6 +778,44 @@ device and the peak GPU allocation, so the run's cost is on the record.
 
 ---
 
+## 12d. ControlNet and model-patch extension - the required lines of a CN/MP verdict
+
+A ControlNet or model-patch pack is written only when the steps below each have a record, and
+when the report carries the lines below. `audit/procedure_check.py` checks these mechanically,
+so a report cannot drop a number and keep the verdict.
+
+| step | what it measures | record |
+| :--- | :--- | :--- |
+| CN-1 / MP-1 | the pack is the source quantised: per-layer INT8 replay against the converter's own instrument, float-side comparison, runtime-name coverage | `records/<pack>_pack_audit.json` |
+| CN-2 / MP-2 | the loader route the card names: declared layers vs layers the node applied, raw INT8 codes left behind | `records/<pack>_route.json` |
+| CN-3 / MP-3 | one forward on that route: INT8 GEMM call count, output tensors, finiteness | `records/<pack>_int8_exec.json` |
+| CN-4 / MP-4 | the end-to-end render on that route, or the protection census for a model patch | `records/<pack>_image_test.json`, `records/<pack>_protection.json` |
+| CN-5 / MP-5 | the source(FP16) and the pack on the same input, and the control-image trigger search | `records/<pack>_pack_source_output_diff.json`, `records/<pack>_image_trigger.json` |
+
+**Required line 1 - the instrument is named.** The report names the instrument the replay ran on,
+and `records/<pack>_pack_audit.json` -> `instrument` carries the same tool path, device and
+rationale. The replay has to run on the instrument that built the pack: a replay that borrows
+The source-vs-pack comparison runs `audit/controlnet_image_trigger.py` (ControlNet) or `audit/model_patch_image_trigger.py` (model patch); the control-image trigger search is the same program, with the positive control that states the instrument's detection floor.
+another tool's rotation and quantisation functions reports a residue at the .5 rounding boundary
+that is the borrowing instrument's arithmetic, not a difference in the pack. When such a residue
+is quoted, it is quoted with `records/<pack>_pack_audit.json` -> `borrowed_instrument_replay`.
+
+**Required line 2 - coverage and execution.** The report states the audited-tensor coverage and
+the number of declared layers the loader route actually applied, and the two records carry the
+same numbers (`coverage` and `applied_layers`).
+
+**Required line 3 - the protection set is measured here.** The report states the drift threshold
+used and the number of layers it protects, and `records/<pack>_protection.json` (model patch) or
+the pack audit's protected count carries the same numbers. A protection set measured on another
+checkpoint is not accepted.
+
+**Required line 4 - the two axes are separate.** The report states what is closed - the pack's
+fidelity to its audited source - and what is not established - the source's own absence of added
+material, when the reference is the publisher's own release. The index carries the same two axes
+in its own rows.
+
+---
+
 ## 12b. Gate 8 - the pack must execute on the loader its card names
 
 A quantised file can be arithmetically perfect and still not work. Gate 0 to Gate 7 prove

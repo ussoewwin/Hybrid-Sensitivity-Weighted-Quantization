@@ -16,6 +16,7 @@ own transformer, so the measurement needs no base model.
 | 49c01aafe6545c1f6e7627a724c8fb13357fe74efee235622158f0a8f30e5458 | source sha256, the Hub's LFS object id | `records/qwen_image_controlnet_inpainting_pack_audit.json` -> `source.sha256` | the bytes audited are the bytes the publisher serves |
 | 2,120,290,274 | pack size in bytes | `records/qwen_image_controlnet_inpainting_pack_audit.json` -> `pack.bytes` | the artifact this verdict applies to |
 | 38f0ab7495029517d4b0bb4187cedcbdfa090a29f0bb50dfa5733f5076a0c451 | pack sha256, equal to the value the model card publishes and to the value the pack's own technical guide records | `records/qwen_image_controlnet_inpainting_pack_audit.json` -> `pack.sha256` | the local file is the published pack |
+| 0.999716 | source(FP16) and pack outputs compared on the same input, lowest cosine over 4 inputs | `records/qwen_image_cn_inpaint_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0251 |
 
 The publisher's repository requires an access token, so the source was taken from a mirror that
 carries the same LFS object (`49c01aaf…`). The arithmetic in section 3 is what confirms the
@@ -68,6 +69,7 @@ embedder line. The replay honours each layer's own group.
 - **The edit is the declared one:** 95 Linear layers quantised, replayed with 0 mismatching values,
   all 95 executing as INT8 on the loader route their card names.
 - **What this does not say:** the verdict is about what the pack adds to the publisher's release.
+- **Control-image trigger search: not completed for this pack.** This ControlNet consumes a 17-channel control latent (16 latent + 1 mask) and the instrument's control-image path does not build that combination, so the search could not be run against it. No statement is made about control-image triggers here.
   No statement is made about the publisher's own training data or intent.
 
 ## LIMITS

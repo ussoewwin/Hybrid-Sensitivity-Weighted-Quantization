@@ -758,7 +758,7 @@ def main():
         apply_nvfp4_patches()
         print(
             f"  [BENCH] SSIM target >={SSIM_TARGET} "
-            "(ConvRot NVFP4 + ComfyUI ComfyUI GEMM + online act rotate)"
+            "(ConvRot NVFP4 + ComfyUI's own GEMM + online act rotate)"
         )
     except ImportError as e:
         _restore_argv(saved_argv)

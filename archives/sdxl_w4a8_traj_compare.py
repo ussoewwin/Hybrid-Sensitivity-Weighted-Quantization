@@ -11,7 +11,7 @@ applied to SDXL checkpoints:
 
 Model loading is ComfyUI-native (``comfy.sd.load_checkpoint_guess_config``). W4A8-pack
 Conv2d load scope is armed only when the checkpoint looks like a ConvRot W4A8
-comfy_quant pack, so the FP16 baseline always loads baseline.
+comfy_quant pack, so the FP16 baseline always loads unmodified.
 
 The pack's ConvRot INT8-fallback patches come from
 ``benchmark/sdxl convrot w4a8/comfy_quant_w4a8.py`` (vendored; loaded by
@@ -336,7 +336,7 @@ def apply_w4a8_patches() -> None:
 def _load_checkpoint(path: str):
     """Load an SDXL checkpoint ComfyUI-natively; arm W4A8-pack Conv2d load scope
     only when the file looks like a ConvRot W4A8 comfy_quant pack (FP16 baseline
-    loads baseline)."""
+    loads unmodified)."""
     import comfy.sd
 
     _cq = _load_w4a8_patch_module()

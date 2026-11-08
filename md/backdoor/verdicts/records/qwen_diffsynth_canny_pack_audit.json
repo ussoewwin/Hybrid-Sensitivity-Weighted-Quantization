@@ -4,6 +4,10 @@
   "source_converted_like_the_loader": false,
   "source": {
     "file": "qwen_image_canny_diffsynth_controlnet.safetensors",
+    "repo": "Comfy-Org/Qwen-Image-DiffSynth-ControlNets",
+    "hub_path": "split_files/model_patches/qwen_image_canny_diffsynth_controlnet.safetensors",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of split_files/model_patches/qwen_image_canny_diffsynth_controlnet.safetensors in Comfy-Org/Qwen-Image-DiffSynth-ControlNets equals this record's source sha256",
     "bytes": 2266838080,
     "sha256": "16f54f5c3c84cb213eba98d304e7486816a39b2891715c662024f40192093429"
   },
@@ -171,5 +175,14 @@
     "device": "cpu",
     "rationale": "the replay has to run on the instrument that built the pack (guide section 14)",
     "detail": "the family's own rotate_weight / quant_rowwise / group_size_for, on CPU; the gate has to use the same instrument as the measurement"
+  },
+  "borrowed_instrument_replay": {
+    "instrument": "audit/controlnet_pack_audit.py (_replay_helpers)",
+    "q_mismatch_total": 948,
+    "q_on_rounding_boundary": 948,
+    "q_off_rounding_boundary": 0,
+    "max_q_delta": 1,
+    "scale_exact_rel_max": 5.615303848571784e-07,
+    "boundary_dist_max": 3.0517578125e-05
   }
 }

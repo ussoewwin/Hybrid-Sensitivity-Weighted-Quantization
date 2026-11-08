@@ -18,6 +18,8 @@ loads it with `ModelPatchLoader` / `HSWQModelPatchLoaderCustom` and applies it w
 | ca78c68ef4c2ae332197e9642ea71838b4ae5d587f199813b9c9cc44bfd10bce | source sha256, equal to the Hub's LFS object id | `records/qwen_diffsynth_inpaint_pack_audit.json` -> `source.sha256` | the bytes audited are the bytes the publisher serves |
 | 1,135,921,920 | pack size in bytes | `records/qwen_diffsynth_inpaint_pack_audit.json` -> `pack.bytes` | the artifact this verdict applies to |
 | 471b6affc7fcedafb9940fafd6354dd6eb5fac5705e647029c90598c407c82d3 | pack sha256, equal to the value the card publishes | `records/qwen_diffsynth_inpaint_pack_audit.json` -> `pack.sha256` | the downloaded file is the published pack |
+| 0.999989 | source(FP16) and pack outputs compared on the same input, lowest cosine over 4 inputs | `records/qwen_diffsynth_inpaint_pack_source_output_diff.json` -> `cos_min` | the pack reproduces its source's behaviour; the largest relative L2 difference is 0.0047 |
+| 0 | control-image trigger candidates above the natural-transform control p99 | `records/qwen_diffsynth_inpaint_image_trigger.json` -> `flagged_count` | no control-image trigger was found; the instrument's detection floor is 0.01 (relative strength, the weight's own Frobenius norm) |
 
 ## 2. Coverage in the runtime's own names
 
@@ -74,15 +76,17 @@ marks exactly that region. The rendered picture keeps the scene outside the mask
 the circle, which is the behaviour the pack is published for. It is one region and one prompt; it is not
 a statement about inpainting quality.
 
+| 2 | inputs (this pack and its source) re-verified by SHA256 before this pass | `records/model_patch_inputs_reverified_2026-11-08.json` -> `verified_by_pack.qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8.verified_files` | the bytes measured are the bytes published |
+
 ## 5. Conclusion
 
 **No backdoor detected.**
 
 - **Added material:** nothing was added; every pack tensor equals the source under the converter's
   own quantisation, and the float side is bit-identical.
-- **The edit is the declared one:** 120 Linear layers quantised, replayed with 0 differing values,
-  every one of them on a .5 rounding boundary.
+- **The edit is the declared one:** 120 Linear layers quantised, replayed with 0 differing values.
 - **What this does not say:** the runtime object is a model patch, applied by the family node;
+- **Control-image trigger search:** the same candidate set the SAM3.1 search uses was run on this pack's control image; 0 candidate(s) left the natural-transform control distribution (`records/qwen_diffsynth_inpaint_image_trigger.json` -> `flagged_count`), and the instrument's detection floor is measured and recorded in the same file.
   a ControlNet loader has no branch for this layout and refuses it. "No backdoor" is a statement
   about added material.
 
@@ -104,6 +108,7 @@ a statement about inpainting quality.
   scale difference of 4.32e-07. That residue is the borrowing instrument's arithmetic, not a
   difference in this pack, and it is why the instrument is named here.
   Exact agreement on the instrument that built the pack is what makes the comparison meaningful.
+  The borrowed-instrument figures quoted above are recorded in `records/qwen_diffsynth_inpaint_pack_audit.json` -> `borrowed_instrument_replay`: `q_mismatch_total` = 539, `q_on_rounding_boundary` = 539, `q_off_rounding_boundary` = 0, `max_q_delta` = 1, `scale_exact_rel_max` = 4.324961651036574e-07.
 - Inputs outside the tested sets are not covered; no test covers them.
 
 

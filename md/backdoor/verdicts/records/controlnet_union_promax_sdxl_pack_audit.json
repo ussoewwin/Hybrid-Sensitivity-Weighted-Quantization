@@ -3,6 +3,10 @@
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
     "file": "controlnet-union-sdxl-1.0_promax.safetensors",
+    "repo": "xinsir/controlnet-union-sdxl-1.0",
+    "hub_path": "diffusion_pytorch_model_promax.safetensors",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of diffusion_pytorch_model_promax.safetensors in xinsir/controlnet-union-sdxl-1.0 equals this record's source sha256",
     "bytes": 2513342408,
     "sha256": "9fae2e50cb431bfcbe05822b59ec2228df545ef27f711dea8949e9f4ed9f7cdc"
   },

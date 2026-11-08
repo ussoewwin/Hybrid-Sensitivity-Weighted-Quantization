@@ -155,7 +155,7 @@ FP32) has to stay in FP16. See
   quantized. The builder derives the group size per layer (the largest
   power-of-4 divisor of the input width), so bigG uses 64 for 275 layers. The
   same rule applies to every other pack.
-- **The INT8 GEMM needs the loader's runtime arm.** On the ComfyUI ComfyUI path an
+- **The INT8 GEMM needs the loader's runtime arm.** On ComfyUI's own loading path an
   INT8 pack is dequantized for every matmul (`int8_tensorwise` is a weight-only
   algorithm) and `int8_linear` is called 0 times. With the arm installed the real
   INT8 GEMM runs: for FLAN-T5 XXL that is 163 calls per forward and **+75.9 % to
