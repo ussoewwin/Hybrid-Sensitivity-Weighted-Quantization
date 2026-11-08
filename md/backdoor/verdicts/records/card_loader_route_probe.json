@@ -1,0 +1,54 @@
+{
+  "tool": "card_loader_route_probe.py",
+  "steps": 2,
+  "packs": [
+    {
+      "pack": "CN-anytest4_illustrious2_A_hswq_convrot_int8.safetensors",
+      "base": "waiIllustriousSDXL_v170.safetensors",
+      "stock_loaded": true,
+      "stock_int8_calls": 0,
+      "stock_quantised_modules": 0,
+      "hswq_int8_calls": 652,
+      "hswq_quantised_modules": 326
+    },
+    {
+      "pack": "CN-anytest4_illustrious2_B_hswq_convrot_int8.safetensors",
+      "base": "waiIllustriousSDXL_v170.safetensors",
+      "stock_loaded": true,
+      "stock_int8_calls": 0,
+      "stock_quantised_modules": 0,
+      "hswq_int8_calls": 654,
+      "hswq_quantised_modules": 327
+    },
+    {
+      "pack": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8.safetensors",
+      "base": "waiIllustriousSDXL_v170.safetensors",
+      "stock_loaded": true,
+      "stock_int8_calls": 0,
+      "stock_quantised_modules": 0,
+      "hswq_int8_calls": 650,
+      "hswq_quantised_modules": 325
+    },
+    {
+      "pack": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8.safetensors",
+      "base": "fluxNSFWUNLOCKED_v30FP16.safetensors",
+      "error": "AttributeError: 'NoneType' object has no attribute 'encode_from_tokens_scheduled'",
+      "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\ussoe\\AppData\\Roaming\\AutoClaw-oversea-official\\accounts\\4e07651c7b86fd7cc1a4fd916822bc63d2ee393fe31bf09e8330ec79b841e1c4\\projects\\Default\\.openclaw\\tmp\\probe_all_loaders2.py\", line 66, in <module>\n    prompt_pos = clip.encode_from_tokens_scheduled(clip.tokenize(\"a photo of a white ceramic teapot\"))\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: 'NoneType' object has no attribute 'encode_from_tokens_scheduled'\n"
+    },
+    {
+      "pack": "Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8.safetensors",
+      "base": "qwnImageEdit_v16Bf16_convrot_int8.safetensors",
+      "stock_loaded": false,
+      "stock_error": "RuntimeError: Only Tensors of floating point and complex dtype can require gradients",
+      "hswq_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it."
+    },
+    {
+      "pack": "Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8.safetensors",
+      "base": "qwnImageEdit_v16Bf16_convrot_int8.safetensors",
+      "stock_loaded": false,
+      "stock_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it.",
+      "hswq_error": "ValueError: This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it."
+    }
+  ],
+  "note": "the stock ControlNetLoader against the HSWQ ControlNet Loader on the same pack"
+}
