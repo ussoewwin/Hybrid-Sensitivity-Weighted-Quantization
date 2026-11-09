@@ -1,0 +1,34 @@
+{
+  "tool": "controlnet_image_test.py",
+  "pack": "control_v11p_sd15_inpaint_hswq_convrot_int8.safetensors",
+  "base": "chilledReGenericV3_v10.safetensors",
+  "settings": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 12,
+    "cfg": 6.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "seed": 42,
+    "controlnet_strength": 0.9,
+    "prompt": "a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus",
+    "negative": "blurry, low quality",
+    "control_image": "synthetic hint (circle over a horizon)"
+  },
+  "measurement": {
+    "latent_shape": [
+      1,
+      4,
+      128,
+      128
+    ],
+    "latent_nan_count": 0,
+    "latent_inf_count": 0,
+    "latent_finite": true,
+    "int8_linear_calls": 636,
+    "png_bytes": 1446330,
+    "png_sha256": "8d2594403d099f1eb1680a8d7d0d0ba527e0da120550cf60473f245bc3f3ac03",
+    "wall_seconds": 19.5
+  },
+  "verdict": "image rendered"
+}
