@@ -541,6 +541,7 @@ Every per-model guide for this chapter, one link per artifact. The guides carry 
 - [FLUX.1-dev ControlNet Union Pro 2.0](FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md)
 - [Qwen-Image-2512 Fun ControlNet Union 2602](QwenImage2512FunControlnetUnion2602_ConvRot_INT8_Impact_Technical_Guide.md)
 - [Qwen-Image ControlNet Inpainting](QwenImageControlNetInpainting_ConvRot_INT8_Impact_Technical_Guide.md)
+- [SD1.5 tile ControlNet](CN_SD15_Tile_ConvRot_INT8_Impact_Technical_Guide.md)
 - [Qwen-Image diffsynth model patch (canny)](QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md)
 - [Qwen-Image diffsynth model patch (depth)](QwenImageDepthDiffsynthControlnet_ConvRot_INT8_Guide.md)
 - [Qwen-Image diffsynth model patch (inpaint)](QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md)
@@ -565,6 +566,7 @@ carries the pack's first 16 hex characters, full hash in the per-model guide.
 | `FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8` | FLUX.1-dev | ControlNet | `models/controlnet/` | 0.999771 / 0.999488 | 2585.1 MB | `FBCBA3C76A221FBA` |
 | `Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8` | Qwen-Image-2512 | ControlNet | `models/controlnet/` | 0.999158 / 0.998215 | 1677.2 MB | `5AEC39A53F583BAD` |
 | `Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8` | Qwen-Image | ControlNet | `models/controlnet/` | 0.999545 / 0.998887 | 2022.1 MB | `38F0AB7495029517` |
+| `control_v11f1e_sd15_tile_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999708 / 0.999592 | 579.5 MB | `E90A2CB010EA2E18` |
 | `qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924905 / 0.9999924096 | 1083.3 MB | `C2899255252B81FD` |
 | `qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
 | `qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999921236 / 0.9999919542 | 1083.3 MB | `471B6AFFC7FCEDAF` |
@@ -577,7 +579,7 @@ Patch Loader**; the plain rows go through the ControlNet loader.
 
 Published on Hugging Face:
 
-- **[ussoewwin/ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8)** - the eleven packs above.
+- **[ussoewwin/ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8)** - the eleven published packs above (the SD1.5 tile pack is built locally and not yet on the card).
 - **[ussoewwin/Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8)** - the text-encoder packs (see the next section).
 - **[ussoewwin/SAM3.1-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/SAM3.1-HSWQ-ConvRot-INT8)** - the SAM 3.1 pack.
 
@@ -677,6 +679,7 @@ Place the pack in `ComfyUI/models/unet/` (or `models/diffusion_models/`) and loa
 | **SAM 3** | Segmentation & Video Tracking | `sam3.pt`, `sam3_fp16.safetensors` (HSWQ pack not published - license restriction) |
 | **Illustrious-XL / SDXL** | Anytest ControlNet | `CN-anytest4_illustrious2_A`, `CN-anytest4_illustrious2_B` |
 | **SDXL 1.0** | ControlNet Union | `controlnet-union-pro-max-sdxl-1.0` (xinsir) |
+| **SD1.5** | ControlNet Tile | `control_v11f1e_sd15_tile` (lllyasviel) |
 | **Z-Image-Turbo** | ControlNet Union / Tile | `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps`, `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps` |
 | **Qwen-Image** | ControlNet Inpainting | `Qwen-Image-ControlNet-Inpainting` (alibaba-pai) |
 | **Qwen-Image-2512** | ControlNet Union | `Qwen-Image-2512-Fun-Controlnet-Union-2602` |

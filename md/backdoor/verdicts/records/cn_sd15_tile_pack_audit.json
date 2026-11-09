@@ -3,6 +3,10 @@
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
     "file": "control_v11f1e_sd15_tile.pth",
+    "repo": "lllyasviel/ControlNet-v1-1",
+    "hub_path": "control_v11f1e_sd15_tile.pth",
+    "hub_lfs_oid_verified": true,
+    "hub_lfs_oid_check": "the Hub LFS object id of control_v11f1e_sd15_tile.pth in lllyasviel/ControlNet-v1-1 equals this record's source sha256",
     "bytes": 1445235023,
     "sha256": "8aa69b8d391e72c2fced6a650268137dc0ed594cafe8a2c0f8b994799a21979b"
   },

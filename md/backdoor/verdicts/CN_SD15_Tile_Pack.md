@@ -13,7 +13,7 @@ protection set that the pack carries was measured on this checkpoint by a full t
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | 1,445,235,023 | source size in bytes, the published file | `records/cn_sd15_tile_pack_audit.json` -> `source.bytes` | the reference is the publisher's release |
-| 8aa69b8d391e72c2fced6a650268137dc0ed594cafe8a2c0f8b994799a21979b | source sha256 | `records/cn_sd15_tile_pack_audit.json` -> `source.sha256` | the bytes audited are the bytes of the published checkpoint |
+| 8aa69b8d391e72c2fced6a650268137dc0ed594cafe8a2c0f8b994799a21979b | source sha256, equal to the Hub's LFS object id | `records/cn_sd15_tile_pack_audit.json` -> `source.sha256` | the bytes audited are the bytes of the published checkpoint (`lllyasviel/ControlNet-v1-1`) |
 | 607,603,903 | pack size in bytes | `records/cn_sd15_tile_pack_audit.json` -> `pack.bytes` | the artifact this verdict applies to |
 | e90a2cb010ea2e180b75ccc722dff476d8617f6b474dbadcb82423a34102de60 | pack sha256 | `records/cn_sd15_tile_pack_audit.json` -> `pack.sha256` | the file the audit measured is this file |
 
@@ -73,6 +73,7 @@ The protected families are the ones the SDXL ControlNet sweeps found as well: th
 | 1,437,598 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/cn_sd15_tile_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
 | 18.4 | wall seconds for that render | `records/cn_sd15_tile_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 | 636 | INT8 GEMM calls during the render | `records/cn_sd15_tile_image_test.json` -> `measurement.int8_linear_calls` | the INT8 kernel runs across the whole generation |
+| 0.999708 | the 256-item acceptance gate, the mean cosine (min 0.999592, PASS) | `records/cn_sd15_tile_gate_256.json` -> `mean` | the complete pack is verified through the actual loader on the fixed 256-item set |
 | 1807b76598f0511311e55bd69bcb48f53c54ca8787a572d8d94c5185816a66dd | sha256 of that PNG | `records/cn_sd15_tile_image_test.json` -> `measurement.png_sha256` | the render is reproducible from the record |
 
 ## 6. The source and the pack on the same input
@@ -137,3 +138,5 @@ The protected families are the ones the SDXL ControlNet sweeps found as well: th
   inputs: the cosines, the largest element difference and the relative L2 difference.
 - `records/cn_sd15_tile_image_trigger.json` - the control-image trigger search: 55 candidates,
   the natural-transform control distribution, and the instrument's detection floor.
+- `records/cn_sd15_tile_gate_256.json` - the 256-item acceptance gate on the loader's path: the
+  mean, min, p5 and p50 cosines, the INT8 call count and the verdict.
