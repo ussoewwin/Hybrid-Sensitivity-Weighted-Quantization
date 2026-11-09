@@ -62,6 +62,7 @@ REQUIRED_TOOLS = [
     "model_patch_int8_exec.py",
     "model_patch_protection_census.py",
     "controlnet_image_trigger.py",
+    "controlnet_pack_source_output_diff.py",
     "model_patch_image_trigger.py",
 ]
 REQUIRED_SECTIONS = ["## 12c. SAM3.1 extension - the required lines of an S0-S6 verdict",

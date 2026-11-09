@@ -1,0 +1,75 @@
+{
+  "tool": "convert_controlnet_convrot_int8.py",
+  "converter_args": {
+    "input": "control_v11f1e_sd15_tile.pth",
+    "output": "control_v11f1e_sd15_tile_hswq_convrot_int8.safetensors",
+    "impact_sha256": "5fde1f805ab009446612c8307ae55a55e58f9341dfe14276709fb504431a3518",
+    "impact_bytes": 9659,
+    "drift_threshold": 0.15,
+    "model": "chilledReGenericV3_v10.safetensors"
+  },
+  "measurement": {
+    "sweep": "full trajectory sweep, 142 modules, 20 steps, seed 42, cfg 7.0",
+    "drift_gt_threshold": 13,
+    "protected_total": 29,
+    "convrot_int8_linear": 53,
+    "kept_not_runtime_linear": 258,
+    "output_gb": 0.57
+  },
+  "runtime_linear_modules": 82,
+  "protected_layers": [
+    {
+      "layer": "input_hint_block.10",
+      "rel_mse": 0.47844010214321314
+    },
+    {
+      "layer": "input_blocks.1.0.out_layers.3",
+      "rel_mse": 0.4299954128568061
+    },
+    {
+      "layer": "input_hint_block.12",
+      "rel_mse": 0.32400594421778806
+    },
+    {
+      "layer": "input_hint_block.6",
+      "rel_mse": 0.31568436278030276
+    },
+    {
+      "layer": "input_hint_block.14",
+      "rel_mse": 0.31077893304172904
+    },
+    {
+      "layer": "input_blocks.1.0.in_layers.2",
+      "rel_mse": 0.28819922733819114
+    },
+    {
+      "layer": "input_hint_block.8",
+      "rel_mse": 0.27214295729063454
+    },
+    {
+      "layer": "input_blocks.1.1.proj_in",
+      "rel_mse": 0.26349462108919397
+    },
+    {
+      "layer": "input_blocks.2.1.proj_in",
+      "rel_mse": 0.25308008994325065
+    },
+    {
+      "layer": "input_blocks.1.1.proj_out",
+      "rel_mse": 0.21401631170883775
+    },
+    {
+      "layer": "input_hint_block.4",
+      "rel_mse": 0.1735564345406601
+    },
+    {
+      "layer": "input_blocks.0.0",
+      "rel_mse": 0.15930366450229486
+    },
+    {
+      "layer": "input_hint_block.2",
+      "rel_mse": 0.1570988219231367
+    }
+  ],
+  "note": "the protection set is measured on this checkpoint: 142 layers measured, 13 above the drift threshold, 29 kept in FP16 in total (drift or shape)"
+}

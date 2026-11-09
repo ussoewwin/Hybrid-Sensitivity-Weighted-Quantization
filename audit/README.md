@@ -59,6 +59,7 @@ python audit/run_all_gates.py
 | MP-2 (loader route coverage) | `model_patch_hswq_route.py` | `--pack <f> --comfy <d> [--json <o>]` |
 | MP-3 (forward execution) | `model_patch_int8_exec.py` | `--pack <f> --comfy <d> [--json <o>]` |
 | MP-4 (protection census) | `model_patch_protection_census.py` | `--pack <f> [--json <o>]` |
+| CN-5 (source vs pack output, ControlNet) | `controlnet_pack_source_output_diff.py` | `--source <f> --pack <f> --comfy <d> [--loader-root <d>] [--n N] [--seed S] --json <o>` |
 | CN-5 (source vs pack output) | `controlnet_image_trigger.py` | `--source <f> --pack <f> --comfy <d> [--loader-root <d>] [--reps N] [--seed S] --json <o>`; for the families whose control image goes through the runtime VAE add `--family flux\|qwen-instantx\|qwen-fun --vae <f>` (and `--base <f>` for qwen-fun) |
 | MP-5 (source vs pack output) | `model_patch_image_trigger.py` | `--source <f> --pack <f> --comfy <d> --vae <f> --family diffsynth\|zimage [--loader-root <d>] [--n N] [--seed S] --json <o>` |
 

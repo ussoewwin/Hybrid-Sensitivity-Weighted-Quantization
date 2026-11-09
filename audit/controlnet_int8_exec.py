@@ -85,12 +85,25 @@ def main() -> int:
         call = dict(x=x, timesteps=torch.tensor([500.0], device=device, dtype=dtype),
                     context=ctx, y=y, guidance=guid, hint=hint)
     else:
+        # the cldm family's inputs are read from the pack's own graph (the runtime
+        # names), so the same measurement runs on SD1.5 (context 768, no label
+        # embedding) and SDXL (context 2048, y 2816) alike
+        ctx_w = None
+        y_w = None
+        for n2, mm2 in cm.named_modules():
+            if n2.endswith("attn2.to_k") and getattr(mm2, "weight", None) is not None:
+                ctx_w = int(mm2.weight.shape[1])
+            if n2 == "label_emb.0.0" and getattr(mm2, "weight", None) is not None:
+                y_w = int(mm2.weight.shape[1])
+            elif n2 == "label_emb" and getattr(mm2, "weight", None) is not None:
+                y_w = int(mm2.weight.shape[1])
         x = torch.randn(1, 4, 64, 64, device=device, dtype=dtype)
         hint = torch.rand(1, 3, 512, 512, device=device, dtype=dtype)
-        ctx = torch.randn(1, 77, 2048, device=device, dtype=dtype)
-        y = torch.randn(1, 2816, device=device, dtype=dtype)
+        ctx = torch.randn(1, 77, ctx_w, device=device, dtype=dtype)
         call = dict(x=x, hint=hint, timesteps=torch.tensor([500.0], device=device, dtype=dtype),
-                    context=ctx, y=y)
+                    context=ctx)
+        if y_w is not None:
+            call["y"] = torch.randn(1, y_w, device=device, dtype=dtype)
 
     if type(cm).__name__ == "QwenImageControlNetModel":
         # Qwen InstantX ControlNet: self-contained, no base model needed. The hint carries the
