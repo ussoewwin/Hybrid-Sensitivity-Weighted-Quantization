@@ -1,0 +1,59 @@
+{
+ "tool": "convert_controlnet_convrot_int8.py",
+ "converter_args": {
+  "input": "control_v11e_sd15_shuffle.pth",
+  "output": "control_v11e_sd15_shuffle_hswq_convrot_int8.safetensors",
+  "impact_sha256": "574e898f4062f868f3e8b122eea043ab2691a3afa1905662292e8a0c88c2bf2f",
+  "impact_bytes": 9670,
+  "drift_threshold": 0.15,
+  "model": "chilledReGenericV3_v10.safetensors"
+ },
+ "measurement": {
+  "sweep": "full trajectory sweep, 142 modules, 20 steps, seed 42, cfg 7.0",
+  "drift_gt_threshold": 9,
+  "protected_total": 29,
+  "convrot_int8_linear": 53,
+  "kept_not_runtime_linear": 258,
+  "output_gb": 0.57
+ },
+ "runtime_linear_modules": 82,
+ "protected_layers": [
+  {
+   "layer": "input_hint_block.10",
+   "rel_mse": 0.6660045173019171
+  },
+  {
+   "layer": "input_blocks.1.0.out_layers.3",
+   "rel_mse": 0.4500083883292973
+  },
+  {
+   "layer": "input_hint_block.6",
+   "rel_mse": 0.33580299171153455
+  },
+  {
+   "layer": "input_blocks.1.0.in_layers.2",
+   "rel_mse": 0.25652761328965423
+  },
+  {
+   "layer": "input_hint_block.12",
+   "rel_mse": 0.2546322200098075
+  },
+  {
+   "layer": "input_hint_block.14",
+   "rel_mse": 0.22854612877126784
+  },
+  {
+   "layer": "input_hint_block.8",
+   "rel_mse": 0.22476903785718605
+  },
+  {
+   "layer": "input_blocks.1.1.proj_out",
+   "rel_mse": 0.21447592745535077
+  },
+  {
+   "layer": "input_blocks.1.1.proj_in",
+   "rel_mse": 0.20686225255485624
+  }
+ ],
+ "note": "The protected set is the layers whose own drift exceeds the threshold, taken from the checkpoint's own trajectory sweep on this pack's source; the shape-only protection is the converter's fixed rule, not a measurement."
+}
