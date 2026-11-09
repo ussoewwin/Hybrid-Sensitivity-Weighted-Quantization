@@ -87,9 +87,11 @@ def runtime_state_dict(source_path, comfy_path):
     if comfy not in sys.path:
         sys.path.insert(0, comfy)
     import comfy.controlnet as cc  # noqa: E402
-    from safetensors.torch import load_file  # noqa: E402
+    import comfy.utils  # noqa: E402
 
-    sd = load_file(source_path, device="cpu")
+    # the runtime's own loader: it reads a published .safetensors and a published
+    # .pth source the same way ComfyUI reads them
+    sd = comfy.utils.load_torch_file(source_path, safe_load=True)
     cnet = cc.load_controlnet_state_dict(sd)
     return cnet.control_model.state_dict()
 

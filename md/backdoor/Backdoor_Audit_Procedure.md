@@ -795,7 +795,7 @@ so a report cannot drop a number and keep the verdict.
 **Required line 1 - the instrument is named.** The report names the instrument the replay ran on,
 and `records/<pack>_pack_audit.json` -> `instrument` carries the same tool path, device and
 rationale. The replay has to run on the instrument that built the pack: a replay that borrows
-The source-vs-pack comparison runs `audit/controlnet_image_trigger.py` (ControlNet) or `audit/model_patch_image_trigger.py` (model patch); the control-image trigger search is the same program, with the positive control that states the instrument's detection floor.
+The source-vs-pack comparison runs `audit/controlnet_pack_source_output_diff.py` (ControlNet) or `audit/model_patch_image_trigger.py` (model patch); the control-image trigger search runs `audit/controlnet_image_trigger.py` (ControlNet) or `audit/model_patch_image_trigger.py` (model patch), with the positive control that states the instrument's detection floor.
 another tool's rotation and quantisation functions reports a residue at the .5 rounding boundary
 that is the borrowing instrument's arithmetic, not a difference in the pack. When such a residue
 is quoted, it is quoted with `records/<pack>_pack_audit.json` -> `borrowed_instrument_replay`.
@@ -1078,6 +1078,7 @@ table is only for spotting an implausible number.
 | :--- | :--- | :--- |
 | `controlnet_hswq_route.py` | 12b ControlNet route | `--pack <f> --comfy <d> [--loader-root <d>] [--json <o>]` |
 | `controlnet_pack_audit.py` | 14.5 ControlNet pack | `--source <f> --pack <f> --comfy <d> [--json <o>] [--device cpu\|cuda]` |
+| `controlnet_pack_source_output_diff.py` | 14.5 ControlNet pack | `--source <f> --pack <f> --comfy <d> [--loader-root <d>] [--n N] [--seed S] --json <o>` |
 | `model_patch_pack_audit.py` | 14.5 model patch pack | `--source <f> --pack <f> --comfy <d> [--json <o>]` |
 | `model_patch_hswq_route.py` | 12b model patch route | `--pack <f> --comfy <d> [--loader-root <d>] [--json <o>]` |
 | `model_patch_int8_exec.py` | 12b model patch execution | `--pack <f> --base <f> --clip <f> --vae <f> --family diffsynth\|zimage --comfy <d> [--json <o>] |

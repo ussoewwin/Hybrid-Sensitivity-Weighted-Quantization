@@ -143,9 +143,24 @@ def make_inputs(cm, seed):
         return dict(x=x, timesteps=torch.tensor([500.0], device=DEV, dtype=dtype), context=ctx, hint=hint, base_model=base)
     x = torch.randn(1, 4, 64, 64, generator=g).to(DEV, dtype=dtype)
     hint = torch.rand(1, 3, 512, 512, generator=g).to(DEV, dtype=dtype)
-    ctx = torch.randn(1, 77, 2048, generator=g).to(DEV, dtype=dtype)
-    y = torch.randn(1, 2816, generator=g).to(DEV, dtype=dtype)
-    return dict(x=x, hint=hint, timesteps=torch.tensor([500.0], device=DEV, dtype=dtype), context=ctx, y=y)
+    # the cldm family's context width and label embedding are read from the
+    # graph's own runtime names, so SD1.5 (context 768, no label embedding) and
+    # SDXL (context 2048, y 2816) are measured with their own shapes
+    ctx_w = None
+    y_w = None
+    for n2, mm2 in cm.named_modules():
+        if n2.endswith("attn2.to_k") and getattr(mm2, "weight", None) is not None:
+            ctx_w = int(mm2.weight.shape[1])
+        if n2 == "label_emb.0.0" and getattr(mm2, "weight", None) is not None:
+            y_w = int(mm2.weight.shape[1])
+        elif n2 == "label_emb" and getattr(mm2, "weight", None) is not None:
+            y_w = int(mm2.weight.shape[1])
+    ctx = torch.randn(1, 77, ctx_w, generator=g).to(DEV, dtype=dtype)
+    call = dict(x=x, hint=hint, timesteps=torch.tensor([500.0], device=DEV, dtype=dtype),
+                context=ctx)
+    if y_w is not None:
+        call["y"] = torch.randn(1, y_w, generator=g).to(DEV, dtype=dtype)
+    return call
 
 def run(cm, call):
     with torch.no_grad():
@@ -748,6 +763,8 @@ def main():
     ap.add_argument("--base", default="",
                     help="the base checkpoint the qwen-fun family's entry path is read from")
     a = ap.parse_args()
+    # resolve the output before the working directory changes
+    a.json = os.path.abspath(a.json)
     if a.family != "classic":
         return main_family(a)
     torch, folder_paths, comfy_utils, cc, mm = load_comfy(a.comfy)

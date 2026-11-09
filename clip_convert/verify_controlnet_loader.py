@@ -149,13 +149,34 @@ def check(pack):
             with torch.no_grad():
                 out = m.forward(x=x, timesteps=ts, context=txt, y=y, guidance=gd, hint=hint)
         else:
-            x = torch.randn(1, 4, 32, 32, generator=g).to("cuda", dtype=mdt)
-            hint = torch.randn(1, 3, 256, 256, generator=g).to("cuda", dtype=mdt)
-            txt = torch.randn(1, 77, 2048, generator=g).to("cuda", dtype=mdt)
-            y = torch.randn(1, 2816, generator=g).to("cuda", dtype=mdt)
+            # the inputs are read from the pack's own graph (the runtime names),
+            # so the acceptance runs on every cldm family: SD1.5 (context 768,
+            # no label embedding) and SDXL (context 2048, y 2816) alike
+            ctx_w = None
+            y_w = None
+            x_in = None
+            hint_in = None
+            for n2, mm2 in m.named_modules():
+                if n2.endswith("attn2.to_k") and getattr(mm2, "weight", None) is not None:
+                    ctx_w = int(mm2.weight.shape[1])
+                if n2 == "label_emb.0.0" and getattr(mm2, "weight", None) is not None:
+                    y_w = int(mm2.weight.shape[1])
+                elif n2 == "label_emb" and getattr(mm2, "weight", None) is not None:
+                    y_w = int(mm2.weight.shape[1])
+                if n2 == "input_blocks.0.0" and getattr(mm2, "weight", None) is not None:
+                    x_in = int(mm2.weight.shape[1])
+                if n2 == "input_hint_block.0" and getattr(mm2, "weight", None) is not None:
+                    hint_in = int(mm2.weight.shape[1])
+            x = torch.randn(1, x_in, 32, 32, generator=g).to("cuda", dtype=mdt)
+            hint = torch.randn(1, hint_in, 256, 256, generator=g).to("cuda", dtype=mdt)
+            txt = torch.randn(1, 77, ctx_w, generator=g).to("cuda", dtype=mdt)
             ts = torch.full((1,), 500.0, device="cuda", dtype=mdt)
             with torch.no_grad():
-                out = m.forward(x=x, hint=hint, timesteps=ts, context=txt, y=y)
+                if y_w is not None:
+                    y = torch.randn(1, y_w, generator=g).to("cuda", dtype=mdt)
+                    out = m.forward(x=x, hint=hint, timesteps=ts, context=txt, y=y)
+                else:
+                    out = m.forward(x=x, hint=hint, timesteps=ts, context=txt, y=None)
         f = flat(out)
         nf = int((~torch.isfinite(f)).sum().item())
         res = "%d elems, nonfinite=%d" % (f.numel(), nf)
