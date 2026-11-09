@@ -1,0 +1,191 @@
+{
+ "tool": "convert_controlnet_convrot_int8.py",
+ "converter_args": {
+  "input": "control_v11e_sd15_ip2p.pth",
+  "output": "control_v11e_sd15_ip2p_hswq_convrot_int8.safetensors",
+  "impact_sha256": "44e29b73e8cfabf1d0946bb1d16b1279bcaf4e5e8922604a085e2de2b8cc0d18",
+  "impact_bytes": 9597,
+  "drift_threshold": 0.15,
+  "model": "chilledReGenericV3_v10.safetensors"
+ },
+ "measurement": {
+  "sweep": "full trajectory sweep, 142 modules, 20 steps, seed 42, cfg 7.0",
+  "drift_gt_threshold": 42,
+  "protected_total": 42,
+  "convrot_int8_linear": 53,
+  "kept_not_runtime_linear": 258,
+  "output_gb": 0.57
+ },
+ "runtime_linear_modules": 82,
+ "protected_layers": [
+  {
+   "layer": "input_hint_block.10",
+   "rel_mse": 0.6244154125335626
+  },
+  {
+   "layer": "input_hint_block.4",
+   "rel_mse": 0.6131553267827258
+  },
+  {
+   "layer": "input_hint_block.2",
+   "rel_mse": 0.5573096719803289
+  },
+  {
+   "layer": "input_hint_block.8",
+   "rel_mse": 0.556818607216701
+  },
+  {
+   "layer": "input_hint_block.12",
+   "rel_mse": 0.5268076780019328
+  },
+  {
+   "layer": "input_blocks.4.0.skip_connection",
+   "rel_mse": 0.5208253042947035
+  },
+  {
+   "layer": "input_blocks.1.1.proj_out",
+   "rel_mse": 0.5129929744871333
+  },
+  {
+   "layer": "input_blocks.2.0.out_layers.3",
+   "rel_mse": 0.4606934834097046
+  },
+  {
+   "layer": "input_hint_block.6",
+   "rel_mse": 0.4534404570469633
+  },
+  {
+   "layer": "input_blocks.6.0.op",
+   "rel_mse": 0.4344330838008318
+  },
+  {
+   "layer": "input_blocks.3.0.op",
+   "rel_mse": 0.43436111650371456
+  },
+  {
+   "layer": "input_blocks.2.0.in_layers.2",
+   "rel_mse": 0.42828743738355113
+  },
+  {
+   "layer": "input_blocks.5.1.proj_in",
+   "rel_mse": 0.4212627911649179
+  },
+  {
+   "layer": "input_blocks.1.0.in_layers.2",
+   "rel_mse": 0.4083426014636643
+  },
+  {
+   "layer": "input_blocks.4.1.proj_in",
+   "rel_mse": 0.3791268138156738
+  },
+  {
+   "layer": "input_blocks.1.1.proj_in",
+   "rel_mse": 0.377055409620516
+  },
+  {
+   "layer": "input_blocks.7.1.proj_in",
+   "rel_mse": 0.33613312696106734
+  },
+  {
+   "layer": "input_blocks.5.1.proj_out",
+   "rel_mse": 0.3351368056202773
+  },
+  {
+   "layer": "input_hint_block.14",
+   "rel_mse": 0.3214660451107193
+  },
+  {
+   "layer": "input_blocks.4.0.in_layers.2",
+   "rel_mse": 0.3083217885650811
+  },
+  {
+   "layer": "input_blocks.7.1.proj_out",
+   "rel_mse": 0.3040975474752486
+  },
+  {
+   "layer": "input_blocks.1.0.out_layers.3",
+   "rel_mse": 0.2941881137667224
+  },
+  {
+   "layer": "input_blocks.2.1.proj_in",
+   "rel_mse": 0.29381956983124835
+  },
+  {
+   "layer": "zero_convs.8.0",
+   "rel_mse": 0.29100091429572783
+  },
+  {
+   "layer": "input_blocks.9.0.op",
+   "rel_mse": 0.29058558598044326
+  },
+  {
+   "layer": "input_blocks.7.0.skip_connection",
+   "rel_mse": 0.2885810213250807
+  },
+  {
+   "layer": "input_blocks.8.1.proj_out",
+   "rel_mse": 0.2863022519290098
+  },
+  {
+   "layer": "input_blocks.8.1.proj_in",
+   "rel_mse": 0.2782009272843425
+  },
+  {
+   "layer": "input_blocks.2.1.proj_out",
+   "rel_mse": 0.26156749188376127
+  },
+  {
+   "layer": "input_blocks.5.0.in_layers.2",
+   "rel_mse": 0.2607059057743754
+  },
+  {
+   "layer": "zero_convs.0.0",
+   "rel_mse": 0.2584232671011705
+  },
+  {
+   "layer": "zero_convs.7.0",
+   "rel_mse": 0.25437058238021565
+  },
+  {
+   "layer": "input_blocks.7.0.in_layers.2",
+   "rel_mse": 0.24930278353276664
+  },
+  {
+   "layer": "input_blocks.5.0.out_layers.3",
+   "rel_mse": 0.24562948931998108
+  },
+  {
+   "layer": "input_blocks.8.0.in_layers.2",
+   "rel_mse": 0.23924125188677864
+  },
+  {
+   "layer": "input_blocks.8.0.out_layers.3",
+   "rel_mse": 0.23191684222401818
+  },
+  {
+   "layer": "input_blocks.4.1.proj_out",
+   "rel_mse": 0.22500229036668315
+  },
+  {
+   "layer": "input_blocks.7.0.out_layers.3",
+   "rel_mse": 0.21357044099750055
+  },
+  {
+   "layer": "input_blocks.4.0.out_layers.3",
+   "rel_mse": 0.20319605876575225
+  },
+  {
+   "layer": "middle_block_out.0",
+   "rel_mse": 0.19874969222728395
+  },
+  {
+   "layer": "zero_convs.6.0",
+   "rel_mse": 0.1786542354417179
+  },
+  {
+   "layer": "zero_convs.1.0",
+   "rel_mse": 0.16492995348817202
+  }
+ ],
+ "note": "The protected set is the layers whose own drift exceeds the threshold, taken from the checkpoint's own trajectory sweep on this pack's source. On this checkpoint the drift ranking covers every runtime Linear module, so the shape-only rule adds nothing."
+}
