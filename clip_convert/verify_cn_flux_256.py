@@ -63,18 +63,45 @@ DT = CN_MOD._get_default_compute_dtype()
 N = int(os.environ.get("CNN_N", "256"))
 
 
-def build_pack(sd):
-    """The pack, through the loader's own FLUX path."""
-    control = CN_MOD._load_comfy_flux_controlnet(sd, {
+def is_flux_native(sd):
+    """The comfy-native ControlNetFlux layout, which comfy.controlnet has no
+    detection branch for - the loader builds it directly."""
+    return ("img_in.weight" in sd and "controlnet_blocks.0.weight" in sd
+            and "pos_embed_input.weight" in sd
+            and "controlnet_x_embedder.weight" not in sd
+            and "control_model.zero_convs.0.0.weight" not in sd
+            and "zero_convs.0.0.weight" not in sd)
+
+
+def build_pack(sd, name="", pack_path=""):
+    """The pack, through the loader's own path.
+
+    The FLUX-native layout is built by the loader's own FLUX branch; every
+    other family (the cldm ones, SD1.5 and SDXL) is built by the loader's own
+    node, the route the card names."""
+    model_options = {
         "dtype": DT,
         "custom_operations": CN_MOD._int8_mixed_precision_ops(compute_dtype=DT),
-    })
+    }
+    if is_flux_native(sd):
+        control = CN_MOD._load_comfy_flux_controlnet(sd, model_options)
+        return control.control_model
+    if pack_path:
+        folder_paths.add_model_folder_path("controlnet", os.path.dirname(os.path.abspath(pack_path)))
+    (control,) = CN_MOD.HSWQControlNetLoader().load_controlnet(name)
     return control.control_model
 
 
 def build_source(path):
     """The FP16 source, through the same ops class and the same construction."""
     sd = comfy.utils.load_torch_file(path, safe_load=True)
+    if "control_model.zero_convs.0.0.weight" in sd or "zero_convs.0.0.weight" in sd:
+        # the cldm families (SD1.5 and SDXL): the runtime's own construction,
+        # through the same ops class the pack runs with
+        ops = CN_MOD._int8_mixed_precision_ops(compute_dtype=DT)
+        control = comfy.controlnet.load_controlnet_state_dict(
+            sd, model_options={"dtype": DT, "custom_operations": ops})
+        return control.control_model
     converted = comfy.model_detection.convert_diffusers_mmdit(dict(sd), "")
     if converted is None:
         converted = dict(sd)
@@ -91,8 +118,66 @@ def build_source(path):
     return model
 
 
+def cldm_shapes(model):
+    """The cldm family's own input shapes, read from the graph's runtime names:
+    the context width and the label embedding are the model's own."""
+    ctx_w = None
+    y_w = None
+    for n, m in model.named_modules():
+        if n.endswith("attn2.to_k") and getattr(m, "weight", None) is not None:
+            ctx_w = int(m.weight.shape[1])
+        if n == "label_emb.0.0" and getattr(m, "weight", None) is not None:
+            y_w = int(m.weight.shape[1])
+        elif n == "label_emb" and getattr(m, "weight", None) is not None:
+            y_w = int(m.weight.shape[1])
+    return ctx_w, y_w
+
+
+def inputs_for(model, seed, side=32, txt_tokens=77):
+    """The family's own input dict, read from the graph's runtime names."""
+    g = torch.Generator(device="cpu").manual_seed(seed)
+    if type(model).__name__ != "ControlNetFlux":
+        ctx_w, y_w = cldm_shapes(model)
+        call = dict(x=torch.randn(1, 4, side, side, generator=g).to("cuda", dtype=DT),
+                    hint=torch.rand(1, 3, 256, 256, generator=g).to("cuda", dtype=DT),
+                    timesteps=torch.full((1,), 500.0, device="cuda", dtype=DT),
+                    context=torch.randn(1, txt_tokens, ctx_w, generator=g).to("cuda", dtype=DT))
+        if y_w is not None:
+            call["y"] = torch.randn(1, y_w, generator=g).to("cuda", dtype=DT)
+        return call
+    return dict(x=torch.randn(1, 16, side, side, generator=g).to("cuda", dtype=DT),
+                timesteps=torch.full((1,), 500.0, device="cuda", dtype=DT),
+                context=torch.randn(1, txt_tokens, 4096, generator=g).to("cuda", dtype=DT),
+                y=torch.zeros(1, 3072, device="cuda", dtype=DT),
+                guidance=torch.full((1,), 3.5, device="cuda", dtype=DT),
+                hint=torch.randn(1, 16, side, side, generator=g).to("cuda", dtype=DT))
+
+
 def features(model, seed, side=32, txt_tokens=77):
     g = torch.Generator(device="cpu").manual_seed(seed)
+    if type(model).__name__ != "ControlNetFlux":
+        # the cldm families: the image is the hint, the context is the model's own
+        ctx_w, y_w = cldm_shapes(model)
+        x = torch.randn(1, 4, side, side, generator=g).to("cuda", dtype=DT)
+        hint = torch.rand(1, 3, 256, 256, generator=g).to("cuda", dtype=DT)
+        txt = torch.randn(1, txt_tokens, ctx_w, generator=g).to("cuda", dtype=DT)
+        ts = torch.full((1,), 500.0, device="cuda", dtype=DT)
+        with torch.no_grad():
+            if y_w is not None:
+                out = model.forward(x=x, hint=hint, timesteps=ts, context=txt,
+                                    y=torch.randn(1, y_w, generator=g).to("cuda", dtype=DT))
+            else:
+                out = model.forward(x=x, hint=hint, timesteps=ts, context=txt, y=None)
+        parts = []
+        for k in sorted(out):
+            v = out[k]
+            if torch.is_tensor(v):
+                parts.append(v.detach().float().reshape(-1).cpu())
+            elif isinstance(v, (tuple, list)):
+                for t2 in v:
+                    if torch.is_tensor(t2):
+                        parts.append(t2.detach().float().reshape(-1).cpu())
+        return torch.cat(parts)
     x = torch.randn(1, 16, side, side, generator=g).to("cuda", dtype=DT)
     txt = torch.randn(1, txt_tokens, 4096, generator=g).to("cuda", dtype=DT)
     hint = torch.randn(1, 16, side, side, generator=g).to("cuda", dtype=DT)
@@ -130,7 +215,7 @@ def main():
     for p in packs:
         print("[2] %s" % os.path.basename(p), flush=True)
         sd = comfy.utils.load_torch_file(p, safe_load=True)
-        m8 = build_pack(sd)
+        m8 = build_pack(sd, os.path.basename(p), p)
         nq = len([k for k in sd if k.endswith(".comfy_quant")])
         ck = O.quant_ops.ck
         orig = ck.int8_linear
@@ -145,12 +230,7 @@ def main():
         fin = True
         try:
             with torch.no_grad():
-                m8.forward(x=torch.randn(1, 16, 32, 32, device="cuda", dtype=DT),
-                           timesteps=torch.full((1,), 500.0, device="cuda", dtype=DT),
-                           context=torch.randn(1, 77, 4096, device="cuda", dtype=DT),
-                           y=torch.zeros(1, 3072, device="cuda", dtype=DT),
-                           guidance=torch.full((1,), 3.5, device="cuda", dtype=DT),
-                           hint=torch.randn(1, 16, 32, 32, device="cuda", dtype=DT))
+                m8.forward(**inputs_for(m8, 999983))
         except Exception:
             pass
         finally:
