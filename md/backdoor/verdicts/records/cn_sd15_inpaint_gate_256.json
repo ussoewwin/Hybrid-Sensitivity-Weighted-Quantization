@@ -1,0 +1,16 @@
+{
+ "pack": "control_v11p_sd15_inpaint_hswq_convrot_int8.safetensors",
+ "file_mb": 579.4562368392944,
+ "quantized_layers": 53,
+ "int8_linear_calls": 53,
+ "mean": 0.9997890014201403,
+ "min": 0.9997372031211853,
+ "p5": 0.9997624754905701,
+ "p50": 0.9997897148132324,
+ "n": 256,
+ "finite": true,
+ "pass": true,
+ "tool": "clip_convert/verify_cn_flux_256.py",
+ "source": "control_v11p_sd15_inpaint.pth",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set"
+}

@@ -1,0 +1,79 @@
+{
+ "tool": "convert_controlnet_convrot_int8.py",
+ "converter_args": {
+  "input": "control_v11p_sd15_inpaint.pth",
+  "output": "control_v11p_sd15_inpaint_hswq_convrot_int8.safetensors",
+  "impact_sha256": "7a96331aba83d9ba146a0c9a2166bcacab1ad6c660aa7e547ca538ee9c8a80cf",
+  "impact_bytes": 9631,
+  "drift_threshold": 0.15,
+  "model": "chilledReGenericV3_v10.safetensors"
+ },
+ "measurement": {
+  "sweep": "full trajectory sweep, 142 modules, 20 steps, seed 42, cfg 7.0",
+  "drift_gt_threshold": 14,
+  "protected_total": 29,
+  "convrot_int8_linear": 53,
+  "kept_not_runtime_linear": 258,
+  "output_gb": 0.57
+ },
+ "runtime_linear_modules": 82,
+ "protected_layers": [
+  {
+   "layer": "input_hint_block.12",
+   "rel_mse": 0.5193573395721615
+  },
+  {
+   "layer": "input_hint_block.2",
+   "rel_mse": 0.5115376801230014
+  },
+  {
+   "layer": "input_hint_block.10",
+   "rel_mse": 0.4852235867176205
+  },
+  {
+   "layer": "input_hint_block.14",
+   "rel_mse": 0.4671644231770188
+  },
+  {
+   "layer": "input_hint_block.6",
+   "rel_mse": 0.402011709427461
+  },
+  {
+   "layer": "input_blocks.1.1.proj_in",
+   "rel_mse": 0.3750928743975237
+  },
+  {
+   "layer": "input_hint_block.8",
+   "rel_mse": 0.35850504878908396
+  },
+  {
+   "layer": "input_blocks.0.0",
+   "rel_mse": 0.2799643369813566
+  },
+  {
+   "layer": "input_hint_block.4",
+   "rel_mse": 0.25157335414551196
+  },
+  {
+   "layer": "input_blocks.2.1.proj_out",
+   "rel_mse": 0.24179052042309196
+  },
+  {
+   "layer": "input_blocks.1.1.proj_out",
+   "rel_mse": 0.21608619693433867
+  },
+  {
+   "layer": "input_blocks.1.0.in_layers.2",
+   "rel_mse": 0.166403696249472
+  },
+  {
+   "layer": "input_blocks.2.0.in_layers.2",
+   "rel_mse": 0.1557084015570581
+  },
+  {
+   "layer": "input_blocks.2.1.proj_in",
+   "rel_mse": 0.15221779537387192
+  }
+ ],
+ "note": "The protected set is the layers whose own drift exceeds the threshold, taken from the checkpoint's own trajectory sweep on this pack's source; the shape-only protection is the converter's fixed rule, not a measurement."
+}
