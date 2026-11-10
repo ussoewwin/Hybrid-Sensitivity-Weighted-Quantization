@@ -1,0 +1,16 @@
+{
+ "pack": "control_v11p_sd15_mlsd_hswq_convrot_int8.safetensors",
+ "file_mb": 579.4562368392944,
+ "quantized_layers": 53,
+ "int8_linear_calls": 53,
+ "mean": 0.999678,
+ "min": 0.999466,
+ "p5": 0.999583,
+ "p50": 0.999685,
+ "n": 256,
+ "finite": true,
+ "pass": true,
+ "tool": "clip_convert/verify_cn_flux_256.py",
+ "source": "control_v11p_sd15_mlsd.pth",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set"
+}

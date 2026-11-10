@@ -1,0 +1,111 @@
+{
+ "tool": "convert_controlnet_convrot_int8.py",
+ "converter_args": {
+  "input": "control_v11p_sd15_mlsd.pth",
+  "output": "control_v11p_sd15_mlsd_hswq_convrot_int8.safetensors",
+  "impact_sha256": "233db3150448737deebd49a7c035376ba1454f5bbfa896cb1ff7771b7e824c61",
+  "impact_bytes": 9632,
+  "drift_threshold": 0.15,
+  "model": "chilledReGenericV3_v10.safetensors"
+ },
+ "measurement": {
+  "sweep": "full trajectory sweep, 142 modules, 20 steps, seed 42, cfg 7.0",
+  "drift_gt_threshold": 22,
+  "protected_total": 29,
+  "convrot_int8_linear": 53,
+  "kept_not_runtime_linear": 258,
+  "output_gb": 0.57
+ },
+ "runtime_linear_modules": 82,
+ "protected_layers": [
+  {
+   "layer": "input_hint_block.4",
+   "rel_mse": 0.5163913300799322
+  },
+  {
+   "layer": "input_blocks.4.0.in_layers.2",
+   "rel_mse": 0.354268568993939
+  },
+  {
+   "layer": "input_hint_block.14",
+   "rel_mse": 0.32151018305285106
+  },
+  {
+   "layer": "input_hint_block.2",
+   "rel_mse": 0.3159778862274834
+  },
+  {
+   "layer": "input_blocks.4.0.out_layers.3",
+   "rel_mse": 0.3057985377829027
+  },
+  {
+   "layer": "input_blocks.1.0.out_layers.3",
+   "rel_mse": 0.2897168218529259
+  },
+  {
+   "layer": "input_blocks.1.0.in_layers.2",
+   "rel_mse": 0.26844619495386723
+  },
+  {
+   "layer": "input_blocks.2.0.out_layers.3",
+   "rel_mse": 0.25804318432819856
+  },
+  {
+   "layer": "input_blocks.3.0.op",
+   "rel_mse": 0.24524291847774293
+  },
+  {
+   "layer": "input_blocks.2.1.proj_in",
+   "rel_mse": 0.2350912082078139
+  },
+  {
+   "layer": "input_blocks.5.0.out_layers.3",
+   "rel_mse": 0.2320801586932248
+  },
+  {
+   "layer": "input_blocks.4.0.skip_connection",
+   "rel_mse": 0.22974910859484227
+  },
+  {
+   "layer": "input_blocks.6.0.op",
+   "rel_mse": 0.2158999803752522
+  },
+  {
+   "layer": "input_blocks.7.0.out_layers.3",
+   "rel_mse": 0.20622287028672873
+  },
+  {
+   "layer": "input_blocks.5.1.proj_in",
+   "rel_mse": 0.1958221484324895
+  },
+  {
+   "layer": "input_blocks.2.1.proj_out",
+   "rel_mse": 0.17840112454941845
+  },
+  {
+   "layer": "input_blocks.7.0.skip_connection",
+   "rel_mse": 0.17009087437381823
+  },
+  {
+   "layer": "input_blocks.8.1.proj_in",
+   "rel_mse": 0.16281216510651575
+  },
+  {
+   "layer": "input_hint_block.10",
+   "rel_mse": 0.1620224455868083
+  },
+  {
+   "layer": "input_hint_block.8",
+   "rel_mse": 0.15937172102130717
+  },
+  {
+   "layer": "input_blocks.2.0.in_layers.2",
+   "rel_mse": 0.15596242305236957
+  },
+  {
+   "layer": "input_blocks.7.1.proj_in",
+   "rel_mse": 0.15237366797628055
+  }
+ ],
+ "note": "The protected set is the layers whose own drift exceeds the threshold, taken from the checkpoint's own trajectory sweep on this pack's source; the shape-only protection is the converter's fixed rule, not a measurement."
+}
