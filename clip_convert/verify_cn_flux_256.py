@@ -92,23 +92,28 @@ def build_pack(sd, name="", pack_path=""):
     return control.control_model
 
 
+def is_cldm(sd):
+    """The cldm families (SD1.5 and SDXL), in either layout the runtime accepts:
+    the comfy-native names (`zero_convs.*`) and the diffusers names
+    (`controlnet_down_blocks.*` / `controlnet_cond_embedding.*`, converted by
+    comfy.model_detection). The FLUX-native layout has neither."""
+    return ("control_model.zero_convs.0.0.weight" in sd or "zero_convs.0.0.weight" in sd
+            or ("controlnet_down_blocks.0.weight" in sd
+                and "controlnet_cond_embedding.conv_in.weight" in sd))
+
+
 def build_source(path):
     """The FP16 source, through the same ops class and the same construction."""
     sd = comfy.utils.load_torch_file(path, safe_load=True)
-    if "control_model.zero_convs.0.0.weight" in sd or "zero_convs.0.0.weight" in sd:
+    if is_cldm(sd):
         # the cldm families (SD1.5 and SDXL): the runtime's own construction,
         # through the same ops class the pack runs with
         ops = CN_MOD._int8_mixed_precision_ops(compute_dtype=DT)
         control = comfy.controlnet.load_controlnet_state_dict(
             sd, model_options={"dtype": DT, "custom_operations": ops})
         return control.control_model
-    converted = comfy.model_detection.convert_diffusers_mmdit(dict(sd), "")
-    if converted is None:
-        converted = dict(sd)
-    else:
-        for k in sd:
-            converted[k] = sd[k]
-    mc = comfy.model_detection.model_config_from_unet(converted, "", use_base_if_no_match=True)
+    converted = dict(sd)
+    mc = comfy.model_detection.model_config_from_unet(dict(sd), "", use_base_if_no_match=True)
     ops = CN_MOD._int8_mixed_precision_ops(compute_dtype=DT)
     model = cnf.ControlNetFlux(
         latent_input=True, num_union_modes=0,
