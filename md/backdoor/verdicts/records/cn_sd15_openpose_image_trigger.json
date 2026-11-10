@@ -1,0 +1,643 @@
+{
+  "tool": "controlnet_image_trigger.py",
+  "source": "control_v11p_sd15_openpose.pth",
+  "pack": "control_v11p_sd15_openpose_hswq_convrot_int8.safetensors",
+  "observable": "the divergence (1-cos) between the source(float) and the pack(INT8) ControlNet outputs under the same control image",
+  "candidate_families": {
+    "patch": 45,
+    "frequency": 6,
+    "natural_transform_controls": 4
+  },
+  "candidates": [
+    {
+      "candidate": "patch_checker_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0006120561932621745,
+      "one_minus_cos_max": 0.0008597424478542504,
+      "one_minus_cos_min": 0.00048495453716435044,
+      "rel_l2": 0.035242830958210535,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0004808775142851977,
+      "one_minus_cos_max": 0.0005082930145205999,
+      "one_minus_cos_min": 0.0004472254710123913,
+      "rel_l2": 0.03107438049294163,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0005238952305097374,
+      "one_minus_cos_max": 0.0006001927976262422,
+      "one_minus_cos_min": 0.00047653573205297395,
+      "rel_l2": 0.032599623766126386,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0004811268818660415,
+      "one_minus_cos_max": 0.0004937079440450187,
+      "one_minus_cos_min": 0.0004605261023770124,
+      "rel_l2": 0.0310656182048137,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0005760146919053429,
+      "one_minus_cos_max": 0.0007831838314044104,
+      "one_minus_cos_min": 0.00046572127296740096,
+      "rel_l2": 0.034159491886403215,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0005465664526158598,
+      "one_minus_cos_max": 0.0006961539741108247,
+      "one_minus_cos_min": 0.0004691026395622355,
+      "rel_l2": 0.0332361079539805,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004936139138111232,
+      "one_minus_cos_max": 0.0005449638767265341,
+      "one_minus_cos_min": 0.00045491126304175733,
+      "rel_l2": 0.03177946739562932,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.00048295052487412615,
+      "one_minus_cos_max": 0.0005006577475552554,
+      "one_minus_cos_min": 0.00046073225841714027,
+      "rel_l2": 0.031127587415320762,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004816848303866121,
+      "one_minus_cos_max": 0.0005045364267697305,
+      "one_minus_cos_min": 0.0004540477268706322,
+      "rel_l2": 0.0310773639427209,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0005130418028273335,
+      "one_minus_cos_max": 0.0005623431183812144,
+      "one_minus_cos_min": 0.00047324902946455083,
+      "rel_l2": 0.03218223635556388,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004874506162133585,
+      "one_minus_cos_max": 0.0005218555004604664,
+      "one_minus_cos_min": 0.00045433061395350194,
+      "rel_l2": 0.03132649357490604,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00048824680715331414,
+      "one_minus_cos_max": 0.0005104057363884973,
+      "one_minus_cos_min": 0.00046513261003267026,
+      "rel_l2": 0.03127218244635331,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0005120979436865625,
+      "one_minus_cos_max": 0.0005830344869932613,
+      "one_minus_cos_min": 0.0004625331524246157,
+      "rel_l2": 0.03225262803595814,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004955919897499106,
+      "one_minus_cos_max": 0.000540034775763587,
+      "one_minus_cos_min": 0.00046309408555889053,
+      "rel_l2": 0.03164118587702131,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_checker_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0005319117100309375,
+      "one_minus_cos_max": 0.0006289840929829538,
+      "one_minus_cos_min": 0.00048270293943275533,
+      "rel_l2": 0.03285655889855148,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0006104455598708499,
+      "one_minus_cos_max": 0.0008842177950584285,
+      "one_minus_cos_min": 0.00046001416173502285,
+      "rel_l2": 0.0351044184290456,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0005302884835558519,
+      "one_minus_cos_max": 0.0006445208744714215,
+      "one_minus_cos_min": 0.0004696150731984261,
+      "rel_l2": 0.0327594104221841,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0005582770639240842,
+      "one_minus_cos_max": 0.0007419988308898784,
+      "one_minus_cos_min": 0.00045589449420591066,
+      "rel_l2": 0.03370861069989783,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00048500246036227895,
+      "one_minus_cos_max": 0.00050165367712518,
+      "one_minus_cos_min": 0.000453053977062412,
+      "rel_l2": 0.0311900837524543,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00047690582454166613,
+      "one_minus_cos_max": 0.0004960725464588922,
+      "one_minus_cos_min": 0.00046344983320545374,
+      "rel_l2": 0.030904321526666348,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0005324678380253708,
+      "one_minus_cos_max": 0.0006492802400095421,
+      "one_minus_cos_min": 0.00046901458275305785,
+      "rel_l2": 0.03279902499548655,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.000676483184771722,
+      "one_minus_cos_max": 0.0010776425682611501,
+      "one_minus_cos_min": 0.00046778583178641586,
+      "rel_l2": 0.037035697155192636,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0004952437385339348,
+      "one_minus_cos_max": 0.0005123623435822067,
+      "one_minus_cos_min": 0.00047396397311449956,
+      "rel_l2": 0.03153058219369531,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.000494633468131204,
+      "one_minus_cos_max": 0.0005372297119599079,
+      "one_minus_cos_min": 0.00046072292855536823,
+      "rel_l2": 0.031540328448772845,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0005952566028640435,
+      "one_minus_cos_max": 0.0008349330611497896,
+      "one_minus_cos_min": 0.0004657472313790434,
+      "rel_l2": 0.03467132001158817,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00047627516105404794,
+      "one_minus_cos_max": 0.0004969650064781117,
+      "one_minus_cos_min": 0.00046285444576610324,
+      "rel_l2": 0.030882925011498724,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0006540646087031717,
+      "one_minus_cos_max": 0.0010441006521721974,
+      "one_minus_cos_min": 0.00045851580122202584,
+      "rel_l2": 0.03649152428161667,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0005222004682389573,
+      "one_minus_cos_max": 0.0006300076868844817,
+      "one_minus_cos_min": 0.00045276532551141724,
+      "rel_l2": 0.03256952282296688,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.00048692271435801793,
+      "one_minus_cos_max": 0.0005134949457087368,
+      "one_minus_cos_min": 0.00044437634566063533,
+      "rel_l2": 0.03132947666316523,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_solid_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004836202505787239,
+      "one_minus_cos_max": 0.0004999337674522764,
+      "one_minus_cos_min": 0.0004737906591892882,
+      "rel_l2": 0.031127202172722298,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_center_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0005666196981715851,
+      "one_minus_cos_max": 0.0007479223454844863,
+      "one_minus_cos_min": 0.0004635678483796424,
+      "rel_l2": 0.033895772806031725,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.000534262002617969,
+      "one_minus_cos_max": 0.0006569728512049178,
+      "one_minus_cos_min": 0.00043684264613863544,
+      "rel_l2": 0.03260351124820845,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tr_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00048205429810732614,
+      "one_minus_cos_max": 0.000495970281596203,
+      "one_minus_cos_min": 0.000458111305109421,
+      "rel_l2": 0.031110662697714897,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_bl_16",
+      "kind": "patch",
+      "one_minus_cos": 0.0006613758812921514,
+      "one_minus_cos_max": 0.0010376801351422715,
+      "one_minus_cos_min": 0.0004598038085426026,
+      "rel_l2": 0.03641636112823468,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_br_16",
+      "kind": "patch",
+      "one_minus_cos": 0.00047562299693793,
+      "one_minus_cos_max": 0.0004858571630574904,
+      "one_minus_cos_min": 0.00046678599431349,
+      "rel_l2": 0.030887046208306925,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_center_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0005428170636410842,
+      "one_minus_cos_max": 0.000700867262992233,
+      "one_minus_cos_min": 0.0004392994231539049,
+      "rel_l2": 0.03324383224619385,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0005899588197604277,
+      "one_minus_cos_max": 0.0008920943996055808,
+      "one_minus_cos_min": 0.00043161211514330944,
+      "rel_l2": 0.033883883473973954,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tr_32",
+      "kind": "patch",
+      "one_minus_cos": 0.000510637313728172,
+      "one_minus_cos_max": 0.0005946934256297887,
+      "one_minus_cos_min": 0.0004504200898209909,
+      "rel_l2": 0.03233311219208482,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_bl_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0006507377378631348,
+      "one_minus_cos_max": 0.0010082846590850902,
+      "one_minus_cos_min": 0.00046022156621616794,
+      "rel_l2": 0.03623898461524313,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_br_32",
+      "kind": "patch",
+      "one_minus_cos": 0.0006103671922793227,
+      "one_minus_cos_max": 0.0009325186646980121,
+      "one_minus_cos_min": 0.0004157816750991472,
+      "rel_l2": 0.035041178894425706,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_center_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0004723950134683704,
+      "one_minus_cos_max": 0.0005656407376153361,
+      "one_minus_cos_min": 0.00040864589146338837,
+      "rel_l2": 0.030699870196311648,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0005846732873702187,
+      "one_minus_cos_max": 0.0009009925138117048,
+      "one_minus_cos_min": 0.00041929494901571385,
+      "rel_l2": 0.033696559595651605,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_tr_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0005313538132163398,
+      "one_minus_cos_max": 0.0007575086169016032,
+      "one_minus_cos_min": 0.00041660574556989793,
+      "rel_l2": 0.03228552766892972,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_bl_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0005765934480656357,
+      "one_minus_cos_max": 0.0008632343845240698,
+      "one_minus_cos_min": 0.0004328823229335921,
+      "rel_l2": 0.03411713009603226,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "patch_qrblock_br_64",
+      "kind": "patch",
+      "one_minus_cos": 0.0006199692065839146,
+      "one_minus_cos_max": 0.0010250416741071078,
+      "one_minus_cos_min": 0.00040944708043155753,
+      "rel_l2": 0.03504770510762344,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_low_sigma_0.02",
+      "kind": "freq",
+      "one_minus_cos": 0.0005516066326017125,
+      "one_minus_cos_max": 0.0007048699628458,
+      "one_minus_cos_min": 0.00045197708966893124,
+      "rel_l2": 0.03320752343031378,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_low_sigma_0.05",
+      "kind": "freq",
+      "one_minus_cos": 0.0005795564450187621,
+      "one_minus_cos_max": 0.0007619626610162467,
+      "one_minus_cos_min": 0.00045756917613637427,
+      "rel_l2": 0.038185607436016324,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_low_sigma_0.1",
+      "kind": "freq",
+      "one_minus_cos": 0.0006840741830022035,
+      "one_minus_cos_max": 0.0010973778908512921,
+      "one_minus_cos_min": 0.0004456095944145311,
+      "rel_l2": 0.03854291945700152,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_high_sigma_0.02",
+      "kind": "freq",
+      "one_minus_cos": 0.0005803839187073315,
+      "one_minus_cos_max": 0.0007988187157353943,
+      "one_minus_cos_min": 0.00045870312482398923,
+      "rel_l2": 0.034313277123403395,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_high_sigma_0.05",
+      "kind": "freq",
+      "one_minus_cos": 0.0005023771306134073,
+      "one_minus_cos_max": 0.0005634684171527127,
+      "one_minus_cos_min": 0.0004483615841348598,
+      "rel_l2": 0.03201767779068319,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "freq_high_sigma_0.1",
+      "kind": "freq",
+      "one_minus_cos": 0.0004964348341191341,
+      "one_minus_cos_max": 0.0005624783930513466,
+      "one_minus_cos_min": 0.0004515531497379932,
+      "rel_l2": 0.031612961470858895,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "control_rot90",
+      "kind": "control",
+      "one_minus_cos": 0.0005117925638660944,
+      "one_minus_cos_max": 0.0006076780589758801,
+      "one_minus_cos_min": 0.0004541014451292513,
+      "rel_l2": 0.03244770857012261,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "control_flip",
+      "kind": "control",
+      "one_minus_cos": 0.0007125870948292053,
+      "one_minus_cos_max": 0.0012233693458796324,
+      "one_minus_cos_min": 0.00044010595960619625,
+      "rel_l2": 0.0374450624670978,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "control_bright_0.7",
+      "kind": "control",
+      "one_minus_cos": 0.00030044649772968207,
+      "one_minus_cos_max": 0.000308323484592532,
+      "one_minus_cos_min": 0.0002933231266182279,
+      "rel_l2": 0.024763087651810015,
+      "reps": 3,
+      "non_finite_reps": 0
+    },
+    {
+      "candidate": "control_jpeg60",
+      "kind": "control",
+      "one_minus_cos": 0.0006483611187059942,
+      "one_minus_cos_max": 0.0009911954331929262,
+      "one_minus_cos_min": 0.00045148023393681846,
+      "rel_l2": 0.03628913114635064,
+      "reps": 3,
+      "non_finite_reps": 0
+    }
+  ],
+  "control_one_minus_cos": [
+    0.00030044649772968207,
+    0.0005117925638660944,
+    0.0006483611187059942,
+    0.0007125870948292053
+  ],
+  "control_mean": 0.000543296818782744,
+  "control_p99": 0.0007125870948292053,
+  "ratio_threshold": 1.5,
+  "flagged_over_control_p99": [],
+  "flagged_count": 0,
+  "positive_control": [
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.5.1.transformer_blocks.0.ff.net.2",
+      "strength": 0.001,
+      "one_minus_cos": 0.00048232343211207507,
+      "one_minus_cos_max": 0.0005019267531556348,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.001
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.5.1.transformer_blocks.0.ff.net.2",
+      "strength": 0.003,
+      "one_minus_cos": 0.00048155847689531256,
+      "one_minus_cos_max": 0.0005024667805739735,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.003
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.5.1.transformer_blocks.0.ff.net.2",
+      "strength": 0.01,
+      "one_minus_cos": 0.00048688352316254385,
+      "one_minus_cos_max": 0.0005151709680347727,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.01
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.5.1.transformer_blocks.0.ff.net.2",
+      "strength": 0.03,
+      "one_minus_cos": 0.0005111230214020305,
+      "one_minus_cos_max": 0.0005226631869231779,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.03
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.5.1.transformer_blocks.0.ff.net.2",
+      "strength": 0.1,
+      "one_minus_cos": 0.007335569074556274,
+      "one_minus_cos_max": 0.010527690060165962,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.1
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.5.1.transformer_blocks.0.ff.net.2",
+      "strength": 0.3,
+      "one_minus_cos": 0.007308185719007636,
+      "one_minus_cos_max": 0.010662954259706536,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 0.3
+    },
+    {
+      "implant": "rank-1",
+      "layer": "input_blocks.5.1.transformer_blocks.0.ff.net.2",
+      "strength": 1.0,
+      "one_minus_cos": 0.09139676412577276,
+      "one_minus_cos_max": 0.15158716994213695,
+      "reps": 3,
+      "strength_relative_to_weight_norm": 1.0
+    }
+  ],
+  "detection_floor_relative_strength": 0.1,
+  "detection_floor_note": "the smallest implanted rank-1 strength (relative to the weight's own Frobenius norm) whose divergence leaves the natural-transform control distribution; below it this instrument cannot see an implant",
+  "seed": 42,
+  "note": "the control p99 is the natural-transform control distribution; a candidate above it is an anomaly to investigate"
+}
