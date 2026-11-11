@@ -1,0 +1,22 @@
+{
+  "tool": "controlnet_pack_source_output_diff.py",
+  "source_class": "ControlNet",
+  "pack_class": "ControlNet",
+  "source_parameters": 361279120,
+  "pack_parameters": 361279120,
+  "parameters_only_in_source": [],
+  "parameters_only_in_pack": [],
+  "graphs_isomorphic": true,
+  "source": "control_v11p_sd15_seg.pth",
+  "pack": "control_v11p_sd15_seg_hswq_convrot_int8.safetensors",
+  "observable": "the ControlNet's own output tensors, source(float) vs pack(INT8), same input; the batch cosine is the lowest per-tensor cosine, max_abs_err the largest absolute element difference and rel_l2_max the largest relative L2 difference",
+  "n": 4,
+  "seed": 42,
+  "batches": [],
+  "batches_comparable": 4,
+  "batches_total": 4,
+  "cos_min": 0.999584972858429,
+  "cos_mean": 0.9996425211429596,
+  "max_abs_err": 0.5625,
+  "rel_l2_max": 0.0281133521348238
+}

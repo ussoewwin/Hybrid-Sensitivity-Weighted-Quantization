@@ -1,0 +1,18 @@
+{
+  "pack": "control_v11p_sd15_seg_hswq_convrot_int8.safetensors",
+  "pack_bytes": 607603903,
+  "class": "ControlNet",
+  "pack_tensors": 446,
+  "runtime_tensors": 446,
+  "declared_layers": 53,
+  "int8_modules": 53,
+  "float_modules": 138,
+  "applied_layers": 53,
+  "raw_code_layers": 0,
+  "raw_code_names": [],
+  "declared_not_applied": 0,
+  "declared_not_applied_names": [],
+  "int8_not_declared": 0,
+  "int8_not_declared_names": [],
+  "verdict": "applies"
+}
