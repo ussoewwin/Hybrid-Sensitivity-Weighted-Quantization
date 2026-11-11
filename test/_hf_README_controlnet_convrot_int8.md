@@ -61,6 +61,7 @@ Sizes are decimal (1 GB = 10\^9 bytes) and exact; the `SHA256` column is the pac
 | `control_v11p_sd15_normalbae_hswq_convrot_int8.safetensors` | SD1.5 | [lllyasviel/ControlNet-v1-1](https://huggingface.co/lllyasviel/ControlNet-v1-1) | Normal Map (BAE) | ConvRot INT8 | 607.6 MB | `04be4f6b091cf0c8c02cdb418b4f132618fb25e80f084214665d11cdd31e7797` | OpenRAIL / CreativeML Open RAIL-M |
 | `control_v11p_sd15_openpose_hswq_convrot_int8.safetensors` | SD1.5 | [lllyasviel/ControlNet-v1-1](https://huggingface.co/lllyasviel/ControlNet-v1-1) | OpenPose | ConvRot INT8 | 607.6 MB | `6cc82f9ecc3bae7912d6a61f4896ebc30b5b4db99e143c4333acb8fdcf6d1b05` | OpenRAIL / CreativeML Open RAIL-M |
 | `control_v11p_sd15_scribble_hswq_convrot_int8.safetensors` | SD1.5 | [lllyasviel/ControlNet-v1-1](https://huggingface.co/lllyasviel/ControlNet-v1-1) | Scribble | ConvRot INT8 | 607.6 MB | `1d877c18b3210c6db8def2a552712ffb68ee973309146bef813b690fa1f7e01a` | OpenRAIL / CreativeML Open RAIL-M |
+| `control_v11p_sd15_seg_hswq_convrot_int8.safetensors` | SD1.5 | [lllyasviel/ControlNet-v1-1](https://huggingface.co/lllyasviel/ControlNet-v1-1) | Semantic Segmentation | ConvRot INT8 | 607.6 MB | `20f11c5b30f66a53c6a9eeda741cf9305d24095f8df02637d8f0aa550f0547c0` | OpenRAIL / CreativeML Open RAIL-M |
 | `qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8.safetensors` | Qwen-Image | [modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) | Canny Edge Detection & Structural Guidance | ConvRot INT8 | 1135.9 MB | `c2899255252b81fd64ef2fae0fbfd86e1496ba04cf10cc95fe45679120f1c996` | Apache-2.0 |
 | `qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8.safetensors` | Qwen-Image | [modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) | Geometric Depth Map Guidance | ConvRot INT8 | 1135.9 MB | `7b82a9360169fa99524c03bcf913ce63713930174ad1fc332e553e5646bad44c` | Apache-2.0 |
 | `qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8.safetensors` | Qwen-Image | [modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) | Masked Inpainting & Localized Editing | ConvRot INT8 | 1135.9 MB | `471b6affc7fcedafb9940fafd6354dd6eb5fac5705e647029c90598c407c82d3` | Apache-2.0 |
@@ -87,7 +88,7 @@ Then place each file in the directory its type requires (see the table at the to
 - **NoobAI-XL ControlNet:** [Eugeoter/noob-sdxl-controlnet-lineart_realistic](https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_realistic) by **Eugeoter** (Fair AI Public 1.0-SD)
 - **SDXL ControlNet Union:** [xinsir/controlnet-union-sdxl-1.0](https://huggingface.co/xinsir/controlnet-union-sdxl-1.0) by **xinsir**
 - **InstantID ControlNet:** [InstantX/InstantID](https://huggingface.co/InstantX/InstantID) by **InstantX** (Apache-2.0)
-- **SD1.5 ControlNets (tile, canny, depth, ip2p, shuffle, inpaint, lineart, mlsd, normal, openpose, scribble):** [lllyasviel/ControlNet-v1-1](https://huggingface.co/lllyasviel/ControlNet-v1-1) by **lllyasviel** (OpenRAIL)
+- **SD1.5 ControlNets (tile, canny, depth, ip2p, shuffle, inpaint, lineart, mlsd, normal, openpose, scribble, seg):** [lllyasviel/ControlNet-v1-1](https://huggingface.co/lllyasviel/ControlNet-v1-1) by **lllyasviel** (OpenRAIL)
 - **Z-Image-Turbo ControlNet Models:** [alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1](https://huggingface.co/alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1) & [aigc-apps/VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun) (Apache-2.0)
 - **Qwen-Image ControlNet Models:** [alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union](https://huggingface.co/alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union), [alibaba-pai/Qwen-Image-ControlNet-Inpainting](https://huggingface.co/alibaba-pai/Qwen-Image-ControlNet-Inpainting) & [aigc-apps/VideoX-Fun](https://github.com/aigc-apps/VideoX-Fun) (Apache-2.0)
 - **Qwen-Image DiffSynth ControlNet Models:** [modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) by **ModelScope / Alibaba Group** (Apache-2.0)
@@ -113,6 +114,7 @@ Then place each file in the directory its type requires (see the table at the to
 - [SD1.5 normalbae ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_SD15_Normalbae_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 openpose ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_SD15_Openpose_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 scribble ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_SD15_Scribble_ConvRot_INT8_Impact_Technical_Guide.md)
+- [SD1.5 seg ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_SD15_Seg_ConvRot_INT8_Impact_Technical_Guide.md)
 - [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/backdoor/Backdoor_Audit_Verdicts.md)
 
 ## 🔒 Security
