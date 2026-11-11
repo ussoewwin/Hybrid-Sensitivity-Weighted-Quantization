@@ -1,0 +1,191 @@
+{
+ "tool": "convert_controlnet_convrot_int8.py",
+ "converter_args": {
+  "input": "control_v11p_sd15_softedge.pth",
+  "output": "control_v11p_sd15_softedge_hswq_convrot_int8.safetensors",
+  "impact_sha256": "9b53c755c83bf71982374326204c2a90c6c09e176b7ee90e786476c28fd724bf",
+  "impact_bytes": 9595,
+  "drift_threshold": 0.15,
+  "model": "chilledReGenericV3_v10.safetensors"
+ },
+ "measurement": {
+  "sweep": "full trajectory sweep, 142 modules, 20 steps, seed 42, cfg 7.0",
+  "drift_gt_threshold": 42,
+  "protected_total": 29,
+  "convrot_int8_linear": 53,
+  "kept_not_runtime_linear": 258,
+  "output_gb": 0.57
+ },
+ "runtime_linear_modules": 82,
+ "protected_layers": [
+  {
+   "layer": "input_hint_block.2",
+   "rel_mse": 46.85390392355621
+  },
+  {
+   "layer": "input_blocks.7.1.proj_out",
+   "rel_mse": 0.6868313725950429
+  },
+  {
+   "layer": "input_hint_block.6",
+   "rel_mse": 0.6461988642229699
+  },
+  {
+   "layer": "input_blocks.2.0.out_layers.3",
+   "rel_mse": 0.6274431886500679
+  },
+  {
+   "layer": "input_blocks.5.1.proj_in",
+   "rel_mse": 0.6053683324716985
+  },
+  {
+   "layer": "input_blocks.5.1.proj_out",
+   "rel_mse": 0.5939220694534015
+  },
+  {
+   "layer": "input_blocks.5.0.in_layers.2",
+   "rel_mse": 0.564099966554204
+  },
+  {
+   "layer": "input_blocks.2.1.proj_in",
+   "rel_mse": 0.491138447143021
+  },
+  {
+   "layer": "input_blocks.1.1.proj_out",
+   "rel_mse": 0.48351016828091814
+  },
+  {
+   "layer": "input_blocks.8.0.in_layers.2",
+   "rel_mse": 0.46251658664405115
+  },
+  {
+   "layer": "input_blocks.2.1.proj_out",
+   "rel_mse": 0.45697415081449433
+  },
+  {
+   "layer": "input_blocks.7.0.in_layers.2",
+   "rel_mse": 0.43826545013143914
+  },
+  {
+   "layer": "input_blocks.4.0.in_layers.2",
+   "rel_mse": 0.43689774445374496
+  },
+  {
+   "layer": "input_blocks.4.1.proj_in",
+   "rel_mse": 0.40943326233536936
+  },
+  {
+   "layer": "input_blocks.1.0.in_layers.2",
+   "rel_mse": 0.34372096944134684
+  },
+  {
+   "layer": "input_blocks.2.0.in_layers.2",
+   "rel_mse": 0.33861961108195826
+  },
+  {
+   "layer": "input_blocks.8.0.out_layers.3",
+   "rel_mse": 0.32876282910874577
+  },
+  {
+   "layer": "input_blocks.3.0.op",
+   "rel_mse": 0.31960059525445106
+  },
+  {
+   "layer": "input_blocks.8.1.proj_in",
+   "rel_mse": 0.31442861366376745
+  },
+  {
+   "layer": "input_blocks.5.0.out_layers.3",
+   "rel_mse": 0.3140414074921864
+  },
+  {
+   "layer": "input_blocks.4.0.out_layers.3",
+   "rel_mse": 0.2990737829342834
+  },
+  {
+   "layer": "input_hint_block.14",
+   "rel_mse": 0.29550242486293427
+  },
+  {
+   "layer": "input_blocks.7.1.proj_in",
+   "rel_mse": 0.28176125123063683
+  },
+  {
+   "layer": "input_blocks.4.0.skip_connection",
+   "rel_mse": 0.2780544567925972
+  },
+  {
+   "layer": "input_hint_block.4",
+   "rel_mse": 0.26820002529857445
+  },
+  {
+   "layer": "input_blocks.1.1.proj_in",
+   "rel_mse": 0.2675433188880561
+  },
+  {
+   "layer": "middle_block.1.proj_in",
+   "rel_mse": 0.2328191666805651
+  },
+  {
+   "layer": "input_blocks.4.1.proj_out",
+   "rel_mse": 0.23076300258871923
+  },
+  {
+   "layer": "input_blocks.9.0.op",
+   "rel_mse": 0.2297692219915916
+  },
+  {
+   "layer": "input_blocks.6.0.op",
+   "rel_mse": 0.22714264052046929
+  },
+  {
+   "layer": "zero_convs.8.0",
+   "rel_mse": 0.2251982303605473
+  },
+  {
+   "layer": "input_hint_block.8",
+   "rel_mse": 0.2204811183604761
+  },
+  {
+   "layer": "input_blocks.7.0.out_layers.3",
+   "rel_mse": 0.20890627015323843
+  },
+  {
+   "layer": "input_blocks.1.0.out_layers.3",
+   "rel_mse": 0.17877810460631735
+  },
+  {
+   "layer": "input_blocks.8.1.proj_out",
+   "rel_mse": 0.1735388603854517
+  },
+  {
+   "layer": "zero_convs.7.0",
+   "rel_mse": 0.17014191009075147
+  },
+  {
+   "layer": "zero_convs.0.0",
+   "rel_mse": 0.1658921156791621
+  },
+  {
+   "layer": "zero_convs.2.0",
+   "rel_mse": 0.16114082030726423
+  },
+  {
+   "layer": "input_blocks.7.0.skip_connection",
+   "rel_mse": 0.15950396903426736
+  },
+  {
+   "layer": "zero_convs.5.0",
+   "rel_mse": 0.15610399016513837
+  },
+  {
+   "layer": "zero_convs.1.0",
+   "rel_mse": 0.15548414675577077
+  },
+  {
+   "layer": "middle_block.0.in_layers.2",
+   "rel_mse": 0.1537944218353914
+  }
+ ],
+ "note": "The protected set is the layers whose own drift exceeds the threshold, taken from the checkpoint's own trajectory sweep on this pack's source; the shape-only protection is the converter's fixed rule, not a measurement. On this checkpoint the largest drift is the full-resolution hint convolution input_hint_block.2 (46.85), far above the rest of the ranking (0.687 down), so the ranking is not a smooth distribution."
+}
