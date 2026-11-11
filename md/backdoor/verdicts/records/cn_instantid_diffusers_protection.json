@@ -1,0 +1,72 @@
+{
+ "tool": "convert_controlnet_convrot_int8.py",
+ "converter_args": {
+  "input": "instantid_diffusion_pytorch_model.safetensors",
+  "output": "instantid_diffusion_pytorch_model_hswq_convrot_int8.safetensors",
+  "impact_sha256": "8435b913d6120474c8b030e53ebb4be887c8b04f33f32ef6873623285a2b860b",
+  "impact_bytes": 30485,
+  "drift_threshold": 0.15,
+  "model": "waiIllustriousSDXL_v170.safetensors"
+ },
+ "measurement": {
+  "sweep": "full trajectory sweep, 400 modules, 20 steps, seed 42, cfg 7.0",
+  "drift_gt_threshold": 12,
+  "protected_total": 33,
+  "convrot_int8_linear": 329,
+  "kept_not_runtime_linear": 482,
+  "output_gb": 1.32
+ },
+ "runtime_linear_modules": 362,
+ "runtime_tensors": 844,
+ "protected_layers": [
+  {
+   "layer": "input_blocks.1.0.in_layers.2",
+   "rel_mse": 1.0576799556263723
+  },
+  {
+   "layer": "input_blocks.1.0.out_layers.3",
+   "rel_mse": 0.2842686194286216
+  },
+  {
+   "layer": "input_blocks.4.0.out_layers.3",
+   "rel_mse": 0.2715651761929621
+  },
+  {
+   "layer": "input_blocks.6.0.op",
+   "rel_mse": 0.24417803102951438
+  },
+  {
+   "layer": "input_blocks.5.0.out_layers.3",
+   "rel_mse": 0.22763944428879768
+  },
+  {
+   "layer": "input_blocks.0.0",
+   "rel_mse": 0.21290796620305627
+  },
+  {
+   "layer": "zero_convs.7.0",
+   "rel_mse": 0.17716117234522244
+  },
+  {
+   "layer": "input_blocks.4.0.in_layers.2",
+   "rel_mse": 0.1713452453685022
+  },
+  {
+   "layer": "input_blocks.3.0.op",
+   "rel_mse": 0.16427800807723542
+  },
+  {
+   "layer": "zero_convs.5.0",
+   "rel_mse": 0.15781162121206763
+  },
+  {
+   "layer": "input_blocks.4.0.skip_connection",
+   "rel_mse": 0.15476940218068194
+  },
+  {
+   "layer": "input_blocks.2.0.out_layers.3",
+   "rel_mse": 0.1547083505007322
+  }
+ ],
+ "note": "The protected set is the layers whose own drift exceeds the threshold, taken from this checkpoint's own trajectory sweep (400 modules), plus the shape rule; 329 Linear layers are quantised and 33 kept in FP16, out of 362 runtime Linear layers."
+}
