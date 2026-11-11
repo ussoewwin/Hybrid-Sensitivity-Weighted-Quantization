@@ -555,6 +555,7 @@ Every per-model guide for this chapter, one link per artifact. The guides carry 
 - [SD1.5 scribble ControlNet](CN_SD15_Scribble_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 seg ControlNet](CN_SD15_Seg_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 softedge ControlNet](CN_SD15_Softedge_ConvRot_INT8_Impact_Technical_Guide.md)
+- [SD1.5s2 lineart_anime ControlNet](CN_SD15_Lineart_Anime_ConvRot_INT8_Impact_Technical_Guide.md)
 - [Qwen-Image diffsynth model patch (canny)](QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md)
 - [Qwen-Image diffsynth model patch (depth)](QwenImageDepthDiffsynthControlnet_ConvRot_INT8_Guide.md)
 - [Qwen-Image diffsynth model patch (inpaint)](QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md)
@@ -593,6 +594,7 @@ carries the pack's first 16 hex characters, full hash in the per-model guide.
 | `control_v11p_sd15_scribble_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999597 / 0.999354 | 579.5 MB | `1D877C18B3210C6D` |
 | `control_v11p_sd15_seg_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999717 / 0.999635 | 579.5 MB | `20F11C5B30F66A53` |
 | `control_v11p_sd15_softedge_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999703 / 0.999572 | 579.5 MB | `609B04A9A38668FB` |
+| `control_v11p_sd15s2_lineart_anime_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999748 / 0.999707 | 579.5 MB | `D004154F605EBBF1` |
 | `qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924905 / 0.9999924096 | 1083.3 MB | `C2899255252B81FD` |
 | `qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
 | `qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999921236 / 0.9999919542 | 1083.3 MB | `471B6AFFC7FCEDAF` |
@@ -605,7 +607,7 @@ Patch Loader**; the plain rows go through the ControlNet loader.
 
 Published on Hugging Face:
 
-- **[ussoewwin/ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8)** - the twenty-five packs above.
+- **[ussoewwin/ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8)** - the twenty-six packs above.
 - **[ussoewwin/Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8)** - the text-encoder packs (see the next section).
 - **[ussoewwin/SAM3.1-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/SAM3.1-HSWQ-ConvRot-INT8)** - the SAM 3.1 pack.
 
@@ -706,7 +708,7 @@ Place the pack in `ComfyUI/models/unet/` (or `models/diffusion_models/`) and loa
 | **Illustrious-XL / SDXL** | Anytest ControlNet | `CN-anytest4_illustrious2_A`, `CN-anytest4_illustrious2_B` |
 | **SDXL 1.0** | ControlNet Union | `controlnet-union-pro-max-sdxl-1.0` (xinsir) |
 | **SDXL** | InstantID ControlNet | `control_instant_id_sdxl` (InstantX) |
-| **SD1.5** | ControlNet Tile / Canny / Depth / IP2P / Shuffle / Inpaint / Lineart / M-LSD / Normal / OpenPose / Scribble / Seg / SoftEdge | `control_v11f1e_sd15_tile`, `control_v11p_sd15_canny`, `control_v11f1p_sd15_depth`, `control_v11e_sd15_ip2p`, `control_v11e_sd15_shuffle`, `control_v11p_sd15_inpaint`, `control_v11p_sd15_lineart`, `control_v11p_sd15_mlsd`, `control_v11p_sd15_normalbae`, `control_v11p_sd15_openpose`, `control_v11p_sd15_scribble`, `control_v11p_sd15_seg`, `control_v11p_sd15_softedge` (lllyasviel) |
+| **SD1.5** | ControlNet Tile / Canny / Depth / IP2P / Shuffle / Inpaint / Lineart / M-LSD / Normal / OpenPose / Scribble / Seg / SoftEdge / Lineart Anime | `control_v11f1e_sd15_tile`, `control_v11p_sd15_canny`, `control_v11f1p_sd15_depth`, `control_v11e_sd15_ip2p`, `control_v11e_sd15_shuffle`, `control_v11p_sd15_inpaint`, `control_v11p_sd15_lineart`, `control_v11p_sd15_mlsd`, `control_v11p_sd15_normalbae`, `control_v11p_sd15_openpose`, `control_v11p_sd15_scribble`, `control_v11p_sd15_seg`, `control_v11p_sd15_softedge`, `control_v11p_sd15s2_lineart_anime` (lllyasviel) |
 | **Z-Image-Turbo** | ControlNet Union / Tile | `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps`, `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps` |
 | **Qwen-Image** | ControlNet Inpainting | `Qwen-Image-ControlNet-Inpainting` (alibaba-pai) |
 | **Qwen-Image-2512** | ControlNet Union | `Qwen-Image-2512-Fun-Controlnet-Union-2602` |
