@@ -548,6 +548,7 @@ Every per-model guide for this chapter, one link per artifact. The guides carry 
 - [SD1.5 shuffle ControlNet](CN_SD15_Shuffle_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 inpaint ControlNet](CN_SD15_Inpaint_ConvRot_INT8_Impact_Technical_Guide.md)
 - [InstantID SDXL ControlNet](CN_InstantID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md)
+- [InstantID diffusers layout ControlNet](CN_InstantID_Diffusers_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 lineart ControlNet](CN_SD15_Lineart_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 mlsd ControlNet](CN_SD15_Mlsd_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 normalbae ControlNet](CN_SD15_Normalbae_ConvRot_INT8_Impact_Technical_Guide.md)
@@ -586,7 +587,7 @@ carries the pack's first 16 hex characters, full hash in the per-model guide.
 | `control_v11e_sd15_ip2p_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999813 / 0.999768 | 579.5 MB | `43E0884402B1801F` |
 | `control_v11e_sd15_shuffle_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999719 / 0.999591 | 579.5 MB | `3A27828EB0373EDA` |
 | `control_v11p_sd15_inpaint_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999789 / 0.999737 | 579.5 MB | `53CF9C06CA727847` |
-| `control_instant_id_sdxl_hswq_convrot_int8` | SDXL | ControlNet | `models/controlnet/` | 0.999395 / 0.997491 | 1420.2 MB | `A9FFBD849D007B96` |
+| `instantid_diffusion_pytorch_model_hswq_convrot_int8` | SDXL | ControlNet | `models/controlnet/` | 0.999395 / 0.997491 | 1354.4 MB | `A9FFBD849D007B96` |
 | `control_v11p_sd15_lineart_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999737 / 0.999698 | 579.5 MB | `F32407808652F74E` |
 | `control_v11p_sd15_mlsd_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999678 / 0.999466 | 579.5 MB | `1DE1800AE02084C1` |
 | `control_v11p_sd15_normalbae_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999686 / 0.999609 | 579.5 MB | `04BE4F6B091CF0C8` |
@@ -607,7 +608,7 @@ Patch Loader**; the plain rows go through the ControlNet loader.
 
 Published on Hugging Face:
 
-- **[ussoewwin/ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8)** - the twenty-six packs above.
+- **[ussoewwin/ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8)** - the twenty-seven packs above.
 - **[ussoewwin/Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8)** - the text-encoder packs (see the next section).
 - **[ussoewwin/SAM3.1-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/SAM3.1-HSWQ-ConvRot-INT8)** - the SAM 3.1 pack.
 
@@ -707,7 +708,7 @@ Place the pack in `ComfyUI/models/unet/` (or `models/diffusion_models/`) and loa
 | **SAM 3** | Segmentation & Video Tracking | `sam3.pt`, `sam3_fp16.safetensors` (HSWQ pack not published - license restriction) |
 | **Illustrious-XL / SDXL** | Anytest ControlNet | `CN-anytest4_illustrious2_A`, `CN-anytest4_illustrious2_B` |
 | **SDXL 1.0** | ControlNet Union | `controlnet-union-pro-max-sdxl-1.0` (xinsir) |
-| **SDXL** | InstantID ControlNet | `control_instant_id_sdxl` (InstantX) |
+| **SDXL** | InstantID ControlNet | `control_instant_id_sdxl`, `instantid_diffusion_pytorch_model` (InstantX) |
 | **SD1.5** | ControlNet Tile / Canny / Depth / IP2P / Shuffle / Inpaint / Lineart / M-LSD / Normal / OpenPose / Scribble / Seg / SoftEdge / Lineart Anime | `control_v11f1e_sd15_tile`, `control_v11p_sd15_canny`, `control_v11f1p_sd15_depth`, `control_v11e_sd15_ip2p`, `control_v11e_sd15_shuffle`, `control_v11p_sd15_inpaint`, `control_v11p_sd15_lineart`, `control_v11p_sd15_mlsd`, `control_v11p_sd15_normalbae`, `control_v11p_sd15_openpose`, `control_v11p_sd15_scribble`, `control_v11p_sd15_seg`, `control_v11p_sd15_softedge`, `control_v11p_sd15s2_lineart_anime` (lllyasviel) |
 | **Z-Image-Turbo** | ControlNet Union / Tile | `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps`, `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps` |
 | **Qwen-Image** | ControlNet Inpainting | `Qwen-Image-ControlNet-Inpainting` (alibaba-pai) |
