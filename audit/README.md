@@ -42,6 +42,8 @@ python audit/run_all_gates.py
 | 7g | `divergence_scan.py` | `--base <dir> --build <f> [--json <o>]` |
 | 7h (agent tool-call context) | `tool_context_probe.py` | `--base <dir> --trigger-json <f> --json <o> [--max-new 192]` |
 | 8 (independent recomputation) | `sae_independent.py` | `--base <dir> --candidate <f> --trigger-json <f> [--json <o>]` |
+| 4d (ConvRot W4A8 pack) | `wevisone_w4a8_backdoor.py` | `--source <f> --pack <f> --json <o> [--device cuda]` |
+| 5 (ConvRot W4A8 load path) | `wevisone_w4a8_load_path.py` | `--comfy <ComfyUI root> --source <f> --pack <f> --json <o>` |
 | 9 (every figure traced to a record) | `check_cites.py` | `<report.md> --root <dir>` |
 | 12.3 (candidate line from the documented rule) | `make_limits.py` | `--trigger-json <f> [--behaviour-prompts N]` |
 | Gate F | `procedure_check.py` | no arguments; must print `PROCEDURE CHECK: PASS` |

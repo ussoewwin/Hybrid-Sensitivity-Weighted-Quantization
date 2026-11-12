@@ -47,6 +47,13 @@ so the result is reproducible.
 Acceptance criterion used throughout: **cos mean >= 0.99 AND cos min >= 0.98**, on a
 fixed 256-item set (seed 42).
 
+**ConvRot W4A8 packs.** A different format (`asym_w4a8_int8`: 4-bit weight, group 16, convrot
+256), so these packs are listed apart from the INT8 table above.
+
+| checkpoint | towers quantized | protection | cos (mean / min) | size | verdict |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `wevisone_vl_4b_bf16.safetensors` | text + vision (the language and the vision tower) | K = 32 by the drift ranking, plus `embed_tokens`, `lm_head` and `mask_decoder` kept in the source dtype (326 W4A8 of 370 eligible) | 0.995055 / 0.987840 | 4483.7 MB | `md/backdoor/verdicts/WeVisOneVL4B_W4A8_Pack.md` |
+
 **A note on the ControlNet packs.** The ControlNet family follows the same
 impact-driven method, but two FLUX-specific facts apply and are measured, not
 assumed:
