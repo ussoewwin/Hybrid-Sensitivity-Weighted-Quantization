@@ -1,0 +1,39 @@
+{
+ "branch": "comfy.ops takes the dequantise branch when _full_precision_mm is set or a bias is present; the CLIPLoader builds its ops class with the flag on",
+ "comparison": {
+  "layers": 326,
+  "route": "comfy.ops.mixed_precision_ops with asym_w4a8_int8 registered",
+  "seeds": 256,
+  "source": "records/wevisone_w4a8_pack.json -> gate_256.w4a8_linear_calls",
+  "w4a8_int8_linear_calls": 83456
+ },
+ "observations": {
+  "cuda_kernels": {
+   "dequant_int4_group": 223,
+   "rotate_int": 223,
+   "w4a8_gemm_from_w4a8_int8_linear": 0
+  },
+  "dequantize_w4a8_int8_weight_calls": 223,
+  "loaded_linear_signature": {
+   "_full_precision_mm": true,
+   "class": "Linear",
+   "comfy_force_forward": false,
+   "count": 103,
+   "has_bias": true
+  },
+  "w4a8_int8_linear_calls": 0
+ },
+ "output": {
+  "finite": true,
+  "shape": [
+   1,
+   28,
+   2560
+  ]
+ },
+ "pack": "wevisone_vl_4b_hswq_convrot_w4a8.safetensors",
+ "prompt": "a white ceramic teapot on a wooden table",
+ "route": "nodes.CLIPLoader (type=stable_diffusion) runs dequantise-then-matmul, not the fused W4A8 GEMM",
+ "settled": true,
+ "tool": "torch.profiler + call counting at the defining modules"
+}
