@@ -1,0 +1,16 @@
+{
+ "pack": "ioclab_sd15_recolor_hswq_convrot_int8.safetensors",
+ "file_mb": 579.4562368392944,
+ "quantized_layers": 53,
+ "int8_linear_calls": 53,
+ "mean": 0.9998646334279329,
+ "min": 0.9998385310173035,
+ "p5": 0.9998542070388794,
+ "p50": 0.9998654723167419,
+ "n": 256,
+ "finite": true,
+ "pass": true,
+ "tool": "clip_convert/verify_cn_flux_256.py",
+ "source": "ioclab_sd15_recolor.safetensors",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set"
+}
