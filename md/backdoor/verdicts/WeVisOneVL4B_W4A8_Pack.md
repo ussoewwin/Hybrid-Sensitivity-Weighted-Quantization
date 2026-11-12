@@ -122,14 +122,24 @@ exactly 326 layers x 256 seeds, so every quantised layer fires on every measurem
 **No dedicated loader is required.** The pack loads, the W4A8 layout is applied, and the output
 follows the source through the unmodified `CLIPLoader` node.
 
-One measurement is reported as unresolved rather than explained away: on this route the
-`w4a8_int8_linear` counter reads **0**, while the same counter reads 83,456 on the
-`mixed_precision_ops` route of section 4. The layers are applied in both cases (326 quantised
-parameters, raw integer parameters 0, and the output differs from the source exactly as a W4A8
-substitution does). Why the counter is not reached on the `CLIPLoader` route is not established
-here; either that route takes a dequantise-then-matmul path, or its call site binds the backend
-function before this counter can see it. This is a speed question, not a correctness one, and it
-is carried forward as an open item rather than asserted either way.
+**The arithmetic on this route is dequantise-then-matmul, not the fused W4A8 GEMM.** Three
+independent observations on one prompt encode settle it:
+
+| observation | measured |
+| :--- | :--- |
+| `w4a8_int8_linear` calls, counted at the module that defines it | **0** |
+| `dequantize_w4a8_int8_weight` calls, counted at the module that defines it | **223** |
+| CUDA kernel census (`torch.profiler`) | `dequant_int4_group` 223, `rotate_int` 223, no GEMM from `w4a8_int8_linear` |
+| loaded Linear signature | `_full_precision_mm = True` on every quantised Linear |
+
+`comfy.ops` branches on `_full_precision_mm` (`ops.py`: the dequantise branch is taken when the
+flag is set or a bias is present), and the `CLIPLoader` builds its ops class with that flag on.
+The record is `records/wevisone_w4a8_arithmetic.json` -> `route`.
+
+The pack is applied and numerically correct on this route (326 of 326 layers, 0 raw codes,
+cosine 0.997993-0.998834), but the 4-bit GEMM does not run here. It runs on the
+`mixed_precision_ops` route of section 4, where the same counter reads 83,456 over 256 seeds.
+The difference is the ops class the loader builds, not the pack's contents.
 
 ## 6. Method and phase checklist
 
@@ -177,8 +187,12 @@ the gate - only that the build at K = 32 passes it at the measured numbers.
 small enough to vanish inside the 4-bit group quantisation is invisible to this check. The
 reproduction is not bit-exact; it is the kitchen dequantiser applied to the stored codes.
 
-**Speed path.** The kernel-call question of section 5 is open on the `CLIPLoader` route. Nothing
-in this report asserts which arithmetic that route takes.
+**Speed path.** Settled, not open. The `CLIPLoader` route dequantises before multiplying
+(223 `dequant_int4_group` and 223 `rotate_int` kernel launches, 0 `w4a8_int8_linear` calls, every
+quantised Linear at `_full_precision_mm = True`); the W4A8 GEMM fires only on the
+`mixed_precision_ops` route. The pack's contents are the same on both; only the arithmetic the
+runtime selects differs. This report makes no claim about the speed of either route beyond which
+kernel runs.
 
 **Reference-class boundary.** `wevisone_vl_4b_bf16.safetensors` is not audited here as a release.
 A poison already inside it is out of reach; what is established is that the pack is that source's
