@@ -51,25 +51,27 @@ trajectory drift of the ControlNet output: **142 modules**, 20 steps, seed 42, c
 
 | rank | layer | drift |
 | :--- | :--- | ---: |
-| 1 | `input_blocks.0.0` | 1.109220 |
-| 2 | `input_hint_block.12` | 0.845074 |
-| 3 | `input_blocks.2.1.proj_in` | 0.700900 |
-| 4 | `input_hint_block.14` | 0.533763 |
-| 5 | `input_hint_block.10` | 0.510534 |
-| 6 | `input_hint_block.8` | 0.474575 |
-| 7 | `input_blocks.2.1.proj_out` | 0.458879 |
-| 8 | `zero_convs.0.0` | 0.452923 |
+| 1 | `input_hint_block.12` | 0.430469 |
+| 2 | `input_hint_block.14` | 0.384857 |
+| 3 | `input_blocks.2.1.proj_in` | 0.376404 |
+| 4 | `input_blocks.0.0` | 0.371668 |
+| 5 | `input_blocks.1.1.proj_out` | 0.354068 |
+| 6 | `input_blocks.1.0.out_layers.3` | 0.308715 |
+| 7 | `input_blocks.1.0.in_layers.2` | 0.235177 |
+| 8 | `zero_convs.0.0` | 0.219462 |
 
-18 modules exceed the 0.15 threshold and stay in FP16; with the 11 shape-protected modules that
-gives 29 protected and 53 quantised out of the 82 runtime Linear modules (`records/cn_sd15_recolor_protection.json`
--> `measurement.protected_total`).
+13 modules exceed the 0.15 threshold; with the 16 shape-protected modules that gives 29 protected
+and 53 quantised out of the 82 runtime Linear modules (`records/cn_sd15_recolor_protection.json`
+-> `measurement.protected_total`). None of the 13 belongs to the quantised set - the intersection
+with the 53 INT8 layers is empty - so the weights that are quantised, and therefore the pack bytes,
+are the same as in the earlier pass.
 
-**The measurement host is the official SD1.5 checkpoint**, `v1-5-pruned-emaonly-fp16.safetensors`
-(2,132,696,762 B). The host used for the earlier SD1.5 ControlNet packs,
-`chilledReGenericV3_v10.safetensors`, is no longer present on this machine; the ranking above is
-therefore measured on this checkpoint rather than reused from those records. Every earlier SD1.5
-ControlNet pack measured its drift on `chilledReGenericV3_v10`, so the ranking here is not
-comparable layer-for-layer with theirs.
+**The measurement host is `chilledReGenericV3_v10.safetensors`** (2,132,626,040 B, `models/unet`) -
+the same host the other fifteen SD1.5 ControlNet packs were measured on, so this ranking is
+comparable layer-for-layer with theirs. An earlier pass of this pack measured against the official
+SD1.5 checkpoint `v1-5-pruned-emaonly-fp16.safetensors` (2,132,696,762 B), where 18 modules
+exceeded the threshold (largest `input_blocks.0.0` 1.109220); both passes produce the same 53
+quantised layers and the same pack bytes.
 
 ## 5. The declared edit executes on the loader the card names
 
@@ -98,7 +100,7 @@ outputs finite (`records/ioclab_sd15_recolor_int8_exec.json`).
 | 0.15625 | largest absolute element difference |
 
 **Rendered frame** (`records/cn_sd15_recolor_image_test.json`, PNG beside it): 1024x1024, 12
-steps, latent finite, **636 INT8 GEMM calls**, 958,424 bytes, 15.9 s. The frame was inspected
+steps, latent finite, **636 INT8 GEMM calls**, 838,712 bytes, 11.5 s. The frame was inspected
 directly: a coherent render of the recolor hint (wood-grain background, white disc, dark band
 below), not noise and without artefacts.
 
@@ -137,10 +139,12 @@ reach of a pack audit.
 **Positions.** The arithmetic check covers all 53 quantised layers and all 287 float-side tensors.
 The protection ranking covers all 142 eligible modules of this checkpoint.
 
-**Measurement host.** The drift ranking was measured on the official SD1.5 checkpoint, because the
-host used for the earlier SD1.5 ControlNet packs is no longer on this machine. A different host
-moves the per-layer drift, so this pack's protection set is not comparable to those packs' sets;
-the acceptance numbers in section 6 are this pack's own measurements.
+**Measurement host.** The drift ranking was measured on `chilledReGenericV3_v10.safetensors`, the
+host the other fifteen SD1.5 ControlNet packs used, so the ranking is comparable with theirs. The
+same checkpoint measured against the official SD1.5 host gives a different per-layer drift (18
+modules above the threshold, largest 1.109220); the quantised set is unchanged because no layer
+above the threshold lies in it. The acceptance numbers in section 6 are this pack's own
+measurements.
 
 **Resolution floor.** The weight-level closure is one INT8 step (largest integer difference 0, so
 nothing moved). The output-level floor is the cosine resolution of the fixed 256-item set.

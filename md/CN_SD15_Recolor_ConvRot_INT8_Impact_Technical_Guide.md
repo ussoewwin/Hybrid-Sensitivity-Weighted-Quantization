@@ -40,41 +40,44 @@ module, not a focused screen:
 | item | measured |
 | :--- | :--- |
 | the sweep | **142 modules**, 20 steps, seed 42, cfg 7.0, 1024x1024 |
-| the host | `v1-5-pruned-emaonly-fp16.safetensors` (official SD1.5, 2,132,696,762 B) |
+| the host | `chilledReGenericV3_v10.safetensors` (2,132,626,040 B, `models/unet`) |
 | the instrument | `clip_convert/diag_impact_controlnet.py` (the runtime path, the drift threshold applied per layer) |
 | the impact file | `records/impact_sd15_recolor.json` |
-| the largest drift | **1.109220** (`input_blocks.0.0`) |
-| modules over the 0.15 threshold | **18** |
+| the largest drift | **0.430469** (`input_hint_block.12`) |
+| modules over the 0.15 threshold | **13** |
 | protected in total (drift or shape) | **29** |
 | quantised | **53** |
 
-**The host differs from the earlier SD1.5 ControlNet guides.** Those measured on
-`chilledReGenericV3_v10.safetensors`, which is no longer present on this machine. This pack's
-ranking was measured on the official SD1.5 checkpoint instead of reused, so its protection set is
-not comparable layer-for-layer with theirs.
+**The host is the one the other SD1.5 ControlNet guides used.** Those guides and this one both
+measure on `chilledReGenericV3_v10.safetensors` (2,132,626,040 B, `models/unet`), so the rankings
+are comparable layer-for-layer. An earlier pass of this pack measured against the official SD1.5
+checkpoint `v1-5-pruned-emaonly-fp16.safetensors` (2,132,696,762 B), where 18 modules exceeded the
+threshold and the largest drift was 1.109220 at `input_blocks.0.0`. Both passes leave the same 53
+layers quantised, because none of the layers above the threshold belongs to the quantised set (the
+intersection is empty), and the pack bytes are identical (`0b4d78a3…`).
 
 ### The ten largest drifts
 
 | layer | drift |
 | :--- | ---: |
-| `input_blocks.0.0` | 1.109220 |
-| `input_hint_block.12` | 0.845074 |
-| `input_blocks.2.1.proj_in` | 0.700900 |
-| `input_hint_block.14` | 0.533763 |
-| `input_hint_block.10` | 0.510534 |
-| `input_hint_block.8` | 0.474575 |
-| `input_blocks.2.1.proj_out` | 0.458879 |
-| `zero_convs.0.0` | 0.452923 |
-| `input_blocks.2.0.out_layers.3` | 0.172715 |
-| `input_hint_block.6` | — |
+| `input_hint_block.12` | 0.430469 |
+| `input_hint_block.14` | 0.384857 |
+| `input_blocks.2.1.proj_in` | 0.376404 |
+| `input_blocks.0.0` | 0.371668 |
+| `input_blocks.1.1.proj_out` | 0.354068 |
+| `input_blocks.2.1.proj_out` | 0.312395 |
+| `input_blocks.1.0.out_layers.3` | 0.308715 |
+| `input_blocks.1.0.in_layers.2` | 0.235177 |
+| `zero_convs.0.0` | 0.219462 |
+| `input_hint_block.8` | 0.209928 |
 
 The families the drift singles out are the same ones the SDXL ControlNet sweeps and the other
 SD1.5 sweeps found: the `input_hint_block` family (the hint encoder that carries the recolour
 image into the network), the `proj_in` / `proj_out` transitions, the first convolution
 `input_blocks.0.0`, and the first skip connection `zero_convs.0.0`. On this checkpoint the hint
-encoder dominates more strongly than usual: six of the ten largest drifts are
-`input_hint_block.*`, which is what a recolour ControlNet would be expected to lean on, since the
-hint image carries the colours themselves.
+encoder dominates: four of the ten largest drifts are `input_hint_block.*`, which is what a
+recolour ControlNet would be expected to lean on, since the hint image carries the colours
+themselves.
 
 ---
 
@@ -88,7 +91,7 @@ hint image carries the colours themselves.
 | 256-item gate mean | 0.999865 | `records/cn_sd15_recolor_gate_256.json` |
 | 256-item gate min | 0.999840 | same |
 | INT8 kernel calls, render | 636 | `records/cn_sd15_recolor_image_test.json` |
-| rendered frame | 1024x1024, 12 steps, 958,424 B, 15.9 s | same |
+| rendered frame | 1024x1024, 12 steps, 838,712 B, 11.5 s | same |
 
 The rendered frame was inspected directly: a coherent render of the recolour hint, not noise.
 

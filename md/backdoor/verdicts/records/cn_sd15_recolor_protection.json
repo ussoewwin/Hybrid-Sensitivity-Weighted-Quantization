@@ -1,93 +1,73 @@
 {
  "converter_args": {
   "drift_threshold": 0.15,
-  "impact_bytes": 9665,
-  "impact_sha256": "e5fab1d45532a25b926be48ede401c8ad6f414ae84f0ec181c91a0e2b649dfc6",
+  "impact_bytes": 9717,
+  "impact_sha256": "dfe08a15a6905256b4fe3a0b0c84f9a46a66a0406100a56ea6618fbd1e06cf9d",
   "input": "ioclab_sd15_recolor.safetensors",
-  "model": "v1-5-pruned-emaonly-fp16.safetensors",
+  "model": "chilledReGenericV3_v10.safetensors",
   "output": "ioclab_sd15_recolor_hswq_convrot_int8.safetensors"
  },
  "measurement": {
   "convrot_int8_linear": 53,
-  "drift_gt_threshold": 18,
+  "drift_gt_threshold": 13,
   "kept_not_runtime_linear": 258,
   "output_gb": 0.57,
   "protected_total": 29,
   "sweep": 142
  },
- "note": "The measurement host is the official SD1.5 checkpoint v1-5-pruned-emaonly-fp16.safetensors (2,132,696,762 B); the host used for the earlier SD1.5 ControlNet packs is no longer on this machine, so the ranking is measured on this checkpoint rather than reused.",
+ "note": "The measurement host is chilledReGenericV3_v10.safetensors (2,132,626,040 B, models/unet) — the host the other fifteen SD1.5 ControlNet packs were measured on. On this host 13 layers exceed the 0.15 drift threshold and none of them belongs to the quantised set (intersection 0), so the 53 quantised layers and the pack bytes are identical to the previous pass, which used the official SD1.5 checkpoint v1-5-pruned-emaonly-fp16.safetensors (18 layers above threshold, maximum 1.109220).",
  "protected_layers": [
   {
-   "layer": "input_blocks.0.0",
-   "rel_mse": 1.1092201136678341
-  },
-  {
    "layer": "input_hint_block.12",
-   "rel_mse": 0.845073556911666
-  },
-  {
-   "layer": "input_blocks.2.1.proj_in",
-   "rel_mse": 0.7008997815806651
+   "rel_mse": 0.4304693745449185
   },
   {
    "layer": "input_hint_block.14",
-   "rel_mse": 0.5337625395623036
+   "rel_mse": 0.38485722891055046
   },
   {
-   "layer": "input_hint_block.10",
-   "rel_mse": 0.5105343791743507
+   "layer": "input_blocks.2.1.proj_in",
+   "rel_mse": 0.37640417205402626
   },
   {
-   "layer": "input_hint_block.8",
-   "rel_mse": 0.4745746247062925
-  },
-  {
-   "layer": "input_blocks.2.1.proj_out",
-   "rel_mse": 0.45887887223361756
-  },
-  {
-   "layer": "zero_convs.0.0",
-   "rel_mse": 0.45292253941297533
-  },
-  {
-   "layer": "input_hint_block.6",
-   "rel_mse": 0.43912046965269835
-  },
-  {
-   "layer": "input_blocks.1.0.out_layers.3",
-   "rel_mse": 0.41369913854869084
+   "layer": "input_blocks.0.0",
+   "rel_mse": 0.3716682643716922
   },
   {
    "layer": "input_blocks.1.1.proj_out",
-   "rel_mse": 0.368164983423776
+   "rel_mse": 0.35406809190462807
   },
   {
-   "layer": "input_blocks.1.1.proj_in",
-   "rel_mse": 0.3444244826911017
+   "layer": "input_blocks.2.1.proj_out",
+   "rel_mse": 0.31239521809620785
   },
   {
-   "layer": "input_blocks.3.0.op",
-   "rel_mse": 0.2690785958795459
-  },
-  {
-   "layer": "input_blocks.4.0.skip_connection",
-   "rel_mse": 0.2619815367506817
-  },
-  {
-   "layer": "input_blocks.4.1.proj_out",
-   "rel_mse": 0.25181644356707694
+   "layer": "input_blocks.1.0.out_layers.3",
+   "rel_mse": 0.308715150077478
   },
   {
    "layer": "input_blocks.1.0.in_layers.2",
-   "rel_mse": 0.23292431677982678
+   "rel_mse": 0.23517696066701319
   },
   {
-   "layer": "input_hint_block.2",
-   "rel_mse": 0.19924840305793623
+   "layer": "zero_convs.0.0",
+   "rel_mse": 0.21946159675717353
   },
   {
-   "layer": "input_blocks.2.0.out_layers.3",
-   "rel_mse": 0.17271491947030881
+   "layer": "input_hint_block.8",
+   "rel_mse": 0.209927517559845
+  },
+  {
+   "layer": "input_hint_block.10",
+   "rel_mse": 0.20876057950372343
+  },
+  {
+   "layer": "input_hint_block.6",
+   "rel_mse": 0.2042619650164852
+  },
+  {
+   "layer": "input_blocks.1.1.proj_in",
+   "rel_mse": 0.2003895241417922
   }
  ],
  "runtime_linear_modules": 82,
