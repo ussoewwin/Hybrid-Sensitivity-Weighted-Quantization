@@ -1,7 +1,7 @@
 {
   "tool": "controlnet_image_test.py",
   "pack": "ioclab_sd15_recolor_hswq_convrot_int8.safetensors",
-  "base": "v1-5-pruned-emaonly-fp16.safetensors",
+  "base": "chilledReGenericV3_v10.safetensors",
   "settings": {
     "width": 1024,
     "height": 1024,
@@ -26,9 +26,9 @@
     "latent_inf_count": 0,
     "latent_finite": true,
     "int8_linear_calls": 636,
-    "png_bytes": 958424,
-    "png_sha256": "5ff6835458e492ad0f802c981b73cced61c58f132889a0e3d40d98931506ea3a",
-    "wall_seconds": 15.9
+    "png_bytes": 838712,
+    "png_sha256": "4b783b399438c5a47b463e40264de8b65f382c172f82bb12316612ef84a9237a",
+    "wall_seconds": 11.5
   },
   "verdict": "image rendered"
 }
