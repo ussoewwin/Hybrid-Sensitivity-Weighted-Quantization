@@ -1,0 +1,25 @@
+{
+ "applied_layers": 326,
+ "cond_cos_max": 0.9988335371017456,
+ "cond_cos_min": 0.9979934692382812,
+ "declared_layers": 326,
+ "finite": true,
+ "model_class": "Qwen3VLTEModel_",
+ "pass": true,
+ "per_prompt_cos": [
+  0.9979934692382812,
+  0.9986358284950256,
+  0.9988335371017456,
+  0.9987397789955139,
+  0.9987987875938416,
+  0.9980549812316895,
+  0.9986616969108582,
+  0.9987660050392151
+ ],
+ "prompts": 8,
+ "raw_code_params": 0,
+ "route": "nodes.CLIPLoader (type=stable_diffusion)",
+ "tool": "audit/wevisone_w4a8_load_path.py",
+ "unmatched_layers": 0,
+ "w4a8_linear_calls": 0
+}

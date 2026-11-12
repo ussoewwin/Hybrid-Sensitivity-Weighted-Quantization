@@ -658,6 +658,13 @@ Instead, each text-encoder standard was handled **individually** - but the crite
 | `Qwen3.5-9B-...-MAX-MTP_hswq_convrot_int8.safetensors` | Qwen3.5 (9B, hybrid + vision + MTP) | 369 of 369 | 0 | conditioning 0.999387 / 0.996488, generate 0.999453 / 0.998215 | 9217.9 MB |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | 41 of 221 | 180 | relMSE 3.51e-05 | 1657.6 MB |
 
+**ConvRot W4A8 packs.** A different format (`asym_w4a8_int8`: 4-bit weight, group 16, convrot
+256), so these are listed apart from the INT8 packs above.
+
+| Pack | Standard | ConvRot W4A8 | Kept | Gate (256 items, seed 42) | Size |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `wevisone_vl_4b_hswq_convrot_w4a8.safetensors` | WeVisOne-VL (4B, Qwen3-VL + matte decoder) | 326 of 370 | 32 by drift rank + `embed_tokens`, `lm_head`, `mask_decoder` (11) | 0.995055 / 0.987840 | 4483.7 MB |
+
 Download:
 
 - **[ussoewwin/Clip-files-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-ConvRot-INT8)** - CLIP-L, OpenAI CLIP ViT-L/14 (CLIP-SAE), Flan-T5-XXL, CLIP-ViT-bigG-14, Josiefied-Qwen3-0.6B
