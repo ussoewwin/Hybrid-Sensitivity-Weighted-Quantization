@@ -7,6 +7,7 @@ base_model:
   - zer0int/LongCLIP-GmP-ViT-L-14
   - google/flan-t5-xxl
   - Goekdeniz-Guelmez/Josiefied-Qwen3-0.6B-abliterated-v1
+  - tencent/WeVisOne-VL-4B
 tags:
 - clip
 - text-encoder
@@ -19,6 +20,9 @@ tags:
 - int8
 - convrot
 - hswq
+- w4a8
+- int4
+- wevisone
 - comfyui
 pipeline_tag: feature-extraction
 ---
@@ -30,6 +34,8 @@ pipeline_tag: feature-extraction
 </p>
 
 **HSWQ ConvRot INT8** (Hybrid-Sensitivity-Weighted-Quantization) quantized weights for text encoders, CLIP, and compact language models used by **SD 1.5**, **SDXL** and **FLUX.1** workflows.
+
+The same collection also carries **ConvRot W4A8** packs (`asym_w4a8_int8`: 4-bit weight, group size 16, ConvRot group 256), marked as such in the Quantization column.
 
 - **Technical Details & Quantization Framework:** [Hybrid-Sensitivity-Weighted-Quantization (HSWQ)](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization)
 - **ComfyUI Loader for ConvRot INT8:** [ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)
@@ -43,6 +49,7 @@ pipeline_tag: feature-extraction
 | `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | CLIP ViT-L/14 (HF layout), text + vision | [zer0int/CLIP-GmP-ViT-L-14](https://huggingface.co/zer0int/CLIP-GmP-ViT-L-14) | HSWQ ConvRot INT8 | **~678.1 MB** | ~931.4 MB (FP16) | **~27.2% Reduction** | Available |
 | `flan_t5_xxl_hswq_convrot_int8.safetensors` | Google Flan-T5 XXL (11B), encoder + decoder | [google/flan-t5-xxl](https://huggingface.co/google/flan-t5-xxl) | HSWQ ConvRot INT8 | **~14.74 GB** | ~22.53 GB (FP16) | **~34.6% Reduction** | Available |
 | `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | Qwen3 0.6B Abliterated | [Goekdeniz-Guelmez/Josiefied-Qwen3-0.6B-abliterated-v1](https://huggingface.co/Goekdeniz-Guelmez/Josiefied-Qwen3-0.6B-abliterated-v1) | HSWQ ConvRot INT8 | **~687.0 MB** | ~1.19 GB (BF16) | **~42.4% Reduction** | Available |
+| `wevisone_vl_4b_hswq_convrot_w4a8.safetensors` | WeVisOne-VL 4B (Qwen3-VL + alpha-matte decoder), text + vision | [tencent/WeVisOne-VL-4B](https://huggingface.co/tencent/WeVisOne-VL-4B) | HSWQ ConvRot W4A8 | **~4.70 GB** | ~9.70 GB (BF16) | **~51.5% Reduction** | Available |
 
 Sizes are decimal MB/GB computed from the published byte counts, and each reduction is computed from those same byte counts against the source file in the same row.
 
