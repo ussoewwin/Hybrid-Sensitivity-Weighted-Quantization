@@ -66,6 +66,8 @@ python audit/run_all_gates.py
 | MP-5 (source vs pack output) | `model_patch_image_trigger.py` | `--source <f> --pack <f> --comfy <d> --vae <f> --family diffsynth\|zimage [--loader-root <d>] [--n N] [--seed S] --json <o>` |
 | PU-1 (audit & quant replay) | `pulid_pack_audit.py` | `--source <f> --pack <f> --pulid_dir <d> --json <o> [--seed S]` |
 | PU-2 (weight-level trigger) | `pulid_weight_trigger.py` | `--pulid <f> --pulid_dir <d> --json <o> [--seed S] [--reps N]` |
+| IP-1 (audit & quant replay) | `ipadapter_pack_audit.py` | `--source <f> --pack <f> --ipadapter_dir <d> --json <o> [--seed S]` |
+| IP-2 (weight-level trigger) | `ipadapter_weight_trigger.py` | `--ipadapter <f> --ipadapter_dir <d> --json <o> [--seed S] [--reps N]` |
 
 ## SAM3.1 extension (procedure 12c)
 
