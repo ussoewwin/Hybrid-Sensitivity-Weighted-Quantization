@@ -1,0 +1,8 @@
+{
+ "tool": "controlnet_image_test.py",
+ "family": "ipadapter",
+ "pack": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+ "pack_load_error": "RuntimeError: Error(s) in loading state_dict for Resampler:\n\tUnexpected key(s) in state_dict: \"proj_in.comfy_quant\", \"proj_in.weight_scale\", \"proj_out.comfy_quant\", \"proj_out.weight_scale\", \"layers.0.0.to_q.comfy_quant\", \"layers.0.0.to_q.weight_scale\", \"layers.0.0.to_kv.comfy_quant\", \"layers.0.0.to_kv.weight_scale\", \"layers.0.0.to_out.comfy_quant\", \"layers.0.0.to_out.weight_scale\", \"layers.0.1.1.comfy_quant\", \"",
+ "pack_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
+ "verdict": "the pack has no consumer on this route; no render was produced"
+}

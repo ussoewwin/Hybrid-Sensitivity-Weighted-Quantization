@@ -39,6 +39,86 @@ def load_hswq_package(comfy_root: str, loader_root: str):
     return name, cand
 
 
+
+def run_ipadapter(pack_path: str, ipadapter_dir: str, device: str):
+    """One forward through the graph the node builds, with the pack's own tensors.
+
+    The question is the same as for a ControlNet: does the declared int8 reach an INT8
+    kernel, and does the executed path stay finite?
+    """
+    import torch
+    from safetensors.torch import load_file
+    import comfy.ops as O
+
+    flat = load_file(pack_path)
+    st = {"image_proj": {}, "ip_adapter": {}}
+    for k, v in flat.items():
+        if not torch.is_tensor(v):
+            continue
+        if k.startswith("image_proj."):
+            st["image_proj"][k.replace("image_proj.", "", 1)] = v
+        elif k.startswith("ip_adapter."):
+            st["ip_adapter"][k.replace("ip_adapter.", "", 1)] = v
+
+    if ipadapter_dir and ipadapter_dir not in sys.path:
+        sys.path.insert(0, ipadapter_dir)
+    from image_proj_models import Resampler  # noqa: E402
+
+    res = Resampler(dim=768, depth=4, dim_head=64, heads=12, num_queries=16,
+                    embedding_dim=1280, output_dim=768, ff_mult=4,
+                    max_seq_len=257, apply_pos_emb=False, num_latents_mean_pooled=0)
+    try:
+        res.load_state_dict(st["image_proj"], strict=True)
+        load_error = ""
+    except Exception as e:  # noqa: BLE001
+        load_error = "%s: %s" % (type(e).__name__, str(e)[:300])
+
+    dev = torch.device(device if torch.cuda.is_available() or device == "cpu" else "cpu")
+    rec = {"pack": os.path.basename(pack_path), "class": "Resampler+To_KV", "device": str(dev),
+           "pack_sha256": __import__("hashlib").sha256(open(pack_path, "rb").read()).hexdigest(),
+           "dtype": "float32", "int8_gemm_patch": False, "int8_linear_calls": 0,
+           "output_finite": None, "output_shape": None, "error": load_error or None}
+    if load_error:
+        rec["verdict"] = "the node's loader cannot take the pack"
+        return rec
+
+    res = res.to(dev).to(torch.float32).eval()
+
+    ck = O.quant_ops.ck
+    orig = ck.int8_linear
+    n = [0]
+
+    def counted(*a, **kw):
+        n[0] += 1
+        return orig(*a, **kw)
+
+    ck.int8_linear = counted
+    try:
+        with torch.no_grad():
+            x = torch.zeros(1, 257, 1280, device=dev, dtype=torch.float32)
+            y = res(x)
+        rec["output_shape"] = list(y.shape)
+        rec["output_finite"] = bool(torch.isfinite(y).all())
+        rec["output_nan_count"] = int(torch.isnan(y).sum())
+        rec["output_inf_count"] = int(torch.isinf(y).sum())
+        rec["output_tensors"] = 1
+    except Exception as e:  # noqa: BLE001
+        rec["error"] = "%s: %s" % (type(e).__name__, str(e)[:300])
+    finally:
+        ck.int8_linear = orig
+
+    rec["int8_linear_calls"] = n[0]
+    if rec["error"]:
+        rec["verdict"] = "forward failed"
+    elif rec["int8_linear_calls"] <= 0:
+        rec["verdict"] = "no INT8 kernel call"
+    elif not rec["output_finite"]:
+        rec["verdict"] = "non-finite output"
+    else:
+        rec["verdict"] = "INT8 kernel executed, output finite"
+    return rec
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pack", required=True)
@@ -46,7 +126,20 @@ def main() -> int:
     ap.add_argument("--loader-root", default="")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--json", default="")
+    ap.add_argument("--family", default="controlnet", choices=["controlnet", "ipadapter"])
+    ap.add_argument("--ipadapter_dir", default="", help="the ipadapter node directory for --family ipadapter")
     args = ap.parse_args()
+
+    if args.family == "ipadapter":
+        rec = run_ipadapter(args.pack, args.ipadapter_dir, args.device)
+        print("%s | %s | INT8 calls %d | finite %s | %s"
+              % (rec["pack"], rec["class"], rec["int8_linear_calls"], rec["output_finite"], rec["verdict"]))
+        if args.json:
+            os.makedirs(os.path.dirname(os.path.abspath(args.json)), exist_ok=True)
+            with open(args.json, "w", encoding="utf-8") as f:
+                json.dump(rec, f, indent=1, ensure_ascii=False)
+            print("wrote %s" % args.json)
+        return 0
 
     root = os.path.abspath(args.comfy)
     cwd = os.getcwd()

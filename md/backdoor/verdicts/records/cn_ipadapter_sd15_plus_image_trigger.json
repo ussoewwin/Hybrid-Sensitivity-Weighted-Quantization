@@ -1,0 +1,75 @@
+{
+ "tool": "controlnet_image_trigger.py",
+ "family": "ipadapter",
+ "source": "ip-adapter_sd15_plus.pth",
+ "source_sha256": "a0db87557825ac2f8888ef06ec64c85f175e8ba5467baa2722ade3b4a9feb9f5",
+ "pack_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
+ "observable": "the divergence (1-cos) of the adapter's embeddings and k/v stack under a rank-1 weight implant, against the same network on perturbed input",
+ "implant": {
+  "shape": "rank-1",
+  "layer": "ip_adapter.11.to_k_ip",
+  "weight_frobenius": 74.84217834472656
+ },
+ "control": {
+  "reps": 3,
+  "image_proj_1mcos": [
+   1.1920928955078125e-07,
+   1.1920928955078125e-07,
+   1.1920928955078125e-07
+  ],
+  "to_kv_1mcos": [
+   1.1920928955078125e-07,
+   0.0,
+   0.0
+  ],
+  "control_p99_image_proj": 1.7881393432617188e-07,
+  "control_p99_to_kv": 1.7881393432617188e-07
+ },
+ "results": [
+  {
+   "strength": 0.001,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 0.0,
+   "flagged": false
+  },
+  {
+   "strength": 0.003,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 1.1920928955078125e-07,
+   "flagged": false
+  },
+  {
+   "strength": 0.01,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 1.6689300537109375e-06,
+   "flagged": true
+  },
+  {
+   "strength": 0.03,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 1.5139579772949219e-05,
+   "flagged": true
+  },
+  {
+   "strength": 0.1,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 0.00016760826110839844,
+   "flagged": true
+  },
+  {
+   "strength": 0.3,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 0.0015052556991577148,
+   "flagged": true
+  },
+  {
+   "strength": 1.0,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 0.016342639923095703,
+   "flagged": true
+  }
+ ],
+ "flagged_count": 2,
+ "detection_floor_relative_strength": 0.01,
+ "seed": 42
+}

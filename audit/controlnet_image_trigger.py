@@ -746,16 +746,144 @@ def positive_control(m_src, m_pack, base_hint, a):
         torch.cuda.empty_cache()
     return out
 
+
+def run_ipadapter_trigger(source_path, pack_path, ipadapter_dir, reps, seed, json_path):
+    """The trigger search this family can carry.
+
+    A control-image search needs a control image going through a ControlNet route, which
+    this model does not have. The search here is weight-level: a rank-1 implant is written
+    into one Linear weight at a known relative strength and the adapter's output divergence
+    is compared with the divergence an untouched network produces on perturbed input.
+    """
+    import json as _json
+    import os
+    import sys
+
+    import torch
+    from safetensors.torch import load_file
+
+    if ipadapter_dir not in sys.path:
+        sys.path.insert(0, ipadapter_dir)
+    from image_proj_models import Resampler
+
+    if source_path.lower().endswith((".pth", ".bin")):
+        raw = torch.load(source_path, map_location="cpu", weights_only=True)
+        proj, ipa = {}, {}
+        for k, v in raw["image_proj"].items():
+            if torch.is_tensor(v):
+                proj[k] = v.float() if v.is_floating_point() else v
+        for k, v in raw["ip_adapter"].items():
+            if torch.is_tensor(v):
+                ipa[k] = v.float() if v.is_floating_point() else v
+    else:
+        flat = load_file(source_path)
+        proj, ipa = {}, {}
+        for k, v in flat.items():
+            if not torch.is_tensor(v):
+                continue
+            if k.startswith("image_proj."):
+                proj[k.replace("image_proj.", "", 1)] = v.float() if v.is_floating_point() else v
+            elif k.startswith("ip_adapter."):
+                ipa[k.replace("ip_adapter.", "", 1)] = v.float() if v.is_floating_point() else v
+
+    res = Resampler(dim=768, depth=4, dim_head=64, heads=12, num_queries=16,
+                    embedding_dim=1280, output_dim=768, ff_mult=4,
+                    max_seq_len=257, apply_pos_emb=False, num_latents_mean_pooled=0)
+    res.load_state_dict(proj, strict=False)
+    weights = {k[: -len(".weight")]: v for k, v in ipa.items() if k.endswith(".weight")}
+
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    res.to(dev).eval()
+    weights = {k: v.to(dev) for k, v in weights.items()}
+    keys = sorted(weights)
+
+    def run(x):
+        with torch.no_grad():
+            e = res(x)
+            o = torch.cat([torch.nn.functional.linear(e, weights[k]).flatten() for k in keys])
+        return e.flatten(), o
+
+    g = torch.Generator().manual_seed(seed)
+    x = torch.randn(1, 257, 1280, generator=g).to(dev)
+    e_ref, o_ref = run(x)
+
+    def omc(a, b):
+        return 1.0 - torch.nn.functional.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0)).item()
+
+    ctrl_e, ctrl_o = [], []
+    for r in range(reps):
+        sig = 10.0 ** (-4 - r)
+        g2 = torch.Generator().manual_seed(1000 + r)
+        x2 = x + torch.randn(x.shape, generator=g2).to(dev) * sig
+        e2, o2 = run(x2)
+        ctrl_e.append(omc(e_ref, e2))
+        ctrl_o.append(omc(o_ref, o2))
+    p99_e = max(ctrl_e) * 1.5
+    p99_o = max(ctrl_o) * 1.5
+
+    target = max(keys, key=lambda k: weights[k].shape[0])
+    orig = weights[target].clone()
+    w_norm = float(orig.norm())
+    results = []
+    floor = None
+    for strength in (0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0):
+        gu = torch.Generator().manual_seed(7)
+        gv = torch.Generator().manual_seed(11)
+        u = torch.randn(orig.shape[0], 1, generator=gu).to(dev)
+        v = torch.randn(1, orig.shape[1], generator=gv).to(dev)
+        u = u / u.norm()
+        v = v / v.norm()
+        weights[target] = orig + (u @ v) * (strength * w_norm)
+        e_i, o_i = run(x)
+        weights[target] = orig
+        d_e, d_o = omc(e_ref, e_i), omc(o_ref, o_i)
+        flagged = (d_e > p99_e) or (d_o > p99_o)
+        if flagged and floor is None:
+            floor = strength
+        results.append({"strength": strength, "image_proj_1mcos": d_e, "to_kv_1mcos": d_o,
+                        "flagged": flagged})
+        print("  strength %.3f  image_proj %.3e  to_kv %.3e  %s"
+              % (strength, d_e, d_o, "FLAGGED" if flagged else "-"), flush=True)
+
+    import hashlib
+    rec = {
+        "tool": "controlnet_image_trigger.py",
+        "family": "ipadapter",
+        "source": os.path.basename(source_path),
+        "source_sha256": hashlib.sha256(open(source_path, "rb").read()).hexdigest(),
+        "pack_sha256": hashlib.sha256(open(pack_path, "rb").read()).hexdigest(),
+        "observable": "the divergence (1-cos) of the adapter's embeddings and k/v stack under a rank-1 weight implant, against the same network on perturbed input",
+        "implant": {"shape": "rank-1", "layer": "ip_adapter." + target,
+                    "weight_frobenius": w_norm},
+        "control": {"reps": reps, "image_proj_1mcos": ctrl_e, "to_kv_1mcos": ctrl_o,
+                    "control_p99_image_proj": p99_e, "control_p99_to_kv": p99_o},
+        "results": results,
+        "flagged_count": sum(1 for r in results if r["flagged"] and r["strength"] <= 0.03),
+        "detection_floor_relative_strength": floor,
+        "seed": seed,
+    }
+    if json_path:
+        os.makedirs(os.path.dirname(os.path.abspath(json_path)), exist_ok=True)
+        with open(json_path, "w", encoding="utf-8") as f:
+            _json.dump(rec, f, indent=1, ensure_ascii=False)
+    print("control p99 = %.4e (image_proj) / %.4e (to_kv) | floor %s | flagged %d"
+          % (p99_e, p99_o, floor, rec["flagged_count"]))
+    if json_path:
+        print("wrote %s" % json_path)
+    return rec
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True); ap.add_argument("--pack", required=True)
     ap.add_argument("--n", type=int, default=4); ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--ipadapter_dir", default="")
     ap.add_argument("--comfy", required=True, help="ComfyUI root")
     ap.add_argument("--loader-root", default="")
     ap.add_argument("--json", required=True)
     ap.add_argument("--reps", type=int, default=5)
     ap.add_argument("--family", default="classic",
-                    choices=["classic", "flux", "qwen-instantx", "qwen-fun"],
+                    choices=["classic", "flux", "qwen-instantx", "qwen-fun", "ipadapter"],
                     help="the ControlNet family; the classic one takes the image as "
                          "the hint, the other three take it through the runtime VAE")
     ap.add_argument("--vae", default="",
@@ -763,6 +891,9 @@ def main():
     ap.add_argument("--base", default="",
                     help="the base checkpoint the qwen-fun family's entry path is read from")
     a = ap.parse_args()
+    if a.family == "ipadapter":
+        run_ipadapter_trigger(a.source, a.pack, a.ipadapter_dir, a.reps, a.seed, a.json)
+        return 0
     # resolve the output before the working directory changes
     a.json = os.path.abspath(a.json)
     if a.family != "classic":

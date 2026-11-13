@@ -56,6 +56,144 @@ def hint_image(torch, size: int):
     return img.permute(1, 2, 0).unsqueeze(0).clamp(0, 1)
 
 
+
+def run_ipadapter_image(base_path, vae_path, pack_path, ipadapter_dir, image_path, out_path,
+                        json_path, comfy_root, width=512, height=512, steps=12, cfg=7.0,
+                        seed=42, img=None):
+    """Render one image through the pack on the code path this family has.
+
+    The adapter is patched into the UNet the way the apply node patches it. No CLIP-L
+    weights exist on this machine, so the text context is a fixed zero tensor at the
+    cross-attention width; the adapter's own conditioning is the image embedding.
+    """
+    import json as _json
+    import os
+    import sys
+    import time
+
+    import numpy as np
+    import torch
+
+    root = os.path.abspath(comfy_root)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import comfy.model_management as mm
+    import comfy.sample as comfy_sample
+    import comfy.sd
+    import comfy.utils
+    import comfy.clip_vision
+
+    parent = os.path.dirname(os.path.abspath(ipadapter_dir))
+    if parent not in sys.path:
+        sys.path.insert(0, parent)
+    pkg = os.path.basename(os.path.abspath(ipadapter_dir))
+    import importlib
+    ipadapter_execute = importlib.import_module(pkg + ".IPAdapterPlus").ipadapter_execute
+    ipadapter_model_loader = importlib.import_module(pkg + ".utils").ipadapter_model_loader
+
+    t0 = time.time()
+    pack_error = ""
+    try:
+        ipa = ipadapter_model_loader(os.path.abspath(pack_path))
+    except Exception as e:  # noqa: BLE001
+        pack_error = "%s: %s" % (type(e).__name__, str(e)[:400])
+        ipa = None
+    base = comfy.sd.load_diffusion_model(os.path.abspath(base_path), model_options={})
+    vae = comfy.sd.VAE(sd=comfy.utils.load_torch_file(os.path.abspath(vae_path), safe_load=True))
+    cv_path = os.path.join(root, "models", "clip_vision", "clip_vision_h.safetensors")
+    if not os.path.isfile(cv_path):
+        raise SystemExit("clip vision missing: %s" % cv_path)
+    cv = comfy.clip_vision.load(cv_path)
+
+    from PIL import Image
+    img = Image.open(image_path).convert("RGB") if image_path else None
+    if img is None:
+        raise SystemExit("--control-image is required for --family ipadapter")
+    arr = torch.from_numpy(np.asarray(img).astype("float32") / 255.0).unsqueeze(0)
+
+    if ipa is None:
+        rec = {"tool": "controlnet_image_test.py", "family": "ipadapter",
+               "pack": os.path.basename(pack_path), "pack_load_error": pack_error,
+               "pack_sha256": __import__("hashlib").sha256(open(pack_path, "rb").read()).hexdigest(),
+               "pack_sha256": __import__("hashlib").sha256(open(pack_path, "rb").read()).hexdigest(),
+               "verdict": "the pack has no consumer on this route; no render was produced"}
+        if json_path:
+            os.makedirs(os.path.dirname(os.path.abspath(json_path)), exist_ok=True)
+            with open(json_path, "w", encoding="utf-8") as f:
+                _json.dump(rec, f, indent=1, ensure_ascii=False)
+        print("%s | pack load failed: %s" % (rec["pack"], pack_error[:160]))
+        print("VERDICT: no render (pack has no consumer)")
+        if json_path:
+            print("wrote %s" % json_path)
+        return rec
+    try:
+        patched = ipadapter_execute(base, ipa, cv, image=arr, weight=1.0, weight_type="linear",
+                                    start_at=0.0, end_at=1.0, embeds_scaling="V only")
+    except Exception as e:  # noqa: BLE001
+        pack_error = "%s: %s" % (type(e).__name__, str(e)[:400])
+        rec = {"tool": "controlnet_image_test.py", "family": "ipadapter",
+               "pack": os.path.basename(pack_path), "pack_load_error": pack_error,
+               "pack_sha256": __import__("hashlib").sha256(open(pack_path, "rb").read()).hexdigest(),
+               "pack_sha256": __import__("hashlib").sha256(open(pack_path, "rb").read()).hexdigest(),
+               "verdict": "the pack has no consumer on this route; no render was produced"}
+        os.makedirs(os.path.dirname(os.path.abspath(json_path)), exist_ok=True)
+        with open(json_path, "w", encoding="utf-8") as f:
+            _json.dump(rec, f, indent=1, ensure_ascii=False)
+        print("%s | pack cannot be applied: %s" % (rec["pack"], pack_error[:160]))
+        print("VERDICT: no render (pack has no consumer)")
+        print("wrote %s" % json_path)
+        return rec
+
+    device = mm.get_torch_device()
+    ctx = 768
+    cond = [[torch.zeros(1, 77, ctx, device=device), {}]]
+    neg = [[torch.zeros(1, 77, ctx, device=device), {}]]
+
+    latent = torch.zeros([1, 4, height // 8, width // 8], device=mm.intermediate_device(), dtype=mm.intermediate_dtype())
+    latent = comfy_sample.fix_empty_latent_channels(patched, latent, 8, None).to(device)
+    noise = comfy_sample.prepare_noise(latent, seed, None)
+    with torch.no_grad():
+        out = comfy_sample.sample(patched, noise, steps, cfg, "dpmpp_2m", "karras",
+                                  cond, neg, latent, denoise=1.0, disable_noise=False,
+                                  start_step=None, last_step=None, force_full_denoise=False,
+                                  noise_mask=None, callback=None, disable_pbar=True, seed=seed)
+        pixels = vae.decode(out)
+    pixels = pixels.clamp(0, 1).cpu()
+    arr_out = (pixels[0].permute(1, 2, 0).numpy() * 255.0).round().astype("uint8")
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    Image.fromarray(arr_out).save(out_path)
+    import hashlib
+    rec = {
+        "tool": "controlnet_image_test.py",
+        "family": "ipadapter",
+        "pack": os.path.basename(pack_path),
+        "base": os.path.basename(base_path),
+        "vae": os.path.basename(vae_path),
+        "settings": {"width": width, "height": height, "steps": steps, "cfg": cfg, "seed": seed,
+                     "sampler": "dpmpp_2m", "scheduler": "karras",
+                     "text_context": "fixed zero context (no CLIP-L on this machine)",
+                     "control_image": os.path.basename(image_path)},
+        "measurement": {
+            "latent_finite": bool(torch.isfinite(out).all()),
+            "png_bytes": os.path.getsize(out_path),
+            "png_sha256": hashlib.sha256(open(out_path, "rb").read()).hexdigest(),
+            "wall_seconds": round(time.time() - t0, 1),
+        },
+        "verdict": "image rendered",
+    }
+    if json_path:
+        os.makedirs(os.path.dirname(os.path.abspath(json_path)), exist_ok=True)
+        with open(json_path, "w", encoding="utf-8") as f:
+            _json.dump(rec, f, indent=1, ensure_ascii=False)
+    print("%s | %sx%s %d steps | latent finite %s | %d bytes | %.1fs"
+          % (rec["pack"], width, height, steps, rec["measurement"]["latent_finite"],
+             rec["measurement"]["png_bytes"], rec["measurement"]["wall_seconds"]))
+    print("VERDICT: image rendered")
+    if json_path:
+        print("wrote %s" % json_path)
+    return rec
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", required=True, help="checkpoint file, or diffusion model name in unet/")
@@ -76,6 +214,8 @@ def main() -> int:
     ap.add_argument("--pack", required=True, help="ConvRot INT8 ControlNet pack")
     ap.add_argument("--comfy", required=True, help="ComfyUI root")
     ap.add_argument("--loader-root", default="")
+    ap.add_argument("--family", default="controlnet", choices=["controlnet", "ipadapter"])
+    ap.add_argument("--ipadapter_dir", default="")
     ap.add_argument("--out", required=True, help="PNG path to write")
     ap.add_argument("--json", default="")
     ap.add_argument("--prompt", default="a photo of a white ceramic teapot on a wooden table, soft window light, sharp focus")
@@ -88,6 +228,16 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--strength", type=float, default=0.9)
     args = ap.parse_args()
+
+    if args.family == "ipadapter":
+        if not args.vae:
+            print("error: --vae is required for --family ipadapter")
+            return 2
+        run_ipadapter_image(args.base, args.vae, args.pack, args.ipadapter_dir,
+                            args.control_image, args.out, args.json, args.comfy,
+                            width=args.size, height=args.size, steps=args.steps,
+                            cfg=args.cfg, seed=args.seed)
+        return 0
 
     # resolve outputs before the working directory changes
     json_out = os.path.abspath(args.json) if args.json else ""

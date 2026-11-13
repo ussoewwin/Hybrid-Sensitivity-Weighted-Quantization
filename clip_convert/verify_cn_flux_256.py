@@ -203,7 +203,125 @@ def features(model, seed, side=32, txt_tokens=77):
     return torch.cat(parts)
 
 
+
+def verify_ipadapter(src_path, pack_path, ipadapter_dir, n=256):
+    """The 256-item acceptance gate for an IP-Adapter pack: the source's float weights
+    against the pack's dequantised weights, over n fixed inputs, through the graph the
+    node builds."""
+    import os
+    import statistics
+    import sys
+
+    import torch
+    from safetensors.torch import load_file
+
+    if ipadapter_dir not in sys.path:
+        sys.path.insert(0, ipadapter_dir)
+    from image_proj_models import Resampler
+
+    def flatten(path):
+        if path.lower().endswith((".pth", ".bin")):
+            raw = torch.load(path, map_location="cpu", weights_only=True)
+            out = {}
+            for k, v in raw["image_proj"].items():
+                if torch.is_tensor(v):
+                    out["image_proj." + k] = v
+            for k, v in raw["ip_adapter"].items():
+                if torch.is_tensor(v):
+                    out["ip_adapter." + k] = v
+            return out
+        return load_file(path)
+
+    def hadamard(size):
+        h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=torch.float32)
+        hh = h4
+        cur = 4
+        while cur < size:
+            hh = torch.kron(hh, h4)
+            cur *= 4
+        return hh / (size ** 0.5)
+
+    src = flatten(src_path)
+    pack = flatten(pack_path)
+    declared = sorted(k[: -len(".comfy_quant")] for k in pack if k.endswith(".comfy_quant"))
+    h = hadamard(256)
+    deq = {}
+    for mk in declared:
+        q = pack[mk + ".weight"]
+        sc = pack[mk + ".weight_scale"].float()
+        of, inf = q.shape
+        g = inf // 256
+        deq[mk + ".weight"] = torch.matmul((q.float() * sc.float()).view(of, g, 256), h).reshape(of, inf)
+    restored = {}
+    for k, v in pack.items():
+        if k.endswith(".weight_scale") or k.endswith(".comfy_quant"):
+            continue
+        restored[k] = deq[k] if (k.endswith(".weight") and k[:-7] in set(declared)) else v
+
+    def build(sd):
+        proj, ipa = {}, {}
+        for k, v in sd.items():
+            if k.startswith("image_proj."):
+                proj[k.replace("image_proj.", "", 1)] = v.float() if v.is_floating_point() else v
+            elif k.startswith("ip_adapter."):
+                ipa[k.replace("ip_adapter.", "", 1)] = v.float() if v.is_floating_point() else v
+        res = Resampler(dim=768, depth=4, dim_head=64, heads=12, num_queries=16,
+                        embedding_dim=1280, output_dim=768, ff_mult=4,
+                        max_seq_len=257, apply_pos_emb=False, num_latents_mean_pooled=0)
+        res.load_state_dict(proj, strict=False)
+        kv = {k[: -len(".weight")]: v for k, v in ipa.items() if k.endswith(".weight")}
+        return res.eval(), kv
+
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    ra, ka = build(src)
+    rb, kb = build(restored)
+    ra.to(dev); rb.to(dev)
+    ka = {k: v.to(dev) for k, v in ka.items()}
+    kb = {k: v.to(dev) for k, v in kb.items()}
+    keys = sorted(ka)
+
+    cs = []
+    fin = True
+    with torch.no_grad():
+        for i in range(n):
+            g = torch.Generator().manual_seed(900000 + i)
+            x = torch.randn(1, 257, 1280, generator=g).to(dev)
+            ea = ra(x)
+            eb = rb(x)
+            oa = torch.cat([torch.nn.functional.linear(ea, ka[k]).flatten() for k in keys])
+            ob = torch.cat([torch.nn.functional.linear(eb, kb[k]).flatten() for k in keys])
+            if not (torch.isfinite(ea).all() and torch.isfinite(eb).all()):
+                fin = False
+            cs.append(torch.nn.functional.cosine_similarity(oa.unsqueeze(0), ob.unsqueeze(0)).item())
+    cs.sort()
+    m = len(cs)
+    import hashlib
+    rec = {"pack": os.path.basename(pack_path), "family": "ipadapter",
+           "pack_sha256": hashlib.sha256(open(pack_path, "rb").read()).hexdigest(),
+           "source_sha256": hashlib.sha256(open(src_path, "rb").read()).hexdigest(),
+           "file_mb": os.path.getsize(pack_path) / 1024 ** 2,
+           "quantized_layers": len(declared), "int8_linear_calls": 0,
+           "mean": statistics.mean(cs), "min": cs[0], "p5": cs[max(0, int(m * 0.05) - 1)],
+           "p50": cs[m // 2], "n": m, "finite": fin}
+    rec["pass"] = bool(rec["mean"] >= 0.99 and rec["min"] >= 0.98 and fin)
+    print("    quantised=%d finite=%s  mean=%.6f min=%.6f p5=%.6f p50=%.6f  size=%.1f MB  %s"
+          % (len(declared), fin, rec["mean"], rec["min"], rec["p5"], rec["p50"],
+             rec["file_mb"], "PASS" if rec["pass"] else "FAIL"))
+    import json as _json
+    print("JSON " + _json.dumps([rec]))
+    return rec
+
+
 def main():
+    if "--family" in sys.argv:
+        i = sys.argv.index("--family")
+        fam = sys.argv[i + 1]
+        rest = [a for j, a in enumerate(sys.argv) if j not in (i, i + 1)]
+        if fam == "ipadapter":
+            node_dir = rest[i] if len(rest) > i else ""
+            src_path, pack_path = rest[1], rest[2]
+            verify_ipadapter(src_path, pack_path, node_dir)
+            return
     src = sys.argv[1]
     packs = sys.argv[2:]
     print("[1] the FP16 baseline (the same ops path) ...", flush=True)
