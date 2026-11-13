@@ -1,0 +1,13 @@
+{
+  "pack": "ip-adapter_instant_id_sdxl_hswq_convrot_int8.safetensors",
+  "file_mb": 1354.418833732605,
+  "quantized_layers": 329,
+  "int8_linear_calls": 329,
+  "mean": 0.9993946489412338,
+  "min": 0.997490644454956,
+  "p5": 0.9987388849258423,
+  "p50": 0.9994733929634094,
+  "n": 256,
+  "finite": true,
+  "pass": true
+}
