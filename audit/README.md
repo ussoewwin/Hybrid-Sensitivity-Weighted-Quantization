@@ -67,6 +67,7 @@ python audit/run_all_gates.py
 | PU-2 (weight-level trigger) | `pulid_weight_trigger.py` | `--pulid <f> --pulid_dir <d> --json <o> [--seed S] [--reps N]` |
 | retired (superseded by the CN branches above) | `ipadapter_pack_audit.py` | the IP-Adapter audit now runs as `controlnet_pack_audit.py --family ipadapter` |
 | retired (superseded by the CN branches above) | `ipadapter_weight_trigger.py` | the IP-Adapter trigger now runs as `controlnet_image_trigger.py --family ipadapter` |
+| PU-3 (A1111 route execution) | `a1111_pulid_route.py` | `--a1111 <d> --pack <f> --json <o> [--device cuda] [--seed S]`; builds the adapter through A1111's own `ipadapter_model.py` and counts the ConvRot GEMMs at the `comfy_kitchen` boundary |
 | MP-5 (source vs pack output) | `model_patch_image_trigger.py` | `--source <f> --pack <f> --comfy <d> --vae <f> --family diffsynth\|zimage [--loader-root <d>] [--n N] [--seed S] --json <o>` |
 
 ## SAM3.1 extension (procedure 12c)

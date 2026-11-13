@@ -1,0 +1,31 @@
+{
+ "tool": "A1111 /sdapi/v1/txt2img with ControlNet ip-adapter_pulid",
+ "family": "pulid",
+ "route": "A1111 sd-webui-controlnet ipadapter + modules/ipadapter_int8_convrot.py",
+ "pack": "ip-adapter_pulid_sdxl_hswq_convrot_int8.safetensors",
+ "pack_sha256": "0262c9affd20d105421d83f95e959ca89ed8acde7df104d7b94b13b840f5440a",
+ "pack_bytes": 396740327,
+ "loader_install": {
+  "image_proj_linear": 33,
+  "image_proj_skipped": 0,
+  "ip_adapter_linear": 140,
+  "ip_adapter_skipped": 0,
+  "image_proj_int8_mb": 54.8,
+  "ip_adapter_int8_mb": 340.8,
+  "declared_total": 173
+ },
+ "render": {
+  "width": 768,
+  "height": 768,
+  "steps": 12,
+  "cfg_scale": 3.5,
+  "sampler": "DPM++ 2M",
+  "seed": 42,
+  "control_weight": 0.6,
+  "base": "perfectionAsianILXL_v10_sci_1off_convrot_int8.safetensors",
+  "png_bytes": 723598,
+  "png_sha256": "769f135e90dbce5c6c66cce8632e60dced17d6e211947cbef40fa65947477e96"
+ },
+ "measured_at": "2026-11-13T19:21 local",
+ "verdict": "the pack loads on this route and renders"
+}
