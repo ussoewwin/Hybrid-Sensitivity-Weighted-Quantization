@@ -53,21 +53,21 @@ python audit/run_all_gates.py
 
 | step | tool | command |
 | :--- | :--- | :--- |
-| CN-1 (audit & quant replay) | `controlnet_pack_audit.py` | `--source <f> --pack <f> --comfy <d> [--json <o>] [--device cpu\|cuda]` |
-| CN-2 (loader route coverage) | `controlnet_hswq_route.py` | `--pack <f> --comfy <d> [--json <o>]` |
-| CN-3 (forward execution) | `controlnet_int8_exec.py` | `--pack <f> --comfy <d> [--json <o>]` |
-| CN-4 (image render test) | `controlnet_image_test.py` | `--pack <f> --base <f> --comfy <d> [--json <o>]` |
+| CN-1 (audit & quant replay) | `controlnet_pack_audit.py` | `--source <f> --pack <f> --comfy <d> [--json <o>] [--device cpu\|cuda]`; for an IP-Adapter add `--family ipadapter --ipadapter_dir <d>` |
+| CN-2 (loader route coverage) | `controlnet_hswq_route.py` | `--pack <f> --comfy <d> [--json <o>]`; for an IP-Adapter add `--family ipadapter --ipadapter_dir <d>` |
+| CN-3 (forward execution) | `controlnet_int8_exec.py` | `--pack <f> --comfy <d> [--json <o>]`; for an IP-Adapter add `--family ipadapter --ipadapter_dir <d>` |
+| CN-4 (image render test) | `controlnet_image_test.py` | `--pack <f> --base <f> --comfy <d> [--json <o>]`; for an IP-Adapter add `--family ipadapter --ipadapter_dir <d> --vae <f>` |
 | MP-1 (audit & quant replay) | `model_patch_pack_audit.py` | `--source <f> --pack <f> --comfy <d> [--json <o>]` |
 | MP-2 (loader route coverage) | `model_patch_hswq_route.py` | `--pack <f> --comfy <d> [--json <o>]` |
 | MP-3 (forward execution) | `model_patch_int8_exec.py` | `--pack <f> --comfy <d> [--json <o>]` |
 | MP-4 (protection census) | `model_patch_protection_census.py` | `--pack <f> [--json <o>]` |
 | CN-5 (source vs pack output, ControlNet) | `controlnet_pack_source_output_diff.py` | `--source <f> --pack <f> --comfy <d> [--loader-root <d>] [--n N] [--seed S] --json <o>` |
-| CN-5 (source vs pack output) | `controlnet_image_trigger.py` | `--source <f> --pack <f> --comfy <d> [--loader-root <d>] [--reps N] [--seed S] --json <o>`; for the families whose control image goes through the runtime VAE add `--family flux\|qwen-instantx\|qwen-fun --vae <f>` (and `--base <f>` for qwen-fun) |
-| MP-5 (source vs pack output) | `model_patch_image_trigger.py` | `--source <f> --pack <f> --comfy <d> --vae <f> --family diffsynth\|zimage [--loader-root <d>] [--n N] [--seed S] --json <o>` |
+| CN-5 (source vs pack output) | `controlnet_image_trigger.py` | `--source <f> --pack <f> --comfy <d> [--loader-root <d>] [--reps N] [--seed S] --json <o>`; for the families whose control image goes through the runtime VAE add `--family flux\|qwen-instantx\|qwen-fun --vae <f>` (and `--base <f>` for qwen-fun); for an IP-Adapter add `--family ipadapter --ipadapter_dir <d>` |
 | PU-1 (audit & quant replay) | `pulid_pack_audit.py` | `--source <f> --pack <f> --pulid_dir <d> --json <o> [--seed S]` |
 | PU-2 (weight-level trigger) | `pulid_weight_trigger.py` | `--pulid <f> --pulid_dir <d> --json <o> [--seed S] [--reps N]` |
-| IP-1 (audit & quant replay) | `ipadapter_pack_audit.py` | `--source <f> --pack <f> --ipadapter_dir <d> --json <o> [--seed S]` |
-| IP-2 (weight-level trigger) | `ipadapter_weight_trigger.py` | `--ipadapter <f> --ipadapter_dir <d> --json <o> [--seed S] [--reps N]` |
+| retired (superseded by the CN branches above) | `ipadapter_pack_audit.py` | the IP-Adapter audit now runs as `controlnet_pack_audit.py --family ipadapter` |
+| retired (superseded by the CN branches above) | `ipadapter_weight_trigger.py` | the IP-Adapter trigger now runs as `controlnet_image_trigger.py --family ipadapter` |
+| MP-5 (source vs pack output) | `model_patch_image_trigger.py` | `--source <f> --pack <f> --comfy <d> --vae <f> --family diffsynth\|zimage [--loader-root <d>] [--n N] [--seed S] --json <o>` |
 
 ## SAM3.1 extension (procedure 12c)
 

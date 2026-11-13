@@ -115,6 +115,47 @@ def runtime_state_dict(source_path, comfy_path):
     return cnet.control_model.state_dict()
 
 
+
+def _ipadapter_runtime_state_dict(source_path, ipadapter_dir):
+    """The IP-Adapter graph the apply node builds, under the names the pack carries.
+
+    Same role as runtime_state_dict() for a ControlNet: it returns the runtime's own
+    tensor names so the coverage and replay below compare like with like.
+    """
+    import torch.nn as nn
+
+    if source_path.lower().endswith(".pth") or source_path.lower().endswith(".bin"):
+        raw = torch.load(source_path, map_location="cpu", weights_only=True)
+    else:
+        from safetensors.torch import load_file
+        flat = load_file(source_path)
+        raw = {"image_proj": {}, "ip_adapter": {}}
+        for k, v in flat.items():
+            if not torch.is_tensor(v):
+                continue
+            if k.startswith("image_proj."):
+                raw["image_proj"][k.replace("image_proj.", "", 1)] = v
+            elif k.startswith("ip_adapter."):
+                raw["ip_adapter"][k.replace("ip_adapter.", "", 1)] = v
+    if not (isinstance(raw, dict) and "image_proj" in raw and "ip_adapter" in raw):
+        raise SystemExit("not an IP-Adapter layout: keys=%s" % (list(raw)[:4],))
+
+    if ipadapter_dir and ipadapter_dir not in sys.path:
+        sys.path.insert(0, ipadapter_dir)
+    from image_proj_models import Resampler  # noqa: E402
+
+    res = Resampler(dim=768, depth=4, dim_head=64, heads=12, num_queries=16,
+                    embedding_dim=1280, output_dim=768, ff_mult=4,
+                    max_seq_len=257, apply_pos_emb=False, num_latents_mean_pooled=0)
+    res.load_state_dict(raw["image_proj"], strict=False)
+    out = {"image_proj." + k: v.float() if torch.is_tensor(v) and v.is_floating_point() else v
+           for k, v in res.state_dict().items()}
+    for k, v in raw["ip_adapter"].items():
+        if torch.is_tensor(v):
+            out["ip_adapter." + k] = v.float() if v.is_floating_point() else v
+    return out
+
+
 def loader_drop(pack_path, comfy_path):
     """Build the ControlNet the way the loader does and report what it keeps.
 
@@ -156,10 +197,18 @@ def main():
                     help="ComfyUI root (or set COMFY_PATH); the runtime naming comes from it")
     ap.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
     ap.add_argument("--json", default="", help="record path")
+    ap.add_argument("--family", default="controlnet", choices=["controlnet", "ipadapter"],
+                    help="which loader's graph the pack is closed against")
+    ap.add_argument("--ipadapter_dir", default="",
+                    help="the ipadapter node directory (owns image_proj_models.py) for --family ipadapter")
     ap.add_argument("--loader-drop", action="store_true",
                     help="also build the pack the way the loader does and report dropped tensors")
     args = ap.parse_args()
 
+    if args.family == "ipadapter":
+        if not args.ipadapter_dir or not os.path.isdir(args.ipadapter_dir):
+            print("error: --ipadapter_dir <node dir> is required for --family ipadapter")
+            return 2
     if not args.comfy or not os.path.isdir(args.comfy):
         print("error: --comfy <ComfyUI root> (or COMFY_PATH) is required: the pack uses runtime names")
         return 2
@@ -179,7 +228,10 @@ def main():
     formats = {v.get("format") for v in declared.values()}
     rotations = {v.get("convrot") for v in declared.values()}
 
-    rt = runtime_state_dict(args.source, args.comfy)
+    if args.family == "ipadapter":
+        rt = _ipadapter_runtime_state_dict(args.source, args.ipadapter_dir)
+    else:
+        rt = runtime_state_dict(args.source, args.comfy)
     pack_logical = {k for k in pack_hdr if not k.endswith((".weight_scale", ".comfy_quant"))}
 
     missing_from_pack = sorted(set(rt) - pack_logical)

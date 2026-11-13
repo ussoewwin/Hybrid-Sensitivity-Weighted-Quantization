@@ -1,0 +1,17 @@
+{
+ "pack": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+ "family": "ipadapter",
+ "pack_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
+ "source_sha256": "a0db87557825ac2f8888ef06ec64c85f175e8ba5467baa2722ade3b4a9feb9f5",
+ "file_mb": 47.07926368713379,
+ "quantized_layers": 54,
+ "int8_linear_calls": 0,
+ "mean": 0.9998862713109702,
+ "min": 0.9989429116249084,
+ "p5": 0.9997830390930176,
+ "p50": 0.9999051094055176,
+ "n": 256,
+ "finite": true,
+ "pass": true,
+ "nonfinite_count": 0
+}

@@ -1,0 +1,49 @@
+{
+ "tool": "controlnet_pack_source_output_diff.py",
+ "family": "ipadapter",
+ "source_class": "Resampler+To_KV",
+ "pack_class": "Resampler+To_KV",
+ "source": "ip-adapter_sd15_plus.pth",
+ "pack": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+ "source_sha256": "a0db87557825ac2f8888ef06ec64c85f175e8ba5467baa2722ade3b4a9feb9f5",
+ "pack_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
+ "observable": "the adapter's own outputs, source(float) vs pack(dequantised), same input",
+ "n": 4,
+ "seed": 42,
+ "batches": [
+  {
+   "batch": 0,
+   "image_proj_cosine": 0.9997854232788086,
+   "to_kv_cosine": 0.9998675584793091,
+   "max_abs_err": 0.7018032073974609,
+   "rel_l2": 0.016275547444820404
+  },
+  {
+   "batch": 1,
+   "image_proj_cosine": 0.9997499585151672,
+   "to_kv_cosine": 0.9998481273651123,
+   "max_abs_err": 0.8929102420806885,
+   "rel_l2": 0.01743013970553875
+  },
+  {
+   "batch": 2,
+   "image_proj_cosine": 0.9993416666984558,
+   "to_kv_cosine": 0.9996357560157776,
+   "max_abs_err": 1.810509443283081,
+   "rel_l2": 0.026994891464710236
+  },
+  {
+   "batch": 3,
+   "image_proj_cosine": 0.9997063279151917,
+   "to_kv_cosine": 0.999829888343811,
+   "max_abs_err": 0.6717184782028198,
+   "rel_l2": 0.018468622118234634
+  }
+ ],
+ "batches_comparable": 4,
+ "batches_total": 4,
+ "cos_min": 0.9993416666984558,
+ "cos_mean": 0.9996458441019058,
+ "max_abs_err": 1.810509443283081,
+ "rel_l2_max": 0.026994891464710236
+}

@@ -1,0 +1,13 @@
+{
+ "pack": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+ "class": "Resampler+To_KV",
+ "device": "cuda",
+ "pack_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
+ "dtype": "float32",
+ "int8_gemm_patch": false,
+ "int8_linear_calls": 0,
+ "output_finite": null,
+ "output_shape": null,
+ "error": "RuntimeError: Error(s) in loading state_dict for Resampler:\n\tUnexpected key(s) in state_dict: \"proj_in.weight_scale\", \"proj_in.comfy_quant\", \"proj_out.weight_scale\", \"proj_out.comfy_quant\", \"layers.0.0.to_q.weight_scale\", \"layers.0.0.to_q.comfy_quant\", \"layers.0.0.to_kv.weight_scale\", \"layers.0.0.to_kv.comfy_quan",
+ "verdict": "the node's loader cannot take the pack"
+}

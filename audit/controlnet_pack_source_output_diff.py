@@ -163,6 +163,139 @@ def compare(ref, got):
     return cos, max_abs, rel
 
 
+
+def run_ipadapter_diff(source_path, pack_path, ipadapter_dir, n, seed, json_path):
+    """The same question for an IP-Adapter: the source's float weights against the pack's
+    dequantised weights, on the same input, through the graph the node builds."""
+    import hashlib
+    import importlib
+    import os
+    import sys
+
+    import torch
+    from safetensors.torch import load_file
+
+    def build_hadamard(size):
+        h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=torch.float32)
+        hh = h4
+        cur = 4
+        while cur < size:
+            hh = torch.kron(hh, h4)
+            cur *= 4
+        return hh / (size ** 0.5)
+
+    if ipadapter_dir not in sys.path:
+        sys.path.insert(0, ipadapter_dir)
+
+    def flatten(path):
+        if path.lower().endswith((".pth", ".bin")):
+            raw = torch.load(path, map_location="cpu", weights_only=True)
+            out = {}
+            for k, v in raw["image_proj"].items():
+                if torch.is_tensor(v):
+                    out["image_proj." + k] = v
+            for k, v in raw["ip_adapter"].items():
+                if torch.is_tensor(v):
+                    out["ip_adapter." + k] = v
+            return out
+        return load_file(path)
+
+    src = flatten(source_path)
+    pack = flatten(pack_path)
+    declared = sorted(k[: -len(".comfy_quant")] for k in pack if k.endswith(".comfy_quant"))
+
+    h = build_hadamard(256)
+    deq = {}
+    for mk in declared:
+        q = pack[mk + ".weight"]
+        sc = pack[mk + ".weight_scale"].float()
+        of, inf = q.shape
+        g = inf // 256
+        d = (q.float() * sc.float()).view(of, g, 256)
+        deq[mk + ".weight"] = torch.matmul(d, h.float()).reshape(of, inf)
+
+    restored = {}
+    for k, v in pack.items():
+        if k.endswith(".weight_scale") or k.endswith(".comfy_quant"):
+            continue
+        restored[k] = deq[k] if (k.endswith(".weight") and k[:-7] in set(declared)) else v
+
+    from image_proj_models import Resampler
+
+    def build(sd):
+        proj, ipa = {}, {}
+        for k, v in sd.items():
+            if k.startswith("image_proj."):
+                proj[k.replace("image_proj.", "", 1)] = v.float() if v.is_floating_point() else v
+            elif k.startswith("ip_adapter."):
+                ipa[k.replace("ip_adapter.", "", 1)] = v.float() if v.is_floating_point() else v
+        res = Resampler(dim=768, depth=4, dim_head=64, heads=12, num_queries=16,
+                        embedding_dim=1280, output_dim=768, ff_mult=4,
+                        max_seq_len=257, apply_pos_emb=False, num_latents_mean_pooled=0)
+        res.load_state_dict(proj, strict=False)
+        kv = {}
+        for k, v in ipa.items():
+            if k.endswith(".weight"):
+                kv[k[: -len(".weight")]] = v
+        return res.eval(), kv
+
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    ra, ka = build(src)
+    rb, kb = build(restored)
+    ra.to(dev); rb.to(dev)
+    for k in ka:
+        ka[k] = ka[k].to(dev)
+        kb[k] = kb[k].to(dev)
+
+    rows = []
+    cos_all = []
+    for i in range(n):
+        g = torch.Generator().manual_seed(seed + i)
+        x = torch.randn(1, 257, 1280, generator=g).to(dev)
+        with torch.no_grad():
+            ea = ra(x)
+            eb = rb(x)
+            oa = torch.cat([torch.nn.functional.linear(ea, ka[k]) .flatten() for k in sorted(ka)])
+            ob = torch.cat([torch.nn.functional.linear(eb, kb[k]).flatten() for k in sorted(kb)])
+        ca = torch.nn.functional.cosine_similarity(ea.flatten().unsqueeze(0), eb.flatten().unsqueeze(0)).item()
+        cb = torch.nn.functional.cosine_similarity(oa.unsqueeze(0), ob.unsqueeze(0)).item()
+        rel = float((torch.norm(ob - oa) / torch.norm(oa).clamp(min=1e-30)).item())
+        rows.append({"batch": i, "image_proj_cosine": ca, "to_kv_cosine": cb,
+                     "max_abs_err": float((ob - oa).abs().max()), "rel_l2": rel})
+        cos_all.append(min(ca, cb))
+
+    rec = {
+        "tool": "controlnet_pack_source_output_diff.py",
+        "family": "ipadapter",
+        "source_class": "Resampler+To_KV",
+        "pack_class": "Resampler+To_KV",
+        "source": os.path.basename(source_path),
+        "pack": os.path.basename(pack_path),
+        "source_sha256": hashlib.sha256(open(source_path, "rb").read()).hexdigest(),
+        "pack_sha256": hashlib.sha256(open(pack_path, "rb").read()).hexdigest(),
+        "observable": "the adapter's own outputs, source(float) vs pack(dequantised), same input",
+        "n": n,
+        "seed": seed,
+        "batches": rows,
+        "batches_comparable": len(rows),
+        "batches_total": n,
+        "cos_min": min(cos_all),
+        "cos_mean": sum(cos_all) / len(cos_all),
+        "max_abs_err": max(r["max_abs_err"] for r in rows),
+        "rel_l2_max": max(r["rel_l2"] for r in rows),
+    }
+    if json_path:
+        os.makedirs(os.path.dirname(os.path.abspath(json_path)), exist_ok=True)
+        import json as _json
+        with open(json_path, "w", encoding="utf-8") as f:
+            _json.dump(rec, f, indent=1, ensure_ascii=False)
+    print("cos_min %.9f | cos_mean %.9f | rel_l2_max %.9e"
+          % (rec["cos_min"], rec["cos_mean"], rec["rel_l2_max"]))
+    if json_path:
+        print("wrote %s" % json_path)
+    return rec
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True)
@@ -171,8 +304,13 @@ def main():
     ap.add_argument("--loader-root", default="")
     ap.add_argument("--n", type=int, default=4)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--family", default="controlnet", choices=["controlnet", "ipadapter"])
+    ap.add_argument("--ipadapter_dir", default="")
     ap.add_argument("--json", required=True)
     a = ap.parse_args()
+    if a.family == "ipadapter":
+        run_ipadapter_diff(a.source, a.pack, a.ipadapter_dir, a.n, a.seed, a.json)
+        return 0
     # resolve the output before the working directory changes
     a.json = os.path.abspath(a.json)
     torch_, folder_paths, comfy_utils, cc = load_comfy(a.comfy)
