@@ -54,15 +54,14 @@ reconstruction, and the stage output it feeds was compared with the pristine run
 | number | measured | record | bearing on the verdict |
 | :--- | :--- | :--- | :--- |
 | 173 | Linear modules measured | `records/pulid_sdxl_protection.json` -> `measurement.layers_measured` | the sweep is complete |
-| 4.75e-06 | median drift | `records/pulid_sdxl_protection.json` -> `measurement.drift_median` | the population is tight |
-| 1.46e-05 | largest drift, on `ip_adapter.75.to_v_ip` | `records/pulid_sdxl_protection.json` -> `measurement.drift_max` | two orders below the 0.15 threshold |
+| 4.54e-06 | median drift | `records/pulid_sdxl_protection.json` -> `measurement.drift_median` | the population is tight |
+| 1.26e-05 | largest drift, on `ip_adapter.75.to_v_ip` | `records/pulid_sdxl_protection.json` -> `measurement.drift_max` | two orders below the 0.15 threshold |
 | 0 | layers above 0.15, kept in FP16 | `records/pulid_sdxl_protection.json` -> `measurement.drift_gt_threshold` | the empty protection set is measured, not assumed |
 | 0.15 | the threshold the converter applied | `records/pulid_sdxl_protection.json` -> `converter_args.drift_threshold` | the published one |
 
-The measurement input is synthetic: `id_cond [1,1280]` (512 insightface + 768 EVA-CLIP) and five
-`[1,257,1024]` hidden tensors, at the shapes the node feeds. The EVA-CLIP weights that this model's
-node requires are not present on this machine, so the sweep could not use a face image. That
-limitation is carried in LIMITS, not hidden here.
+The measurement input is a real face image, fed the way the node feeds it: the insightface antelopev2
+512-d embedding concatenated with EVA-CLIP `EVA02-CLIP-L-14-336` visual features (768-d), plus EVA's own
+hidden states. The EVA-CLIP weights are the local `models/clip/EVA02_CLIP_L_336_psz14_s6B.pt`.
 
 ## 5. The route - measured, and absent
 
@@ -99,7 +98,7 @@ untouched network produces on the same input perturbed by a natural amount of no
 
 | number | measured | record | bearing on the verdict |
 | :--- | :--- | :--- | :--- |
-| 1.431e-06 | control p99 of the embedding stage | `records/pulid_sdxl_weight_trigger.json` -> `control.control_p99_embeds` | what an untouched network does |
+| 1.431e-06 | control p99 of the embedding stage (synthetic input, section 7) | `records/pulid_sdxl_weight_trigger.json` -> `control.control_p99_embeds` | what an untouched network does |
 | 5.364e-07 | control p99 of the k/v stack | `records/pulid_sdxl_weight_trigger.json` -> `control.control_p99_to_kv` | same |
 | 0.1 | the smallest implant strength that leaves that distribution | `records/pulid_sdxl_weight_trigger.json` -> `detection_floor_relative_strength` | the floor of this instrument on this model |
 | 0.03 | the largest strength that does **not** leave it | `records/pulid_sdxl_weight_trigger.json` -> `results` | below the floor the search is blind |
@@ -126,9 +125,8 @@ Frobenius norm).
 
 **What the verdict does not establish, and what it does.**
 
-- Measurement input: synthetic tensors at the node's shapes, not a face image. The EVA-CLIP weights
-  the node requires are absent from this machine, so the drift ranking rests on synthetic input.
-  A face-image sweep could rank the layers differently.
+- Measurement input: one real face image, through the node's own embedding path. A different face
+  could rank the layers differently; the ranking here is that image's.
 - Positions probed: the 173 Linear modules one at a time, each against the stage output it feeds;
   plus the two-file behaviour comparison in section 6.
 - Route: one installed loader was tested (`pulid_comfyui`). No other node was tested, and none is

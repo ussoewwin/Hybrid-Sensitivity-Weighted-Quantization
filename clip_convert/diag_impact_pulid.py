@@ -113,6 +113,46 @@ def make_inputs(seed, device, dtype):
     return id_cond, hidden
 
 
+def real_inputs(image_path, pulid_dir, device, dtype):
+    """The input the node actually feeds: insightface 512 + EVA-CLIP 768, and EVA's hidden states."""
+    import cv2
+    import numpy as np
+    from insightface.app import FaceAnalysis
+
+    insight_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(pulid_dir))), "models", "insightface")
+    if not os.path.isdir(insight_root):
+        insight_root = os.path.join(os.path.dirname(os.path.abspath(pulid_dir)), "..", "..", "..", "models", "insightface")
+    app = FaceAnalysis(name="antelopev2", root=insight_root, providers=["CPUExecutionProvider"])
+    app.prepare(ctx_id=-1, det_size=(640, 640))
+    img = cv2.imread(image_path)
+    if img is None:
+        raise SystemExit("cannot read image %s" % image_path)
+    faces = app.get(img)
+    if not faces:
+        raise SystemExit("no face in %s" % image_path)
+    f = sorted(faces, key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]), reverse=True)[0]
+    emb = torch.from_numpy(f.embedding).unsqueeze(0).to(device, dtype)
+    x1, y1, x2, y2 = [int(v) for v in f.bbox]
+    crop = img[max(0, y1):y2, max(0, x1):x2]
+    crop = cv2.resize(crop, (336, 336), interpolation=cv2.INTER_CUBIC)
+    face = torch.from_numpy(crop[:, :, ::-1].copy()).float().permute(2, 0, 1).unsqueeze(0) / 255.0
+    face = face.to(device, dtype)
+
+    sys.path.insert(0, pulid_dir)
+    from eva_clip.factory import create_model_and_transforms
+
+    model, _, _ = create_model_and_transforms("EVA02-CLIP-L-14-336", "eva_clip", force_custom_clip=True)
+    vis = model.visual.to(device, dtype).eval()
+    mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device=device, dtype=dtype).view(1, 3, 1, 1)
+    std = torch.tensor([0.26862954, 0.26130258, 0.27577711], device=device, dtype=dtype).view(1, 3, 1, 1)
+    face = (face - mean) / std
+    with torch.no_grad():
+        id_cond_vit, hidden = vis(face, return_all_features=False, return_hidden=True, shuffle=False)
+    id_cond_vit = id_cond_vit / id_cond_vit.norm(2, 1, True)
+    id_cond = torch.cat([emb, id_cond_vit], dim=-1)
+    return id_cond, hidden
+
+
 def forward_all(enc, kv, id_cond, hidden):
     embeds = enc(id_cond, hidden)
     outs = {}
@@ -135,6 +175,7 @@ def main():
     ap.add_argument("--pulid_dir", required=True)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--groupsize", type=int, default=256)
+    ap.add_argument("--image", default="", help="face image: use the node's real embedding path instead of synthetic input")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -145,7 +186,13 @@ def main():
     enc.to(device, dtype).eval()
     kv.to(device, dtype).eval()
 
-    id_cond, hidden = make_inputs(args.seed, device, dtype)
+    if args.image:
+        id_cond, hidden = real_inputs(args.image, args.pulid_dir, device, dtype)
+        src_note = "real face image: %s" % os.path.basename(args.image)
+    else:
+        id_cond, hidden = make_inputs(args.seed, device, dtype)
+        src_note = "synthetic tensors at the node's shapes"
+    print(f"[input] {src_note}", flush=True)
     print(f"[input] id_cond {tuple(id_cond.shape)} hidden {[tuple(h.shape) for h in hidden]}", flush=True)
 
     with torch.no_grad():
@@ -187,7 +234,7 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump({"pulid": os.path.basename(args.pulid), "seed": args.seed,
-                   "stage": "encoder+tokv, stage-output rel_mse", "impacts": impacts}, f, indent=2)
+                   "stage": "encoder+tokv, stage-output rel_mse", "input": src_note, "impacts": impacts}, f, indent=2)
     ranked = sorted(impacts.items(), key=lambda x: x[1])
     print("\n== ascending drift (safest to quantize first) ==", flush=True)
     for n, v in ranked[:10]:
