@@ -2,17 +2,17 @@
   "tool": "controlnet_pack_audit.py",
   "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
   "source": {
-    "file": "ioclab_sd15_recolor.safetensors",
+    "file": "sdControlCollection_v10.safetensors",
     "bytes": 722598616,
     "sha256": "a3fc5d9f6601d0636b5f45f07f31ec3b81a13e195c55ef0b89985d84ffa77a64"
   },
   "pack": {
     "file": "ioclab_sd15_recolor_hswq_convrot_int8.safetensors",
-    "bytes": 607603903,
-    "sha256": "0b4d78a3b694170139a80fcdd3583344a983752aa4c375f536e4615eb363e565"
+    "bytes": 411127471,
+    "sha256": "58046c116268a1c99d6d84ff4ec4631ad8e6e276f87ba91e791599bd0b9e5f5f"
   },
   "declared": {
-    "layers": 53,
+    "layers": 77,
     "formats": [
       "int8_tensorwise"
     ],
@@ -34,8 +34,8 @@
     "n_shape_mismatch": 0
   },
   "quantised": {
-    "found": 53,
-    "declared": 53,
+    "found": 77,
+    "declared": 77,
     "undeclared_found": [],
     "declared_not_found": [],
     "q_mismatch_total": 0,
@@ -46,7 +46,7 @@
     "n_layers_with_difference": 0
   },
   "float_side": {
-    "checked": 287,
+    "checked": 263,
     "mismatch_count": 0,
     "max_abs_diff": 0.0
   },
@@ -56,5 +56,5 @@
     "device": "cpu",
     "comfy": "ComfyUI-master"
   },
-  "elapsed_seconds": 9.39
+  "elapsed_seconds": 13.85
 }

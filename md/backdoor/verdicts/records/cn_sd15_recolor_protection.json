@@ -1,5 +1,6 @@
 {
  "converter_args": {
+  "conv_int8": true,
   "drift_threshold": 0.15,
   "impact_bytes": 9717,
   "impact_sha256": "dfe08a15a6905256b4fe3a0b0c84f9a46a66a0406100a56ea6618fbd1e06cf9d",
@@ -8,14 +9,15 @@
   "output": "ioclab_sd15_recolor_hswq_convrot_int8.safetensors"
  },
  "measurement": {
+  "convrot_int8_conv2d": 24,
   "convrot_int8_linear": 53,
   "drift_gt_threshold": 13,
-  "kept_not_runtime_linear": 258,
-  "output_gb": 0.57,
-  "protected_total": 29,
+  "kept_not_runtime_linear": 197,
+  "output_gb": 0.38,
+  "protected_total": 66,
   "sweep": 142
  },
- "note": "The measurement host is chilledReGenericV3_v10.safetensors (2,132,626,040 B, models/unet) — the host the other fifteen SD1.5 ControlNet packs were measured on. On this host 13 layers exceed the 0.15 drift threshold and none of them belongs to the quantised set (intersection 0), so the 53 quantised layers and the pack bytes are identical to the previous pass, which used the official SD1.5 checkpoint v1-5-pruned-emaonly-fp16.safetensors (18 layers above threshold, maximum 1.109220).",
+ "note": "The measurement host is chilledReGenericV3_v10.safetensors (2,132,626,040 B, models/unet) - the host the other fifteen SD1.5 ControlNet packs used. 13 modules exceed the 0.15 drift threshold and none of them belongs to the quantised set. Both halves are quantised (--conv-int8): the 53 Linear layers (rotation along in_features, per-row scale) and the 24 Conv2d layers whose in_channels divide the group size 256 (rotation along in_channels, per-out-channel scale [out,1,1,1]). The remaining 37 Conv2d layers keep FP16 because their in_channels are not divisible by 256. Requires the HSWQ loader v3.6.9 or newer for the Conv2d half.",
  "protected_layers": [
   {
    "layer": "input_hint_block.12",
@@ -70,6 +72,7 @@
    "rel_mse": 0.2003895241417922
   }
  ],
+ "runtime_conv2d_modules": 61,
  "runtime_linear_modules": 82,
  "runtime_tensors": 340,
  "tool": "clip_convert/convert_controlnet_convrot_int8.py"

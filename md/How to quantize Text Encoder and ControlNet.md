@@ -596,7 +596,7 @@ carries the pack's first 16 hex characters, full hash in the per-model guide.
 | `control_v11p_sd15_seg_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999717 / 0.999635 | 579.5 MB | `20F11C5B30F66A53` |
 | `control_v11p_sd15_softedge_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999703 / 0.999572 | 579.5 MB | `609B04A9A38668FB` |
 | `control_v11p_sd15s2_lineart_anime_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999748 / 0.999707 | 579.5 MB | `D004154F605EBBF1` |
-| `ioclab_sd15_recolor_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999865 / 0.999840 | 579.5 MB | `0B4D78A3B6941701` |
+| `ioclab_sd15_recolor_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999861 / 0.999834 | 392.1 MB | `58046C116268A1C9` |
 | `qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924905 / 0.9999924096 | 1083.3 MB | `C2899255252B81FD` |
 | `qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
 | `qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999921236 / 0.9999919542 | 1083.3 MB | `471B6AFFC7FCEDAF` |

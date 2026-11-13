@@ -82,6 +82,25 @@ def quant_rowwise(w):
     return q, s.to(torch.float32)
 
 
+def rotate_weight_conv2d(w, h, groupsize):
+    """Conv2d: rotate along in_channels, the same construction the converter uses."""
+    oc, ic, kh, kw = w.shape
+    if ic % groupsize:
+        raise ValueError("in_channels %d not divisible by group size %d" % (ic, groupsize))
+    flat = w.permute(0, 2, 3, 1).contiguous().view(-1, ic)
+    return rotate_weight(flat, h, groupsize).view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
+
+
+def quant_channelwise(w):
+    """Conv2d: per-out-channel scale [out, 1, 1, 1]."""
+    rd = tuple(range(1, w.dim()))
+    amax = torch.clamp(w.abs().amax(dim=rd).reshape(-1), min=1e-30).float()
+    s = amax / 127.0
+    v = s.view(-1, *([1] * (w.dim() - 1)))
+    q = (w / v.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
+    return q, s.to(torch.float32)
+
+
 def runtime_state_dict(source_path, comfy_path):
     comfy = os.path.abspath(comfy_path)
     if comfy not in sys.path:
@@ -190,14 +209,18 @@ def main():
             w = rt[key].to(dev).float()
             gs = int(declared.get(mod, {}).get("convrot_groupsize") or 256)
             hh = h if gs == 256 else build_hadamard(gs)
-            q_ref, s_ref = quant_rowwise(rotate_weight(w, hh.to(dev), gs))
+            if w.ndim == 4:
+                q_ref, s_ref = quant_channelwise(rotate_weight_conv2d(w, hh.to(dev), gs))
+            else:
+                q_ref, s_ref = quant_rowwise(rotate_weight(w, hh.to(dev), gs))
             q_pack = f.get_tensor(key).to(dev).to(torch.int8)
             s_pack = f.get_tensor(mod + ".weight_scale").to(dev).float()
             if not torch.isfinite(s_pack).all():
                 nonfinite_scale += 1
             n_bad = int((q_pack != q_ref).sum().item())
             d = int((q_pack.to(torch.int32) - q_ref.to(torch.int32)).abs().max().item())
-            rel = float(((s_pack - s_ref).abs() / s_ref.abs().clamp_min(1e-30)).max().item())
+            rel = float(((s_pack.flatten() - s_ref.flatten()).abs()
+                         / s_ref.flatten().abs().clamp_min(1e-30)).max().item())
             q_mismatch += n_bad
             max_q_delta = max(max_q_delta, d)
             scale_rel_max = max(scale_rel_max, rel)
