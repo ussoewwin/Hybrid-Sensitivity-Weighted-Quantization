@@ -34,12 +34,12 @@ declared INT8 layers were found, with 0 missing, 0 extra and 0 shape changes
 | number | measured | record |
 | :--- | :--- | :--- |
 | 77 | declared INT8 layers, all reproduced | `-> quantised.declared` |
-| 0 | codes that differ from the recomputation | `-> quantised.q_mismatch` |
+| 0 | codes that differ from the recomputation | `-> quantised.q_mismatch_total` |
 | 0 | largest integer difference anywhere | `-> quantised.max_q_delta` |
-| 0.000e+00 | largest relative difference of any layer's scale | `-> quantised.scale_rel_max` |
-| 0 | non-finite elements | `-> quantised.nonfinite` |
+| 0.000e+00 | largest relative difference of any layer's scale | `-> quantised.scale_exact_rel_max` |
+| 0 | non-finite elements | `-> quantised.nonfinite_scales` |
 | 263 | float-side tensors compared element by element | `-> float_side.checked` |
-| 0 | of those that differ from the source | `-> float_side.mismatch` |
+| 0 | of those that differ from the source | `-> float_side.mismatch_count` |
 
 `VERDICT: FAITHFUL` (13.8 s).
 
@@ -81,8 +81,8 @@ divide the group size (77 layers, 411,127,471 B).
 | number | measured | record |
 | :--- | :--- | :--- |
 | 77 | declared layers | `records/ioclab_sd15_recolor_hswq_route.json` -> `declared_layers` |
-| 77 | layers carrying INT8 weights after load | `-> int8_layers` |
-| 0 | declared layers not applied | `-> not_applied` |
+| 77 | layers carrying INT8 weights after load | `-> int8_modules` |
+| 0 | declared layers not applied | `-> declared_not_applied` |
 
 `VERDICT: applies`.
 
