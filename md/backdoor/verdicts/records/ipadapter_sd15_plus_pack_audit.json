@@ -1,0 +1,50 @@
+{
+ "tool": "ipadapter_pack_audit.py",
+ "source": {
+  "file": "ip-adapter_sd15_plus.pth",
+  "bytes": 158030471,
+  "sha256": "a0db87557825ac2f8888ef06ec64c85f175e8ba5467baa2722ade3b4a9feb9f5"
+ },
+ "pack": {
+  "file": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+  "bytes": 49366186,
+  "sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9"
+ },
+ "declared": {
+  "layers": 54,
+  "format": "int8_tensorwise",
+  "convrot": true,
+  "groupsize": 256
+ },
+ "coverage": {
+  "n_missing": 0,
+  "n_extra": 0,
+  "n_shape_mismatch": 0,
+  "missing": [],
+  "extra": [],
+  "shape_mismatch": []
+ },
+ "quantised": {
+  "found": 54,
+  "q_mismatch_total": 0,
+  "max_q_delta": 0,
+  "scale_exact_rel_max": 0.0,
+  "nonfinite_scales": 0,
+  "n_layers_with_difference": 0
+ },
+ "float_side": {
+  "checked": 29,
+  "mismatch_count": 0,
+  "max_abs_diff": 0.0
+ },
+ "behaviour": {
+  "embeds_cos": 0.9997854232788086,
+  "embeds_rel_l2": 0.020707793533802032,
+  "to_kv_cos": 0.9998674988746643,
+  "to_kv_rel_l2": 0.016275547444820404,
+  "seed": 42,
+  "input": "fixed synthetic tensors at the shapes the node feeds"
+ },
+ "verdict": "FAITHFUL",
+ "elapsed_seconds": null
+}

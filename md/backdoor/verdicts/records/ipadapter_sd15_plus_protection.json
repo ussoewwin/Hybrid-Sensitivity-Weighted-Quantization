@@ -1,0 +1,27 @@
+{
+ "tool": "convert_ipadapter_convrot_int8.py",
+ "converter_args": {
+  "input": "ip-adapter_sd15_plus.pth",
+  "output": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+  "impact_sha256": "73e2b5ef8d44fdc3c587e056b00a75f702d0d06e629638a72e7de4be98661556",
+  "impact_bytes": 3154,
+  "drift_threshold": 0.15,
+  "groupsize": 256
+ },
+ "measurement": {
+  "sweep": "54 Linear modules (22 in image_proj, 32 in ip_adapter), each replaced by its ConvRot INT8 reconstruction and the stage output it feeds compared",
+  "sweep_completed": "2026-11-13",
+  "input": "real clip vision embedding of input/00000-1254497648 (1).png through clip_vision_h.safetensors, the path the node feeds",
+  "drift_min": 4.429093962698971e-07,
+  "drift_median": 1.4119795196165796e-05,
+  "drift_max": 0.000631887000054121,
+  "layers_measured": 54,
+  "drift_gt_threshold": 0,
+  "protected_total": 0,
+  "convrot_int8_linear": 54,
+  "kept_not_measured": 29,
+  "output_gb": 0.046
+ },
+ "protected_layers": [],
+ "note": "No layer exceeded the 0.15 drift threshold on this checkpoint: the largest measured drift is 6.32e-04, on image_proj.proj_in. The protection set is therefore empty by measurement, not by omission."
+}
