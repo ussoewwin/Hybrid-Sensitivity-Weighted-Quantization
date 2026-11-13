@@ -1,0 +1,50 @@
+{
+ "tool": "pulid_pack_audit.py",
+ "source": {
+  "file": "ip-adapter_pulid_sdxl_fp16.safetensors",
+  "bytes": 791372856,
+  "sha256": "b258a5cd2c0c7d35f4d3e59909d7648498686afae4d0c74917e9c47d7704fbf5"
+ },
+ "pack": {
+  "file": "ip-adapter_pulid_sdxl_hswq_convrot_int8.safetensors",
+  "bytes": 396740327,
+  "sha256": "0262c9affd20d105421d83f95e959ca89ed8acde7df104d7b94b13b840f5440a"
+ },
+ "declared": {
+  "layers": 173,
+  "format": "int8_tensorwise",
+  "convrot": true,
+  "groupsize": 256
+ },
+ "coverage": {
+  "n_missing": 0,
+  "n_extra": 0,
+  "n_shape_mismatch": 0,
+  "missing": [],
+  "extra": [],
+  "shape_mismatch": []
+ },
+ "quantised": {
+  "found": 173,
+  "q_mismatch_total": 0,
+  "max_q_delta": 0,
+  "scale_exact_rel_max": 0.0,
+  "nonfinite_scales": 0,
+  "n_layers_with_difference": 0
+ },
+ "float_side": {
+  "checked": 77,
+  "mismatch_count": 0,
+  "max_abs_diff": 0.0
+ },
+ "behaviour": {
+  "embeds_cos": 0.9999927878379822,
+  "embeds_rel_l2": 0.0038008142728358507,
+  "to_kv_cos": 0.9999959468841553,
+  "to_kv_rel_l2": 0.002889521885663271,
+  "seed": 42,
+  "input": "fixed synthetic tensors at the shapes the node feeds"
+ },
+ "verdict": "FAITHFUL",
+ "elapsed_seconds": null
+}

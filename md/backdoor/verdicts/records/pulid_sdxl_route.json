@@ -1,0 +1,48 @@
+{
+ "tool": "pulid_route.py",
+ "pack": "ip-adapter_pulid_sdxl_hswq_convrot_int8.safetensors",
+ "route": "pulid_comfyui PulidModelLoader -> PulidModel(IDEncoder for image_proj, To_KV for ip_adapter)",
+ "route_reads_safetensors_by_prefix": true,
+ "source_load_on_that_route": "OK",
+ "pack_load_on_that_route": "FAILED",
+ "pack_load_error": "RuntimeError: Error(s) in loading state_dict for IDEncoder:\n\tUnexpected key(s) in state_dict: \"body.0.weight_scale\", \"body.0.comfy_quant\", \"body.3.weight_scale\", \"body.3.comfy_quant\", \"body.6.weight_scale\", \"body.6.comfy_quant\", \"mapping_0.0.weight_scale\", \"mapping_0.0.comfy_quant\", \"mapping_0.3.weight_scale\", \"mapping_0.3.comfy_quant\", \"mapping_0.6.weight_scale\", \"mapping_0.6.comfy_quant\", \"mapping_patch_0.0.weight_scale\", \"mapping_patch_0.0.comfy_quant\", \"mapping_patch_0.3.weight_scale\", \"mapping_patch_0.3.comfy_quant\", \"mapping_patch_0.6.weight_scale\", \"mapping_patch_0.6.comfy_quant\", \"mapp",
+ "image_proj_entries": 176,
+ "ip_adapter_entries": 420,
+ "int8_weight_tensors": 140,
+ "int8_examples": [
+  {
+   "key": "1.to_k_ip.weight",
+   "dtype": "torch.int8",
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  {
+   "key": "1.to_v_ip.weight",
+   "dtype": "torch.int8",
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  {
+   "key": "101.to_k_ip.weight",
+   "dtype": "torch.int8",
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  {
+   "key": "101.to_v_ip.weight",
+   "dtype": "torch.int8",
+   "shape": [
+    1280,
+    2048
+   ]
+  }
+ ],
+ "why": "To_KV builds one bias-free nn.Linear per ip_adapter weight and assigns the tensor to weight.data, so a float16 network is built; the pack's int8 codes and their .weight_scale/.comfy_quant companions have no consumer on this route.",
+ "verdict": "not executable on the installed route"
+}
