@@ -1,0 +1,18 @@
+{
+  "pack": "ip-adapter_instant_id_sdxl_hswq_convrot_int8.safetensors",
+  "pack_bytes": 1420211083,
+  "class": "ControlNet",
+  "pack_tensors": 1502,
+  "runtime_tensors": 1502,
+  "declared_layers": 329,
+  "int8_modules": 329,
+  "float_modules": 195,
+  "applied_layers": 329,
+  "raw_code_layers": 0,
+  "raw_code_names": [],
+  "declared_not_applied": 0,
+  "declared_not_applied_names": [],
+  "int8_not_declared": 0,
+  "int8_not_declared_names": [],
+  "verdict": "applies"
+}
