@@ -1,0 +1,71 @@
+{
+ "tool": "pulid_weight_trigger.py",
+ "pulid": "ip-adapter_pulid_sdxl_fp16.safetensors",
+ "observable": "the divergence (1-cos) of the embedding stage and of the k/v stack when a rank-1 implant is written into one Linear weight, against the same network's repeat-run divergence",
+ "implant": {
+  "shape": "rank-1",
+  "layer": "ip_adapter.101.to_k_ip",
+  "weight_frobenius": 69.41407775878906
+ },
+ "control": {
+  "reps": 3,
+  "embeds_1mcos": [
+   9.5367431640625e-07,
+   0.0,
+   0.0
+  ],
+  "to_kv_1mcos": [
+   3.5762786865234375e-07,
+   0.0,
+   0.0
+  ],
+  "control_p99_embeds": 1.430511474609375e-06,
+  "control_p99_to_kv": 5.364418029785156e-07
+ },
+ "results": [
+  {
+   "strength": 0.001,
+   "embeds_1mcos": 0.0,
+   "to_kv_1mcos": 0.0,
+   "flagged": false
+  },
+  {
+   "strength": 0.003,
+   "embeds_1mcos": 0.0,
+   "to_kv_1mcos": 0.0,
+   "flagged": false
+  },
+  {
+   "strength": 0.01,
+   "embeds_1mcos": 0.0,
+   "to_kv_1mcos": 0.0,
+   "flagged": false
+  },
+  {
+   "strength": 0.03,
+   "embeds_1mcos": 0.0,
+   "to_kv_1mcos": 2.384185791015625e-07,
+   "flagged": false
+  },
+  {
+   "strength": 0.1,
+   "embeds_1mcos": 0.0,
+   "to_kv_1mcos": 3.039836883544922e-06,
+   "flagged": true
+  },
+  {
+   "strength": 0.3,
+   "embeds_1mcos": 0.0,
+   "to_kv_1mcos": 2.7835369110107422e-05,
+   "flagged": true
+  },
+  {
+   "strength": 1.0,
+   "embeds_1mcos": 0.0,
+   "to_kv_1mcos": 0.00031006336212158203,
+   "flagged": true
+  }
+ ],
+ "detection_floor_relative_strength": 0.1,
+ "seed": 42
+}

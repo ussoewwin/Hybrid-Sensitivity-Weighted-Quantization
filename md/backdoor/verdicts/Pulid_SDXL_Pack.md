@@ -90,6 +90,24 @@ directly, so an int8 tensor would be cast to float and its codes read as magnitu
 | 3.80e-03 | relative L2 of the embedding stage | `records/pulid_sdxl_pack_audit.json` -> `behaviour.embeds_rel_l2` | the difference is the int8 grid, not a change of function |
 | 2.89e-03 | relative L2 of the k/v stage | `records/pulid_sdxl_pack_audit.json` -> `behaviour.to_kv_rel_l2` | same |
 
+## 7. The weight-level trigger search
+
+The control-image search needs a control image through a ControlNet route, which this model does not
+have here. The weight-level search runs instead: a rank-1 implant is written into one Linear weight at
+a known relative strength, and the divergence of the two stages is compared with the divergence an
+untouched network produces on the same input perturbed by a natural amount of noise.
+
+| number | measured | record | bearing on the verdict |
+| :--- | :--- | :--- | :--- |
+| 1.431e-06 | control p99 of the embedding stage | `records/pulid_sdxl_weight_trigger.json` -> `control.control_p99_embeds` | what an untouched network does |
+| 5.364e-07 | control p99 of the k/v stack | `records/pulid_sdxl_weight_trigger.json` -> `control.control_p99_to_kv` | same |
+| 0.1 | the smallest implant strength that leaves that distribution | `records/pulid_sdxl_weight_trigger.json` -> `detection_floor_relative_strength` | the floor of this instrument on this model |
+| 0.03 | the largest strength that does **not** leave it | `records/pulid_sdxl_weight_trigger.json` -> `results` | below the floor the search is blind |
+| 0 | candidates above the control p99 in the pack itself | see section 6 | the pack carries no implant at the strengths this instrument resolves |
+
+The floor matches the one recorded for the ControlNet packs (0.1 relative to the weight's own
+Frobenius norm).
+
 ## 7. Conclusion
 
 **No added material in the quantised weights.**
@@ -132,3 +150,5 @@ directly, so an int8 tensor would be cast to float and its codes read as magnitu
   protection set, the impact file's digest, the input caveat.
 - `records/pulid_sdxl_route.json` - the installed route, the source's load result, the pack's load
   failure, the int8 tensors it receives.
+- `records/pulid_sdxl_weight_trigger.json` - the weight-level trigger search: the control distribution,
+  the implant ladder and the detection floor.
