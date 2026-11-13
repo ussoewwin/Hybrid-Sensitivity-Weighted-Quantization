@@ -1,0 +1,27 @@
+{
+ "tool": "convert_pulid_convrot_int8.py",
+ "converter_args": {
+  "input": "ip-adapter_pulid_sdxl_fp16.safetensors",
+  "output": "ip-adapter_pulid_sdxl_hswq_convrot_int8.safetensors",
+  "impact_sha256": "77090e191853b3b5aca8a6e8e0dc148043c80f66aff272f02d1c4ca10090d57b",
+  "impact_bytes": 9511,
+  "drift_threshold": 0.15,
+  "groupsize": 256
+ },
+ "measurement": {
+  "sweep": "173 Linear modules, each replaced by its ConvRot INT8 reconstruction and the stage output it feeds compared",
+  "sweep_completed": "2026-11-13",
+  "input": "fixed synthetic tensors at the shapes the node feeds (id_cond [1,1280] = 512+768; 5 hidden [1,257,1024]); the EVA-CLIP weights this model's node requires are not present on this machine, so the measurement input is synthetic, not a face image",
+  "drift_min": 2.5942037407133967e-09,
+  "drift_median": 4.748043920699274e-06,
+  "drift_max": 1.4641665075032506e-05,
+  "layers_measured": 173,
+  "drift_gt_threshold": 0,
+  "protected_total": 0,
+  "convrot_int8_linear": 173,
+  "kept_not_measured_linear": 77,
+  "output_gb": 0.37
+ },
+ "protected_layers": [],
+ "note": "No layer exceeded the 0.15 drift threshold on this checkpoint: the largest measured drift is 1.46e-05. The protection set is therefore empty by measurement, not by omission."
+}

@@ -64,6 +64,7 @@ python audit/run_all_gates.py
 | CN-5 (source vs pack output, ControlNet) | `controlnet_pack_source_output_diff.py` | `--source <f> --pack <f> --comfy <d> [--loader-root <d>] [--n N] [--seed S] --json <o>` |
 | CN-5 (source vs pack output) | `controlnet_image_trigger.py` | `--source <f> --pack <f> --comfy <d> [--loader-root <d>] [--reps N] [--seed S] --json <o>`; for the families whose control image goes through the runtime VAE add `--family flux\|qwen-instantx\|qwen-fun --vae <f>` (and `--base <f>` for qwen-fun) |
 | MP-5 (source vs pack output) | `model_patch_image_trigger.py` | `--source <f> --pack <f> --comfy <d> --vae <f> --family diffsynth\|zimage [--loader-root <d>] [--n N] [--seed S] --json <o>` |
+| PU-1 (audit & quant replay) | `pulid_pack_audit.py` | `--source <f> --pack <f> --pulid_dir <d> --json <o> [--seed S]` |
 
 ## SAM3.1 extension (procedure 12c)
 
