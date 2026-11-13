@@ -1,12 +1,14 @@
 # Verdict - ip-adapter_pulid_sdxl_hswq_convrot_int8.safetensors
 
-**Verdict: the quantised weights carry no added material (strength A, 173/173 measured layers). The pack is not executable on the installed route, and is therefore not distributed.**
+**Verdict: the quantised weights carry no added material (strength A, 173/173 measured layers). The pack executes on the A1111 route - all 173 layers installed as INT8, a render produced - and has no consumer on the ComfyUI route.**
 
 **Class.** Pack (§14.5): a weight-only ConvRot INT8 re-quantization of
 `ip-adapter_pulid_sdxl_fp16.safetensors`. The arithmetic is closed against that source, and the
-weights reproduce the source under dequantisation. What this pack does not have is a consumer: the
-node that loads this model builds plain `nn.Linear` layers and assigns float tensors to them, so the
-int8 codes and their companions have no path to a kernel. Section 5 is that measurement.
+weights reproduce the source under dequantisation. Two routes load this model, and they behave
+differently: the A1111 route (`extensions-builtin/sd-webui-controlnet` with the runtime hook in
+`modules/ipadapter_int8_convrot.py`) installs the int8 payload in place, runs the ConvRot kernel and
+renders; the ComfyUI node (`pulid_comfyui`) builds plain `nn.Linear` layers and assigns float
+tensors to them, so the int8 codes have no kernel there. Section 5 measures both.
 
 ## 1. Identity
 
@@ -63,7 +65,38 @@ The measurement input is a real face image, fed the way the node feeds it: the i
 512-d embedding concatenated with EVA-CLIP `EVA02-CLIP-L-14-336` visual features (768-d), plus EVA's own
 hidden states. The EVA-CLIP weights are the local `models/clip/EVA02_CLIP_L_336_psz14_s6B.pt`.
 
-## 5. The route - measured, and absent
+## 5. The two routes - one executes, one has no consumer
+
+### 5a. A1111 - the route this pack executes on
+
+`extensions-builtin/sd-webui-controlnet/scripts/ipadapter/ipadapter_model.py` builds `PuLIDEncoder`
+and `To_KV` from the flat keys and hands both to `modules/ipadapter_int8_convrot.py`, which splits
+the int8 payload out, installs it in place and binds an instance-level `forward`. The measurement
+below is that build, run once, with the kernel counted at the `comfy_kitchen` boundary.
+
+| number | measured | record | bearing on the verdict |
+| :--- | :--- | :--- | :--- |
+| 33 / 33 | `image_proj` Linears, and how many received the int8 payload | `records/cn_pulid_sdxl_a1111_route.json` -> `image_proj` | the whole encoder runs on the int8 kernel |
+| 140 / 140 | `ip_adapter` Linears, and how many received the int8 payload | `records/cn_pulid_sdxl_a1111_route.json` -> `ip_layers` | the whole To_KV stack runs on the int8 kernel |
+| 0 | int8 layers with no module in the built graph | `records/cn_pulid_sdxl_a1111_route.json` -> `image_proj.skipped` | nothing falls back to float |
+| 173 | ConvRot int8 GEMMs issued by one adapter forward | `records/cn_pulid_sdxl_a1111_route.json` -> `int8_gemm_calls` | every installed layer is reached, not only loaded |
+| 256 | the groupsize those calls carried | `records/cn_pulid_sdxl_a1111_route.json` -> `groupsizes` | the kernel is the ConvRot one, at the pack's own groupsize |
+| 0 | non-finite values across the two output tensors | `records/cn_pulid_sdxl_a1111_route.json` -> `nonfinite_count` | the int8 path produces no NaN or Inf |
+| 723,598 | bytes of the PNG rendered through this route (768x768, 12 steps, cfg 3.5, seed 42, weight 0.6) | `records/cn_pulid_sdxl_a1111_image_test.json` -> `render.png_bytes` | the route renders an image, not only a loaded graph |
+| 769f135e90dbce5c... | sha256 of that PNG | `records/cn_pulid_sdxl_a1111_image_test.json` -> `render.png_sha256` | the render is reproducible from the record |
+
+The loader's own log lines for that render, verbatim:
+
+```
+[IPAdapter ConvRot] image_proj runtime INT8 modules installed: linear=33 skipped=0 int8_weight_mb=54.8
+[IPAdapter ConvRot] ip_adapter runtime INT8 modules installed: linear=140 skipped=0 int8_weight_mb=340.8
+ControlNet model ip-adapter_pulid_sdxl_hswq_convrot_int8 [d682a735](ControlModelType.IPAdapter) loaded.
+```
+
+The render was inspected as an image, not inferred from a metric: a finished portrait with coherent
+facial structure and no noise or seam artefacts.
+
+### 5b. ComfyUI - the route with no consumer
 
 `pulid_comfyui` loads this model: `PulidModelLoader` rebuilds `{"image_proj": ..., "ip_adapter": ...}`
 from the flat keys, `PulidModel` builds `IDEncoder` and `To_KV`, and `To_KV` creates one bias-free
@@ -79,6 +112,7 @@ from the flat keys, `PulidModel` builds `IDEncoder` and `To_KV`, and `To_KV` cre
 The load fails on the companions (`body.0.weight_scale`, `body.0.comfy_quant`, ...) and would fail
 next on the int8 weights themselves: `To_KV` builds `nn.Linear(2048, d)` and assigns `weight.data`
 directly, so an int8 tensor would be cast to float and its codes read as magnitudes near ±127.
+Nothing in this section says the pack is unusable; it says this one node has no int8 path.
 
 ## 6. Behaviour on the same input
 
@@ -115,8 +149,8 @@ Frobenius norm).
   quantisation, and the 77 unquantised tensors are bit-identical.
 - **The edit is the declared one:** 173 Linear layers quantised, replayed with 0 mismatching values.
 - **The protection set is this checkpoint's own:** 173 layers measured, none above 0.15.
-- **What is not established:** the pack is not executable. There is no consumer for int8 codes on
-  the installed route, so no INT8 kernel runs and no image is produced from this pack. That is a
+- **What is not established:** the ComfyUI route has no consumer. There is no int8 path in
+  `pulid_comfyui`, so no INT8 kernel runs and no image is produced from this pack there. That is a
   property of the route, measured in section 5, not a property of the quantisation.
 - **Distribution:** the pack is not published. Publishing a file the loader cannot read would put a
   broken model in front of users.
@@ -146,7 +180,11 @@ Frobenius norm).
   comparison, the two-file behaviour comparison, verdict.
 - `records/pulid_sdxl_protection.json` - the measured drift population, the threshold, the empty
   protection set, the impact file's digest, the input caveat.
-- `records/pulid_sdxl_route.json` - the installed route, the source's load result, the pack's load
+- `records/cn_pulid_sdxl_a1111_route.json` - the A1111 route: the two sub graphs, how many Linears
+  each has, how many received the int8 payload, the ConvRot GEMM count and the groupsize.
+- `records/cn_pulid_sdxl_a1111_image_test.json` - one render through that route: size, steps, seed,
+  PNG bytes and sha256, and the loader's install counts.
+- `records/pulid_sdxl_route.json` - the ComfyUI route, the source's load result, the pack's load
   failure, the int8 tensors it receives.
 - `records/pulid_sdxl_weight_trigger.json` - the weight-level trigger search: the control distribution,
   the implant ladder and the detection floor.
