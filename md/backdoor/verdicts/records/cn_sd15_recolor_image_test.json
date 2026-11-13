@@ -26,9 +26,9 @@
     "latent_inf_count": 0,
     "latent_finite": true,
     "int8_linear_calls": 636,
-    "png_bytes": 838712,
-    "png_sha256": "4b783b399438c5a47b463e40264de8b65f382c172f82bb12316612ef84a9237a",
-    "wall_seconds": 11.5
+    "png_bytes": 838289,
+    "png_sha256": "6e9393587f81ed20684b4347a71cbb2a4f0cd101663b4ecda33c6dd859b8ff19",
+    "wall_seconds": 171.8
   },
   "verdict": "image rendered"
 }

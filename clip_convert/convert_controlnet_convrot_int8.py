@@ -78,6 +78,21 @@ def quant_rowwise(w):
     return q, s.to(torch.float32)
 
 
+def rotate_weight_conv2d(w, h, gs):
+    oc, ic, kh, kw = w.shape
+    flat = w.permute(0, 2, 3, 1).contiguous().view(-1, ic)
+    return rotate_weight(flat, h, gs).view(oc, kh, kw, ic).permute(0, 3, 1, 2).contiguous()
+
+
+def quant_channelwise(w):
+    rd = tuple(range(1, w.dim()))
+    amax = torch.clamp(w.abs().amax(dim=rd).reshape(-1), min=1e-30).float()
+    s = amax / 127.0
+    v = s.view(-1, *([1] * (w.dim() - 1)))
+    q = (w / v.to(w.dtype)).round().clamp(-127, 127).to(torch.int8)
+    return q, s.to(torch.float32)
+
+
 def _encode(config):
     return torch.tensor(list(json.dumps(config, separators=(",", ":")).encode("utf-8")), dtype=torch.uint8)
 
@@ -105,16 +120,20 @@ def runtime_view(comfy_path, controlnet_path, model_path):
         types = {n: type(m).__name__ for n, m in cm.named_modules()}
         usable = {n for n, t in types.items()
                   if t == "Linear" and (n + ".weight") in msd}
-        return usable, msd
+        conv = {n for n, t in types.items()
+                if t == "Conv2d" and (n + ".weight") in msd}
+        return usable, conv, msd
     finally:
         os.chdir(cwd)
 
 
 def convert(input_path, output_path, impact_json, comfy_path, model_path,
-            drift_threshold=DEFAULT_DRIFT_THRESHOLD):
+            drift_threshold=DEFAULT_DRIFT_THRESHOLD, conv_int8=False):
     impacts = json.load(open(impact_json, encoding="utf-8"))["impacts"]
-    usable, msd = runtime_view(comfy_path, os.path.abspath(input_path), os.path.abspath(model_path))
+    usable, usable_conv, msd = runtime_view(comfy_path, os.path.abspath(input_path), os.path.abspath(model_path))
     print(f"runtime Linear modules with weight: {len(usable)}")
+    if conv_int8:
+        print(f"runtime Conv2d modules with weight: {len(usable_conv)}")
 
     protect = {n for n, drift in impacts.items() if drift > drift_threshold}
     print(f"measured candidates: {len(impacts)}; drift > {drift_threshold} -> protected {len(protect)}")
@@ -122,9 +141,29 @@ def convert(input_path, output_path, impact_json, comfy_path, model_path,
     h = build_hadamard(GROUP_SIZE)
     out = {}
     meta_layers = {}
-    n_lin = n_prot = n_kept = 0
+    n_lin = n_prot = n_kept = n_conv = 0
     for name in sorted(msd):
         t = msd[name]
+        if conv_int8 and name.endswith(".weight") and t.ndim == 4:
+            mk = name[: -len(".weight")]
+            if mk in usable_conv:
+                if mk in protect:
+                    out[name] = t.to(torch.float16)
+                    n_prot += 1
+                    continue
+                ic = int(t.shape[1])
+                if ic % GROUP_SIZE != 0:
+                    out[name] = t.to(torch.float16)
+                    n_prot += 1
+                    continue
+                q, scale = quant_channelwise(rotate_weight_conv2d(t.float(), h, GROUP_SIZE))
+                n_conv += 1
+                conf = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": GROUP_SIZE}
+                out[name] = q
+                out[f"{mk}.weight_scale"] = scale.view(-1, 1, 1, 1)
+                out[f"{mk}.comfy_quant"] = _encode(conf)
+                meta_layers[mk] = conf
+                continue
         if not (name.endswith(".weight") and t.ndim == 2):
             out[name] = t.to(torch.float16) if t.is_floating_point() else t
             n_kept += 1
@@ -154,6 +193,7 @@ def convert(input_path, output_path, impact_json, comfy_path, model_path,
     metadata = {"_quantization_metadata": json.dumps({"format_version": "1.0", "layers": meta_layers}, separators=(",", ":"))}
     print(f"Saving: {output_path}")
     print(f"  ConvRot INT8 Linear: {n_lin}")
+    print(f"  ConvRot INT8 Conv2d: {n_conv}")
     print(f"  protected (drift or shape): {n_prot}")
     print(f"  kept (not runtime Linear): {n_kept}")
     save_file(out, output_path, metadata=metadata)
@@ -168,5 +208,8 @@ if __name__ == "__main__":
     ap.add_argument("--comfy_path", required=True)
     ap.add_argument("--model", required=True, help="base checkpoint the ControlNet is loaded with")
     ap.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD)
+    ap.add_argument("--conv-int8", action="store_true",
+                    help="also quantise Conv2d weights (rotation along in_channels, per-out-channel scale)")
     a = ap.parse_args()
-    convert(a.input, a.output, a.impact, a.comfy_path, a.model, drift_threshold=a.drift_threshold)
+    convert(a.input, a.output, a.impact, a.comfy_path, a.model, drift_threshold=a.drift_threshold,
+            conv_int8=a.conv_int8)

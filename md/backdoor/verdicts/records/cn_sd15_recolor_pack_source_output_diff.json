@@ -7,7 +7,7 @@
   "parameters_only_in_source": [],
   "parameters_only_in_pack": [],
   "graphs_isomorphic": true,
-  "source": "ioclab_sd15_recolor.safetensors",
+  "source": "sdControlCollection_v10.safetensors",
   "pack": "ioclab_sd15_recolor_hswq_convrot_int8.safetensors",
   "observable": "the ControlNet's own output tensors, source(float) vs pack(INT8), same input; the batch cosine is the lowest per-tensor cosine, max_abs_err the largest absolute element difference and rel_l2_max the largest relative L2 difference",
   "n": 4,
@@ -15,8 +15,8 @@
   "batches": [],
   "batches_comparable": 4,
   "batches_total": 4,
-  "cos_min": 0.9996968507766724,
-  "cos_mean": 0.9997189790010452,
-  "max_abs_err": 0.15625,
-  "rel_l2_max": 0.025422092527151108
+  "cos_min": 0.9996680021286011,
+  "cos_mean": 0.9996956884860992,
+  "max_abs_err": 0.204437255859375,
+  "rel_l2_max": 0.026476038619875908
 }
