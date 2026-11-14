@@ -349,13 +349,6 @@ carry the same measurement. `noobaiXLControlnet` has its sweep, audit, route, ex
 and trigger records; its gate column quotes the source-against-pack comparison, because no
 256-item record exists for it yet and the column says what it is measuring.
 
-`control_instant_id_sdxl`, `instantid_diffusion_pytorch_model` and `ip-adapter_instant_id_sdxl`
-are **the same file under three names** (LFS sha256
-`a9ffbd849d007b969d91cadd1409757000f20f69d08b45d95f18243adff456c9` for all three), so they
-carry the same measurement. `noobaiXLControlnet` has its sweep, audit, route, execution,
-render and trigger records; its gate column quotes the source-against-pack comparison,
-because no 256-item record exists for it yet and the column says what it is measuring.
-
 A ControlNet in `model_patches/` (or vice versa) does not load. The "model patch" rows go
 through the **HSWQ Model Patch Loader**; the plain rows go through the ControlNet loader,
 built by the HSWQ loader extension so the INT8 payload is read as INT8.
