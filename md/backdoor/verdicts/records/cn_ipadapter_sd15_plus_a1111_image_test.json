@@ -1,0 +1,51 @@
+{
+ "tool": "A1111 /sdapi/v1/txt2img with ControlNet ip-adapter_clip_sd15_plus",
+ "family": "ipadapter_sd15_plus",
+ "route": "A1111 sd-webui-controlnet ipadapter + modules/ipadapter_int8_convrot.py",
+ "pack": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+ "pack_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
+ "pack_bytes": 49366186,
+ "loader_install": {
+  "image_proj_linear": 22,
+  "ip_adapter_linear": 32,
+  "skipped": 0,
+  "image_proj_int8_mb": 29.9,
+  "ip_adapter_int8_mb": 19.2,
+  "declared_total": 54
+ },
+ "render": {
+  "width": 512,
+  "height": 512,
+  "steps": 8,
+  "cfg_scale": 4.0,
+  "sampler": "DPM++ 2M",
+  "seed": 42,
+  "weight": 1.0,
+  "preprocessor": "ip-adapter_clip_sd15_plus",
+  "base": "againmix_v22.safetensors",
+  "png_bytes": 408703,
+  "png_sha256": "5a390ef10d914d8a97b3ee510f542a3902f4e6294c298a34886dbe0edc9b4df6"
+ },
+ "comparison": {
+  "int8_vs_base": {
+   "mean_abs": 74.98,
+   "max_abs": 252,
+   "changed_pct": 100.0,
+   "psnr_db": 8.95
+  },
+  "float_vs_base": {
+   "mean_abs": 74.6,
+   "max_abs": 252,
+   "changed_pct": 100.0,
+   "psnr_db": 8.98
+  },
+  "float_vs_int8": {
+   "mean_abs": 3.38,
+   "max_abs": 203,
+   "changed_pct": 96.92,
+   "psnr_db": 30.98
+  }
+ },
+ "measured_at": "2026-11-14T11:32 local",
+ "verdict": "the pack loads on the A1111 route, applies 54 INT8 layers and renders; its output sits 30.98 dB from the float adapter on the same seed"
+}
