@@ -581,14 +581,24 @@ Every pack below is a real file with the measured gate in it. Sizes are **MiB**
 (1 MB = 2\^20 bytes), the same unit as the text-encoder table; the SHA256 column
 carries the pack's first 16 hex characters, full hash in the per-model guide.
 
+There are **two kinds of pack** in this chapter, and they are not the same product:
+
+- **HSWQ - per-checkpoint measured protection.** The checkpoint's own layers are swept, each
+  layer's contribution to the model's output is measured, and the layers above the threshold are
+  kept in FP16 inside a size/quality budget. The kept set is a measurement on that checkpoint,
+  so it differs from pack to pack, and every pack below carries its own record.
+- **native - plain ConvRot INT8.** The weights are rotated and quantised with no per-layer sweep and
+  no protection decision: every runtime Linear is quantised. This is the *native* ConvRot INT8
+  product, not an HSWQ high-quality build, and it is listed separately so the two are never
+  read as the same thing.
+
+A pack is in the first table because a protection measurement exists for it; it is in the second
+because none does. That is the whole criterion - not the family, not the file size.
+
+### HSWQ - per-checkpoint measured protection
+
 | Pack | Family | Runtime object | Directory | the gate (measured) | Size | SHA256 (first 16) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `CN-anytest4_illustrious2_A_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.999626 (forward) | 1359.1 MB | `BE9FF80B2F489568` |
-| `CN-anytest4_illustrious2_B_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.992958 / 0.948279 (trajectory) | 1357.5 MB | `7E34DC3CC3334AFA` |
-| `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8` | SDXL 1.0 | ControlNet | `models/controlnet/` | 0.999961 | 1368.8 MB | `DCDF6F2037205C4A` |
-| `FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8` | FLUX.1-dev | ControlNet | `models/controlnet/` | 0.999771 / 0.999488 | 2585.1 MB | `FBCBA3C76A221FBA` |
-| `Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8` | Qwen-Image-2512 | ControlNet | `models/controlnet/` | 0.999158 / 0.998215 | 1677.2 MB | `5AEC39A53F583BAD` |
-| `Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8` | Qwen-Image | ControlNet | `models/controlnet/` | 0.999545 / 0.998887 | 2022.1 MB | `38F0AB7495029517` |
 | `control_v11f1e_sd15_tile_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999708 / 0.999592 | 579.5 MB | `E90A2CB010EA2E18` |
 | `control_v11p_sd15_canny_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999673 / 0.999518 | 579.5 MB | `F7E20FA625863F02` |
 | `control_v11f1p_sd15_depth_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999764 / 0.999719 | 579.5 MB | `45086721B1FF4643` |
@@ -613,22 +623,35 @@ carries the pack's first 16 hex characters, full hash in the per-model guide.
 | `qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924905 / 0.9999924096 | 1083.3 MB | `C2899255252B81FD` |
 | `qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
 | `qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999921236 / 0.9999919542 | 1083.3 MB | `471B6AFFC7FCEDAF` |
+| `noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8` | SDXL (NoobAI / Illustrious) | ControlNet | `models/controlnet/` | 0.999825 / 0.999802 (source vs pack, 4 batches) | 1354.4 MB | `86E795137DCF8D28` |
+
+`control_instant_id_sdxl`, `instantid_diffusion_pytorch_model` and `ip-adapter_instant_id_sdxl` are
+**the same file under three names** (LFS sha256
+`a9ffbd849d007b969d91cadd1409757000f20f69d08b45d95f18243adff456c9` for all three), so they
+carry the same measurement. `noobaiXLControlnet` has its sweep, audit, route, execution, render
+and trigger records; its gate column quotes the source-against-pack comparison, because no
+256-item record exists for it yet and the column says what it is measuring.
+
+### native - plain ConvRot INT8 (no per-layer protection measurement)
+
+| Pack | Family | Runtime object | Directory | the gate (measured) | Size | SHA256 (first 16) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `CN-anytest4_illustrious2_A_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.999626 (forward) | 1359.1 MB | `BE9FF80B2F489568` |
+| `CN-anytest4_illustrious2_B_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.992958 / 0.948279 (trajectory) | 1357.5 MB | `7E34DC3CC3334AFA` |
+| `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8` | SDXL 1.0 | ControlNet | `models/controlnet/` | 0.999961 | 1368.8 MB | `DCDF6F2037205C4A` |
+| `FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8` | FLUX.1-dev | ControlNet | `models/controlnet/` | 0.999771 / 0.999488 | 2585.1 MB | `FBCBA3C76A221FBA` |
+| `Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8` | Qwen-Image-2512 | ControlNet | `models/controlnet/` | 0.999158 / 0.998215 | 1677.2 MB | `5AEC39A53F583BAD` |
+| `Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8` | Qwen-Image | ControlNet | `models/controlnet/` | 0.999545 / 0.998887 | 2022.1 MB | `38F0AB7495029517` |
 | `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8` | Z-Image-Turbo | **model patch** | `models/model_patches/` | 0.999862 / 0.999491 (trajectory) | 963.0 MB | `1DD12B2D028B12DF` |
 | `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8` | Z-Image-Turbo | **model patch** | `models/model_patches/` | 0.999956 / 0.999813 (trajectory) | 963.0 MB | `2998F83EF65903B4` |
+
+These eight packs are complete files with their own audit, route, execution and render records,
+but no layer was kept in FP16 and no sweep was run on the checkpoint: every runtime Linear is
+quantised. Their gate column is what the audit measured, not an HSWQ protection result.
 
 **The directory column is not cosmetic.** A ControlNet in `model_patches/` (or
 vice versa) does not load. The "model patch" rows go through the **HSWQ Model
 Patch Loader**; the plain rows go through the ControlNet loader.
-
-`control_instant_id_sdxl_hswq_convrot_int8`, `instantid_diffusion_pytorch_model_hswq_convrot_int8`
-and `ip-adapter_instant_id_sdxl_hswq_convrot_int8` are **the same file under three
-names** (LFS sha256 `a9ffbd849d007b969d91cadd1409757000f20f69d08b45d95f18243adff456c9`
-for all three), so they carry the same measurement.
-
-**Published, gate not yet measured.** `noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8`
-(1354.4 MB, sha256 `86E795137DCF8D28`) is on the Hub but has no audit, sweep, route,
-render or 256-item gate recorded yet. It is called out here instead of being given a
-row, so that every row above stays a measured row.
 
 Published on Hugging Face:
 
@@ -662,6 +685,14 @@ The three outcomes this produces, all measured:
 HSWQ's reverse-hybrid engine is a **universal method**: it measures per-layer trajectory sensitivity on the target checkpoint, ranks the layers, and selects FP16 protection inside a fixed budget. That method applies to image-generation backbones (SDXL / Z Image / Krea2 UNet-DiT), which exist as **many per-checkpoint variants** - SDXL alone was tested on **30+ checkpoints**, and every merge or finetune is a new target whose ranking must be re-measured. A general method pays off precisely because there are so many of them.
 
 Text encoders are **not** per-checkpoint models. Each architecture (CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3, ...) is a **single standard weight layout** with no per-checkpoint derivation. There is nothing to re-measure per model, so a large universal engine is not justified - the same applies to a ControlNet standard and to a SAM release, and it is why the whole chapter above is a per-model track rather than an application of the engine.
+
+**These are HSWQ builds, not native ConvRot INT8.** Every row below comes from a
+measurement on that standard: the layers are ranked by their contribution to the
+model's own output, and the FP16-kept set is what the threshold returned for that
+standard. A kept count of **0** is a measured result (nothing crossed the
+threshold, section *Rule 4*), not an unmeasured pack - the native ConvRot INT8
+product, which quantises every runtime Linear with no sweep at all, is a different
+thing and is listed separately in the ControlNet section.
 
 Instead, each text-encoder standard was handled **individually** - but the criterion is no longer static. See **Section: How a pack is selected (the current method)** below: the protection set comes from the measured **aggregate contribution**, the size/quality balance sets the threshold, and the kept tensors are stored FP16. Static kurtosis / outlier-ratio screening is retired as a *criterion*; the per-standard converter scripts under `clip_convert/` implement the current method.
 
