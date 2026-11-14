@@ -3,7 +3,7 @@
 
 **Document version:** 3.1  
 **Date:** 2026-06-14  
-**Targets:** SDXL (v1.3), Z Image Turbo / Base (**v2.0**), Z-Anime
+**Targets:** SDXL (v1.3), Z Image Turbo / Base (**v2.0**)
 
 ---
 
@@ -30,7 +30,7 @@ The output stays **standard FP8 E4M3** (`torch.float8_e4m3fn`) — no custom loa
 | Family | Script | Histogram backend | Strategy engine | Notes |
 |---|---|---|---|---|
 | SDXL | `quantize_sdxl_hswq_v1.3.py` | `weighted_histogram_mse_fast` (searchsorted) | DualMonitor → keep_ratio FP16; channel-importance weighted MSE | 10–50× faster amax search vs. brute-force grid. |
-| Z Image Turbo / Base / Z-Anime | `quantize_zib_hswq_v2.0.py` (ZIB / ZIT / Z-Anime; [the Z-Anime branching rationale](ZAnime_ZI_v1.92_Branching_and_Rationale.md)) | `weighted_histogram_mse_v4` (SVD + RMS hybrid) | **Pure Autonomous Engine V2.0** (static Hard VETO + structural / key-pattern / per-projection veto + drift-aware `search_low` + MSE gray-zone release) | Supersedes `quantize_zib_hswq_v1.92.py`. No CLI layer-name lists — detection uses weight-shape uniqueness and `.endswith(...)` key patterns only. Profile JSON is generated automatically by `analyze/analyze_zib_distribution.py` if missing. Z-Anime-only branches are guarded by `is_zanime`. [Z-Anime](ZAnime_ZI_v1.92_Branching_and_Rationale.md) |
+| Z Image Turbo / Base | `quantize_zib_hswq_v2.0.py` (ZIB / ZIT) | `weighted_histogram_mse_v4` (SVD + RMS hybrid) | **Pure Autonomous Engine V2.0** (static Hard VETO + structural / key-pattern / per-projection veto + drift-aware `search_low` + MSE gray-zone release) | Supersedes `quantize_zib_hswq_v1.92.py`. No CLI layer-name lists — detection uses weight-shape uniqueness and `.endswith(...)` key patterns only. Profile JSON is generated automatically by `analyze/analyze_zib_distribution.py` if missing. |
 
 Both families share the same FP8 E4M3 physical-grid simulator and emit `comfy_quant` / `weight_scale` metadata so the result loads in standard ComfyUI/Diffusers FP8 paths.
 
@@ -114,12 +114,12 @@ abs_max       > 20
 
 are **force-promoted to FP16 before sensitivity selection ever runs**. Rationale: these distributions are mathematically unrepresentable in unscaled FP8 — no amax can save them. By taking them out *first*, the Dynamic Sensitivity pool is no longer dominated by a handful of pathological layers (the V1.9 → V1.92 fix that pushed Z Image Turbo SSIM from 0.59 to its current level).
 
-**V2.0 extension — layered autonomous VETO (no hardcoded layer names):** After static profile Hard VETO, `quantize_zib_hswq_v2.0.py` applies additional FP16 promotion using **key patterns and live stats only** (ZI / ZIB / ZIT / derivatives share the NextDiT path; Z-Anime uses a guarded subset with separate thresholds).
+**V2.0 extension — layered autonomous VETO (no hardcoded layer names):** After static profile Hard VETO, `quantize_zib_hswq_v2.0.py` applies additional FP16 promotion using **key patterns and live stats only** (ZI / ZIB / ZIT and their derivatives share the NextDiT path).
 
 | Stage | Mechanism | Rule (autonomous) |
 |---|---|---|
 | **Structural VETO** | Unique `Linear` weight shape in the loaded model | `shape_count[shape] == 1` → boundary / singleton layers |
-| **Per-projection qkv VETO** | `.endswith(".attention.qkv")` | Split fused qkv into three projections; VETO if **any** chunk `abs_max` exceeds threshold (`4.5` default NextDiT, `5.0` Z-Anime) |
+| **Per-projection qkv VETO** | `.endswith(".attention.qkv")` | Split fused qkv into three projections; VETO if **any** chunk `abs_max` exceeds threshold (`4.5` NextDiT) |
 | **Key-pattern VETO** (NextDiT only) | Selective `.endswith(...)` / prefix match | `t_embedder.*`; suffixes `.cap_embedder.1`, `.final_layer.linear`, `.x_embedder`; `.feed_forward.w2` **only when** live `outlier_ratio > 40`. Does **not** blanket-VETO all qkv / w2 / adaLN / out (that inflates output toward ~9 GB while SSIM stays high; selective pattern keeps ~6.6 GB reference at r0.05) |
 | **Live supplemental VETO** (NextDiT only) | Post-calibration live stats | `.feed_forward.w2` with `outlier_ratio > 40`; `t_embedder.*` with profile **drift** `> 0.5` |
 | **MSE gray-zone RELEASE** | Trial `weighted_histogram_mse_v4` | Outlier-only static VETO (`o>40`, `k≤20`, `m≤20`), non-structural, `drift < 0.5`, not in key-pattern set → release if trial MSE ≤ `2 × P75` of safe `feed_forward` layers |
@@ -136,7 +136,7 @@ profile_score = kurtosis + 2.0 * outlier_ratio + 0.5 * abs_max
 
 (falling back to DualMonitor sensitivity when no profile exists). The top `keep_ratio` are added to the FP16 set.
 
-**V2.0 extension — profile drift in the sensitivity rank:** For NextDiT models (non–Z-Anime), each layer's `profile_score` gains a drift term when live weights diverge from the stored distribution profile:
+**V2.0 extension — profile drift in the sensitivity rank:** For NextDiT models, each layer's `profile_score` gains a drift term when live weights diverge from the stored distribution profile:
 
 ```
 drift = max( |k_live − k_prof| / max(k_prof, 1),
@@ -173,8 +173,6 @@ if gray_zone OR drift > 0.5:
     upper_clip = 0.90    # was 0.99 for typical NextDiT layers
 search_low = clip(0.50 + max(k_penalty, o_penalty), 0.50, upper_clip)
 ```
-
-Z-Anime keeps the V1.92 path (`upper_clip = 0.90` under `is_zanime`) unchanged.
 
 ### 3.6 Importance backends
 
@@ -258,7 +256,7 @@ V1 optimizes only the clipping threshold (no per-tensor scale). V2 would additio
 | Adaptive `search_low` | n/a | yes (+ gray-zone / drift cap in V2.0) |
 | Hard VETO | n/a | yes (static profile k/o/m) |
 | Autonomous VETO (V2.0) | n/a | structural + per-projection qkv + selective key-pattern + live supplemental |
-| MSE gray-zone release (V2.0) | n/a | yes (NextDiT); Z-Anime uses guarded outlier-only path |
+| MSE gray-zone release (V2.0) | n/a | yes (NextDiT) |
 
 Sensitivity (output variance): layers that hurt image quality most if corrupted → top 5–25% kept in FP16 (for SDXL and ZIT, 10% often gives sufficient quality).
 
@@ -291,7 +289,7 @@ V2.0 retains the full V1.92 stack (mandatory distribution profile, DualMonitor c
 ### 7.1 Design constraints
 
 - **No model-specific CLI toggles** for veto behavior — all detection is automatic from module names (`.endswith`, prefix) and tensor statistics.
-- **ZI / ZIB / ZIT unchanged in spirit:** shared NextDiT code path; Z-Anime-only branches remain behind `is_zanime` (Diffusers I/O, profile bridge, BF16 calibration path, stricter qkv threshold).
+- **ZI / ZIB / ZIT unchanged in spirit:** shared NextDiT code path (Diffusers I/O, profile bridge, BF16 calibration path, stricter qkv threshold).
 - **Selective key-pattern VETO:** avoids blanket promotion of every `.attention.qkv` / `.feed_forward.w2` / `.adaLN_modulation` / `.attention.out` (file-size blow-up without SSIM gain).
 
 ### 7.2 Profile drift
@@ -319,7 +317,7 @@ Uses:
 
 ### 7.4 Selective key-pattern VETO (NextDiT)
 
-Applied only when **not** `is_zanime`:
+Applied on the NextDiT path:
 
 | Pattern | Action |
 |---|---|
@@ -337,8 +335,6 @@ For NextDiT (universal in V2.0 via `_mse_grayzone_veto_reassessment`):
 2. Sample up to 30 safe `feed_forward` layers (stride through non-kept modules) and trial-quantize with V4 histogram MSE.
 3. Set threshold = `2 × P75(estimated_mse)` of safe layers.
 4. Trial-quantize each candidate; **release** from VETO (allow FP8) when `estimated_mse ≤ threshold`.
-
-Z-Anime retains the V1.92 **outlier-only** MSE reassessment path (guarded by `is_zanime`; random sample of safe layers for baseline).
 
 ### 7.6 FP16 set composition (unchanged formula, richer VETO input)
 
@@ -385,6 +381,6 @@ graph TD
 - [Adaptive Search Range — Technical Guide](Adaptive_Search_Range_Technical_Guide.md)
 - [Z Image V1.5 — Latent and Mixed-Precision Calibration](ZI_V1.5_Latent_and_MixedPrecision_Calibration.md)
 - [Z Image V1.9 → V1.92 Changes (VETO + V4 Hybrid)](V1.9_to_V1.92_Changes.md)
-- [HSWQ V1.92 → V2.0 Changes (Pure Autonomous Engine)](V1.92_to_V2.0_Changes.md) — motivated by moodyRealMix_zitV7 + v1.92 SSIM ~0.88; extends default NextDiT path (`is_zanime` unchanged)
+- [HSWQ V1.92 → V2.0 Changes (Pure Autonomous Engine)](V1.92_to_V2.0_Changes.md) — motivated by moodyRealMix_zitV7 + v1.92 SSIM ~0.88; extends the default NextDiT pathhanged)
 - **Quantizer script:** `quantize_zib_hswq_v2.0.py` (V2.0 Pure Autonomous Engine; default NextDiT: ZI / ZIB / ZIT / moody mixes)
 - [How to quantize SDXL](How%20to%20quantize%20SDXL.md) / [How to quantize Z Image](How%20to%20quantize%20Z%20Image.md)
