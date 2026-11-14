@@ -12,7 +12,7 @@ listed here; this document is the HSWQ side only.
 
 The method itself (the injection frame, the aggregate contribution, the size/quality
 balance, how the kept set is chosen) is stated once in the same document, Section
-[*How a pack is selected (the current method)*](How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md#how-a-pack-is-selected-the-current-method).
+[*How a pack is selected (the current method)*](#how-a-pack-is-selected-the-current-method).
 This document carries the inventory and the per-model numbers.
 
 ---
