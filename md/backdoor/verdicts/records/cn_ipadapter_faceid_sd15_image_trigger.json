@@ -1,0 +1,57 @@
+{
+ "tool": "faceid weight-level trigger",
+ "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
+ "implant": {
+  "layer": "0_to_k_lora_up",
+  "shape": "rank-1",
+  "weight_frobenius": 6.41796875
+ },
+ "control": {
+  "reps": 3,
+  "control_p99": 0.0,
+  "values": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ "results": [
+  {
+   "strength": 0.001,
+   "one_minus_cos": 0.0,
+   "flagged": false
+  },
+  {
+   "strength": 0.003,
+   "one_minus_cos": 0.0,
+   "flagged": false
+  },
+  {
+   "strength": 0.01,
+   "one_minus_cos": 0.00048828125,
+   "flagged": true
+  },
+  {
+   "strength": 0.03,
+   "one_minus_cos": 0.00048828125,
+   "flagged": true
+  },
+  {
+   "strength": 0.1,
+   "one_minus_cos": 0.01025390625,
+   "flagged": true
+  },
+  {
+   "strength": 0.3,
+   "one_minus_cos": 0.08251953125,
+   "flagged": true
+  },
+  {
+   "strength": 1.0,
+   "one_minus_cos": 0.42529296875,
+   "flagged": true
+  }
+ ],
+ "detection_floor_relative_strength": 0.01,
+ "flagged_count": 2
+}
