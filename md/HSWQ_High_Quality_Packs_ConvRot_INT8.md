@@ -6,10 +6,9 @@ contribution to the model's own output, and the layers above the threshold were 
 FP16 inside a size/quality budget. The kept set is therefore a measurement on that
 checkpoint, and it differs from pack to pack.
 
-The **native** ConvRot INT8 packs - plain rotation and quantisation, every runtime Linear
-quantised, no per-layer sweep - live in
-[`How to quantize Text Encoder and ControlNet.md`](How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md),
-Section *Finished packs - native ConvRot INT8*.
+**native** ConvRot INT8 is a different product: plain rotation and quantisation, every
+runtime Linear quantised, with no threshold sweep and no kept set. No native pack is
+listed here; this document is the HSWQ side only.
 
 The method itself (the injection frame, the aggregate contribution, the size/quality
 balance, how the kept set is chosen) is stated once in the same document, Section
@@ -20,7 +19,12 @@ This document carries the inventory and the per-model numbers.
 
 ## ControlNet and model patches
 
-### HSWQ - per-checkpoint measured protection
+### ControlNet and model patch packs
+
+Every pack in this table is a measured build: the threshold was chosen on that
+checkpoint's own size/quality curve (Section *Rule 4*), and the kept count is what
+that curve returned - 0 kept means the curve said the floor was already the best
+point, not that nothing was measured.
 
 | Pack | Family | Runtime object | Directory | the gate (measured) | Size | SHA256 (first 16) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -49,6 +53,20 @@ This document carries the inventory and the per-model numbers.
 | `qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
 | `qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999921236 / 0.9999919542 | 1083.3 MB | `471B6AFFC7FCEDAF` |
 | `noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8` | SDXL (NoobAI / Illustrious) | ControlNet | `models/controlnet/` | 0.999825 / 0.999802 (source vs pack, 4 batches) | 1354.4 MB | `86E795137DCF8D28` |
+| `CN-anytest4_illustrious2_A_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.999626 (forward) | 1359.1 MB | `BE9FF80B2F489568` |
+| `CN-anytest4_illustrious2_B_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.992958 / 0.948279 (trajectory) | 1357.5 MB | `7E34DC3CC3334AFA` |
+| `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8` | SDXL 1.0 | ControlNet | `models/controlnet/` | 0.999961 | 1368.8 MB | `DCDF6F2037205C4A` |
+| `FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8` | FLUX.1-dev | ControlNet | `models/controlnet/` | 0.999771 / 0.999488 | 2585.1 MB | `FBCBA3C76A221FBA` |
+| `Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8` | Qwen-Image-2512 | ControlNet | `models/controlnet/` | 0.999158 / 0.998215 | 1677.2 MB | `5AEC39A53F583BAD` |
+| `Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8` | Qwen-Image | ControlNet | `models/controlnet/` | 0.999545 / 0.998887 | 2022.1 MB | `38F0AB7495029517` |
+| `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8` | Z-Image-Turbo | **model patch** | `models/model_patches/` | 0.999862 / 0.999491 (trajectory) | 963.0 MB | `1DD12B2D028B12DF` |
+| `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8` | Z-Image-Turbo | **model patch** | `models/model_patches/` | 0.999956 / 0.999813 (trajectory) | 963.0 MB | `2998F83EF65903B4` |
+
+For the packs whose protection is recorded as a threshold point rather than a separate
+census file - `controlnet-union-pro-max-sdxl-1.0`, `CN-anytest4_illustrious2_A/B`,
+`Qwen-Image-2512-Fun-Controlnet-Union-2602`, `Qwen-Image-ControlNet-Inpainting` and the two
+Z-Image patches - the kept count is the adopted point of that checkpoint's own curve in
+Section *Rule 4*, and the gate is the value measured at that point.
 
 `control_instant_id_sdxl`, `instantid_diffusion_pytorch_model` and `ip-adapter_instant_id_sdxl` are
 **the same file under three names** (LFS sha256
