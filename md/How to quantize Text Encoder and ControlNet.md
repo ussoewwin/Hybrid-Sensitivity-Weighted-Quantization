@@ -511,67 +511,12 @@ Qwen-Image diffsynth patches one layer (`img_in`) carries 80-86 % of the summed
 contribution and is 147x to 598x the runner-up, so protecting it alone converts
 a 3.5e-05 .. 5.4e-05 error into 5e-08 for under 0.2 MB.
 
-### Cross-references
+### Per-model guides
 
-Every per-model guide for this chapter, one link per artifact. The guides carry the measured numbers; the rules above carry the method.
+Every per-model guide - text encoders, ControlNets and model patches, SAM - is indexed in
+[`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
+The guides carry the measured numbers; the rules above carry the method.
 
-**Text encoders**
-
-- [CLIP-L](CLIPL_ConvRot_INT8_Impact_Technical_Guide.md)
-- [CLIP-L verification log](CLIPL_ConvRot_INT8_Verification_Log.md)
-- [CLIP ViT-bigG/14](CLIPBiGG_ConvRot_INT8_Impact_Technical_Guide.md)
-- [CLIP ViT-H/14](CLIPViTH14_ConvRot_INT8_Impact_Technical_Guide.md)
-- [OpenAI CLIP ViT-L/14 (SAE)](SAEViTL14_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Long-ViT-L/14](LongViTL14_ConvRot_INT8_Impact_Technical_Guide.md)
-- [ViT-L/14 (HF layout)](ViTL14_ConvRot_INT8_Impact_Technical_Guide.md)
-- [ViT-L/14 runbook](ViTL14_ConvRot_INT8_Runbook.md)
-- [ViT-L/14 verification report](ViTL14_ConvRot_INT8_Verification_Report.md)
-- [SigLIP vision 384](SigLIPVision384_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Flan-T5-XXL](T5XXL_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Josiefied-Qwen3-0.6B](JosiefiedQwen3_06B_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Qwen3-4B](Qwen3_4B_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Qwen3-VL-4B](Qwen3VL4B_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Qwen2.5-VL-7B](Qwen25VL7B_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Qwen3.5-9B Defiant-Fable (NEO IMATRIX MAX MTP)](Qwen35_9B_ConvRot_INT8_Impact_Technical_Guide.md)
-- [the text-encoder index (all thresholds in one place)](ConvRot_INT8_TextEncoder_Index.md)
-
-**ControlNets and model patches**
-
-- [the per-checkpoint ControlNet numbers (SDXL / Illustrious)](ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md)
-- [FLUX.1-dev ControlNet Union Pro 2.0](FLUXControlNetUnionPro2_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Qwen-Image-2512 Fun ControlNet Union 2602](QwenImage2512FunControlnetUnion2602_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Qwen-Image ControlNet Inpainting](QwenImageControlNetInpainting_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 tile ControlNet](CN_SD15_Tile_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 canny ControlNet](CN_SD15_Canny_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 depth ControlNet](CN_SD15_Depth_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 ip2p ControlNet](CN_SD15_Ip2p_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 shuffle ControlNet](CN_SD15_Shuffle_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 inpaint ControlNet](CN_SD15_Inpaint_ConvRot_INT8_Impact_Technical_Guide.md)
-- [InstantID SDXL ControlNet](CN_InstantID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md)
-- [InstantID diffusers layout ControlNet](CN_InstantID_Diffusers_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 lineart ControlNet](CN_SD15_Lineart_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 mlsd ControlNet](CN_SD15_Mlsd_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 normalbae ControlNet](CN_SD15_Normalbae_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 openpose ControlNet](CN_SD15_Openpose_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 scribble ControlNet](CN_SD15_Scribble_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 seg ControlNet](CN_SD15_Seg_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 softedge ControlNet](CN_SD15_Softedge_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5s2 lineart_anime ControlNet](CN_SD15_Lineart_Anime_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 recolor ControlNet (ioclab)](CN_SD15_Recolor_ConvRot_INT8_Impact_Technical_Guide.md)
-- [InstantID IP-Adapter (SDXL)](CN_IPAdapter_InstantID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md)
-- [PuLID IP-Adapter (SDXL)](CN_IPAdapter_PuLID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 IP-Adapter Plus](CN_IPAdapter_SD15_Plus_ConvRot_INT8_Impact_Technical_Guide.md)
-- [SD1.5 IP-Adapter FaceID](CN_IPAdapter_FaceID_SD15_ConvRot_INT8_Impact_Technical_Guide.md)
-- [Qwen-Image diffsynth model patch (canny)](QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md)
-- [Qwen-Image diffsynth model patch (depth)](QwenImageDepthDiffsynthControlnet_ConvRot_INT8_Guide.md)
-- [Qwen-Image diffsynth model patch (inpaint)](QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md)
-- [Z-Image Fun ControlNet model patch (Union / Tile)](ZImageTurboFunControlnet_ConvRot_INT8_ModelPatch_Guide.md)
-
-**SAM**
-
-- [SAM 3.1 Multiplex](SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md)
-
----
 ## Finished packs - ControlNet and model patches
 
 Four IP-Adapter packs are part of this catalogue: `ip-adapter_instant_id_sdxl`, `ip-adapter_pulid_sdxl`,
