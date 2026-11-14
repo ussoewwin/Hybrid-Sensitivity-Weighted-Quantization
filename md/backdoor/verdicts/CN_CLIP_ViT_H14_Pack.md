@@ -115,7 +115,9 @@ One graph, one seed, one prompt: `CheckpointLoaderSimple` (`cyberrealistic_final
   whether a dequantiser runs before the tower sees them.
 
 `records/cn_clip_vit_h14_render.json` carries the graph parameters, the pixel statistics and the
-three frame hashes.
+three frame hashes. Re-running `audit/clip_vit_h14_render.py` after the instrument entered the
+repository produced frames whose pixel arrays are identical to the recorded ones (max per-pixel
+difference 0); only the PNG container differs, because it carries a timestamp.
 
 ## 8. Conclusion
 

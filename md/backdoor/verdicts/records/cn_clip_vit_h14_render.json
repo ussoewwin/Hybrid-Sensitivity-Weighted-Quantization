@@ -77,5 +77,17 @@
   "how": "codes x per-group scale, then the inverse Hadamard rotation of order 4^k applied per group, cast to float16"
  },
  "conclusion": "The route exists and the pack renders nothing through it: the frame is exactly black (mean 0.00, std 0.00, max 0.0). The pack's arithmetic is not the cause - the dequantised pack, same weights, renders the source's scene. The cause is the loader handing int8 codes to the model as floats.",
- "reproduce": "post the same graph to /prompt with the three clip_name values above"
+ "reproduce": "post the same graph to /prompt with the three clip_name values above",
+ "reproduced": {
+  "when": "2026-11-14, after the instrument was added to the repository",
+  "how": "audit/clip_vit_h14_render.py --comfy <ComfyUI> --reference cn_clipvit_ref.png --dequant CLIP-ViT-H-14_dequant_from_pack.safetensors --out <json> --frames <dir>",
+  "pixel_identical_to_the_recorded_frames": true,
+  "pixel_max_abs_diff": 0,
+  "png_bytes_differ_because": "the PNG container carries a timestamp chunk; the pixel arrays are byte-for-byte the same, so the recorded frame hashes are of the PNG files, not of the pixels",
+  "second_run_pixel_mean": {
+   "A_source": 110.6,
+   "B_pack": 0.0,
+   "C_dequant": 110.61
+  }
+ }
 }
