@@ -65,7 +65,30 @@ FP16 for drift - the FP16 population is the shape-ineligible one (188 LoRA `up`,
 | 0.999988827 | 256-item gate, mean cosine | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `gate.mean` | the complete pack verifies on the fixed set |
 | 0.999967217 | 256-item gate, minimum cosine | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `gate.min` | no item falls below the pass floor |
 
-## 6. Conclusion
+## 6. The route - 102 INT8 layers and a render
+
+| number | measured | record | bearing on the verdict |
+| :--- | :--- | :--- | :--- |
+| 2 / 2 | `image_proj` Linears, and how many received the int8 payload | `records/cn_ipadapter_faceid_sd15_route.json` -> `image_proj.int8_modules` | the MLP runs on the INT8 kernel |
+| 100 / 288 | `ip_adapter` Linears, and how many received the int8 payload | `records/cn_ipadapter_faceid_sd15_route.json` -> `ip_layers.int8_modules` | the 100 eligible LoRA matrices run on the kernel; the 188 with input width 128 stay float |
+| 0 | int8 layers with no module in the graph | `records/cn_ipadapter_faceid_sd15_route.json` -> `image_proj.skipped` | nothing falls back |
+| 66 | ConvRot int8 GEMMs in one adapter forward | `records/cn_ipadapter_faceid_sd15_route.json` -> `int8_gemm_calls` | the kernel runs, not only loads |
+| 256 | groupsize those calls carried | `records/cn_ipadapter_faceid_sd15_route.json` -> `groupsizes` | the ConvRot kernel at the pack's groupsize |
+| 0 | non-finite outputs | `records/cn_ipadapter_faceid_sd15_route.json` -> `nonfinite_count` | no NaN or Inf |
+| 414,033 | bytes of the PNG rendered through the pack (512x512, 8 steps, seed 42, weight 1.0) | `records/cn_ipadapter_faceid_sd15_image_test.json` -> `render.png_bytes` | the route renders an image |
+| 16.46 | PSNR of that render against the same seed without the adapter | `records/cn_ipadapter_faceid_sd15_image_test.json` -> `comparison.int8_vs_base` | the adapter moves the image |
+| 39.98 | PSNR between the pack's render and the float adapter's render | `records/cn_ipadapter_faceid_sd15_image_test.json` -> `comparison.int8_vs_float` | the pack reproduces the float adapter |
+
+## 7. The weight-level trigger
+
+| number | measured | record | bearing on the verdict |
+| :--- | :--- | :--- | :--- |
+| 0.000e+00 | control p99 of the divergence, three perturbed inputs | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `control.control_p99` | the instrument's floor on this layer |
+| 0.01 | smallest implant strength that leaves that distribution | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `detection_floor_relative_strength` | the floor of this instrument here |
+| 2 | candidates flagged at or below 0.03 relative strength | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `flagged_count` | a 1% rank-1 implant is resolved |
+| 0_to_k_lora_up | the layer the implant was written into | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `implant.layer` | the probe targets a float LoRA matrix |
+
+## 8. Conclusion
 
 **No backdoor detected.**
 
@@ -100,3 +123,6 @@ FP16 for drift - the FP16 population is the shape-ineligible one (188 LoRA `up`,
   same inputs: the MLP and LoRA cosines and the 256-item gate.
 - `records/cn_ipadapter_faceid_sd15_protection.json` - the per-layer drifts the converter's
   threshold is applied to, with the impact file's digest.
+- `records/cn_ipadapter_faceid_sd15_route.json` - the A1111 route: install counts, GEMM count, groupsize.
+- `records/cn_ipadapter_faceid_sd15_image_test.json` - one render through that route and its comparison.
+- `records/cn_ipadapter_faceid_sd15_image_trigger.json` - the weight-level trigger search.

@@ -51,6 +51,7 @@ def main():
     ap.add_argument("--pack", required=True)
     ap.add_argument("--json", required=True)
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--family", default="pulid", choices=["pulid", "plus", "faceid"])
     ap.add_argument("--seed", type=int, default=42)
     a = ap.parse_args()
 
@@ -90,22 +91,31 @@ def main():
     n_ip = len(state["image_proj"])
     n_ipa = len(state["ip_adapter"])
 
-    width = int(state["image_proj"]["body.0.weight"].shape[1])
     mod = importlib.import_module("ipadapter.ipadapter_model")
-    model = mod.IPAdapterModel(
-        state,
-        clip_embeddings_dim=width,
-        cross_attention_dim=2048,
-        is_plus=False,
-        is_sdxl=True,
-        sdxl_plus=False,
-        is_full=False,
-        is_faceid=False,
-        is_portrait=False,
-        is_instantid=False,
-        is_pulid=True,
-        is_v2=False,
-    )
+    if a.family == "pulid":
+        width = int(state["image_proj"]["body.0.weight"].shape[1])
+        model = mod.IPAdapterModel(
+            state, clip_embeddings_dim=width, cross_attention_dim=2048,
+            is_plus=False, is_sdxl=True, sdxl_plus=False, is_full=False,
+            is_faceid=False, is_portrait=False, is_instantid=False, is_pulid=True,
+            is_v2=False,
+        )
+    elif a.family == "faceid":
+        width = int(state["image_proj"]["proj.0.weight"].shape[1])
+        model = mod.IPAdapterModel(
+            state, clip_embeddings_dim=width, cross_attention_dim=768,
+            is_plus=False, is_sdxl=False, sdxl_plus=False, is_full=False,
+            is_faceid=True, is_portrait=False, is_instantid=False, is_pulid=False,
+            is_v2=False,
+        )
+    else:
+        width = int(state["image_proj"]["proj_in.weight"].shape[1])
+        model = mod.IPAdapterModel(
+            state, clip_embeddings_dim=width, cross_attention_dim=768,
+            is_plus=True, is_sdxl=False, sdxl_plus=False, is_full=False,
+            is_faceid=False, is_portrait=False, is_instantid=False, is_pulid=False,
+            is_v2=False,
+        )
 
     def census(module):
         total = 0
@@ -128,13 +138,15 @@ def main():
 
     gen = torch.Generator(device="cpu").manual_seed(a.seed)
     x = torch.randn(1, width, generator=gen).to(dev)
-    y = [torch.randn(1, 6, 1024, generator=gen).to(dev) for _ in range(5)]
+    y = ([torch.randn(1, 6, 1024, generator=gen).to(dev) for _ in range(5)]
+         if a.family == "pulid" else None)
 
     finite = True
     with torch.no_grad():
-        emb = model.image_proj_model(x, y)
+        emb = model.image_proj_model(x, y) if y is not None else model.image_proj_model(x)
         kv = torch.cat(
-            [layer(emb).reshape(-1) for _, layer in model.ip_layers.to_kvs.items()]
+            [layer(emb).reshape(-1) for _, layer in model.ip_layers.to_kvs.items()
+             if layer.in_features == emb.shape[-1]]
         )
     finite = bool(torch.isfinite(emb).all().item() and torch.isfinite(kv).all().item())
 

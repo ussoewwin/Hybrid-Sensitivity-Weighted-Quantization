@@ -1,0 +1,82 @@
+{
+ "tool": "a1111_pulid_route.py",
+ "family": "pulid",
+ "route": "A1111 sd-webui-controlnet ipadapter + modules/ipadapter_int8_convrot.py",
+ "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
+ "pack_sha256": "35b5942ee163494b82ec4b9d0797ef511a2552e780d44f9e15a6bae9ee40fcc6",
+ "pack_bytes": 65047130,
+ "declared_sub_tensors": {
+  "image_proj": 10,
+  "ip_adapter": 488
+ },
+ "clip_embeddings_dim": 512,
+ "cross_attention_dim": 2048,
+ "image_proj": {
+  "linear_modules": 2,
+  "int8_modules": 2,
+  "int8_names_first": [
+   "proj.0",
+   "proj.2"
+  ],
+  "skipped": 0
+ },
+ "ip_layers": {
+  "linear_modules": 288,
+  "int8_modules": 100,
+  "int8_names_first": [
+   "to_kvs.1_to_k_ip",
+   "to_kvs.1_to_k_lora_down",
+   "to_kvs.1_to_v_ip"
+  ],
+  "skipped": 0
+ },
+ "int8_gemm_calls": 66,
+ "groupsizes": [
+  256
+ ],
+ "call_shapes_first": [
+  {
+   "groupsize": 256,
+   "convrot": true,
+   "in_dtype": "torch.bfloat16",
+   "out_dtype": "torch.bfloat16",
+   "shape": [
+    1,
+    512
+   ]
+  },
+  {
+   "groupsize": 256,
+   "convrot": true,
+   "in_dtype": "torch.bfloat16",
+   "out_dtype": "torch.bfloat16",
+   "shape": [
+    1,
+    1024
+   ]
+  },
+  {
+   "groupsize": 256,
+   "convrot": true,
+   "in_dtype": "torch.bfloat16",
+   "out_dtype": "torch.bfloat16",
+   "shape": [
+    1,
+    4,
+    768
+   ]
+  }
+ ],
+ "emb_shape": [
+  1,
+  4,
+  768
+ ],
+ "kv_shape": [
+  116224
+ ],
+ "output_finite": true,
+ "device": "cuda",
+ "dtype": "float32 activations",
+ "nonfinite_count": 0
+}
