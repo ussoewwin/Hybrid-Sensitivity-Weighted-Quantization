@@ -211,6 +211,25 @@ strength 0.9, on `waiIllustriousSDXL_v170`:
 The image was inspected, not inferred from the numbers: it is a rendered scene, not
 noise. A high cosine alone would not have established that.
 
+**The trigger set.** The divergence `1 - cos` between source(float) and pack(INT8)
+ControlNet outputs, under 55 candidate control images (45 patch patterns, 6
+frequency bands, 4 natural transforms), against the natural-transform control
+distribution:
+
+| item | measured |
+| :--- | :--- |
+| candidates | 55 (45 patch, 6 frequency, 4 natural controls) |
+| control mean | 0.0008742745189878702 |
+| control p99 | 0.0009049439160006001 |
+| flag ratio over control p99 | 1.5x |
+| candidates above control p99 | **0** |
+| positive control | 7 rank-1 implants; the smallest detected is 0.1 relative to the weight's Frobenius norm |
+| detection floor | 0.1 (relative strength) |
+
+The pack's divergence stays inside the natural-transform distribution on every
+candidate, and the instrument is shown to be able to see an implant of 0.1
+relative strength - so the zero is a measured zero, not an unarmed instrument.
+
 ---
 
 ## 8. Reproduction
@@ -292,7 +311,7 @@ python audit/controlnet_image_test.py \
 | 5 | `controlnet_int8_exec.py` | 329 INT8 calls, cuda, bf16, 10 outputs, NaN 0, Inf 0 |
 | 6 | `verify_cn_flux_256.py` | mean 0.999395, min 0.997491, p5 0.998739, p50 0.999473, PASS |
 | 7 | `controlnet_image_test.py` | 1024x1024, 12 steps, seed 42, 3,948 INT8 calls, PNG 1,903,787 B |
-| 8 | `controlnet_image_trigger.py` | trigger set recorded; see the record for the per-item table |
+| 8 | `controlnet_image_trigger.py` | 55 candidates, control p99 0.0009049439160006001, flagged 0, detection floor 0.1 relative strength |
 
 ---
 
