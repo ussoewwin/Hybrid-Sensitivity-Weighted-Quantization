@@ -189,6 +189,20 @@ def loader_drop(pack_path, comfy_path):
         os.chdir(cwd)
 
 
+
+def _faceid_runtime_state_dict(source_path):
+    """FaceID carries image_proj (an MLP) and ip_adapter (LoRA pairs). Both are consumed
+    as plain tensors by the FaceID path, so the runtime names are the file's own names."""
+    import torch
+
+    raw = torch.load(source_path, map_location="cpu", weights_only=True)
+    out = {}
+    for group in ("image_proj", "ip_adapter"):
+        for k, v in raw[group].items():
+            if torch.is_tensor(v):
+                out[group + "." + k] = v
+    return out
+
 def main():
     ap = argparse.ArgumentParser(description="ControlNet ConvRot INT8 pack audit")
     ap.add_argument("--source", required=True, help="the float source checkpoint (published)")
@@ -197,7 +211,7 @@ def main():
                     help="ComfyUI root (or set COMFY_PATH); the runtime naming comes from it")
     ap.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
     ap.add_argument("--json", default="", help="record path")
-    ap.add_argument("--family", default="controlnet", choices=["controlnet", "ipadapter"],
+    ap.add_argument("--family", default="controlnet", choices=["controlnet", "ipadapter", "faceid"],
                     help="which loader's graph the pack is closed against")
     ap.add_argument("--ipadapter_dir", default="",
                     help="the ipadapter node directory (owns image_proj_models.py) for --family ipadapter")
@@ -228,7 +242,9 @@ def main():
     formats = {v.get("format") for v in declared.values()}
     rotations = {v.get("convrot") for v in declared.values()}
 
-    if args.family == "ipadapter":
+    if args.family == "faceid":
+        rt = _faceid_runtime_state_dict(args.source)
+    elif args.family == "ipadapter":
         rt = _ipadapter_runtime_state_dict(args.source, args.ipadapter_dir)
     else:
         rt = runtime_state_dict(args.source, args.comfy)

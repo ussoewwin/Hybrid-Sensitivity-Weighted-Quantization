@@ -1,0 +1,35 @@
+{
+ "tool": "faceid source vs pack",
+ "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
+ "declared_layers": 102,
+ "gate": {
+  "n": 256,
+  "mean": 0.9999888266902417,
+  "min": 0.9999672174453735,
+  "p5": 0.9999785423278809,
+  "p50": 0.9999899864196777
+ },
+ "image_proj_mlp": {
+  "cos": 0.9999905228614807,
+  "max_abs": 0.14734458923339844
+ },
+ "lora_worst_cos": 0.9999922513961792,
+ "lora_sample": {
+  "ip_adapter.0.to_k_lora": {
+   "cos": 1.0,
+   "max_abs": 0.0
+  },
+  "ip_adapter.0.to_out_lora": {
+   "cos": 0.9999998807907104,
+   "max_abs": 0.0
+  },
+  "ip_adapter.0.to_q_lora": {
+   "cos": 1.0,
+   "max_abs": 0.0
+  },
+  "ip_adapter.0.to_v_lora": {
+   "cos": 1.0,
+   "max_abs": 0.0
+  }
+ }
+}
