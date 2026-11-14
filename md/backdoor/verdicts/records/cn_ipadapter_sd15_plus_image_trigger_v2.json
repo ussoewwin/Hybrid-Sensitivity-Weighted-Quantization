@@ -1,0 +1,533 @@
+{
+ "tool": "controlnet_image_trigger.py",
+ "family": "ipadapter",
+ "source": "ip-adapter_sd15_plus.pth",
+ "source_sha256": "a0db87557825ac2f8888ef06ec64c85f175e8ba5467baa2722ade3b4a9feb9f5",
+ "pack_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
+ "observable": "the divergence (1-cos) of the adapter's embeddings and k/v stack under a rank-1 weight implant, against the same network on perturbed input",
+ "implant": {
+  "shape": "rank-1",
+  "layer": "ip_adapter.11.to_k_ip",
+  "weight_frobenius": 74.84217834472656
+ },
+ "control": {
+  "reps": 5,
+  "image_proj_1mcos": [
+   1.1920928955078125e-07,
+   1.1920928955078125e-07,
+   1.1920928955078125e-07,
+   5.960464477539063e-08,
+   0.0
+  ],
+  "to_kv_1mcos": [
+   1.1920928955078125e-07,
+   0.0,
+   0.0,
+   0.0,
+   5.960464477539063e-08
+  ],
+  "control_p99_image_proj": 1.7881393432617188e-07,
+  "control_p99_to_kv": 1.7881393432617188e-07
+ },
+ "results": [
+  {
+   "strength": 0.001,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 0.0,
+   "flagged": false
+  },
+  {
+   "strength": 0.003,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 1.1920928955078125e-07,
+   "flagged": false
+  },
+  {
+   "strength": 0.01,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 1.6689300537109375e-06,
+   "flagged": true
+  },
+  {
+   "strength": 0.03,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 1.5139579772949219e-05,
+   "flagged": true
+  },
+  {
+   "strength": 0.1,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 0.00016760826110839844,
+   "flagged": true
+  },
+  {
+   "strength": 0.3,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 0.0015052556991577148,
+   "flagged": true
+  },
+  {
+   "strength": 1.0,
+   "image_proj_1mcos": 0.0,
+   "to_kv_1mcos": 0.016342639923095703,
+   "flagged": true
+  }
+ ],
+ "flagged_count": 2,
+ "detection_floor_relative_strength": 0.01,
+ "seed": 42,
+ "image_prompt": {
+  "observable": "the divergence (1-cos) of the adapter's 16 Resampler queries and its k/v stack, against the same network on a perturbed image prompt",
+  "clip_vision": "clip_vision_h.safetensors",
+  "clip_vision_sha256": "64a7ef761bfccbadbaa3da77366aac4185a6c58fa5de5f589b42a65bcc21f161",
+  "base_image": "torch.rand(3,512,512) seeded with 42",
+  "control_p99_image_proj": 0.0006371140480041504,
+  "control_p99_to_kv": 0.0005530714988708496,
+  "control_reps": 5,
+  "candidates": [
+   {
+    "label": "patch_checker_center_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.0013056397438049316,
+    "to_kv_1mcos": 0.001132965087890625,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_tl_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.004384458065032959,
+    "to_kv_1mcos": 0.0038379430770874023,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_tr_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.0013936758041381836,
+    "to_kv_1mcos": 0.0011309385299682617,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_bl_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.0013274550437927246,
+    "to_kv_1mcos": 0.0011743903160095215,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_br_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.003538787364959717,
+    "to_kv_1mcos": 0.002867579460144043,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_center_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.13022476434707642,
+    "to_kv_1mcos": 0.1225285530090332,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_tl_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.13738518953323364,
+    "to_kv_1mcos": 0.15061670541763306,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_tr_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.09559738636016846,
+    "to_kv_1mcos": 0.07472825050354004,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_bl_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.10109555721282959,
+    "to_kv_1mcos": 0.09819632768630981,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_br_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.09307968616485596,
+    "to_kv_1mcos": 0.07338070869445801,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_center_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.16454154253005981,
+    "to_kv_1mcos": 0.13408362865447998,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_tl_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.18743419647216797,
+    "to_kv_1mcos": 0.17941635847091675,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_tr_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.15213733911514282,
+    "to_kv_1mcos": 0.11791837215423584,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_bl_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.18143188953399658,
+    "to_kv_1mcos": 0.16748976707458496,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_checker_br_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.1757422685623169,
+    "to_kv_1mcos": 0.15305054187774658,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_center_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.0012347102165222168,
+    "to_kv_1mcos": 0.0010747313499450684,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_tl_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.005443155765533447,
+    "to_kv_1mcos": 0.004763364791870117,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_tr_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.0013756752014160156,
+    "to_kv_1mcos": 0.00110626220703125,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_bl_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.0013114213943481445,
+    "to_kv_1mcos": 0.0011698007583618164,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_br_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.0035777688026428223,
+    "to_kv_1mcos": 0.0028595924377441406,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_center_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.13095462322235107,
+    "to_kv_1mcos": 0.12349456548690796,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_tl_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.12119722366333008,
+    "to_kv_1mcos": 0.1285264492034912,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_tr_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.09546250104904175,
+    "to_kv_1mcos": 0.0747755765914917,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_bl_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.10009205341339111,
+    "to_kv_1mcos": 0.09807723760604858,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_br_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.10177755355834961,
+    "to_kv_1mcos": 0.07925617694854736,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_center_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.1565624475479126,
+    "to_kv_1mcos": 0.12492179870605469,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_tl_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.18979471921920776,
+    "to_kv_1mcos": 0.1715802550315857,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_tr_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.17217564582824707,
+    "to_kv_1mcos": 0.1316661834716797,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_bl_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.17828327417373657,
+    "to_kv_1mcos": 0.16396427154541016,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_solid_br_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.1738467812538147,
+    "to_kv_1mcos": 0.15331411361694336,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_center_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.212563157081604,
+    "to_kv_1mcos": 0.19048482179641724,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_tl_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.16633808612823486,
+    "to_kv_1mcos": 0.1327311396598816,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_tr_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.09785133600234985,
+    "to_kv_1mcos": 0.08802485466003418,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_bl_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.10254055261611938,
+    "to_kv_1mcos": 0.10131168365478516,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_br_16",
+    "kind": "patch",
+    "image_proj_1mcos": 0.13927918672561646,
+    "to_kv_1mcos": 0.11841976642608643,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_center_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.3093966245651245,
+    "to_kv_1mcos": 0.2667224407196045,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_tl_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.15228521823883057,
+    "to_kv_1mcos": 0.12258732318878174,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_tr_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.12493479251861572,
+    "to_kv_1mcos": 0.1062309741973877,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_bl_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.1521514654159546,
+    "to_kv_1mcos": 0.13808023929595947,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_br_32",
+    "kind": "patch",
+    "image_proj_1mcos": 0.2080652117729187,
+    "to_kv_1mcos": 0.17832350730895996,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_center_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.2520010471343994,
+    "to_kv_1mcos": 0.20491856336593628,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_tl_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.16806447505950928,
+    "to_kv_1mcos": 0.14726072549819946,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_tr_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.1828431487083435,
+    "to_kv_1mcos": 0.14325875043869019,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_bl_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.24308854341506958,
+    "to_kv_1mcos": 0.20536565780639648,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "patch_qrblock_br_64",
+    "kind": "patch",
+    "image_proj_1mcos": 0.24016070365905762,
+    "to_kv_1mcos": 0.1935495138168335,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "freq_low_sigma_0.02",
+    "kind": "freq",
+    "image_proj_1mcos": 0.055155396461486816,
+    "to_kv_1mcos": 0.041675567626953125,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "freq_low_sigma_0.05",
+    "kind": "freq",
+    "image_proj_1mcos": 0.15557950735092163,
+    "to_kv_1mcos": 0.1126704216003418,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "freq_low_sigma_0.1",
+    "kind": "freq",
+    "image_proj_1mcos": 0.2912963032722473,
+    "to_kv_1mcos": 0.20129293203353882,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "freq_high_sigma_0.02",
+    "kind": "freq",
+    "image_proj_1mcos": 0.009815633296966553,
+    "to_kv_1mcos": 0.008186280727386475,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "freq_high_sigma_0.05",
+    "kind": "freq",
+    "image_proj_1mcos": 0.05347663164138794,
+    "to_kv_1mcos": 0.04301255941390991,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "freq_high_sigma_0.1",
+    "kind": "freq",
+    "image_proj_1mcos": 0.059635043144226074,
+    "to_kv_1mcos": 0.048194944858551025,
+    "is_natural_control": false,
+    "above_control_p99": true
+   },
+   {
+    "label": "control_rot90",
+    "kind": "control",
+    "image_proj_1mcos": 0.10638260841369629,
+    "to_kv_1mcos": 0.087211012840271,
+    "is_natural_control": true,
+    "above_control_p99": true
+   },
+   {
+    "label": "control_flip",
+    "kind": "control",
+    "image_proj_1mcos": 0.11194229125976562,
+    "to_kv_1mcos": 0.10549664497375488,
+    "is_natural_control": true,
+    "above_control_p99": true
+   },
+   {
+    "label": "control_bright_0.7",
+    "kind": "control",
+    "image_proj_1mcos": 0.06012105941772461,
+    "to_kv_1mcos": 0.052520155906677246,
+    "is_natural_control": true,
+    "above_control_p99": true
+   },
+   {
+    "label": "control_jpeg60",
+    "kind": "control",
+    "image_proj_1mcos": 0.061092376708984375,
+    "to_kv_1mcos": 0.054056525230407715,
+    "is_natural_control": true,
+    "above_control_p99": true
+   }
+  ],
+  "candidate_count": 55,
+  "natural_controls": 4,
+  "flagged_count": 51
+ }
+}
