@@ -1,0 +1,25 @@
+{
+  "record": "gate8_real_runtime",
+  "artifact": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+  "artifact_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
+  "artifact_bytes": 49366186,
+  "runtime": "comfyui_ipadapter_plus/IPAdapterPlus.py::IPAdapter (the node that loads this file)",
+  "runtime_entry": "self.image_proj_model.load_state_dict(ipadapter_model[\"image_proj\"]) / To_KV(ipadapter_model[\"ip_adapter\"])",
+  "pack_keys": 191,
+  "pack_has_nested_image_proj": false,
+  "pack_has_nested_ip_adapter": false,
+  "pack_int8_weight_keys": 54,
+  "pack_comfy_quant_keys": 54,
+  "runtime_load": "KeyError: 'image_proj'",
+  "runtime_trace_tail": [
+    "self.image_proj_model.load_state_dict(ipadapter_model[\"image_proj\"])",
+    "KeyError: 'image_proj'"
+  ],
+  "source_load_same_class": "ok",
+  "source_linear_modules": 54,
+  "verdict": "not applied",
+  "reason": "the runtime indexes the file as a nested dict (image_proj / ip_adapter) and loads it with load_state_dict(strict=True); this pack is flat (191 keys) and its quantized layers carry int8 weight + weight_scale + comfy_quant, which that loader cannot consume",
+  "gate_256_status": "not executable through this runtime; the earlier record cn_ipadapter_sd15_plus_gate_256.json reports int8_linear_calls=0 with pass=true, which is a number from the unquantized path, not from this pack",
+  "measured_by": "harness that imports the node module under a synthetic package and calls the runtime class itself (no substitute class)",
+  "date": "2026-11-14"
+}

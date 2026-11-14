@@ -40,6 +40,20 @@ sweep - every eligible module, not a focused screen:
 | the sweep | **400 modules**, 20 steps, seed 42, cfg 7.0 |
 | the host | `waiIllustriousSDXL_v170.safetensors` (SDXL, FP16) |
 | the instrument | `clip_convert/diag_impact_controlnet.py` (the runtime path, the drift threshold applied per layer) |
+
+**Why this checkpoint uses the ControlNet instrument, not a per-model variant.**
+This file is a plain ControlNet. Its state dict carries 1,502 tensors, all under
+`input_blocks.*`, `middle_block.*`, `zero_convs.*`, `input_hint_block.*`,
+`time_embed.*` and `label_emb.*`, with **zero `image_proj` tensors** (measured).
+`ip-adapter_instant_id_sdxl`, `control_instant_id_sdxl` and
+`instantid_diffusion_pytorch_model` are three names for the same 1,420,211,083-byte
+file. The runtime object is therefore the same `ControlNet` class, and the
+observable is that object's own output along the denoising trajectory, so
+`clip_convert/diag_impact_controlnet.py` measures it as-is: this checkpoint has no
+second part whose outputs are frozen at apply time (the failure mode the SD1.5
+IP-Adapter Resampler has), which is the only reason that family needed its own
+measurement loop. The sweep covered all 400 modules rather than a narrowed
+candidate set, and recorded no unmeasured (zero) values.
 | the impact file | `impact/impact_sdxl_instantid_full.json`, sha256 `088b6b3554456f6c219af03a0a6920d2395092225190a6b8bf33a3b854dc15df` |
 | the largest drift | **1.057680** (`input_blocks.1.0.in_layers.2`) |
 
