@@ -22,10 +22,10 @@ Quantize loaded **ControlNet / ControlNet Union models**, **Model Patch (model p
 By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline eliminates activation outlier spikes in deep Linear layers, reducing VRAM and storage footprint by ~50% while preserving mask segmentation fidelity and structural guidance quality.
 
 > [!IMPORTANT]
-> **Text encoders and SAM are separate cases.** The generic CLI above quantizes every 2D Linear layer with **no FP16 protection** - it is the A/B baseline, not the recommended pack. HSWQ also publishes **individually built, higher-quality packs** (measured FP16 protection) for text encoders and SAM 3.1 on Hugging Face. Because text encoders and SAM are standards (one weight layout per architecture) rather than per-checkpoint models, these are finished artifacts rather than a universal method - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) and [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) below. (SAM 3 is the same kind of case but its pack is not published for license reasons.)
+> **Text encoders and SAM are separate cases.** The generic CLI above quantizes every 2D Linear layer with **no FP16 protection** - it is the A/B baseline, not the recommended pack. HSWQ also publishes **individually built, higher-quality packs** (measured FP16 protection) for text encoders and SAM 3.1 on Hugging Face. Because text encoders and SAM are standards (one weight layout per architecture) rather than per-checkpoint models, these are finished artifacts rather than a universal method. The measured packs themselves live in [**HSWQ_High_Quality_Packs_ConvRot_INT8.md**](HSWQ_High_Quality_Packs_ConvRot_INT8.md); this chapter keeps the **native / A/B baseline** and the method. (SAM 3 is the same kind of case but its pack is not published for license reasons.)
 
 > [!IMPORTANT]
-> **The generic CLI above is the no-protection baseline.** It quantizes every 2D Linear layer with **no FP16 protection**. The recommended packs in this chapter are individually built: the protection set comes from a measured aggregate contribution, the threshold from the size/quality balance, and the kept tensors are stored FP16. See [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built), the ControlNet / model-patch inventory, and [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) below.
+> **The generic CLI above is the no-protection baseline.** It quantizes every 2D Linear layer with **no FP16 protection**. The recommended packs in this chapter are individually built: the protection set comes from a measured aggregate contribution, the threshold from the size/quality balance, and the kept tensors are stored FP16. The measured packs are in [**HSWQ_High_Quality_Packs_ConvRot_INT8.md**](HSWQ_High_Quality_Packs_ConvRot_INT8.md); the ControlNet / model-patch inventory below is the chapter's own.
 
 ---
 
@@ -251,7 +251,7 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 For batch processing or headless environments, the CLI script `clip_convert/convert_clip_convrot_int8.py` can convert generic `.safetensors` (CLIP, LLM, ControlNet, SAM 3, SAM 3.1, UNet) directly from the command line.
 
 > [!NOTE]
-> For **text encoders** and **SAM** this script is the **native / A/B baseline**: every 2D Linear layer is quantized and **no FP16 protection is applied**. For production packs use the individually built artifacts in [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) and [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built). For ControlNet / Model Patch the generic script is the intended tool.
+> For **text encoders** and **SAM** this script is the **native / A/B baseline**: every 2D Linear layer is quantized and **no FP16 protection is applied**. For the production packs use the individually built artifacts in [**HSWQ_High_Quality_Packs_ConvRot_INT8.md**](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
 
 ```bash
 # Native baseline: SAM 3.1 Multiplex checkpoint (no FP16 protection)
@@ -306,7 +306,7 @@ Quantized SAM 3 and SAM 3.1 checkpoints stamped with `int8_tensorwise` and `comf
 - Place the generated `sam3_convrot_int8.safetensors` or `sam3.1_multiplex_hswq_convrot_int8.safetensors` in `ComfyUI/models/unet/` or `ComfyUI/models/diffusion_models/`.
 - Load them using the standard **`UNetLoader`** (or **`Load Diffusion Model`**).
 - Connect directly to downstream SAM segmentation / video tracking nodes. ComfyUI automatically utilizes native INT8 Tensor Core acceleration.
-- For the recommended production pack, use the individually built [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) below.
+- For the recommended production pack, use the individually built **HSWQ High-Quality SAM 3.1** in [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
 
 ### ControlNet Models
 ComfyUI does not natively support rotated INT8 tensors for ControlNet models out of the box. To load and execute these weights in ComfyUI workflows, use the dedicated loader from the **[ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)** extension:
@@ -343,7 +343,7 @@ diffsynth patches the apply path is `DiffSynthCnetPatch` (per DiT block:
 what Rule 8's per-block observable mirrors.
 
 ### Text Encoders (CLIP / TE)
-Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. Llama-family encoders (Qwen3 / Qwen3-VL / Qwen3.5) self-detect the quantized layers; the OpenAI CLIP family needs the pack's `quantization_metadata` injected by the loader. See [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) for the recommended packs.
+Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. Llama-family encoders (Qwen3 / Qwen3-VL / Qwen3.5) self-detect the quantized layers; the OpenAI CLIP family needs the pack's `quantization_metadata` injected by the loader. See [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) for the recommended packs.
 
 ---
 
@@ -561,21 +561,21 @@ The three outcomes this produces, all measured:
 
 ---
 
-## HSWQ high-quality packs (moved)
+## HSWQ high-quality packs
 
 The HSWQ builds - text encoders, ControlNet and model patches, and SAM 3.1, each with
 its own per-checkpoint measurement - are documented in
 [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
 
-This document keeps the method (*How a pack is selected*), the load paths, and the
-**native** ConvRot INT8 packs: plain rotation and quantisation of every runtime
-Linear, with no per-layer sweep and no kept set.
+This document keeps the method (*How a pack is selected*), the node and CLI workflows
+(the native / A/B baseline they are measured against), and the load paths. The
+finished, measured packs are not part of this document.
 
 ## Supported Architectures & Verified Checkpoints
 
 | Architecture | Model Family | Verified Models |
 | :--- | :--- | :--- |
-| **SAM 3.1** | Multiplex Segmentation & Tracking | Individually built HSWQ pack - see [**HSWQ High-Quality SAM 3.1**](#hswq-high-quality-sam-31-convrot-int8-individually-built) |
+| **SAM 3.1** | Multiplex Segmentation & Tracking | Individually built HSWQ pack - see [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) |
 | **SAM 3** | Segmentation & Video Tracking | `sam3.pt`, `sam3_fp16.safetensors` (HSWQ pack not published - license restriction) |
 | **Illustrious-XL / SDXL** | Anytest ControlNet | `CN-anytest4_illustrious2_A`, `CN-anytest4_illustrious2_B` |
 | **SDXL 1.0** | ControlNet Union | `controlnet-union-pro-max-sdxl-1.0` (xinsir) |
@@ -585,4 +585,4 @@ Linear, with no per-layer sweep and no kept set.
 | **Qwen-Image** | ControlNet Inpainting | `Qwen-Image-ControlNet-Inpainting` (alibaba-pai) |
 | **Qwen-Image-2512** | ControlNet Union | `Qwen-Image-2512-Fun-Controlnet-Union-2602` |
 | **FLUX.1-dev** | ControlNet Union Pro | `FLUX.1-dev-ControlNet-Union-Pro-2.0` (Shakker Labs) |
-| **CLIP / Text Encoders** | CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3 / Qwen3-VL / Qwen3.5 | Individually built HSWQ packs - see [**HSWQ High-Quality Text Encoders**](#hswq-high-quality-text-encoders-convrot-int8-individually-built) |
+| **CLIP / Text Encoders** | CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3 / Qwen3-VL / Qwen3.5 | Individually built HSWQ packs - see [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) |
