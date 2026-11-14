@@ -11,9 +11,98 @@ runtime Linear quantised, with no threshold sweep and no kept set. No native pac
 listed here; this document is the HSWQ side only.
 
 The method itself (the injection frame, the aggregate contribution, the size/quality
-balance, how the kept set is chosen) is stated once in the same document, Section
+balance, how the kept set is chosen) is stated once in this document, Section
 [*How a pack is selected (the current method)*](#how-a-pack-is-selected-the-current-method).
 This document carries the inventory and the per-model numbers.
+
+---
+
+> [!WARNING]
+> **These packs are not HSWQ's universal engine.** HSWQ proper is a *universal*
+> quantizer: one autonomous engine whose every decision is derived from the
+> target checkpoint's own statistics, with **no model-specific toggles**. That
+> design is what makes it applicable to any new checkpoint of a supported
+> family without new code.
+>
+> **The families in this document are not one family**, and universalisation does
+> not carry over. Each model here needed its **own** measurement script, its
+> **own** converter, its **own** loader path, and a **hand-set** protection
+> threshold, because the runtime object, the observable, and sometimes the graph
+> itself differ from checkpoint to checkpoint. The packing steps below are
+> shared, but the *decisions* are per-model. Treat this chapter as a **per-model
+> track** - a set of individually built artifacts with a common written method -
+> **not** as an application of the universal engine. The per-model nature is
+> quantified in section *Why this is not the universal engine*, below.
+
+---
+
+## Why this is not the universal engine
+
+HSWQ's own engine (`quantize_sdxl_hswq_v1.3.py`, `quantize_zib_hswq_v2.0.py`)
+states its design constraint explicitly: **no model-specific CLI toggles**, all
+detection automatic from module names and tensor statistics, one code path per
+supported family. The point of that design is leverage - a new merge or finetune
+of a supported family is quantized with no new code.
+
+That is not how the packs in this document were built, and the difference is
+measurable. Counting only the scripts written for this document:
+
+| the artifact | the count | the nature |
+| :--- | :--- | :--- |
+| per-model **measurement** scripts (`sdxl/measure_*`) | **9** | one per model or tower split |
+| per-model **converter** scripts (`clip_convert/convert_*`) | **17** | one per family, several with a second "impact" variant |
+| per-model **verify** scripts (`sdxl/verify_*`) | **23** | one per model, several per tower |
+| the **CLI arguments** across just the converters | **93** | 4 to 10 per script, not a shared interface |
+
+The reason universalisation fails here is structural:
+
+1. **The runtime object differs.** A file called "ControlNet" may be a real
+   `ControlNet` (`load_controlnet_qwen_fun`, `load_controlnet_qwen_instantx`), a
+   **model patch** (`ZImage_Control`, `QwenImageBlockWiseControlNet`), or a
+   standard tower (`CLIP`, `T5`). They are loaded by different nodes, applied by
+   different apply paths, and live in different directories.
+2. **The observable differs.** The criterion is "the model's own output", but
+   what that output *is* differs: a concatenation of per-block residuals (a list
+   the runtime injects block by block), a single tower embedding, or a
+   denoising trajectory. The scoring function therefore differs too (per-block
+   mean, float64, and so on - Rule 8).
+3. **The graph differs.** A Qwen-Image Fun ControlNet needs a base model only to
+   reach its entry path; an InstantX ControlNet is self-contained. Some patches
+   need `z_image_convert` on load, some must not be converted at all.
+4. **The checkpoint's shape parameters differ inside a family.** Within the one
+   Qwen-Image diffsynth family, `img_in` is `[3072, 64]` for canny/depth and
+   `[3072, 68]` for inpaint. A single shared converter would have to branch on
+   `additional_in_dim` - which is exactly the "shared code plus conditionals"
+   that HSWQ's universal design avoids by being *genuinely* uniform, and that
+   cannot be avoided here because the objects are not uniform.
+
+5. **A standard has one model; a UNet family has many.** This is the economic
+   reason the specialised approach is affordable here at all, and it is the
+   single biggest difference from the UNet work. SDXL alone was tested on **30+
+   checkpoints** (every popular merge and finetune is a new target whose ranking
+   must be re-measured); Z-Image likewise across many merges. A text encoder, a
+   ControlNet standard, or a SAM release is **one weight layout per standard** -
+   the standard does not get merged, forked, or re-finetuned into new
+   checkpoints the way an image-generation backbone does. There is nothing to
+   re-measure per checkpoint, so a large *universal engine* - whose whole value
+   is amortising one code path across many checkpoints - has nothing to amortise
+   over. One measurement, one converter, one verification per standard, and the
+   artifact is done.
+
+So the honest description is: **a common written method, applied individually to
+each model.** The *packing mechanics* are shared (Hadamard rotation, per-channel
+INT8, `comfy_quant` stamps, FP16 kept tensors). Everything that decides *what to
+protect* is per-model, because the models are not one family.
+
+**Consequence for anyone adding a model.** There is no "add a checkpoint and
+run the engine" path here. A new model means: identify the runtime
+object and its loader, choose the observable to match what the loader injects,
+write the measurement and verify harness for that observable, measure, choose the
+threshold on the size/quality curve, and only then convert. That is a per-model
+cost, and it is why these packs are documented as the individually built side of
+HSWQ, in their own document, rather than as a section of the universal-engine guides.
+
+---
 
 ---
 
