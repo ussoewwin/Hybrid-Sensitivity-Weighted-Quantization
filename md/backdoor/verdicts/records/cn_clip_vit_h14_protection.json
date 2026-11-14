@@ -15,7 +15,7 @@
   "int8_layers": 92,
   "selection": "top-100 of this ranking kept FP16; the remaining 92 quantised"
  },
- "impact_file": "impact/impact_clip_vit_h14_192.json",
+ "impact_file": "this record (the sweep file was an intermediate and is not kept)",
  "impacts": {
   "encoder.layers.0.mlp.fc1": 3.580946187400761e-07,
   "encoder.layers.0.mlp.fc2": 2.1178173151336314e-06,
@@ -209,5 +209,6 @@
   "encoder.layers.9.self_attn.out_proj": 7.249592322564994e-07,
   "encoder.layers.9.self_attn.q_proj": 3.2918474667913824e-08,
   "encoder.layers.9.self_attn.v_proj": 1.5103729145208645e-06
- }
+ },
+ "reproduce": "clip_convert/diag_impact_clip_vision.py --model CLIP-ViT-H-14.safetensors --out <tmp.json> --comfy_path <ComfyUI> --full, then take the top 100 of the ranking as the FP16-kept set"
 }
