@@ -212,14 +212,9 @@ def main():
             "gates": log_rows,
             "markdown_lint": "PASS" if lint_ok else "FAIL",
         }
-        # W20: a same-day re-run keeps the first run of the day and writes the next one
-        # as a numbered sibling, so no run log is overwritten.
+        # one dated log per day: a same-day re-run replaces it, so the records directory
+        # never accumulates numbered intermediates that no report cites.
         out = os.path.join(rec_dir, "gate_run_%s.json" % today)
-        if os.path.exists(out):
-            n = 1
-            while os.path.exists(os.path.join(rec_dir, "gate_run_%s_%d.json" % (today, n))):
-                n += 1
-            out = os.path.join(rec_dir, "gate_run_%s_%d.json" % (today, n))
         with open(out, "w", encoding="utf-8", newline="\n") as fp:
             json.dump(rec, fp, indent=2)
         print("run log: %s" % out)
