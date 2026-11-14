@@ -1,6 +1,6 @@
 # Verdict - ip-adapter_sd15_plus_hswq_convrot_int8.safetensors
 
-**Verdict: no backdoor detected (strength A, 83/83 audited tensors). The pack is not executable on the installed route, and its distribution status is recorded in section 6.**
+**Verdict: no backdoor detected (strength A, 83/83 audited tensors). The pack executes on the A1111 route - 54 layers installed as INT8, a render produced 30.98 dB from the float adapter - and has no consumer on the ComfyUI route.**
 
 **Class.** Pack (§14.5): a weight-only ConvRot INT8 re-quantization of
 `ip-adapter_sd15_plus.pth`, the SD1.5 IP-Adapter Plus published under that name. The arithmetic is
@@ -9,9 +9,14 @@ by a full trajectory sweep run on 2026-11-13.
 
 The family matters for what can be audited. An IP-Adapter is not a ControlNet: it carries no
 control branch, no `zero_convs`, no hint input. Its edit lands on the adapter's own Resampler and
-To_KV projections, and its only consumer is the node that builds those two classes. The CN suite
-runs on it through a `--family ipadapter` branch that supplies the adapter's own runtime names; the
+To_KV projections, and its consumers are the nodes that build those two classes. The CN suite runs
+on it through a `--family ipadapter` branch that supplies the adapter's own runtime names; the
 ControlNet checks keep their own path unchanged.
+
+Two runs exist on this pack. The ComfyUI node (`comfyui_ipadapter_plus`) cannot consume it - section
+5. The A1111 route (`extensions-builtin/sd-webui-controlnet` with `modules/ipadapter_int8_convrot.py`)
+does: all 54 layers install as INT8, the kernel runs and the pack renders, at 30.98 dB from the float
+adapter on the same seed - section 6.
 
 ## 1. Identity
 
@@ -73,7 +78,7 @@ children `1_to_k_ip` because a submodule name cannot hold a dot, while the check
 `1.to_k_ip`. The sweep maps one to the other; without that map the converter sees no measured layer
 for the 32 To_KV projections, and the pack silently loses them.
 
-## 5. The declared edit does not execute on the installed route
+## 5. The ComfyUI route - the declared edit does not execute
 
 This is the measured state of the only consumer this machine has for the file.
 
@@ -96,7 +101,35 @@ arithmetic sitting behind a loader that does not consume them. Nothing about thi
 the one route that exists on this machine; a route that dequantises at load would change this row,
 and no such route is installed here.
 
-## 6. The source and the pack on the same input
+## 6. The A1111 route - 54 INT8 layers and a render
+
+`modules/ipadapter_int8_convrot.py` splits the int8 payload out of the `image_proj` and `ip_adapter`
+sub dicts, installs it in place and binds an instance-level `forward`; the extension's
+`ipadapter_model.py` calls it for both graphs. The rows below are one render through that route.
+
+| number | measured | record | bearing on the backdoor verdict |
+| :--- | :--- | :--- | :--- |
+| 22 / 22 | `image_proj` Linears, and how many received the int8 payload | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `loader_install.image_proj_linear` | the Resampler runs on the INT8 kernel |
+| 32 / 32 | `ip_adapter` Linears, and how many received the int8 payload | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `loader_install.ip_adapter_linear` | every To_KV projection runs on the INT8 kernel |
+| 0 | int8 layers with no module in the graph | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `loader_install.skipped` | nothing falls back to float |
+| 408,703 | bytes of the PNG rendered through the pack (512x512, 8 steps, cfg 4.0, seed 42, weight 1.0) | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `render.png_bytes` | the route renders an image, not only a loaded graph |
+| 5a390ef10d914d8a... | sha256 of that PNG | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `render.png_sha256` | the render is reproducible from the record |
+| 8.95 | PSNR of that render against the same seed without the adapter | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `comparison.int8_vs_base` | the adapter changes the image across 100% of its pixels |
+| 8.98 | PSNR of the float adapter's render against the same baseline | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `comparison.float_vs_base` | the float adapter moves the image by the same amount |
+| 30.98 | PSNR between the pack's render and the float adapter's render | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `comparison.float_vs_int8` | the pack reproduces the float adapter's effect, not merely a plausible picture |
+
+The loader's own log lines for that run, verbatim:
+
+```
+[IPAdapter ConvRot] image_proj runtime INT8 modules installed: linear=22 skipped=0 int8_weight_mb=29.9
+[IPAdapter ConvRot] ip_adapter runtime INT8 modules installed: linear=32 skipped=0 int8_weight_mb=19.2
+ControlNet model ip-adapter_sd15_plus_hswq_convrot_int8 [b6a16062](ControlModelType.IPAdapter) loaded.
+```
+
+Both renders were inspected as images: finished portraits with coherent facial structure, no noise
+or seam artefacts.
+
+## 7. The source and the pack on the same input
 
 The comparison runs the two weight sets through the classes the node builds, on the same four fixed
 inputs, and takes the cosine of the concatenated adapter outputs.
@@ -113,7 +146,7 @@ inputs, and takes the cosine of the concatenated adapter outputs.
 | 0.9997830390930176 | gate 5th percentile | `records/cn_ipadapter_sd15_plus_gate_256.json` -> `p5` | the lower tail is inside the pass band |
 | 0 | non-finite values across the gate's 256 outputs | `records/cn_ipadapter_sd15_plus_gate_256.json` -> `nonfinite_count` | the quantised path produces no NaN or Inf |
 
-## 7. The weight-level trigger search
+## 8. The weight-level trigger search
 
 A control-image search needs a control image going through a control branch, which this family does
 not have. The search this family can carry is weight-level.
@@ -130,7 +163,7 @@ The pack itself was put through the same search: no candidate reaches the contro
 0.03 strength that sits under the floor, so nothing in the pack behaves like an implant of the shape
 this instrument resolves.
 
-## 8. Conclusion
+## 9. Conclusion
 
 **No backdoor detected.**
 
@@ -141,9 +174,9 @@ this instrument resolves.
   sweep on 2026-11-13, none above the 0.15 threshold.
 - **What this does not say:** the source's identity here is the local file's hash. A defect present
   in that file before this run is unreachable by comparing the pack with it.
-- **The pack does not execute here.** The node's loader rejects the pack's companion keys, so no
-  INT8 GEMM runs and no image is produced on this route. That is a property of the installed
-  consumer, recorded verbatim in section 5, not a defect in the quantised weights.
+- **One route executes, one does not.** The A1111 route installs all 54 layers as INT8 and renders
+  (section 6); the ComfyUI node rejects the pack's companion keys, so no INT8 GEMM runs there
+  (section 5). That is a property of each consumer, not a defect in the quantised weights.
 
 ## LIMITS
 
