@@ -1,0 +1,13 @@
+{
+ "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
+ "family": "faceid",
+ "mean": 0.9999888266902417,
+ "min": 0.9999672174453735,
+ "p5": 0.9999785423278809,
+ "p50": 0.9999899864196777,
+ "n": 256,
+ "finite": true,
+ "quantized_layers": 102,
+ "source": "image_proj MLP and LoRA pairs, source vs dequantised pack",
+ "pass": true
+}
