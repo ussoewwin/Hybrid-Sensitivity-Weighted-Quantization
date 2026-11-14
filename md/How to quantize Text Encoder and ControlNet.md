@@ -569,6 +569,9 @@ Every per-model guide for this chapter, one link per artifact. The guides carry 
 ---
 ## Finished packs - ControlNet and model patches
 
+Four IP-Adapter packs are part of this table: `ip-adapter_instant_id_sdxl`, `ip-adapter_pulid_sdxl`,
+`ip-adapter_sd15_plus` and `ip-adapter-faceid_sd15` (the last four `IP-Adapter` rows).
+
 Every pack below is a real file with the measured gate in it. Sizes are **MiB**
 (1 MB = 2\^20 bytes), the same unit as the text-encoder table; the SHA256 column
 carries the pack's first 16 hex characters, full hash in the per-model guide.
