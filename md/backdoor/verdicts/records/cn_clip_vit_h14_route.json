@@ -1,0 +1,103 @@
+{
+ "tool": "audit/clip_vit_h14_route.py",
+ "model": "CLIP-ViT-H-14.safetensors",
+ "pack": "CLIP-ViT-H-14_hswq_convrot_int8.safetensors",
+ "route": "comfy.clip_vision.load (ComfyUI's CLIPVisionLoader)",
+ "declared_layers": 92,
+ "companion_tensors": {
+  "weight_scale": 92,
+  "comfy_quant": 92
+ },
+ "source": {
+  "label": "source",
+  "file": "CLIP-ViT-H-14.safetensors",
+  "linear_modules": 193,
+  "declared": 92,
+  "loaded_as_int8": 0,
+  "loaded_as_raw_float_codes": 92,
+  "float_modules": 92,
+  "raw_examples": [
+   {
+    "layer": "vision_model.encoder.layers.0.mlp.fc1.weight",
+    "param_type": "Tensor",
+    "dtype": "torch.float16",
+    "min": -0.20361328125,
+    "max": 0.1795654296875
+   },
+   {
+    "layer": "vision_model.encoder.layers.0.self_attn.k_proj.weight",
+    "param_type": "Tensor",
+    "dtype": "torch.float16",
+    "min": -0.1181640625,
+    "max": 0.1351318359375
+   },
+   {
+    "layer": "vision_model.encoder.layers.0.self_attn.q_proj.weight",
+    "param_type": "Tensor",
+    "dtype": "torch.float16",
+    "min": -0.173583984375,
+    "max": 0.1739501953125
+   }
+  ],
+  "one_forward": {
+   "int8_linear_calls": 0,
+   "float_linear_calls": 193,
+   "output_finite": true,
+   "tokens_shape": [
+    1,
+    257,
+    1280
+   ],
+   "embeds_shape": null
+  }
+ },
+ "pack_side": {
+  "label": "pack",
+  "file": "CLIP-ViT-H-14_hswq_convrot_int8.safetensors",
+  "linear_modules": 193,
+  "declared": 92,
+  "loaded_as_int8": 0,
+  "loaded_as_raw_float_codes": 92,
+  "float_modules": 92,
+  "raw_examples": [
+   {
+    "layer": "vision_model.encoder.layers.0.mlp.fc1.weight",
+    "param_type": "Tensor",
+    "dtype": "torch.float16",
+    "min": -127.0,
+    "max": 127.0
+   },
+   {
+    "layer": "vision_model.encoder.layers.0.self_attn.k_proj.weight",
+    "param_type": "Tensor",
+    "dtype": "torch.float16",
+    "min": -127.0,
+    "max": 127.0
+   },
+   {
+    "layer": "vision_model.encoder.layers.0.self_attn.q_proj.weight",
+    "param_type": "Tensor",
+    "dtype": "torch.float16",
+    "min": -127.0,
+    "max": 127.0
+   }
+  ],
+  "one_forward": {
+   "int8_linear_calls": 0,
+   "float_linear_calls": 193,
+   "output_finite": true,
+   "tokens_shape": [
+    1,
+    257,
+    1280
+   ],
+   "embeds_shape": null
+  }
+ },
+ "output_cos_source_vs_pack": -0.022604210302233696,
+ "embeds_cos_source_vs_pack": null,
+ "input": "00000-2109644404.png",
+ "size": 224,
+ "verdict": "not applied - the loader puts the raw int8 codes into a float parameter",
+ "int8_kernel_ran": false
+}
