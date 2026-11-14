@@ -1,0 +1,19 @@
+{
+ "tool": "audit/clip_vit_h14_gate_and_trigger.py",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "pack": "CLIP-ViT-H-14_hswq_convrot_int8.safetensors",
+ "pack_sha256": "7ab241c18b5274a4b5683707e4a4874f23cfdc530a29c0ce29f791dd9492a48e",
+ "source_sha256": "d31bcf7eaf87097a6349ac942e1b64effe5bdf98dc4aeda035e23bf49d34ba80",
+ "quantized_layers": 92,
+ "int8_linear_calls": 0,
+ "n": 256,
+ "finite": true,
+ "nonfinite_count": 0,
+ "items": "8 crops x 4 orientations x 8 brightness steps, from 00000-2109644404.png",
+ "mean": 0.999784061438024,
+ "min": 0.9965751722735277,
+ "p5": 0.9990665284753873,
+ "p50": 0.9998928880355851,
+ "how": "the pack's int8 codes and scales dequantised into the source structure",
+ "pass": true
+}

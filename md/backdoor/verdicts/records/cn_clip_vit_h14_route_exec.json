@@ -1,0 +1,33 @@
+{
+ "tool": "manual route census, 2026-11-14",
+ "family": "clip_vision",
+ "model": "CLIP-ViT-H-14.safetensors",
+ "source_sha256": "d31bcf7eaf87097a6349ac942e1b64effe5bdf98dc4aeda035e23bf49d34ba80",
+ "pack": "CLIP-ViT-H-14_hswq_convrot_int8.safetensors",
+ "pack_sha256": "8ca1b027e9c3f4be5c4e4da90a662f3a525880f6d3f2da33b2b26a4d5ab4abe7",
+ "pack_bytes": 638542155,
+ "question": "is there any consumer on this machine that executes the pack's declared INT8 layers?",
+ "routes_checked": [
+  {
+   "route": "ComfyUI comfy.clip_vision.load (CLIPVisionLoader)",
+   "measured": "193 declared layers loaded as raw float parameters holding the int8 codes; 0 int8-backed weights; 0 INT8 GEMM calls in one forward; output cos -0.195906252 against the source tower",
+   "record": "records/cn_clip_vit_h14_route.json",
+   "executes_the_pack": false
+  },
+  {
+   "route": "ComfyUI-HSWQ-Loader-and-Tools custom nodes",
+   "measured": "no node in the installed loader tree names clip_vision or CLIPVision: grep over custom_nodes/ComfyUI-HSWQ-Loader-and-Tools/*.py returned 0 files",
+   "record": "this record",
+   "executes_the_pack": false
+  },
+  {
+   "route": "A1111 sd-webui-controlnet ipadapter",
+   "measured": "no option in /sdapi/v1/options names a clip_vision file; the extension selects the vision tower itself, so the pack cannot be named as an input",
+   "record": "this record",
+   "executes_the_pack": false
+  }
+ ],
+ "renders_produced": 0,
+ "verdict": "no consumer on this machine executes the pack. The quantisation itself is measured faithful (193/193, tokens cos 0.999827668, 256-item gate mean 0.999511 min 0.994979) by dequantising the codes into the source structure; no route was found that runs the INT8 path, so no render exists for this pack.",
+ "why_no_render_is_recorded": "a render of a tower that this machine's loader reads as float codes would show the loader's defect, not the pack's behaviour. The evidence for the pack is the dequantised comparison, and the absence of a route is recorded here rather than papered over with a render from a route that does not execute it."
+}
