@@ -118,6 +118,7 @@ Then place each file in the directory its type requires (see the table at the to
 - [SD1.5 inpaint ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_SD15_Inpaint_ConvRot_INT8_Impact_Technical_Guide.md)
 - [InstantID SDXL ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_InstantID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md)
 - [InstantID diffusers layout ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_InstantID_Diffusers_ConvRot_INT8_Impact_Technical_Guide.md)
+- [InstantID IP-Adapter (SDXL) guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_IPAdapter_InstantID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 lineart ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_SD15_Lineart_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 mlsd ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_SD15_Mlsd_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 normalbae ControlNet guide](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/CN_SD15_Normalbae_ConvRot_INT8_Impact_Technical_Guide.md)
