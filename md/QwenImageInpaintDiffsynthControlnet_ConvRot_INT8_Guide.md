@@ -2,7 +2,7 @@
 
 > **The method this pack was built under** (the injection frame, the aggregate
 > contribution, the size/quality balance, FP16 kept tensors) is stated once in
-> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) - Section *How a pack is selected (the current method)*.
 > This guide carries the measured numbers for this checkpoint.
 
 **Checkpoint.** `models/model_patches/qwen_image_inpaint_diffsynth_controlnet.safetensors` (2161.8 MB, BF16, 362 tensors)

@@ -2,7 +2,7 @@
 
 > **The method this pack was built under** (the injection frame, the aggregate
 > contribution, the size/quality balance, FP16 kept tensors) is stated once in
-> [`How to quantize Text Encoder and ControlNet.md`](How to quantize Text Encoder and ControlNet.md) - Section *How a pack is selected (the current method)*.
+> [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) - Section *How a pack is selected (the current method)*.
 > This guide carries the measured numbers for this model.
 
 **Model.** `models/clip/qwen3_4b_abliterated_fp16_converted.safetensors` (7672.3 MB, BF16, 36 layers, hidden 2560, vocab 151936)

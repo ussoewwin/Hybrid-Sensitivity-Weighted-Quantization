@@ -349,167 +349,14 @@ Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard 
 
 ## How a pack is selected (the current method)
 
-This section is the authoritative statement of how a ConvRot INT8 pack is
-built now. The per-model guides carry their own measured numbers; this section
-carries the rules those numbers were produced under.
+The rules that decide how a ConvRot INT8 pack is built - the injection frame, the
+selection criterion, the gate, the threshold, the kept tensors, the completeness and
+the path rules - are the **HSWQ** method, and they are stated in
+[`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md),
+Section *How a pack is selected (the current method)*.
 
-### Rule 1 — the injection frame
-
-The pack stores the **rotated** weight, and the runtime kernel rotates the
-**activation**. The quantization error that reaches the output is therefore
-
-```
-(q * s) H^T - W        (the ORIGINAL frame, not the rotated one)
-```
-
-A measurement that injects the reconstruction in the **rotated** frame
-(`q * s`) measures the rotation, not the error. On FLUX ControlNet the two
-differ by four orders of magnitude (1.74e-04 correct against 1.89 broken) and
-**the layer ranking inverts**. Every impact script under `sdxl/` was fixed for
-this; the packs built before the fix used the wrong ranking and were rebuilt.
-
-### Rule 2 — the screening metric is not the selection criterion
-
-`diag_impact_*` measures the **per-layer weight error**: it puts the
-reconstruction into the module and runs the plain forward. The pack's real
-path also **quantizes the activation** for that layer, and that is where most
-of the error comes from. So the drift is a **screen** (it finds the layers
-worth looking at), not the decision.
-
-The decision is the **aggregate contribution**: hold the FP16 weights, replace
-one layer by its ConvRot INT8 reconstruction, and measure the model's own
-**output** against the unmodified output. Sort on `1 - cos`. The gap is not
-academic - on FLUX ControlNet the same 54 INT8 layers reached min 0.999160 by
-drift selection and 0.999698 by contribution selection; on SAM 3.1 the
-drift-selected set was 286x worse in relMSE.
-
-The instrument differs with the family, and the rule is that **the criterion is
-whatever the runtime actually consumes**:
-
-| the family | the aggregate-output observable |
-| :--- | :--- |
-| an SDXL ControlNet | the **trajectory drift of the denoising latent** - already an aggregate-output measurement, so no separate contribution pass is needed |
-| a Qwen-Image ControlNet (`load_controlnet_qwen_fun` / `_instantx`) | the **control model's own output** over 8 seeds - `load_controlnet` returns per-block residuals, and the model needs a base only for its entry path |
-| a Qwen-Image diffsynth model patch | the **patch's own output** over 8 seeds, scored **per block** (see Rule 8) |
-| a Z-Image Fun ControlNet patch | the **denoising trajectory** of the Z-Image DiT with the patch applied (the real pipeline) |
-| a text encoder / CLIP / standalone tower | the **tower's own output** for fixed inputs |
-
-### Rule 3 — the gate must use the same instrument as the selection
-
-If the protection set is chosen on the trajectory, the gate is measured on the
-**trajectory**. A single forward of the control model is a different quantity
-(one control output against 20 compounded sampling steps: 0.9998 against
-0.993 on the same pack), and its run-to-run noise (~1e-5) is the same size as
-the differences between neighbouring thresholds - so it cannot place the knee.
-`sdxl/verify_controlnet_sdxl_traj.py` runs the trajectory over several seeds
-for this reason.
-
-Conversely, when the criterion is the model **patch's** own output, the gate is
-that same output, measured through the **loader the runtime uses** - not a
-hand-built module graph. For the Qwen-Image diffsynth patches that means
-driving `HSWQModelPatchLoaderCustom.load_model_patch`, and it matters: the ComfyUI
-`ModelPatchLoader` would read the INT8 tensors as plain weights and the pack
-would look like FP16. Two harnesses exist for this and both must agree
-(`clip_convert/verify_qwen_image_diffsynth_patch.py` builds the graph directly;
-`..._loader.py` goes through the node) - measured agreement is exact to 10
-decimals.
-
-### Rule 4 — the threshold is chosen on the size/quality balance
-
-Not the highest cosine. Build the pack across a range of thresholds, measure
-the gate at each, and take the point where the curve stops paying for itself.
-
-- **The floor.** Past some threshold every ConvRot-eligible layer is already
-  quantized and the pack stops shrinking. Beyond the floor the cosine
-  **drops**, because the remaining protected layers are non-Linear or
-  shape-blocked: protecting them adds size without buying quality. A threshold
-  at or above the floor is never right.
-- **The plateau.** Just below the floor the cosine is at its best among the
-  small packs. That point is the choice.
-
-The rule: adopt the threshold at the top of the quality plateau - the smallest
-pack whose cosine is not beaten by the smaller ones. Report the whole measured
-curve, not one number.
-
-Worked cases (all measured):
-
-| the checkpoint | the INT8 extreme | the adopted point | the size |
-| :--- | :--- | :--- | :--- |
-| `controlnet-union-pro-max-sdxl-1.0` | curve flat at 0.999961 | 0.005 (41 kept) | 1368.8 MB |
-| `CN-anytest4_illustrious2_A` | 0.010: 1959.5 MB / 0.999879 | 0.030 (36 kept, 0.999626) | 1359.1 MB |
-| `CN-anytest4_illustrious2_B` | 0.003: 1981.0 MB / 0.988027 | 0.010 (35 kept, 0.992958) | 1357.5 MB |
-| `CLIP-SAE-ViT-L-14` | 50/100 kept: 722.3 MB / 0.999985 | 30 text + 60 vision kept | 658.9 MB |
-| `ViT-L-14-BEST` | 50/100 kept: 722.1 MB / 0.999986 | 30 text + 60 vision kept | 646.7 MB |
-| `Josiefied-Qwen3-0.6B` | 140 kept: 0.85 GB / 0.999644 | 40 kept (0.999502) | 655.2 MB |
-| `Qwen3-4B` | 150 kept: 5909.9 MB / 0.999698 | 20 kept (0.999630) | 4168.3 MB |
-| `sigclip_vision_patch14_384` | 100 kept: 731.7 MB / 0.999715 | 20 kept (0.996794) | 502.9 MB |
-| `Qwen2.5-VL-7B` | 150 kept: 12650.0 MB / 0.999496 | 40 kept (0.999325) | 9289.6 MB |
-| `Qwen3.5-9B` | all 369 layers eligible; conditioning 0.999387 / 0.996488, generate 0.999453 / 0.998215 | 0 kept (floor) | 9217.9 MB |
-| `Qwen-Image-2512-Fun-Controlnet-Union-2602` | curve rises; all 77 layers eligible | 0 kept (floor, 0.999158) | 1677.2 MB |
-| `Qwen-Image-ControlNet-Inpainting` | curve rises; all 95 layers eligible | 0 kept (floor, 0.999545) | 2022.1 MB |
-| `qwen_image_canny_diffsynth` (model patch) | one step: img_in is 598x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
-| `qwen_image_inpaint_diffsynth` (model patch) | one step: img_in is 147x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
-| `qwen_image_depth_diffsynth` (model patch) | one step: img_in is 376x the runner-up | 1 kept (`img_in`, 0.999992) | 1083.3 MB |
-| `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602` (model patch) | all 38 layers eligible, trajectory 0.9999 | 0 kept (floor, trajectory min 0.999491) | 963.0 MB |
-| `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601` (model patch) | all 38 layers eligible, trajectory 0.9999 | 0 kept (floor, trajectory min 0.999813) | 963.0 MB |
-
-The same rule produces different thresholds because the checkpoints differ -
-which is the whole point of measuring each one.
-
-### Rule 5 — the kept tensors are stored FP16
-
-The runtime runs in FP16 (CLIP, T5, ControlNet alike). Keeping a tensor in
-FP32 means it is cast to FP16 at load time and nothing ever sees the extra
-precision - it only pays for the bytes. Every rebuilt pack stores its kept
-tensors in FP16; the INT8 `weight_scale` stays FP32 because it carries the
-dequantization precision.
-
-Measured effect on CLIP-SAE-ViT-L-14: the identical layer set went from
-1159.5 MB (FP32 kept) to **658.9 MB** (FP16 kept), with the acceptance
-unchanged to the last digit.
-
-### Rule 6 — the content is complete
-
-A pack must not shrink by deleting model content. The FLAN-T5 decoder is
-shipped and quantized even though ComfyUI's T5 never loads it - that is a
-load-path fact, not a licence to drop it.
-
-### Rule 7 — no path that only works on one machine
-
-Public code carries no machine-specific absolute paths. Resolve from
-`Path(__file__).resolve().parent` and stop with an explicit error rather than
-falling back to an environment guess.
-
-### Rule 8 - the observable is what the runtime injects
-
-A family whose output is a **list of control residuals** must be scored as a
-list, not as a concatenated vector, and the arithmetic must be float64. Both are
-forced by the runtime, and both were measured.
-
-- **Score per block, then average.** The apply node injects each block's residual
-  at that block, so the 60 residuals are 60 independent contributions. Pooling
-  them into one concatenation lets the largest block's norm decide the whole
-  number and hides the rest.
-- **float64 is required.** The residuals run to ~3e5 in magnitude, so a float32
-  dot product over 47,185,920 elements accumulates ~1e-3 of rounding noise -
-  larger than the entire signal (the most important layer measures ~6e-06, the
-  smallest ~2.2e-09). The first Qwen-Image diffsynth run in float32 returned
-  every value **negative**.
-- **`cond` must be recomputed inside the perturbation loop.** `cond` is produced
-  by `process_input_latent_image`, which runs through `img_in` - itself one of
-  the layers under test. Precomputing it once understates `img_in`'s
-  contribution by an order of magnitude.
-- **Derive shape parameters from the checkpoint, not from a sibling.** The
-  Qwen-Image diffsynth family splits on the control latent's channel count:
-  canny and depth are 16 channels (`img_in` width 64, `additional_in_dim = 0`),
-  inpaint is 17 (`img_in` width 68, `additional_in_dim = 4`). Read it as
-  `img_in.in_features // 4`; a hardcoded 16 raises
-  `mat1 and mat2 shapes cannot be multiplied (1024x64 and 68x3072)`.
-
-The measured result of this rule is the **single-step** curve: on all three
-Qwen-Image diffsynth patches one layer (`img_in`) carries 80-86 % of the summed
-contribution and is 147x to 598x the runner-up, so protecting it alone converts
-a 3.5e-05 .. 5.4e-05 error into 5e-08 for under 0.2 MB.
+The per-model guides carry their own measured numbers; those rules carry the method
+those numbers were produced under.
 
 ### Per-model guides
 
@@ -544,22 +391,8 @@ Published on Hugging Face:
 
 ### The one-line summary of the method
 
-For each family: build a fixed input set, measure the **aggregate contribution**
-of every ConvRot-eligible layer (`1 - cos` of the runtime's observable, in the
-original injection frame, with the runtime's own arithmetic), keep the layers
-that the **size/quality balance** pays for in FP16, store every kept tensor FP16,
-and verify the **complete pack** through the actual loader on a fixed 256-item
-set (seed 42) whose gate is `cos.mean >= 0.99` and `cos.min >= 0.98`.
-
-The three outcomes this produces, all measured:
-
-| the shape of the curve | what it means | the examples |
-| :--- | :--- | :--- |
-| a **flat** curve | no layer stands out; take the smallest satisfying pack | `controlnet-union-pro-max-sdxl-1.0` |
-| a **single step** | one entry layer carries most of the contribution; protect it and stop | the three Qwen-Image diffsynth patches |
-| a **floor** | every eligible layer is safe at INT8; protect nothing | `Qwen-Image-2512-Fun-Controlnet-Union-2602`, `Qwen-Image-ControlNet-Inpainting`, the two Z-Image patches |
-
----
+Stated in [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md),
+Section *How a pack is selected (the current method)*.
 
 ## HSWQ high-quality packs
 

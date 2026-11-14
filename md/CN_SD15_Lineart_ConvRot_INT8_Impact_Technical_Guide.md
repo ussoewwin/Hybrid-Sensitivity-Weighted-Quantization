@@ -2,7 +2,7 @@
 
 > **The method this pack was built under** (the injection frame, the aggregate
 > contribution, the size/quality balance, FP16 kept tensors) is stated once in
-> [`How to quantize Text Encoder and ControlNet.md`](How%20to%20quantize%20Text%20Encoder%20and%20ControlNet.md) - Section *How a pack is selected (the current method)*.
+> [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) - Section *How a pack is selected (the current method)*.
 > This guide carries the measured numbers for this model.
 
 **Model.** `models/ControlNet/control_v11p_sd15_lineart.pth` (1378.3 MB, FP32, 361,279,120 params, published by `lllyasviel/ControlNet-v1-1`)
