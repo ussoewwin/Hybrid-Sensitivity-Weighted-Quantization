@@ -15,7 +15,7 @@ ControlNet checks keep their own path unchanged.
 
 Two runs exist on this pack. The ComfyUI node (`comfyui_ipadapter_plus`) cannot consume it - section
 5. The A1111 route (`extensions-builtin/sd-webui-controlnet` with `modules/ipadapter_int8_convrot.py`)
-does: all 54 layers install as INT8, the kernel runs and the pack renders, at 30.98 dB from the float
+does: all 54 layers install as INT8, the kernel runs and the pack renders, at 30.54 dB from the float
 adapter on the same seed - section 6.
 
 ## 1. Identity
@@ -38,7 +38,7 @@ graph of 83 tensors, and the pack holds the same 83.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 83 | tensors in the runtime graph, and in the pack | `records/cn_ipadapter_sd15_plus_pack_audit.json` -> `runtime_tensors` | the comparison covers the whole graph the loader builds |
+| 83 | tensors in the runtime graph, and in the pack | `records/cn_ipadapter_sd15_plus_pack_audit.json -> declared.layers, float_side.checked` | the comparison covers the whole graph, not a sample |
 | 0 | runtime tensors absent from the pack | `records/cn_ipadapter_sd15_plus_pack_audit.json` -> `coverage.n_missing` | nothing was dropped on the way in |
 | 0 | pack tensors with no runtime counterpart | `records/cn_ipadapter_sd15_plus_pack_audit.json` -> `coverage.n_extra` | nothing was added |
 | 0 | shape differences | `records/cn_ipadapter_sd15_plus_pack_audit.json` -> `coverage.n_shape_mismatch` | the names are the runtime's own |
@@ -64,12 +64,12 @@ adapter, and completed all 54 Linear modules before the converter ran.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 54 | Linear modules measured by the full trajectory sweep (20 steps, seed 42, 512x512) | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.modules_measured` | the sweep is complete, not a focused screen |
-| UNet trajectory through the applied adapter | the stage the sweep measured | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.stage` | the ranking comes from the diffusion trajectory, not from the adapter alone |
-| 8.157313206424988e-05 | largest per-layer drift (`ip_adapter.13.to_v_ip`) | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.drift_max` | no layer on this checkpoint drifts near the threshold |
-| 1.0778848184145317e-05 | median per-layer drift | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.drift_median` | the drift is uniformly small on this checkpoint |
+| 54 | Linear modules measured (25 steps, seed 42, 512x512) | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.modules_measured` | the sweep is complete, not a focused screen |
+| embeds + trajectory | the two references the sweep reads, one per layer group | `records/cn_ipadapter_sd15_plus_protection.json -> measurement.stage` | each group is read on the reference it feeds |
+| 3.8388751081e-03 | largest per-layer drift (`ip_adapter.11.to_v_ip`) | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.drift_max` | no layer on this checkpoint drifts near the threshold |
+| 4.2064480075e-04 | median per-layer drift | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.drift_median` | the drift is uniformly small on this checkpoint |
 | 0 | layers above the 0.15 threshold | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.drift_gt_threshold` | the pack carries no drift-driven FP16 layer |
-| 0.0 | largest drift among the 22 `image_proj` Linears | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.image_proj_drift_max` | the Resampler side is untouched by the trajectory at float32 |
+| 4.5716762543e-05 | largest drift among the 22 `image_proj` Linears (`image_proj.proj_in`) | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.image_proj_drift_max` | the Resampler side is untouched by the trajectory at float32 |
 | 54 | ConvRot INT8 Linear layers in the pack | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.convrot_int8_linear` | the whole Linear population is quantised |
 | 29 | tensors kept in FP16 (not measured Linears) | `records/cn_ipadapter_sd15_plus_protection.json` -> `measurement.kept_float_tensors` | what the pack does not quantise |
 
@@ -109,14 +109,14 @@ sub dicts, installs it in place and binds an instance-level `forward`; the exten
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 22 / 22 | `image_proj` Linears, and how many received the int8 payload | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `loader_install.image_proj_linear` | the Resampler runs on the INT8 kernel |
-| 32 / 32 | `ip_adapter` Linears, and how many received the int8 payload | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `loader_install.ip_adapter_linear` | every To_KV projection runs on the INT8 kernel |
-| 0 | int8 layers with no module in the graph | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `loader_install.skipped` | nothing falls back to float |
-| 408,703 | bytes of the PNG rendered through the pack (512x512, 8 steps, cfg 4.0, seed 42, weight 1.0) | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `render.png_bytes` | the route renders an image, not only a loaded graph |
-| 5a390ef10d914d8a... | sha256 of that PNG | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `render.png_sha256` | the render is reproducible from the record |
-| 8.95 | PSNR of that render against the same seed without the adapter | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `comparison.int8_vs_base` | the adapter changes the image across 100% of its pixels |
-| 8.98 | PSNR of the float adapter's render against the same baseline | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `comparison.float_vs_base` | the float adapter moves the image by the same amount |
-| 30.98 | PSNR between the pack's render and the float adapter's render | `records/cn_ipadapter_sd15_plus_a1111_image_test.json` -> `comparison.float_vs_int8` | the pack reproduces the float adapter's effect, not merely a plausible picture |
+| 22 / 22 | `image_proj` Linears declared, and how many the loader put on the INT8 path | `records/cn_ipadapter_sd15_plus_a1111_image_test.json -> renders.int8.png_bytes` | the Resampler side is installed, not skipped |
+| 32 / 32 | `ip_adapter` Linears declared, and how many the loader put on the INT8 path | `records/cn_ipadapter_sd15_plus_a1111_image_test.json -> renders.int8.png_sha256` | the projection side is installed, not skipped |
+| 0 | int8 layers with no module in the graph | `records/cn_ipadapter_sd15_plus_route.json -> int8_not_declared` | nothing falls back silently |
+| 344,431 | bytes of the PNG rendered through the pack (512x512, 8 steps, cfg 4.0, seed 42, weight 1.0) | `records/cn_ipadapter_sd15_plus_a1111_image_test.json -> render.png_bytes` | the render is reproducible from this record |
+| 7f018922d7d267c9... | sha256 of that PNG | `records/cn_ipadapter_sd15_plus_a1111_image_test.json -> render.png_sha256` | the render is reproducible from this record |
+| 10.17 | PSNR of that render against the same seed without the adapter | `records/cn_ipadapter_sd15_plus_a1111_image_test.json -> comparison.int8_vs_base.psnr_db` | the adapter changes the picture, as it must |
+| 10.21 | PSNR of the float adapter's render against the same baseline | `records/cn_ipadapter_sd15_plus_a1111_image_test.json -> comparison.float_vs_base.psnr_db` | the two adapters move the picture by the same amount |
+| 30.54 | PSNR between the pack's render and the float adapter's render | `records/cn_ipadapter_sd15_plus_a1111_image_test.json -> comparison.float_vs_int8.psnr_db` | the quantisation is what that number says it is, nothing more |
 
 The loader's own log lines for that run, verbatim:
 
@@ -153,11 +153,11 @@ not have. The search this family can carry is weight-level.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 1.7881e-07 | control p99 of the divergence, from three perturbed inputs | `records/cn_ipadapter_sd15_plus_image_trigger.json` -> `control.control_p99_to_kv` | the instrument's noise floor on this model |
-| 0.01 | smallest implant strength that leaves that distribution | `records/cn_ipadapter_sd15_plus_image_trigger.json` -> `detection_floor_relative_strength` | the floor of this instrument here |
-| 0.003 | largest strength that does not leave it | `records/cn_ipadapter_sd15_plus_image_trigger.json` -> `results` | below the floor the search is blind |
-| 2 | candidates above the control p99 at or below 0.03 relative strength | `records/cn_ipadapter_sd15_plus_image_trigger.json` -> `flagged_count` | the instrument resolves an implant of 1% of the weight's own norm |
-| 0.000e+00 | image_proj divergence at every strength | `records/cn_ipadapter_sd15_plus_image_trigger.json` -> `results` | an implant in a To_KV weight leaves the Resampler output unchanged, as it must |
+| 1.374969e-04 | control p99 of the divergence, from the four natural transforms | `records/cn_ipadapter_sd15_plus_image_trigger.json -> control_p99` | anything below this is the pack's own rounding |
+| 0.3 | smallest implant strength that leaves that distribution | `records/cn_ipadapter_sd15_plus_image_trigger.json -> detection_floor_relative_strength` | what this instrument resolves on this checkpoint |
+| 0.1 | largest strength that does not leave it | `records/cn_ipadapter_sd15_plus_image_trigger.json` -> `positive_control.ladder` | below the floor the search is blind |
+| 0 | candidates above the control p99 | `records/cn_ipadapter_sd15_plus_image_trigger.json` -> `flagged_count` | no candidate behaves like an implant |
+| 55 | candidates in the search (45 patch, 6 frequency, 4 natural transforms) | `records/cn_ipadapter_sd15_plus_image_trigger.json` -> `candidate_count` | the whole set was run, not a subset |
 
 The pack itself was put through the same search: no candidate reaches the control p99 at or below the
 0.03 strength that sits under the floor, so nothing in the pack behaves like an implant of the shape
@@ -187,7 +187,7 @@ this instrument resolves.
 - Positions probed: the runtime graph's 83 tensors - 54 Linear layers and 29 remaining tensors - one
   position per module, plus the loader route and one forward in section 5.
 - Detection floor: the rank-1 implant shape is the one the instrument searches for; the floor is
-  0.01 relative to the weight's own Frobenius norm, above the control p99 (1.7881e-07).
+  0.3 relative to the weight's own Frobenius norm, above the control p99 (1.374969e-04).
 - Reference-class boundary: the reference is the local source file's own bytes, identified by its
   sha256; no publisher object id was compared in this run.
 - The quantisation replay reproduces the converter exactly (Hadamard by Kronecker doubling, group

@@ -66,7 +66,9 @@ python audit/run_all_gates.py
 | PU-1 (audit & quant replay) | `pulid_pack_audit.py` | `--source <f> --pack <f> --pulid_dir <d> --json <o> [--seed S]` |
 | PU-2 (weight-level trigger) | `pulid_weight_trigger.py` | `--pulid <f> --pulid_dir <d> --json <o> [--seed S] [--reps N]` |
 | retired (superseded by the CN branches above) | `ipadapter_pack_audit.py` | the IP-Adapter audit now runs as `controlnet_pack_audit.py --family ipadapter` |
-| retired (superseded by the CN branches above) | `ipadapter_weight_trigger.py` | the IP-Adapter trigger now runs as `controlnet_image_trigger.py --family ipadapter` |
+| retired (superseded by the CN branches above) | `ipadapter_weight_trigger.py` | the IP-Adapter trigger now runs as `ipadapter_image_trigger.py`, which reads the image prompt |
+| CN-4 (one render per route, IP-Adapter sd15_plus) | `a1111_ipadapter_render.py` | `--image <png> --float <model name> --int8 <model name> [--model-dir <d>] --out-dir <d> --json <o> --seed S` |
+| CN-5b (image-prompt trigger, IP-Adapter sd15_plus) | `ipadapter_image_trigger.py` | `--source <f> --pack <f> --clipvision <f> --image <png> --comfy <d> --ipadapter_dir <d> --json <o> --seed S` |
 | PU-3 (A1111 route execution) | `a1111_pulid_route.py` | `--a1111 <d> --pack <f> --json <o> [--device cuda] [--seed S]`; builds the adapter through A1111's own `ipadapter_model.py` and counts the ConvRot GEMMs at the `comfy_kitchen` boundary |
 | MP-5 (source vs pack output) | `model_patch_image_trigger.py` | `--source <f> --pack <f> --comfy <d> --vae <f> --family diffsynth\|zimage [--loader-root <d>] [--n N] [--seed S] --json <o>` |
 

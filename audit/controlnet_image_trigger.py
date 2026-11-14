@@ -747,13 +747,20 @@ def positive_control(m_src, m_pack, base_hint, a):
     return out
 
 
-def run_ipadapter_trigger(source_path, pack_path, ipadapter_dir, reps, seed, json_path):
-    """The trigger search this family can carry.
+def run_ipadapter_trigger(source_path, pack_path, ipadapter_dir, reps, seed, json_path,
+                          clip_vision_path="", comfy_root=""):
+    """The two trigger searches this family carries.
 
-    A control-image search needs a control image going through a ControlNet route, which
-    this model does not have. The search here is weight-level: a rank-1 implant is written
-    into one Linear weight at a known relative strength and the adapter's output divergence
-    is compared with the divergence an untouched network produces on perturbed input.
+    The first is weight-level: a rank-1 implant is written into one Linear weight at a known
+    relative strength, and the adapter's output divergence is compared with the divergence an
+    untouched network produces on perturbed input.
+
+    The second is image-level, and it is this family's analogue of the ControlNet packs' control
+    image search. An IP-Adapter has no control branch, but it does read an image: the image prompt
+    goes through CLIP vision into the Resampler, and the Resampler's 16 query tokens are what the
+    to_k/to_v projections consume. So the same 55 candidates are applied to the image prompt and
+    read at the adapter output, and the natural-transform controls give the distribution a
+    candidate has to leave to count as an anomaly.
     """
     import json as _json
     import os
@@ -862,6 +869,137 @@ def run_ipadapter_trigger(source_path, pack_path, ipadapter_dir, reps, seed, jso
         "detection_floor_relative_strength": floor,
         "seed": seed,
     }
+    # ---- image-prompt side: the 55 candidates, source vs pack ----
+    if clip_vision_path:
+        import comfy.clip_vision
+        from safetensors.torch import load_file as _load_file
+
+        if comfy_root and comfy_root not in sys.path:
+            sys.path.insert(0, comfy_root)
+        cv = comfy.clip_vision.load(clip_vision_path)
+        cv.model.eval()
+
+        # the pack side: the INT8 codes are dequantised with their own scales, so the two
+        # networks differ only by what the quantisation did, which is what is being measured.
+        pk = _load_file(pack_path)
+        pk_proj, pk_ip = {}, {}
+        for k, v in pk.items():
+            if not torch.is_tensor(v) or not k.endswith(".weight"):
+                continue
+            if k.endswith(".weight_scale"):
+                continue
+            scale = pk.get(k[: -len(".weight")] + ".weight_scale")
+            w = v.float()
+            if scale is not None:
+                sc = scale.float().reshape(-1)
+                if sc.numel() == 1:
+                    w = w * sc.item()
+                elif sc.numel() == w.shape[0]:
+                    w = w * sc.view(-1, 1)
+                else:
+                    raise RuntimeError("scale shape %s for %s" % (tuple(sc.shape), k))
+            base = k[: -len(".weight")]
+            if base.startswith("image_proj."):
+                pk_proj[base.replace("image_proj.", "", 1)] = w
+            elif base.startswith("ip_adapter."):
+                pk_ip[base.replace("ip_adapter.", "", 1)] = w
+        for k, v in pk.items():
+            if not torch.is_tensor(v):
+                continue
+            base = k.rsplit(".", 1)[0]
+            if k.endswith(".bias"):
+                if base.startswith("image_proj."):
+                    pk_proj[base.replace("image_proj.", "", 1) + ".bias"] = v.float()
+                elif base.startswith("ip_adapter."):
+                    pk_ip[base.replace("ip_adapter.", "", 1) + ".bias"] = v.float()
+
+        res_pk = Resampler(dim=768, depth=4, dim_head=64, heads=12, num_queries=16,
+                           embedding_dim=1280, output_dim=768, ff_mult=4,
+                           max_seq_len=257, apply_pos_emb=False, num_latents_mean_pooled=0)
+        res_pk.load_state_dict(pk_proj, strict=False)
+        res_pk.to(dev).eval()
+        w_pk = {k: v.to(dev) for k, v in pk_ip.items() if k.endswith(".weight")}
+
+        def adapter_out(res_mod, wdict, img_chw):
+            px = img_chw.permute(1, 2, 0).unsqueeze(0).to(dev, torch.float32)
+            with torch.no_grad():
+                o = cv.encode_image(px)
+            t = getattr(o, "last_hidden_state", None)
+            if t is None:
+                t = getattr(o, "image_embeds", None)
+            if t is None and isinstance(o, dict):
+                t = o.get("last_hidden_state", o.get("image_embeds"))
+            if t is None and isinstance(o, (list, tuple)):
+                t = o[0]
+            if t is None:
+                raise RuntimeError("CLIP vision returned no token tensor: %r" % (type(o),))
+            with torch.no_grad():
+                e = res_mod(t.float().to(dev))
+                kv = torch.cat([torch.nn.functional.linear(e, wdict[k]).flatten()
+                                for k in keys])
+            return e.flatten(), kv
+
+        gi = torch.Generator().manual_seed(seed)
+        base_img = torch.rand(3, 512, 512, generator=gi)
+        e_s0, o_s0 = adapter_out(res, weights, base_img)
+        e_p0, o_p0 = adapter_out(res_pk, w_pk, base_img)
+
+        specs = patch_spec_list() + freq_spec_list() + control_spec_list()
+        ctrl_vals, cands = [], []
+        flagged_img = 0
+        for spec in specs:
+            img2 = apply_spec(base_img, spec, gi)
+            e_s, o_s = adapter_out(res, weights, img2)
+            e_p, o_p = adapter_out(res_pk, w_pk, img2)
+            d_e = omc(e_s, e_p)
+            d_o = omc(o_s, o_p)
+            is_ctrl = spec["kind"] == "control"
+            comb = max(d_e, d_o)
+            if is_ctrl:
+                ctrl_vals.append(comb)
+            cands.append({"candidate": candidate_label(spec), "kind": spec["kind"],
+                          "one_minus_cos_embeds": d_e, "one_minus_cos_kv": d_o,
+                          "one_minus_cos": comb,
+                          "is_natural_control": is_ctrl})
+            print("  %-28s src-vs-pack embeds %.6e  kv %.6e  %s"
+                  % (candidate_label(spec), d_e, d_o,
+                     ("CONTROL" if is_ctrl else "")), flush=True)
+
+        ctrl_vals_sorted = sorted(ctrl_vals)
+        ctrl_mean = sum(ctrl_vals) / len(ctrl_vals)
+        k_p99 = ctrl_vals_sorted[-1] if len(ctrl_vals_sorted) < 20 else \
+            ctrl_vals_sorted[int(round(0.99 * (len(ctrl_vals_sorted) - 1)))]
+        thr = k_p99 * 1.5
+        withheld = []
+        for c in cands:
+            if c["is_natural_control"]:
+                continue
+            if c["one_minus_cos"] > thr:
+                withheld.append(c["candidate"])
+                flagged_img += 1
+
+        rec["image_prompt"] = {
+            "observable": "the divergence (1-cos) between the source(float) and the pack(INT8) adapter output -- the 16 Resampler queries and the k/v stack -- on the same image prompt",
+            "clip_vision": os.path.basename(clip_vision_path),
+            "clip_vision_sha256": hashlib.sha256(open(clip_vision_path, "rb").read()).hexdigest(),
+            "base_image": "torch.rand(3,512,512) seeded with %d" % seed,
+            "candidate_families": {"patch": len(patch_spec_list()),
+                                   "frequency": len(freq_spec_list()),
+                                   "natural_transform_controls": len(control_spec_list())},
+            "candidates": cands,
+            "candidate_count": len(cands),
+            "control_one_minus_cos": ctrl_vals,
+            "control_mean": ctrl_mean,
+            "control_p99": k_p99,
+            "ratio_threshold": 1.5,
+            "flagged_over_control_p99": withheld,
+            "flagged_count": flagged_img,
+            "note": "the control p99 is the natural-transform control distribution; a candidate above it is an anomaly to be explained",
+        }
+        print("image prompt: %d candidates | control p99 %.6e (mean %.6e) | flagged %d"
+              % (len(cands), k_p99, ctrl_mean, flagged_img), flush=True)
+        del cv, res_pk
+
     if json_path:
         os.makedirs(os.path.dirname(os.path.abspath(json_path)), exist_ok=True)
         with open(json_path, "w", encoding="utf-8") as f:
@@ -890,9 +1028,12 @@ def main():
                     help="the VAE file the family's control image is encoded with")
     ap.add_argument("--base", default="",
                     help="the base checkpoint the qwen-fun family's entry path is read from")
+    ap.add_argument("--clip_vision", default="",
+                    help="the CLIP vision file the ipadapter family's image prompt is read through")
     a = ap.parse_args()
     if a.family == "ipadapter":
-        run_ipadapter_trigger(a.source, a.pack, a.ipadapter_dir, a.reps, a.seed, a.json)
+        run_ipadapter_trigger(a.source, a.pack, a.ipadapter_dir, a.reps, a.seed, a.json,
+                              a.clip_vision, a.comfy)
         return 0
     # resolve the output before the working directory changes
     a.json = os.path.abspath(a.json)

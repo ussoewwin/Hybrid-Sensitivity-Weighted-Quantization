@@ -318,7 +318,8 @@ def main():
         fam = sys.argv[i + 1]
         rest = [a for j, a in enumerate(sys.argv) if j not in (i, i + 1)]
         if fam == "ipadapter":
-            node_dir = rest[i] if len(rest) > i else ""
+            # rest is [prog, src, pack, node_dir]: the node dir is the fourth entry
+            node_dir = rest[3] if len(rest) > 3 else ""
             src_path, pack_path = rest[1], rest[2]
             verify_ipadapter(src_path, pack_path, node_dir)
             return
