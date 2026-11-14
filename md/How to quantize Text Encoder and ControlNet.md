@@ -596,6 +596,14 @@ carries the pack's first 16 hex characters, full hash in the per-model guide.
 | `control_v11p_sd15_seg_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999717 / 0.999635 | 579.5 MB | `20F11C5B30F66A53` |
 | `control_v11p_sd15_softedge_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999703 / 0.999572 | 579.5 MB | `609B04A9A38668FB` |
 | `control_v11p_sd15s2_lineart_anime_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999748 / 0.999707 | 579.5 MB | `D004154F605EBBF1` |
+| `ip-adapter_instant_id_sdxl_hswq_convrot_int8` | SDXL | IP-Adapter | `models/controlnet/` | 0.999395 / 0.997491 | 1354.4 MB | `A9FFBD849D007B96` |
+| `ip-adapter_pulid_sdxl_hswq_convrot_int8` | SDXL | IP-Adapter | `models/controlnet/` | not measured (no 256 gate) | 378.4 MB | `0262C9AFFD20D105` |
+| `ip-adapter_sd15_plus_hswq_convrot_int8` | SD1.5 | IP-Adapter | `models/controlnet/` | 0.999886 / 0.998943 | 47.1 MB | `9A0F7CDFAE257595` |
+| `ip-adapter-faceid_sd15_hswq_convrot_int8` | SD1.5 | IP-Adapter | `models/controlnet/` | 0.999989 / 0.999967 | 62.0 MB | `35B5942EE1634947` |
+| `ip-adapter_instant_id_sdxl_hswq_convrot_int8` | SDXL | IP-Adapter | `models/controlnet/` | 0.999395 / 0.997491 | 1354.4 MB | `A9FFBD849D007B96` |
+| `ip-adapter_pulid_sdxl_hswq_convrot_int8` | SDXL | IP-Adapter | `models/controlnet/` | not measured (no 256 gate) | 378.4 MB | `0262C9AFFD20D105` |
+| `ip-adapter_sd15_plus_hswq_convrot_int8` | SD1.5 | IP-Adapter | `models/controlnet/` | 0.999886 / 0.998943 | 47.1 MB | `9A0F7CDFAE257595` |
+| `ip-adapter-faceid_sd15_hswq_convrot_int8` | SD1.5 | IP-Adapter | `models/controlnet/` | 0.999989 / 0.999967 | 62.0 MB | `35B5942EE1634947` |
 | `ioclab_sd15_recolor_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999861 / 0.999834 | 392.1 MB | `58046C116268A1C9` |
 | `qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924905 / 0.9999924096 | 1083.3 MB | `C2899255252B81FD` |
 | `qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8` | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
