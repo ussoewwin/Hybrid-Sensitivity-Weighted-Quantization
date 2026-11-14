@@ -1,103 +1,32 @@
-# How to quantize Text Encoder, ControlNet, Model Patch and SAM 3 / SAM 3.1 (the per-model track, outside the HSWQ universal engine)
+# Native ConvRot INT8 for Text Encoder, ControlNet, Model Patch and SAM 3 / SAM 3.1
 
-> [!WARNING]
-> **This chapter is not HSWQ's universal engine.** HSWQ proper is a *universal*
-> quantizer: one autonomous engine whose every decision is derived from the
-> target checkpoint's own statistics, with **no model-specific toggles**. That
-> design is what makes it applicable to any new checkpoint of a supported
-> family without new code.
+> **This is a guide for the native product.** The `TE / ControlNet ConvRot INT8 Quantize`
+> node and the `clip_convert/convert_clip_convrot_int8.py` script produce a **native
+> ConvRot INT8** file: the 2D Linear weights are rotated and quantised to INT8, and
+> nothing is held back in FP16. Every step below - the node, the CLI, the file layout,
+> the load paths - describes exactly that output.
 >
-> **The families in this chapter are not one family**, and universalisation does
-> not carry over. Each model here needed its **own** measurement script, its
-> **own** converter, its **own** loader path, and a **hand-set** protection
-> threshold, because the runtime object, the observable, and sometimes the graph
-> itself differ from checkpoint to checkpoint. The packing steps below are
-> shared, but the *decisions* are per-model. Treat this chapter as a **per-model
-> track** - a set of individually built artifacts with a common written method -
-> **not** as an application of the universal engine. The per-model nature is
-> quantified in section *Why this is not the universal engine*.
+> **A higher-quality variant exists as an option.** The packs in
+> [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md)
+> are built the same way but keep a measured FP16-protected layer set, and that document
+> states the method and lists them. Nothing in this guide depends on it: the native file
+> this guide produces is complete on its own.
 
-Quantize loaded **ControlNet / ControlNet Union models**, **Model Patch (model patcher) ControlNets**, and **Segment Anything Models (SAM 3 / SAM 3.1 Multiplex)** directly in ComfyUI using the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`** (`comfyui_nodes/te_controlnet_convrot_int8_convert.py`) and loader **`HSWQ SAM3 Loader (sam3.pt)`** (`comfyui_nodes/sam3_pt_loader.py`), or via the standalone CLI conversion script **`clip_convert/convert_clip_convrot_int8.py`**.
+Quantize loaded **ControlNet / ControlNet Union models**, **Model Patch (model patcher) ControlNets**,
+**Text Encoders / CLIP**, and **Segment Anything Models (SAM 3 / SAM 3.1 Multiplex)** directly in
+ComfyUI using the dedicated custom node **`TE / ControlNet ConvRot INT8 Quantize`**
+(`comfyui_nodes/te_controlnet_convrot_int8_convert.py`) and the loader
+**`HSWQ SAM3 Loader (sam3.pt)`** (`comfyui_nodes/sam3_pt_loader.py`), or via the standalone CLI
+conversion script **`clip_convert/convert_clip_convrot_int8.py`**.
 
-By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline eliminates activation outlier spikes in deep Linear layers, reducing VRAM and storage footprint by ~50% while preserving mask segmentation fidelity and structural guidance quality.
-
-> [!IMPORTANT]
-> **Text encoders and SAM are separate cases.** The generic CLI above quantizes every 2D Linear layer with **no FP16 protection** - it is the A/B baseline, not the recommended pack. HSWQ also publishes **individually built, higher-quality packs** (measured FP16 protection) for text encoders and SAM 3.1 on Hugging Face. Because text encoders and SAM are standards (one weight layout per architecture) rather than per-checkpoint models, these are finished artifacts rather than a universal method. The measured packs themselves live in [**HSWQ_High_Quality_Packs_ConvRot_INT8.md**](HSWQ_High_Quality_Packs_ConvRot_INT8.md); this chapter keeps the **native / A/B baseline** and the method. (SAM 3 is the same kind of case but its pack is not published for license reasons.)
-
-> [!IMPORTANT]
-> **The generic CLI above is the no-protection baseline.** It quantizes every 2D Linear layer with **no FP16 protection**. The recommended packs in this chapter are individually built: the protection set comes from a measured aggregate contribution, the threshold from the size/quality balance, and the kept tensors are stored FP16. The measured packs are in [**HSWQ_High_Quality_Packs_ConvRot_INT8.md**](HSWQ_High_Quality_Packs_ConvRot_INT8.md); the ControlNet / model-patch inventory below is the chapter's own.
-
----
-
-## Why this is not the universal engine
-
-HSWQ's own engine (`quantize_sdxl_hswq_v1.3.py`, `quantize_zib_hswq_v2.0.py`)
-states its design constraint explicitly: **no model-specific CLI toggles**, all
-detection automatic from module names and tensor statistics, one code path per
-supported family. The point of that design is leverage - a new merge or finetune
-of a supported family is quantized with no new code.
-
-That is not how the packs in this chapter were built, and the difference is
-measurable. Counting only the scripts written for this chapter:
-
-| the artifact | the count | the nature |
-| :--- | :--- | :--- |
-| per-model **measurement** scripts (`sdxl/measure_*`) | **9** | one per model or tower split |
-| per-model **converter** scripts (`clip_convert/convert_*`) | **17** | one per family, several with a second "impact" variant |
-| per-model **verify** scripts (`sdxl/verify_*`) | **23** | one per model, several per tower |
-| the **CLI arguments** across just the converters | **93** | 4 to 10 per script, not a shared interface |
-
-The reason universalisation fails here is structural:
-
-1. **The runtime object differs.** A file called "ControlNet" may be a real
-   `ControlNet` (`load_controlnet_qwen_fun`, `load_controlnet_qwen_instantx`), a
-   **model patch** (`ZImage_Control`, `QwenImageBlockWiseControlNet`), or a
-   standard tower (`CLIP`, `T5`). They are loaded by different nodes, applied by
-   different apply paths, and live in different directories.
-2. **The observable differs.** The criterion is "the model's own output", but
-   what that output *is* differs: a concatenation of per-block residuals (a list
-   the runtime injects block by block), a single tower embedding, or a
-   denoising trajectory. The scoring function therefore differs too (per-block
-   mean, float64, and so on - Rule 8).
-3. **The graph differs.** A Qwen-Image Fun ControlNet needs a base model only to
-   reach its entry path; an InstantX ControlNet is self-contained. Some patches
-   need `z_image_convert` on load, some must not be converted at all.
-4. **The checkpoint's shape parameters differ inside a family.** Within the one
-   Qwen-Image diffsynth family, `img_in` is `[3072, 64]` for canny/depth and
-   `[3072, 68]` for inpaint. A single shared converter would have to branch on
-   `additional_in_dim` - which is exactly the "shared code plus conditionals"
-   that HSWQ's universal design avoids by being *genuinely* uniform, and that
-   cannot be avoided here because the objects are not uniform.
-
-5. **A standard has one model; a UNet family has many.** This is the economic
-   reason the specialised approach is affordable here at all, and it is the
-   single biggest difference from the UNet work. SDXL alone was tested on **30+
-   checkpoints** (every popular merge and finetune is a new target whose ranking
-   must be re-measured); Z-Image likewise across many merges. A text encoder, a
-   ControlNet standard, or a SAM release is **one weight layout per standard** -
-   the standard does not get merged, forked, or re-finetuned into new
-   checkpoints the way an image-generation backbone does. There is nothing to
-   re-measure per checkpoint, so a large *universal engine* - whose whole value
-   is amortising one code path across many checkpoints - has nothing to amortise
-   over. One measurement, one converter, one verification per standard, and the
-   artifact is done.
-
-So the honest description is: **a common written method, applied individually to
-each model.** The *packing mechanics* are shared (Hadamard rotation, per-channel
-INT8, `comfy_quant` stamps, FP16 kept tensors). Everything that decides *what to
-protect* is per-model, because the models are not one family.
-
-**Consequence for anyone adding a model.** There is no "add a checkpoint and
-run the engine" path in this chapter. A new model means: identify the runtime
-object and its loader, choose the observable to match what the loader injects,
-write the measurement and verify harness for that observable, measure, choose the
-threshold on the size/quality curve, and only then convert. That is a per-model
-cost, and it is why this chapter exists as a separate document from the HSWQ
-universal-engine guides rather than as a section of them.
+By applying orthogonal Hadamard rotations prior to per-channel INT8 quantization, this pipeline
+eliminates activation outlier spikes in deep Linear layers, reducing VRAM and storage footprint
+by ~50 % while preserving mask segmentation fidelity and structural guidance quality.
 
 ---
 
 ## ComfyUI Node Workflow
+
 
 Quantization is performed directly in-graph from memory without requiring external CLI conversion scripts:
 
@@ -160,7 +89,10 @@ The workflow consists of five specialized, parallel quantization branches:
 
 ---
 
+---
+
 ## SAM 3 vs. SAM 3.1 Architectural Differences
+
 
 SAM 3 and SAM 3.1 have distinct internal network topologies and key layouts. The quantization engine incorporates explicit branching logic to ensure seamless compatibility:
 
@@ -182,35 +114,20 @@ SAM 3 and SAM 3.1 have distinct internal network topologies and key layouts. The
 
 ---
 
+---
+
 ## Clone the repository
+
 
 ```bash
 git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.git
 cd Hybrid-Sensitivity-Weighted-Quantization
 ```
 
-## Install PyTorch (CUDA)
-
-First, install PyTorch (CUDA).  
-In a Windows environment on a local PC, it is advisable to set up a venv virtual environment.
-
-```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
-```
-
-## Install other libraries
-
-```bash
-pip install -r requirements.txt
-pip install -U comfy_kitchen
-pip install diffusers accelerate scikit-image
-```
-
-`scikit-image` is required for SSIM and benchmark comparisons. `comfy_kitchen` provides the quantization kernels and layout operations.
-
 ---
 
 ## ComfyUI Custom Node Setup
+
 
 Copy or link the repository into `ComfyUI/custom_nodes/`:
 
@@ -221,7 +138,10 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 
 ---
 
+---
+
 ## Node Parameters & Configuration
+
 
 ### 1. `TE / ControlNet ConvRot INT8 Quantize`
 
@@ -246,12 +166,15 @@ git clone https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization.
 
 ---
 
+---
+
 ## Standalone CLI Conversion Script (`convert_clip_convrot_int8.py`)
+
 
 For batch processing or headless environments, the CLI script `clip_convert/convert_clip_convrot_int8.py` can convert generic `.safetensors` (CLIP, LLM, ControlNet, SAM 3, SAM 3.1, UNet) directly from the command line.
 
 > [!NOTE]
-> For **text encoders** and **SAM** this script is the **native / A/B baseline**: every 2D Linear layer is quantized and **no FP16 protection is applied**. For the production packs use the individually built artifacts in [**HSWQ_High_Quality_Packs_ConvRot_INT8.md**](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
+> This script produces the **native** file: every 2D Linear layer is quantized and **no FP16 protection is applied**, for every family alike. A higher-quality variant exists as an option - see *Higher-quality packs* below.
 
 ```bash
 # Native baseline: SAM 3.1 Multiplex checkpoint (no FP16 protection)
@@ -276,7 +199,10 @@ python clip_convert/convert_clip_convrot_int8.py \
 
 ---
 
+---
+
 ## Quantization Mechanics & Format
+
 
 1. **State-Dict Extraction & Automatic Key Processing:**
    - The node extracts weights in memory and traces upstream loader paths.
@@ -299,14 +225,17 @@ python clip_convert/convert_clip_convrot_int8.py \
 
 ---
 
+---
+
 ## Loading Quantized Models in ComfyUI
+
 
 ### SAM 3 / SAM 3.1 Multiplex Models
 Quantized SAM 3 and SAM 3.1 checkpoints stamped with `int8_tensorwise` and `comfy_quant` are **100% natively supported** by ComfyUI:
 - Place the generated `sam3_convrot_int8.safetensors` or `sam3.1_multiplex_hswq_convrot_int8.safetensors` in `ComfyUI/models/unet/` or `ComfyUI/models/diffusion_models/`.
 - Load them using the standard **`UNetLoader`** (or **`Load Diffusion Model`**).
 - Connect directly to downstream SAM segmentation / video tracking nodes. ComfyUI automatically utilizes native INT8 Tensor Core acceleration.
-- For the recommended production pack, use the individually built **HSWQ High-Quality SAM 3.1** in [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
+- For a higher-quality SAM 3.1 pack, see *Higher-quality packs* below.
 
 ### ControlNet Models
 ComfyUI does not natively support rotated INT8 tensors for ControlNet models out of the box. To load and execute these weights in ComfyUI workflows, use the dedicated loader from the **[ComfyUI-HSWQ-Loader-and-Tools](https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools)** extension:
@@ -340,82 +269,49 @@ Two architectures are dispatched this way:
 The returned `MODEL_PATCH` plugs into the matching apply node. For the Qwen-Image
 diffsynth patches the apply path is `DiffSynthCnetPatch` (per DiT block:
 `img[:, :n] += model.control_block(img[:, :n], cond, i) * strength`), which is
-what Rule 8's per-block observable mirrors.
+what the per-block observable of the higher-quality build mirrors.
 
 ### Text Encoders (CLIP / TE)
-Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. Llama-family encoders (Qwen3 / Qwen3-VL / Qwen3.5) self-detect the quantized layers; the OpenAI CLIP family needs the pack's `quantization_metadata` injected by the loader. See [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) for the recommended packs.
+Quantized Text Encoders stamped with `comfy_quant` can be loaded using standard ComfyUI `CLIPLoader` / `DualCLIPLoader` / `TripleCLIPLoader`. Llama-family encoders (Qwen3 / Qwen3-VL / Qwen3.5) self-detect the quantized layers; the OpenAI CLIP family needs the pack's `quantization_metadata` injected by the loader. For the higher-quality packs of this family, see *Higher-quality packs* below.
 
 ---
 
-## How a pack is selected (the current method)
+---
 
-The rules that decide how a ConvRot INT8 pack is built - the injection frame, the
-selection criterion, the gate, the threshold, the kept tensors, the completeness and
-the path rules - are the **HSWQ** method, and they are stated in
-[`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md),
-Section *How a pack is selected (the current method)*.
+## Supported architectures (native)
 
-The per-model guides carry their own measured numbers; those rules carry the method
-those numbers were produced under.
+Every model below was converted with this node or this script. The names are the sources it was
+run on; the output is the `<name>_convrot_int8.safetensors` file the node writes.
 
-### Per-model guides
+| architecture | what was converted |
+| :--- | :--- |
+| **SAM 3.1** | `sam3.1_multiplex_fp16.safetensors` (16-object multiplex) |
+| **SAM 3** | `sam3.pt`, `sam3_fp16.safetensors` (raw checkpoint keys, cleaned by the loader node) |
+| **ControlNet (SD1.5)** | `control_v11f1e_sd15_tile`, `control_v11p_sd15_canny`, `control_v11f1p_sd15_depth`, `control_v11e_sd15_ip2p`, `control_v11e_sd15_shuffle`, `control_v11p_sd15_inpaint`, `control_v11p_sd15_lineart`, `control_v11p_sd15_mlsd`, `control_v11p_sd15_normalbae`, `control_v11p_sd15_openpose`, `control_v11p_sd15_scribble`, `control_v11p_sd15_seg`, `control_v11p_sd15_softedge`, `control_v11p_sd15s2_lineart_anime`, `ioclab_sd15_recolor` (lllyasviel) |
+| **ControlNet (SDXL)** | `control_instant_id_sdxl`, `instantid_diffusion_pytorch_model` (InstantX), `CN-anytest4_illustrious2_A`, `CN-anytest4_illustrious2_B`, `controlnet-union-pro-max-sdxl-1.0` (xinsir) |
+| **ControlNet (FLUX.1-dev)** | `FLUX.1-dev-ControlNet-Union-Pro-2.0` (Shakker Labs) |
+| **ControlNet (Qwen-Image)** | `Qwen-Image-ControlNet-Inpainting` (alibaba-pai), `Qwen-Image-2512-Fun-Controlnet-Union-2602` |
+| **Model patch (Z-Image-Turbo)** | `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps`, `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps` |
+| **Model patch (Qwen-Image diffsynth)** | `qwen_image_canny_diffsynth_controlnet`, `qwen_image_depth_diffsynth_controlnet`, `qwen_image_inpaint_diffsynth_controlnet` |
+| **Text encoders** | CLIP-L, CLIP ViT-L/14 (OpenAI, SAE and GmP layouts), CLIP ViT-bigG/14, CLIP ViT-H/14, Flan-T5-XXL, SigLIP vision 384, Qwen3-4B, Qwen3-VL-4B, Qwen2.5-VL-7B, Qwen3.5-9B |
 
-Every per-model guide - text encoders, ControlNets and model patches, SAM - is indexed in
-[`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
-The guides carry the measured numbers; the rules above carry the method.
+---
 
-## Finished packs - ControlNet and model patches
+## Higher-quality packs (optional)
 
-Four IP-Adapter packs are part of this catalogue: `ip-adapter_instant_id_sdxl`, `ip-adapter_pulid_sdxl`,
-`ip-adapter_sd15_plus` and `ip-adapter-faceid_sd15`.
-
-Every ControlNet and model-patch pack built in this project is an **HSWQ build**: the FP16-kept
-set comes from that checkpoint's own measurement, and the threshold was chosen on that
-checkpoint's size/quality curve. The packs, their kept counts, their gates and the per-model
-guides are in
-[`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
-
-**native** ConvRot INT8 - plain rotation and quantisation of every runtime Linear, with no
-threshold sweep and no kept set - is a different product. No native pack is published in this
-project; if one is built, it belongs in a separate section, never mixed with the measured builds.
-
-**The directory column is not cosmetic.** A ControlNet in `model_patches/` (or
-vice versa) does not load. The "model patch" rows go through the **HSWQ Model
-Patch Loader**; the plain rows go through the ControlNet loader.
-
-Published on Hugging Face:
-
-- **[ussoewwin/ControlNet-models-ConvRot-INT8](https://huggingface.co/ussoewwin/ControlNet-models-ConvRot-INT8)** - the twenty-seven packs above.
-- **[ussoewwin/Clip-files-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-HSWQ-ConvRot-INT8)** - the text-encoder packs (see the next section).
-- **[ussoewwin/SAM3.1-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/SAM3.1-HSWQ-ConvRot-INT8)** - the SAM 3.1 pack.
-
-### The one-line summary of the method
-
-Stated in [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md),
-Section *How a pack is selected (the current method)*.
-
-## HSWQ high-quality packs
-
-The HSWQ builds - text encoders, ControlNet and model patches, and SAM 3.1, each with
-its own per-checkpoint measurement - are documented in
+The native output is the baseline this project measures against. There is a second product: the
+same conversion with an **FP16-protected layer set chosen from that checkpoint's own
+measurement**, published per model, with the method and the per-model numbers stated in
 [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
 
-This document keeps the method (*How a pack is selected*), the node and CLI workflows
-(the native / A/B baseline they are measured against), and the load paths. The
-finished, measured packs are not part of this document.
+Use it when you want that protection set instead of the native "quantise everything 2D" result.
+It is an option, not a prerequisite: nothing above requires it, and the native file this guide
+produces is a complete, loadable artifact on its own.
 
-## Supported Architectures & Verified Checkpoints
+---
 
-| Architecture | Model Family | Verified Models |
-| :--- | :--- | :--- |
-| **SAM 3.1** | Multiplex Segmentation & Tracking | Individually built HSWQ pack - see [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) |
-| **SAM 3** | Segmentation & Video Tracking | `sam3.pt`, `sam3_fp16.safetensors` (HSWQ pack not published - license restriction) |
-| **Illustrious-XL / SDXL** | Anytest ControlNet | `CN-anytest4_illustrious2_A`, `CN-anytest4_illustrious2_B` |
-| **SDXL 1.0** | ControlNet Union | `controlnet-union-pro-max-sdxl-1.0` (xinsir) |
-| **SDXL** | InstantID ControlNet | `control_instant_id_sdxl`, `instantid_diffusion_pytorch_model` (InstantX) |
-| **SD1.5** | ControlNet Tile / Canny / Depth / IP2P / Shuffle / Inpaint / Lineart / M-LSD / Normal / OpenPose / Scribble / Seg / SoftEdge / Lineart Anime / Recolor | `control_v11f1e_sd15_tile`, `control_v11p_sd15_canny`, `control_v11f1p_sd15_depth`, `control_v11e_sd15_ip2p`, `control_v11e_sd15_shuffle`, `control_v11p_sd15_inpaint`, `control_v11p_sd15_lineart`, `control_v11p_sd15_mlsd`, `control_v11p_sd15_normalbae`, `control_v11p_sd15_openpose`, `control_v11p_sd15_scribble`, `control_v11p_sd15_seg`, `control_v11p_sd15_softedge`, `control_v11p_sd15s2_lineart_anime`, `ioclab_sd15_recolor` (lllyasviel) |
-| **Z-Image-Turbo** | ControlNet Union / Tile | `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps`, `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps` |
-| **Qwen-Image** | ControlNet Inpainting | `Qwen-Image-ControlNet-Inpainting` (alibaba-pai) |
-| **Qwen-Image-2512** | ControlNet Union | `Qwen-Image-2512-Fun-Controlnet-Union-2602` |
-| **FLUX.1-dev** | ControlNet Union Pro | `FLUX.1-dev-ControlNet-Union-Pro-2.0` (Shakker Labs) |
-| **CLIP / Text Encoders** | CLIP-L, CLIP-G, T5-XXL, Qwen2.5-VL, Qwen3 / Qwen3-VL / Qwen3.5 | Individually built HSWQ packs - see [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) |
+## Repository
+
+- Source: `https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization`
+- The loader extension used by the ControlNet and model-patch paths:
+  `https://github.com/ussoewwin/ComfyUI-HSWQ-Loader-and-Tools`
