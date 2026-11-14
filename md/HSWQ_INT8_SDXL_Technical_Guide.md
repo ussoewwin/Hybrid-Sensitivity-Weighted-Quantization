@@ -26,7 +26,7 @@ HSWQ INT8 V3.0 is still a **three-surface decision system**, but the roles of am
 | **Sensitivity (DualMonitor)** | Top-`keep_ratio` → FP16 | **Candidate signal only**; never invents keep_ratio; final set from **300 MiB budget ranking** |
 | **Importance / V4** | Drives **optimal amax** via weighted histogram MSE | Measures **`estimated_mse` at absmax** to **rank FP16 keep**; does **not** choose pack amax |
 
-**Non-negotiable INT8 contracts** (see also [HSWQ Philosophy and Principles](HSWQ_Philosophy_and_Principles.md)):
+**Non-negotiable INT8 contracts** (see also the method rules in [HSWQ_High_Quality_Packs_ConvRot_INT8.md](HSWQ_High_Quality_Packs_ConvRot_INT8.md)):
 
 1. **Pack amax = absmax** (`search_low = 1.0`). Deep clipping on a uniform INT8 grid drops SSIM. Absmax pack is **not** “skipping HSWQ.”
 2. **V4 must still run** at that pack point. Its job is FP16 protection candidate ranking via `estimated_mse`. Saying “absmax ⇒ V4 unnecessary” is false.
@@ -453,7 +453,7 @@ FP8 SDXL / Z Image benches remain in [`benchmark result/benchmark_test.md`](../b
 ## 10. Related Documents
 
 - [HSWQ: Hybrid Sensitivity Weighted Quantization — Technical Overview](HSWQ_%20Hybrid%20Sensitivity%20Weighted%20Quantization.md) — FP8 families (SDXL Fast / Z Image V2.0)
-- [HSWQ Philosophy and Principles](HSWQ_Philosophy_and_Principles.md) — INT8 absmax / V4 / 300 MiB / r0 binding record
+- [HSWQ_High_Quality_Packs_ConvRot_INT8.md](HSWQ_High_Quality_Packs_ConvRot_INT8.md) — the method rules (Rule 1-8) and the per-model pack inventory
 - [HSWQ V4 SVD-RMS — Technical Guide](HSWQ_V4_Hybrid_SVD_RMS_Technical_Guide.md)
 - [Dual Monitor System — Technical Guide](Dual_Monitor_System_Technical_Guide.md)
 - [Weighted Histogram MSE — Technical Guide](Weighted_Histogram_MSE_Technical_Guide.md)
