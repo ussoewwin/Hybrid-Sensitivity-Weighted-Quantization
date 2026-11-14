@@ -47,6 +47,20 @@ feature maps the control branch emits (`[1,1280,16,16]`, `[1,320,64,64]` x3,
 score of a layer is the change in those outputs when that one layer alone is
 replaced, measured as a relative MSE against the FP16 run of the same input.
 
+**Why this checkpoint uses the ControlNet instrument, not a per-model variant.**
+This file is a plain ControlNet. Its state dict carries 1,502 tensors, all under
+`input_blocks.*`, `middle_block.*`, `zero_convs.*`, `input_hint_block.*`,
+`time_embed.*` and `label_emb.*`, with **zero `image_proj` tensors** (measured).
+`ip-adapter_instant_id_sdxl`, `control_instant_id_sdxl` and
+`instantid_diffusion_pytorch_model` are three names for the same 1,420,211,083-byte
+file. The runtime object is therefore the same `ControlNet` class, and the
+observable is that object's own output along the denoising trajectory, so
+`clip_convert/diag_impact_controlnet.py` measures it as-is: this checkpoint has no
+second part whose outputs are frozen at apply time (the failure mode the SD1.5
+IP-Adapter Resampler has), which is the only reason that family needed its own
+measurement loop. The sweep covered all 400 modules rather than a narrowed
+candidate set, and recorded no unmeasured (zero) values.
+
 **The injection frame matters.** The pack stores the **rotated** weight and the
 kernel rotates the **activation**; the error that reaches the output is therefore
 `(q*s) @ H - W`, the **original** frame. Injecting in the rotated frame would
