@@ -1,0 +1,31 @@
+{
+  "record": "protection_correction",
+  "family": "ipadapter_sd15_plus",
+  "supersedes_field_only": "image_proj_drift_max",
+  "existing_record": "cn_ipadapter_sd15_plus_protection.json",
+  "defect": "that record carries image_proj_drift_max = 0.0 while its own instrument (diag_impact_ipadapter_traj.py) measured image_proj by swapping weights AFTER the runtime had frozen the Resampler output into every patch kwarg. The swap therefore never reached the model and every image_proj layer read 0.0. 0.0 there means 'not measured', not 'no effect'.",
+  "instrument": "diag_impact_ipadapter_traj.py",
+  "instrument_defect": "image_proj targets were measured with an in-place weight swap; the runtime freezes the Resampler output at ipadapter_execute time",
+  "corrected_measurement": {
+    "record": "impact/impact_ipadapter_sd15_plus_traj_v2.json",
+    "steps": 25,
+    "seed": 42,
+    "stage": "UNet trajectory through the applied adapter",
+    "layers": 54,
+    "image_proj_layers": 22,
+    "ip_adapter_layers": 32,
+    "zero_values": 0,
+    "image_proj_drift_max": 2.579049e-04,
+    "image_proj_drift_max_layer": "image_proj.layers.1.0.to_out",
+    "image_proj_drift_max_before_correction": 0.0,
+    "overall_drift_max": 4.317149e-04,
+    "overall_drift_max_layer": "ip_adapter.11.to_v_ip",
+    "layers_above_0.15": 0,
+    "protected_layers": 0,
+    "convrot_int8_layers": 54
+  },
+  "effect_on_the_pack": "none. no layer exceeds 0.15 in either the old or the corrected measurement, so the protected set stays empty and all 54 measured Linears are INT8. A pack rebuilt from the corrected ranking (convert_ipadapter_convrot_int8.py --impact traj_v2) is tensor-identical to the published pack: 191/191 tensors equal, 49,366,186 B.",
+  "what_changed": "the basis of the statement, not the artifact",
+  "note": "the existing record is kept unchanged; this file carries the correction so the earlier number cannot be read as a measurement",
+  "date": "2026-11-14"
+}

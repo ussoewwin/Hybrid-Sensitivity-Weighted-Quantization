@@ -1,18 +1,12 @@
 {
- "tool": "A1111 /sdapi/v1/txt2img with ControlNet ip-adapter_clip_sd15_plus",
+ "tool": "audit/a1111_ipadapter_render.py",
  "family": "ipadapter_sd15_plus",
  "route": "A1111 sd-webui-controlnet ipadapter + modules/ipadapter_int8_convrot.py",
- "pack": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+ "pack": "ip-adapter_sd15_plus_hswq_convrot_int8",
  "pack_sha256": "9a0f7cdfae2575951c3324458fd67221b6240e7c5c8ffd27476bb009aa7f6cd9",
  "pack_bytes": 49366186,
- "loader_install": {
-  "image_proj_linear": 22,
-  "ip_adapter_linear": 32,
-  "skipped": 0,
-  "image_proj_int8_mb": 29.9,
-  "ip_adapter_int8_mb": 19.2,
-  "declared_total": 54
- },
+ "source": "ip-adapter_sd15_plus",
+ "source_sha256": "a0db87557825ac2f8888ef06ec64c85f175e8ba5467baa2722ade3b4a9feb9f5",
  "render": {
   "width": 512,
   "height": 512,
@@ -23,29 +17,46 @@
   "weight": 1.0,
   "preprocessor": "ip-adapter_clip_sd15_plus",
   "base": "againmix_v22.safetensors",
-  "png_bytes": 408703,
-  "png_sha256": "5a390ef10d914d8a97b3ee510f542a3902f4e6294c298a34886dbe0edc9b4df6"
+  "prompt": "a photo of a person, high detail",
+  "image_prompt": "00000-2109644404.png",
+  "png_bytes": 344431,
+  "png_sha256": "7f018922d7d267c945df5317b6db34b52cea1db8b05fb12ce0bd9652484d6c05"
+ },
+ "renders": {
+  "base": {
+   "png_bytes": 389551,
+   "png_sha256": "63d759881e9647d1ddb47940b101adf09c015abab932d8a7c3e3782e55a99522",
+   "info_len": 1306
+  },
+  "float": {
+   "png_bytes": 343354,
+   "png_sha256": "46445ca42982ecd5ab6953fd20a61953133e7630ed110403875616de53a65a4d",
+   "info_len": 1842
+  },
+  "int8": {
+   "png_bytes": 344431,
+   "png_sha256": "7f018922d7d267c945df5317b6db34b52cea1db8b05fb12ce0bd9652484d6c05",
+   "info_len": 1878
+  }
  },
  "comparison": {
   "int8_vs_base": {
-   "mean_abs": 74.98,
-   "max_abs": 252,
-   "changed_pct": 100.0,
-   "psnr_db": 8.95
+   "mean_abs": 61.886558532714844,
+   "max_abs": 230.0,
+   "changed_pct": 99.99961853027344,
+   "psnr_db": 10.17
   },
   "float_vs_base": {
-   "mean_abs": 74.6,
-   "max_abs": 252,
-   "changed_pct": 100.0,
-   "psnr_db": 8.98
+   "mean_abs": 61.463738759358726,
+   "max_abs": 230.0,
+   "changed_pct": 99.99923706054688,
+   "psnr_db": 10.21
   },
   "float_vs_int8": {
-   "mean_abs": 3.38,
-   "max_abs": 203,
-   "changed_pct": 96.92,
-   "psnr_db": 30.98
+   "mean_abs": 3.987743377685547,
+   "max_abs": 196.0,
+   "changed_pct": 93.56422424316406,
+   "psnr_db": 30.54
   }
- },
- "measured_at": "2026-11-14T11:32 local",
- "verdict": "the pack loads on the A1111 route, applies 54 INT8 layers and renders; its output sits 30.98 dB from the float adapter on the same seed"
+ }
 }
