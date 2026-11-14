@@ -557,6 +557,7 @@ Every per-model guide for this chapter, one link per artifact. The guides carry 
 - [SD1.5 seg ControlNet](CN_SD15_Seg_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 softedge ControlNet](CN_SD15_Softedge_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5s2 lineart_anime ControlNet](CN_SD15_Lineart_Anime_ConvRot_INT8_Impact_Technical_Guide.md)
+- [SD1.5 recolor ControlNet (ioclab)](CN_SD15_Recolor_ConvRot_INT8_Impact_Technical_Guide.md)
 - [InstantID IP-Adapter (SDXL)](CN_IPAdapter_InstantID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md)
 - [PuLID IP-Adapter (SDXL)](CN_IPAdapter_PuLID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md)
 - [SD1.5 IP-Adapter Plus](CN_IPAdapter_SD15_Plus_ConvRot_INT8_Impact_Technical_Guide.md)
@@ -595,6 +596,7 @@ carries the pack's first 16 hex characters, full hash in the per-model guide.
 | `control_v11e_sd15_shuffle_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999719 / 0.999591 | 579.5 MB | `3A27828EB0373EDA` |
 | `control_v11p_sd15_inpaint_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999789 / 0.999737 | 579.5 MB | `53CF9C06CA727847` |
 | `instantid_diffusion_pytorch_model_hswq_convrot_int8` | SDXL | ControlNet | `models/controlnet/` | 0.999395 / 0.997491 | 1354.4 MB | `A9FFBD849D007B96` |
+| `control_instant_id_sdxl_hswq_convrot_int8` | SDXL | ControlNet | `models/controlnet/` | 0.999395 / 0.997491 | 1354.4 MB | `A9FFBD849D007B96` |
 | `control_v11p_sd15_lineart_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999737 / 0.999698 | 579.5 MB | `F32407808652F74E` |
 | `control_v11p_sd15_mlsd_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999678 / 0.999466 | 579.5 MB | `1DE1800AE02084C1` |
 | `control_v11p_sd15_normalbae_hswq_convrot_int8` | SD1.5 | ControlNet | `models/controlnet/` | 0.999686 / 0.999609 | 579.5 MB | `04BE4F6B091CF0C8` |
@@ -617,6 +619,16 @@ carries the pack's first 16 hex characters, full hash in the per-model guide.
 **The directory column is not cosmetic.** A ControlNet in `model_patches/` (or
 vice versa) does not load. The "model patch" rows go through the **HSWQ Model
 Patch Loader**; the plain rows go through the ControlNet loader.
+
+`control_instant_id_sdxl_hswq_convrot_int8`, `instantid_diffusion_pytorch_model_hswq_convrot_int8`
+and `ip-adapter_instant_id_sdxl_hswq_convrot_int8` are **the same file under three
+names** (LFS sha256 `a9ffbd849d007b969d91cadd1409757000f20f69d08b45d95f18243adff456c9`
+for all three), so they carry the same measurement.
+
+**Published, gate not yet measured.** `noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8`
+(1354.4 MB, sha256 `86E795137DCF8D28`) is on the Hub but has no audit, sweep, route,
+render or 256-item gate recorded yet. It is called out here instead of being given a
+row, so that every row above stays a measured row.
 
 Published on Hugging Face:
 
@@ -661,13 +673,13 @@ Instead, each text-encoder standard was handled **individually** - but the crite
 | `CLIP-SAE-ViT-L-14-hswq_convrot_int8.safetensors` | OpenAI CLIP ViT-L/14 | 129 (text 43, vision 84) | 90 (text 30, vision 60) | text 0.999962 / 0.999908, vision 0.999931 / 0.999797 | 658.9 MB |
 | `Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8.safetensors` | CLIP ViT-L/14 (extended text) | 130 (text 44, vision 84) | 90 (text 30, vision 60) | text 0.999803 / 0.999684, vision 0.999687 / 0.999367 | 490.6 MB |
 | `ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8.safetensors` | CLIP ViT-L/14 (HF layout) | 127 (text 43, vision 84) | 92 (text 30, vision 60) | text 0.999964 / 0.999906, vision 0.999803 / 0.996378 | 646.7 MB |
-| `CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` | CLIP ViT-bigG/14 | 253 of 288 | 35 | 0.999916 / 0.999741 | 2180.1 MB |
-| `CLIP-ViT-H-14_hswq_convrot_int8.safetensors` | CLIP ViT-H/14 | 92 of 192 | 100 | 0.999968 / 0.999906 | 1015.6 MB |
 | `flan_t5_xxl_hswq_convrot_int8.safetensors` | Flan-T5-XXL | 312 of 432 (enc 128, dec 184) | 120 (enc 40, dec 80) | 0.999934 | 14056.6 MB |
 | `Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8.safetensors` | Qwen3 (0.6B) | 157 of 197 | 40 | 0.999502 / 0.998980 | 655.2 MB |
 | `Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | 338 of 358 | 20 | 0.999602 / 0.997877 | 4914.0 MB |
 | `Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8.safetensors` | Qwen3-VL (4B) | 328 of 358 | 30 | 0.999578 / 0.999111 | 5061.3 MB |
-| `Qwen3.5-9B-...-MAX-MTP_hswq_convrot_int8.safetensors` | Qwen3.5 (9B, hybrid + vision + MTP) | 369 of 369 | 0 | conditioning 0.999387 / 0.996488, generate 0.999453 / 0.998215 | 9217.9 MB |
+| `qwen3_4b_abliterated_hswq_convrot_int8.safetensors` | Qwen3 (4B) | 233 of 253 | 20 | 0.999630 / 0.997430 | 4168.3 MB |
+| `Qwen2.5-VL-7B-Instruct-abliterated_converted_hswq_convrot_int8.safetensors` | Qwen2.5-VL (7B) | 320 of 360 | 40 | 0.999325 / 0.997294 | 9289.6 MB |
+| `Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP_hswq_convrot_int8.safetensors` | Qwen3.5 (9B, hybrid + vision + MTP) | 369 of 369 | 0 | conditioning 0.999387 / 0.996488, generate 0.999453 / 0.998215 | 9217.9 MB |
 | `sam3.1_multiplex_hswq_convrot_int8.safetensors` | SAM 3.1 Multiplex | 41 of 221 | 180 | relMSE 3.51e-05 | 1657.6 MB |
 
 **ConvRot W4A8 packs.** A different format (`asym_w4a8_int8`: 4-bit weight, group 16, convrot
@@ -677,10 +689,24 @@ Instead, each text-encoder standard was handled **individually** - but the crite
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `wevisone_vl_4b_hswq_convrot_w4a8.safetensors` | WeVisOne-VL (4B, Qwen3-VL + matte decoder) | 326 of 370 | 32 by drift rank + `embed_tokens`, `lm_head`, `mask_decoder` (11) | 0.995055 / 0.987840 | 4483.7 MB |
 
+### Built, not published
+
+Two CLIP packs were built and measured but are **not on any Hugging Face repository**;
+they exist locally only. They are listed apart so the table above stays a table of
+downloadable packs.
+
+| Pack | Standard | ConvRot INT8 | FP16 kept | Gate (256 items, seed 42) | Size |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` | CLIP ViT-bigG/14 | 253 of 288 | 35 | 0.999916 / 0.999741 | 2180.1 MB |
+| `CLIP-ViT-H-14_hswq_convrot_int8.safetensors` | CLIP ViT-H/14 (vision tower, `models/clip_vision/`) | 92 of 192 | 100 | 0.999968 / 0.999906 | 1015.6 MB |
+
 Download:
 
-- **[ussoewwin/Clip-files-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-ConvRot-INT8)** - CLIP-L, OpenAI CLIP ViT-L/14 (CLIP-SAE), Flan-T5-XXL, CLIP-ViT-bigG-14, Josiefied-Qwen3-0.6B
-- **[ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8](https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8)** - Qwen3-4B, Qwen3-8B, Qwen3-VL-4B-Thinking
+- **[ussoewwin/Clip-files-ConvRot-INT8](https://huggingface.co/ussoewwin/Clip-files-ConvRot-INT8)** - CLIP-L, OpenAI CLIP ViT-L/14 (CLIP-SAE), Long CLIP ViT-L/14, ViT-L-14 GmP (HF layout), Flan-T5-XXL, Josiefied-Qwen3-0.6B, WeVisOne-VL W4A8
+- **[ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8](https://huggingface.co/ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8)** - Qwen3-4B, Qwen3-VL-4B-Thinking, Huihui-Qwen3-VL-4B-Instruct
+- **[ussoewwin/Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP](https://huggingface.co/ussoewwin/Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP)** - Qwen3.5-9B (INT8 pack next to its BF16 source)
+- **[ussoewwin/Qwen2.5-VL-7B-Instruct-abliterated](https://huggingface.co/ussoewwin/Qwen2.5-VL-7B-Instruct-abliterated)** - Qwen2.5-VL-7B (INT8 pack next to its BF16 source)
+- **[ussoewwin/SAM3.1-HSWQ-ConvRot-INT8](https://huggingface.co/ussoewwin/SAM3.1-HSWQ-ConvRot-INT8)** - SAM 3.1 Multiplex
 
 ### Loading
 
