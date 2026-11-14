@@ -78,7 +78,7 @@ applied).
   optimized INT8 execution kernels seamlessly" is contradicted by these measurements and was
   replaced with the measured facts and a link to this document.
 - The card gained a Security section with the source-identity and pack measurements and the link
-  to [Backdoor Audit Verdicts](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/blob/main/md/backdoor/Backdoor_Audit_Verdicts.md).
+  to [Backdoor Audit Verdicts](backdoor/Backdoor_Audit_Verdicts.md).
 
 ## 6. How far the finding reaches
 
