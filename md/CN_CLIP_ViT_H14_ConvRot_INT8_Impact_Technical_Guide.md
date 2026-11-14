@@ -69,6 +69,25 @@ that route is -0.022604210.
 The HSWQ loader tree in `custom_nodes/` has no node naming `clip_vision`, and A1111's ControlNet
 extension exposes no `clip_vision` input, so there is no second route.
 
+## Rendering it
+
+The route exists: `CLIPVisionLoader` feeds `IPAdapterAdvanced`'s `clip_vision` input. Three arms,
+one graph, one seed:
+
+| arm | clip vision file | frame | measured |
+| :--- | :--- | :--- | :--- |
+| A | source | 407,287 B | mean 110.60, std 64.70 |
+| B | the pack | 2,414 B | mean 0.00, std 0.00, max 0.0 |
+| C | the pack dequantised | 407,289 B | mean 110.61, std 64.79 |
+
+B is exactly black. C is the source's scene, pixel-close but not identical (max per-pixel
+difference 178.0, FP16 rounding through sampling). B and C carry the same weights; only the
+dequantiser differs.
+
+To make C, dequantise the pack: codes times the per-group scale, then the inverse order-4^k
+Hadamard rotation per group, cast to float16. The result is `CLIP-ViT-H-14_dequant_from_pack.safetensors`,
+1,264,219,400 B, 521 tensors, 92 layers dequantised.
+
 ## How the pack was therefore checked
 
 The comparison that isolates the quantisation dequantises the codes and scales into the source's

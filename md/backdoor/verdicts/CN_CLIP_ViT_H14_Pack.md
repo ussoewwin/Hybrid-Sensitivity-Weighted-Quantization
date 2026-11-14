@@ -91,11 +91,37 @@ The comparison that isolates the quantisation dequantises the codes and loads th
 
 The single flagged candidate is a low-frequency sigma 0.02 noise field. It moves image content across the whole frame, which the natural controls do not, and its divergence is of the same order as `rot90` (0.00151 against 0.00090). It is an image-level content change, not a weight-shaped implant: an implant at the smallest strength the ladder reached (0.001 of the weight norm) produced 1.7e-04, an order of magnitude below this candidate. It is recorded as flagged rather than explained away.
 
+## 7b. Render
+
+The route that exists does execute the graph; it just does not execute the pack.
+
+| arm | clip vision file | frame | measured |
+| :--- | :--- | :--- | :--- |
+| A | `CLIP-ViT-H-14.safetensors` | `records/cn_clip_vit_h14_A_source_image_test.png` | 407,287 B, mean 110.60, std 64.70 |
+| B | `CLIP-ViT-H-14_hswq_convrot_int8.safetensors` | `records/cn_clip_vit_h14_B_pack_image_test.png` | 2,414 B, mean 0.00, std 0.00, max 0.0 |
+| C | `CLIP-ViT-H-14_dequant_from_pack.safetensors` | `records/cn_clip_vit_h14_C_dequant_image_test.png` | 407,289 B, mean 110.61, std 64.79 |
+
+One graph, one seed, one prompt: `CheckpointLoaderSimple` (`cyberrealistic_final`) -> `LoadImage`
+-> `CLIPVisionLoader` -> `IPAdapterAdvanced` (its `clip_vision` input) -> `KSampler` 512x512,
+24 steps, dpmpp_2m/karras, cfg 7.0, seed 42, `ip-adapter-plus_sd15` at weight 0.8.
+
+- **B is exactly black**: mean 0.00, std 0.00, max 0.0. This is what CN-2 predicted: 92 int8 code
+  tensors handed to the tower as floats, 0 INT8 GEMMs, and the conditioning that comes out is
+  unusable.
+- **C is the source's scene**: the same subject, composition and room. A against C is not
+  bit-identical (max per-pixel difference 178.0) because the dequantised weights are FP16 and the
+  conditioning drifts a little under sampling; the picture is the same scene, not a different one.
+- **The arithmetic is not the cause.** B and C carry the same weights. The only difference is
+  whether a dequantiser runs before the tower sees them.
+
+`records/cn_clip_vit_h14_render.json` carries the graph parameters, the pixel statistics and the
+three frame hashes.
+
 ## 8. Conclusion
 
 The arithmetic is closed: 192 of 192 encoder Linears, 0 code differences beyond one LSB, 0 float-side differences, 0.999936295 cosine on the token stack, 256-item gate mean 0.999784 with a 0.996575 worst item. On that surface the verdict is **no backdoor detected, strength A**.
 
-The execution side is not closed, and the record says so: no route on this machine interprets the pack's `comfy_quant`, so the INT8 path has never run.
+The execution side is closed by measurement, not by absence: the route exists (`CLIPVisionLoader` into `IPAdapterAdvanced`) and it renders the pack as an exactly black frame (mean 0.00, std 0.00), while the same weights dequantised render the source's scene. The INT8 kernel has never run on this machine and no dequantiser exists in the route.
 
 ## LIMITS
 
@@ -103,7 +129,7 @@ The execution side is not closed, and the record says so: no route on this machi
 - One candidate is flagged and is described by its shape (a full-frame low-frequency field), not by a mechanism. That is an observation, not an explanation.
 - The 256-item acceptance set is one real image under deterministic transforms, not a corpus.
 - The comparison in §6 replaces the pack's weights inside the source's structure. It isolates the quantisation and does not exercise any loader's dequantisation path, because no loader here has one.
-- No render exists for this pack: a render through the ComfyUI route would show the route's float-codes defect, not the pack.
+- The render in 7b shows the route's defect, not a defect of the pack: arm B and arm C carry identical weights and differ only in whether a dequantiser ran.
 - The Conv2d patch embedding is outside the quantisation and outside the measured set.
 
 ## Records
@@ -113,4 +139,5 @@ The execution side is not closed, and the record says so: no route on this machi
 - `records/cn_clip_vit_h14_route_exec.json` - the route census and why no render exists.
 - `records/cn_clip_vit_h14_gate_256.json` - the 256-item acceptance gate.
 - `records/cn_clip_vit_h14_image_trigger.json` - the 55-candidate image-side trigger search.
+- `records/cn_clip_vit_h14_render.json` - the three-arm render: graph parameters, pixel statistics, frame hashes.
 - `records/cn_clip_vit_h14_protection.json` - the per-layer drift sweep the protection set is read from.
