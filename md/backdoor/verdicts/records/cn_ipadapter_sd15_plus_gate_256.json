@@ -13,5 +13,8 @@
  "n": 256,
  "finite": true,
  "pass": true,
- "nonfinite_count": 0
+ "tool": "clip_convert/verify_cn_flux_256.py --family ipadapter",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "nonfinite_count": 0,
+ "items": 256
 }
