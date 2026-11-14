@@ -574,51 +574,18 @@ Every per-model guide for this chapter, one link per artifact. The guides carry 
 ---
 ## Finished packs - ControlNet and model patches
 
-Four IP-Adapter packs are part of this table: `ip-adapter_instant_id_sdxl`, `ip-adapter_pulid_sdxl`,
-`ip-adapter_sd15_plus` and `ip-adapter-faceid_sd15` (the last four `IP-Adapter` rows).
+Four IP-Adapter packs are part of this catalogue: `ip-adapter_instant_id_sdxl`, `ip-adapter_pulid_sdxl`,
+`ip-adapter_sd15_plus` and `ip-adapter-faceid_sd15`.
 
-Every pack below is a real file with the measured gate in it. Sizes are **MiB**
-(1 MB = 2\^20 bytes), the same unit as the text-encoder table; the SHA256 column
-carries the pack's first 16 hex characters, full hash in the per-model guide.
-
-There are **two kinds of pack** in this chapter, and they are not the same product:
-
-- **HSWQ - per-checkpoint measured protection.** The checkpoint's own layers are swept, each
-  layer's contribution to the model's output is measured, and the layers above the threshold are
-  kept in FP16 inside a size/quality budget. The kept set is a measurement on that checkpoint,
-  so it differs from pack to pack, and every pack below carries its own record.
-- **native - plain ConvRot INT8.** The weights are rotated and quantised with no per-layer sweep and
-  no protection decision: every runtime Linear is quantised. This is the *native* ConvRot INT8
-  product, not an HSWQ high-quality build, and it is listed separately so the two are never
-  read as the same thing.
-
-A pack is in the first table because a protection measurement exists for it; it is in the second
-because none does. That is the whole criterion - not the family, not the file size.
-
-### HSWQ packs
-
-The HSWQ high-quality packs - per-checkpoint measured protection, FP16-kept sets,
-and the one-line gate for each - are in
+Every ControlNet and model-patch pack built in this project is an **HSWQ build**: the FP16-kept
+set comes from that checkpoint's own measurement, and the threshold was chosen on that
+checkpoint's size/quality curve. The packs, their kept counts, their gates and the per-model
+guides are in
 [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md).
-The table below is the **native** ConvRot INT8 product only: rotation and
-quantisation of every runtime Linear, with no per-layer sweep and no kept set.
 
-### native - plain ConvRot INT8 (no per-layer protection measurement)
-
-| Pack | Family | Runtime object | Directory | the gate (measured) | Size | SHA256 (first 16) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `CN-anytest4_illustrious2_A_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.999626 (forward) | 1359.1 MB | `BE9FF80B2F489568` |
-| `CN-anytest4_illustrious2_B_hswq_convrot_int8` | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.992958 / 0.948279 (trajectory) | 1357.5 MB | `7E34DC3CC3334AFA` |
-| `controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8` | SDXL 1.0 | ControlNet | `models/controlnet/` | 0.999961 | 1368.8 MB | `DCDF6F2037205C4A` |
-| `FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8` | FLUX.1-dev | ControlNet | `models/controlnet/` | 0.999771 / 0.999488 | 2585.1 MB | `FBCBA3C76A221FBA` |
-| `Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8` | Qwen-Image-2512 | ControlNet | `models/controlnet/` | 0.999158 / 0.998215 | 1677.2 MB | `5AEC39A53F583BAD` |
-| `Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8` | Qwen-Image | ControlNet | `models/controlnet/` | 0.999545 / 0.998887 | 2022.1 MB | `38F0AB7495029517` |
-| `Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8` | Z-Image-Turbo | **model patch** | `models/model_patches/` | 0.999862 / 0.999491 (trajectory) | 963.0 MB | `1DD12B2D028B12DF` |
-| `Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8` | Z-Image-Turbo | **model patch** | `models/model_patches/` | 0.999956 / 0.999813 (trajectory) | 963.0 MB | `2998F83EF65903B4` |
-
-These eight packs are complete files with their own audit, route, execution and render records,
-but no layer was kept in FP16 and no sweep was run on the checkpoint: every runtime Linear is
-quantised. Their gate column is what the audit measured, not an HSWQ protection result.
+**native** ConvRot INT8 - plain rotation and quantisation of every runtime Linear, with no
+threshold sweep and no kept set - is a different product. No native pack is published in this
+project; if one is built, it belongs in a separate section, never mixed with the measured builds.
 
 **The directory column is not cosmetic.** A ControlNet in `model_patches/` (or
 vice versa) does not load. The "model patch" rows go through the **HSWQ Model
