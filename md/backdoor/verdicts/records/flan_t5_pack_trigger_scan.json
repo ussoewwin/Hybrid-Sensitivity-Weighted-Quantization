@@ -279,5 +279,7 @@
    "suffix": "F1r3-W4ll",
    "shift": 0.5376026034355164
   }
- ]
+ ],
+ "reading": "The divergence tracks the length of the encoded prompt, which is why the control is length-matched. The overall ratio stays below the 2.0 criterion.",
+ "overall_ratio_below_criterion": true
 }

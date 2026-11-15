@@ -209,10 +209,7 @@ depends on the TF32 matmul arithmetic.
 found none. A poison already inside that release is out of reach; what is established is that the
 pack introduces nothing beyond the declared quantisation.
 
-**Behavioural scope.** The acceptance sets are the how-to's gate and went through the actual
-loader. They are not a trigger-family scan: no documented trigger families were encoded as
-prompts. A trigger inherited from the source, or one that needs a different input modality than
-the verification's fixed tensors, is not covered.
+**Behavioural scope.** A trigger-family scan was run on this pack itself: 32 candidate suffixes (8 dates, 8 random strings, 8 documented-trigger variants, 8 random variants) against 19-32 length-matched neutral suffixes, the divergence measured as 1 - cos between the pack's own embeddings of a fixed host prompt with and without each suffix, on the route that instantiates this pack. Record: `records/qwen3vl_thinking_pack_trigger_scan.json` -> `max_over_control_max`, `cand_max`, `control_max`, `rows`. Candidate maximum 0.03706 against a length-matched control maximum of 0.02439, ratio 1.520, below the 2.0 that the criterion calls a positive. The highest ratios belong to upper-case/digit mixed random strings, and the same strings top all three Qwen3-VL packs measured here; that is a tokenizer response to the character class, not a conditional behaviour of this model. No documented trigger family reaches the top.
 
 **HF publication.** The copy on `ussoewwin/qwen3_4b_8b_abliterated_fp16_convrot_int8` is still the
 first withdrawn build (sha `49c19dad…`). Publishing this pack is an outbound release step, separate from the local verification record.

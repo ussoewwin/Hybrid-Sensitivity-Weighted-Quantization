@@ -155,12 +155,7 @@ path overstates the disagreement by three orders of magnitude for this pack.
 sha256. A poison already inside that release is out of reach; what is established is that the pack
 introduces nothing beyond the declared quantisation.
 
-**Behavioural scope.** The probe covered 37 prompts - the five controls and eight candidates from
-each of the four documented trigger families. The largest candidate-to-control ratio was 1.897
-against the 2.0 that §12.1 calls a positive; that margin is narrow, and the divergence it comes
-from is prompt length rather than a semantic switch. A trigger outside these families, or one that
-needs a longer context than a single prompt, is not covered. Phases 7a, 7b, 7d and 7e were not run
-for this artifact.
+**Behavioural scope.** A trigger-family scan was run on this pack itself: 32 candidate suffixes (8 dates, 8 random strings, 8 documented-trigger variants, 8 random variants) against 19-32 length-matched neutral suffixes, the divergence measured as 1 - cos between the pack's own embeddings of a fixed host prompt with and without each suffix, on the route that instantiates this pack. Record: `records/flan_t5_pack_trigger_scan.json` -> `max_over_control_max`, `cand_max`, `control_max`, `rows`. Candidate maximum 0.70277 against a length-matched control maximum of 0.45248, ratio 1.553, below the 2.0 that the criterion calls a positive. The divergence tracks the length of the encoded prompt, which is why the control is length-matched. The single positive control tried (a rank-1 into the most executed Linear, the layer weight replaced by an explicit float tensor because a quantised tensor swallows a float edit) moved the divergence from 0.103 to 0.146 across 0.01 to 1.0, below the control spread of 0.452; the detection floor is therefore not established on this route and the verdict rests on the weight-level check, not on this scan.
 
 **Loader scope.** The measured route instantiates the encoder only. Claims about the decoder half of
 this pack are limited to the weight-level check in section 3.
