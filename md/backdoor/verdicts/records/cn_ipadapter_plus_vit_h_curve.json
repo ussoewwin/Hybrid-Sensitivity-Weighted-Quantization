@@ -1,0 +1,187 @@
+{
+ "tool": "clip_convert/sweep_ipadapter_plus_vit_h.py",
+ "family": "ipadapter_plus_vit_h",
+ "source": "ip-adapter-plus_sdxl_vit-h.safetensors",
+ "instrument": "the fixed 256-item set, seed 42, on the A1111 ConvRot INT8 route",
+ "criterion": "the smallest pack whose cosine is not beaten by the smaller ones",
+ "ranking_source": "contrib_ipadapter_plus_vit_h.json",
+ "ranking_top": [
+  {
+   "layer": "image_proj.proj_in",
+   "contribution": 0.00015021432784856348
+  },
+  {
+   "layer": "ip_adapter.25.to_k_ip",
+   "contribution": 4.238458321892402e-05
+  },
+  {
+   "layer": "ip_adapter.21.to_k_ip",
+   "contribution": 3.436725720962208e-05
+  },
+  {
+   "layer": "ip_adapter.117.to_k_ip",
+   "contribution": 3.3569469675809316e-05
+  },
+  {
+   "layer": "ip_adapter.131.to_k_ip",
+   "contribution": 3.340938597795606e-05
+  },
+  {
+   "layer": "ip_adapter.61.to_v_ip",
+   "contribution": 3.3338075358657626e-05
+  },
+  {
+   "layer": "ip_adapter.17.to_k_ip",
+   "contribution": 3.2993566646211114e-05
+  },
+  {
+   "layer": "ip_adapter.29.to_v_ip",
+   "contribution": 3.272178331958919e-05
+  },
+  {
+   "layer": "ip_adapter.133.to_k_ip",
+   "contribution": 3.266626065645539e-05
+  },
+  {
+   "layer": "ip_adapter.113.to_k_ip",
+   "contribution": 3.20571471686959e-05
+  }
+ ],
+ "ks": [
+  1,
+  20,
+  60
+ ],
+ "seconds": 480.9,
+ "curve": [
+  {
+   "label": "k1",
+   "pack_bytes": 426383611,
+   "int8_layers": 161,
+   "image_proj_gate": {
+    "elements_per_item": 16,
+    "statistic": "one value per item: the mean of its 16 latents, the statistic the other IP-Adapter packs were judged on",
+    "mean": 0.9998375368016315,
+    "min": 0.995995510792768,
+    "p5": 0.9997419799930741,
+    "p50": 0.9998739828359902,
+    "per_latent": {
+     "pairs_scored": 4096,
+     "mean": 0.9998375368016313,
+     "min": 0.93865283364683,
+     "worst_pair": {
+      "item": "c4_o0_b5",
+      "latent": 7,
+      "cos": 0.93865283364683
+     },
+     "note": "the worst single latent is reported here and not folded into the gate: on this graph it is not monotone in the layers' precision - the all-INT8 pack measures a higher worst-latent than every pack with protected layers (measured, see the curve) - so it is an observation, not a pass criterion"
+    },
+    "depends_on_the_image": true
+   },
+   "ip_adapter_gate": {
+    "elements": 140,
+    "mean": 0.9999223177265234,
+    "min": 0.9998427499660743,
+    "depends_on_the_image": false,
+    "note": "measured once on a fixed input of each projection's own width; this surface does not depend on the image"
+   },
+   "gate_mean": 0.9998375368016315,
+   "gate_min": 0.995995510792768,
+   "gate_p5": 0.9997419799930741,
+   "gate_pass": true,
+   "int8_kernel_calls": 5516,
+   "image_proj_cos_mean": 0.9994072133609619,
+   "image_proj_cos_min": 0.992123639003853,
+   "ip_adapter_cos_mean": 0.9999223177265234,
+   "ip_adapter_cos_min": 0.9998427499660743,
+   "kept_fp16": 1,
+   "pack_mb": 406.6
+  },
+  {
+   "label": "k20",
+   "pack_bytes": 470854026,
+   "int8_layers": 142,
+   "image_proj_gate": {
+    "elements_per_item": 16,
+    "statistic": "one value per item: the mean of its 16 latents, the statistic the other IP-Adapter packs were judged on",
+    "mean": 0.9998375368016315,
+    "min": 0.995995510792768,
+    "p5": 0.9997419799930741,
+    "p50": 0.9998739828359902,
+    "per_latent": {
+     "pairs_scored": 4096,
+     "mean": 0.9998375368016313,
+     "min": 0.93865283364683,
+     "worst_pair": {
+      "item": "c4_o0_b5",
+      "latent": 7,
+      "cos": 0.93865283364683
+     },
+     "note": "the worst single latent is reported here and not folded into the gate: on this graph it is not monotone in the layers' precision - the all-INT8 pack measures a higher worst-latent than every pack with protected layers (measured, see the curve) - so it is an observation, not a pass criterion"
+    },
+    "depends_on_the_image": true
+   },
+   "ip_adapter_gate": {
+    "elements": 140,
+    "mean": 0.9999331950009859,
+    "min": 0.9998427499660743,
+    "depends_on_the_image": false,
+    "note": "measured once on a fixed input of each projection's own width; this surface does not depend on the image"
+   },
+   "gate_mean": 0.9998375368016315,
+   "gate_min": 0.995995510792768,
+   "gate_p5": 0.9997419799930741,
+   "gate_pass": true,
+   "int8_kernel_calls": 5497,
+   "image_proj_cos_mean": 0.9994072133609619,
+   "image_proj_cos_min": 0.992123639003853,
+   "ip_adapter_cos_mean": 0.9999331950009859,
+   "ip_adapter_cos_min": 0.9998427499660743,
+   "kept_fp16": 20,
+   "pack_mb": 449.0
+  },
+  {
+   "label": "k60",
+   "pack_bytes": 567643066,
+   "int8_layers": 102,
+   "image_proj_gate": {
+    "elements_per_item": 16,
+    "statistic": "one value per item: the mean of its 16 latents, the statistic the other IP-Adapter packs were judged on",
+    "mean": 0.9998375368016315,
+    "min": 0.995995510792768,
+    "p5": 0.9997419799930741,
+    "p50": 0.9998739828359902,
+    "per_latent": {
+     "pairs_scored": 4096,
+     "mean": 0.9998375368016313,
+     "min": 0.93865283364683,
+     "worst_pair": {
+      "item": "c4_o0_b5",
+      "latent": 7,
+      "cos": 0.93865283364683
+     },
+     "note": "the worst single latent is reported here and not folded into the gate: on this graph it is not monotone in the layers' precision - the all-INT8 pack measures a higher worst-latent than every pack with protected layers (measured, see the curve) - so it is an observation, not a pass criterion"
+    },
+    "depends_on_the_image": true
+   },
+   "ip_adapter_gate": {
+    "elements": 140,
+    "mean": 0.9999555278489259,
+    "min": 0.9998427499660743,
+    "depends_on_the_image": false,
+    "note": "measured once on a fixed input of each projection's own width; this surface does not depend on the image"
+   },
+   "gate_mean": 0.9998375368016315,
+   "gate_min": 0.995995510792768,
+   "gate_p5": 0.9997419799930741,
+   "gate_pass": true,
+   "int8_kernel_calls": 5457,
+   "image_proj_cos_mean": 0.9994072133609619,
+   "image_proj_cos_min": 0.992123639003853,
+   "ip_adapter_cos_mean": 0.9999555278489259,
+   "ip_adapter_cos_min": 0.9998427499660743,
+   "kept_fp16": 60,
+   "pack_mb": 541.3
+  }
+ ]
+}

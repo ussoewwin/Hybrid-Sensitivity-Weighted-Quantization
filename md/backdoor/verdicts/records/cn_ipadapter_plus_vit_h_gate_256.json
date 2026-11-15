@@ -1,0 +1,46 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_acceptance.py",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set, on both surfaces",
+ "family": "ipadapter_plus_vit_h",
+ "pack": "ip-adapter-plus_sdxl_vit-h_hswq_convrot_int8.safetensors",
+ "route": "A1111 modules/ipadapter_int8_convrot.py, 162 INT8 layers installed",
+ "int8_layers": 162,
+ "int8_kernel_calls": 5772,
+ "n": 256,
+ "pairs_scored": 4096,
+ "finite": true,
+ "nonfinite_count": 0,
+ "items": "8 crops x 4 orientations x 8 brightness steps, from cn_clipvit_ref.png",
+ "image_proj_surface": {
+  "elements_per_item": 16,
+  "statistic": "one value per item: the mean of its 16 latents, the statistic the other IP-Adapter packs were judged on",
+  "mean": 0.9997396794715488,
+  "min": 0.9988878608010899,
+  "p5": 0.9994669555985223,
+  "p50": 0.9997809704165103,
+  "per_latent": {
+   "pairs_scored": 4096,
+   "mean": 0.9997396794715488,
+   "min": 0.9860890593843861,
+   "worst_pair": {
+    "item": "c5_o0_b3",
+    "latent": 12,
+    "cos": 0.9860890593843861
+   },
+   "note": "the worst single latent is reported here and not folded into the gate: on this graph it is not monotone in the layers' precision - the all-INT8 pack measures a higher worst-latent than every pack with protected layers (measured, see the curve) - so it is an observation, not a pass criterion"
+  },
+  "depends_on_the_image": true
+ },
+ "ip_adapter_surface": {
+  "elements": 140,
+  "mean": 0.9999223177265234,
+  "min": 0.9998427499660743,
+  "depends_on_the_image": false,
+  "note": "measured once on a fixed input of each projection's own width; this surface does not depend on the image"
+ },
+ "mean": 0.9997396794715488,
+ "min": 0.9988878608010899,
+ "p5": 0.9994669555985223,
+ "p50": 0.9997809704165103,
+ "pass": true
+}

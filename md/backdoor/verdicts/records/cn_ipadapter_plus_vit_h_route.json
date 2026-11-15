@@ -1,0 +1,64 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_route.py",
+ "family": "ipadapter_plus_vit_h",
+ "source": "ip-adapter-plus_sdxl_vit-h.safetensors",
+ "pack": "ip-adapter-plus_sdxl_vit-h_hswq_convrot_int8.safetensors",
+ "routes": {
+  "comfyui": {
+   "route": "comfyui",
+   "ok": true,
+   "steps": [
+    {
+     "step": "load_torch_file(safe_load=True)",
+     "ok": true,
+     "tensors": 515,
+     "int8_tensors": 162,
+     "comfy_quant_markers": 162,
+     "weight_scale_tensors": 162
+    }
+   ],
+   "measured": {
+    "int8_tensors_presented": 162,
+    "comfy_quant_markers": 162,
+    "weight_scale_tensors": 162,
+    "applies_int8": false,
+    "why": "load_torch_file returns the tensors; nothing in this call reads comfy_quant, so the int8 codes would be assigned to float parameters"
+   }
+  },
+  "a1111": {
+   "route": "a1111",
+   "ok": true,
+   "steps": [
+    {
+     "step": "IPAdapterModel.load (source and pack)",
+     "ok": true
+    },
+    {
+     "step": "one image_proj forward",
+     "ok": true,
+     "kernel_calls": 22,
+     "output_shape": [
+      1,
+      16,
+      2048
+     ],
+     "finite": true
+    }
+   ],
+   "int8_layers_installed": 162,
+   "int8_layers_by_graph": {
+    "image_proj": 22,
+    "ip_adapter": 140
+   },
+   "measured": {
+    "int8_kernel_calls": 22,
+    "output_shape": [
+     1,
+     16,
+     2048
+    ],
+    "output_finite": true
+   }
+  }
+ }
+}

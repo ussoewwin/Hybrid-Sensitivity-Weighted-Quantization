@@ -1,0 +1,1838 @@
+{
+ "tool": "clip_convert/measure_ipadapter_plus_vit_h_contrib.py",
+ "family": "ipadapter_plus_vit_h",
+ "source": "ip-adapter-plus_sdxl_vit-h.safetensors",
+ "source_bytes": 847517512,
+ "source_sha256": "3f5062b8400c94b7159665b21ba5c62acdcd7682262743d7f2aefedef00e6581",
+ "resampler_params": {
+  "dim": 1280,
+  "depth": 4,
+  "dim_head": 64,
+  "heads": 20,
+  "num_queries": 16,
+  "embedding_dim": 1280,
+  "output_dim": 2048,
+  "ff_mult": 4
+ },
+ "resampler_source": "D:\\USERFILES\\ComfyUI\\ComfyUI\\custom_nodes\\comfyui_ipadapter_plus\\image_proj_models.py",
+ "criterion": "replace one layer by its ConvRot INT8 reconstruction, measured against the all-float source. The all-INT8 baseline is not the reference: restoring one layer to float inside an all-INT8 graph is not a small perturbation on this graph, so that form ranks nothing (measured: all 22 layers worse)",
+ "surfaces": {
+  "image_proj": "the worst latent of the Resampler's 16x2048 output",
+  "ip_adapter": "each to_k_ip / to_v_ip projection's own output"
+ },
+ "layers_measured": 162,
+ "contribution_max": 0.00015021432784856348,
+ "contribution_min": 6.374942529419059e-08,
+ "contribution_median": 2.409374239054074e-05,
+ "seed": 42,
+ "device": "cuda",
+ "seconds": 38.8,
+ "contributions": {
+  "image_proj.layers.0.0.to_kv": 8.15099813644693e-07,
+  "image_proj.layers.0.0.to_out": 2.0564481133522605e-06,
+  "image_proj.layers.0.0.to_q": 5.203267552378321e-07,
+  "image_proj.layers.0.1.1": 3.736113426411336e-07,
+  "image_proj.layers.0.1.3": 8.318896116410457e-08,
+  "image_proj.layers.1.0.to_kv": 4.493180345566117e-07,
+  "image_proj.layers.1.0.to_out": 4.1537565864668835e-07,
+  "image_proj.layers.1.0.to_q": 6.374942529419059e-08,
+  "image_proj.layers.1.1.1": 9.456232381799268e-06,
+  "image_proj.layers.1.1.3": 1.0610826262080764e-07,
+  "image_proj.layers.2.0.to_kv": 3.152816196227981e-06,
+  "image_proj.layers.2.0.to_out": 1.5549290071081856e-06,
+  "image_proj.layers.2.0.to_q": 1.003156572254582e-06,
+  "image_proj.layers.2.1.1": 3.5245379550463696e-06,
+  "image_proj.layers.2.1.3": 5.931771329681368e-07,
+  "image_proj.layers.3.0.to_kv": 7.832507442850911e-06,
+  "image_proj.layers.3.0.to_out": 3.7906669310139307e-06,
+  "image_proj.layers.3.0.to_q": 2.353228707230315e-06,
+  "image_proj.layers.3.1.1": 1.1927952916490625e-06,
+  "image_proj.layers.3.1.3": 3.2094947044480904e-07,
+  "image_proj.proj_in": 0.00015021432784856348,
+  "image_proj.proj_out": 2.3272649268823997e-05,
+  "ip_adapter.1.to_k_ip": 2.2085655640879942e-05,
+  "ip_adapter.1.to_v_ip": 2.7860211312402683e-05,
+  "ip_adapter.101.to_k_ip": 2.5292849001212758e-05,
+  "ip_adapter.101.to_v_ip": 2.409374239054074e-05,
+  "ip_adapter.103.to_k_ip": 1.9190698964721697e-05,
+  "ip_adapter.103.to_v_ip": 1.9428231807117058e-05,
+  "ip_adapter.105.to_k_ip": 2.197449935448237e-05,
+  "ip_adapter.105.to_v_ip": 2.1132482227459448e-05,
+  "ip_adapter.107.to_k_ip": 2.886027861603857e-05,
+  "ip_adapter.107.to_v_ip": 2.2708715357033782e-05,
+  "ip_adapter.109.to_k_ip": 1.9590380629930237e-05,
+  "ip_adapter.109.to_v_ip": 2.459274036925585e-05,
+  "ip_adapter.11.to_k_ip": 1.4949344490200467e-05,
+  "ip_adapter.11.to_v_ip": 2.412186050082532e-05,
+  "ip_adapter.111.to_k_ip": 2.509532522809721e-05,
+  "ip_adapter.111.to_v_ip": 1.4903114268549622e-05,
+  "ip_adapter.113.to_k_ip": 3.20571471686959e-05,
+  "ip_adapter.113.to_v_ip": 1.7347758871189e-05,
+  "ip_adapter.115.to_k_ip": 2.806968849999869e-05,
+  "ip_adapter.115.to_v_ip": 2.2626437745421057e-05,
+  "ip_adapter.117.to_k_ip": 3.3569469675809316e-05,
+  "ip_adapter.117.to_v_ip": 1.6464888593414884e-05,
+  "ip_adapter.119.to_k_ip": 2.930140045431795e-05,
+  "ip_adapter.119.to_v_ip": 2.863668346797521e-05,
+  "ip_adapter.121.to_k_ip": 2.4525430210475818e-05,
+  "ip_adapter.121.to_v_ip": 2.1459723063887992e-05,
+  "ip_adapter.123.to_k_ip": 2.5103846731711066e-05,
+  "ip_adapter.123.to_v_ip": 1.7255629237156178e-05,
+  "ip_adapter.125.to_k_ip": 2.0729446353673353e-05,
+  "ip_adapter.125.to_v_ip": 2.0986372870845926e-05,
+  "ip_adapter.127.to_k_ip": 1.4002942931634621e-05,
+  "ip_adapter.127.to_v_ip": 2.5261172772683693e-05,
+  "ip_adapter.129.to_k_ip": 2.4339617574642425e-05,
+  "ip_adapter.129.to_v_ip": 2.877285644919958e-05,
+  "ip_adapter.13.to_k_ip": 2.2577676657919987e-05,
+  "ip_adapter.13.to_v_ip": 3.065265069346346e-05,
+  "ip_adapter.131.to_k_ip": 3.340938597795606e-05,
+  "ip_adapter.131.to_v_ip": 2.4620243807782494e-05,
+  "ip_adapter.133.to_k_ip": 3.266626065645539e-05,
+  "ip_adapter.133.to_v_ip": 2.836688245877461e-05,
+  "ip_adapter.135.to_k_ip": 1.7666291521223343e-05,
+  "ip_adapter.135.to_v_ip": 2.7749055641068665e-05,
+  "ip_adapter.137.to_k_ip": 2.1171695347099728e-05,
+  "ip_adapter.137.to_v_ip": 1.7930501602703153e-05,
+  "ip_adapter.139.to_k_ip": 2.2532622162785287e-05,
+  "ip_adapter.139.to_v_ip": 2.2438164052118736e-05,
+  "ip_adapter.15.to_k_ip": 2.0358035075274117e-05,
+  "ip_adapter.15.to_v_ip": 2.331834824687018e-05,
+  "ip_adapter.17.to_k_ip": 3.2993566646211114e-05,
+  "ip_adapter.17.to_v_ip": 2.971722776201613e-05,
+  "ip_adapter.19.to_k_ip": 2.4597797329439786e-05,
+  "ip_adapter.19.to_v_ip": 2.4811753395637126e-05,
+  "ip_adapter.21.to_k_ip": 3.436725720962208e-05,
+  "ip_adapter.21.to_v_ip": 2.3172693700446167e-05,
+  "ip_adapter.23.to_k_ip": 2.0400378034080013e-05,
+  "ip_adapter.23.to_v_ip": 2.392770246661957e-05,
+  "ip_adapter.25.to_k_ip": 4.238458321892402e-05,
+  "ip_adapter.25.to_v_ip": 2.5769313659163018e-05,
+  "ip_adapter.27.to_k_ip": 1.483396999679698e-05,
+  "ip_adapter.27.to_v_ip": 3.071276521371402e-05,
+  "ip_adapter.29.to_k_ip": 2.462696023686206e-05,
+  "ip_adapter.29.to_v_ip": 3.272178331958919e-05,
+  "ip_adapter.3.to_k_ip": 2.4188904311439607e-05,
+  "ip_adapter.3.to_v_ip": 2.0360797661211905e-05,
+  "ip_adapter.31.to_k_ip": 2.7144719412675045e-05,
+  "ip_adapter.31.to_v_ip": 2.597227071521324e-05,
+  "ip_adapter.33.to_k_ip": 2.907673508212305e-05,
+  "ip_adapter.33.to_v_ip": 2.574922333042906e-05,
+  "ip_adapter.35.to_k_ip": 1.9927246839634982e-05,
+  "ip_adapter.35.to_v_ip": 2.139041964932531e-05,
+  "ip_adapter.37.to_k_ip": 2.5007829590029118e-05,
+  "ip_adapter.37.to_v_ip": 2.356855919349865e-05,
+  "ip_adapter.39.to_k_ip": 2.5026730494870364e-05,
+  "ip_adapter.39.to_v_ip": 2.2952718611413125e-05,
+  "ip_adapter.41.to_k_ip": 2.3214880575439523e-05,
+  "ip_adapter.41.to_v_ip": 2.3591734109262852e-05,
+  "ip_adapter.43.to_k_ip": 2.484276905878602e-05,
+  "ip_adapter.43.to_v_ip": 2.4923724669667635e-05,
+  "ip_adapter.45.to_k_ip": 2.31911808225016e-05,
+  "ip_adapter.45.to_v_ip": 2.1772151205801116e-05,
+  "ip_adapter.47.to_k_ip": 2.8819791417777907e-05,
+  "ip_adapter.47.to_v_ip": 2.150575391390852e-05,
+  "ip_adapter.49.to_k_ip": 2.550205162310526e-05,
+  "ip_adapter.49.to_v_ip": 2.4357090460336295e-05,
+  "ip_adapter.5.to_k_ip": 2.626072616940256e-05,
+  "ip_adapter.5.to_v_ip": 3.1355763862594976e-05,
+  "ip_adapter.51.to_k_ip": 2.7838946901281858e-05,
+  "ip_adapter.51.to_v_ip": 2.1747601304689113e-05,
+  "ip_adapter.53.to_k_ip": 2.600458089951907e-05,
+  "ip_adapter.53.to_v_ip": 2.339220591418556e-05,
+  "ip_adapter.55.to_k_ip": 2.753557274903784e-05,
+  "ip_adapter.55.to_v_ip": 2.4187682729159832e-05,
+  "ip_adapter.57.to_k_ip": 2.3582868506677457e-05,
+  "ip_adapter.57.to_v_ip": 2.2110334499170214e-05,
+  "ip_adapter.59.to_k_ip": 2.3198064839413668e-05,
+  "ip_adapter.59.to_v_ip": 2.594369696828913e-05,
+  "ip_adapter.61.to_k_ip": 2.1746430459157473e-05,
+  "ip_adapter.61.to_v_ip": 3.3338075358657626e-05,
+  "ip_adapter.63.to_k_ip": 1.9010862040369503e-05,
+  "ip_adapter.63.to_v_ip": 2.2237714782713525e-05,
+  "ip_adapter.65.to_k_ip": 3.094380205181935e-05,
+  "ip_adapter.65.to_v_ip": 2.743810729544105e-05,
+  "ip_adapter.67.to_k_ip": 2.8301928328144932e-05,
+  "ip_adapter.67.to_v_ip": 2.994202325545814e-05,
+  "ip_adapter.69.to_k_ip": 2.166747824083881e-05,
+  "ip_adapter.69.to_v_ip": 2.740981282733923e-05,
+  "ip_adapter.7.to_k_ip": 2.747551678372595e-05,
+  "ip_adapter.7.to_v_ip": 2.6174249104560232e-05,
+  "ip_adapter.71.to_k_ip": 2.3056648869590468e-05,
+  "ip_adapter.71.to_v_ip": 2.567686011700765e-05,
+  "ip_adapter.73.to_k_ip": 2.1409248845305484e-05,
+  "ip_adapter.73.to_v_ip": 2.618041240509683e-05,
+  "ip_adapter.75.to_k_ip": 2.443479142810734e-05,
+  "ip_adapter.75.to_v_ip": 2.4432869712320837e-05,
+  "ip_adapter.77.to_k_ip": 2.7356554713087178e-05,
+  "ip_adapter.77.to_v_ip": 2.5900401038336796e-05,
+  "ip_adapter.79.to_k_ip": 2.9103506496319653e-05,
+  "ip_adapter.79.to_v_ip": 2.5334217703565365e-05,
+  "ip_adapter.81.to_k_ip": 2.5235888940433604e-05,
+  "ip_adapter.81.to_v_ip": 2.152739365468559e-05,
+  "ip_adapter.83.to_k_ip": 2.0255096730981137e-05,
+  "ip_adapter.83.to_v_ip": 2.2644625382706174e-05,
+  "ip_adapter.85.to_k_ip": 2.7590375892394547e-05,
+  "ip_adapter.85.to_v_ip": 2.5122223154872003e-05,
+  "ip_adapter.87.to_k_ip": 2.81254812272147e-05,
+  "ip_adapter.87.to_v_ip": 2.880053137199745e-05,
+  "ip_adapter.89.to_k_ip": 2.8697727629145575e-05,
+  "ip_adapter.89.to_v_ip": 2.7020372853181485e-05,
+  "ip_adapter.9.to_k_ip": 2.7128329913472804e-05,
+  "ip_adapter.9.to_v_ip": 2.404116566501191e-05,
+  "ip_adapter.91.to_k_ip": 2.506838503035791e-05,
+  "ip_adapter.91.to_v_ip": 2.3681126782637563e-05,
+  "ip_adapter.93.to_k_ip": 2.0967110363256936e-05,
+  "ip_adapter.93.to_v_ip": 2.0614384182104928e-05,
+  "ip_adapter.95.to_k_ip": 2.3483881260388806e-05,
+  "ip_adapter.95.to_v_ip": 2.5101126063797885e-05,
+  "ip_adapter.97.to_k_ip": 1.941088125834156e-05,
+  "ip_adapter.97.to_v_ip": 2.5030962702121684e-05,
+  "ip_adapter.99.to_k_ip": 2.6670584278409848e-05,
+  "ip_adapter.99.to_v_ip": 2.6019066294735715e-05
+ },
+ "details": {
+  "image_proj.layers.0.0.to_kv": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 8.15099813644693e-07,
+   "mean_latent_divergence": 2.2841639781001621e-07,
+   "worst_cosine": 0.9999991849001864,
+   "shape": [
+    2560,
+    1280
+   ]
+  },
+  "image_proj.layers.0.0.to_out": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 2.0564481133522605e-06,
+   "mean_latent_divergence": 3.715970917569922e-07,
+   "worst_cosine": 0.9999979435518866,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.layers.0.0.to_q": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 5.203267552378321e-07,
+   "mean_latent_divergence": 4.0721468655413595e-08,
+   "worst_cosine": 0.9999994796732448,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.layers.0.1.1": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 3.736113426411336e-07,
+   "mean_latent_divergence": 7.096720746474494e-08,
+   "worst_cosine": 0.9999996263886574,
+   "shape": [
+    5120,
+    1280
+   ]
+  },
+  "image_proj.layers.0.1.3": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 8.318896116410457e-08,
+   "mean_latent_divergence": 5.1851442577077744e-08,
+   "worst_cosine": 0.9999999168110388,
+   "shape": [
+    1280,
+    5120
+   ]
+  },
+  "image_proj.layers.1.0.to_kv": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 4.493180345566117e-07,
+   "mean_latent_divergence": 1.665051332713774e-07,
+   "worst_cosine": 0.9999995506819654,
+   "shape": [
+    2560,
+    1280
+   ]
+  },
+  "image_proj.layers.1.0.to_out": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 4.1537565864668835e-07,
+   "mean_latent_divergence": 1.5817766364084607e-07,
+   "worst_cosine": 0.9999995846243414,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.layers.1.0.to_q": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 6.374942529419059e-08,
+   "mean_latent_divergence": 6.7589105007259676e-09,
+   "worst_cosine": 0.9999999362505747,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.layers.1.1.1": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 9.456232381799268e-06,
+   "mean_latent_divergence": 7.054412649726283e-07,
+   "worst_cosine": 0.9999905437676182,
+   "shape": [
+    5120,
+    1280
+   ]
+  },
+  "image_proj.layers.1.1.3": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 1.0610826262080764e-07,
+   "mean_latent_divergence": 4.010307146085079e-08,
+   "worst_cosine": 0.9999998938917374,
+   "shape": [
+    1280,
+    5120
+   ]
+  },
+  "image_proj.layers.2.0.to_kv": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 3.152816196227981e-06,
+   "mean_latent_divergence": 1.185535477732369e-06,
+   "worst_cosine": 0.9999968471838038,
+   "shape": [
+    2560,
+    1280
+   ]
+  },
+  "image_proj.layers.2.0.to_out": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 1.5549290071081856e-06,
+   "mean_latent_divergence": 6.149883402112311e-07,
+   "worst_cosine": 0.9999984450709929,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.layers.2.0.to_q": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 1.003156572254582e-06,
+   "mean_latent_divergence": 1.3293057032209843e-07,
+   "worst_cosine": 0.9999989968434277,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.layers.2.1.1": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 3.5245379550463696e-06,
+   "mean_latent_divergence": 1.122170256107058e-06,
+   "worst_cosine": 0.999996475462045,
+   "shape": [
+    5120,
+    1280
+   ]
+  },
+  "image_proj.layers.2.1.3": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 5.931771329681368e-07,
+   "mean_latent_divergence": 3.0202523318423324e-07,
+   "worst_cosine": 0.999999406822867,
+   "shape": [
+    1280,
+    5120
+   ]
+  },
+  "image_proj.layers.3.0.to_kv": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 7.832507442850911e-06,
+   "mean_latent_divergence": 4.620736360108624e-06,
+   "worst_cosine": 0.9999921674925571,
+   "shape": [
+    2560,
+    1280
+   ]
+  },
+  "image_proj.layers.3.0.to_out": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 3.7906669310139307e-06,
+   "mean_latent_divergence": 2.271790371960458e-06,
+   "worst_cosine": 0.999996209333069,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.layers.3.0.to_q": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 2.353228707230315e-06,
+   "mean_latent_divergence": 1.2812146432394922e-06,
+   "worst_cosine": 0.9999976467712928,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.layers.3.1.1": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 1.1927952916490625e-06,
+   "mean_latent_divergence": 8.202426978812238e-07,
+   "worst_cosine": 0.9999988072047084,
+   "shape": [
+    5120,
+    1280
+   ]
+  },
+  "image_proj.layers.3.1.3": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 3.2094947044480904e-07,
+   "mean_latent_divergence": 2.3475331114436448e-07,
+   "worst_cosine": 0.9999996790505296,
+   "shape": [
+    1280,
+    5120
+   ]
+  },
+  "image_proj.proj_in": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 0.00015021432784856348,
+   "mean_latent_divergence": 2.9744754753195657e-05,
+   "worst_cosine": 0.9998497856721514,
+   "shape": [
+    1280,
+    1280
+   ]
+  },
+  "image_proj.proj_out": {
+   "surface": "image_proj",
+   "element": "the worst latent of the Resampler's 16x2048 output",
+   "worst_latent_divergence": 2.3272649268823997e-05,
+   "mean_latent_divergence": 1.3160158415598255e-05,
+   "worst_cosine": 0.9999767273507312,
+   "shape": [
+    2048,
+    1280
+   ]
+  },
+  "ip_adapter.1.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2085655640879942e-05,
+   "cosine": 0.9999779143443591,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.1.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.7860211312402683e-05,
+   "cosine": 0.9999721397886876,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.101.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5292849001212758e-05,
+   "cosine": 0.9999747071509988,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.101.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.409374239054074e-05,
+   "cosine": 0.9999759062576095,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.103.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.9190698964721697e-05,
+   "cosine": 0.9999808093010353,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.103.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.9428231807117058e-05,
+   "cosine": 0.9999805717681929,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.105.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.197449935448237e-05,
+   "cosine": 0.9999780255006455,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.105.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.1132482227459448e-05,
+   "cosine": 0.9999788675177725,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.107.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.886027861603857e-05,
+   "cosine": 0.999971139721384,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.107.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2708715357033782e-05,
+   "cosine": 0.999977291284643,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.109.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.9590380629930237e-05,
+   "cosine": 0.9999804096193701,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.109.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.459274036925585e-05,
+   "cosine": 0.9999754072596307,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.11.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.4949344490200467e-05,
+   "cosine": 0.9999850506555098,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.11.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.412186050082532e-05,
+   "cosine": 0.9999758781394992,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.111.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.509532522809721e-05,
+   "cosine": 0.9999749046747719,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.111.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.4903114268549622e-05,
+   "cosine": 0.9999850968857315,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.113.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.20571471686959e-05,
+   "cosine": 0.9999679428528313,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.113.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.7347758871189e-05,
+   "cosine": 0.9999826522411288,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.115.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.806968849999869e-05,
+   "cosine": 0.9999719303115,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.115.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2626437745421057e-05,
+   "cosine": 0.9999773735622546,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.117.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.3569469675809316e-05,
+   "cosine": 0.9999664305303242,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.117.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.6464888593414884e-05,
+   "cosine": 0.9999835351114066,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.119.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.930140045431795e-05,
+   "cosine": 0.9999706985995457,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.119.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.863668346797521e-05,
+   "cosine": 0.999971363316532,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.121.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4525430210475818e-05,
+   "cosine": 0.9999754745697895,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.121.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.1459723063887992e-05,
+   "cosine": 0.9999785402769361,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.123.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5103846731711066e-05,
+   "cosine": 0.9999748961532683,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.123.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.7255629237156178e-05,
+   "cosine": 0.9999827443707628,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.125.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.0729446353673353e-05,
+   "cosine": 0.9999792705536463,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.125.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.0986372870845926e-05,
+   "cosine": 0.9999790136271292,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.127.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.4002942931634621e-05,
+   "cosine": 0.9999859970570684,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.127.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5261172772683693e-05,
+   "cosine": 0.9999747388272273,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.129.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4339617574642425e-05,
+   "cosine": 0.9999756603824254,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.129.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.877285644919958e-05,
+   "cosine": 0.9999712271435508,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.13.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2577676657919987e-05,
+   "cosine": 0.9999774223233421,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.13.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.065265069346346e-05,
+   "cosine": 0.9999693473493065,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.131.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.340938597795606e-05,
+   "cosine": 0.999966590614022,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.131.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4620243807782494e-05,
+   "cosine": 0.9999753797561922,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.133.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.266626065645539e-05,
+   "cosine": 0.9999673337393435,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.133.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.836688245877461e-05,
+   "cosine": 0.9999716331175412,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.135.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.7666291521223343e-05,
+   "cosine": 0.9999823337084788,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.135.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.7749055641068665e-05,
+   "cosine": 0.9999722509443589,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.137.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.1171695347099728e-05,
+   "cosine": 0.9999788283046529,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.137.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.7930501602703153e-05,
+   "cosine": 0.9999820694983973,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.139.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2532622162785287e-05,
+   "cosine": 0.9999774673778372,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.139.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2438164052118736e-05,
+   "cosine": 0.9999775618359479,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.15.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.0358035075274117e-05,
+   "cosine": 0.9999796419649247,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.15.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.331834824687018e-05,
+   "cosine": 0.9999766816517531,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.17.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.2993566646211114e-05,
+   "cosine": 0.9999670064333538,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.17.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.971722776201613e-05,
+   "cosine": 0.999970282772238,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.19.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4597797329439786e-05,
+   "cosine": 0.9999754022026706,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.19.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4811753395637126e-05,
+   "cosine": 0.9999751882466044,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.21.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.436725720962208e-05,
+   "cosine": 0.9999656327427904,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.21.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.3172693700446167e-05,
+   "cosine": 0.9999768273062996,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.23.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.0400378034080013e-05,
+   "cosine": 0.9999795996219659,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.23.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.392770246661957e-05,
+   "cosine": 0.9999760722975334,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.25.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 4.238458321892402e-05,
+   "cosine": 0.9999576154167811,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.25.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5769313659163018e-05,
+   "cosine": 0.9999742306863408,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.27.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.483396999679698e-05,
+   "cosine": 0.9999851660300032,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.27.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.071276521371402e-05,
+   "cosine": 0.9999692872347863,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.29.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.462696023686206e-05,
+   "cosine": 0.9999753730397631,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.29.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.272178331958919e-05,
+   "cosine": 0.9999672782166804,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.3.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4188904311439607e-05,
+   "cosine": 0.9999758110956886,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.3.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.0360797661211905e-05,
+   "cosine": 0.9999796392023388,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.31.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.7144719412675045e-05,
+   "cosine": 0.9999728552805873,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.31.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.597227071521324e-05,
+   "cosine": 0.9999740277292848,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.33.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.907673508212305e-05,
+   "cosine": 0.9999709232649179,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.33.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.574922333042906e-05,
+   "cosine": 0.9999742507766696,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.35.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.9927246839634982e-05,
+   "cosine": 0.9999800727531604,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.35.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.139041964932531e-05,
+   "cosine": 0.9999786095803507,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.37.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5007829590029118e-05,
+   "cosine": 0.99997499217041,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.37.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.356855919349865e-05,
+   "cosine": 0.9999764314408065,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.39.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5026730494870364e-05,
+   "cosine": 0.9999749732695051,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.39.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2952718611413125e-05,
+   "cosine": 0.9999770472813886,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.41.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.3214880575439523e-05,
+   "cosine": 0.9999767851194246,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.41.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.3591734109262852e-05,
+   "cosine": 0.9999764082658907,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.43.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.484276905878602e-05,
+   "cosine": 0.9999751572309412,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.43.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4923724669667635e-05,
+   "cosine": 0.9999750762753303,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.45.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.31911808225016e-05,
+   "cosine": 0.9999768088191775,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.45.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.1772151205801116e-05,
+   "cosine": 0.9999782278487942,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.47.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.8819791417777907e-05,
+   "cosine": 0.9999711802085822,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.47.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.150575391390852e-05,
+   "cosine": 0.9999784942460861,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.49.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.550205162310526e-05,
+   "cosine": 0.9999744979483769,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.49.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4357090460336295e-05,
+   "cosine": 0.9999756429095397,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.5.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.626072616940256e-05,
+   "cosine": 0.9999737392738306,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.5.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.1355763862594976e-05,
+   "cosine": 0.9999686442361374,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.51.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.7838946901281858e-05,
+   "cosine": 0.9999721610530987,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.51.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.1747601304689113e-05,
+   "cosine": 0.9999782523986953,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.53.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.600458089951907e-05,
+   "cosine": 0.9999739954191005,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.53.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.339220591418556e-05,
+   "cosine": 0.9999766077940858,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.55.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.753557274903784e-05,
+   "cosine": 0.999972464427251,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.55.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4187682729159832e-05,
+   "cosine": 0.9999758123172708,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.57.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.3582868506677457e-05,
+   "cosine": 0.9999764171314933,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.57.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2110334499170214e-05,
+   "cosine": 0.9999778896655008,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.59.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.3198064839413668e-05,
+   "cosine": 0.9999768019351606,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.59.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.594369696828913e-05,
+   "cosine": 0.9999740563030317,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.61.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.1746430459157473e-05,
+   "cosine": 0.9999782535695408,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.61.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.3338075358657626e-05,
+   "cosine": 0.9999666619246413,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.63.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.9010862040369503e-05,
+   "cosine": 0.9999809891379596,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.63.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2237714782713525e-05,
+   "cosine": 0.9999777622852173,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.65.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 3.094380205181935e-05,
+   "cosine": 0.9999690561979482,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.65.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.743810729544105e-05,
+   "cosine": 0.9999725618927046,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.67.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.8301928328144932e-05,
+   "cosine": 0.9999716980716719,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.67.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.994202325545814e-05,
+   "cosine": 0.9999700579767445,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.69.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.166747824083881e-05,
+   "cosine": 0.9999783325217592,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.69.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.740981282733923e-05,
+   "cosine": 0.9999725901871727,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.7.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.747551678372595e-05,
+   "cosine": 0.9999725244832163,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.7.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.6174249104560232e-05,
+   "cosine": 0.9999738257508954,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.71.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.3056648869590468e-05,
+   "cosine": 0.9999769433511304,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.71.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.567686011700765e-05,
+   "cosine": 0.999974323139883,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.73.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.1409248845305484e-05,
+   "cosine": 0.9999785907511547,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.73.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.618041240509683e-05,
+   "cosine": 0.9999738195875949,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.75.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.443479142810734e-05,
+   "cosine": 0.9999755652085719,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.75.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.4432869712320837e-05,
+   "cosine": 0.9999755671302877,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.77.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.7356554713087178e-05,
+   "cosine": 0.9999726434452869,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.77.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5900401038336796e-05,
+   "cosine": 0.9999740995989617,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.79.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.9103506496319653e-05,
+   "cosine": 0.9999708964935037,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.79.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5334217703565365e-05,
+   "cosine": 0.9999746657822964,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.81.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5235888940433604e-05,
+   "cosine": 0.9999747641110596,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.81.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.152739365468559e-05,
+   "cosine": 0.9999784726063453,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.83.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.0255096730981137e-05,
+   "cosine": 0.999979744903269,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.83.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.2644625382706174e-05,
+   "cosine": 0.9999773553746173,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.85.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.7590375892394547e-05,
+   "cosine": 0.9999724096241076,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.85.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5122223154872003e-05,
+   "cosine": 0.9999748777768451,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.87.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.81254812272147e-05,
+   "cosine": 0.9999718745187728,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.87.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.880053137199745e-05,
+   "cosine": 0.999971199468628,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.89.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.8697727629145575e-05,
+   "cosine": 0.9999713022723709,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.89.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.7020372853181485e-05,
+   "cosine": 0.9999729796271468,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.9.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.7128329913472804e-05,
+   "cosine": 0.9999728716700865,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.9.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.404116566501191e-05,
+   "cosine": 0.999975958834335,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.91.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.506838503035791e-05,
+   "cosine": 0.9999749316149696,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.91.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.3681126782637563e-05,
+   "cosine": 0.9999763188732174,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.93.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.0967110363256936e-05,
+   "cosine": 0.9999790328896367,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.93.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.0614384182104928e-05,
+   "cosine": 0.9999793856158179,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.95.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.3483881260388806e-05,
+   "cosine": 0.9999765161187396,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.95.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5101126063797885e-05,
+   "cosine": 0.9999748988739362,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.97.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 1.941088125834156e-05,
+   "cosine": 0.9999805891187417,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.97.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.5030962702121684e-05,
+   "cosine": 0.9999749690372979,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.99.to_k_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.6670584278409848e-05,
+   "cosine": 0.9999733294157216,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.99.to_v_ip": {
+   "surface": "ip_adapter",
+   "element": "the projection's own output on a fixed input of its width",
+   "divergence": 2.6019066294735715e-05,
+   "cosine": 0.9999739809337053,
+   "shape": [
+    1280,
+    2048
+   ]
+  }
+ }
+}

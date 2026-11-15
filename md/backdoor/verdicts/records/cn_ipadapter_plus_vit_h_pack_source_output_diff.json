@@ -1,0 +1,52 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_acceptance.py",
+ "route": "A1111 modules/ipadapter_int8_convrot.py, 162 INT8 layers installed",
+ "pack": "ip-adapter-plus_sdxl_vit-h_hswq_convrot_int8.safetensors",
+ "int8_layers": 162,
+ "int8_kernel_calls": 648,
+ "image_proj_surface": {
+  "elements": 16,
+  "element": "one latent of the 16x2048 injected stack",
+  "cos_mean": 0.9956762199074456,
+  "cos_min": 0.933289702336535,
+  "depends_on_the_image": true
+ },
+ "ip_adapter_surface": {
+  "elements": 140,
+  "element": "one to_k_ip / to_v_ip projection output on a fixed input of its own width",
+  "cos_mean": 0.9999223177265234,
+  "cos_min": 0.9998427499660743,
+  "depends_on_the_image": false,
+  "note": "these projections consume the UNet cross-attention K/V, not the image embedding, so this surface does not depend on the image"
+ },
+ "batches": [
+  {
+   "batch": 0,
+   "image_proj_cos_mean": 0.9994654690659492,
+   "image_proj_cos_min": 0.9935435964270632,
+   "ip_adapter_cos_mean": 0.9999223177265234,
+   "ip_adapter_cos_min": 0.9998427499660743
+  },
+  {
+   "batch": 1,
+   "image_proj_cos_mean": 0.9978303257018571,
+   "image_proj_cos_min": 0.967163870565354,
+   "ip_adapter_cos_mean": 0.9999223177265234,
+   "ip_adapter_cos_min": 0.9998427499660743
+  },
+  {
+   "batch": 2,
+   "image_proj_cos_mean": 0.9995784416280653,
+   "image_proj_cos_min": 0.9950286834420108,
+   "ip_adapter_cos_mean": 0.9999223177265234,
+   "ip_adapter_cos_min": 0.9998427499660743
+  },
+  {
+   "batch": 3,
+   "image_proj_cos_mean": 0.9981273996588451,
+   "image_proj_cos_min": 0.9726500838028713,
+   "ip_adapter_cos_mean": 0.9999223177265234,
+   "ip_adapter_cos_min": 0.9998427499660743
+  }
+ ]
+}
