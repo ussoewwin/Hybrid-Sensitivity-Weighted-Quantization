@@ -81,5 +81,3 @@ cn_ipadapter_xl_a1111_image_test.json
 cn_ipadapter_xl_hswq_route.json
 cn_ipadapter_xl_a1111_source.png
 cn_ipadapter_xl_a1111_pack.png
-cn_clip_vit_h14_laion2b_protect_100.json
-cn_clip_vit_h14_laion2b_score_curve.json
