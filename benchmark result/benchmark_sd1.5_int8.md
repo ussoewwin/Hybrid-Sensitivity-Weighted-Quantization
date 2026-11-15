@@ -33,7 +33,8 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **0.9chilledReGenericV3+0.1majicmixRealistic_v7** | 1on k80 | **0.98043** | 0.96837 | **+0.01206** | **0.5184** | 0.7346 | **19/25 (0%)** | 14/25 (0%) | **+8.7%** | **HSWQ** |
 | **againmix_v22** | 1on k80 | **0.96171** | 0.94865 | **+0.01306** | **1.8043** | 2.3448 | **10/25 (0%)** | 6/25 (0%) | **+25.1%** | **HSWQ** |
 | **calicomix_v95** | 1on k80 | **0.97720** | 0.96554 | **+0.01166** | **1.0223** | 1.4930 | **18/25 (0%)** | 13/25 (0%) | **+21.0%** | **HSWQ** |
-| **Family Average** | — | **0.97104** | 0.95671 | **+0.01433** | **1.0118** | 1.5141 | **202/325 (0.0%)** | 154/325 (0.0%) | **+24.2%** | **HSWQ (12/13 models)** |
+| **cyberrealistic_final** | 1on k80 | **0.97099** | 0.93497 | **+0.03602** | **0.9546** | 2.0972 | **16/25 (0%)** | 10/25 (4%) | **+26.1%** | **HSWQ** |
+| **Family Average** | — | **0.97104** | 0.95516 | **+0.01588** | **1.0077** | 1.5558 | **218/350 (0.0%)** | 164/350 (0.0%) | **+24.3%** | **HSWQ (13/14 models)** |
 
 **Winner** = better on both mean cosine and mean MSE.
 
@@ -604,17 +605,62 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
+### 2.14. cyberrealistic_final (1on k80)
+
+#### Metric Overview
+| Metric / Property | HSWQ ConvRot INT8 | Native ConvRot INT8 (Full Model) | Advantage |
+| :--- | :--- | :--- | :--- |
+| **Mean Final Cosine** (↑ better) | **0.97099** | 0.93497 | **+0.03602** |
+| **Min Final Cosine** (↑ better) | **0.87936** | 0.54129 | **+0.33807** |
+| **Max Final Cosine** (↑ better) | **0.99779** | 0.99417 | +0.00362 |
+| **Mean Final Latent MSE** (↓ better) | **0.9546** | 2.0972 | **−1.1426 (54.5% error reduction)** |
+| **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | **1/25 (4%)** | HSWQ keeps every seed continuous |
+| **Speedup (avg wall/seed)** (↑ better) | **+26.1%** (1.75s → 1.29s) | -5.1% (1.64s → 1.72s) | — |
+| **Trajectory Verdict** | 16/25 same-image, 9/25 drifted/0 bifurcated | 10/25 same-image, 14/25 drifted/1 bifurcated | **HSWQ preserves trajectory structure** |
+
+#### Side-by-Side per Seed (cyberrealistic_final)
+| Seed | HSWQ Cosine | Native Cosine | Δ Cosine (↑ better) | HSWQ MSE | Native MSE | Δ MSE (↓ better) | HSWQ Verdict | Native Verdict | Winner |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **42** | **0.99191** | 0.99166 | **+0.00025** | **0.2605** | 0.2682 | **−0.0077** | same-image | same-image | **HSWQ** |
+| **137** | **0.99277** | 0.98538 | **+0.00739** | **0.2343** | 0.4737 | **−0.2394** | same-image | same-image | **HSWQ** |
+| **849** | **0.99779** | 0.98907 | **+0.00872** | **0.0731** | 0.3618 | **−0.2887** | same-image | same-image | **HSWQ** |
+| **2024** | **0.98157** | 0.97616 | **+0.00541** | **0.6922** | 0.8951 | **−0.2029** | same-image | drifted (different image) | **HSWQ** |
+| **7391** | **0.98119** | 0.96899 | **+0.01220** | **0.6197** | 1.0200 | **−0.4003** | same-image | drifted (different image) | **HSWQ** |
+| **18429** | **0.99523** | 0.97914 | **+0.01609** | **0.1407** | 0.6129 | **−0.4722** | same-image | drifted (different image) | **HSWQ** |
+| **53082** | **0.98462** | 0.97023 | **+0.01439** | **0.4499** | 0.8675 | **−0.4176** | same-image | drifted (different image) | **HSWQ** |
+| **149206** | 0.98695 | **0.99058** | −0.00363 | 0.4491 | **0.3241** | +0.1250 | same-image | same-image | Native |
+| **382715** | 0.98314 | **0.99126** | −0.00812 | 0.4914 | **0.2555** | +0.2359 | same-image | same-image | Native |
+| **826401** | 0.99312 | **0.99417** | −0.00105 | 0.2282 | **0.1953** | +0.0329 | same-image | same-image | Native |
+| **1938502** | **0.93204** | 0.82807 | **+0.10397** | **2.2800** | 5.7200 | **−3.4400** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **4710928** | **0.87936** | 0.54129 | **+0.33807** | **3.2300** | 12.9300 | **−9.7000** | drifted (different image) | bifurcated @step 15 | **HSWQ** |
+| **8391642** | **0.99436** | 0.95891 | **+0.03545** | **0.2078** | 1.4980 | **−1.2902** | same-image | drifted (different image) | **HSWQ** |
+| **15820493** | **0.89226** | 0.82381 | **+0.06845** | **3.8140** | 6.1510 | **−2.3370** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **36192847** | **0.96687** | 0.80056 | **+0.16631** | **1.0300** | 6.2660 | **−5.2360** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **71058294** | **0.98089** | 0.91409 | **+0.06680** | **0.8281** | 3.6450 | **−2.8169** | same-image | drifted (different image) | **HSWQ** |
+| **128491703** | 0.95353 | **0.99122** | −0.03769 | 1.7440 | **0.3310** | +1.4130 | drifted (different image) | same-image | Native |
+| **285039184** | **0.99295** | 0.99192 | **+0.00103** | **0.2647** | 0.3006 | **−0.0359** | same-image | same-image | **HSWQ** |
+| **491730285** | **0.98590** | 0.96423 | **+0.02167** | **0.4564** | 1.1540 | **−0.6976** | same-image | drifted (different image) | **HSWQ** |
+| **762019483** | **0.95294** | 0.90380 | **+0.04914** | **1.3880** | 2.8270 | **−1.4390** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **938174026** | 0.98823 | **0.99354** | −0.00531 | 0.3608 | **0.1984** | +0.1624 | same-image | same-image | Native |
+| **1409285713** | **0.97453** | 0.96584 | **+0.00869** | **0.8269** | 1.1110 | **−0.2841** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **2683910547** | **0.95894** | 0.95561 | **+0.00333** | **1.2710** | 1.3810 | **−0.1100** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **3851729406** | 0.99174 | **0.99275** | −0.00101 | 0.3102 | **0.2720** | +0.0382 | same-image | same-image | Native |
+| **4195820371** | **0.94189** | 0.91209 | **+0.02980** | **2.2150** | 3.3720 | **−1.1570** | drifted (different image) | drifted (different image) | **HSWQ** |
+| **Mean** | **0.97099** | 0.93497 | **+0.03602** | **0.9546** | 2.0972 | **−1.1426** | **0/25 Bifurcated** | **1/25 Bifurcated** | **HSWQ (19/25)** |
+
+---
+
 ## 3. Key Findings and Trajectory Analysis
 
-1. **Bifurcation behaviour:** across the 13 checkpoints (25 seed evaluations per arm, 325 seeds total), neither Native ConvRot INT8 nor HSWQ ConvRot INT8 produces a single bifurcated seed (0/325 each). HSWQ significantly raises the same-image count to 202/325 vs 154/325 for Native.
+1. **Bifurcation behaviour:** across the 14 checkpoints (25 seed evaluations per arm, 350 seeds total), HSWQ ConvRot INT8 produces no bifurcated seed (0/350) while Native ConvRot INT8 produces one (`cyberrealistic_final`, seed 4710928, bifurcated at step 15, final cosine 0.54129). HSWQ raises the same-image count to 218/350 vs 164/350 for Native.
 
-2. **Cosine gain:** the family mean final cosine is 0.97104 for HSWQ vs 0.95671 for Native (+0.01433 gain). HSWQ is ahead on mean cosine in 12/13 models; the fourth checkpoint is the exception - see finding 8.
+2. **Cosine gain:** the family mean final cosine is 0.97104 for HSWQ vs 0.95516 for Native (+0.01588 gain). HSWQ is ahead on mean cosine in 13/14 models; the fourth checkpoint is the exception - see finding 8.
 
-3. **Latent MSE reduction:** family mean final latent MSE is 1.0118 (HSWQ) vs 1.5141 (Native), about 33.2% lower error.
+3. **Latent MSE reduction:** family mean final latent MSE is 1.0077 (HSWQ) vs 1.5558 (Native), about 35.2% lower error.
 
 4. **Worst-case robustness:** the worst per-model minimum cosine is 0.69419 (HSWQ) vs 0.63851 (Native) observed on the seventh checkpoint; HSWQ prevents the near-bifurcation collapse seen in Native.
 
-5. **Wall-clock:** HSWQ averages a +24.2% speedup over FP16 per seed across the family.
+5. **Wall-clock:** HSWQ averages a +24.3% speedup over FP16 per seed across the family.
 
 6. **The second checkpoint is harder for both arms.** `0.5xxmix9realistic_v40+0.5chilledReGenericV3` sits below `0.5xxmix9realistic_v40 0.5BRA7` on every aggregate for both HSWQ and Native; the HSWQ/Native gap is nonetheless wider there (+0.02718 vs +0.01277), so the protection buys more on the harder model, not less.
 
@@ -639,6 +685,8 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 16. **The twelfth checkpoint (`againmix_v22`) is the widest minimum-cosine gain of the set.** Under `1on k80`, HSWQ holds a mean final cosine of 0.96171 against 0.94865 for Native (+0.01306) and lifts the minimum from 0.77101 to 0.87077 (+0.09976). Seed 1938502 is the extreme case: Native drops to 0.77101 (MSE 8.9040) while HSWQ stays at 0.99538 (MSE 0.1845). Same-image seeds are 10/25 against 6/25, and latent MSE falls from 2.3448 to 1.8043 (23.0% reduction); the wall-clock gain is +25.1% against +18.3% for Native. HSWQ wins 18 of 25 seeds.
 
 17. **The thirteenth checkpoint (`calicomix_v95`) keeps the family's high end.** Under `1on k80`, HSWQ reaches 0.97720 mean cosine vs 0.96554 Native (+0.01166), 18/25 same-image seeds against 13/25, and cuts latent MSE from 1.4930 to 1.0223 (31.5% reduction) with a minimum of 0.88804 against 0.85664. The wall-clock gain is +21.0% against +20.8% for Native. HSWQ wins 19 of 25 seeds.
+
+18. **The fourteenth checkpoint (`cyberrealistic_final`) is the one where Native breaks.** Under `1on k80`, HSWQ holds 0.97099 mean cosine against 0.93497 for Native (+0.03602) and 16/25 same-image seeds against 10/25, cutting latent MSE from 2.0972 to 0.9546 (54.5% reduction). Native bifurcates on seed 4710928 (step 15, final cosine 0.54129, MSE 12.9300) where HSWQ stays at 0.87936 (MSE 3.2300); it is the only bifurcated seed in the whole 350-seed set. The wall-clock gain is +26.1% against -5.1% for Native. HSWQ wins 19 of 25 seeds.
 
 
 ---
