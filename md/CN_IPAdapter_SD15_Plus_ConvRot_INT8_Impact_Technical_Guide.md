@@ -85,7 +85,7 @@ the installed layers execute.
 | the source | 158,030,471 B, 191 tensors |
 | the measured Linears | **54** (22 `image_proj` + 32 `ip_adapter`) |
 | the `image_proj` part | the Resampler: `proj_in` 768x1280, `proj_out` 768x768, `latents` 1x16x768, 4 blocks |
-| the `ip_adapter` part | 32 bias-free Linears: `to_k_ip` / `to_v_ip` at 320 / 640 / 1280 wide |
+| the `ip_adapter` part | 32 bias-free Linears: `to_k_ip` / `to_v_ip`, inner dimension 768, outputs 320 / 640 / 1280 / 1536 / 3072 |
 | the group size | 256, all INT8 layers |
 | the tensors kept as-is | 29 (biases, norms, `latents` - not measured Linears) |
 
@@ -137,10 +137,9 @@ run on every forward. No layer reaches the threshold.
 | tensors kept that are not measured Linears | 29 |
 
 **Nothing is protected, and nothing needed to be.** Every one of the 54 measured Linears is two
-orders of magnitude below the threshold, and every one carries a 256-way group (the inner dimensions
-are 1280, 768, 640, 320 and 128 - 1280 / 768 / 640 / 320 all hold 256, and the 128-wide LoRA-adjacent
-weights are not part of this adapter). The 29 kept tensors are biases, norms and the `latents`
-buffer, which are not quantiser inputs.
+orders of magnitude below the threshold, and every one carries a 256-way group: the inner dimensions
+are **768 (49 layers), 1280 (1) and 3072 (4)**, all divisible by 256. The 29 kept tensors are biases,
+norms and the `latents` buffer, which are not quantiser inputs.
 
 This differs from the FaceID adapter in the same family, where 60 of 162 weight groups are kept
 because their inner dimension is 128 / 320 / 640 and cannot carry a power-of-four group. Here the

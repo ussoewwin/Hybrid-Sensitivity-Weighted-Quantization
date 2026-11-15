@@ -122,10 +122,14 @@ bare weight on its own input width where only one does.
 its ConvRot INT8 reconstruction, runs again, and records the relative MSE.
 
 | rank | layer | drift (rel_mse) |
-| :--- | :--- | :--- |
+| :--- | :--- | ---: |
 | 1 | `ip_adapter.13.to_out_lora.down` | 1.407497e-04 |
-| 2 | `ip_adapter.13.to_k_ip` | 1.29e-04 (top decile) |
-| 3 | `ip_adapter.15.to_out_lora.down` | 1.23e-04 (top decile) |
+| 2 | `ip_adapter.8.to_out_lora.down` | 1.340759e-04 |
+| 3 | `ip_adapter.28.to_out_lora.down` | 1.271795e-04 |
+| 4 | `ip_adapter.20.to_out_lora.down` | 1.221007e-04 |
+| 5 | `ip_adapter.14.to_out_lora.down` | 1.175698e-04 |
+| 6 | `ip_adapter.12.to_q_lora.down` | 1.153316e-04 |
+| last | `image_proj.proj.0` | 1.283803e-05 |
 
 | summary | measured |
 | :--- | :--- |
@@ -133,7 +137,7 @@ its ConvRot INT8 reconstruction, runs again, and records the relative MSE.
 | largest drift | **1.407497e-04** (`ip_adapter.13.to_out_lora.down`) |
 | median | 6.752623e-05 |
 | p90 | 1.061702e-04 |
-| min | below 1e-06 |
+| min | **1.283803e-05** (`image_proj.proj.0`) |
 | groups above 0.15 | **0** |
 
 **Every group is two to three orders of magnitude below the 0.15 threshold.** Nothing in this
@@ -158,15 +162,14 @@ would protect.
 | kept by the shape rule | **60** |
 | tensors kept that are not quantiser inputs | 132 |
 
-The 60 kept groups are kept by the **shape rule**, not by drift: a ConvRot group must be a power of
-four in the inner dimension, and these weights have inner dimensions of 128, 320 or 640 - none of
-which carries a 256-way group. Their split:
+The 60 kept groups are kept by the **shape rule**, not by drift: a ConvRot group must take 256 on
+the inner dimension, and these groups are 320 and 640 wide. Their split:
 
-| inner dimension | what it is | groups |
+| inner dimension | what the group is | groups |
 | :--- | :--- | ---: |
-| 128 | every LoRA `up` (out x 128) | 32 |
-| 320 | `to_*_lora.up` in the 320-wide blocks, `to_q/v_lora.down` in those blocks | 20 |
-| 640 | the corresponding weights in the 640-wide blocks | 8 |
+| 320 | the `to_*_lora.down` of the 320-wide blocks (and their paired `up`) | **30** |
+| 640 | the `to_*_lora.down` of the 640-wide blocks (and their paired `up`) | **30** |
+| 128 | none - no kept group has a 128-wide inner dimension | **0** |
 
 **No layer was kept for quality reasons.** The boundary is the shape rule alone, and the sweep says
 no layer would have needed protection anyway.
