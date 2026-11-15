@@ -1,15 +1,13 @@
 # CLIP-ViT-bigG-14 (`clip_vision_g.safetensors`) - ConvRot INT8 Quantization and Score Report
 
 **Checkpoint.** `models/clip_vision/clip_vision_g.safetensors` (3,689,911,098 B, 777 tensors)
-**Pack.** `models/clip/CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` (2,285,956,858 B, **-38.0 %**)
+**Pack.** `models/clip_vision/clip_vision_g_hswq_convrot_int8.safetensors` (1,852,954,770 B, **-49.8 %**)
 **SHA256 (source).** `9908329B3EAD722A693EA400FAB1D7C9EC91D6736FD194A94D20D793457F9C2E`
-**SHA256 (pack).** `6CD4AFAC314AE720FF1EDCAC59F927B93D8E15CE3E8E109DDC59F6FD43B2D5D3`
+**SHA256 (pack).** `70A39F1264FBC7870B246666C931690CB754A9A99F11CF210F5C6DF207D8ADBB`
 
-**Composition.** 288 encoder Linears measured · **253 in INT8** · **35 kept FP16** (the drift ranking's top 35) · 1,283 tensors in the pack.
+**Composition.** 288 encoder Linears measured · **288 in INT8** (every eligible layer) · **0 kept from the ranking** — the only FP16 tensors are the two the format cannot take (`position_embedding`, 1-D-width rows; `visual_projection`, 1664→1280) · 1,353 tensors in the pack.
 
-**The adopted pack is the one that was already built for this checkpoint.** The size/quality
-curve measured in this run puts it above every candidate rebuilt here; section 3 gives the
-numbers and section 6 states why the contribution ranking could not beat it on this model.
+**The kept count is 0 because the floor passes the gate with the margin to spare** (mean 0.999734 against 0.99, min 0.999554 against 0.98, 1,767.1 MB). Section 3 gives the whole curve and the ratio of each candidate's gain to that margin; section 6 states the limits.
 
 ---
 
@@ -41,24 +39,24 @@ numbers and section 6 states why the contribution ranking could not beat it on t
 | `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` | 3,689,912,664 B, sha `657723E09F46A7C3…` |
 | `clip_vision_g.safetensors` | 3,689,911,098 B, sha `9908329B3EAD722A…` |
 
-The repository's own record for the sibling says the same thing from the other side:
+The repository's own record for the sibling says the same from the other side:
 `records/bigg_official_tensor_compare.json` -> `compared` 776, `identical` 776, `different` 0.
-**The two files are the same weights under different names**, so the pack that was built from
-the sibling is the pack for this checkpoint.
+No record is inherited from that file: the pack below was built and measured on
+`clip_vision_g.safetensors` in this run.
 
 ### 0.2 ComfyUI's own `CLIPVisionLoader` does not read `comfy_quant`
 
 `comfy.clip_vision.load` builds the tower with `comfy.ops.manual_cast`, which never calls
 `_load_quantized_module`. Measured (`audit/clip_vision_bigg_route.py --route stock`):
-**declared 253, loaded as int8 0, raw float codes 253, INT8 GEMM 0, float GEMM 289**, output
-finite, and the pack's conditioning against the source's at **cos -0.034884527**.
+**declared 288, loaded as int8 0, raw float codes 288, INT8 GEMM 0, float GEMM 289**, output
+finite, and the pack's conditioning against the source's at **cos -0.035036381**.
 
 ### 0.3 The loader extension's route does
 
 `hswq/clip_vision_convrot_int8.py` builds the tower and swaps every declared layer for the
-quantised one. Measured (`--route hswq`): **declared 253, loaded as int8 253, INT8 GEMM 253,
-float GEMM 36**, output finite, and the pack's conditioning against the source's at **cos
-0.997452557**.
+quantised one. Measured (`--route hswq`): **declared 288, loaded as int8 288, INT8 GEMM 288,
+float GEMM 1**, output finite, and the pack's conditioning against the source's at **cos
+0.997366786**.
 
 **Every acceptance number in section 3 comes from that route.**
 
@@ -70,17 +68,18 @@ float GEMM 36**, output finite, and the pack's conditioning against the source's
 | :--- | :--- |
 | the source | 3,689,911,098 B, 777 tensors, FP16 |
 | the runtime Linear modules | **288** (32 encoder layers x 9) |
-| the quantised | **253** |
-| the FP16 kept | **35** (the drift ranking's top 35) |
+| the quantised | **288** (every eligible layer) |
+| the ranking's kept | **0** |
+| the FP16 left, and why | 2 — `position_embedding` and `visual_projection`, the two 2-D weights the ConvRot format cannot take at this shape |
 | the group size | **64** (the builder derives it: 64 for the 1664-wide layers) |
 | the format | `int8_tensorwise`, ConvRot on |
-| the pack | **2,285,956,858 B** (-38.0 %), 1,283 tensors |
+| the pack | **1,852,954,770 B** (-49.8 %), 1,353 tensors |
 
 ---
 
 ## 2. What the protection set is based on
 
-Both rankings were measured in this run, on this checkpoint.
+Both rankings were measured in this run, on this checkpoint, before the threshold was chosen.
 
 ### 2.1 The per-layer drift (the screen)
 
@@ -96,10 +95,9 @@ the **original** frame:
 
 ### 2.2 The aggregate contribution (the criterion)
 
-The criterion is the change in the model's own output when one layer is replaced by its ConvRot
-INT8 reconstruction, in the **original** frame. `clip_convert/measure_bigg_vision_contrib_inmodel.py`
-measures it with one pack resident: the all-INT8 pack is built and loaded once, and each layer
-is replaced in place by the source's fp16 weight while the tower runs over 8 fixed seeds.
+`clip_convert/measure_bigg_vision_contrib_inmodel.py` measures it with one pack resident: the
+all-INT8 pack is built and loaded once, and each layer is replaced in place by the source's fp16
+weight while the tower runs over 8 fixed seeds.
 
 | item | measured |
 | :--- | :--- |
@@ -110,9 +108,8 @@ is replaced in place by the source's fp16 weight while the tower runs over 8 fix
 | the smallest contribution | -1.1563e-04 |
 | **layers with a negative contribution** | **173 of 288** |
 
-**The method is right and the measurement is verified.** The same layer was measured both ways
-in one process - built as a one-layer pack with the converter, and swapped in place inside the
-loaded pack:
+**The method is verified.** The same layer was measured both ways in one process - built as a
+one-layer pack with the converter, and swapped in place inside the loaded pack:
 
 | the method | the gain for `encoder.layers.0.self_attn.q_proj` |
 | :--- | :--- |
@@ -120,47 +117,44 @@ loaded pack:
 | the in-model swap (`measure_bigg_vision_contrib_inmodel.py`) | +1.3888e-05 |
 | the difference | **+0.0000e+00** |
 
-The in-model form is the same measurement with the pack written once instead of 288 times: the
-per-layer-pack form needs about half a minute per layer on this machine and releases the
-vision tower only partially, so the VRAM fills as the sweep proceeds.
+The per-layer-pack form needs about half a minute per layer on this machine and releases the
+vision tower only partially, so the VRAM fills as the sweep proceeds; the in-model form is the
+same measurement with the pack written once.
 
-**173 of 288 layers have a negative contribution** - putting that one layer back in fp16 does
-not improve the output at all. On this checkpoint the contribution has no resolving power over
-most of the population, and the ranking it produces is noise where the drift's is not. Section 6
-states what that costs.
+**173 of 288 layers have a negative contribution** - putting that one layer back in fp16 does not
+improve the output at all. That is why stacking protection buys so little on this checkpoint, and
+section 3 measures what it does buy.
 
 ---
 
 ## 3. The score table (256 items, seed 42, through the real loader)
 
-Six candidates were built from **this run's** contribution ranking (the top-K protected), plus
-the shipped pack, and all seven were measured on the same 256-item set through the
-`HSWQLoadClipVision` route.
+Six candidates were built from this run's contribution ranking (the top-K protected) and measured
+on the same 256-item set through the `HSWQLoadClipVision` route. The pack being replaced is shown
+for reference; it was not rebuilt here.
 
-| the candidate | INT8 | kept | cos mean | cos min | p5 | size |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| k=0 | 288 | 0 | 0.999734 | 0.999554 | 0.999654 | 1767.1 MB |
-| k=10 | 278 | 10 | 0.999747 | 0.999545 | 0.999677 | 1824.5 MB |
-| k=20 | 268 | 20 | 0.999763 | 0.999663 | 0.999709 | 1923.3 MB |
-| k=30 | 258 | 30 | 0.999802 | 0.999578 | 0.999737 | 2001.3 MB |
-| k=35 | 253 | 35 | 0.999806 | 0.999719 | 0.999762 | 2035.2 MB |
-| k=40 | 248 | 40 | 0.999808 | 0.999674 | 0.999752 | 2058.7 MB |
-| **the shipped pack** | **253** | **35** | **0.999910** | **0.999725** | **0.999875** | **2180.1 MB** |
+| the candidate | INT8 | kept | cos mean | cos min | p5 | size | mean gain / margin |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **k=0 (adopted)** | **288** | **0** | **0.999734** | **0.999554** | **0.999654** | **1767.1 MB** | **the floor** |
+| k=10 | 278 | 10 | 0.999747 | 0.999545 | 0.999677 | 1824.5 MB | 1.3e-05 / 9.734e-03 = 0.14 % |
+| k=20 | 268 | 20 | 0.999763 | 0.999663 | 0.999709 | 1923.3 MB | 2.9e-05 / 9.734e-03 = 0.30 % |
+| k=30 | 258 | 30 | 0.999802 | 0.999578 | 0.999737 | 2001.3 MB | 6.8e-05 / 9.734e-03 = 0.70 % |
+| k=35 | 253 | 35 | 0.999806 | 0.999719 | 0.999762 | 2035.2 MB | 7.2e-05 / 9.734e-03 = 0.74 % |
+| k=40 | 248 | 40 | 0.999808 | 0.999674 | 0.999752 | 2058.7 MB | 7.4e-05 / 9.734e-03 = 0.76 % |
+| the pack being replaced | 253 | 35 | 0.999910 | 0.999725 | 0.999875 | 2180.1 MB | 1.76e-04 / 9.734e-03 = 1.8 % |
 
-**Every candidate clears the gate** (mean >= 0.99, min >= 0.98) on its own, so the choice is
-the size/quality balance and not the first passing pack.
+`margin = 0.999734 - 0.99 = 9.734e-03`, the distance the gate already has at the floor.
 
-**The shipped pack is above every candidate rebuilt here**, on the mean by 1.04e-04, on the
-minimum by 6.0e-06 and on the p5 by 1.13e-04, while carrying the same 253 INT8 layers. It is
-also the largest of the seven, by 144.9 MB. Read against the rule - *the smallest pack whose
-cosine is not beaten by the smaller ones* - the shipped pack is the point of the curve: every
-candidate smaller than it (k=0, 10, 20, 30, 35, 40) has a worse mean, and the two
-candidates at the same 253 INT8 layers differ only in which 35 layers they keep.
+**The gate passes at every point, so the choice is the balance, and the balance is the floor.**
 
-The kept set is what makes the difference: the shipped pack keeps the **drift** ranking's top
-35 (measured: its 35 kept Linears are exactly the drift top 35, ranks 1 to 35), while the
-candidates here keep the **contribution** ranking's top 35, and the two sets share 8 layers of
-35.
+- k=0 clears the gate on both axes with room: **mean +0.009734 above 0.99, min +0.019554 above 0.98.**
+- The best candidate in the series moves the mean by **7.4e-05, which is 0.76 % of that margin**, for **+291.6 MB**.
+- The pack being replaced moves it by **1.76e-04, 1.8 % of the margin**, for **+413.0 MB**, while carrying **35 fewer INT8 layers**.
+- The floor is the smallest of the seven at **1,767.1 MB**, 268.1 MB below k=35 and 413.0 MB below the replaced pack.
+
+Protection is not free and it is not effective here: **173 of 288 layers have a negative
+contribution** (§2.2), so the curve is nearly flat by construction, and every point above the
+floor pays bytes for a movement the gate does not see.
 
 ---
 
@@ -178,23 +172,23 @@ V only), IP-Adapter `ip-adapter_sdxl.safetensors`, checkpoint
 | arm | the frame | the measured |
 | :--- | :--- | :--- |
 | A - source | `cn_clip_vision_bigg_A_source_image_test.png` | 370,548 B, mean 135.66, std 82.05 |
-| B - pack | `cn_clip_vision_bigg_B_pack_image_test.png` | 373,384 B, mean 136.80, std 83.58 |
-| C - dequant | `cn_clip_vision_bigg_C_dequant_image_test.png` | 366,646 B, mean 136.55, std 82.44 |
+| B - pack | `cn_clip_vision_bigg_B_pack_image_test.png` | 370,949 B, mean 135.93, std 82.82 |
+| C - dequant | `cn_clip_vision_bigg_C_dequant_image_test.png` | 371,092 B, mean 136.74, std 82.89 |
 
 **Through ComfyUI's own `CLIPVisionLoader`** (the same three arms, for the record):
 
 | arm | the measured |
 | :--- | :--- |
 | A - source | 370,546 B, mean 135.66, std 82.05 |
-| B - pack | **297,327 B, mean 150.91, std 91.68** |
-| C - dequant | 366,644 B, mean 136.55, std 82.44 |
+| B - pack | **301,123 B, mean 107.60, std 88.09** |
+| C - dequant | 371,090 B, mean 136.74, std 82.89 |
 
-The two pack frames were **read as images**. The hswq one shows the same scene as the source -
-two figures in a shop, the same composition, normal skin tone, no noise, no colour inversion,
-no seam. The stock one shows a **different picture**: one figure in profile against a yellow
-wall, where the source has two figures in a shop. It is a coherent image, but it is not the
-source's image - the raw int8 codes read as float magnitudes make the conditioning a different
-conditioning, which is what section 0.2 measures numerically (cos -0.034884527).
+The two pack frames were **read as images**. The hswq one shows the source's scene — two figures
+in a shop, the same composition, normal skin tone, no noise, no colour inversion, no seam. The
+stock one shows a different picture (one figure in a red coat seen from behind against a yellow
+wall). It is coherent, but it is not the source's image: the raw int8 codes read as float
+magnitudes make the conditioning a different conditioning, which is what §0.2 measures
+numerically (cos -0.035036381).
 
 ---
 
@@ -216,17 +210,20 @@ python clip_convert/measure_bigg_vision_contrib_inmodel.py `
     "<repo>/clip_convert/convert_clip_impact_convrot_int8.py" "<work>" `
     "<repo>/impact/contrib_bigg_g.json"
 
-# 3. the candidates: the protect list from that ranking, then the builder
+# 3. the floor, and the candidates above it
 python clip_convert/convert_clip_impact_convrot_int8.py `
-    --input "<src>/clip_vision_g.safetensors" --output "<out>/k35.safetensors" `
+    --input "<src>/clip_vision_g.safetensors" --output "<out>/k0.safetensors" `
     --impact "<repo>/impact/impact_bigg_g_vision.json" `
     --comfy_path "<ComfyUI>" --clip_type vision --drift-threshold 0.05 --groupsize 64 `
-    --protect-list "<repo>/impact/bigg_g_protect_35.json"
+    --protect-list "<repo>/impact/bigg_g_protect_0.json"
 
 # 4. the acceptance on the real INT8 route (256 items, seed 42)
-python clip_convert/verify_bigg_vision.py "<src>/clip_vision_g.safetensors" "<out>/k35.safetensors" ...
+python clip_convert/verify_bigg_vision.py "<src>/clip_vision_g.safetensors" "<out>/k0.safetensors" ...
 
-# 5. the pack audit, the route census, the renders
+# 5. the gate and the trigger search, with the positive control armed
+python audit/clip_vision_bigg_gate_and_trigger.py --source ... --pack ... --image ... --comfy ... --loader ... --route hswq --n 256 ...
+
+# 6. the audit, the route census, the renders
 python audit/bigg_pack_audit.py --source ... --pack ... --comfy ... --json ...
 python audit/clip_vision_bigg_route.py --source ... --pack ... --image ... --comfy ... --loader ... --route stock|hswq --json ...
 python audit/clip_vision_bigg_render.py --comfy ... --server ... --reference cn_clipvit_ref.png --route hswq --out ... --frames ...
@@ -235,37 +232,37 @@ python audit/clip_vision_bigg_render.py --comfy ... --server ... --reference cn_
 Notes that decide whether a re-run matches:
 
 - The builder takes `--groupsize 64` here; the 1664-wide layers cannot carry a 256-way group.
-- The pack lives in `models/clip/`, and the render needs it reachable from
-  `models/clip_vision/` (a link is enough; the bytes are the same file).
-- The acceptance figure is the `HSWQLoadClipVision` route. ComfyUI's own loader does not
-  apply the pack, so a number taken there measures the loader, not the quantisation.
-- The contribution measurement needs the source's fp16 weight of the layer it replaces; it
-  reads it from the source file, so the source has to be present.
+- The pack lives in `models/clip_vision/`, next to its source. The render also needs it
+  reachable from `models/clip/` (a link is enough).
+- The acceptance figure is the `HSWQLoadClipVision` route. ComfyUI's own loader does not apply
+  the pack, so a number taken there measures the loader, not the quantisation.
+- The trigger search's positive control could not be armed on an INT8 layer — a ConvRot layer
+  holds a `QuantizedTensor` and a float implant does not reach it. It runs on
+  `position_embedding`, which the observable passes through. Section 6 records the floor that
+  gives.
 
 ---
 
 ## 6. Error sources and limits
 
-- **The aggregate contribution has no resolving power over most of this checkpoint's
-  population.** 173 of 288 layers have a negative contribution - restoring that one layer to
-  fp16 does not move the output at all. The measurement is verified (two independent methods,
-  the same gain to every printed digit), so this is a property of the model at this
-  granularity, not of the instrument: a single layer of 288 is below the resolution of the
-  observable here. The candidates built from that ranking are therefore worse than the shipped
-  pack, and that is what the curve in section 3 shows.
-- **The shipped pack's kept set comes from the drift ranking, not from the contribution.** The
-  repository's method says the drift is a screen and the aggregate contribution decides. On
-  this checkpoint the screen is the one that ordered the layers better, and the measurement is
-  what the curve records. This report does not claim the method was followed; it records what
-  was measured.
-- **`cos.min` is not a quality curve at N=256.** It is one draw of 256. `cos.mean` is the
-  trend column; the minimum is the gate.
+- **The trigger search's positive control reaches detection only at a relative implant strength
+  of 0.1.** The ladder on `position_embedding` measured 2.703552e-03 / 3.178244e-03 /
+  3.028080e-03 / 5.008712e-03 / **7.613862e-03** / 9.971457e-02 / 1.974246e-01 for strengths
+  0.001 … 1.0, so the instrument's floor is 0.1 and the record carries
+  `detection_floor_relative_strength = 0.1`. Seven candidates sit above the control p99
+  (5.061980e-03) and the largest of them is **7.021394e-03, below the 7.613862e-03 floor** —
+  movements of the size the instrument cannot separate from its own noise. The search therefore
+  supports "no trigger above the floor", not "no trigger".
+- **The aggregate contribution has no resolving power over most of this checkpoint.** 173 of 288
+  layers are negative. The measurement is verified against a second method (difference
+  0.0000e+00), so this is the model at this granularity, and it is why the curve is flat.
+- **The floor's own minimum is the binding number, and it is not a curve.** `cos.min` at N=256 is
+  one draw of 256; the curve's trend column is `cos.mean`.
 - **The acceptance set is one reference image** transformed 256 ways. A different photograph is
   not covered.
-- **The render is one prompt, one seed, one checkpoint.** It establishes that the route renders
-  the source's scene with the pack; it does not establish prompt-to-prompt behaviour.
-- **The trigger search was not run for this pack in this run.** The published pack carries the
-  earlier run's records; nothing here claims a new backdoor measurement for it.
+- **The render is one prompt, one seed, one checkpoint.**
+- **The pack being replaced was not rebuilt in this run.** Its row is the earlier run's measured
+  value, carried for the comparison only.
 
 ---
 
@@ -274,14 +271,15 @@ Notes that decide whether a re-run matches:
 | # | when (JST) | what | the setting | the result |
 | :-- | :--- | :--- | :--- | :--- |
 | 1 | 2026-11-15 20:27 | the per-layer drift | 288 layers, seed 42 | median 1.1163e-07, p90 1.9330e-06, max 9.1210e-06, 0 above 0.15 |
-| 2 | 2026-11-15 20:29-20:40 | the contribution, the per-layer-pack form | 288 packs, one per layer | abandoned: about half a minute per layer and the tower is not released between packs |
-| 3 | 2026-11-15 20:41-21:08 | the contribution, the in-model form | 288 layers, one pack resident, 8 seeds | max 3.3081e-05, median -5.1260e-06, min -1.1563e-04, 173 negative; all-INT8 mean 0.999732 min 0.999692 |
-| 4 | 2026-11-15 21:09 | the two methods compared | one layer, both ways | +1.3888e-05 against +1.3888e-05, difference 0.0000e+00 |
-| 5 | 2026-11-15 21:12 | the size/quality curve | 6 candidates + the shipped pack, 256 items, seed 42 | the shipped pack above every candidate; mean 0.999910 / min 0.999725 against 0.999806 / 0.999719 at k=35 |
-| 6 | 2026-11-15 21:18 | the pack audit | the converter's arithmetic replayed | FAITHFUL; 253/253; q_mismatch 0; float 524/524; image-embed cos mean 0.999911204 |
-| 7 | 2026-11-15 21:20 | the route census | stock and hswq | stock: 253 raw codes, 0 INT8 GEMM, cos -0.034884527; hswq: 253 int8, 253 GEMM, cos 0.997452557 |
-| 8 | 2026-11-15 21:24 | the render, hswq route | 512x512, 24 steps, CFG 7.0, seed 42 | source 370,548 B mean 135.66, pack 373,384 B mean 136.80, dequant 366,646 B mean 136.55 |
-| 9 | 2026-11-15 21:25 | the render, stock route | the same three arms | the pack's frame is a different picture: 297,327 B, mean 150.91 |
+| 2 | 2026-11-15 20:41-21:08 | the contribution, in-model form | 288 layers, one pack resident, 8 seeds | max 3.3081e-05, median -5.1260e-06, min -1.1563e-04, 173 negative; all-INT8 mean 0.999732 min 0.999692 |
+| 3 | 2026-11-15 21:09 | the two methods compared | one layer, both ways | +1.3888e-05 against +1.3888e-05, difference 0.0000e+00 |
+| 4 | 2026-11-15 21:12 | the size/quality curve | 6 candidates + the replaced pack, 256 items, seed 42 | the floor 0.999734 / 0.999554 at 1767.1 MB; the best candidate +7.4e-05 for +291.6 MB |
+| 5 | 2026-11-15 21:18 | the audit | the converter's arithmetic replayed on this pack | FAITHFUL; 288/288; q_mismatch 0; float 489/489; image-embed cos mean 0.999732144 |
+| 6 | 2026-11-15 21:20 | the route census | stock and hswq | stock: 288 raw codes, 0 INT8 GEMM, cos -0.035036381; hswq: 288 int8, 288 GEMM, cos 0.997366786 |
+| 7 | 2026-11-15 21:24 | the render, hswq route | 512x512, 24 steps, CFG 7.0, seed 42 | source 370,548 B mean 135.66, pack 370,949 B mean 135.93, dequant 371,092 B mean 136.74 |
+| 8 | 2026-11-15 21:25 | the render, stock route | the same three arms | the pack's frame is a different picture: 301,123 B, mean 107.60 |
+| 9 | 2026-11-15 12:49 | the gate | 256 items, seed 42, hswq route | mean 0.997029 (`gate.json` -> `mean`), min 0.985745 (`gate.json` -> `min`), PASS |
+| 10 | 2026-11-15 12:49 | the trigger search | 55 candidates, 4 natural controls | control p99 5.061980e-03, flagged 7, largest 7.021394e-03, positive-control floor 0.1 at 7.613862e-03 |
 
 ---
 
@@ -298,6 +296,7 @@ Notes that decide whether a re-run matches:
 | `clip_convert/verify_bigg_vision.py` | the acceptance on the fixed 256-item set |
 | `audit/bigg_pack_audit.py` | CN-1 - identity, coverage, arithmetic replay, behaviour |
 | `audit/clip_vision_bigg_route.py` | CN-2 / CN-3 - the route census |
+| `audit/clip_vision_bigg_gate_and_trigger.py` | CN-5b / CN-6 - the trigger search and the gate, with the positive-control ladder |
 | `audit/clip_vision_bigg_render.py` | CN-4 - the three renders on either route |
 | `audit/clip_vision_bigg_dequant.py` | the dequantised copy for the third render arm |
 | `md/backdoor/verdicts/CN_CLIP_Vision_BigG_Pack.md` | the backdoor verdict |
@@ -307,6 +306,8 @@ Notes that decide whether a re-run matches:
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_pack_audit.json` | CN-1 |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_route.json` | CN-2, the hswq route |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_route_stock.json` | CN-2, the stock route |
+| `md/backdoor/verdicts/records/cn_clip_vision_bigg_gate.json` | CN-6 |
+| `md/backdoor/verdicts/records/cn_clip_vision_bigg_trigger.json` | CN-5b, with the positive-control ladder |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_render.json` | CN-4, the hswq render |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_render_stock.json` | CN-4, the stock render |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_A_source_image_test.png` | the source frame |

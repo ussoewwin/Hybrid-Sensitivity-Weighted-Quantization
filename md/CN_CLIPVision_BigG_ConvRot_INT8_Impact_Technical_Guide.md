@@ -9,23 +9,23 @@
 > [`backdoor/verdicts/CN_CLIP_Vision_BigG_Pack.md`](backdoor/verdicts/CN_CLIP_Vision_BigG_Pack.md).
 
 **Model.** `models/clip_vision/clip_vision_g.safetensors` (3,689,911,098 B, 777 tensors) — the same weights as `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` (776 of 777 tensors byte-identical).
-**Pack.** `models/clip/CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors` (2,285,956,858 B, **−38.0 %**)
+**Pack.** `models/clip_vision/clip_vision_g_hswq_convrot_int8.safetensors` (1,852,954,770 B, **−49.8 %**)
 **SHA256 (source).** `9908329B3EAD722A693EA400FAB1D7C9EC91D6736FD194A94D20D793457F9C2E`
-**SHA256 (pack).** `6CD4AFAC314AE720FF1EDCAC59F927B93D8E15CE3E8E109DDC59F6FD43B2D5D3`
+**SHA256 (pack).** `70A39F1264FBC7870B246666C931690CB754A9A99F11CF210F5C6DF207D8ADBB`
 
 ---
 
 ## 1. What this model is
 
 A vision-only CLIP checkpoint: 32 transformer layers, hidden size 1664, image size 224, patch
-size 14, 288 encoder Linear modules. The checkpoint carries no `visual_projection` under the
-`vision_model.` prefix; the tower is built through `CLIPVisionModelProjection`.
+size 14, 288 encoder Linear modules — all of them quantisable.
 
 | item | measured |
 | :--- | :--- |
 | checkpoint keys | 777 (1 int64: `vision_model.embeddings.position_ids`) |
 | the runtime Linear modules | **288** |
 | the group size | **64** — the 1664-wide layers cannot carry a 256-way group |
+| the two weights the format cannot take | `position_embedding` (rows wider than the group), `visual_projection` (1664→1280, asymmetric) |
 
 ---
 
@@ -44,8 +44,8 @@ seed 42, the reconstruction injected in the **original** frame:
 | the layers above 0.15 | **0** |
 
 **The aggregate contribution** (the criterion), `clip_convert/measure_bigg_vision_contrib_inmodel.py`:
-the all-INT8 pack is built and loaded once, and each layer is replaced in place by the
-source's fp16 weight while the tower runs over 8 fixed seeds.
+the all-INT8 pack is built and loaded once, and each layer is replaced in place by the source's
+fp16 weight while the tower runs over 8 fixed seeds.
 
 | | value |
 | :--- | :--- |
@@ -57,7 +57,7 @@ source's fp16 weight while the tower runs over 8 fixed seeds.
 **Why the in-model form.** The per-layer-pack form (`measure_bigg_vision_contrib.py`) builds a
 fresh pack per candidate layer and reloads it: about half a minute per layer, and the vision
 tower is not released between packs, so the VRAM fills as the sweep proceeds. The in-model form
-measures the same thing with one pack resident - 288 layers in about seven minutes. It was
+measures the same thing with one pack resident — 288 layers in about seven minutes. It was
 checked against the per-layer-pack form on one layer, in one process:
 
 | the method | the gain for `encoder.layers.0.self_attn.q_proj` |
@@ -67,38 +67,37 @@ checked against the per-layer-pack form on one layer, in one process:
 | the difference | **+0.0000e+00** |
 
 **The negative majority is the finding.** Restoring one layer of 288 to fp16 does not move the
-output at all over most of the population, so the contribution ranking is noise where the
-drift's is not. The candidates built from it measure worse than the shipped pack - see the
-report, section 3.
+output over most of the population, so the curve is flat by construction — see §3.
 
 ---
 
-## 3. The candidates, and the adopted set
+## 3. The candidates, and the adopted point
 
-Six candidates from the contribution ranking, plus the shipped pack, all measured on the full
-256-item acceptance set (seed 42) through the `HSWQLoadClipVision` route:
+Six candidates from the contribution ranking, all measured on the full 256-item acceptance set
+(seed 42) through the `HSWQLoadClipVision` route, plus the pack being replaced for reference:
 
-| the FP16-kept | INT8 | cos mean | cos min | p5 | size |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| 0 (all quantised) | 288 | 0.999734 | 0.999554 | 0.999654 | 1767.1 MB |
-| 10 | 278 | 0.999747 | 0.999545 | 0.999677 | 1824.5 MB |
-| 20 | 268 | 0.999763 | 0.999663 | 0.999709 | 1923.3 MB |
-| 30 | 258 | 0.999802 | 0.999578 | 0.999737 | 2001.3 MB |
-| 35 | 253 | 0.999806 | 0.999719 | 0.999762 | 2035.2 MB |
-| 40 | 248 | 0.999808 | 0.999674 | 0.999752 | 2058.7 MB |
-| **the shipped pack** | **253** | **0.999910** | **0.999725** | **0.999875** | **2180.1 MB** |
+| the FP16-kept | INT8 | cos mean | cos min | p5 | size | mean gain / margin |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **0 (adopted)** | **288** | **0.999734** | **0.999554** | **0.999654** | **1767.1 MB** | **the floor** |
+| 10 | 278 | 0.999747 | 0.999545 | 0.999677 | 1824.5 MB | 0.14 % |
+| 20 | 268 | 0.999763 | 0.999663 | 0.999709 | 1923.3 MB | 0.30 % |
+| 30 | 258 | 0.999802 | 0.999578 | 0.999737 | 2001.3 MB | 0.70 % |
+| 35 | 253 | 0.999806 | 0.999719 | 0.999762 | 2035.2 MB | 0.74 % |
+| 40 | 248 | 0.999808 | 0.999674 | 0.999752 | 2058.7 MB | 0.76 % |
+| the pack being replaced | 253 | 0.999910 | 0.999725 | 0.999875 | 2180.1 MB | 1.8 % |
 
-**The shipped pack is the adopted one.** It is above every candidate rebuilt from the
-contribution ranking — mean by 1.04e-04, p5 by 1.13e-04 — at the same 253 INT8 layers. Its kept
-set is the **drift** ranking's top 35 (measured: the pack's 35 kept Linears occupy drift ranks
-1 to 35), and the two top-35 sets share 8 layers of 35.
+`margin = 0.999734 − 0.99 = 9.734e-03` — the distance the gate already has at the floor.
+
+**The floor is the adopted point.** It passes the gate with 0.009734 of margin on the mean and
+0.019554 on the minimum, it is the smallest candidate measured, and the next 291.6 MB of
+protection buys 0.76 % of that margin. On this checkpoint protection does not buy quality
+because 173 of 288 layers have a negative contribution.
 
 ### 3.1 The kept tensors are stored in FP16
 
-The source stores its tensors in FP32 or FP16 and the runtime runs in FP16. The pack keeps 524
-float tensors; their values are the source's (0 differences, max abs diff 0.0). Five of them are
-stored with a different dtype than the source — four LayerNorm tensors in FP32 and
-`position_ids` — which is recorded in the audit record.
+The pack keeps 489 float tensors besides the scales; their values are the source's (0
+differences, max abs diff 0.0, 0 dtype differences). The INT8 `weight_scale` stays FP32 because
+it carries the dequantisation precision.
 
 ---
 
@@ -108,23 +107,23 @@ Built with `clip_convert/convert_clip_impact_convrot_int8.py`:
 
 ```
 --clip_type vision --drift-threshold 0.05 --groupsize 64 \
-  --protect-list impact/bigg_g_protect_35.json
+  --protect-list impact/bigg_g_protect_0.json
 ```
 
-(The builder derives the per-layer group size: 64 for the 1664-wide layers.)
+(the protect list is empty — the floor has no protected layer)
 
 | item | value |
 | :--- | :--- |
 | the source | 3,689,911,098 B |
-| the pack | **2,285,956,858 B** (−38.0 %) |
-| the SHA256 | `6CD4AFAC314AE720FF1EDCAC59F927B93D8E15CE3E8E109DDC59F6FD43B2D5D3` |
-| the tensors | 1,283 |
-| the quantised layers | **253** (of 288) |
-| the FP16-kept layers | 35 |
+| the pack | **1,852,954,770 B** (−49.8 %) |
+| the SHA256 | `70A39F1264FBC7870B246666C931690CB754A9A99F11CF210F5C6DF207D8ADBB` |
+| the tensors | 1,353 |
+| the quantised layers | **288** (of 288) |
+| the FP16-kept layers | 0 from the ranking; 2 by format (`position_embedding`, `visual_projection`) |
 | the group size | 64 |
-| the `int8_linear` calls per forward | **253** |
+| the `int8_linear` calls per forward | **288** |
 | the output | finite |
-| cos mean / min / p5 (256 items, seed 42) | **0.999910 / 0.999725 / 0.999875** |
+| cos mean / min / p5 (256 items, seed 42) | **0.999734 / 0.999554 / 0.999654** |
 | the gate (mean ≥ 0.99, min ≥ 0.98) | **PASS** |
 
 ---
@@ -142,7 +141,7 @@ ops = O.mixed_precision_ops({"int8_tensorwise": QUANT_ALGOS["int8_tensorwise"]},
 
 ComfyUI's own `CLIPVisionLoader` uses `manual_cast`, which does **not** consume the stamps: a
 pack loaded that way keeps its int8 codes in a float Parameter, and the conditioning becomes a
-different conditioning (measured output cosine −0.034884527, and the render shows a different
+different conditioning (measured output cosine −0.035036381, and the render shows a different
 picture). The loader extension's `HSWQLoadClipVision` does consume them.
 
 ---
@@ -165,27 +164,35 @@ python clip_convert/measure_bigg_vision_contrib_inmodel.py `
     "<repo>/clip_convert/convert_clip_impact_convrot_int8.py" "<work>" `
     "<repo>/impact/contrib_bigg_g.json"
 
-# 3. the candidates
+# 3. the floor
 python clip_convert/convert_clip_impact_convrot_int8.py `
-    --input "<src>/clip_vision_g.safetensors" --output "<out>/k35.safetensors" `
+    --input "<src>/clip_vision_g.safetensors" --output "<out>/k0.safetensors" `
     --impact "<repo>/impact/impact_bigg_g_vision.json" `
     --comfy_path "<ComfyUI>" --clip_type vision --drift-threshold 0.05 --groupsize 64 `
-    --protect-list "<repo>/impact/bigg_g_protect_35.json"
+    --protect-list "<repo>/impact/bigg_g_protect_0.json"
 
 # 4. the acceptance on the real INT8 route
-python clip_convert/verify_bigg_vision.py "<src>/clip_vision_g.safetensors" "<out>/k35.safetensors" ...
+python clip_convert/verify_bigg_vision.py "<src>/clip_vision_g.safetensors" "<out>/k0.safetensors" ...
 
-# 5. the audit, the route census, the render
+# 5. the gate and the trigger search, positive control armed
+python audit/clip_vision_bigg_gate_and_trigger.py --source ... --pack ... --image ... `
+    --comfy ... --loader ... --route hswq --n 256 ...
+
+# 6. the audit, the route census, the render
 python audit/bigg_pack_audit.py --source ... --pack ... --comfy ... --json ...
 python audit/clip_vision_bigg_route.py --source ... --pack ... --image ... --comfy ... --loader ... --route stock|hswq --json ...
 python audit/clip_vision_bigg_render.py --comfy ... --server ... --reference cn_clipvit_ref.png --route hswq --out ... --frames ...
 ```
 
 **The step everyone gets wrong:** `--groupsize 64`. The 1664-wide layers cannot carry a
-256-way group, and the builder has to be told, or the shapes do not match.
+256-way group.
 
-**The second step:** the pack lives in `models/clip/`, and a render needs it reachable from
-`models/clip_vision/` as well.
+**The second step:** the pack lives next to its source in `models/clip_vision/`; a render also
+needs it reachable from `models/clip/`.
+
+**The third step:** the positive control. A ConvRot layer holds a `QuantizedTensor`, so a float
+implant cannot be written into it — the ladder runs on `position_embedding`, which the observable
+passes through. Its measured floor is a relative strength of 0.1 (1−cos 7.613862e-03).
 
 ---
 
@@ -195,13 +202,14 @@ python audit/clip_vision_bigg_render.py --comfy ... --server ... --reference cn_
 | :--- | :--- |
 | `clip_convert/diag_impact_clip_vision.py` | the drift measurement (the screen) |
 | `clip_convert/measure_bigg_vision_contrib_inmodel.py` | the aggregate contribution, one pack resident |
-| `clip_convert/measure_bigg_vision_contrib.py` | the same measurement, one pack per layer - the reference |
+| `clip_convert/measure_bigg_vision_contrib.py` | the same measurement, one pack per layer — the reference |
 | `clip_convert/probe_bigg_contrib_one.py` | the two methods side by side on one layer |
 | `clip_convert/probe_bigg_weight_scale.py` | where a quantised Linear keeps its scale and quant attributes |
 | `clip_convert/convert_clip_impact_convrot_int8.py` | the builder (`--clip_type vision`, `--groupsize`) |
 | `clip_convert/verify_bigg_vision.py` | the acceptance on the fixed 256-item set |
 | `audit/bigg_pack_audit.py` | CN-1 |
 | `audit/clip_vision_bigg_route.py` | CN-2 / CN-3 |
+| `audit/clip_vision_bigg_gate_and_trigger.py` | CN-5b / CN-6, with the positive-control ladder |
 | `audit/clip_vision_bigg_render.py` | CN-4 |
 | `audit/clip_vision_bigg_dequant.py` | the dequantised copy for the third render arm |
 | `impact/impact_bigg_g_vision.json` | the drift (git-ignored) |

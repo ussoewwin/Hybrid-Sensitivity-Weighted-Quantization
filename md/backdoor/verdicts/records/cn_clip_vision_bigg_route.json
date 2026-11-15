@@ -1,21 +1,21 @@
 {
  "tool": "audit/clip_vit_h14_route.py",
  "model": "clip_vision_g.safetensors",
- "pack": "CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors",
+ "pack": "clip_vision_g_hswq_convrot_int8.safetensors",
  "route": "HSWQLoadClipVision (the loader's ConvRot INT8 route)",
- "declared_layers": 253,
+ "declared_layers": 288,
  "companion_tensors": {
-  "weight_scale": 253,
-  "comfy_quant": 253
+  "weight_scale": 288,
+  "comfy_quant": 288
  },
  "source": {
   "label": "source",
   "file": "clip_vision_g.safetensors",
   "linear_modules": 290,
-  "declared": 253,
+  "declared": 288,
   "loaded_as_int8": 0,
-  "loaded_as_raw_float_codes": 253,
-  "float_modules": 253,
+  "loaded_as_raw_float_codes": 288,
+  "float_modules": 288,
   "raw_examples": [
    {
     "layer": "vision_model.encoder.layers.0.mlp.fc1.weight",
@@ -53,16 +53,16 @@
  },
  "pack_side": {
   "label": "pack",
-  "file": "CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors",
+  "file": "clip_vision_g_hswq_convrot_int8.safetensors",
   "linear_modules": 290,
-  "declared": 253,
-  "loaded_as_int8": 253,
+  "declared": 288,
+  "loaded_as_int8": 288,
   "loaded_as_raw_float_codes": 0,
-  "float_modules": 253,
+  "float_modules": 288,
   "raw_examples": [],
   "one_forward": {
-   "int8_linear_calls": 253,
-   "float_linear_calls": 36,
+   "int8_linear_calls": 288,
+   "float_linear_calls": 1,
    "output_finite": true,
    "tokens_shape": [
     1,
@@ -72,7 +72,7 @@
    "embeds_shape": null
   }
  },
- "output_cos_source_vs_pack": 0.9974525570869446,
+ "output_cos_source_vs_pack": 0.9973667860031128,
  "embeds_cos_source_vs_pack": null,
  "input": "cn_clipvit_ref.png",
  "size": 224,
