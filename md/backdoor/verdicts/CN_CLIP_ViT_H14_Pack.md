@@ -62,7 +62,7 @@ The Conv2d patch embedding (1280, 3, 14, 14) is not a Linear and is not a quanti
 | 0 | INT8 GEMM calls during one forward | `records/cn_clip_vit_h14_route.json` -> `pack_side.one_forward.int8_linear_calls` | the INT8 kernel never runs |
 | 193 | float GEMM calls during that forward | `records/cn_clip_vit_h14_route.json` -> `pack_side.one_forward.float_linear_calls` | the tower runs on codes read as floats |
 | -0.022604210 | output cosine against the source tower on that route | `records/cn_clip_vit_h14_route.json` -> `output_cos_source_vs_pack` | the route's output is not the source's |
-| 0 | nodes in the installed HSWQ loader tree naming `clip_vision` | `records/cn_clip_vit_h14_route_exec.json` -> `routes_checked` | no custom path to fall back on |
+| 0 | nodes in the installed HSWQ loader tree naming `clip_vision` at the time of this census | `records/cn_clip_vit_h14_route_exec.json` -> `routes_checked` | no custom path at census time; see 7d for the route added afterwards |
 | 0 | renders produced | `records/cn_clip_vit_h14_route_exec.json` -> `renders_produced` | no route executes the pack |
 
 `comfy.clip_vision` puts the file's tensors into the model's parameters directly and does not interpret `comfy_quant`, so an int8 code tensor becomes a float parameter holding the code values.
@@ -119,11 +119,41 @@ three frame hashes. Re-running `audit/clip_vit_h14_render.py` after the instrume
 repository produced frames whose pixel arrays are identical to the recorded ones (max per-pixel
 difference 0); only the PNG container differs, because it carries a timestamp.
 
+## 7d. The ConvRot INT8 route, after it was added
+
+The loader now has a CLIP Vision route that executes this pack as Int8. Same pack, same
+weights, same machine; the only change is which loader the file goes through.
+
+| arm | loader | frame | measured |
+| :--- | :--- | :--- | :--- |
+| D | `comfy.clip_vision.load`, source file | `records/cn_clip_vit_h14_D_source_image_test.png` | 397,650 B, mean 112.06, std 64.82, INT8 GEMM 0 |
+| E | `comfy.clip_vision.load`, the pack | `records/cn_clip_vit_h14_E_pack_stock_image_test.png` | 843 B, mean 0.00, std 0.00, INT8 GEMM 0 |
+| F | `HSWQLoadClipVision`, the pack | `records/cn_clip_vit_h14_F_pack_hswq_image_test.png` | 397,589 B, mean 111.73, std 64.99, INT8 GEMM **184** |
+
+- **92 of 92 declared layers are armed**, `quant_format == "int8_tensorwise"`, ConvRot with
+  group size 256.
+- **The GEMM is a real INT8 GEMM**: `comfy_kitchen.backends.cuda.int8_linear` is called 184
+  times per render (92 layers x 2 encoder passes).
+- **Image embed cosine against the source: 0.999979585**; last hidden state 0.999812457;
+  all finite.
+- **D against F**: same scene, same subject; max per-pixel difference 163 is FP16 rounding
+  through sampling.
+
+Why the stock route could not do this: `comfy.clip_vision` builds every tower with
+`comfy.ops.manual_cast`, and `manual_cast` never calls `_load_quantized_module`, so a
+`comfy_quant` layer keeps its int8 codes inside a float `Parameter`. The new route installs
+`comfy.ops.mixed_precision_ops`' own `Linear` on the declared layers only, after the tower is
+built. It touches no shared module: a file without `comfy_quant` still goes through
+`comfy.clip_vision.load` unchanged, and no other model family is affected.
+
+`records/cn_clip_vit_h14_convrot_route.json` carries the implementation, the call counts, the
+cosines and the three frame hashes.
+
 ## 8. Conclusion
 
 The arithmetic is closed: 192 of 192 encoder Linears, 0 code differences beyond one LSB, 0 float-side differences, 0.999936295 cosine on the token stack, 256-item gate mean 0.999784 with a 0.996575 worst item. On that surface the verdict is **no backdoor detected, strength A**.
 
-The execution side is closed by measurement, not by absence: the route exists (`CLIPVisionLoader` into `IPAdapterAdvanced`) and it renders the pack as an exactly black frame (mean 0.00, std 0.00), while the same weights dequantised render the source's scene. The INT8 kernel has never run on this machine and no dequantiser exists in the route.
+The execution side is closed by measurement, not by absence. Before the loader gained a CLIP Vision route, the stock route rendered the pack as an exactly black frame (mean 0.00, std 0.00). With `HSWQLoadClipVision` the same pack arms 92 of 92 layers, calls the INT8 kernel 184 times per render, matches the source at 0.999979585 on the image embed, and renders the source's scene (7d).
 
 ## LIMITS
 
@@ -131,7 +161,7 @@ The execution side is closed by measurement, not by absence: the route exists (`
 - One candidate is flagged and is described by its shape (a full-frame low-frequency field), not by a mechanism. That is an observation, not an explanation.
 - The 256-item acceptance set is one real image under deterministic transforms, not a corpus.
 - The comparison in §6 replaces the pack's weights inside the source's structure. It isolates the quantisation and does not exercise any loader's dequantisation path, because no loader here has one.
-- The render in 7b shows the route's defect, not a defect of the pack: arm B and arm C carry identical weights and differ only in whether a dequantiser ran.
+- The render in 7b shows the stock route's defect, not a defect of the pack: arm B and arm C carry identical weights and differ only in whether a dequantiser ran. 7d supersedes that as the way to run this pack.
 - The Conv2d patch embedding is outside the quantisation and outside the measured set.
 
 ## Records
@@ -142,4 +172,5 @@ The execution side is closed by measurement, not by absence: the route exists (`
 - `records/cn_clip_vit_h14_gate_256.json` - the 256-item acceptance gate.
 - `records/cn_clip_vit_h14_image_trigger.json` - the 55-candidate image-side trigger search.
 - `records/cn_clip_vit_h14_render.json` - the three-arm render: graph parameters, pixel statistics, frame hashes.
+- `records/cn_clip_vit_h14_convrot_route.json` - the ConvRot INT8 route: implementation, INT8 call counts, cosines, three frames.
 - `records/cn_clip_vit_h14_protection.json` - the per-layer drift sweep the protection set is read from.

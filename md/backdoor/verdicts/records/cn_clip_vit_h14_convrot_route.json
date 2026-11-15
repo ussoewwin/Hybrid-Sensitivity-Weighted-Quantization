@@ -1,0 +1,69 @@
+{
+ "family": "clip_vision",
+ "model": "CLIP-ViT-H-14.safetensors",
+ "pack": "CLIP-ViT-H-14_hswq_convrot_int8.safetensors",
+ "purpose": "the loader now has a ConvRot INT8 route for CLIP Vision; this records what it does on this pack",
+ "implementation": {
+  "repository": "ComfyUI-HSWQ-Loader-and-Tools",
+  "node": "HSWQLoadClipVision (nodes/hswq_load_clip_vision.py)",
+  "route_module": "hswq/clip_vision_convrot_int8.py",
+  "how": "load_clipvision_from_sd builds the tower, then every layer the pack declares is swapped for comfy.ops.mixed_precision_ops' own Linear and its {weight, weight_scale, bias, comfy_quant} is loaded into it",
+  "why_needed": "comfy.clip_vision builds with comfy.ops.manual_cast, which never calls _load_quantized_module, so a comfy_quant layer keeps its int8 codes in a float Parameter",
+  "scope": "CLIP Vision only - no shared module is modified; a file without comfy_quant still goes through comfy.clip_vision.load unchanged"
+ },
+ "execution": {
+  "kernel": "comfy_kitchen.backends.cuda.int8_linear",
+  "int8_gemm_calls_per_render": 184,
+  "declared_layers": 92,
+  "armed_layers": 92,
+  "convrot": true,
+  "convrot_groupsize": 256
+ },
+ "encode_check": {
+  "image_embeds_cos_source_vs_pack": 0.999979585,
+  "last_hidden_state_cos_source_vs_pack": 0.999812457,
+  "finite": true,
+  "reference_image": "cn_clipvit_ref.png"
+ },
+ "render": {
+  "route": "ipadapter_execute(model, ip-adapter-plus_sd15, clip vision, weight 0.8 linear, V only) then 24 steps dpmpp_2m/karras cfg 7.0 seed 42 at 512x512",
+  "arms": [
+   {
+    "id": "D_source",
+    "clip_vision": "CLIP-ViT-H-14.safetensors",
+    "route": "comfy.clip_vision.load",
+    "frame": "cn_clip_vit_h14_D_source_image_test.png",
+    "bytes": 397650,
+    "sha256_16": "1BA6D99FD4C2E6FC",
+    "pixel_mean": 112.06,
+    "pixel_std": 64.82,
+    "int8_gemm": 0
+   },
+   {
+    "id": "E_pack_stock",
+    "clip_vision": "CLIP-ViT-H-14_hswq_convrot_int8.safetensors",
+    "route": "comfy.clip_vision.load",
+    "frame": "cn_clip_vit_h14_E_pack_stock_image_test.png",
+    "bytes": 843,
+    "sha256_16": "1707EFE457307D0A",
+    "pixel_mean": 0.0,
+    "pixel_std": 0.0,
+    "int8_gemm": 0
+   },
+   {
+    "id": "F_pack_hswq",
+    "clip_vision": "CLIP-ViT-H-14_hswq_convrot_int8.safetensors",
+    "route": "HSWQLoadClipVision",
+    "frame": "cn_clip_vit_h14_F_pack_hswq_image_test.png",
+    "bytes": 397589,
+    "sha256_16": "B55C297537686975",
+    "pixel_mean": 111.73,
+    "pixel_std": 64.99,
+    "int8_gemm": 184
+   }
+  ],
+  "D_vs_F_max_abs_diff": 163,
+  "D_vs_F_read": "same scene, same subject, same composition; the per-pixel difference is FP16 rounding through sampling"
+ },
+ "conclusion": "The pack now executes as ConvRot INT8 on this machine: 92 of 92 declared layers armed, 184 INT8 GEMM calls per render, image embed cosine 0.999979585 against the source, and a render that carries the source's scene. Before this route existed the same pack produced an exactly black frame (mean 0.00, std 0.00) because the codes were read as floats."
+}
