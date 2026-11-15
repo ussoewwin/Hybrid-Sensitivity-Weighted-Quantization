@@ -1,0 +1,90 @@
+{
+ "family": "clip_vision_g / ConvRot INT8",
+ "tool": "pixel differencing of the CN-4 arms already recorded in cn_clip_vision_bigg_render.json and cn_clip_vision_bigg_render_stock.json",
+ "method": "mean absolute difference over all pixels and channels of the decoded PNGs, 512x512x3, uint8 source",
+ "images": {
+  "hswq_source": {
+   "file": "cn_clip_vision_bigg_A_source_image_test.png",
+   "bytes": 370548,
+   "sha256": "eb1043c714fe9f7ebe0133d7ad5e0f258a6b30c4b70c0e1bd7939a809412adfe",
+   "mean": 135.6636,
+   "std": 82.0455
+  },
+  "hswq_pack": {
+   "file": "cn_clip_vision_bigg_B_pack_image_test.png",
+   "bytes": 370949,
+   "sha256": "1ee33f587e49d0848bb73498e37f52bb7eaae9239d9611cdf4d462b7701b734f",
+   "mean": 135.9305,
+   "std": 82.822
+  },
+  "hswq_dequant": {
+   "file": "cn_clip_vision_bigg_C_dequant_image_test.png",
+   "bytes": 371092,
+   "sha256": "b891a8ccfa8bd726d53f69e11a4abea1ddd9c6370373a30002f6b61b3dfb1793",
+   "mean": 136.7365,
+   "std": 82.8934
+  },
+  "stock_source": {
+   "file": "cn_clip_vision_bigg_stock_A_source_image_test.png",
+   "bytes": 370546,
+   "sha256": "7119abe92d42ca90e37229ee2c703818e62c7db72c1c72e6cbb86cc4ebbfd802",
+   "mean": 135.6636,
+   "std": 82.0455
+  },
+  "stock_pack": {
+   "file": "cn_clip_vision_bigg_stock_B_pack_image_test.png",
+   "bytes": 301123,
+   "sha256": "e6b95e54a8718ec04827c2479664d9c99a4d00b3916a7557028e4274218c3d07",
+   "mean": 107.602,
+   "std": 88.0917
+  },
+  "stock_dequant": {
+   "file": "cn_clip_vision_bigg_stock_C_dequant_image_test.png",
+   "bytes": 371090,
+   "sha256": "709c8d8c2f92ade277efe8a7c65b11d68635eb744e7d7b64b9d9f917d68943a8",
+   "mean": 136.7365,
+   "std": 82.8934
+  }
+ },
+ "per_route": {
+  "hswq": {
+   "mean_abs": 16.858789,
+   "max_abs": 254,
+   "changed_pct": 95.5624,
+   "pixels": 262144
+  },
+  "stock": {
+   "mean_abs": 86.884178,
+   "max_abs": 255,
+   "changed_pct": 99.9809,
+   "pixels": 262144
+  }
+ },
+ "cross": {
+  "source_hswq_vs_source_stock": {
+   "mean_abs": 0.0,
+   "max_abs": 0,
+   "changed_pct": 0.0,
+   "pixels": 262144
+  },
+  "dequant_vs_pack_hswq": {
+   "mean_abs": 10.516219,
+   "max_abs": 240,
+   "changed_pct": 95.0249,
+   "pixels": 262144
+  },
+  "source_vs_dequant_hswq": {
+   "mean_abs": 14.776605,
+   "max_abs": 254,
+   "changed_pct": 95.3243,
+   "pixels": 262144
+  },
+  "pack_hswq_vs_pack_stock": {
+   "mean_abs": 87.170166,
+   "max_abs": 255,
+   "changed_pct": 99.9836,
+   "pixels": 262144
+  }
+ },
+ "reading": "the source frame is identical on the two loaders (0.000 / 255), so the route does not touch a float checkpoint; the pack differs from the source by 16.859 / 255 on the INT8 route and 86.884 / 255 on the native route"
+}

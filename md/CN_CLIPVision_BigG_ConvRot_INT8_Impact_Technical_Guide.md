@@ -1,22 +1,19 @@
 # CLIP-ViT-bigG-14 (`clip_vision_g.safetensors`) - ConvRot INT8 Impact Technical Guide
 
-> **The method this pack was built under** (the injection frame, the aggregate contribution, the
+> **The method this pack was built under** (the injection frame, the behavioural observable, the
 > size/quality balance, FP16 kept tensors) is stated once in
 > [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) - Section
 > *How a pack is selected (the current method)*.
-> This guide carries the measured numbers for this checkpoint. The scoring run is in
-> [`CLIPVision_BigG_ConvRot_INT8_Quantization_and_Score_Report.md`](CLIPVision_BigG_ConvRot_INT8_Quantization_and_Score_Report.md);
-> the verdict is in [`backdoor/verdicts/CLIP_Vision_G_Pack.md`](backdoor/verdicts/CLIP_Vision_G_Pack.md).
+> This guide carries the measured numbers for this checkpoint.
 
 **Checkpoint.** `models/clip_vision/clip_vision_g.safetensors` (3,689,911,098 B, 777 tensors, 288 runtime Linears)
 **Pack.** `clip_vision_g_hswq_convrot_int8.safetensors` (1,852,954,770 B, **-49.8 %**)
 **SHA256 (source).** `9908329B3EAD722A693EA400FAB1D7C9EC91D6736FD194A94D20D793457F9C2E`
 **SHA256 (pack).** `70A39F1264FBC7870B246666C931690CB754A9A99F11CF210F5C6DF207D8ADBB`
 
-The checkpoint's 776 parameter tensors are byte-identical to
-`CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors`; the only difference between the two files is the
-dtype of the non-parameter buffer `vision_model.embeddings.position_ids` (float16 here, int64
-there). What this guide measures is the pack's transformation of that checkpoint.
+The checkpoint's 776 parameter tensors are byte-identical to the published
+`CLIP-ViT-bigG-14-laion2B-39B-b160k` weights, so the file measured here is that object, not a
+local variant.
 
 ---
 
@@ -77,10 +74,16 @@ the int8 code tensors to the model's float modules.
 and the tower runs on them as if they were weights. That is not a degraded pack - it is a different
 model:
 
-| route | declared layers in INT8 | INT8 GEMM calls | output cosine against the source |
-| :--- | ---: | ---: | ---: |
-| `HSWQLoadClipVision` (the loader extension) | **288 of 288** | **288** | **0.997366786** |
-| `CLIPVisionLoader` (ComfyUI's own) | 0 - 288 raw code tensors | **0** | **-0.035036381** |
+**Measured on this machine, ComfyUI path:** `CLIPVisionLoader` builds the tower with `manual_cast`,
+which does not consume the stamps, so **288 declared weights arrive as raw code tensors inside float
+modules and 0 INT8 GEMM calls run in one forward**; the output cosine against the source is
+**-0.035036381** (`records/cn_clip_vision_bigg_route_stock.json` -> `output_cos_source_vs_pack`).
+That path does not take the pack.
+
+**`HSWQLoadClipVision` does take it**, and both routes were run against this exact file
+(`records/cn_clip_vision_bigg_route.json`): **288 of 288 declared layers load as int8**, **288 INT8
+GEMM calls** run in one forward, and the output cosine against the source is **0.997366786**
+(`records/cn_clip_vision_bigg_route.json` -> `output_cos_source_vs_pack`).
 
 The render shows the same split: the pack's picture on the extension's route is the source's scene
 (370,949 B against 370,548 B, mean 135.93 against 135.66), and on the native route it is a different
@@ -116,7 +119,7 @@ Two measurements, both on this checkpoint, both recorded.
 **The per-layer drift** (the screen), `clip_convert/diag_impact_clip_vision.py`, 288 layers, seed
 42, the reconstruction injected in the **original** frame:
 
-| | value |
+| summary | measured |
 | :--- | ---: |
 | layers measured | **288 of 288** |
 | the median | 1.1163e-07 |
@@ -129,7 +132,7 @@ Two measurements, both on this checkpoint, both recorded.
 and each layer is replaced in place by the source's fp16 weight while the tower runs over 8 fixed
 seeds.
 
-| | value |
+| summary | measured |
 | :--- | ---: |
 | the all-INT8 reference | mean 0.999732, min 0.999692 |
 | the largest contribution | 3.3081e-05 (`encoder.layers.28.self_attn.q_proj`) |
@@ -178,6 +181,15 @@ column is the share of that margin a larger candidate buys.
 buys 0.76 % of the margin that already exists. On this checkpoint protection does not buy quality,
 because 173 of 288 layers have a negative contribution: keeping them in fp16 costs bytes and returns
 nothing.
+
+| inner dimension | what the group is | groups |
+| :--- | :--- | ---: |
+| 1664 | the encoder Linears (`q_proj`, `k_proj`, `v_proj`, `out_proj`, `fc1`, `fc2`) | **288** |
+| 1664 | `visual_projection` - 1664 -> 1280, asymmetric | **0** (kept FP16) |
+| 1024 | `position_embedding` - rows wider than the group | **0** (kept FP16) |
+
+**No layer was kept for quality reasons.** The two FP16 tensors are kept by the format rule alone,
+and the sweep says no layer would have needed protection anyway (0 above 0.15).
 
 **The kept tensors.** 0 layers are kept from the ranking. 2 tensors are kept because the format
 cannot take them (`position_embedding`, `visual_projection`). The 489 float tensors besides the
@@ -247,8 +259,18 @@ seed:
 | arm | PNG | mean | inspected |
 | :--- | ---: | ---: | :--- |
 | the source | 370,548 B | 135.66 | the reference scene |
-| the pack, `HSWQLoadClipVision` | 370,949 B | 135.93 | **the same scene, no artefacts, no noise** |
-| the pack, `CLIPVisionLoader` | 301,123 B | 107.60 | a different picture |
+| the pack, HSWQLoadClipVision | 370,949 B | 135.93 | **the same scene, no artefacts, no noise** |
+| the pack, CLIPVisionLoader | 301,123 B | 107.60 | a different picture |
+
+| number | measured | record |
+| :--- | :--- | :--- |
+| **16.858789** | mean absolute pixel difference, source against pack on HSWQLoadClipVision (/255) | `records/cn_clip_vision_bigg_render_diff.json` -> `per_route.hswq.mean_abs` |
+| **86.884178** | mean absolute pixel difference, source against pack on CLIPVisionLoader (/255) | `records/cn_clip_vision_bigg_render_diff.json` -> `per_route.stock.mean_abs` |
+| 95.5624 | pixels changed, HSWQLoadClipVision (%) | `records/cn_clip_vision_bigg_render_diff.json` -> `per_route.hswq.changed_pct` |
+| 99.9809 | pixels changed, CLIPVisionLoader (%) | `records/cn_clip_vision_bigg_render_diff.json` -> `per_route.stock.changed_pct` |
+| **0.0** | the source frame on the two loaders, mean absolute difference (/255) | `records/cn_clip_vision_bigg_render_diff.json` -> `cross.source_hswq_vs_source_stock.mean_abs` |
+| 254 | largest single-channel difference, HSWQLoadClipVision | `records/cn_clip_vision_bigg_render_diff.json` -> `per_route.hswq.max_abs` |
+| 255 | largest single-channel difference, CLIPVisionLoader | `records/cn_clip_vision_bigg_render_diff.json` -> `per_route.stock.max_abs` |
 
 The images were looked at, not inferred from a cosine. A benchmark number between two noise images
 also reads 0.99; the judgement here is on the decoded picture.
@@ -383,7 +405,7 @@ passes through. Its measured floor is a relative strength of 0.1 (1-cos 7.613862
 
 ## 11. Files
 
-| file | role |
+| file | what it is |
 | :--- | :--- |
 | `clip_convert/diag_impact_clip_vision.py` | the drift measurement (the screen) |
 | `clip_convert/measure_bigg_vision_contrib_inmodel.py` | the aggregate contribution, one pack resident |
