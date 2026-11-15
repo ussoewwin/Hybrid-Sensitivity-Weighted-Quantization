@@ -389,6 +389,7 @@ Instead, each text-encoder standard was handled **individually** - but the crite
 | [`Qwen2.5-VL-7B-Instruct-abliterated_converted_hswq_convrot_int8.safetensors`](Qwen25VL7B_ConvRot_INT8_Impact_Technical_Guide.md) | Qwen2.5-VL (7B) | 320 of 360 | 40 | 0.999325 / 0.997294 | 9289.6 MB |
 | [`Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP_hswq_convrot_int8.safetensors`](Qwen35_9B_ConvRot_INT8_Impact_Technical_Guide.md) | Qwen3.5 (9B, hybrid + vision + MTP) | 369 of 369 | 0 | conditioning 0.999387 / 0.996488, generate 0.999453 / 0.998215 | 9217.9 MB |
 | [`sam3.1_multiplex_hswq_convrot_int8.safetensors`](SAM31_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md) | SAM 3.1 Multiplex | 41 of 221 | 180 | relMSE 3.51e-05 | 1657.6 MB |
+| [`clip_vision_g_hswq_convrot_int8.safetensors`](backdoor/verdicts/CLIP_Vision_G_Pack.md) | CLIP ViT-bigG/14 (vision tower) | 288 of 288 | 2 (`position_embedding`, `visual_projection`) | 0.999734 / 0.999554 | 1767.1 MB |
 
 **ConvRot W4A8 packs.** A different format (`asym_w4a8_int8`: 4-bit weight, group 16, convrot
 256), so these are listed apart from the INT8 packs above.
