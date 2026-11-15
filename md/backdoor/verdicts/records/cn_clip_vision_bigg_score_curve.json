@@ -1,0 +1,100 @@
+{
+ "tool": "clip_convert/verify_bigg_vision.py",
+ "family": "clip_vision",
+ "model": "clip_vision_g.safetensors",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set, seed 42",
+ "note": "the packs measured here are the candidates built from this run's contribution ranking, plus the shipped pack, which was built from the drift ranking",
+ "candidates": [
+  {
+   "pack": "k0.safetensors",
+   "file_mb": 1767.1153736114502,
+   "quantized_layers": 288,
+   "int8_linear_calls": 288,
+   "mean": 0.9997341623529792,
+   "min": 0.9995538592338562,
+   "p5": 0.9996539354324341,
+   "p50": 0.9997402429580688,
+   "finite": true,
+   "n": 64,
+   "pass": true
+  },
+  {
+   "pack": "k10.safetensors",
+   "file_mb": 1824.5333843231201,
+   "quantized_layers": 278,
+   "int8_linear_calls": 278,
+   "mean": 0.999746672809124,
+   "min": 0.9995445013046265,
+   "p5": 0.9996770620346069,
+   "p50": 0.9997565150260925,
+   "finite": true,
+   "n": 64,
+   "pass": true
+  },
+  {
+   "pack": "k20.safetensors",
+   "file_mb": 1923.2633228302002,
+   "quantized_layers": 268,
+   "int8_linear_calls": 268,
+   "mean": 0.9997625695541501,
+   "min": 0.9996628761291504,
+   "p5": 0.9997092485427856,
+   "p50": 0.9997676014900208,
+   "finite": true,
+   "n": 64,
+   "pass": true
+  },
+  {
+   "pack": "k30.safetensors",
+   "file_mb": 2001.3493022918701,
+   "quantized_layers": 258,
+   "int8_linear_calls": 258,
+   "mean": 0.9998021256178617,
+   "min": 0.9995776414871216,
+   "p5": 0.9997367262840271,
+   "p50": 0.9998115301132202,
+   "finite": true,
+   "n": 64,
+   "pass": true
+  },
+  {
+   "pack": "k35.safetensors",
+   "file_mb": 2035.212490081787,
+   "quantized_layers": 253,
+   "int8_linear_calls": 253,
+   "mean": 0.9998061591759324,
+   "min": 0.9997192621231079,
+   "p5": 0.9997618198394775,
+   "p50": 0.9998078942298889,
+   "finite": true,
+   "n": 64,
+   "pass": true
+  },
+  {
+   "pack": "k40.safetensors",
+   "file_mb": 2058.7162342071533,
+   "quantized_layers": 248,
+   "int8_linear_calls": 248,
+   "mean": 0.9998079854995012,
+   "min": 0.9996738433837891,
+   "p5": 0.9997515082359314,
+   "p50": 0.999814510345459,
+   "finite": true,
+   "n": 64,
+   "pass": true
+  },
+  {
+   "pack": "CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors",
+   "file_mb": 2180.058343887329,
+   "quantized_layers": 253,
+   "int8_linear_calls": 253,
+   "mean": 0.9999104226008058,
+   "min": 0.999725341796875,
+   "p5": 0.9998748302459717,
+   "p50": 0.9999172687530518,
+   "finite": true,
+   "n": 64,
+   "pass": true
+  }
+ ]
+}

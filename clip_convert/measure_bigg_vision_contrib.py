@@ -131,6 +131,10 @@ def main():
     print("    the runtime Linear modules: %d" % len(cands), flush=True)
     del v16, sd0
     torch.cuda.empty_cache()
+    try:
+        comfy.model_management.unload_all_models()
+    except Exception as exc:
+        print("   (unload_all_models: %s)" % exc, flush=True)
 
     def cos_of(path):
         sd = comfy.utils.load_torch_file(path, safe_load=True)
@@ -142,6 +146,14 @@ def main():
                 ref[s].reshape(1, -1), f.reshape(1, -1)).item())
         del v, sd
         torch.cuda.empty_cache()
+        # The vision tower is built through a ModelPatcher, which keeps a reference to
+        # the model after `del`, so the VRAM is not actually released and the next pack
+        # has to fight for what is left. Freeing it here is what keeps 288 packs
+        # feasible on a 16 GB card.
+        try:
+            comfy.model_management.unload_all_models()
+        except Exception as exc:
+            print("   (unload_all_models: %s)" % exc, flush=True)
         cs.sort()
         return statistics.mean(cs), cs[0]
 

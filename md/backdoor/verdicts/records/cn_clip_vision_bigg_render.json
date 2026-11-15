@@ -1,0 +1,64 @@
+{
+ "tool": "audit/clip_vision_bigg_render.py",
+ "family": "clip_vision",
+ "source": "clip_vision_g.safetensors",
+ "pack": "CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors",
+ "dequant": "CLIP-ViT-bigG-14-laion2B-39B-b160k_dequant.safetensors",
+ "route": {
+  "loader": "HSWQLoadClipVision -> IPAdapterAdvanced.clip_vision",
+  "route": "hswq",
+  "ipadapter": "ip-adapter_sdxl.safetensors",
+  "checkpoint": "pornmasterPro_realismILV4_r32_r0.2.safetensors"
+ },
+ "prompt": {
+  "positive": "a woman in a red coat standing in a city street, detailed, natural light",
+  "negative": "blurry, low quality, watermark",
+  "width": 512,
+  "height": 512,
+  "seed": 42,
+  "steps": 24,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "denoise": 1.0,
+  "ipadapter_weight": 0.8,
+  "weight_type": "linear",
+  "embeds_scaling": "V only",
+  "reference_image": "cn_clipvit_ref.png"
+ },
+ "arms": [
+  {
+   "id": "A_source",
+   "clip_vision": "clip_vision_g.safetensors",
+   "frame": "cn_clip_vision_bigg_A_source_image_test.png",
+   "bytes": 370548,
+   "sha256_16": "EB1043C714FE9F7E",
+   "wall_s": 3.0,
+   "pixel_mean": 135.66,
+   "pixel_std": 82.05,
+   "pixel_max": 255.0
+  },
+  {
+   "id": "B_pack",
+   "clip_vision": "CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors",
+   "frame": "cn_clip_vision_bigg_B_pack_image_test.png",
+   "bytes": 373384,
+   "sha256_16": "766F4BEEFD096D7A",
+   "wall_s": 12.2,
+   "pixel_mean": 136.8,
+   "pixel_std": 83.58,
+   "pixel_max": 255.0
+  },
+  {
+   "id": "C_dequant",
+   "clip_vision": "CLIP-ViT-bigG-14-laion2B-39B-b160k_dequant.safetensors",
+   "frame": "cn_clip_vision_bigg_C_dequant_image_test.png",
+   "bytes": 366646,
+   "sha256_16": "B6661ABEF73E4E68",
+   "wall_s": 12.4,
+   "pixel_mean": 136.55,
+   "pixel_std": 82.44,
+   "pixel_max": 255.0
+  }
+ ]
+}

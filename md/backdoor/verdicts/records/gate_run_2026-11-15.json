@@ -21,7 +21,7 @@
     {
       "gate": "Selftest",
       "status": "PASS",
-      "seconds": 5.32,
+      "seconds": 4.85,
       "script": "audit/selftest.py",
       "script_sha256": "5b35ed9ba1951147996191d888f02a8a817d0c3b042549d031b83e38fba7b4ef"
     }

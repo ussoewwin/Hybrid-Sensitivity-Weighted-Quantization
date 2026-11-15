@@ -1,0 +1,82 @@
+{
+ "tool": "audit/bigg_pack_audit.py",
+ "family": "clip_vision",
+ "model": "clip_vision_g.safetensors",
+ "source": {
+  "file": "clip_vision_g.safetensors",
+  "bytes": 3689911098,
+  "sha256": "9908329b3ead722a693ea400fab1d7c9ec91d6736fd194a94d20d793457f9c2e",
+  "tensors": 777
+ },
+ "pack": {
+  "file": "CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8.safetensors",
+  "bytes": 2285956858,
+  "sha256": "6cd4afac314ae720ff1edcac59f927b93d8e15ce3e8e109ddc59f6fd43b2d5d3",
+  "tensors": 1283
+ },
+ "declared": {
+  "layers": 253,
+  "format": "int8_tensorwise",
+  "convrot": true,
+  "groupsize": 64,
+  "int8_layers": 253,
+  "fp16_kept_layers": 35,
+  "layers_measured": 288
+ },
+ "coverage": {
+  "n_missing": 0,
+  "n_extra": 0,
+  "n_shape_mismatch": 0,
+  "missing": [],
+  "extra": [],
+  "shape_mismatch": []
+ },
+ "quantised": {
+  "found": 253,
+  "q_mismatch_total": 0,
+  "max_q_delta": 0,
+  "scale_exact_rel_max": 0.0,
+  "nonfinite_scales": 0,
+  "n_layers_with_difference": 0
+ },
+ "float_side": {
+  "checked": 524,
+  "mismatch_count": 0,
+  "max_abs_diff": 0.0,
+  "dtype_differences": [
+   {
+    "tensor": "vision_model.embeddings.position_ids",
+    "source_dtype": "torch.float16",
+    "pack_dtype": "torch.int64"
+   },
+   {
+    "tensor": "vision_model.post_layernorm.bias",
+    "source_dtype": "torch.float16",
+    "pack_dtype": "torch.float32"
+   },
+   {
+    "tensor": "vision_model.post_layernorm.weight",
+    "source_dtype": "torch.float16",
+    "pack_dtype": "torch.float32"
+   },
+   {
+    "tensor": "vision_model.pre_layrnorm.bias",
+    "source_dtype": "torch.float16",
+    "pack_dtype": "torch.float32"
+   },
+   {
+    "tensor": "vision_model.pre_layrnorm.weight",
+    "source_dtype": "torch.float16",
+    "pack_dtype": "torch.float32"
+   }
+  ]
+ },
+ "behaviour": {
+  "image_embed_cos_mean": 0.9999112039804459,
+  "image_embed_cos_min": 0.9998748302459717,
+  "n": 8,
+  "seed": 42,
+  "how": "the source's float weights against the pack, both built through mixed_precision_ops, over 8 fixed inputs"
+ },
+ "verdict": "FAITHFUL"
+}

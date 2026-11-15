@@ -74,7 +74,11 @@ python audit/run_all_gates.py
 | CN-4 (FaceID render, source and pack arms) | `ipadapter_faceid_image_test.py` | `--pack <f> --source <f> --image <png> --ckpt <f> --clipvision <f> --comfy <d> --out-dir <d> --json <o>` |
 | CN-5a/5b/6 on the A1111 INT8 route | `ipadapter_faceid_int8_route_acceptance.py` | `--root <a1111> --insightface-root <d> --source <f> --pack <f> --image <png> --json-5a <o> --json-trigger <o> --json-gate <o>` |
 | CN-4 on A1111 (both arms drawn through the API) | `ipadapter_faceid_a1111_render.py` | `--image <png> --source-model <name> --pack-model <name> --out-dir <d> --json <o>` |
-| CN-1..3 (SDXL basic `ip-adapter_xl`: identity, coverage, arithmetic replay, same-input behaviour on `ImageProjModel`) | `ipadapter_xl_pack_audit.py` | `--source <f> --pack <f> --ipadapter_dir <d> --json <o> [--seed S] [--groupsize 256]` |
+| CN-1..3 (SDXL basic `ip-adapter_xl`: identity, coverage, arithmetic replay, same-input behaviour on `ImageProjModel`) | `ipadapter_xl_pack_audit.py` |
+| CN-1 (pack is the source quantised, CLIP ViT-bigG/14) | `bigg_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --json <o> [--seed S] [--groupsize 64]` |
+| CN-2/3 (loader route and INT8 execution, CLIP ViT-bigG/14) | `clip_vision_bigg_route.py` | `--source <f> --pack <f> --image <png> --comfy <d> --loader <d> --route stock\|hswq --json <o>` |
+| CN-4 (three-arm render, CLIP ViT-bigG/14) | `clip_vision_bigg_render.py` | `--comfy <d> --server <url> --reference <png> --dequant <f> --source <f> --pack <f> --ckpt <f> --ipadapter <f> --route stock\|hswq --out <o> --frames <d>` |
+| the dequantised copy for the third render arm (CLIP ViT-bigG/14) | `clip_vision_bigg_dequant.py` | `--pack <f> --out <f> [--groupsize 64]` | `--source <f> --pack <f> --ipadapter_dir <d> --json <o> [--seed S] [--groupsize 256]` |
 | CN-2 (route census, SDXL basic `ip-adapter_xl`) | `ipadapter_xl_route.py` | `--pack <f> --comfy <d> --root <a1111> [--forge <d>] --json <o>` |
 | CN-5a/5b/6 (SDXL basic `ip-adapter_xl`, A1111 INT8 route) | `ipadapter_xl_acceptance.py` | `--source <f> --pack <f> --image <png> --comfy <d> --clip-vision <f> --root <a1111> --json-5a <o> --json-trigger <o> --json-gate <o>` |
 | CN-4 (SDXL basic `ip-adapter_xl`, both arms through the API) | `ipadapter_xl_render.py` | `--image <png> --source-model <name> --pack-model <name> --out-dir <d> --json <o> --module ip-adapter_clip_sdxl --width 1024 --height 1024` |
