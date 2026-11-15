@@ -9,6 +9,20 @@
 
 ---
 
+## Table of contents
+
+0. [The load path is the whole story](#0-the-load-path-is-the-whole-story)
+1. [What is quantized](#1-what-is-quantized)
+2. [What the protection set is based on](#2-what-the-protection-set-is-based-on)
+3. [The score table (256 items, seed 42, through the real loader)](#3-the-score-table-256-items-seed-42-through-the-real-loader)
+4. [Visible-sample check](#4-visible-sample-check)
+5. [Reproduction](#5-reproduction)
+6. [Error sources and limits](#6-error-sources-and-limits)
+7. [Ledger](#7-ledger)
+8. [Files](#8-files)
+
+---
+
 ## 0. The load path is the whole story
 
 This adapter has one route that installs the pack's INT8 payload and one that does not. Both are measured, and the difference decides where the acceptance numbers come from.
