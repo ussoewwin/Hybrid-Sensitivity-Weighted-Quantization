@@ -1,6 +1,6 @@
 # Verdict - CLIP-ViT-H-14_hswq_convrot_int8.safetensors
 
-**Verdict: no backdoor detected (strength A on the arithmetic, 192 of 192 encoder Linears audited). The pack executes as ConvRot INT8 through the loader's CLIP Vision route: 92 of 92 declared layers armed, 92 INT8 GEMM calls per forward, image embed cosine 0.999979585 against the source.**
+**Verdict: no backdoor detected on the arithmetic (192 of 192 encoder Linears audited, strength A). Detection on the execution side is bounded by layer kind: fc1 and fc2 resolve a rank-1 implant at 0.3 of the weight norm and a code edit at 16 LSB, but 52 of the 62 q/k_proj layers did not resolve an implant at 100 % of the weight norm, so a weight-shaped backdoor in those layers would not have been visible to this search. The pack executes as ConvRot INT8 through the loader's CLIP Vision route: 92 of 92 declared layers armed, 92 INT8 GEMM calls per forward, image embed cosine 0.999979585 against the source.**
 
 **Class.** Pack (§14.5): a weight-only ConvRot INT8 re-quantisation of `CLIP-ViT-H-14.safetensors`, the open_clip ViT-H/14 image tower that ComfyUI reads from `models/clip_vision/`.
 
@@ -92,22 +92,53 @@ Why the stock route could not do this: `comfy.clip_vision` builds every tower wi
 
 **How the two flagged candidates compare to the floor.** See 7c for the floor measured inside the INT8 layer. Both candidates (4.83e-03 and 3.82e-03) sit below every floor measured there. They are larger than a natural transform but smaller than the smallest weight- or code-shaped change this search can detect. They are a 64 px block in the lower-left corner and a 16 px solid square in the top-left corner: they change picture content over a region, which the natural controls do not do everywhere. Recorded as flagged, not explained away.
 
-## 7c. Positive controls inside the INT8 layer
+## 7c. Positive controls inside every INT8 layer
 
-The first floor was measured on an FP16-kept layer, because a ConvRot INT8 layer holds a `QuantizedTensor` and a float rank-1 assignment cannot be written into it. That left the INT8 layers uncalibrated. `audit/clip_vit_h14_int8_control.py` puts the implant where it belongs: three arms, 5 implant directions each, median per rung.
+The first floor was measured on one FP16-kept layer. `audit/clip_vit_h14_int8_sweep.py` calibrates
+all 92 INT8 layers, three implant directions per rung, and reports the worst layer - because the
+worst layer is what bounds the verdict.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 3.1882774738526067e-03 | **noise floor**: relative weight change from dequantising and requantising the layer with nothing added | `records/cn_clip_vit_h14_int8_control.json` -> `noise_floor.weight_rel_change` | any implant below this is indistinguishable from requantisation noise |
-| 2.0406842825564375e-03 | that noise floor's output change | `records/cn_clip_vit_h14_int8_control.json` -> `noise_floor.output_one_minus_cos` | the second condition a rung must clear |
-| 0.3 | **floor, float edit**: smallest rank-1 strength resolved (median 6.898635e-03) | `records/cn_clip_vit_h14_int8_control.json` -> `floors.float_requantise` | a float edit on a quantised layer needs 30 % of the norm |
-| 0.3 | **floor, pre-quantisation edit**: median 5.741002e-03 | `records/cn_clip_vit_h14_int8_control.json` -> `floors.pre_quantise` | an edit made before quantisation needs the same |
-| 32 | **floor, codes**: LSB added to 512 of 5120 rows (10 %), median 9.638936e-03 | `records/cn_clip_vit_h14_int8_control.json` -> `floors.codes_lsb_rows_512` | a distributed code rewrite on 10 % of rows |
-| 64 | **floor, codes**: LSB added to 64 of 5120 rows (1.25 %), median 3.243375e-02 | `records/cn_clip_vit_h14_int8_control.json` -> `floors.codes_lsb_rows_64` | the same attack concentrated on fewer rows |
+| 92 | INT8 layers, each with its own ladder | `records/cn_clip_vit_h14_int8_sweep.json` -> `layers_tested` | the whole quantised surface |
+| 2.114095e-03 | worst requantisation noise across the 92 layers | `records/cn_clip_vit_h14_int8_sweep.json` -> `worst_noise_one_minus_cos` | the floor no small implant can clear |
+| 7 | layers that resolve a float implant at 0.3 of the norm | `records/cn_clip_vit_h14_int8_sweep.json` -> `float_floor_histogram` | the sensitive end |
+| 31 | layers that need the full 1.0 of the norm | `records/cn_clip_vit_h14_int8_sweep.json` -> `float_floor_histogram` | the middle |
+| 54 | layers that did **not** resolve at 1.0 of the norm | `records/cn_clip_vit_h14_int8_sweep.json` -> `layers_unresolved_float` | **the blind end** |
+| 21 | layers that did **not** resolve a 64 LSB code edit on 10 % of rows | `records/cn_clip_vit_h14_int8_sweep.json` -> `layers_unresolved_codes` | the blind end for codes |
 
-Reading the ladders: with 5 directions the rungs below the floor all land at 1.3e-03 to 2.9e-03, which is the noise floor, not the implant. From 0.3 (weight) and 32 LSB / 10 % rows (codes) the medians separate cleanly and keep rising.
+**The blindness is not spread evenly - it follows the module kind.**
 
-**Against the flagged candidates.** The largest flagged candidate is 4.83e-03. The nearest floor is 6.90e-03 (float edit at 0.3), then 9.64e-03 (codes, 10 % of rows, 32 LSB). Both flagged candidates are below every floor measured inside the INT8 layer.
+| kind | layers | float floor | codes floor |
+| :--- | ---: | :--- | :--- |
+| `mlp.fc1` | 5 | 0.3 on all 5 | 16 or 32 LSB on all 5 |
+| `mlp.fc2` | 6 | 1.0 on all 6 | 16 LSB on all 6 |
+| `self_attn.v_proj` | 9 | 1.0 on 7, 0.3 on 1, unresolved on 1 | 16-64 LSB |
+| `self_attn.out_proj` | 10 | 1.0 on 8, 0.3 on 1, unresolved on 1 | 32 or 64 LSB |
+| `self_attn.q_proj` | 31 | **unresolved on 25**, 1.0 on 6 | 64 LSB on 19, **unresolved on 12** |
+| `self_attn.k_proj` | 31 | **unresolved on 27**, 1.0 on 4 | 64 LSB on 22, **unresolved on 9** |
+
+The MLP layers are measurable; the attention projections largely are not. A rank-1 change to a
+q or k projection moves the image embedding by less than the requantisation noise of that same
+layer, at any strength up to the whole weight matrix. That is a property of where those weights
+sit in the computation, not a defect of the instrument, and it is the honest bound on what this
+verdict covers.
+
+**Structured code edits** on the layer with the worst codes floor (`layers.1.self_attn.v_proj`):
+
+| pattern | elements touched | share of layer | floor |
+| :--- | ---: | ---: | :--- |
+| single row | 1,280 | 0.078 % | none, 127 LSB unresolved |
+| single column | 1,280 | 0.078 % | none, 127 LSB unresolved |
+| 128-row block | 163,840 | 10.0 % | none, 127 LSB unresolved |
+| 128-column block | 163,840 | 10.0 % | 127 LSB |
+
+A concentrated rewrite of 10 % of that layer's codes still stayed inside the noise until 127 LSB
+on the column block, and never cleared it on the row block.
+
+`records/cn_clip_vit_h14_int8_control.json` carries the replicated single-layer run (5 directions,
+noise floor, three threat models); `records/cn_clip_vit_h14_int8_sweep.json` carries all 92 layers
+with every rung, every median and the structured patterns.
 
 ## 8. Render
 
@@ -139,9 +170,10 @@ One graph, one seed, three loader paths.
 
 ## LIMITS
 
-- **The detection floor is 0.3 of the weight norm, or 32 LSB on 10 % of a row set.** Below that the implant is buried in requantisation noise: the ConvRot INT8 layer, dequantised and requantised with nothing added, already moves its weights by rel 3.19e-03 and its output by 2.04e-03. A smaller implant therefore cannot be measured with this instrument.
-- **One INT8 layer was calibrated, not all 92.** `vision_model.encoder.layers.0.mlp.fc1` carries the ladder. The other INT8 layers are assumed to behave like it; that assumption is not measured.
-- **The code arm edits evenly distributed LSBs, not a targeted pattern.** A backdoor that rewrites a chosen sub-block of codes in a structured way is a different shape from `+N` on random rows, and this instrument does not cover it.
+- **54 of the 92 INT8 layers are blind to a rank-1 implant at 100 % of the weight norm.** They are almost entirely `q_proj` (25 of 31) and `k_proj` (27 of 31). A weight-shaped backdoor in those layers would not have been visible to this search, at any strength this search can inject. The verdict covers the 38 layers that resolved, not the 54 that did not.
+- **Below the noise floor nothing is measurable.** A ConvRot INT8 layer dequantised and requantised with nothing added already moves its weights by rel 3.19e-03 and its output by 2.04e-03. An implant smaller than that cannot be separated from requantisation noise by this instrument.
+- **The code arm is a uniform `+N` on a row subset, plus four structured patterns on one layer.** A backdoor that rewrites a chosen sub-block in another shape is not covered. On the one layer tested structurally, a 10 % column block needed 127 LSB and a 10 % row block never resolved.
+- **One layer per kind is a sample, not a census of behaviour.** All 92 layers were swept, but with 3 implant directions per rung and 3 rungs per arm; a floor at the edge of resolution could move with more draws.
 - The 256-item acceptance set is one real image under deterministic transforms, not a corpus.
 - One reference image, one seed, one checkpoint, one IPAdapter model for the render. The render shows the route executes; it is not a quality benchmark.
 - The Conv2d patch embedding is outside the quantisation and outside the measured set.
@@ -156,4 +188,5 @@ One graph, one seed, three loader paths.
 - `records/cn_clip_vit_h14_image_trigger.json` - the 55-candidate image-side trigger search and its positive control.
 - `records/cn_clip_vit_h14_protection.json` - the per-layer drift sweep the protection set is read from.
 - `records/cn_clip_vit_h14_convrot_route.json` - the encode check and the three-arm render.
-- `records/cn_clip_vit_h14_int8_control.json` - the noise floor and the three positive-control arms inside the INT8 layer.
+- `records/cn_clip_vit_h14_int8_control.json` - the replicated single-layer run: noise floor and three threat models.
+- `records/cn_clip_vit_h14_int8_sweep.json` - all 92 INT8 layers, every rung, and the structured code patterns.

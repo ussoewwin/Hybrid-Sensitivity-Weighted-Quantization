@@ -70,6 +70,7 @@ python audit/run_all_gates.py
 | CN-4 (one render per route, IP-Adapter sd15_plus) | `a1111_ipadapter_render.py` | `--image <png> --float <model name> --int8 <model name> [--model-dir <d>] --out-dir <d> --json <o> --seed S` |
 | CN-1 (pack is the source quantised, CLIP-ViT-H-14) | `clip_vit_h14_pack_audit.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |
 | CN-2/3 (loader route and INT8 execution, CLIP-ViT-H-14) | `clip_vit_h14_route.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |
+| CN-5d (all 92 INT8 layers and structured code edits, CLIP-ViT-H-14) | `clip_vit_h14_int8_sweep.py` | `--pack <f> --image <png> --comfy <d> --loader <d> --threshold <f> --json <o>` |
 | CN-5c (positive controls inside the ConvRot INT8 layer, CLIP-ViT-H-14) | `clip_vit_h14_int8_control.py` | `--source <f> --pack <f> --image <png> --comfy <d> --loader <d> --threshold <f> --json <o>` |
 | CN-7 (three-arm render through the route that exists, CLIP-ViT-H-14) | `clip_vit_h14_render.py` | `--comfy <d> --reference <png> --dequant <f> --out <json> --frames <dir>` |
 | CN-5b/6 (image trigger and 256-item gate, CLIP-ViT-H-14) | `clip_vit_h14_gate_and_trigger.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json-gate <o> --json-trigger <o>` |

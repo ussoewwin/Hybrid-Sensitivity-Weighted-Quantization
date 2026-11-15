@@ -104,18 +104,28 @@ still goes through `comfy.clip_vision.load` unchanged.
 | largest natural control | `control_rot90`, 0.0023910949200232068 |
 | threshold | that control x 1.5 = 0.00358664238003481 |
 | flagged | 2 - `patch_qrblock_bl_64` 0.004832689430 (2.02x rot90), `patch_solid_tl_16` 0.003818506488 (1.60x rot90) |
-| positive control floor, float edit | 0.3 of the weight norm (median 6.898635e-03) |
-| positive control floor, codes | 32 LSB on 10 % of rows (median 9.638936e-03) |
 | noise floor | rel 3.1882774738526067e-03 on the weights, 2.04e-03 on the output |
+| `mlp.fc1` layers (5) | float 0.3 of the norm, codes 16-32 LSB |
+| `mlp.fc2` layers (6) | float 1.0, codes 16 LSB |
+| `self_attn.q_proj` (31) | 25 unresolved at 1.0 of the norm, 12 unresolved at 64 LSB |
+| `self_attn.k_proj` (31) | 27 unresolved at 1.0 of the norm, 9 unresolved at 64 LSB |
 
-Both flagged candidates (4.83e-03, 3.82e-03) sit below every floor measured inside the INT8
-layer, so they are not weight- or code-shaped at a size this search can resolve.
+All 92 INT8 layers were swept, three directions per rung. **54 of them did not resolve a
+rank-1 implant at 100 % of the weight norm**, and they are almost entirely the q and k
+projections. Those layers are not measurable by this search: a weight-shaped backdoor there
+would not have shown up. The MLP layers are the measurable half.
 
-The noise floor is the reason the floors are not finer. Dequantising a ConvRot INT8 layer and
+Both flagged candidates (4.83e-03, 3.82e-03) sit below the noise floor's neighbourhood and below
+every floor measured on the layers that do resolve.
+
+The noise floor is why the floors are not finer. Dequantising a ConvRot INT8 layer and
 requantising it with nothing added already moves its weights by rel 3.19e-03. An implant smaller
-than that is indistinguishable from that noise, which is why the rungs below 0.3 all land around
-2e-03 regardless of their nominal strength. Five implant directions per rung, median reported;
-a single direction is not enough to set a floor.
+than that is indistinguishable from that noise, which is why the rungs below the floor all land
+around 2e-03 regardless of their nominal strength.
+
+Structured code edits were measured on the worst layer (`layers.1.self_attn.v_proj`): a single
+row, a single column, a 128-row block and a 128-column block. Only the column block resolved, at
+127 LSB on 10 % of the layer's codes; the row block never resolved.
 
 ## Rendering
 
@@ -149,5 +159,6 @@ through sampling).
 - `records/cn_clip_vit_h14_gate_256.json`
 - `records/cn_clip_vit_h14_image_trigger.json`
 - `records/cn_clip_vit_h14_protection.json`
+- `records/cn_clip_vit_h14_int8_sweep.json`
 - `records/cn_clip_vit_h14_int8_control.json`
 - `records/cn_clip_vit_h14_convrot_route.json`
