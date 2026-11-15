@@ -139,6 +139,7 @@ def main():
     summary = {
         "tool": "clip_convert/diag_impact_ipadapter_xl.py",
         "family": "ipadapter_xl",
+        "model": os.path.basename(a.input),
         "source": os.path.basename(a.input),
         "source_bytes": os.path.getsize(a.input),
         "source_sha256": sha,

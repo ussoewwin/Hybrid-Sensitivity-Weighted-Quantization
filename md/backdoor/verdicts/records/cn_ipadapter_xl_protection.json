@@ -171,5 +171,6 @@
   "not_a_measured_linear": 3,
   "pack_bytes": 352063023,
   "note": "no group needed protection; inner dimensions 1280 and 2048 both carry 256"
- }
+ },
+ "model": "ip-adapter_xl.pth"
 }
