@@ -1,0 +1,57 @@
+{
+ "tool": "audit/clip_vit_h14_pack_audit.py",
+ "model": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+ "source": {
+  "file": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+  "bytes": 2528373448,
+  "sha256": "6ca9667da1ca9e0b0f75e46bb030f7e011f44f86cbfb8d5a36590fcd7507b030",
+  "tensors": 521
+ },
+ "pack": {
+  "file": "CLIP-ViT-H-14-laion2B-s32B-b79K_hswq_convrot_int8.safetensors",
+  "bytes": 1064907988,
+  "sha256": "477e5271a94349109d31a482ee870581f55f39059036cdfcc13dc6314cce7323",
+  "tensors": 705
+ },
+ "declared": {
+  "layers": 192,
+  "format": "int8_tensorwise",
+  "convrot": true,
+  "groupsize": 256,
+  "int8_layers": 92,
+  "fp16_kept_layers": 100,
+  "visual_projection_in_pack": "torch.float16"
+ },
+ "coverage": {
+  "n_missing": 0,
+  "n_extra": 0,
+  "missing": [],
+  "extra": [],
+  "scale_present": 92,
+  "stamp_present": 92
+ },
+ "shape_mismatch": [],
+ "quantised": {
+  "found": 92,
+  "q_mismatch_total": 0,
+  "max_q_delta": 1,
+  "scale_exact_rel_max": 0.00032826545066200197,
+  "nonfinite_scales": 0
+ },
+ "float_side": {
+  "checked": 329,
+  "mismatch_count": 0,
+  "max_abs_diff": 0.0
+ },
+ "behaviour": {
+  "tokens_cos": 0.9999468728489679,
+  "tokens_rel_l2": 0.010308990015502785,
+  "tokens_abs_max": 0.4624919891357422,
+  "embeds_cos": null,
+  "embeds_rel_l2": null,
+  "input": "cn_clipvit_ref.png",
+  "size": 224,
+  "how": "the pack's int8 codes and scales were dequantised and loaded into the source structure, so this compares the quantisation itself"
+ },
+ "verdict": "FAITHFUL"
+}

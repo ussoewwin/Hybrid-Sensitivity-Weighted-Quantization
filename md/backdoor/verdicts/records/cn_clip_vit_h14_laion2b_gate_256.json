@@ -1,0 +1,21 @@
+{
+ "tool": "audit/clip_vit_h14_gate_and_trigger.py",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "pack": "CLIP-ViT-H-14-laion2B-s32B-b79K_hswq_convrot_int8.safetensors",
+ "pack_sha256": "477e5271a94349109d31a482ee870581f55f39059036cdfcc13dc6314cce7323",
+ "source_sha256": "6ca9667da1ca9e0b0f75e46bb030f7e011f44f86cbfb8d5a36590fcd7507b030",
+ "quantized_layers": 92,
+ "route": "hswq",
+ "int8_linear_calls_total": 23552,
+ "int8_linear_calls_per_forward": 92,
+ "n": 256,
+ "finite": true,
+ "nonfinite_count": 0,
+ "items": "8 crops x 4 orientations x 8 brightness steps, from cn_clipvit_ref.png",
+ "mean": 0.999044517392393,
+ "min": 0.9955689179826557,
+ "p5": 0.9971586092970195,
+ "p50": 0.999341481832034,
+ "how": "the pack read and executed through the loader's ConvRot INT8 route (comfy_kitchen.backends.cuda.int8_linear)",
+ "pass": true
+}

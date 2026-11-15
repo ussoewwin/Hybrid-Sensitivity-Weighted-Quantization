@@ -26,11 +26,21 @@ PROMPT = "a woman in a red coat standing in a city street, detailed, natural lig
 NEGATIVE = "blurry, low quality, watermark"
 
 
-def graph(ckpt, ipadapter, ref_image, clip_vision):
+def graph(ckpt, ipadapter, ref_image, clip_vision, route="stock"):
+    """The same graph for both routes; only the CLIP Vision loader differs.
+
+    `stock` is ComfyUI's own `CLIPVisionLoader`, which builds the tower with
+    `manual_cast` and never interprets `comfy_quant` - so a pack arrives there as raw int8
+    codes in a float parameter. `hswq` is the loader extension's `HSWQLoadClipVision`, which
+    reads the stamps and installs the ConvRot INT8 layers.
+    """
+    vision = ({"class_type": "HSWQLoadClipVision", "inputs": {"clip_name": clip_vision}}
+              if route == "hswq" else
+              {"class_type": "CLIPVisionLoader", "inputs": {"clip_name": clip_vision}})
     return {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ckpt}},
         "2": {"class_type": "LoadImage", "inputs": {"image": ref_image}},
-        "3": {"class_type": "CLIPVisionLoader", "inputs": {"clip_name": clip_vision}},
+        "3": vision,
         "4": {"class_type": "IPAdapterModelLoader", "inputs": {"ipadapter_file": ipadapter}},
         "5": {"class_type": "IPAdapterAdvanced", "inputs": {
             "model": ["1", 0], "ipadapter": ["4", 0], "image": ["2", 0],
@@ -93,6 +103,8 @@ def main():
     ap.add_argument("--ipadapter", default="ip-adapter-plus_sd15.safetensors")
     ap.add_argument("--out", required=True, help="record path")
     ap.add_argument("--frames", required=True, help="directory for the three frames")
+    ap.add_argument("--route", choices=["stock", "hswq"], default="stock",
+                    help="which CLIP Vision loader the graph uses")
     ap.add_argument("--timeout", type=int, default=900)
     a = ap.parse_args()
 
@@ -101,7 +113,8 @@ def main():
     arms = [("A_source", a.source), ("B_pack", a.pack), ("C_dequant", a.dequant)]
     out = []
     for tag, clip in arms:
-        pid = submit(base, {"prompt": graph(a.ckpt, a.ipadapter, a.reference, clip), "client_id": str(uuid.uuid4())})
+        pid = submit(base, {"prompt": graph(a.ckpt, a.ipadapter, a.reference, clip, a.route),
+                            "client_id": str(uuid.uuid4())})
         frames, secs, err = wait(base, pid, a.timeout)
         if err or not frames:
             out.append({"id": tag, "clip_vision": clip, "error": err or "no frame"})
@@ -120,7 +133,10 @@ def main():
 
     rec = {"tool": "audit/clip_vit_h14_render.py", "family": "clip_vision",
            "source": a.source, "pack": a.pack, "dequant": a.dequant,
-           "route": {"loader": "CLIPVisionLoader -> IPAdapterAdvanced.clip_vision",
+           "route": {"loader": ("HSWQLoadClipVision -> IPAdapterAdvanced.clip_vision"
+                               if a.route == "hswq" else
+                               "CLIPVisionLoader -> IPAdapterAdvanced.clip_vision"),
+                     "route": a.route,
                      "ipadapter": a.ipadapter, "checkpoint": a.ckpt},
            "prompt": {"positive": PROMPT, "negative": NEGATIVE, "width": 512, "height": 512,
                       "seed": 42, "steps": 24, "cfg": 7.0, "sampler": "dpmpp_2m",
