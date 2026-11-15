@@ -28,6 +28,11 @@ The pack executes as ConvRot INT8 on the `HSWQLoadClipVision` route, where every
 | 0 | weights added by the pack | `records/cn_clip_vision_bigg_pack_audit.json` -> `coverage.n_extra` | nothing injected |
 | 0 | shape mismatches | `records/cn_clip_vision_bigg_pack_audit.json` -> `coverage.n_shape_mismatch` | every tensor is the source's shape |
 
+**The 2 tensors that are not INT8 are not a choice.** `vision_model.embeddings.position_embedding`
+has rows wider than the group and `visual_projection` is asymmetric (1664 -> 1280); neither can carry
+a ConvRot INT8 payload, so both are stored in FP16 and their values are the source's to the bit
+(§3). Every layer that *can* be quantised was quantised.
+
 ## 3. Arithmetic - the pack is the source quantised
 
 | number | measured | record | bearing on the backdoor verdict |
@@ -83,6 +88,14 @@ and the others buy under two percent of the margin for 268 to 413 MB.**
 | 1 | float Linear calls in the same forward | `records/cn_clip_vision_bigg_route.json` -> `pack_side.one_forward.float_linear_calls` | the projection head |
 | 0.997366786 | the pack's output against the source's on that route | `records/cn_clip_vision_bigg_route.json` -> `output_cos_source_vs_pack` | the conditioning is reproduced |
 
+**Why the native route reads 289 float calls and the extension route reads 1.** The extension builds
+each Linear from the `comfy_quant` stamp: 288 of them become INT8 modules and the pooler stays float,
+so one forward is 288 INT8 GEMMs plus 1 float call. The native loader builds all 289 as float
+modules and hands each one a tensor of int8 codes cast to float16, so one forward is 289 float calls
+and 0 kernel launches - the codes are used as magnitudes, and the output is uncorrelated with the
+source (-0.035036381). The count itself is the evidence: a route that reports 289 float calls has
+not run this pack.
+
 ## 6. Acceptance
 
 | number | measured | record | bearing on the backdoor verdict |
@@ -100,6 +113,19 @@ built through `mixed_precision_ops`, 8 fixed inputs):
 | :--- | :--- | :--- | :--- |
 | 0.999732144 | the image-embedding cosine, mean | `records/cn_clip_vision_bigg_pack_audit.json` -> `behaviour.image_embed_cos_mean` | the tower is reproduced |
 | 0.999692082 | the image-embedding cosine, worst | `records/cn_clip_vision_bigg_pack_audit.json` -> `behaviour.image_embed_cos_min` | no outlier |
+
+**The quantisation and the kernel, separated.** The same 256-item set, run once through the INT8
+kernel and once with the pack's codes dequantised into the source structure. What the kernel changes
+is not the gate number - the gate's reference is the source over the same items - but the render:
+
+| item | INT8 route | with the codes dequantised |
+| :--- | ---: | ---: |
+| mean cosine, 256 items | **0.999734** | 0.999734 |
+| worst item | **0.999554** | 0.999554 |
+| p5 | **0.999654** | 0.999654 |
+| INT8 GEMM calls per item | **288** | 0 (float fallback) |
+| the render against the dequantised arm | 10.516 / 255 | the same scene, one step closer to the source |
+| the render against the source | 16.859 / 255 | 14.777 / 255 |
 
 ## 7. Trigger search
 
@@ -147,11 +173,29 @@ One graph, one seed, two loader paths. The frames were **read as images**.
 `ip-adapter_sdxl.safetensors`, checkpoint `pornmasterPro_realismILV4_r32_r0.2.safetensors`,
 reference `cn_clipvit_ref.png`.
 
+| source against pack, per arm | mean abs pixel difference | largest single-channel | pixels changed |
+| :--- | ---: | ---: | ---: |
+| `HSWQLoadClipVision` | **16.859 / 255** | 254 | 95.56 % |
+| ComfyUI's own `CLIPVisionLoader` | **86.884 / 255** | 255 | 99.98 % |
+
+| the arms against each other | mean abs pixel difference | what it isolates |
+| :--- | ---: | :--- |
+| source, hswq route against source, native route | **0.000 / 255** | the route alone changes nothing on a float source |
+| dequantised against pack, both hswq | 10.516 / 255 | the kernel's cost on the same weights |
+| source against dequantised, both hswq | 14.777 / 255 | the quantisation alone |
+| pack, hswq against pack, native | 87.170 / 255 | what reading the codes as float magnitudes costs |
+
+The source frame is **bit-identical on the two loaders** (0.000 / 255, 0 pixels changed), so the
+route does not touch a float checkpoint; every difference above belongs to the pack.
+
 - **The hswq pack frame is the source's scene.** Two figures in a shop, the same composition,
-  normal skin tone, no noise, no colour inversion, no seam. Its mean is 0.27 above the source's.
-- **The stock pack frame is a different picture.** One figure in a red coat seen from behind
-  against a yellow wall. Coherent, but not the source's image — the raw codes read as float
-  magnitudes, which §5 measures numerically.
+  normal skin tone, no noise, no colour inversion, no seam. Its mean is 0.27 above the source's,
+  and 16.859 / 255 of the pixels differ - surfaces, not structure.
+- **The dequantised frame sits between the two** (14.777 / 255 from the source, 10.516 / 255 from
+  the pack): the quantisation accounts for most of the distance, the kernel for the rest.
+- **The native pack frame is a different picture.** One figure in a red coat seen from behind
+  against a yellow wall. Coherent, but not the source's image - 86.884 / 255, five times what the
+  INT8 route produces.
 
 ## 9. Conclusion
 
