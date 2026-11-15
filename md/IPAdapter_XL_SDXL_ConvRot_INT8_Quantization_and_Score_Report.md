@@ -52,7 +52,9 @@ Inner dimensions measured: `proj` 1280, `to_k_ip` / `to_v_ip` 2048. All are mult
 
 ## 2. What the protection set is based on
 
-The criterion is the **aggregate contribution**: one layer is replaced by its ConvRot INT8 reconstruction in the **original** frame (`(q*s)H^T − W`), and the change in the stage output the layer feeds is measured. `diag_impact_*` is the per-layer weight error and is a screen; it is not this number.
+The criterion is the **aggregate contribution**: one layer is replaced by its ConvRot INT8 reconstruction and the change in the stage output that layer feeds is measured. The replacement is the converter's own arithmetic, so the error that reaches the output is the one the runtime produces.
+
+`clip_convert/diag_impact_ipadapter_xl.py` measures exactly that, not a per-layer weight error: at L114 it puts the reconstruction of `proj` back through `token_stack` and takes `rel_mse` of the resulting token stack, and at L130-132 it does the same for each `to_k_ip` / `to_v_ip` on that Linear's own output. Both are stage outputs, so one number per layer is the aggregate contribution for this adapter.
 
 The observable is split in two, because the adapter emits two different things: the `image_proj` token stack (4 × 2048) that the runtime injects as `cond`, and each `to_k_ip` / `to_v_ip` projection output the cross-attention consumes.
 
@@ -118,7 +120,11 @@ This is the **flat curve** outcome: no layer stands out, the smallest pack is th
 | item | measured |
 | :--- | :--- |
 | image_proj cos, fixed embedding | **0.999944299209199** |
-| INT8 kernel calls | 8 |
+| batch 0 (embedding × (1 + 0.02·N(0,1))) | 0.999939796 |
+| batch 1 | 0.999941850 |
+| batch 2 | 0.999943407 |
+| batch 3 | 0.999941472 |
+| INT8 kernel calls behind the five numbers | 8 |
 
 **The pack audit** (`audit/ipadapter_xl_pack_audit.py`, replaying the converter's own arithmetic):
 
