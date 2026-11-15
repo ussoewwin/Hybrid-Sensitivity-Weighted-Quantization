@@ -15,9 +15,9 @@ This adapter has one route that installs the pack's INT8 payload and one that do
 
 ### 0.1 ComfyUI's IP-Adapter loader does not read `comfy_quant`
 
-`comfy_extras/nodes_ipadapter.py :: ipadapter_model_loader` reads the file with `load_torch_file(..., safe_load=True)` and rebuilds the adapter from the state dict. It never consults `comfy_quant`, so a quantised weight arrives as an int8 tensor and is assigned where a float parameter is expected.
+`custom_nodes/comfyui_ipadapter_plus/utils.py :: ipadapter_model_loader` reads the file with `load_torch_file(..., safe_load=True)` and rebuilds the adapter from the state dict. It never consults `comfy_quant`, so a quantised weight arrives as an int8 tensor and is assigned where a float parameter is expected.
 
-Measured on this pack: **raw int8 codes 140, `loaded_as_int8` 0** — the pack is not applied on that path.
+Measured on this pack (`audit/ipadapter_xl_route.py`): **int8 tensors presented 141, `comfy_quant` markers 141, `weight_scale` tensors 141, `applies_int8` false** — the pack is not applied on that path.
 
 This matters more here than on SD1.5 plus, because the constructor does **not** raise: `ImageProjModel` and the `to_k_ip`/`to_v_ip` Linears accept the tensor shape, and the int8 codes would be read as magnitudes near ±127. The failure is silent rather than loud.
 
@@ -58,16 +58,18 @@ The observable is split in two, because the adapter emits two different things: 
 
 Measured on this checkpoint (`clip_convert/diag_impact_ipadapter_xl.py`, seed 42, float32, 141 groups):
 
-| rank | layer | the contribution |
-| :--- | :--- | :--- |
-| 1 | `ip_adapter.63.to_k_ip` | 7.817283768e-05 |
-| 2 | `ip_adapter.91.to_k_ip` | 7.633302e-05 |
-| 3 | `ip_adapter.105.to_k_ip` | 7.104035e-05 |
-| 4 | `ip_adapter.137.to_k_ip` | 7.060644e-05 |
-| 5 | `ip_adapter.83.to_k_ip` | 6.912488e-05 |
-| 6 | `ip_adapter.85.to_v_ip` | 6.774781e-05 |
-| — | `image_proj.proj` | 3.094009e-05 |
-| — | `ip_adapter.85.to_k_ip` (smallest) | 2.709643e-05 |
+| rank | layer | the contribution | the share |
+| :--- | :--- | :--- | :--- |
+| 1 | `ip_adapter.63.to_k_ip` | 7.817283768e-05 | 1.1069 % |
+| 2 | `ip_adapter.91.to_k_ip` | 7.633302e-05 | 1.0809 % |
+| 3 | `ip_adapter.105.to_k_ip` | 7.104035e-05 | 1.0059 % |
+| 4 | `ip_adapter.137.to_k_ip` | 7.060644e-05 | 0.9998 % |
+| 5 | `ip_adapter.83.to_k_ip` | 6.912488e-05 | 0.9788 % |
+| 6 | `ip_adapter.85.to_v_ip` | 6.774781e-05 | 0.9593 % |
+| — | `image_proj.proj` | 3.094009e-05 | 0.4381 % |
+| — | `ip_adapter.85.to_k_ip` (smallest) | 2.709643e-05 | — |
+
+The summed contribution over the 141 groups is 7.062025643e-03, so the largest single layer carries **1.11 %** of it. A network with a real hot layer would show one group at tens of percent; here nothing exceeds 1.2 %, which is the arithmetic behind calling the curve flat.
 
 | item | measured |
 | :--- | :--- |
@@ -95,7 +97,7 @@ The whole population sits four orders below the 0.15 threshold: the largest laye
 | 0.01 | 141 | 0 | 352,063,023 B | `727A7D265F29EF94` |
 | **0.15 (adopted)** | **141** | **0** | **352,063,023 B** | **`727A7D265F29EF94`** |
 
-This is the **flat curve** outcome: no layer stands out, the smallest pack is the whole curve, and 0.15 is the conventional threshold for this track. The adopted pack is the only member of the curve, so there is no size/quality trade to make.
+This is the **flat curve** outcome: no layer stands out, the smallest pack is the whole curve, and 0.15 is the conventional threshold for this track. The adopted pack is the only member of the curve, so there is no size/quality trade to make - and because the four points are the same bytes, the gate below is one measurement of one file, not four measurements presented as a curve.
 
 **The gate.** 256 fixed items (8 crops × 4 orientations × 8 brightness steps), seed 42, through the A1111 INT8 route:
 
@@ -143,8 +145,8 @@ Setting: **1024×1024, 12 steps, CFG 7.0, DPM++ 2M Karras, seed 42, adapter weig
 
 | | the measured |
 | :--- | :--- |
-| the source render | 1,438,325 B, 100.7 s |
-| the pack render | 1,437,344 B, 73.2 s |
+| the source render | 1,438,325 B, 85.0 s |
+| the pack render | 1,437,344 B, 102.1 s |
 | pixel difference | **mean_abs 8.76 / max_abs 240 / changed 87.65 %** |
 
 Both PNGs were inspected as images, not inferred from the numbers: each shows the same two figures on the same street with normal skin tone, coherent faces and hands, no noise, no colour inversion and no seam. The difference between the two is background signage texture, consistent with `changed 87.65 %` at `mean_abs 8.76` — a per-pixel shift, not a structural change.
@@ -188,7 +190,13 @@ python audit/ipadapter_xl_acceptance.py `
     --json-trigger md/backdoor/verdicts/records/cn_ipadapter_xl_int8_route_trigger.json `
     --json-gate    md/backdoor/verdicts/records/cn_ipadapter_xl_int8_route_gate.json
 
-# 5. the render through the A1111 API (section 4)
+# 5. the route census (section 0)
+python audit/ipadapter_xl_route.py `
+    --pack "<out>/ip-adapter_xl_hswq_convrot_int8.safetensors" `
+    --comfy "<ComfyUI>" --root "<A1111>" `
+    --json md/backdoor/verdicts/records/cn_ipadapter_xl_hswq_route.json
+
+# 6. the render through the A1111 API (section 4)
 python audit/ipadapter_xl_render.py `
     --image "<image>/cn_clipvit_ref.png" `
     --source-model "ip-adapter_xl [4209e9f7]" `
@@ -222,15 +230,15 @@ Notes that decide whether a re-run matches:
 
 | # | when (JST) | what | the setting | result |
 | :-- | :--- | :--- | :--- | :--- |
-| 1 | 2026-11-15 | the aggregate contribution | 141 groups, seed 42, float32 | max 7.817283768e-05, median 5.050931577e-05, p90 6.211183791e-05, min 2.709643e-05, 0 above 0.15 |
-| 2 | 2026-11-15 | threshold sweep | 0.0001 / 0.001 / 0.01 / 0.15 | 141 INT8, 0 kept, all four byte-identical (`727A7D265F29EF94`, 352,063,023 B) |
-| 3 | 2026-11-15 | the pack audit | replay + same-input behaviour | FAITHFUL; 141/141; q 0; float 3/3; embeds cos 0.999980032, to_kv cos 0.999990106 |
-| 4 | 2026-11-15 | the INT8 route | A1111 install | 141/141 installed (image_proj 1, ip_adapter 140) |
-| 5 | 2026-11-15 | CN-5a | fixed embedding + 4 batches | 0.999944299209199 over 8 kernel calls |
-| 6 | 2026-11-15 | CN-5b | 55 candidates vs 4 controls | control p99 1.106616e-04, flagged 0; code ladder detects at 0.1 % (7.594861e-04) |
-| 7 | 2026-11-15 | CN-6 | 256 items, seed 42 | mean 0.999932818, min 0.999910579, 512 kernel calls, PASS |
-| 8 | 2026-11-15 | the render | 1024×1024, 12 steps, CFG 7.0, seed 42, weight 0.8 | source 1,438,325 B, pack 1,437,344 B, mean_abs 8.76, changed 87.65 % |
-| 9 | 2026-11-15 | the visible check | the two PNGs, read as images | both coherent, same structure, no noise, no colour inversion |
+| 1 | 2026-11-15 18:34 | the aggregate contribution | 141 groups, seed 42, float32 | max 7.817283768e-05, median 5.050931577e-05, p90 6.211183791e-05, min 2.709643e-05, 0 above 0.15, total 7.062025643e-03 |
+| 2 | 2026-11-15 19:00 | threshold sweep | 0.0001 / 0.001 / 0.01 / 0.15 | 141 INT8, 0 kept, all four byte-identical (`727A7D265F29EF94`, 352,063,023 B) |
+| 3 | 2026-11-15 18:35 | the pack audit | replay + same-input behaviour | FAITHFUL; 141/141; q 0; float 3/3; embeds cos 0.999980032, to_kv cos 0.999990106 |
+| 4 | 2026-11-15 18:53 | the route census | ComfyUI + A1111 + Forge | ComfyUI presents 141 int8 tensors and applies 0; A1111 installs 141; no Forge install here |
+| 5 | 2026-11-15 18:51 | CN-5a | fixed embedding + 4 batches | 0.999944299209199 over 8 kernel calls |
+| 6 | 2026-11-15 18:51 | CN-5b | 55 candidates vs 4 controls | control p99 1.106616e-04, flagged 0; code ladder detects at 0.1 % (7.594861e-04) |
+| 7 | 2026-11-15 18:51 | CN-6 | 256 items, seed 42 | mean 0.999932818, min 0.999910579, 512 kernel calls, PASS |
+| 8 | 2026-11-15 18:56 | the render | 1024×1024, 12 steps, CFG 7.0, seed 42, weight 0.8 | source 1,438,325 B in 85.0 s, pack 1,437,344 B in 102.1 s, mean_abs 8.76, changed 87.65 % |
+| 9 | 2026-11-15 18:57 | the visible check | the two PNGs, read as images | both coherent, same structure, no noise, no colour inversion |
 
 ---
 
@@ -241,6 +249,7 @@ Notes that decide whether a re-run matches:
 | `clip_convert/diag_impact_ipadapter_xl.py` | the criterion — the aggregate contribution, `image_proj` token stack and per-layer projection output |
 | `clip_convert/convert_ipadapter_xl_convrot_int8.py` | the builder — this checkpoint's `.pth` flatten and threshold 0.15, groupsize 256 |
 | `audit/ipadapter_xl_pack_audit.py` | the pack audit — identity, coverage, arithmetic replay, same-input behaviour on `ImageProjModel` |
+| `audit/ipadapter_xl_route.py` | the route census — ComfyUI presents the codes, A1111 installs them, Forge is absent here |
 | `audit/ipadapter_xl_acceptance.py` | CN-5a / CN-5b / CN-6 through the A1111 INT8 route |
 | `audit/ipadapter_xl_render.py` | the two renders |
 | `impact/impact_ipadapter_xl.json` | the ranking the converter consumed |
