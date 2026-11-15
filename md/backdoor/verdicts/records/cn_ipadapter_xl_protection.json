@@ -1,6 +1,7 @@
 {
  "tool": "clip_convert/diag_impact_ipadapter_xl.py",
  "family": "ipadapter_xl",
+ "model": "ip-adapter_xl.pth",
  "source": "ip-adapter_xl.pth",
  "source_bytes": 702585021,
  "source_sha256": "c2e9f1ed4ff231b9f78de8158d63ac4b031e599d26d524e9171ccb9c16305fc3",
@@ -164,13 +165,5 @@
   "ip_adapter.97.to_v_ip": 3.923409167327918e-05,
   "ip_adapter.99.to_k_ip": 4.336257916293107e-05,
   "ip_adapter.99.to_v_ip": 3.8578113162657246e-05
- },
- "converter": {
-  "int8_layers": 141,
-  "protected": 0,
-  "not_a_measured_linear": 3,
-  "pack_bytes": 352063023,
-  "note": "no group needed protection; inner dimensions 1280 and 2048 both carry 256"
- },
- "model": "ip-adapter_xl.pth"
+ }
 }

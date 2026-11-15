@@ -322,6 +322,7 @@ point, not that nothing was measured.
 | [`ip-adapter_pulid_sdxl_hswq_convrot_int8`](CN_IPAdapter_PuLID_SDXL_ConvRot_INT8_Impact_Technical_Guide.md) | SDXL | IP-Adapter | `models/controlnet/` | embeds 0.9999928 / to_kv 0.9999959 | 378.4 MB | `0262C9AFFD20D105` |
 | [`ip-adapter_sd15_plus_hswq_convrot_int8`](CN_IPAdapter_SD15_Plus_ConvRot_INT8_Impact_Technical_Guide.md) | SD1.5 | IP-Adapter | `models/controlnet/` | 0.999886 / 0.998943 | 47.1 MB | `9A0F7CDFAE257595` |
 | [`ip-adapter-faceid_sd15_hswq_convrot_int8`](CN_IPAdapter_FaceID_SD15_ConvRot_INT8_Impact_Technical_Guide.md) | SD1.5 | IP-Adapter | `models/controlnet/` | 0.999989 / 0.999967 | 62.0 MB | `35B5942EE163494B` |
+| [`ip-adapter_xl_hswq_convrot_int8`](IPAdapter_XL_SDXL_ConvRot_INT8_Quantization_and_Score_Report.md) | SDXL | IP-Adapter | `models/controlnet/` | 0.999933 / 0.999911 | 335.8 MB | `727A7D265F29EF94` |
 | [`ioclab_sd15_recolor_hswq_convrot_int8`](CN_SD15_Recolor_ConvRot_INT8_Impact_Technical_Guide.md) | SD1.5 | ControlNet | `models/controlnet/` | 0.999861 / 0.999834 | 392.1 MB | `58046C116268A1C9` |
 | [`qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8`](QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md) | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924905 / 0.9999924096 | 1083.3 MB | `C2899255252B81FD` |
 | [`qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8`](QwenImageDepthDiffsynthControlnet_ConvRot_INT8_Guide.md) | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
