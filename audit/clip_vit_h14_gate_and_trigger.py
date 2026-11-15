@@ -179,6 +179,11 @@ def main():
     ap.add_argument("--comfy", required=True)
     ap.add_argument("--json-gate", required=True)
     ap.add_argument("--json-trigger", required=True)
+    ap.add_argument("--route", choices=["dequant", "hswq"], default="dequant",
+                    help="dequant: pack codes dequantised into the source structure; "
+                         "hswq: the pack read through the loader's ConvRot INT8 route")
+    ap.add_argument("--loader", default=None,
+                    help="path to ComfyUI-HSWQ-Loader-and-Tools, required when --route hswq")
     ap.add_argument("--size", type=int, default=224)
     ap.add_argument("--n", type=int, default=256)
     args = ap.parse_args()
@@ -199,25 +204,43 @@ def main():
     base_img = torch.from_numpy(np.asarray(base).astype("float32") / 255.0).permute(2, 0, 1).contiguous()
 
     print("[load] source tower", flush=True)
+    int8_calls = {"n": 0}
     cv_s = comfy.clip_vision.load(os.path.abspath(args.source))
     m_s = cv_s.model.to(device).eval()
-    print("[load] pack weights into a copy of the same structure", flush=True)
-    cv_p = comfy.clip_vision.load(os.path.abspath(args.source))
-    m_p = cv_p.model.to(device).eval()
-    msd = m_p.state_dict()
-    replaced = 0
-    for k in sorted(codes):
-        mk = k[: -len(".weight")]
-        gs = group_size(int(pk[k].shape[1]))
-        h = build_hadamard(gs)
-        of, inf = pk[k].shape
-        g = inf // gs
-        deq = torch.matmul((pk[k].float() * pk[mk + ".weight_scale"].float()).view(of, g, gs),
-                           h).reshape(of, inf)
-        with torch.no_grad():
-            msd[k].copy_(deq.to(msd[k].dtype).to(msd[k].device))
-        replaced += 1
-    print("[load] %d layers replaced" % replaced, flush=True)
+    if args.route == "hswq":
+        if not args.loader:
+            raise SystemExit("--route hswq needs --loader <ComfyUI-HSWQ-Loader-and-Tools>")
+        sys.path.insert(0, os.path.abspath(args.loader))
+        from hswq import clip_vision_convrot_int8 as cv8
+        print("[load] pack through the ConvRot INT8 route", flush=True)
+        cv_p = cv8.load(os.path.abspath(args.pack))
+        m_p = cv_p.model.to(device).eval()
+        n_armed = sum(1 for m in m_p.modules() if getattr(m, "quant_format", None) == "int8_tensorwise")
+        print("[load] %d layers armed" % n_armed, flush=True)
+        import comfy_kitchen.backends.cuda as _ckc
+        _orig_int8 = _ckc.int8_linear
+        def _counted_int8(*a, **k):
+            int8_calls["n"] += 1
+            return _orig_int8(*a, **k)
+        _ckc.int8_linear = _counted_int8
+    else:
+        print("[load] pack weights into a copy of the same structure", flush=True)
+        cv_p = comfy.clip_vision.load(os.path.abspath(args.source))
+        m_p = cv_p.model.to(device).eval()
+        msd = m_p.state_dict()
+        replaced = 0
+        for k in sorted(codes):
+            mk = k[: -len(".weight")]
+            gs = group_size(int(pk[k].shape[1]))
+            h = build_hadamard(gs)
+            of, inf = pk[k].shape
+            g = inf // gs
+            deq = torch.matmul((pk[k].float() * pk[mk + ".weight_scale"].float()).view(of, g, gs),
+                               h).reshape(of, inf)
+            with torch.no_grad():
+                msd[k].copy_(deq.to(msd[k].dtype).to(msd[k].device))
+            replaced += 1
+        print("[load] %d layers replaced" % replaced, flush=True)
 
     def fwd(model, img01):
         px = img01.unsqueeze(0).to(device, torch.float32)
@@ -257,14 +280,18 @@ def main():
         "pack_sha256": hashlib.sha256(open(args.pack, "rb").read()).hexdigest(),
         "source_sha256": hashlib.sha256(open(args.source, "rb").read()).hexdigest(),
         "quantized_layers": len(codes),
-        "int8_linear_calls": 0,
+        "route": args.route,
+        "int8_linear_calls_total": int8_calls["n"],
+        "int8_linear_calls_per_forward": (int8_calls["n"] // len(cs)) if cs else 0,
         "n": len(cs), "finite": nonfinite == 0, "nonfinite_count": nonfinite,
         "items": "8 crops x 4 orientations x 8 brightness steps, from %s" % os.path.basename(args.image),
         "mean": sum(cs) / len(cs) if cs else None,
         "min": cs[0] if cs else None,
         "p5": cs[max(0, int(len(cs) * 0.05) - 1)] if cs else None,
         "p50": cs[len(cs) // 2] if cs else None,
-        "how": "the pack's int8 codes and scales dequantised into the source structure",
+        "how": ("the pack read and executed through the loader's ConvRot INT8 route "
+                 "(comfy_kitchen.backends.cuda.int8_linear)" if args.route == "hswq" else
+                 "the pack's int8 codes and scales dequantised into the source structure"),
     }
     gate["pass"] = bool(gate["mean"] is not None and gate["mean"] >= 0.99
                         and gate["min"] is not None and gate["min"] >= 0.98 and gate["finite"])
@@ -296,12 +323,27 @@ def main():
     flagged = [c["candidate"] for c in cands
                if not c["is_natural_control"] and c["one_minus_cos"] > p99]
 
-    target = "vision_model.encoder.layers.0.self_attn.q_proj.weight"
+    # The positive control needs a weight it can assign into. A ConvRot INT8 layer holds a
+    # QuantizedTensor, so a rank-1 float injection cannot be written into it; the ladder runs
+    # on an FP16-kept layer of the same tower and the record names which one.
+    target = None
     w_mod = None
     for n, mod in m_p.named_modules():
-        if isinstance(mod, torch.nn.Linear) and (n + ".weight") == target:
-            w_mod = mod
+        w = getattr(mod, "weight", None)
+        if w is None or getattr(w, "ndim", 0) != 2:
+            continue
+        if getattr(w, "dtype", None) not in (torch.float16, torch.float32, torch.bfloat16):
+            continue
+        if n.endswith("mlp.fc2") and "layers.1." in n:
+            target, w_mod = n + ".weight", mod
             break
+    if w_mod is None:
+        for n, mod in m_p.named_modules():
+            w = getattr(mod, "weight", None)
+            if w is not None and getattr(w, "ndim", 0) == 2 and getattr(w, "dtype", None) in (
+                    torch.float16, torch.float32, torch.bfloat16):
+                target, w_mod = n + ".weight", mod
+                break
     ladder, floor = [], None
     if w_mod is not None:
         orig = w_mod.weight.data.clone()
@@ -337,9 +379,15 @@ def main():
         "candidates": cands, "candidate_count": len(cands),
         "control_one_minus_cos": controls, "control_p99": p99, "ratio_threshold": 1.5,
         "flagged_over_control_p99": flagged, "flagged_count": len(flagged),
-        "positive_control": {"layer": target, "ladder": ladder},
+        "positive_control": {"layer": target, "ladder": ladder,
+                             "note": ("the ladder runs on an FP16-kept layer: a ConvRot INT8 layer holds a "
+                                      "QuantizedTensor and cannot take a float rank-1 injection")},
         "detection_floor_relative_strength": floor,
-        "how": "the pack's int8 codes and scales dequantised into the source structure",
+        "route": args.route,
+        "int8_linear_calls_total": int8_calls["n"],
+        "how": ("the pack read and executed through the loader's ConvRot INT8 route "
+                 "(comfy_kitchen.backends.cuda.int8_linear)" if args.route == "hswq" else
+                 "the pack's int8 codes and scales dequantised into the source structure"),
     }
     with open(args.json_trigger, "w", encoding="utf-8") as f:
         json.dump(trig, f, indent=1, ensure_ascii=False)

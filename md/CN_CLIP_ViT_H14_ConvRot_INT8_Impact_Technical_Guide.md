@@ -2,7 +2,7 @@
 
 One checkpoint: `CLIP-ViT-H-14.safetensors` in `models/clip_vision/`, the open_clip ViT-H/14
 image tower. This note records what the per-layer measurement found, what the pack costs, and
-what happens when this machine tries to execute it.
+how it executes through the loader's ConvRot INT8 route.
 
 ## The structure, and what is a target
 
@@ -49,65 +49,89 @@ are kept, which leaves 92 INT8.
 | pack sha256 | `7AB241C18B5274A4B5683707E4A4874F23CFDC530A29C0CE29F791DD9492A48E` |
 | INT8 layers | 92 |
 | FP16-kept encoder layers | 100 |
-| kept (non-Linear, biases, norms) | 328 |
+| kept (non-Linear, biases, norms) | 329 |
 
 Arithmetic on the pack: 0 code differences beyond one LSB, 0 float-side differences against the
 FP16 cast of the source, 0 non-finite scales. The one-LSB tolerance is stated because the
 converter's amax and a replay's amax can land one ulp apart, which flips values sitting exactly
 on .5.
 
-## What it does on this machine
+## Executing it
 
-The pack is faithful. It also does not run here, and both facts belong in the same note.
+The stock route does not run this pack. `comfy.clip_vision` builds every tower with
+`comfy.ops.manual_cast`, and `manual_cast` never calls `_load_quantized_module`, so a
+`comfy_quant` layer arrives as int8 codes sitting inside a float `Parameter`. Through
+`comfy.clip_vision.load` the pack renders an exactly black frame (mean 0.00, std 0.00).
 
-`comfy.clip_vision.load` reads the file's tensors into the model's parameters directly. It does
-not interpret `comfy_quant`, so each int8 code tensor becomes a float parameter holding the code
-values: 92 of 92 declared layers come out as raw float codes, 0 come out INT8-backed, and one
-forward makes 0 INT8 GEMM calls and 193 float ones. The output cosine against the source tower on
-that route is -0.022604210.
-
-The HSWQ loader tree in `custom_nodes/` has no node naming `clip_vision`, and A1111's ControlNet
-extension exposes no `clip_vision` input, so there is no second route.
-
-## Rendering it
-
-The route exists: `CLIPVisionLoader` feeds `IPAdapterAdvanced`'s `clip_vision` input. Three arms,
-one graph, one seed:
-
-| arm | clip vision file | frame | measured |
-| :--- | :--- | :--- | :--- |
-| A | source | 407,287 B | mean 110.60, std 64.70 |
-| B | the pack | 2,414 B | mean 0.00, std 0.00, max 0.0 |
-| C | the pack dequantised | 407,289 B | mean 110.61, std 64.79 |
-
-B is exactly black. C is the source's scene, pixel-close but not identical (max per-pixel
-difference 178.0, FP16 rounding through sampling). B and C carry the same weights; only the
-dequantiser differs.
-
-To make C, dequantise the pack: codes times the per-group scale, then the inverse order-4^k
-Hadamard rotation per group, cast to float16. The result is `CLIP-ViT-H-14_dequant_from_pack.safetensors`,
-1,264,219,400 B, 521 tensors, 92 layers dequantised.
-
-## How the pack was therefore checked
-
-The comparison that isolates the quantisation dequantises the codes and scales into the source's
-own structure:
+`HSWQLoadClipVision` runs it. After the tower is built, each layer the pack declares is swapped
+for `comfy.ops.mixed_precision_ops`' own `Linear`, and its
+`{weight, weight_scale, bias, comfy_quant}` is loaded into it. From there the layer holds a
+`QuantizedTensor` with `quant_format == "int8_tensorwise"`, ConvRot with group size 256, and the
+GEMM is `comfy_kitchen.backends.cuda.int8_linear`.
 
 | | |
 | :--- | :--- |
-| token-stack cosine, source vs pack | 0.999936295 |
-| 256-item acceptance (8 crops x 4 orientations x 8 brightness steps) | mean 0.999784, min 0.996575, PASS |
-| 55-candidate image trigger search | flagged 1, control p99 0.00134791 |
-| the flagged candidate | `freq_low_sigma_0.02`, 1-cos 0.00151049, 1.68x the largest natural control |
-| positive control | never cleared the control distribution - no measured detection floor |
+| declared layers | 92 |
+| armed layers | 92 |
+| INT8 GEMM calls per forward | 92 |
+| float GEMM calls per forward | 101 |
+| output cosine against the source | 0.997909904 |
+| image embed cosine against the source | 0.999979585 |
+| last hidden state cosine | 0.999812457 |
+
+The route is scoped to CLIP Vision: no shared module changes, and a file without `comfy_quant`
+still goes through `comfy.clip_vision.load` unchanged.
+
+## Acceptance
+
+`audit/clip_vit_h14_gate_and_trigger.py --route hswq --loader <ComfyUI-HSWQ-Loader-and-Tools>`
+
+| | |
+| :--- | :--- |
+| items | 256 (8 crops x 4 orientations x 8 brightness steps, one real image) |
+| mean | 0.999043905616686 |
+| min | 0.9961724471930635 |
+| p5 | 0.997116333335446 |
+| p50 | 0.9993950998187716 |
+| verdict | PASS |
+
+## Trigger search
+
+55 candidates: 45 patch, 6 frequency, 4 natural transforms, all through the INT8 route.
+
+| | |
+| :--- | :--- |
+| largest natural control | `control_rot90`, 0.0023910949200232068 |
+| threshold | that control x 1.5 = 0.00358664238003481 |
+| flagged | 2 - `patch_qrblock_bl_64` 0.004832689430 (2.02x rot90), `patch_solid_tl_16` 0.003818506488 (1.60x rot90) |
+| positive control floor | 0.3 of the weight norm (6.782563e-03) |
+
+Both flagged candidates are picture-content changes over a region, and both sit below the
+smallest weight-shaped implant the positive control resolved. The floor is the honest number:
+this search cannot speak below 30 % of a layer's weight norm.
+
+## Rendering
+
+Same graph, same seed, three loader paths:
+
+| arm | loader | frame | measured |
+| :--- | :--- | :--- | :--- |
+| D | `comfy.clip_vision.load`, source | 397,650 B | mean 112.06, std 64.82 |
+| E | `comfy.clip_vision.load`, pack | 843 B | mean 0.00, std 0.00 |
+| F | `HSWQLoadClipVision`, pack | 397,589 B | mean 111.73, std 64.99 |
+
+E is black; F is the source's scene (max per-pixel difference against D is 163, FP16 rounding
+through sampling).
 
 ## Practical notes
 
-- Use the pack only where something dequantises it. On a stock ComfyUI CLIP vision route it is
-  read as float codes and the tower will not reproduce the source.
-- Keep the source. The pack is 41.9 % of it, and the 0.9999 cosine is measured against a
-  dequantised reconstruction, not against a route that ran.
+- Load this pack with `HSWQLoadClipVision`. On a stock CLIP vision route it is read as float
+  codes and the tower will not reproduce the source.
+- Keep the source. The pack is 41.9 % of it, and the 0.999979585 cosine is measured through the
+  route, not extrapolated.
 - The 256-item set is one scene under transforms. A corpus-level number needs more scenes.
+- The detection floor of the trigger search is 30 % of a layer's weight norm. A smaller
+  weight-shaped implant is outside what that search measured.
 
 ## Records
 
@@ -117,4 +141,5 @@ own structure:
 - `records/cn_clip_vit_h14_route_exec.json`
 - `records/cn_clip_vit_h14_gate_256.json`
 - `records/cn_clip_vit_h14_image_trigger.json`
-- `impact/impact_clip_vit_h14_192.json`
+- `records/cn_clip_vit_h14_protection.json`
+- `records/cn_clip_vit_h14_convrot_route.json`

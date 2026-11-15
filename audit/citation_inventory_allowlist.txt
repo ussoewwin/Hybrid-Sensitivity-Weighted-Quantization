@@ -55,3 +55,4 @@ cn_sd15_recolor_gate_256.json
 impact_sd15_recolor.json
 cn_clip_vit_h14_render.json
 cn_clip_vit_h14_convrot_route.json
+cn_clip_vit_h14_route_exec.json

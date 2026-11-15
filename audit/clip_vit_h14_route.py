@@ -31,6 +31,12 @@ import torch
 import torch.nn as nn
 
 
+def _is_linear_like(m):
+    """A quantised layer is a Module with a 2-D weight, not an nn.Linear subclass."""
+    w = getattr(m, "weight", None)
+    return w is not None and getattr(w, "ndim", 0) == 2
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True)
@@ -39,6 +45,10 @@ def main():
     ap.add_argument("--comfy", required=True)
     ap.add_argument("--json", required=True)
     ap.add_argument("--size", type=int, default=224)
+    ap.add_argument("--route", choices=["stock", "hswq"], default="stock",
+                    help="stock: comfy.clip_vision.load; hswq: the loader's ConvRot INT8 route")
+    ap.add_argument("--loader", default=None,
+                    help="path to ComfyUI-HSWQ-Loader-and-Tools, required when --route hswq")
     args = ap.parse_args()
 
     sys.path.insert(0, os.path.abspath(args.comfy))
@@ -54,13 +64,25 @@ def main():
     stamps = [k for k in pk if k.endswith(".comfy_quant")]
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    loader_mod = None
+    if args.route == "hswq":
+        if not args.loader:
+            raise SystemExit("--route hswq needs --loader <ComfyUI-HSWQ-Loader-and-Tools>")
+        sys.path.insert(0, os.path.abspath(args.loader))
+        from hswq import clip_vision_convrot_int8 as loader_mod
+
     from PIL import Image
     img = Image.open(args.image).convert("RGB").resize((args.size, args.size), Image.BICUBIC)
     arr = np.asarray(img).astype("float32") / 255.0
     px = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).to(device, torch.float32)
 
-    def load_and_probe(path, label):
-        cv = comfy.clip_vision.load(os.path.abspath(path))
+    def load_and_probe(path, label, route="stock"):
+        if route == "hswq":
+            if not loader_mod:
+                raise SystemExit("--route hswq needs --loader")
+            cv = loader_mod.load(os.path.abspath(path))
+        else:
+            cv = comfy.clip_vision.load(os.path.abspath(path))
         model = cv.model.to(device).eval()
         msd = model.state_dict()
         int8_backed, raw_codes, float_ok = 0, 0, 0
@@ -85,7 +107,7 @@ def main():
         counts = {"int8": 0, "float": 0}
 
         def hook(mod, inp, out):
-            if isinstance(mod, nn.Linear):
+            if _is_linear_like(mod):
                 w = getattr(mod, "weight", None)
                 if w is None:
                     counts["float"] += 1
@@ -95,7 +117,7 @@ def main():
                 else:
                     counts["float"] += 1
 
-        handles = [m.register_forward_hook(hook) for m in model.modules() if isinstance(m, nn.Linear)]
+        handles = [m.register_forward_hook(hook) for m in model.modules() if _is_linear_like(m)]
         with torch.no_grad():
             out = model(px)
         for h in handles:
@@ -110,7 +132,7 @@ def main():
             tok, emb = out, None
         finite = bool(torch.isfinite(tok).all())
         ret = {"label": label, "file": os.path.basename(path),
-               "linear_modules": sum(1 for m in model.modules() if isinstance(m, nn.Linear)),
+               "linear_modules": sum(1 for m in model.modules() if _is_linear_like(m)),
                "declared": len(declared),
                "loaded_as_int8": int8_backed, "loaded_as_raw_float_codes": raw_codes,
                "float_modules": float_ok,
@@ -129,9 +151,9 @@ def main():
         return ret, tok_c, emb_c
 
     print("[CN-2] source", flush=True)
-    src_rec, t_s, e_s = load_and_probe(args.source, "source")
+    src_rec, t_s, e_s = load_and_probe(args.source, "source", "stock")
     print("[CN-2] pack", flush=True)
-    pk_rec, t_p, e_p = load_and_probe(args.pack, "pack")
+    pk_rec, t_p, e_p = load_and_probe(args.pack, "pack", args.route)
 
     def cos(a, b):
         return float(torch.nn.functional.cosine_similarity(
@@ -141,7 +163,8 @@ def main():
         "tool": "audit/clip_vit_h14_route.py",
         "model": os.path.basename(args.source),
         "pack": os.path.basename(args.pack),
-        "route": "comfy.clip_vision.load (ComfyUI's CLIPVisionLoader)",
+        "route": ("HSWQLoadClipVision (the loader's ConvRot INT8 route)" if args.route == "hswq"
+                  else "comfy.clip_vision.load (ComfyUI's CLIPVisionLoader)"),
         "declared_layers": len(declared),
         "companion_tensors": {"weight_scale": len(scales), "comfy_quant": len(stamps)},
         "source": src_rec,
@@ -153,6 +176,7 @@ def main():
     applied = pk_rec["loaded_as_int8"]
     rec["verdict"] = ("applied" if applied == len(declared)
                       else "not applied - the loader puts the raw int8 codes into a float parameter")
+    rec["route_arg"] = args.route
     rec["int8_kernel_ran"] = bool(pk_rec["one_forward"]["int8_linear_calls"] > 0)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.json)), exist_ok=True)
