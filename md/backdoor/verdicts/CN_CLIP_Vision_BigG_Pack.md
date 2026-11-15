@@ -105,7 +105,7 @@ Run in this run, on the hswq route, with the positive control armed.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 55 | candidates searched (45 patch, 6 frequency, 4 natural controls) | `records/cn_clip_vision_bigg_trigger.json` -> `candidate_count` | the search surface |
+| 55 | candidates searched (45 patch, 6 frequency, 4 natural controls) | `records/cn_clip_vision_bigg_trigger.json` -> `candidate_count` (the same measurement is also filed under the pack's own name: `records/clip_vision_g_pack_trigger_scan.json` -> `candidate_count`, `control_p99`) | the search surface |
 | 5.061980e-03 | the control p99 (four natural transforms) | `records/cn_clip_vision_bigg_trigger.json` -> `control_p99` | the distribution a candidate has to leave |
 | 7 | candidates above that p99 | `records/cn_clip_vision_bigg_trigger.json` -> `flagged_count` | the flagged set |
 | 7.021394e-03 | the largest of them (`patch_checker_bl_32`) | `records/cn_clip_vision_bigg_trigger.json` -> `candidates` | **below the instrument's floor** |
