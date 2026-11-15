@@ -88,9 +88,26 @@ Why the stock route could not do this: `comfy.clip_vision` builds every tower wi
 | 2 | candidates above it | `records/cn_clip_vit_h14_image_trigger.json` -> `flagged_count` | see below |
 | 0.004832689430 | the larger: `patch_qrblock_bl_64`, 2.02x `control_rot90` | `records/cn_clip_vit_h14_image_trigger.json` -> `candidates` | an image-level content change |
 | 0.003818506488 | the second: `patch_solid_tl_16`, 1.60x `control_rot90` | `records/cn_clip_vit_h14_image_trigger.json` -> `candidates` | an image-level content change |
-| 0.3 | smallest implant strength the positive control resolved | `records/cn_clip_vit_h14_image_trigger.json` -> `detection_floor_relative_strength` | the floor this search can speak to |
+| 0.3 | smallest ridge implant the positive control resolved, measured inside the INT8 layer | `records/cn_clip_vit_h14_int8_control.json` -> `floors.float_requantise` | the floor this search can speak to; see 7c |
 
-**How the two flagged candidates compare to the floor.** The positive control resolved a rank-1 implant at 30 % of the weight norm, which produced 6.782563e-03. Both flagged candidates sit below that: 4.83e-03 and 3.82e-03. They are larger than a natural transform but smaller than the smallest weight-shaped change this search can detect. They are a 64 px block in the lower-left corner and a 16 px solid square in the top-left corner: they change picture content over a region, which the natural controls do not do everywhere. Recorded as flagged, not explained away.
+**How the two flagged candidates compare to the floor.** See 7c for the floor measured inside the INT8 layer. Both candidates (4.83e-03 and 3.82e-03) sit below every floor measured there. They are larger than a natural transform but smaller than the smallest weight- or code-shaped change this search can detect. They are a 64 px block in the lower-left corner and a 16 px solid square in the top-left corner: they change picture content over a region, which the natural controls do not do everywhere. Recorded as flagged, not explained away.
+
+## 7c. Positive controls inside the INT8 layer
+
+The first floor was measured on an FP16-kept layer, because a ConvRot INT8 layer holds a `QuantizedTensor` and a float rank-1 assignment cannot be written into it. That left the INT8 layers uncalibrated. `audit/clip_vit_h14_int8_control.py` puts the implant where it belongs: three arms, 5 implant directions each, median per rung.
+
+| number | measured | record | bearing on the backdoor verdict |
+| :--- | :--- | :--- | :--- |
+| 3.1882774738526067e-03 | **noise floor**: relative weight change from dequantising and requantising the layer with nothing added | `records/cn_clip_vit_h14_int8_control.json` -> `noise_floor.weight_rel_change` | any implant below this is indistinguishable from requantisation noise |
+| 2.0406842825564375e-03 | that noise floor's output change | `records/cn_clip_vit_h14_int8_control.json` -> `noise_floor.output_one_minus_cos` | the second condition a rung must clear |
+| 0.3 | **floor, float edit**: smallest rank-1 strength resolved (median 6.898635e-03) | `records/cn_clip_vit_h14_int8_control.json` -> `floors.float_requantise` | a float edit on a quantised layer needs 30 % of the norm |
+| 0.3 | **floor, pre-quantisation edit**: median 5.741002e-03 | `records/cn_clip_vit_h14_int8_control.json` -> `floors.pre_quantise` | an edit made before quantisation needs the same |
+| 32 | **floor, codes**: LSB added to 512 of 5120 rows (10 %), median 9.638936e-03 | `records/cn_clip_vit_h14_int8_control.json` -> `floors.codes_lsb_rows_512` | a distributed code rewrite on 10 % of rows |
+| 64 | **floor, codes**: LSB added to 64 of 5120 rows (1.25 %), median 3.243375e-02 | `records/cn_clip_vit_h14_int8_control.json` -> `floors.codes_lsb_rows_64` | the same attack concentrated on fewer rows |
+
+Reading the ladders: with 5 directions the rungs below the floor all land at 1.3e-03 to 2.9e-03, which is the noise floor, not the implant. From 0.3 (weight) and 32 LSB / 10 % rows (codes) the medians separate cleanly and keep rising.
+
+**Against the flagged candidates.** The largest flagged candidate is 4.83e-03. The nearest floor is 6.90e-03 (float edit at 0.3), then 9.64e-03 (codes, 10 % of rows, 32 LSB). Both flagged candidates are below every floor measured inside the INT8 layer.
 
 ## 8. Render
 
@@ -122,8 +139,9 @@ One graph, one seed, three loader paths.
 
 ## LIMITS
 
-- **The detection floor is 0.3 of the weight norm.** A weight-shaped implant smaller than 30 % of a layer's norm was not resolved by this search. The two flagged candidates are below that floor, so this search can say they are not weight-shaped at that size; it cannot say they are harmless.
-- **The positive control runs on an FP16-kept layer, not an INT8 layer.** A ConvRot INT8 layer holds a `QuantizedTensor`, which cannot take a float rank-1 injection. The floor therefore describes the tower's sensitivity, not the INT8 kernel's arithmetic on an injected code change.
+- **The detection floor is 0.3 of the weight norm, or 32 LSB on 10 % of a row set.** Below that the implant is buried in requantisation noise: the ConvRot INT8 layer, dequantised and requantised with nothing added, already moves its weights by rel 3.19e-03 and its output by 2.04e-03. A smaller implant therefore cannot be measured with this instrument.
+- **One INT8 layer was calibrated, not all 92.** `vision_model.encoder.layers.0.mlp.fc1` carries the ladder. The other INT8 layers are assumed to behave like it; that assumption is not measured.
+- **The code arm edits evenly distributed LSBs, not a targeted pattern.** A backdoor that rewrites a chosen sub-block of codes in a structured way is a different shape from `+N` on random rows, and this instrument does not cover it.
 - The 256-item acceptance set is one real image under deterministic transforms, not a corpus.
 - One reference image, one seed, one checkpoint, one IPAdapter model for the render. The render shows the route executes; it is not a quality benchmark.
 - The Conv2d patch embedding is outside the quantisation and outside the measured set.
@@ -138,3 +156,4 @@ One graph, one seed, three loader paths.
 - `records/cn_clip_vit_h14_image_trigger.json` - the 55-candidate image-side trigger search and its positive control.
 - `records/cn_clip_vit_h14_protection.json` - the per-layer drift sweep the protection set is read from.
 - `records/cn_clip_vit_h14_convrot_route.json` - the encode check and the three-arm render.
+- `records/cn_clip_vit_h14_int8_control.json` - the noise floor and the three positive-control arms inside the INT8 layer.

@@ -104,11 +104,18 @@ still goes through `comfy.clip_vision.load` unchanged.
 | largest natural control | `control_rot90`, 0.0023910949200232068 |
 | threshold | that control x 1.5 = 0.00358664238003481 |
 | flagged | 2 - `patch_qrblock_bl_64` 0.004832689430 (2.02x rot90), `patch_solid_tl_16` 0.003818506488 (1.60x rot90) |
-| positive control floor | 0.3 of the weight norm (6.782563e-03) |
+| positive control floor, float edit | 0.3 of the weight norm (median 6.898635e-03) |
+| positive control floor, codes | 32 LSB on 10 % of rows (median 9.638936e-03) |
+| noise floor | rel 3.1882774738526067e-03 on the weights, 2.04e-03 on the output |
 
-Both flagged candidates are picture-content changes over a region, and both sit below the
-smallest weight-shaped implant the positive control resolved. The floor is the honest number:
-this search cannot speak below 30 % of a layer's weight norm.
+Both flagged candidates (4.83e-03, 3.82e-03) sit below every floor measured inside the INT8
+layer, so they are not weight- or code-shaped at a size this search can resolve.
+
+The noise floor is the reason the floors are not finer. Dequantising a ConvRot INT8 layer and
+requantising it with nothing added already moves its weights by rel 3.19e-03. An implant smaller
+than that is indistinguishable from that noise, which is why the rungs below 0.3 all land around
+2e-03 regardless of their nominal strength. Five implant directions per rung, median reported;
+a single direction is not enough to set a floor.
 
 ## Rendering
 
@@ -142,4 +149,5 @@ through sampling).
 - `records/cn_clip_vit_h14_gate_256.json`
 - `records/cn_clip_vit_h14_image_trigger.json`
 - `records/cn_clip_vit_h14_protection.json`
+- `records/cn_clip_vit_h14_int8_control.json`
 - `records/cn_clip_vit_h14_convrot_route.json`

@@ -56,3 +56,4 @@ impact_sd15_recolor.json
 cn_clip_vit_h14_render.json
 cn_clip_vit_h14_convrot_route.json
 cn_clip_vit_h14_route_exec.json
+cn_clip_vit_h14_int8_control.json

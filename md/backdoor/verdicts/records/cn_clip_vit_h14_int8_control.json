@@ -1,0 +1,290 @@
+{
+ "tool": "audit/clip_vit_h14_int8_control.py",
+ "family": "clip_vision",
+ "pack": "CLIP-ViT-H-14_hswq_convrot_int8.safetensors",
+ "layer": "vision_model.encoder.layers.0.mlp.fc1",
+ "route": "HSWQLoadClipVision (the loader's ConvRot INT8 route)",
+ "threshold_one_minus_cos": 0.00358664238003481,
+ "threshold_source": "control p99 from records/cn_clip_vit_h14_image_trigger.json",
+ "seeds": 5,
+ "noise_floor": {
+  "weight_rel_change": 0.0031882774738526067,
+  "output_one_minus_cos": 0.0020406842825564375,
+  "what": "the ConvRot INT8 layer dequantised and requantised with nothing added"
+ },
+ "arms": {
+  "noise_floor": {
+   "weight_rel_change": 0.0031882774738526067,
+   "output_one_minus_cos": 0.0020406842825564375,
+   "what": "the ConvRot INT8 layer dequantised and requantised with nothing added"
+  },
+  "float_requantise": {
+   "what": "dequantise the INT8 layer, add a rank-1 term, requantise with the loader's own kwargs",
+   "rungs": [
+    {
+     "value": 0.001,
+     "median": 0.001318911826841962,
+     "min": 0.0008187495579778936,
+     "max": 0.0022001237420179454,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.003,
+     "median": 0.0018310170471464993,
+     "min": 0.00024023725215793768,
+     "max": 0.0021584626682337182,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.01,
+     "median": 0.0016797672637239858,
+     "min": 0.0016297317842038916,
+     "max": 0.001948148134636729,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.03,
+     "median": 0.0019016728925191906,
+     "min": 0.0005313065696181951,
+     "max": 0.002621202403301659,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.1,
+     "median": 0.0023636337270587227,
+     "min": 0.0006433877721609971,
+     "max": 0.002785670203210744,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.3,
+     "median": 0.006898635257112096,
+     "min": 0.003512822552912631,
+     "max": 0.007210473712722099,
+     "n": 5,
+     "resolved": true
+    },
+    {
+     "value": 1.0,
+     "median": 0.061827364946628105,
+     "min": 0.011614918424379672,
+     "max": 0.07106335096860239,
+     "n": 5,
+     "resolved": true
+    }
+   ],
+   "floor": 0.3,
+   "seeds": 5,
+   "weight_norm": 17.212993621826172
+  },
+  "pre_quantise": {
+   "what": "add the rank-1 term to the source tower's float weight, then quantise it",
+   "rungs": [
+    {
+     "value": 0.001,
+     "median": 0.002085286120416585,
+     "min": 0.0011425281257062547,
+     "max": 0.002175698468520171,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.003,
+     "median": 0.0018699798163178682,
+     "min": 0.0018297196975873842,
+     "max": 0.002027575693423489,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.01,
+     "median": 0.0015892747066036383,
+     "min": 0.00021976888081731705,
+     "max": 0.0018692574620985392,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.03,
+     "median": 0.002256434034429544,
+     "min": 0.0007661573286039669,
+     "max": 0.002544683990075791,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.1,
+     "median": 0.0025306434588032722,
+     "min": 0.0008470775203552883,
+     "max": 0.0028048175884507476,
+     "n": 5,
+     "resolved": false
+    },
+    {
+     "value": 0.3,
+     "median": 0.00574100152577417,
+     "min": 0.003183122589835219,
+     "max": 0.006807218490425537,
+     "n": 5,
+     "resolved": true
+    },
+    {
+     "value": 1.0,
+     "median": 0.061908602106651056,
+     "min": 0.011023042321142151,
+     "max": 0.07224201704207078,
+     "n": 5,
+     "resolved": true
+    }
+   ],
+   "floor": 0.3,
+   "seeds": 5,
+   "weight_norm": 17.212263107299805
+  },
+  "codes_lsb": {
+   "rows_64": {
+    "what": "rebuild the QuantizedTensor from its own codes with N LSB added on a random 64-row subset, scale unchanged",
+    "rows_touched": 64,
+    "rows_total": 5120,
+    "rungs": [
+     {
+      "value": 1,
+      "median": 0.0018906952793287246,
+      "min": 0.0009019100963996163,
+      "max": 0.0023227448100251458,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 2,
+      "median": 0.0017067335278800888,
+      "min": 0.0015960933461101057,
+      "max": 0.0021130415429690963,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 4,
+      "median": 0.0019424616071268552,
+      "min": 0.00019755170100688169,
+      "max": 0.002168664229102224,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 8,
+      "median": 0.0017228086430274292,
+      "min": 0.00024218584317647895,
+      "max": 0.002094728624737585,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 16,
+      "median": 0.00154489653488743,
+      "min": 0.0008512055975142818,
+      "max": 0.0030288170929836378,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 32,
+      "median": 0.002872676193427459,
+      "min": 0.0025226545208902884,
+      "max": 0.0038802620506130925,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 64,
+      "median": 0.032433748062047574,
+      "min": 0.012737590968119217,
+      "max": 0.04434875299191954,
+      "n": 5,
+      "resolved": true
+     }
+    ],
+    "floor": 64,
+    "seeds": 5
+   },
+   "rows_512": {
+    "what": "rebuild the QuantizedTensor from its own codes with N LSB added on a random 512-row subset, scale unchanged",
+    "rows_touched": 512,
+    "rows_total": 5120,
+    "rungs": [
+     {
+      "value": 1,
+      "median": 0.0023724559108782017,
+      "min": 0.0020303211279959488,
+      "max": 0.0025947078150059255,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 2,
+      "median": 0.001957695828058159,
+      "min": 0.0012315538567235773,
+      "max": 0.0027791575885881548,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 4,
+      "median": 0.002399851142014131,
+      "min": 0.0019656492876463094,
+      "max": 0.0026720874260350858,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 8,
+      "median": 0.002530495203713956,
+      "min": 0.000999502418012499,
+      "max": 0.004315625944073531,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 16,
+      "median": 0.0031597942339117724,
+      "min": 0.001326736776487536,
+      "max": 0.0061152677147292556,
+      "n": 5,
+      "resolved": false
+     },
+     {
+      "value": 32,
+      "median": 0.00963893560372231,
+      "min": 0.006117763934895715,
+      "max": 0.015534840616461265,
+      "n": 5,
+      "resolved": true
+     },
+     {
+      "value": 64,
+      "median": 0.08348513330169993,
+      "min": 0.06387795291668441,
+      "max": 0.08752171128955144,
+      "n": 5,
+      "resolved": true
+     }
+    ],
+    "floor": 32,
+    "seeds": 5
+   }
+  }
+ },
+ "floors": {
+  "float_requantise": 0.3,
+  "pre_quantise": 0.3,
+  "codes_lsb_rows_64": 64,
+  "codes_lsb_rows_512": 32
+ },
+ "input_image": "cn_clipvit_ref.png",
+ "size": 224
+}
