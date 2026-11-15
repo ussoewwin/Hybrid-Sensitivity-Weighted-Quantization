@@ -299,7 +299,7 @@ Notes that decide whether a re-run matches:
 | `audit/clip_vision_bigg_gate_and_trigger.py` | CN-5b / CN-6 - the trigger search and the gate, with the positive-control ladder |
 | `audit/clip_vision_bigg_render.py` | CN-4 - the three renders on either route |
 | `audit/clip_vision_bigg_dequant.py` | the dequantised copy for the third render arm |
-| `md/backdoor/verdicts/CN_CLIP_Vision_BigG_Pack.md` | the backdoor verdict |
+| `md/backdoor/verdicts/CLIP_Vision_G_Pack.md` | the backdoor verdict |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_impact.json` | the 288-layer drift |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_contribution.json` | the 288-layer contribution |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_score_curve.json` | the size/quality curve |

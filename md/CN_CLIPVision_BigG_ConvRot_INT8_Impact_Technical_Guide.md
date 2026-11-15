@@ -6,7 +6,7 @@
 > This guide is the runbook for this checkpoint. The measured numbers are in
 > [`CLIPVision_BigG_ConvRot_INT8_Quantization_and_Score_Report.md`](CLIPVision_BigG_ConvRot_INT8_Quantization_and_Score_Report.md);
 > the verdict is in
-> [`backdoor/verdicts/CN_CLIP_Vision_BigG_Pack.md`](backdoor/verdicts/CN_CLIP_Vision_BigG_Pack.md).
+> [`backdoor/verdicts/CLIP_Vision_G_Pack.md`](backdoor/verdicts/CLIP_Vision_G_Pack.md).
 
 **Model.** `models/clip_vision/clip_vision_g.safetensors` (3,689,911,098 B, 777 tensors) — the same weights as `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` (776 of 777 tensors byte-identical).
 **Pack.** `models/clip_vision/clip_vision_g_hswq_convrot_int8.safetensors` (1,852,954,770 B, **−49.8 %**)
