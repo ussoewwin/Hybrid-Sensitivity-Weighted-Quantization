@@ -65,6 +65,48 @@ mean but loses 2.05e-04 of the minimum for +114,404,160 B.
 values; a protect list that breaks those ties differently differs from this one in 10 layers.
 The list is written out in full in `records/cn_clip_vit_h14_laion2b_protect_100.json`.
 
+
+## 4c. The sibling pack, and what differs from it
+
+`CLIP-ViT-H-14_hswq_convrot_int8.safetensors` (the pack built earlier from
+`CLIP-ViT-H-14.safetensors`, a file that no longer exists on this machine) is the same
+standard and **the same weights**: the 87 INT8 layers the two packs share carry **byte-identical
+int8 codes (87 of 87)** and the 164 FP16 layers they share carry **identical weights (164 of
+164)**. The two files differ in the name of the source they were cut from and in ten layers'
+INT8/FP16 assignment - **five layers each way**:
+
+| the layer | the sibling pack | this pack |
+| :--- | :--- | :--- |
+| `encoder.layers.4.mlp.fc2` | INT8 | FP16 |
+| `encoder.layers.5.mlp.fc1` | INT8 | FP16 |
+| `encoder.layers.7.self_attn.v_proj` | INT8 | FP16 |
+| `encoder.layers.17.self_attn.out_proj` | INT8 | FP16 |
+| `encoder.layers.25.self_attn.v_proj` | INT8 | FP16 |
+| `encoder.layers.8.mlp.fc2` | FP16 | INT8 |
+| `encoder.layers.9.self_attn.out_proj` | FP16 | INT8 |
+| `encoder.layers.10.self_attn.out_proj` | FP16 | INT8 |
+| `encoder.layers.29.self_attn.k_proj` | FP16 | INT8 |
+| `encoder.layers.29.self_attn.q_proj` | FP16 | INT8 |
+
+The ten layers' dtype change accounts for the whole file difference: +18,000,000 B where this
+pack keeps FP16 and the sibling quantises, -13,107,200 B where the reverse holds, **+4,915,200 B**
+net, against a measured file difference of +4,899,880 B.
+
+**What that costs, measured.** The sibling pack's own 256-item acceptance (measured in the run
+that built it, quoted here and not re-measured) reads **mean 0.999043905616686 / min
+0.9961724471930635** (`records/cn_clip_vit_h14_gate_256.json` -> `mean`, -> `min`). This pack
+measures **mean 0.999044517392393 / min 0.9955689179826557**. The mean is 6.1e-07 better; the
+**minimum is 6.03e-04 worse**.
+
+So the two packs are the same weights and the same purpose, and they differ in the placement of
+ten layers - and that placement moves the worst case by 6.0e-04 while the mean barely moves.
+The sibling's protection set cannot be reproduced from the ranking this run measured: its 102
+FP16-kept layers do not match the top 100 of the drift ranking its own record carries
+(measured: no match), and they differ from this pack's ten layers as listed above.
+
+**Every number in this document was measured in this run**, except where a record of another run
+is named explicitly, as in this section and in the sibling's own record.
+
 ## 5. Executes - the routes on this machine
 
 | number | measured | record | bearing on the backdoor verdict |
