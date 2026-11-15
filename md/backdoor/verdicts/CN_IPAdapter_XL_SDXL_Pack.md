@@ -122,6 +122,7 @@ VAE `sdxl_vae.safetensors`.
 
 ## Records
 
+- `records/cn_ipadapter_xl_quantisation.json` - the conversion record.
 - `records/cn_ipadapter_xl_pack_audit.json` - CN-1, CN-2, CN-3 and the per-layer code deltas.
 - `records/cn_ipadapter_xl_protection.json` - the 141-group sweep and its ranking.
 - `records/cn_ipadapter_xl_pack_source_output_diff.json` - CN-5a on the INT8 route.

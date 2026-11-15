@@ -291,6 +291,7 @@ python audit/ipadapter_faceid_int8_route_acceptance.py \
 
 | file | what it is |
 | :--- | :--- |
+| `records/cn_ipadapter_xl_quantisation.json` | the conversion record: source and pack identity, converter arguments, layer counts, size ratio |
 | `records/cn_ipadapter_xl_pack_audit.json` | the quantisation replay (141 declared / 141 found, 0 differing) |
 | `records/cn_ipadapter_xl_protection.json` | the 141-group sweep and its ranking |
 | `records/cn_ipadapter_xl_pack_source_output_diff.json` | CN-5a on the INT8 route |
