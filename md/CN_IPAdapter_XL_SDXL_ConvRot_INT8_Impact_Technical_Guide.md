@@ -1,5 +1,9 @@
 # SDXL IP-Adapter (basic) - ConvRot INT8 Impact Technical Guide
 
+> **The conversion record** for this pack (what was quantised, the protection ranking, the
+> conversion arguments, the faithfulness replay and the score) is
+> [`IPAdapter_XL_SDXL_ConvRot_INT8_Quantization_and_Score_Report.md`](IPAdapter_XL_SDXL_ConvRot_INT8_Quantization_and_Score_Report.md).
+>
 > **The method this pack was built under** (the injection frame, the behavioural observable, the
 > size/quality balance, FP16 kept tensors) is stated once in
 > [`HSWQ_High_Quality_Packs_ConvRot_INT8.md`](HSWQ_High_Quality_Packs_ConvRot_INT8.md) - Section
@@ -291,7 +295,6 @@ python audit/ipadapter_faceid_int8_route_acceptance.py \
 
 | file | what it is |
 | :--- | :--- |
-| `records/cn_ipadapter_xl_quantisation.json` | the conversion record: source and pack identity, converter arguments, layer counts, size ratio |
 | `records/cn_ipadapter_xl_pack_audit.json` | the quantisation replay (141 declared / 141 found, 0 differing) |
 | `records/cn_ipadapter_xl_protection.json` | the 141-group sweep and its ranking |
 | `records/cn_ipadapter_xl_pack_source_output_diff.json` | CN-5a on the INT8 route |

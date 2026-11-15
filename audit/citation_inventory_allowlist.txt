@@ -81,4 +81,3 @@ cn_ipadapter_xl_a1111_image_test.json
 cn_ipadapter_xl_hswq_route.json
 cn_ipadapter_xl_a1111_source.png
 cn_ipadapter_xl_a1111_pack.png
-cn_ipadapter_xl_quantisation.json
