@@ -1,0 +1,57 @@
+# Records that a report may name as an inventory (the file name alone) without citing a field.
+# One record file name per line; '#' starts a comment. A record outside this list that is named
+# without a field citation is a FAIL, so the inventory list cannot grow silently.
+#
+# Baseline: the inventory names present in the reports on 2026-11-08 (42 names, 62 report hits).
+# A new inventory name has to be added here deliberately, with its report citation.
+base_benign_labels.json
+c7c_qwen.json
+cn_anytest4_illustrious2_A_loadpath.json
+cn_anytest4_illustrious2_B_loadpath.json
+controlnet-union-pro-max-sdxl-1.0_int8_exec.json
+controlnet_union_promax_sdxl_loadpath.json
+controlnet_union_promax_sdxl_union_components.json
+halves_labels.json
+huihui_vl_curve.json
+impact_qwen3vl_huihui.json
+impact_qwen3vl_thinking.json
+jbb.json
+josie_base.json
+josie_base_labels.json
+josie_census.json
+josie_identity.json
+josie_independent.json
+josie_pub.json
+josie_pub_benign.json
+josie_pub_labels.json
+labels_items.json
+longclip_ft_compare.json
+official_hashes.json
+poscon_A_lora_probe.json
+poscon_B_bade_probe.json
+poscon_clean_probe.json
+positive_control_trigger_search.json
+pub_benign_labels.json
+qwen3vl_thinking_protect_20.json
+qwen_independent.json
+qwen_phase6_wilson.json
+sam31_zero_param.json
+sources_restored.json
+trigger_candidates.json
+trigger_family.json
+trigger_prompts.json
+vl_div_ruled.json
+vl_texts.json
+vl_texts_long.json
+weight_delta.json
+cn_sd15_recolor_protection.json
+cn_sd15_recolor_pack_audit.json
+ioclab_sd15_recolor_hswq_route.json
+ioclab_sd15_recolor_int8_exec.json
+cn_sd15_recolor_image_test.json
+cn_sd15_recolor_pack_source_output_diff.json
+cn_sd15_recolor_image_trigger.json
+cn_sd15_recolor_gate_256.json
+impact_sd15_recolor.json
+cn_clip_vit_h14_render.json
+cn_clip_vit_h14_convrot_route.json

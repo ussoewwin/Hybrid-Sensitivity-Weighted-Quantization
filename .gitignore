@@ -35,6 +35,7 @@ test/*
 !requirements.txt
 !sample/*.txt
 !ComfyUI-master/**/*.txt
+!audit/citation_inventory_allowlist.txt
 
 # Local / private
 反省文/
