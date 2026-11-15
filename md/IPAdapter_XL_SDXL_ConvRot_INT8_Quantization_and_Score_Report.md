@@ -29,7 +29,7 @@ Every acceptance number in sections 3 and 4 comes from that route, with the Conv
 
 ### 0.3 Forge reads the marker, not the codes
 
-`backend/operations_mixed_precision.py` pops `comfy_quant` (`json.loads(layer_conf.numpy().tobytes())`) and dispatches on the `convrot` flag with `ck.int8_linear(convrot=True)`. The pack's stamps are the form that path expects.
+`backend/operations_mixed_precision.py` pops `comfy_quant` (`json.loads(layer_conf.numpy().tobytes())`) and dispatches on the `convrot` flag with `ck.int8_linear(convrot=True)`. The pack's stamps are the form that path expects. **No Forge install is present on this machine**, so that route was not executed here.
 
 ---
 
@@ -164,7 +164,7 @@ python clip_convert/diag_impact_ipadapter_xl.py `
     --out impact/impact_ipadapter_xl.json --seed 42
 
 # 2. the builder (threshold 0.15, groupsize 256)
-python clip_convert/convert_ipadapter_convrot_int8.py `
+python clip_convert/convert_ipadapter_xl_convrot_int8.py `
     --input "<src>/ip-adapter_xl.pth" `
     --impact impact/impact_ipadapter_xl.json `
     --output "<out>/ip-adapter_xl_hswq_convrot_int8.safetensors" `
@@ -178,7 +178,7 @@ python audit/ipadapter_xl_pack_audit.py `
     --json md/backdoor/verdicts/records/cn_ipadapter_xl_pack_audit.json
 
 # 4. the acceptance through the real INT8 route (CN-5a / CN-5b / CN-6)
-python audit/ipadapter_faceid_int8_route_acceptance.py `
+python audit/ipadapter_xl_acceptance.py `
     --source "<src>/ip-adapter_xl.pth" `
     --pack   "<out>/ip-adapter_xl_hswq_convrot_int8.safetensors" `
     --image  "<image>/cn_clipvit_ref.png" `
@@ -189,7 +189,7 @@ python audit/ipadapter_faceid_int8_route_acceptance.py `
     --json-gate    md/backdoor/verdicts/records/cn_ipadapter_xl_int8_route_gate.json
 
 # 5. the render through the A1111 API (section 4)
-python audit/ipadapter_faceid_a1111_render.py `
+python audit/ipadapter_xl_render.py `
     --image "<image>/cn_clipvit_ref.png" `
     --source-model "ip-adapter_xl [4209e9f7]" `
     --pack-model   "ip-adapter_xl_hswq_convrot_int8 [b0be38d1]" `
@@ -200,7 +200,7 @@ python audit/ipadapter_faceid_a1111_render.py `
 
 Notes that decide whether a re-run matches:
 
-- The acceptance script and the render script serve every IP-Adapter family whose node builds an `IPAdapterModel`; only the audit needed a builder of its own here, because this checkpoint's `image_proj` is an `ImageProjModel` and not the SD1.5 `Resampler`.
+- Every script in this set is this checkpoint's own: the builder flattens the `.pth` nesting, the audit assembles `ImageProjModel` (not the SD1.5 `Resampler`), the route census names the two module prefixes A1111 installs the payload under (`image_proj_model`, `ip_layers`), and the acceptance pins the expected 141 INT8 layers.
 - The render needs the SDXL checkpoint and `sdxl_vae.safetensors` set in A1111 before it runs. With an SD1.5 checkpoint loaded the geometry does not match.
 - The gate figure is the A1111 INT8 route. A number produced with dequantised weights is a different quantity and is not comparable.
 
@@ -239,10 +239,10 @@ Notes that decide whether a re-run matches:
 | file | role |
 | :--- | :--- |
 | `clip_convert/diag_impact_ipadapter_xl.py` | the criterion — the aggregate contribution, `image_proj` token stack and per-layer projection output |
-| `clip_convert/convert_ipadapter_convrot_int8.py` | the builder — shared by the `.pth` IP-Adapter family, threshold 0.15, groupsize 256 |
+| `clip_convert/convert_ipadapter_xl_convrot_int8.py` | the builder — this checkpoint's `.pth` flatten and threshold 0.15, groupsize 256 |
 | `audit/ipadapter_xl_pack_audit.py` | the pack audit — identity, coverage, arithmetic replay, same-input behaviour on `ImageProjModel` |
-| `audit/ipadapter_faceid_int8_route_acceptance.py` | CN-5a / CN-5b / CN-6 through the A1111 INT8 route |
-| `audit/ipadapter_faceid_a1111_render.py` | the two renders |
+| `audit/ipadapter_xl_acceptance.py` | CN-5a / CN-5b / CN-6 through the A1111 INT8 route |
+| `audit/ipadapter_xl_render.py` | the two renders |
 | `impact/impact_ipadapter_xl.json` | the ranking the converter consumed |
 | `md/backdoor/verdicts/records/cn_ipadapter_xl_pack_audit.json` | FAITHFUL audit, 141/141, behaviour cosines |
 | `md/backdoor/verdicts/records/cn_ipadapter_xl_int8_route_5a.json` | CN-5a |

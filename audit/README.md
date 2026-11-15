@@ -75,6 +75,9 @@ python audit/run_all_gates.py
 | CN-5a/5b/6 on the A1111 INT8 route | `ipadapter_faceid_int8_route_acceptance.py` | `--root <a1111> --insightface-root <d> --source <f> --pack <f> --image <png> --json-5a <o> --json-trigger <o> --json-gate <o>` |
 | CN-4 on A1111 (both arms drawn through the API) | `ipadapter_faceid_a1111_render.py` | `--image <png> --source-model <name> --pack-model <name> --out-dir <d> --json <o>` |
 | CN-1..3 (SDXL basic `ip-adapter_xl`: identity, coverage, arithmetic replay, same-input behaviour on `ImageProjModel`) | `ipadapter_xl_pack_audit.py` | `--source <f> --pack <f> --ipadapter_dir <d> --json <o> [--seed S] [--groupsize 256]` |
+| CN-2 (route census, SDXL basic `ip-adapter_xl`) | `ipadapter_xl_route.py` | `--pack <f> --comfy <d> --root <a1111> [--forge <d>] --json <o>` |
+| CN-5a/5b/6 (SDXL basic `ip-adapter_xl`, A1111 INT8 route) | `ipadapter_xl_acceptance.py` | `--source <f> --pack <f> --image <png> --comfy <d> --clip-vision <f> --root <a1111> --json-5a <o> --json-trigger <o> --json-gate <o>` |
+| CN-4 (SDXL basic `ip-adapter_xl`, both arms through the API) | `ipadapter_xl_render.py` | `--image <png> --source-model <name> --pack-model <name> --out-dir <d> --json <o> --module ip-adapter_clip_sdxl --width 1024 --height 1024` |
 | CN-5a/5b/6 (FaceID observable, 55 candidates, 256-item gate) | `ipadapter_faceid_gate_and_trigger.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json-5a <o> --json-trigger <o> --json-gate <o>` |
 | CN-1 (pack is the source quantised, CLIP-ViT-H-14) | `clip_vit_h14_pack_audit.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |
 | CN-2/3 (loader route and INT8 execution, CLIP-ViT-H-14) | `clip_vit_h14_route.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |

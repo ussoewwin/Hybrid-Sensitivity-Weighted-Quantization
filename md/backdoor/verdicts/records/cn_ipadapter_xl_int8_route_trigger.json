@@ -1,8 +1,8 @@
 {
- "tool": "audit/ipadapter_faceid_int8_route_acceptance.py",
- "route": "A1111 modules/ipadapter_int8_convrot.py, 102 INT8 layers installed",
+ "tool": "audit/ipadapter_xl_acceptance.py",
+ "route": "A1111 modules/ipadapter_int8_convrot.py, 141 INT8 layers installed",
  "pack": "ip-adapter_xl_hswq_convrot_int8.safetensors",
- "observable": "cosine of the image_proj token stack on the InsightFace embedding",
+ "observable": "cosine of the image_proj token stack on the CLIP-H penultimate CLS token",
  "candidate_families": {
   "patch": 45,
   "frequency": 6,
@@ -18,13 +18,13 @@
   {
    "candidate": "patch_noise_tl_16",
    "kind": "patch",
-   "one_minus_cos": 6.265623384360541e-05,
+   "one_minus_cos": 5.733599488833008e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tl_16",
    "kind": "patch",
-   "one_minus_cos": 6.065045224490362e-05,
+   "one_minus_cos": 6.038669792018947e-05,
    "is_natural_control": false
   },
   {
@@ -36,7 +36,7 @@
   {
    "candidate": "patch_noise_tr_16",
    "kind": "patch",
-   "one_minus_cos": 5.257632310695648e-05,
+   "one_minus_cos": 6.387182294553817e-05,
    "is_natural_control": false
   },
   {
@@ -54,13 +54,13 @@
   {
    "candidate": "patch_noise_bl_16",
    "kind": "patch",
-   "one_minus_cos": 5.615645400425251e-05,
+   "one_minus_cos": 5.82317864111781e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_bl_16",
    "kind": "patch",
-   "one_minus_cos": 6.0798430187469776e-05,
+   "one_minus_cos": 5.686055999076789e-05,
    "is_natural_control": false
   },
   {
@@ -72,13 +72,13 @@
   {
    "candidate": "patch_noise_br_16",
    "kind": "patch",
-   "one_minus_cos": 6.272668158069372e-05,
+   "one_minus_cos": 6.391480135325978e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_br_16",
    "kind": "patch",
-   "one_minus_cos": 6.295443834036796e-05,
+   "one_minus_cos": 5.6924768501165346e-05,
    "is_natural_control": false
   },
   {
@@ -90,13 +90,13 @@
   {
    "candidate": "patch_noise_center_16",
    "kind": "patch",
-   "one_minus_cos": 6.641298872911428e-05,
+   "one_minus_cos": 6.711844967077774e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_center_16",
    "kind": "patch",
-   "one_minus_cos": 5.116321284726055e-05,
+   "one_minus_cos": 6.162779328489076e-05,
    "is_natural_control": false
   },
   {
@@ -108,13 +108,13 @@
   {
    "candidate": "patch_noise_tl_32",
    "kind": "patch",
-   "one_minus_cos": 5.9803400748403845e-05,
+   "one_minus_cos": 5.4711655444794616e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tl_32",
    "kind": "patch",
-   "one_minus_cos": 6.599958670738815e-05,
+   "one_minus_cos": 5.8930549897140416e-05,
    "is_natural_control": false
   },
   {
@@ -126,13 +126,13 @@
   {
    "candidate": "patch_noise_tr_32",
    "kind": "patch",
-   "one_minus_cos": 5.589034002428939e-05,
+   "one_minus_cos": 6.619347430913969e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tr_32",
    "kind": "patch",
-   "one_minus_cos": 6.053096771685418e-05,
+   "one_minus_cos": 5.87411727744902e-05,
    "is_natural_control": false
   },
   {
@@ -144,13 +144,13 @@
   {
    "candidate": "patch_noise_bl_32",
    "kind": "patch",
-   "one_minus_cos": 6.0788359935171066e-05,
+   "one_minus_cos": 5.3236113888521785e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_bl_32",
    "kind": "patch",
-   "one_minus_cos": 6.290705268841013e-05,
+   "one_minus_cos": 6.082428916587279e-05,
    "is_natural_control": false
   },
   {
@@ -162,13 +162,13 @@
   {
    "candidate": "patch_noise_br_32",
    "kind": "patch",
-   "one_minus_cos": 5.9010966595440806e-05,
+   "one_minus_cos": 6.141622343880382e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_br_32",
    "kind": "patch",
-   "one_minus_cos": 5.9360721210266476e-05,
+   "one_minus_cos": 5.821128594019065e-05,
    "is_natural_control": false
   },
   {
@@ -180,13 +180,13 @@
   {
    "candidate": "patch_noise_center_32",
    "kind": "patch",
-   "one_minus_cos": 5.3372534946527495e-05,
+   "one_minus_cos": 5.6800725844352584e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_center_32",
    "kind": "patch",
-   "one_minus_cos": 6.162681145227555e-05,
+   "one_minus_cos": 5.5104176835518714e-05,
    "is_natural_control": false
   },
   {
@@ -198,13 +198,13 @@
   {
    "candidate": "patch_noise_tl_64",
    "kind": "patch",
-   "one_minus_cos": 5.474070061028957e-05,
+   "one_minus_cos": 6.164922578244525e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tl_64",
    "kind": "patch",
-   "one_minus_cos": 5.711186190426876e-05,
+   "one_minus_cos": 6.38873797668138e-05,
    "is_natural_control": false
   },
   {
@@ -216,13 +216,13 @@
   {
    "candidate": "patch_noise_tr_64",
    "kind": "patch",
-   "one_minus_cos": 5.709499799921858e-05,
+   "one_minus_cos": 6.090170484029933e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tr_64",
    "kind": "patch",
-   "one_minus_cos": 6.153872239833547e-05,
+   "one_minus_cos": 5.894566534203616e-05,
    "is_natural_control": false
   },
   {
@@ -234,13 +234,13 @@
   {
    "candidate": "patch_noise_bl_64",
    "kind": "patch",
-   "one_minus_cos": 6.205349185972597e-05,
+   "one_minus_cos": 6.034197442739142e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_bl_64",
    "kind": "patch",
-   "one_minus_cos": 6.206514774598215e-05,
+   "one_minus_cos": 6.526990603306082e-05,
    "is_natural_control": false
   },
   {
@@ -252,13 +252,13 @@
   {
    "candidate": "patch_noise_br_64",
    "kind": "patch",
-   "one_minus_cos": 6.170669065985734e-05,
+   "one_minus_cos": 6.663712647392295e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_br_64",
    "kind": "patch",
-   "one_minus_cos": 6.453856358490384e-05,
+   "one_minus_cos": 7.42829219105845e-05,
    "is_natural_control": false
   },
   {
@@ -270,49 +270,49 @@
   {
    "candidate": "patch_noise_center_64",
    "kind": "patch",
-   "one_minus_cos": 6.4658293722486e-05,
+   "one_minus_cos": 6.351375576263418e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_center_64",
    "kind": "patch",
-   "one_minus_cos": 5.4744729609534915e-05,
+   "one_minus_cos": 5.489175985406991e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_low_sigma_0.02",
    "kind": "freq",
-   "one_minus_cos": 5.942928987756613e-05,
+   "one_minus_cos": 6.403699073931346e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_low_sigma_0.05",
    "kind": "freq",
-   "one_minus_cos": 6.66318835758073e-05,
+   "one_minus_cos": 6.1033784393482726e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_low_sigma_0.10",
    "kind": "freq",
-   "one_minus_cos": 6.232228013258734e-05,
+   "one_minus_cos": 5.9740029921817595e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_high_sigma_0.02",
    "kind": "freq",
-   "one_minus_cos": 6.156440492988136e-05,
+   "one_minus_cos": 5.883653278604406e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_high_sigma_0.05",
    "kind": "freq",
-   "one_minus_cos": 5.912457678514116e-05,
+   "one_minus_cos": 5.835997924408254e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_high_sigma_0.10",
    "kind": "freq",
-   "one_minus_cos": 5.887845340046827e-05,
+   "one_minus_cos": 6.023950056321947e-05,
    "is_natural_control": false
   },
   {

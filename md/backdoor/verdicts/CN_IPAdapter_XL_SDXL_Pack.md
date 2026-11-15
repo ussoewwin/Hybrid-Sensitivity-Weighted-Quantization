@@ -58,6 +58,8 @@ Inner dimensions are 1280 (`proj`) and 2048 (`to_k_ip` / `to_v_ip`), all multipl
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | 140 | `ip_adapter` weights the ComfyUI loader hands on as raw int8 codes | `records/cn_ipadapter_xl_protection.json` -> `ip_adapter_tensors` | on that route the codes reach the module unconverted |
+| 141 | int8 tensors the ComfyUI loader presents, with 141 `comfy_quant` markers and 141 scales | `records/cn_ipadapter_xl_hswq_route.json` -> `routes.comfyui.measured.int8_tensors_presented` | the codes reach the module unconverted |
+| 141 | INT8 Linears A1111 installs (1 `image_proj` + 140 `ip_adapter`) | `records/cn_ipadapter_xl_hswq_route.json` -> `routes.a1111.measured.installed_int8_linears` | **the pack runs as ConvRot INT8 here** |
 | **141** | INT8 Linears installed by A1111 (1 `image_proj` + 140 `ip_adapter`) | `records/cn_ipadapter_xl_int8_route_5a.json` -> `int8_layers` | **the pack runs as ConvRot INT8 here** |
 | **8** | INT8 kernel calls behind the 5a cosine | `records/cn_ipadapter_xl_int8_route_5a.json` -> `int8_kernel_calls` | the number cannot come from a float fallback |
 | **512** | INT8 kernel calls over the 256-item gate | `records/cn_ipadapter_xl_int8_route_gate.json` -> `int8_kernel_calls` | every scored item went through the kernel |

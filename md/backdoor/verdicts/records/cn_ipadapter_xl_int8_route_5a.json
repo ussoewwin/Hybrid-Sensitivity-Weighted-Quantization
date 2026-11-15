@@ -1,6 +1,6 @@
 {
- "tool": "audit/ipadapter_faceid_int8_route_acceptance.py",
- "route": "A1111 modules/ipadapter_int8_convrot.py, 102 INT8 layers installed",
+ "tool": "audit/ipadapter_xl_acceptance.py",
+ "route": "A1111 modules/ipadapter_int8_convrot.py, 141 INT8 layers installed",
  "pack": "ip-adapter_xl_hswq_convrot_int8.safetensors",
  "int8_layers": 141,
  "int8_kernel_calls": 8,
