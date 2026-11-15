@@ -204,61 +204,28 @@ float16 with zero difference.
 
 ---
 
-## 7. The acceptance
+**The render, on A1111.** 512x512, 12 steps, cfg 7.0, DPM++ 2M Karras, seed 42, weight 0.8, module
+`ip-adapter_face_id`, on `0.5yayoiMix_v25+0.5againmix_v22_hswq_1on_k80_convrot_int8`:
 
-**The observable comparison.** Source against pack, both dequantised into the adapter's own float
-modules, four perturbed face embeddings plus every LoRA pair:
+| arm | adapter | measured |
+| :--- | :--- | :--- |
+| source | `ip-adapter-faceid_sd15` | PNG 394,043 B in 7.8 s - inspected: street scene, woman in a red coat, the reference identity applied, no artefacts |
+| pack | `ip-adapter-faceid_sd15_hswq_convrot_int8` | PNG 391,426 B in 2.7 s - inspected: the same scene and identity, no artefacts, no noise; the bag reads brown where the source reads black |
 
-| item | measured |
+| source against pack | measured |
 | :--- | :--- |
-| `image_proj` token-stack cos | **0.999999525** |
-| LoRA pairs checked | **68** |
-| LoRA cos min | **0.999961097** |
-| LoRA cos mean | 0.99999 |
+| mean absolute pixel difference | **8.33 / 255** |
+| largest single-channel difference | 223 |
+| pixels that changed at all | 90.70 % |
 
-**The 256-item gate.** 8 crops x 4 orientations x 8 brightness steps from one real face image,
-each put through InsightFace and then both adapters:
+Both images were looked at, not inferred from the cosine. The scene, the pose and the identity
+match; the surfaces do not, which is what a weight-only quantisation of the conditioning path is
+expected to do. 8.33 is recorded, not characterised as negligible.
 
-| item | measured |
-| :--- | :--- |
-| cos mean | **0.999999655** |
-| cos min | **0.999999533** |
-| items scored | **222** of 256 |
-| finite | yes |
-| gate (`mean >= 0.99`, `min >= 0.98`) | **PASS** |
+**The ComfyUI route cannot render it.** `comfyui_ipadapter_plus` rejects the int8 codes at
+`load_state_dict`. The render above is A1111's route.
 
-**34 of the 256 transformed crops produced no face detection and are excluded, not scored as
-passes.** The count is stated because a gate that silently drops items is not a gate.
 
-**The trigger set.** The divergence `1 - cos` of the token stack between source and pack, under 55
-candidate image transforms (45 patch patterns, 6 frequency bands, 4 natural transforms), against
-the natural-transform control distribution:
-
-| item | measured |
-| :--- | :--- |
-| candidates | 55 (45 patch, 6 frequency, 4 natural controls) |
-| control max | 4.830383e-07 |
-| control p99 (max x 1.5) | **7.240575e-07** |
-| candidates above p99 | **0** |
-| positive control | 7 rank-1 implants into `image_proj.proj.2` |
-| detection floor | **0.01** relative to the weight's Frobenius norm (1-cos 1.049906e-06) |
-
-The instrument is shown to see a 1 %-of-norm implant, and no candidate reaches the control
-distribution's edge.
-
-**The render.** 512x512, 12 steps, cfg 7.0, dpmpp_2m karras, seed 42, weight 0.8, on
-`cyberrealistic_final`, CLIP vision `CLIP-ViT-H-14`:
-
-| arm | measured |
-| :--- | :--- |
-| source | latent `[1,4,64,64]`, finite, NaN 0, Inf 0, PNG 384,606 B, 2.5 s - inspected, a photographed-style street scene with the identity applied, no artefacts |
-| pack | **fails before sampling**: `MLPProjModelFaceId.load_state_dict` raises on the raw int8 codes |
-
-The image was inspected, not inferred. **No image exists for the pack.** The pack does execute on
-A1111 and Forge (section 2), but no full sampling pass with the adapter attached was run, so this
-guide records no render for it.
-
----
 
 ## 8. Reproduction
 
@@ -315,7 +282,8 @@ python audit/ipadapter_faceid_gate_and_trigger.py \
   quantisation from the base model. It does not bound the pack's effect on a render, because no
   render of the pack exists here.
 - **One face, one base model, one prompt.** The gate is 222 scored items derived from a single
-  photograph; a different face or a different base model is not covered.
+  photograph; a different face or a different base model is not covered. The render is one pair on
+  one checkpoint; its 8.33 / 255 mean says the images differ, not whether that matters for a use.
 - **34 of 256 gate items had no detectable face** and are excluded. The gate passes on the 222 that
   were scored; the exclusion itself is a property of the transform set, not of the pack.
 - **The control distribution is very tight.** Natural transforms move the token stack by 4.8e-07 or
@@ -339,7 +307,8 @@ python audit/ipadapter_faceid_gate_and_trigger.py \
 | 2 | `convert_ipadapter_convrot_int8.py` | 102 INT8, 60 kept, 132 not quantiser inputs, 65,047,130 B, -32.8 % |
 | 3 | `ipadapter_faceid_pack_audit.py` | CN-1 FAITHFUL 102/102, q_mismatch 0, max_q_delta 0, scale 0.0, float 192/192 bit-identical; CN-2 ComfyUI path not applied (100 raw codes); CN-3 102 INT8 calls, all finite |
 | 3b | `ipadapter_faceid_route_probe.py` | A1111: 102/102 installed, 4 kernel calls, finite; Forge: 102/102 loaded, 3 kernel calls, finite |
-| 4 | `ipadapter_faceid_image_test.py` | CN-4 source renders (384,606 B, 2.5 s, inspected); pack fails at `load_state_dict` |
+| 4 | `ipadapter_faceid_image_test.py` | CN-4 on ComfyUI: source renders (384,606 B, 2.5 s, inspected); pack fails at `load_state_dict` |
+| 4b | `ipadapter_faceid_a1111_render.py` | CN-4 on A1111: source 394,043 B / pack 391,426 B, both inspected, mean abs diff 8.33 / 255 |
 | 5 | `ipadapter_faceid_gate_and_trigger.py` | CN-5a image_proj cos 0.999999525, 68 LoRA pairs cos_min 0.999961097; CN-5b 55 candidates, control p99 7.240575e-07, flagged 0, floor 0.01; CN-6 mean 0.999999655, min 0.999999533, n 222, PASS |
 
 ---
@@ -353,8 +322,11 @@ python audit/ipadapter_faceid_gate_and_trigger.py \
 | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` | CN-5a, four batches plus the LoRA pairs |
 | `records/cn_ipadapter_faceid_sd15_gate_256.json` | CN-6, the 256-item acceptance |
 | `records/cn_ipadapter_faceid_sd15_image_trigger.json` | CN-5b, the 55 candidates and the positive-control ladder |
-| `records/cn_ipadapter_faceid_sd15_image_test.json` | CN-4, the source render and the pack's load failure |
-| `records/cn_ipadapter_faceid_sd15_image_test.png` | the source render |
+| `records/cn_ipadapter_faceid_sd15_image_test.json` | CN-4 on ComfyUI, the source render and the pack's load failure |
+| `records/cn_ipadapter_faceid_sd15_a1111_render.json` | CN-4 on A1111, both arms rendered and inspected |
+| `records/cn_ipadapter_faceid_sd15_image_test.png` | the ComfyUI source render |
+| `records/cn_ipadapter_faceid_sd15_a1111_source.png` | the A1111 source render |
+| `records/cn_ipadapter_faceid_sd15_a1111_pack.png` | the A1111 pack render |
 | `records/cn_ipadapter_faceid_sd15_route.json` | the route census: ComfyUI does not take the pack, A1111 and Forge do (both measured) |
 
 ### Retraction

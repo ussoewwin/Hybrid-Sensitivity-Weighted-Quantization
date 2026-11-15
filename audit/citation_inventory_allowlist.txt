@@ -65,3 +65,6 @@ cn_ipadapter_faceid_sd15_gate_256.json
 cn_ipadapter_faceid_sd15_image_trigger.json
 cn_ipadapter_faceid_sd15_image_test.json
 cn_ipadapter_faceid_sd15_route.json
+cn_ipadapter_faceid_sd15_a1111_render.json
+cn_ipadapter_faceid_sd15_a1111_source.png
+cn_ipadapter_faceid_sd15_a1111_pack.png

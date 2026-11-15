@@ -71,6 +71,7 @@ python audit/run_all_gates.py
 | CN-1..3 (FaceID pack: faithfulness, loader route, kernel) | `ipadapter_faceid_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --node <d> --json <o>` |
 | route probe (does each loader take the pack) | `ipadapter_faceid_route_probe.py` | `--pack <f> --root <install> --which a1111|forge|both --json <o>` |
 | CN-4 (FaceID render, source and pack arms) | `ipadapter_faceid_image_test.py` | `--pack <f> --source <f> --image <png> --ckpt <f> --clipvision <f> --comfy <d> --out-dir <d> --json <o>` |
+| CN-4 on A1111 (both arms drawn through the API) | `ipadapter_faceid_a1111_render.py` | `--image <png> --source-model <name> --pack-model <name> --out-dir <d> --json <o>` |
 | CN-5a/5b/6 (FaceID observable, 55 candidates, 256-item gate) | `ipadapter_faceid_gate_and_trigger.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json-5a <o> --json-trigger <o> --json-gate <o>` |
 | CN-1 (pack is the source quantised, CLIP-ViT-H-14) | `clip_vit_h14_pack_audit.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |
 | CN-2/3 (loader route and INT8 execution, CLIP-ViT-H-14) | `clip_vit_h14_route.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |

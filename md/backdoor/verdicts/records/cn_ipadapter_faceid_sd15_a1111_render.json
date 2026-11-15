@@ -1,0 +1,58 @@
+{
+ "tool": "audit/ipadapter_faceid_a1111_render.py",
+ "family": "faceid",
+ "route": "a1111 /sdapi/v1/txt2img + ControlNet module ip-adapter_face_id",
+ "checkpoint": "0.5yayoiMix_v25+0.5againmix_v22_hswq_1on_k80_convrot_int8.safetensors [f60a5c5297]",
+ "render": {
+  "width": 512,
+  "height": 512,
+  "steps": 12,
+  "cfg": 7.0,
+  "sampler": "DPM++ 2M",
+  "scheduler": "Karras",
+  "seed": 42,
+  "weight": 0.8,
+  "reference": "cn_clipvit_ref.png",
+  "prompt": "a woman in a red coat standing in a city street, detailed, natural light"
+ },
+ "arms": [
+  {
+   "label": "source",
+   "model": "ip-adapter-faceid_sd15 [0a1757e9]",
+   "outcome": "image",
+   "png": "cn_ipadapter_faceid_sd15_a1111_source.png",
+   "png_bytes": 394043,
+   "png_sha256": "C6AA82730FE5BE83B2E7C1AC024A78524D20CF41966278CFFAAE6F789004EE60",
+   "wall_s": 7.8,
+   "seed": 42,
+   "sampler": "DPM++ 2M",
+   "steps": 12,
+   "cfg": 7.0
+  },
+  {
+   "label": "pack",
+   "model": "ip-adapter-faceid_sd15_hswq_convrot_int8 [8fb4cc4a]",
+   "outcome": "image",
+   "png": "cn_ipadapter_faceid_sd15_a1111_pack.png",
+   "png_bytes": 391426,
+   "png_sha256": "0D62E399410734BA9CEB069E9EE12896BFE58FB34A3322C68CA6FFCC6FD60461",
+   "wall_s": 2.7,
+   "seed": 42,
+   "sampler": "DPM++ 2M",
+   "steps": 12,
+   "cfg": 7.0
+  }
+ ],
+ "source_vs_pack": {
+  "mean_abs": 8.33,
+  "max_abs": 223,
+  "changed_pct": 90.7
+ },
+ "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
+ "outcome": "both arms rendered",
+ "visual": {
+  "source": "inspected: a photographed-style street scene, woman in a red coat, reference identity applied, no artefacts",
+  "pack": "inspected: the same scene and the same identity, no artefacts, no noise; the bag reads as brown where the source reads black",
+  "note": "both images were looked at, not inferred from the pixel statistics"
+ }
+}

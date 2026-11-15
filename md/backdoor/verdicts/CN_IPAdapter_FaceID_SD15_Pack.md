@@ -93,14 +93,30 @@ The positive control resolved an implant at **1 % of the weight norm**, two orde
 
 ## 8. Render
 
-| arm | measured | record |
+**A1111, both arms, the same prompt, seed, steps and reference image.**
+
+512x512, 12 steps, cfg 7.0, DPM++ 2M Karras, seed 42, weight 0.8, module `ip-adapter_face_id`,
+on `0.5yayoiMix_v25+0.5againmix_v22_hswq_1on_k80_convrot_int8`.
+
+| arm | adapter | measured | record |
+| :--- | :--- | :--- | :--- |
+| source | `ip-adapter-faceid_sd15` | PNG 394,043 B in 7.8 s - inspected: street scene, woman in a red coat, the reference identity applied, no artefacts | `records/cn_ipadapter_faceid_sd15_a1111_render.json` -> `render.width` |
+| pack | `ip-adapter-faceid_sd15_hswq_convrot_int8` | PNG 391,426 B in 2.7 s - inspected: the same scene and the same identity, no artefacts, no noise; the bag reads brown where the source reads black | `records/cn_ipadapter_faceid_sd15_a1111_render.json` -> `source_vs_pack.max_abs` |
+
+| source against pack | measured | record |
 | :--- | :--- | :--- |
-| source | latent `[1,4,64,64]`, finite, NaN 0, Inf 0, PNG 384,606 B, 2.5 s - inspected: a photographed-style street scene with the reference identity applied, no artefacts | `records/cn_ipadapter_faceid_sd15_image_test.json` -> `face.det_score` |
-| pack | **fails before sampling**: `MLPProjModelFaceId.load_state_dict` raises on the raw int8 codes | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_raw_int8_codes` |
+| mean absolute pixel difference | **8.33 / 255** | `records/cn_ipadapter_faceid_sd15_a1111_render.json` -> `source_vs_pack.mean_abs` |
+| largest single-channel difference | 223 | `records/cn_ipadapter_faceid_sd15_a1111_render.json` -> `source_vs_pack.max_abs` |
+| pixels that changed at all | 90.70 % | `records/cn_ipadapter_faceid_sd15_a1111_render.json` -> `source_vs_pack.changed_pct` |
 
-512x512, 12 steps, cfg 7.0, dpmpp_2m karras, seed 42, weight 0.8, `cyberrealistic_final`, CLIP vision `CLIP-ViT-H-14`. The image was looked at, not inferred from a cosine.
+Both images were looked at, not inferred from the cosine. The scene, the pose and the identity
+match; the surfaces do not, which is what a weight-only quantisation of the conditioning path is
+expected to do. 8.33 is recorded, not characterised as negligible.
 
-**No image exists for the pack.** Without a route that interprets `comfy_quant`, the only honest statement is that this machine cannot render it.
+**The ComfyUI route cannot render it.** `comfyui_ipadapter_plus` rejects the int8 codes at
+`load_state_dict` (`records/cn_ipadapter_faceid_sd15_pack_audit.json` ->
+`CN2.loaded_as_raw_int8_codes`). The render above is A1111's route.
+
 
 ## 9. Conclusion
 
@@ -113,7 +129,7 @@ The positive control resolved an implant at **1 % of the weight norm**, two orde
 - the 256-item gate passes at mean 0.999999655 / min 0.999999533 over 222 scored items
 - 0 of 55 image candidates left the natural-transform distribution, against a floor of 1 % of the weight norm
 
-**What this verdict does not cover** is a rendered image from the pack. The pack does execute: A1111 installs all 102 INT8 layers and fires the kernel, Forge loads all 102 and fires the kernel. What has not been run is a full sampling pass with the adapter attached, so the acceptance numbers above remain measurements of the quantisation, not of a picture.
+**What this verdict does not cover** is the ComfyUI path, which still refuses the pack, and a Forge render, which was not run as a sampling pass. The A1111 render exists and was inspected.
 
 ## LIMITS
 
@@ -131,5 +147,6 @@ The positive control resolved an implant at **1 % of the weight norm**, two orde
 - `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` - CN-5a.
 - `records/cn_ipadapter_faceid_sd15_gate_256.json` - CN-6.
 - `records/cn_ipadapter_faceid_sd15_image_trigger.json` - CN-5b and the positive-control ladder.
-- `records/cn_ipadapter_faceid_sd15_image_test.json` - CN-4 and the pack's load failure.
+- `records/cn_ipadapter_faceid_sd15_image_test.json` - CN-4 on the ComfyUI path and its load failure.
+- `records/cn_ipadapter_faceid_sd15_a1111_render.json` - CN-4 on A1111: both arms rendered and inspected.
 - `records/cn_ipadapter_faceid_sd15_route.json` - the route census.
