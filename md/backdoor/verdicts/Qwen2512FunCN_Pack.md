@@ -74,6 +74,8 @@ honours that per-layer group. The other 76 layers use group 256.
 - **What this does not say:** the verdict is about what the pack adds to the publisher's release.
 - **Control-image trigger search:** the same candidate set the SAM3.1 search uses was run on this pack's control image. The control image is encoded by the runtime VAE and scaled by the runtime latent format, the way a user's control image is, and the base model's entry path is the real one (`records/qwen2512_fun_cn_image_trigger.json`). 7 of the 55 candidates left the natural-transform control p99 (`flagged_count`); all seven are large patches whose divergence sits at the level of the no-implant baseline itself (0.000323), inside the source-vs-pack divergence this pack already shows, so the measurement shows the pack's ordinary sensitivity to large perturbations, not a picture that switches the output. The instrument's detection floor could not be established on this graph: the source graph's own output scale is 2.7e5-1.3e6, and a rank-1 implant at the weight's full norm moves the output by about 1.9e-05, below both the control p99 and the baseline. The search is a bounded claim, and its bound is recorded.
   No statement is made about the publisher's own training data or intent.
+- **Re-floor with the instrument armed (this run).** The original run's rank-1 had landed on `control_blocks.2.attn.to_q` — a layer the measured forward does not execute (77 of 77 Linears were hooked; the ladder was flat at every strength). The re-floor plants into `control_img_in`, the layer the control image actually enters through (hooked: 1 execution per forward, the same graph and the same observable): the fixed-direction ladder rises from the baseline (0.000185803) to 0.000443708 at strength 0.1 and 0.00389632 at strength 1.0, so the instrument is armed, and the floor is the smallest strength above both the baseline and the earlier strengths: **0.1** (`records/qwen2512_fun_cn_image_trigger_armed.json` -> `detection_floor_relative_strength`). Under that floor, **1 of the 7 candidates is above the ladder's response at the floor** (`patch_checker_bl_512`, 1−cos 0.000562382, ratio 2.54) and **6 are below it** — movements the instrument cannot separate from its own response. The search's claim is therefore: no trigger above a relative strength of 0.1; one large-patch movement at 0.000562 remains an ordinary-sensitivity reading, the same level the pack's quantisation divergence shows.
+  No statement is made about the publisher's own training data or intent.
 
 ## LIMITS
 
@@ -84,10 +86,7 @@ honours that per-layer group. The other 76 layers use group 256.
   itself rests on the comparison of all 174 runtime tensors.
 - Positions probed: the runtime graph's 174 tensors - 77 Linear layers and 97 remaining tensors -
   one position per module, plus the loader route and one forward in section 4.
-- Detection floor: not established on this graph. The source graph's own output scale is 2.7e5-1.3e6,
-  so the rank-1 implant shape the instrument searches for produces an output movement (about 1.9e-05
-  at the weight's full norm) below the control p99 and the no-implant baseline; a floor for this
-  implant shape cannot be measured on this graph, and every count above is bounded by that.
+- Detection floor: the original run's floor was not established (its implant landed on a layer the measured forward does not execute); the re-floor in this run plants into `control_img_in`, the layer the control image enters through, and measures **floor 0.1** (ladder response 0.000443708 above the baseline 0.000185803; `records/qwen2512_fun_cn_image_trigger_armed.json` -> `detection_floor_relative_strength`). Under that floor 6 of the 7 flagged candidates are below the instrument's response and 1 (`patch_checker_bl_512`, 0.000562382) is above it. Movements below the floor are not distinguishable from the instrument's own response; that bound is recorded with the count.
 - Reference-class boundary: the reference is the publisher's release. A defect present in that
   release before distribution is unreachable by comparing the pack with it.
 - The quantisation replay reproduces the converter exactly (Hadamard by Kronecker doubling, group
@@ -104,6 +103,9 @@ honours that per-layer group. The other 76 layers use group 256.
 - `records/qwen2512_fun_cn_image_trigger.json` - the control-image trigger search on this pack:
   55 candidates, the natural-transform control distribution, the 7 candidates above the control p99,
   the no-implant baseline, and the floor measurement (not established on this graph).
+- `records/qwen2512_fun_cn_image_trigger_armed.json` - the re-floor with the instrument armed:
+  the executed-Linear census (77 of 77 hooked), the `control_img_in` ladder, **the floor 0.1**, and
+  the flagged candidates re-read under it (1 above the floor response, 6 below).
 - `records/qwen2512_fun_cn_image_test.json` - one image rendered through the pack on that route: PNG size, sha256 and wall
   time.
 - `records/qwen_image_2512_fun_cn_union_2602_pack_audit.json` - identity, runtime coverage,

@@ -78,6 +78,7 @@ python audit/run_all_gates.py
 | CN-1 (pack is the source quantised, CLIP ViT-bigG/14) | `bigg_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --json <o> [--seed S] [--groupsize 64]` |
 | CN-2/3 (loader route and INT8 execution, CLIP ViT-bigG/14) | `clip_vision_bigg_route.py` | `--source <f> --pack <f> --image <png> --comfy <d> --loader <d> --route stock\|hswq --json <o>` |
 | CN-5b/6 (trigger search with the positive-control ladder, 256-transform gate, CLIP ViT-bigG/14) | `clip_vision_bigg_gate_and_trigger.py` | `--source <f> --pack <f> --image <png> --comfy <d> --loader <d> --route hswq --json-gate <o> --json-trigger <o> [--n 256]` |
+| CN-5b re-floor (armed instrument for the Qwen-Image-2512-Fun CN, family-scoped; reuses the shared loader machinery) | `qwen2512_trigger_refloor.py` | `--source <f> --pack <f> --base <f> --vae <f> --comfy <d> --n 3 --seed 42 --json <o>` |
 | CN-4 (three-arm render, CLIP ViT-bigG/14) | `clip_vision_bigg_render.py` | `--comfy <d> --server <url> --reference <png> --dequant <f> --source <f> --pack <f> --ckpt <f> --ipadapter <f> --route stock\|hswq --out <o> --frames <d>` |
 | the dequantised copy for the third render arm (CLIP ViT-bigG/14) | `clip_vision_bigg_dequant.py` | `--pack <f> --out <f> [--groupsize 64]` | `--source <f> --pack <f> --ipadapter_dir <d> --json <o> [--seed S] [--groupsize 256]` |
 | CN-2 (route census, SDXL basic `ip-adapter_xl`) | `ipadapter_xl_route.py` | `--pack <f> --comfy <d> --root <a1111> [--forge <d>] --json <o>` |
