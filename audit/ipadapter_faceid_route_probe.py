@@ -93,6 +93,11 @@ def a1111_route(pack_path, device):
             # identity: register scripts.ipadapter as a package pointing at the dir.
             pkg_dir = os.path.dirname(os.path.abspath(ipm_path))
             scripts_dir = os.path.dirname(os.path.dirname(pkg_dir))
+            # Plus adapters read CLIP-vision hidden states and import the extension's
+            # annotator package, which sits next to scripts/ in the extension root.
+            ext_root = os.path.dirname(scripts_dir)
+            if ext_root not in sys.path:
+                sys.path.insert(0, ext_root)
             for name, path in (("scripts", scripts_dir),
                                ("scripts.ipadapter", pkg_dir)):
                 if name not in sys.modules:
@@ -143,9 +148,20 @@ def a1111_route(pack_path, device):
     try:
         model.device = device
         model.to(device)
-        emb = torch.randn(1, 512, device=device, dtype=torch.float32)
+        if "plus" in os.path.basename(pack_path):
+            # Resampler path: the node feeds clip_vision_output["hidden_states"][-2]
+            emb = torch.randn(1, 257, 1280, device=device, dtype=torch.float32)
+        else:
+            emb = torch.randn(1, 512, device=device, dtype=torch.float32)
         with torch.inference_mode():
-            emb_out = model.get_image_emb(emb)
+            if "plus" in os.path.basename(pack_path):
+                from transformers.models.clip.modeling_clip import CLIPVisionModelOutput
+                cvo = CLIPVisionModelOutput(image_embeds=torch.randn(1, 1280, device=device, dtype=torch.float32),
+                                            last_hidden_state=emb,
+                                            hidden_states=(emb, emb))
+                emb_out = model.get_image_emb(cvo)
+            else:
+                emb_out = model.get_image_emb(emb)
         step("get_image_emb (forward)", ok=True,
              cond_shape=list(emb_out.cond_emb.shape),
              finite=bool(torch.isfinite(emb_out.cond_emb).all()),

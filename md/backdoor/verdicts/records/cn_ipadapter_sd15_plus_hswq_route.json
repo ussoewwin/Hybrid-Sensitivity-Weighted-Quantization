@@ -1,0 +1,42 @@
+{
+ "tool": "audit/ipadapter_faceid_route_probe.py --which a1111",
+ "family": "ipadapter_sd15_plus",
+ "pack": "ip-adapter_sd15_plus_hswq_convrot_int8.safetensors",
+ "declared_layers": 54,
+ "declared_breakdown": {
+  "image_proj": 22,
+  "ip_adapter": 32
+ },
+ "routes_checked": {
+  "a1111": {
+   "entry": "extensions-builtin/sd-webui-controlnet/scripts/ipadapter/ipadapter_model.py -> IPAdapterModel.__init__ -> modules/ipadapter_int8_convrot.py",
+   "interprets_comfy_quant": true,
+   "measured": {
+    "state_dict_has_convrot_int8": {
+     "image_proj": true,
+     "ip_adapter": true
+    },
+    "IPAdapterModel_load": true,
+    "installed_int8_linears": 54,
+    "installed_breakdown": {
+     "image_proj": 22,
+     "ip_adapter_tokvs": 32
+    },
+    "float_parameters": 83
+   },
+   "forward": "not run in this probe: IPAdapterModel._get_image_embeds for a Plus pack imports annotator.clipvision, which this extension build does not ship (measured: no clipvision.py under extensions-builtin/sd-webui-controlnet/annotator). The A1111 render record shows the pack in use (PSNR 30.54 dB against the float adapter).",
+   "verdict": "applied - all 54 layers installed"
+  },
+  "comfyui_ipadapter_plus": {
+   "entry": "comfyui_ipadapter_plus.utils.ipadapter_model_loader",
+   "note": "the Plus adapter is built as Resampler + To_KV; the pack's declared layers carry comfy_quant",
+   "verdict": "loads the pack (this is the route the 256-item gate and the source-vs-pack comparison use)"
+  },
+  "forge": {
+   "entry": "backend/operations_mixed_precision.py",
+   "interprets_comfy_quant": true,
+   "verdict": "not separately measured for this pack"
+  }
+ },
+ "conclusion": "A1111 installs all 54 ConvRot INT8 layers of this pack. The ComfyUI IP-Adapter Plus loader reads it for the dequantised comparisons. Forge was not separately measured here."
+}

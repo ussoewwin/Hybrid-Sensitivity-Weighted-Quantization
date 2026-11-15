@@ -71,3 +71,4 @@ cn_ipadapter_faceid_sd15_a1111_pack.png
 cn_ipadapter_faceid_sd15_int8_route_5a.json
 cn_ipadapter_faceid_sd15_int8_route_trigger.json
 cn_ipadapter_faceid_sd15_int8_route_gate_256.json
+cn_ipadapter_sd15_plus_hswq_route.json
