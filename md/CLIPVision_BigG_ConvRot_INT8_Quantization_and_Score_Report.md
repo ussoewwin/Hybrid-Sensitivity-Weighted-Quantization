@@ -316,3 +316,4 @@ Notes that decide whether a re-run matches:
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_stock_A_source_image_test.png` | the source frame, stock route |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_stock_B_pack_image_test.png` | the pack frame, stock route - a different picture |
 | `md/backdoor/verdicts/records/cn_clip_vision_bigg_stock_C_dequant_image_test.png` | the dequantised frame, stock route |
+- **The Hub repository is staged but not published.** The pack and the card row were prepared in a clone of `ussoewwin/Clip-files-HSWQ-ConvRot-INT8` and committed there (`d9c004a`), but the push was refused: the only Hugging Face credential on this machine is a read-scoped token (measured: `whoami-v2` returns 401, `git push` returns `Authentication failed`), and no token file, environment variable or `.netrc` entry exists. The Hub is therefore not updated by this run.
