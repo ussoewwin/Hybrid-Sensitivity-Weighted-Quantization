@@ -124,8 +124,9 @@ python sd1.5/diagimpact_sd15.py `
   is too short here.
 - Writes `impact/impact_sd15_traj_<model stem>.json` when `--out` is omitted.
 - Measured cost on one consumer GPU: **one 25-step trajectory is 0.98 s**, so
-  282 layers x 2 seeds is about **12 minutes** - not hours.
-- Progress prints every 10 layers; the ranking is not transferable between
+  282 layers x 2 seeds is 553 s of trajectory time (**about 9 minutes**); the measured end-to-end
+  run - model load, sweep and JSON write - took **14 min 48 s**.
+- Progress prints every layer (`[i/282] <layer> <impact>`); the ranking is not transferable between
   checkpoints.
 
 ### Step 2 - build the pack
@@ -193,7 +194,7 @@ not.
 | k40 | trajectory | 40 | 0.96212 | 14/25 | 0/25 | ~1115 MB |
 | **k80** | single forward | **80** | **0.97622** | **18/25** | **0/25** | 1167.5 MB |
 | k80 | trajectory | 80 | 0.97542 | 16/25 | 0/25 | 1160.4 MB |
-| k100 | single forward | 100 | 0.974 | - | 0/25 | 1193.5 MB |
+| k100 | single forward | 100 | 0.974 | 16/25 | 0/25 | 1193.5 MB |
 
 ### What the numbers say
 
@@ -263,10 +264,10 @@ Step 1 (trajectory impact) / Step 2 (hybrid pack with top-K protected, bias corr
    - Set **`model_type`**: `SD1.5`.
    - Set **`steps`**: `25` (production recipe).
    - Set **`seed`**: `42`.
-   - For SD1.5, the measurement runs in-process via `sd1.5/diagimpact_sd15.py` logic across all 282 ConvRot-eligible UNet layers (25 steps each, ~12 min total on a modern GPU).
-   - Connect its **`impact_json`** output → `Switch (Any)` (`ImpactSwitch`) `input1`.
+   - For SD1.5, the measurement runs in-process via `sd1.5/diagimpact_sd15.py` logic across all 282 ConvRot-eligible UNet layers (25 steps each; the measured run took 14 min 48 s).
+   - Connect its **`impact_json`** output → `Switch (Any)` (`ImpactSwitch`) `input1`. Either this output or the `report` output works: `HSWQ Quantize ConvRot INT8` resolves the json path from the path itself or from the path line inside the report, and the shipped sample workflow wires the `report` output.
 3. **`HSWQ Load Diag Impact Json`** (category `HSWQ/Quantize`): lists stored impact jsons (`impact_sd15_traj_*.json` under `<repo>/impact/`) in a dropdown — reuse a measurement without re-running Step 1.
-   - Connect its **`impact_json`** output → `Switch (Any)` (`ImpactSwitch`) `input2`.
+   - Connect its **`impact_json`** output → `Switch (Any)` (`ImpactSwitch`) `input2`. The `report` output is accepted as well; the shipped sample workflow wires it.
    - Use this input when the model was already measured with the same recipe (`steps 25`); the node verifies the parsed JSON contains valid layer trajectory impacts.
 4. **`Switch (Any)` (`ImpactSwitch`)**:
    - `select` = 1 → fresh Step 1 measurement from `HSWQ Diag Impact`.
@@ -280,12 +281,12 @@ Step 1 (trajectory impact) / Step 2 (hybrid pack with top-K protected, bias corr
 | Parameter | Default / Recommended | Description |
 |---|---|---|
 | `model_type` | `SD1.5` | Target architecture family (dropdown). |
-| `output_path` | `D:\USERFILES\ComfyUI\ComfyUI\models\unet` | Output folder or explicit `.safetensors` path. If pointing to a folder, writes `<stem>_hswq_k<K>_bc_convrot_int8.safetensors`. |
+| `output_path` | `<ComfyUI root>/models/unet` | Output folder or explicit `.safetensors` path. If pointing to a folder, writes `<stem>_hswq_k<K>_bc_convrot_int8.safetensors`. |
 | `calib_file` | `128` | Calibration prompts sheet from `sample/` (`sample/calibration_prompts_128.txt` used by Step 2 bias correction). |
 | `num_calib_samples` | `32` | Calibration sample count (r32 recipe). |
 | `num_inference_steps` | `25` | Steps per calibration sample during activation collection. |
 | `k_layers` | `80` | Number of protected FP16 layers (recommended `80` based on sweep benchmark; keeps the top-80 highest-impact layers FP16). |
-| `bias_correction` | `true` | Systematic INT8 activation shift cancellation into layer bias (INT8 layers only; protected layers remain untouched). |
+| `bias_correction` | `false` (recommended `true`) | Systematic INT8 activation shift cancellation into layer bias (INT8 layers only; protected layers remain untouched). |
 | `convrot` | `true` | ConvRot Hadamard rotation on quantized 2D Linear and 4D Conv2d weights. |
 | `group_size` | `256` | ConvRot Hadamard group size (power of 4). |
 | `run_benchmark` | `true` | Automated deterministic 25-seed latent trajectory comparison against the FP16 base immediately after quantization. |
@@ -319,7 +320,7 @@ Step 1 (trajectory impact) / Step 2 (hybrid pack with top-K protected, bias corr
    same-image seeds : 11/25
    bifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)
    ```
-   **Acceptance Gate:** `final-cosine mean >= 0.95` (swept k=80 reaches 0.976+) and **0/25 bifurcated**.
+   **Acceptance Gate:** `final-cosine mean >= 0.97` (swept k=80 reaches 0.975+) and **0/25 bifurcated**.
 
 ---
 
@@ -338,7 +339,7 @@ To quantify the precision lift provided by HSWQ trajectory-impact protection:
    - Use `Native ConvRot INT8 Quantize` with `model_type = "SD1.5"`.
    - Converts all 282 convertible layers to ConvRot INT8 without protection.
    - Benchmark score: mean final-cosine ≈ **0.96265**.
-   - **HSWQ k80 lift:** **0.97622** (+0.0136 gain over native) with 0/25 bifurcated.
+   - **HSWQ k80 lift (trajectory criterion):** **0.97542** (+0.01277 gain over native) with 0/25 bifurcated. The single-forward k80 pack measured **0.97622** (+0.0136); the table above lists both.
 
 ---
 
