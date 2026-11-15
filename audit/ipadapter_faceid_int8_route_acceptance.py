@@ -267,36 +267,59 @@ def main():
                if not c.get("is_natural_control") and c.get("one_minus_cos") is not None
                and c["one_minus_cos"] > p99]
 
-    # positive control: perturb the pack's int8 payload (one code) and see if it moves
+    # Positive control on the INT8 route. A single int8 code step is 1/256 of a group step and
+    # did not move the observable, so the ladder perturbs the layer's *scale*, which is the
+    # multiplier the kernel applies to every code of every output row: weight_scale *= (1+d).
+    # That is a global magnitude change on the installed int8 layer, applied where the kernel
+    # reads it, so a detection here proves the route carries a perturbation to the output.
     ladder, floor = [], None
-    layer = "ip_adapter.13.to_out_lora.down"
+    int8_mods = [(n, m) for n, m in pack_model.named_modules()
+                 if getattr(m, "_hswq_kind", None) == "linear"
+                 and getattr(m, "weight", None) is not None
+                 and m.weight.dtype == torch.int8]
     target = None
-    for n, m in pack_model.named_modules():
-        if n.split(".")[-1] == layer.replace(".", "_") or n.endswith(layer.replace(".", "_")):
-            target = m
+    target_name = None
+    for n, m in int8_mods:
+        if getattr(m, "_hswq_name", "") == "ip_adapter.13.to_out_lora.down":
+            target, target_name = m, n
             break
-    if target is None:
-        for n, m in pack_model.named_modules():
-            if getattr(m, "_hswq_name", "") == layer:
-                target = m
-                break
+    if target is None and int8_mods:
+        n0, m0 = int8_mods[0]
+        target, target_name = m0, n0
+    print("[CN-5b] positive control target: %s (%s), %d INT8 modules enumerable"
+          % (getattr(target, "_hswq_name", "?"), target_name, len(int8_mods)), flush=True)
+
     if target is not None:
-        base_w = target.weight.detach().clone()
-        n_el = base_w.numel()
-        for frac in (1e-6, 1e-5, 1e-4, 1e-3, 1e-2):
-            k = max(1, int(n_el * frac))
+        base_scale = target.weight_scale.detach().clone()
+        for delta in (1e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1):
             with torch.no_grad():
-                flat = base_w.reshape(-1).clone()
-                flat[:k] = (flat[:k] + 1).clamp(-128, 127)
-                target.weight.copy_(flat.reshape(base_w.shape))
+                target.weight_scale.copy_(base_scale * (1.0 + delta))
                 d = 1.0 - cos(emb_of(src_model, emb0[None]), emb_of(pack_model, emb0[None]))
                 hit = d > p99
                 if hit and floor is None:
-                    floor = frac
-                ladder.append({"codes_changed": k, "fraction": frac,
-                               "one_minus_cos": d, "detected": hit})
-                target.weight.copy_(base_w)
-            print("  implant %g of codes -> 1-cos %.6e %s" % (frac, d, "DETECTED" if hit else "-"), flush=True)
+                    floor = delta
+                ladder.append({"scale_delta": delta, "one_minus_cos": d, "detected": hit})
+                target.weight_scale.copy_(base_scale)
+            print("  implant scale x%.4f -> 1-cos %.6e %s"
+                  % (1.0 + delta, d, "DETECTED" if hit else "-"), flush=True)
+        # and one whole-code ladder for completeness
+        base_w = target.weight.detach().clone()
+        code_ladder = []
+        n_el = base_w.numel()
+        for frac in (1e-3, 1e-2, 1e-1):
+            k = max(1, int(n_el * frac))
+            with torch.no_grad():
+                flat = base_w.reshape(-1).clone()
+                flat[:k] = (flat[:k] + 8).clamp(-128, 127)
+                target.weight.copy_(flat.reshape(base_w.shape))
+                d = 1.0 - cos(emb_of(src_model, emb0[None]), emb_of(pack_model, emb0[None]))
+                code_ladder.append({"codes_changed": k, "fraction": frac, "step": 8,
+                                    "one_minus_cos": d, "detected": d > p99})
+            print("  implant %g codes +8 -> 1-cos %.6e" % (frac, d), flush=True)
+        target.weight.copy_(base_w)
+    else:
+        code_ladder = []
+
     print("[CN-5b] %d candidates | control p99 %.6e | flagged %d | floor %s"
           % (len(cands), p99, len(flagged), floor), flush=True)
 
@@ -350,8 +373,13 @@ def main():
                                         "control_one_minus_cos": controls, "control_p99": p99,
                                         "ratio_threshold": 1.5,
                                         "flagged_over_control_p99": flagged, "flagged_count": len(flagged),
-                                        "positive_control": {"how": "increment int8 codes of one layer",
-                                                             "layer": layer, "ladder": ladder},
+                                        "positive_control": {
+                                            "how": "weight_scale multiplier (1+d) on one installed int8 layer",
+                                            "layer": getattr(target, "_hswq_name", None) if target is not None else None,
+                                            "module": target_name,
+                                            "int8_modules_enumerable": len(int8_mods),
+                                            "ladder": ladder,
+                                            "code_step_ladder": code_ladder},
                                         "detection_floor_code_fraction": floor}),
                       (a.json_gate, gate)):
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)

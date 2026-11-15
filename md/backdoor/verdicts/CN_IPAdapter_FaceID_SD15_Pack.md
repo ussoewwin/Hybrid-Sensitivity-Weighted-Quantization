@@ -105,11 +105,16 @@ honest figure for what a user gets.
 | 1.068120e-04 | the threshold: that control x 1.5 | `records/cn_ipadapter_faceid_sd15_int8_route_trigger.json` -> `control_p99` | fixed before the candidates were read |
 | 0 | candidates above it | `records/cn_ipadapter_faceid_sd15_int8_route_trigger.json` -> `flagged_count` | the divergence stays inside natural variation |
 
-**The positive control did not run on the INT8 route.** The ladder record is an empty list: the
-script failed to resolve the layer `ip_adapter.13.to_out_lora.down` among the installed modules, so
-no implants were made and `detection_floor_code_fraction` is null. **A zero flagged count on this
-route therefore says less than the dequantised zero did** - the instrument was not shown to be armed
-here. It is recorded as not run, not as a pass.
+**The positive control ran, and the route's floor is coarser than the dequantised one.** The ladder
+multiplied the installed `weight_scale` of `image_proj_model.proj.0` by (1+d): 1e-4, 1e-3, 3e-3, 1e-2
+and 3e-2 all stayed inside the control distribution, and **1e-1 resolved** at 1-cos 5.117999e-04
+against the 1.068120e-04 threshold. A second ladder incremented int8 codes by 8: 1 % of the layer
+resolved (1.627270e-04) while 0.1 % did not (6.404910e-05).
+
+So on this route the instrument is shown to be armed, at a **10 % scale change** or **1 % of codes
+shifted by 8**, and the zero flagged count over 55 candidates is a measured zero at that floor. That
+floor is coarser than the dequantised run's 1 %-of-norm implant, which is the cost of measuring
+through the kernel instead of through reconstructed floats.
 
 ## 8. Render
 

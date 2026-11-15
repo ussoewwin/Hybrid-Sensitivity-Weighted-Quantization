@@ -243,12 +243,19 @@ control distribution:
 | control max | 7.120798e-05 |
 | control p99 (max x 1.5) | **1.068120e-04** |
 | candidates above p99 | **0** |
-| positive control | **not run** - the target layer could not be resolved by name |
+| positive control | weight_scale multiplier on `image_proj_model.proj.0`: **10 %** resolved (1-cos 5.117999e-04) |
+| detection floor | **0.1** scale delta; int8 code +8 on 1 % of the layer resolves too (1.627270e-04) |
 
-**The positive control did not run here, and that is recorded as a gap.** The ladder record is an
-empty list - the script could not resolve the target layer among the installed modules, so no
-implants were made. The zero flagged count on this route therefore says less than the dequantised
-zero did: the instrument was not shown to be armed.
+**The positive control ran, and this route's floor is coarser than the dequantised one.** Multiplying
+the installed `weight_scale` of `image_proj_model.proj.0` by (1+d), 1e-4 through 3e-2 stayed inside
+the control distribution and **1e-1 resolved** at 1-cos 5.117999e-04 against the 1.068120e-04
+threshold. Incrementing int8 codes by 8 resolved at 1 % of the layer (1.627270e-04) and not at 0.1 %
+(6.404910e-05).
+
+So the instrument is shown armed at a 10 % scale change, or 1 % of codes shifted by 8. The zero
+flagged count over 55 candidates is a measured zero at that floor. It sits above the dequantised
+run's 1 %-of-norm implant: measuring through the kernel costs sensitivity, and that cost is stated
+rather than hidden.
 
 
 **The render, on A1111.** 512x512, 12 steps, cfg 7.0, DPM++ 2M Karras, seed 42, weight 0.8, module
