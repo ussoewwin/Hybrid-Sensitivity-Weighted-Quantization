@@ -1,5 +1,5 @@
 {
- "tool": "audit/ipadapter_faceid_pack_audit.py (CN-2 census) + loader tree scan",
+ "tool": "audit/ipadapter_faceid_pack_audit.py (CN-2 census) + audit/ipadapter_faceid_route_probe.py",
  "family": "faceid",
  "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
  "declared_layers": 102,
@@ -9,6 +9,7 @@
   "to_v_ip": 16,
   "lora_down": 68
  },
+ "correction": "The first version of this record said 'no route on this machine'. That was written after looking at ComfyUI only. A1111 and Forge were not looked at, and both carry a route that takes this pack. This record is the re-measurement.",
  "routes_checked": {
   "comfyui_ipadapter_plus": {
    "entry": "comfyui_ipadapter_plus.utils.ipadapter_model_loader -> comfy.utils.load_torch_file(safe_load=True)",
@@ -19,6 +20,60 @@
     "consequence": "MLPProjModelFaceId.load_state_dict raises on the int8 tensors"
    },
    "verdict": "not applied"
+  },
+  "a1111": {
+   "entry": "extensions-builtin/sd-webui-controlnet/scripts/ipadapter/ipadapter_model.py -> IPAdapterModel.__init__ -> modules/ipadapter_int8_convrot.py (prepare_state_dict / install_runtime_int8 / load_prepared)",
+   "module_bytes": 12449,
+   "interprets_comfy_quant": true,
+   "measured": {
+    "import_modules_ipadapter_int8_convrot": true,
+    "comfy_kitchen_int8_linear_available": true,
+    "state_dict_has_convrot_int8": {
+     "image_proj": true,
+     "ip_adapter": true
+    },
+    "IPAdapterModel_load": true,
+    "installed_int8_linears": 102,
+    "installed_breakdown": {
+     "image_proj": 2,
+     "ip_adapter_tokvs": 100
+    },
+    "float_parameters": 294,
+    "forward": {
+     "ok": true,
+     "cond_shape": [
+      1,
+      4,
+      768
+     ],
+     "finite": true,
+     "int8_linear_calls": 4,
+     "note": "image_proj is 2 layers x (cond, uncond) = 4 kernel calls"
+    }
+   },
+   "verdict": "applied - the pack runs as ConvRot INT8 on this route"
+  },
+  "forge": {
+   "entry": "backend/operations_mixed_precision.py _load_quantized_module (L75-76 json.loads, L118-119 convrot flag) -> ck.int8_linear(convrot=True)",
+   "module": "backend/operations_mixed_precision.py, extensions-builtin/sd_forge_ipadapter/lib_ipadapter/IPAdapterPlus.py (34,871 B)",
+   "interprets_comfy_quant": true,
+   "measured": {
+    "comfy_kitchen_version": "0.2.41",
+    "comfy_quant_markers": 102,
+    "marker_decoded": {
+     "format": "int8_tensorwise",
+     "convrot": true,
+     "convrot_groupsize": 256
+    },
+    "quantised_linears_loaded": 102,
+    "load_failures": 0,
+    "forward": {
+     "layers": 3,
+     "all_finite": true,
+     "int8_linear_calls": 3
+    }
+   },
+   "verdict": "applied - the pack loads and runs through Forge's quantised Linear"
   },
   "comfyui_stock": {
    "entry": "no stock IP-Adapter node exists in ComfyUI",
@@ -32,5 +87,5 @@
    "verdict": "no route"
   }
  },
- "conclusion": "No route on this machine executes the pack as ConvRot INT8. The node's loader hands the raw int8 codes to a float module, and the load fails before a forward can run."
+ "conclusion": "Two routes on this machine run the pack as ConvRot INT8: A1111 (102 of 102 layers installed, kernel fires) and Forge (102 of 102 layers loaded, kernel fires). The ComfyUI IP-Adapter Plus path does not, and fails loudly at load_state_dict. The earlier statement that the machine had no route was wrong."
 }

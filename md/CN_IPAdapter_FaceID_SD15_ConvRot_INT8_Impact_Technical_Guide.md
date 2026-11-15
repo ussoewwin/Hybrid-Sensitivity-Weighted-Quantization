@@ -74,15 +74,26 @@ The pack's weights are `int8_tensorwise` with `convrot` stamps and a group size 
 that reads the file with `load_torch_file(safe_load=True)` and never interprets `comfy_quant` hands
 the int8 code tensors to the model's float modules.
 
-**Measured on this machine:** `comfyui_ipadapter_plus.utils.ipadapter_model_loader` does exactly
-that. It rebuilds `image_proj` / `ip_adapter` from the flat key names and passes the tensors
-straight to the modules, so **100 of 100 declared ip_adapter weights arrive as raw int8 codes**
-(`records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_raw_int8_codes`). The load then
-fails before a forward: `MLPProjModelFaceId.load_state_dict` raises on the int8 tensors.
+**Measured on this machine, ComfyUI path:** `comfyui_ipadapter_plus.utils.ipadapter_model_loader`
+reads with `load_torch_file(safe_load=True)` and rebuilds `image_proj` / `ip_adapter` from the flat
+key names without looking at `comfy_quant`, so **100 of 100 declared ip_adapter weights arrive as raw
+int8 codes** (`records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_raw_int8_codes`).
+The load then fails before a forward: `MLPProjModelFaceId.load_state_dict` raises on the int8
+tensors. That path does not take the pack.
 
-**No other route exists here.** `custom_nodes/ComfyUI-HSWQ-Loader-and-Tools` has no IP-Adapter node
-(measured: zero matches for `ipadapter` in its `__init__.py`), and ComfyUI stock ships no IP-Adapter
-node. The census is `records/cn_ipadapter_faceid_sd15_route.json`.
+**Two other loaders on this machine do take it**, and both were run against this exact file
+(`records/cn_ipadapter_faceid_sd15_route.json`):
+
+| loader | what it does | measured |
+| :--- | :--- | :--- |
+| A1111 | `modules/ipadapter_int8_convrot.py` (12,449 B), IP-Adapter-only: strips `*.weight_scale` / `*.comfy_quant` before the float load, installs the int8 payload as an instance-level forward bound to `comfy_kitchen.int8_linear(convrot=True, groupsize)` | **102 of 102 layers installed** (2 `image_proj` + 100 `ip_adapter`), forward `[1,4,768]` finite, **4 kernel calls** |
+| Forge | `backend/operations_mixed_precision.py` reads the marker at L75-76, sets the convrot flag at L118-119, dispatches to the same kernel | marker decoded `int8_tensorwise` / convrot true / groupsize 256, **102 of 102 loaded**, 3-layer forward finite, **3 kernel calls** |
+
+**Correction.** An earlier version of this section said no route existed. It was written after
+inspecting ComfyUI alone. A1111 and Forge were not inspected, and both carry a route that runs this
+pack. `ComfyUI-HSWQ-Loader-and-Tools` has no IP-Adapter node (measured: zero matches for `ipadapter`
+in its `__init__.py`) and ComfyUI stock ships none - that part stands - but the machine is not
+limited to ComfyUI.
 
 ---
 
@@ -243,9 +254,9 @@ distribution's edge.
 | source | latent `[1,4,64,64]`, finite, NaN 0, Inf 0, PNG 384,606 B, 2.5 s - inspected, a photographed-style street scene with the identity applied, no artefacts |
 | pack | **fails before sampling**: `MLPProjModelFaceId.load_state_dict` raises on the raw int8 codes |
 
-The image was inspected, not inferred. **No image exists for the pack**, and none is implied:
-without a route that interprets `comfy_quant`, the only honest statement is that this machine
-cannot render it.
+The image was inspected, not inferred. **No image exists for the pack.** The pack does execute on
+A1111 and Forge (section 2), but no full sampling pass with the adapter attached was run, so this
+guide records no render for it.
 
 ---
 
@@ -293,12 +304,13 @@ python audit/ipadapter_faceid_gate_and_trigger.py \
 
 ## 9. Error sources and limits
 
-- **No INT8 route exists on this machine.** CN-2 measures 100 of 100 declared ip_adapter weights
-  arriving as raw int8 codes, and the model's `load_state_dict` rejects them. Every acceptance
-  number in section 7 therefore measures the **quantisation**, with the pack's codes dequantised
-  into the source structure - not a forward through the INT8 kernel. The INT8 kernel was exercised
-  separately (CN-3: 102 calls over 102 layer forwards, all finite), but not end-to-end through the
-  node.
+- **The ComfyUI IP-Adapter Plus path does not take the pack; A1111 and Forge do.** CN-2 measures 100
+  of 100 declared ip_adapter weights arriving as raw int8 codes on the ComfyUI path, and that
+  model's `load_state_dict` rejects them. On A1111 all 102 layers are installed and the kernel fires
+  (4 calls in one forward); on Forge all 102 load and the kernel fires (3 calls over 3 layers). The
+  acceptance numbers in section 7 were produced with the pack's codes dequantised into the source
+  structure - they measure the **quantisation**, and they are not re-labelled as numbers from an
+  INT8-route forward.
 - **The observable is the adapter's stage output, not a sampled image.** It isolates the
   quantisation from the base model. It does not bound the pack's effect on a render, because no
   render of the pack exists here.
@@ -325,7 +337,8 @@ python audit/ipadapter_faceid_gate_and_trigger.py \
 | :--- | :--- | :--- |
 | 1 | `diag_impact_ipadapter_faceid_sd15.py` | 162 groups, max 1.407497e-04, median 6.752623e-05, p90 1.061702e-04, 0 above 0.15, 0 not quantisable, 5 s |
 | 2 | `convert_ipadapter_convrot_int8.py` | 102 INT8, 60 kept, 132 not quantiser inputs, 65,047,130 B, -32.8 % |
-| 3 | `ipadapter_faceid_pack_audit.py` | CN-1 FAITHFUL 102/102, q_mismatch 0, max_q_delta 0, scale 0.0, float 192/192 bit-identical; CN-2 not applied, 100 raw codes; CN-3 102 INT8 calls, all finite |
+| 3 | `ipadapter_faceid_pack_audit.py` | CN-1 FAITHFUL 102/102, q_mismatch 0, max_q_delta 0, scale 0.0, float 192/192 bit-identical; CN-2 ComfyUI path not applied (100 raw codes); CN-3 102 INT8 calls, all finite |
+| 3b | `ipadapter_faceid_route_probe.py` | A1111: 102/102 installed, 4 kernel calls, finite; Forge: 102/102 loaded, 3 kernel calls, finite |
 | 4 | `ipadapter_faceid_image_test.py` | CN-4 source renders (384,606 B, 2.5 s, inspected); pack fails at `load_state_dict` |
 | 5 | `ipadapter_faceid_gate_and_trigger.py` | CN-5a image_proj cos 0.999999525, 68 LoRA pairs cos_min 0.999961097; CN-5b 55 candidates, control p99 7.240575e-07, flagged 0, floor 0.01; CN-6 mean 0.999999655, min 0.999999533, n 222, PASS |
 
@@ -342,7 +355,7 @@ python audit/ipadapter_faceid_gate_and_trigger.py \
 | `records/cn_ipadapter_faceid_sd15_image_trigger.json` | CN-5b, the 55 candidates and the positive-control ladder |
 | `records/cn_ipadapter_faceid_sd15_image_test.json` | CN-4, the source render and the pack's load failure |
 | `records/cn_ipadapter_faceid_sd15_image_test.png` | the source render |
-| `records/cn_ipadapter_faceid_sd15_route.json` | the route census: what each loader does with the pack |
+| `records/cn_ipadapter_faceid_sd15_route.json` | the route census: ComfyUI does not take the pack, A1111 and Forge do (both measured) |
 
 ### Retraction
 
@@ -350,5 +363,9 @@ The version of this guide dated 2026-11-14 is withdrawn. It cited
 `records/cn_ipadapter_faceid_sd15_gate_256.json`, which did not exist; it recorded
 `294/294` as audited when 102 layers were quantised; it reported `protected: 0` against the
 converter's 60; it named a `control_p99` of `0.0`; and it omitted the loader route, the trigger
-search and the render entirely. Every number above is a fresh measurement against the file whose
+search and the render entirely.
+
+A second correction, from 2026-11-15: the first rewrite called the loader route "not applied" for
+the whole machine. That was measured on ComfyUI only. A1111 and Forge both run this pack with the
+kernel firing (section 2); that is now what the record says. Every number above is a fresh measurement against the file whose
 sha256 is stated at the top.

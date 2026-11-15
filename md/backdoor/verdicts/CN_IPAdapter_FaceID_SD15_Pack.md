@@ -54,14 +54,17 @@ A FaceID adapter carries `to_k_lora.up` without a matching `down` - the UNet own
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 100 | declared ip_adapter weights the node's loader hands on as raw int8 codes | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_raw_int8_codes` | the codes reach the module unconverted |
-| 0 | declared layers backed by a quantised parameter | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_int8` | no layer takes an INT8 path |
-| not applied | the route's verdict | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.verdict` | the loader does not interpret `comfy_quant` |
-| 102 | INT8 GEMM calls when the declared layers are built as quantised modules | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN3.int8_linear_calls` | the kernel itself runs, on all 102 |
-| 0 | IP-Adapter nodes in the installed HSWQ loader tree | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.hswq_loader` | no second route to fall back on |
+| 100 | declared ip_adapter weights the ComfyUI node's loader hands on as raw int8 codes | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_raw_int8_codes` | on that one route the codes reach the module unconverted |
+| 0 | declared layers backed by a quantised parameter on the ComfyUI route | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_int8` | that route fails loudly at `load_state_dict` |
+| **102** | INT8 Linears installed by A1111 (2 `image_proj` + 100 `ip_adapter`) | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.a1111.measured.installed_int8_linears` | **the pack runs as ConvRot INT8 here** |
+| **4** | INT8 kernel calls in an A1111 forward (2 layers x cond/uncond) | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.a1111.measured.forward.int8_linear_calls` | the kernel fires, output finite |
+| **102** | quantised Linears Forge loads from the pack | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.forge.measured.quantised_linears_loaded` | **the pack runs as ConvRot INT8 here too** |
+| **3** | INT8 kernel calls over 3 Forge layers | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.forge.measured.forward.int8_linear_calls` | the kernel fires, all finite |
+| int8_tensorwise / convrot true / groupsize 256 | what Forge decodes from the marker | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.forge.measured.marker_decoded` | the marker is read, not skipped |
+| 0 | IP-Adapter nodes in the installed HSWQ loader tree | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.hswq_loader` | no route there |
 | 0 | stock ComfyUI IP-Adapter nodes | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.comfyui_stock` | same |
 
-`comfyui_ipadapter_plus.utils.ipadapter_model_loader` reads with `load_torch_file(safe_load=True)` and rebuilds the nested dict; it never looks at `comfy_quant`. `MLPProjModelFaceId.load_state_dict` then raises on the int8 tensors, so the failure is loud - the pack cannot be silently mis-run.
+**Correction.** The first version of this section said the machine had no route. That was written after looking at ComfyUI only, and it was wrong. A1111 carries `modules/ipadapter_int8_convrot.py` (12,449 B) - an IP-Adapter-only ConvRot INT8 runtime that strips the sidecar keys, installs the int8 payload in place and binds an instance forward to `comfy_kitchen.int8_linear(convrot=True, groupsize)`. Forge carries `backend/operations_mixed_precision.py`, which reads `comfy_quant` at L75-76, sets the convrot flag at L118-119 and dispatches to the same kernel. Both were run against this pack: 102 of 102 layers on each, kernel fired. The ComfyUI IP-Adapter Plus path remains the one that does not apply it.
 
 ## 6. Acceptance
 
@@ -110,11 +113,11 @@ The positive control resolved an implant at **1 % of the weight norm**, two orde
 - the 256-item gate passes at mean 0.999999655 / min 0.999999533 over 222 scored items
 - 0 of 55 image candidates left the natural-transform distribution, against a floor of 1 % of the weight norm
 
-**What this verdict does not cover** is the execution: no route on this machine runs the pack, so nothing here is a statement about a forward through the INT8 kernel end to end, and nothing here is a statement about a rendered image from the pack.
+**What this verdict does not cover** is a rendered image from the pack. The pack does execute: A1111 installs all 102 INT8 layers and fires the kernel, Forge loads all 102 and fires the kernel. What has not been run is a full sampling pass with the adapter attached, so the acceptance numbers above remain measurements of the quantisation, not of a picture.
 
 ## LIMITS
 
-- **No INT8 route exists here.** 100 of 100 declared ip_adapter weights arrive as raw int8 codes and the model's load rejects them. Every acceptance number measures the quantisation with codes dequantised into the source structure.
+- **Two routes execute the pack, one does not.** A1111 and Forge both run all 102 INT8 layers with the kernel firing; the ComfyUI IP-Adapter Plus path does not and fails at `load_state_dict`. The acceptance numbers in section 6 still measure the quantisation with codes dequantised into the source structure - they were produced that way before the routes were measured, and are not re-labelled as INT8-route numbers.
 - **The observable is the adapter's stage output, not a sampled image.** It isolates the quantisation from the base model. It does not bound the pack's effect on a render, because no render of the pack exists.
 - **34 of 256 gate items had no detectable face** and are excluded from the 222 scored. A gate that drops items is weaker than one that does not.
 - **The control distribution is thin and very tight.** Four natural transforms on one image, maximum 4.8e-07. The threshold inherits that thinness.
