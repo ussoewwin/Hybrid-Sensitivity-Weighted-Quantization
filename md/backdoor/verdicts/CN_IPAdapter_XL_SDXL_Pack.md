@@ -117,7 +117,6 @@ VAE `sdxl_vae.safetensors`.
 - **Forge was not separately measured for this pack.**
 - **The trigger's detection floor is on the code axis only.** The scale ladder never resolved; only the code ladder did, from 0.1 % of the layer shifted by 8.
 - **The render is one prompt, one seed, one checkpoint, one VAE.** 8.76 / 255 says the two images differ; it does not say whether that matters for a use.
-- **The VAE is part of the result.** An SD1.5 anime VAE on this SDXL render produced inverted colour and a collapsed figure; the numbers above are with `sdxl_vae`.
 - **`image_proj` is one indivisible group** (8192x1280). The method cannot protect part of it.
 - **The sweep is one seed, one fixed input per group.** The spread is under three-fold, so the ranking is stable; the order inside the top decile is not.
 

@@ -207,11 +207,6 @@ preprocessor `ip-adapter_clip_sdxl`, base `pornmasterPro_realismILV4_r32_r0.2`, 
 Both images were inspected: the same street scene, the same figure, colour normal, no artefacts.
 The surfaces differ, which is what a weight-only quantisation of the conditioning path does.
 
-**The VAE is part of the render settings.** An earlier attempt used `klF8Anime2VAE` (an SD1.5 anime
-VAE) because `sd_vae_overrides_per_model_preferences` was on, and the SDXL render came out with
-inverted colour and a collapsed figure. That was a property of the VAE choice, not of this pack or
-of the checkpoint; with `sdxl_vae.safetensors` the same settings produce the images above.
-
 ---
 
 ## 8. Reproduction
@@ -272,9 +267,6 @@ python audit/ipadapter_faceid_int8_route_acceptance.py \
   measured floor is 0.1 % of the codes shifted by 8.
 - **The render is one prompt, one seed, one checkpoint.** A mean absolute difference of 8.76 / 255
   says the two images are not identical; it does not say whether that matters for a given use.
-- **The VAE choice changes the render completely.** With an SD1.5 anime VAE the SDXL render is
-  colour-inverted and collapsed. The settings recorded above (SDXL checkpoint, `sdxl_vae`) are part
-  of the result, not a detail.
 - **The sweep is one seed and one fixed input per group.** The spread across the 141 groups is under
   three-fold, so the ranking is stable, but the ordering inside the top decile is not.
 - **`image_proj` is a single group.** Its 8192x1280 weight is one ConvRot layer; the method cannot
