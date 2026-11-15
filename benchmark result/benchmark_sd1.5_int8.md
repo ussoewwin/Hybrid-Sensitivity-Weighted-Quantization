@@ -21,19 +21,19 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | Model | Setup | HSWQ Mean Cosine (↑) | Native Mean Cosine (↑) | Δ Cosine | HSWQ Mean MSE (↓) | Native Mean MSE (↓) | HSWQ Bifurcated (↓) | Native Bifurcated (↓) | HSWQ Speedup (↑) | Winner |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **0.5xxmix9realistic_v40 0.5BRA7** | 1on k80 | **0.97542** | 0.96265 | **+0.01277** | **1.0432** | 1.4793 | **16/25 (0%)** | 13/25 (0%) | **+23.2%** | **HSWQ** |
-| **0.5xxmix9realistic_v40+0.5chilledReGenericV3** | 1on k80 | **0.95362** | 0.92644 | **+0.02719** | **1.3338** | 2.1379 | **10/25 (0%)** | 7/25 (0%) | **+20.1%** | **HSWQ** |
+| **0.5xxmix9realistic_v40+0.5chilledReGenericV3** | 1on k80 | **0.95362** | 0.92644 | **+0.02718** | **1.3338** | 2.1379 | **10/25 (0%)** | 7/25 (0%) | **+20.1%** | **HSWQ** |
 | **0.5yayoiMix_v25+0.5againmix_v22** | 1on k80 | **0.97642** | 0.96010 | **+0.01632** | **1.0225** | 1.7696 | **18/25 (0%)** | 11/25 (0%) | **+38.6%** | **HSWQ** |
-| **0.5yayoiMix_v25+0.5voidnoisecore_r1733** | 1on k80 | 0.97461 | **0.97518** | **−0.00057** | **0.7950** | 0.8165 | **16/25 (0%)** | 15/25 (0%) | **+35.1%** | **Native** |
-| **0.5yayoiMix_v25+0.5xxmix9realistic_v40** | 1on k80 | **0.96321** | 0.94839 | **+0.01483** | **1.1880** | 1.8368 | **16/25 (0%)** | 12/25 (0%) | **+31.3%** | **HSWQ** |
-| **0.7_0.6hassaku+0.4dreamshaper+0.3anylora** | 1on k80 | **0.98061** | 0.95456 | **+0.02605** | **0.6839** | 1.7171 | **16/25 (0%)** | 9/25 (0%) | **+15.1%** | **HSWQ** |
-| **0.7_0.7hassaku+0.3dreamshaper_8_0.3anylora** | 1on k82 | **0.96012** | 0.94130 | **+0.01882** | **1.2980** | 1.9021 | **14/25 (0%)** | 11/25 (0%) | **+22.6%** | **HSWQ** |
-| **0.7chilledReGenericV3+0.3uberRealisticMerge_v13** | 1on k80 | **0.97332** | 0.95932 | **+0.01400** | **0.7196** | 1.0755 | **15/25 (0%)** | 13/25 (0%) | **+25.1%** | **HSWQ** |
+| **0.5yayoiMix_v25+0.5voidnoisecore_r1733** | 1on k80 | 0.97461 | **0.97517** | −0.00056 | **0.7950** | 0.8165 | **16/25 (0%)** | 15/25 (0%) | **+35.1%** | Native |
+| **0.5yayoiMix_v25+0.5xxmix9realistic_v40** | 1on k80 | **0.96321** | 0.94839 | **+0.01482** | **1.1880** | 1.8368 | **16/25 (0%)** | 12/25 (0%) | **+31.3%** | **HSWQ** |
+| **0.7_0.6hassaku+0.4dreamshaper+0.3anylora** | 1on k80 | **0.98061** | 0.95456 | **+0.02605** | **0.6838** | 1.6371 | **16/25 (0%)** | 9/25 (0%) | **+15.1%** | **HSWQ** |
+| **0.7_0.7hassaku+0.3dreamshaper_8_0.3anylora** | 1on k82 | **0.96012** | 0.94130 | **+0.01882** | **1.3003** | 1.9021 | **14/25 (0%)** | 11/25 (0%) | **+22.6%** | **HSWQ** |
+| **0.7chilledReGenericV3+0.3uberRealisticMerge_v13** | 1on k80 | **0.97332** | 0.95932 | **+0.01400** | **0.7180** | 1.0755 | **15/25 (0%)** | 13/25 (0%) | **+25.1%** | **HSWQ** |
 | **0.7xxmix9realistic_v40+0.3BRA7** | 1on k80 | **0.97332** | 0.96174 | **+0.01158** | **0.9861** | 1.5077 | **18/25 (0%)** | 16/25 (0%) | **+24.5%** | **HSWQ** |
-| **0.9chilledReGenericV3+0.1BRA7** | 1on k80 | **0.97352** | 0.96501 | **+0.00851** | **0.7374** | 0.9495 | **16/25 (0%)** | 14/25 (0%) | **+24.1%** | **HSWQ** |
-| **0.9chilledReGenericV3+0.1majicmixRealistic_v7** | 1on k80 | **0.98043** | 0.96837 | **+0.01206** | **0.5168** | 0.7227 | **19/25 (0%)** | 14/25 (0%) | **+8.7%** | **HSWQ** |
+| **0.9chilledReGenericV3+0.1BRA7** | 1on k80 | **0.97352** | 0.96501 | **+0.00851** | **0.7374** | 0.9488 | **16/25 (0%)** | 14/25 (0%) | **+24.1%** | **HSWQ** |
+| **0.9chilledReGenericV3+0.1majicmixRealistic_v7** | 1on k80 | **0.98043** | 0.96837 | **+0.01206** | **0.5184** | 0.7346 | **19/25 (0%)** | 14/25 (0%) | **+8.7%** | **HSWQ** |
 | **againmix_v22** | 1on k80 | **0.96171** | 0.94865 | **+0.01306** | **1.8043** | 2.3448 | **10/25 (0%)** | 6/25 (0%) | **+25.1%** | **HSWQ** |
 | **calicomix_v95** | 1on k80 | **0.97720** | 0.96554 | **+0.01166** | **1.0223** | 1.4930 | **18/25 (0%)** | 13/25 (0%) | **+21.0%** | **HSWQ** |
-| **Family Average** | — | **0.97104** | 0.95671 | **+0.01433** | **1.0116** | 1.5194 | **202/325 (0.0%)** | 154/325 (0.0%) | **+24.2%** | **HSWQ (12/13 models)** |
+| **Family Average** | — | **0.97104** | 0.95671 | **+0.01433** | **1.0118** | 1.5141 | **202/325 (0.0%)** | 154/325 (0.0%) | **+24.2%** | **HSWQ (12/13 models)** |
 
 **Winner** = better on both mean cosine and mean MSE.
 
@@ -211,7 +211,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **2683910547** | 0.99019 | **0.99619** | −0.00600 | 0.2475 | **0.0966** | +0.1509 | same-image | same-image | Native |
 | **3851729406** | 0.94864 | **0.95012** | −0.00148 | 2.2810 | **2.2140** | +0.0670 | drifted (different image) | drifted (different image) | Native |
 | **4195820371** | **0.99750** | 0.98872 | +0.00878 | **0.1008** | 0.4543 | −0.3535 | same-image | same-image | **HSWQ** |
-| **Mean** | 0.97461 | **0.97518** | −0.00057 | 0.7950 | 0.8165 | −0.0215 | **0/25 Bifurcated** | **0/25 Bifurcated** | **Native** (10/25) |
+| **Mean** | 0.97461 | **0.97518** | −0.00057 | **0.7950** | 0.8165 | **−0.0215** | **0/25 Bifurcated** | **0/25 Bifurcated** | **Native** (10/25) |
 
 ### 2.5. 0.5yayoiMix_v25+0.5xxmix9realistic_v40 (1on k80)
 
@@ -264,7 +264,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **Mean Final Cosine** (↑ better) | **0.98061** | 0.95456 | **+0.02605** |
 | **Min Final Cosine** (↑ better) | **0.91963** | 0.81359 | **+0.10604** |
 | **Max Final Cosine** (↑ better) | **0.99944** | 0.99873 | **+0.00071** |
-| **Mean Final Latent MSE** (↓ better) | **0.6839** | 1.7171 | **−1.0332 (60.2% error reduction)** |
+| **Mean Final Latent MSE** (↓ better) | **0.6838** | 1.6371 | **−0.9533 (58.2% error reduction)** |
 | **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | **0/25 (0%)** | **Zero bifurcations** |
 | **Speedup (avg wall/seed)** (↑ better) | +15.1% (1.83s → 1.55s) | **+37.5%** (2.24s → 1.40s) | — |
 | **Trajectory Verdict** | 16/25 same-image, 9/25 drifted | 9/25 same-image, 16/25 drifted | **HSWQ preserves trajectory structure** |
@@ -297,7 +297,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **2683910547** | **0.98625** | 0.96722 | **+0.01903** | **0.3442** | 0.8334 | **−0.4892** | same-image | drifted (different image) | **HSWQ** |
 | **3851729406** | **0.99875** | 0.99417 | **+0.00458** | **0.0649** | 0.3066 | **−0.2417** | same-image | same-image | **HSWQ** |
 | **4195820371** | **0.99071** | 0.91914 | **+0.07157** | **0.3203** | 2.8740 | **−2.5537** | same-image | drifted (different image) | **HSWQ** |
-| **Mean** | **0.98061** | 0.95456 | **+0.02605** | **0.6839** | 1.7171 | **−1.0332** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (23/25)** |
+| **Mean** | **0.98061** | 0.95456 | **+0.02605** | **0.6838** | 1.6371 | **−0.9533** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (23/25)** |
 
 ### 2.7. 0.7_0.7hassaku+0.3dreamshaper_8_0.3anylora (1on k82)
 
@@ -307,7 +307,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **Mean Final Cosine** (↑ better) | **0.96012** | 0.94130 | **+0.01882** |
 | **Min Final Cosine** (↑ better) | **0.69419** | 0.63851 | **+0.05568** |
 | **Max Final Cosine** (↑ better) | **0.99911** | 0.99675 | **+0.00236** |
-| **Mean Final Latent MSE** (↓ better) | **1.2980** | 1.9021 | **−0.6041 (31.8% error reduction)** |
+| **Mean Final Latent MSE** (↓ better) | **1.3003** | 1.9021 | **−0.6017 (31.6% error reduction)** |
 | **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | **0/25 (0%)** | **Zero bifurcations** |
 | **Speedup (avg wall/seed)** (↑ better) | +22.6% (1.71s → 1.32s) | **+28.0%** (1.91s → 1.37s) | — |
 | **Trajectory Verdict** | 14/25 same-image, 11/25 drifted | 11/25 same-image, 14/25 drifted | **HSWQ preserves trajectory structure** |
@@ -340,7 +340,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **2683910547** | **0.99688** | 0.93369 | **+0.06319** | **0.0826** | 1.7930 | **−1.7104** | same-image | drifted (different image) | **HSWQ** |
 | **3851729406** | 0.99558 | **0.99570** | −0.00012 | 0.2280 | **0.2215** | +0.0065 | same-image | same-image | Native |
 | **4195820371** | **0.99348** | 0.95754 | **+0.03594** | **0.2372** | 1.5840 | **−1.3468** | same-image | drifted (different image) | **HSWQ** |
-| **Mean** | **0.96012** | 0.94130 | **+0.01882** | **1.2980** | 1.9021 | **−0.6041** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (21/25)** |
+| **Mean** | **0.96012** | 0.94130 | **+0.01882** | **1.3003** | 1.9021 | **−0.6017** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (21/25)** |
 
 ### 2.8. 0.7chilledReGenericV3+0.3uberRealisticMerge_v13 (1on k80)
 
@@ -350,7 +350,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **Mean Final Cosine** (↑ better) | **0.97332** | 0.95932 | **+0.01400** |
 | **Min Final Cosine** (↑ better) | **0.87372** | 0.79971 | **+0.07401** |
 | **Max Final Cosine** (↑ better) | **0.99942** | 0.99865 | **+0.00077** |
-| **Mean Final Latent MSE** (↓ better) | **0.7196** | 1.0755 | **−0.3559 (33.1% error reduction)** |
+| **Mean Final Latent MSE** (↓ better) | **0.7180** | 1.0755 | **−0.3574 (33.2% error reduction)** |
 | **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | **0/25 (0%)** | **Zero bifurcations** |
 | **Speedup (avg wall/seed)** (↑ better) | **+25.1%** (1.77s → 1.33s) | +21.9% (1.82s → 1.42s) | — |
 | **Trajectory Verdict** | 15/25 same-image, 10/25 drifted | 13/25 same-image, 12/25 drifted | **HSWQ preserves trajectory structure** |
@@ -383,7 +383,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **2683910547** | 0.99505 | **0.99865** | −0.00360 | 0.1290 | **0.0352** | +0.0938 | same-image | same-image | Native |
 | **3851729406** | **0.99940** | 0.99379 | **+0.00561** | **0.0181** | 0.1873 | **−0.1692** | same-image | same-image | **HSWQ** |
 | **4195820371** | **0.99842** | 0.89677 | **+0.10165** | **0.0415** | 2.7310 | **−2.6895** | same-image | drifted (different image) | **HSWQ** |
-| **Mean** | **0.97332** | 0.95932 | **+0.01400** | **0.7196** | 1.0755 | **−0.3559** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (15/25)** |
+| **Mean** | **0.97332** | 0.95932 | **+0.01400** | **0.7180** | 1.0755 | **−0.3574** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (15/25)** |
 
 ### 2.9. 0.7xxmix9realistic_v40+0.3BRA7 (1on k80)
 
@@ -436,7 +436,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **Mean Final Cosine** (↑ better) | **0.97352** | 0.96501 | **+0.00851** |
 | **Min Final Cosine** (↑ better) | **0.70374** | 0.69914 | **+0.00460** |
 | **Max Final Cosine** (↑ better) | **0.99954** | 0.99844 | **+0.00110** |
-| **Mean Final Latent MSE** (↓ better) | **0.7374** | 0.9495 | **−0.2121 (22.3% error reduction)** |
+| **Mean Final Latent MSE** (↓ better) | **0.7374** | 0.9488 | **−0.2114 (22.3% error reduction)** |
 | **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | **0/25 (0%)** | **Zero bifurcations** |
 | **Speedup (avg wall/seed)** (↑ better) | **+24.1%** (1.77s → 1.34s) | +16.2% (1.74s → 1.46s) | — |
 | **Trajectory Verdict** | 16/25 same-image, 9/25 drifted | 14/25 same-image, 11/25 drifted | **HSWQ preserves trajectory structure** |
@@ -469,7 +469,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **2683910547** | **0.99700** | 0.99398 | **+0.00302** | **0.0753** | 0.1478 | **−0.0725** | same-image | same-image | **HSWQ** |
 | **3851729406** | **0.97745** | 0.93272 | **+0.04473** | **0.7200** | 2.1370 | **−1.4170** | drifted (different image) | drifted (different image) | **HSWQ** |
 | **4195820371** | **0.93647** | 0.91643 | **+0.02004** | **1.5320** | 2.0250 | **−0.4930** | drifted (different image) | drifted (different image) | **HSWQ** |
-| **Mean** | **0.97352** | 0.96501 | **+0.00851** | **0.7374** | 0.9495 | **−0.2121** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (20/25)** |
+| **Mean** | **0.97352** | 0.96501 | **+0.00851** | **0.7374** | 0.9488 | **−0.2114** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (20/25)** |
 
 ### 2.11. 0.9chilledReGenericV3+0.1majicmixRealistic_v7 (1on k80)
 
@@ -479,7 +479,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **Mean Final Cosine** (↑ better) | **0.98043** | 0.96837 | **+0.01206** |
 | **Min Final Cosine** (↑ better) | 0.86281 | **0.87371** | −0.01090 |
 | **Max Final Cosine** (↑ better) | **0.99979** | 0.99785 | **+0.00194** |
-| **Mean Final Latent MSE** (↓ better) | **0.5168** | 0.7227 | **−0.2059 (28.5% error reduction)** |
+| **Mean Final Latent MSE** (↓ better) | **0.5184** | 0.7346 | **−0.2162 (29.4% error reduction)** |
 | **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | **0/25 (0%)** | **Zero bifurcations** |
 | **Speedup (avg wall/seed)** (↑ better) | +8.7% (1.82s → 1.66s) | **+25.2%** (1.82s → 1.36s) | — |
 | **Trajectory Verdict** | 19/25 same-image, 6/25 drifted | 14/25 same-image, 11/25 drifted | **HSWQ preserves trajectory structure** |
@@ -512,7 +512,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | **2683910547** | **0.99641** | 0.99451 | **+0.00190** | **0.0860** | 0.1329 | **−0.0469** | same-image | same-image | **HSWQ** |
 | **3851729406** | **0.99647** | 0.99503 | **+0.00144** | **0.1115** | 0.1581 | **−0.0466** | same-image | same-image | **HSWQ** |
 | **4195820371** | **0.99024** | 0.98023 | **+0.01001** | **0.2370** | 0.4710 | **−0.2340** | same-image | same-image | **HSWQ** |
-| **Mean** | **0.98043** | 0.96837 | **+0.01206** | **0.5168** | 0.7227 | **−0.2059** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (23/25)** |
+| **Mean** | **0.98043** | 0.96837 | **+0.01206** | **0.5184** | 0.7346 | **−0.2162** | **0/25 Bifurcated** | **0/25 Bifurcated** | **HSWQ (23/25)** |
 
 ---
 
@@ -610,7 +610,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 2. **Cosine gain:** the family mean final cosine is 0.97104 for HSWQ vs 0.95671 for Native (+0.01433 gain). HSWQ is ahead on mean cosine in 12/13 models; the fourth checkpoint is the exception - see finding 8.
 
-3. **Latent MSE reduction:** family mean final latent MSE is 1.0116 (HSWQ) vs 1.5194 (Native), about 33.4% lower error.
+3. **Latent MSE reduction:** family mean final latent MSE is 1.0118 (HSWQ) vs 1.5141 (Native), about 33.2% lower error.
 
 4. **Worst-case robustness:** the worst per-model minimum cosine is 0.69419 (HSWQ) vs 0.63851 (Native) observed on the seventh checkpoint; HSWQ prevents the near-bifurcation collapse seen in Native.
 
@@ -624,17 +624,17 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 9. **The fifth checkpoint returns the widest same-image margin of the set.** `0.5yayoiMix_v25+0.5xxmix9realistic_v40` gives HSWQ 16/25 against 12/25 for Native, a gap of 4, and its per-seed cosine count follows (18/25 against 7/25). Its minimum cosine (0.74845) is the second lowest of the five HSWQ arms, so the family worst case stays with the second checkpoint (0.74845).
 
-10. **The sixth checkpoint (`0.7_0.6hassaku+0.4dreamshaper+0.3anylora`) establishes the highest fidelity of the suite.** Reaches a mean final cosine of 0.98061 (vs 0.95456 Native, +0.02605 gain) with 16/25 same-image seeds (vs 9/25 Native) and a 60.2% latent MSE reduction (0.6839 vs 1.7171). HSWQ wins 23 of 25 seeds on this model.
+10. **The sixth checkpoint (`0.7_0.6hassaku+0.4dreamshaper+0.3anylora`) establishes the highest fidelity of the suite.** Reaches a mean final cosine of 0.98061 (vs 0.95456 Native, +0.02605 gain) with 16/25 same-image seeds (vs 9/25 Native) and a 58.2% latent MSE reduction (0.6838 vs 1.6371). HSWQ wins 23 of 25 seeds on this model.
 
 11. **The seventh checkpoint (`0.7_0.7hassaku+0.3dreamshaper_8_0.3anylora`) demonstrates high-protection stability on complex multi-model merges.** Evaluated under `1on k82`, HSWQ achieves a mean final cosine of 0.96012 vs 0.94130 (+0.01882) and 14/25 same-image seeds vs 11/25 for Native. Under Native quantization, seed 42 experiences severe degradation down to cosine 0.63851 with a step drop of 0.0469 (borderline bifurcation), whereas HSWQ maintains 0.88097, keeping the generation coherently anchored. HSWQ wins 21 of 25 seeds.
 
-12. **The eighth checkpoint (`0.7chilledReGenericV3+0.3uberRealisticMerge_v13`) shows robust MSE reduction.** Under `1on k80`, HSWQ reaches a mean final cosine of 0.97332 vs 0.95932 (+0.01400 gain) and cuts latent MSE from 1.0755 down to 0.7196 (33.1% error reduction). In severe native drift cases like seed 2024 (native 0.79971, MSE 3.9080) and seed 149206 (native 0.83337, MSE 4.5340), HSWQ preserves coherent trajectories at 0.92155 and 0.96974.
+12. **The eighth checkpoint (`0.7chilledReGenericV3+0.3uberRealisticMerge_v13`) shows robust MSE reduction.** Under `1on k80`, HSWQ reaches a mean final cosine of 0.97332 vs 0.95932 (+0.01400 gain) and cuts latent MSE from 1.0755 down to 0.7180 (33.2% error reduction). In severe native drift cases like seed 2024 (native 0.79971, MSE 3.9080) and seed 149206 (native 0.83337, MSE 4.5340), HSWQ preserves coherent trajectories at 0.92155 and 0.96974.
 
 13. **The ninth checkpoint (`0.7xxmix9realistic_v40+0.3BRA7`) demonstrates strong seed consistency.** Under `1on k80`, HSWQ achieves 0.97332 mean cosine vs 0.96174 Native (+0.01158 gain) and 18/25 same-image seeds vs 16/25 Native, reducing MSE from 1.5077 to 0.9861 (34.6% error reduction). HSWQ prevents extreme native tail degradation on seed 762019483 (native 0.86974, MSE 7.5330 -> HSWQ 0.97822, MSE 1.2570).
 
-14. **The tenth checkpoint (`0.9chilledReGenericV3+0.1BRA7`) highlights precision anchoring.** Evaluated under `1on k80`, HSWQ delivers 0.97352 mean cosine vs 0.96501 Native (+0.00851 gain) and cuts MSE from 0.9495 to 0.7374 (22.3% error reduction). Seed 826401 drifts under native (0.93259, MSE 1.7090) while HSWQ maintains 0.97873 (MSE 0.5463). HSWQ wins 20 of 25 seeds.
+14. **The tenth checkpoint (`0.9chilledReGenericV3+0.1BRA7`) highlights precision anchoring.** Evaluated under `1on k80`, HSWQ delivers 0.97352 mean cosine vs 0.96501 Native (+0.00851 gain) and cuts MSE from 0.9488 to 0.7374 (22.3% error reduction). Seed 826401 drifts under native (0.93259, MSE 1.7090) while HSWQ maintains 0.97873 (MSE 0.5463). HSWQ wins 20 of 25 seeds.
 
-15. **The eleventh checkpoint (`0.9chilledReGenericV3+0.1majicmixRealistic_v7`) delivers the highest same-image rate.** Reaches 0.98043 mean cosine vs 0.96837 Native (+0.01206 gain) and an impressive 19/25 same-image seeds (76%) vs 14/25 Native, with MSE reduced to 0.5168 vs 0.7227 (28.5% error reduction). Extreme native deviations on seed 2024 (native 0.89781, MSE 2.0100) and seed 4710928 (native 0.87371, MSE 2.3200) are completely eliminated by HSWQ (0.99390 and 0.99227). HSWQ wins 23 of 25 seeds.
+15. **The eleventh checkpoint (`0.9chilledReGenericV3+0.1majicmixRealistic_v7`) delivers the highest same-image rate.** Reaches 0.98043 mean cosine vs 0.96837 Native (+0.01206 gain) and an impressive 19/25 same-image seeds (76%) vs 14/25 Native, with MSE reduced to 0.5184 vs 0.7346 (29.4% error reduction). Extreme native deviations on seed 2024 (native 0.89781, MSE 2.0100) and seed 4710928 (native 0.87371, MSE 2.3200) are completely eliminated by HSWQ (0.99390 and 0.99227). HSWQ wins 23 of 25 seeds.
 
 16. **The twelfth checkpoint (`againmix_v22`) is the widest minimum-cosine gain of the set.** Under `1on k80`, HSWQ holds a mean final cosine of 0.96171 against 0.94865 for Native (+0.01306) and lifts the minimum from 0.77101 to 0.87077 (+0.09976). Seed 1938502 is the extreme case: Native drops to 0.77101 (MSE 8.9040) while HSWQ stays at 0.99538 (MSE 0.1845). Same-image seeds are 10/25 against 6/25, and latent MSE falls from 2.3448 to 1.8043 (23.0% reduction); the wall-clock gain is +25.1% against +18.3% for Native. HSWQ wins 18 of 25 seeds.
 
