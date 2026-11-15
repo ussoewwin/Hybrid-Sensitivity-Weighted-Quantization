@@ -57,10 +57,10 @@
         }
       },
       "widgets_values": [
-        "0.7_0.7hassakuHentaiModel+0.3dreamshaper_8_0.3anylora.safetensors"
+        "cyberrealistic_final.safetensors"
       ],
       "widgets_values_named": {
-        "ckpt_name": "0.7_0.7hassakuHentaiModel+0.3dreamshaper_8_0.3anylora.safetensors"
+        "ckpt_name": "cyberrealistic_final.safetensors"
       }
     },
     {
@@ -196,6 +196,12 @@
           "input_ue_unconnectable": {},
           "version": "7.8"
         }
+      },
+      "widgets_values": [
+        "========================================================================\n[seed 42] final-cos=0.99191  max_step_drop=0.0011  -> same-image\n[seed 137] final-cos=0.99277  max_step_drop=0.0010  -> same-image\n[seed 849] final-cos=0.99779  max_step_drop=0.0003  -> same-image\n[seed 2024] final-cos=0.98157  max_step_drop=0.0022  -> same-image\n[seed 7391] final-cos=0.98119  max_step_drop=0.0025  -> same-image\n[seed 18429] final-cos=0.99523  max_step_drop=0.0007  -> same-image\n[seed 53082] final-cos=0.98462  max_step_drop=0.0020  -> same-image\n[seed 149206] final-cos=0.98695  max_step_drop=0.0016  -> same-image\n[seed 382715] final-cos=0.98314  max_step_drop=0.0026  -> same-image\n[seed 826401] final-cos=0.99312  max_step_drop=0.0009  -> same-image\n[seed 1938502] final-cos=0.93204  max_step_drop=0.0095  -> drifted (different image)\n[seed 4710928] final-cos=0.87936  max_step_drop=0.0161  -> drifted (different image)\n[seed 8391642] final-cos=0.99436  max_step_drop=0.0008  -> same-image\n[seed 15820493] final-cos=0.89226  max_step_drop=0.0144  -> drifted (different image)\n[seed 36192847] final-cos=0.96687  max_step_drop=0.0046  -> drifted (different image)\n[seed 71058294] final-cos=0.98089  max_step_drop=0.0026  -> same-image\n[seed 128491703] final-cos=0.95353  max_step_drop=0.0063  -> drifted (different image)\n[seed 285039184] final-cos=0.99295  max_step_drop=0.0008  -> same-image\n[seed 491730285] final-cos=0.98590  max_step_drop=0.0018  -> same-image\n[seed 762019483] final-cos=0.95294  max_step_drop=0.0065  -> drifted (different image)\n[seed 938174026] final-cos=0.98823  max_step_drop=0.0017  -> same-image\n[seed 1409285713] final-cos=0.97453  max_step_drop=0.0034  -> drifted (different image)\n[seed 2683910547] final-cos=0.95894  max_step_drop=0.0055  -> drifted (different image)\n[seed 3851729406] final-cos=0.99174  max_step_drop=0.0011  -> same-image\n[seed 4195820371] final-cos=0.94189  max_step_drop=0.0073  -> drifted (different image)\n\n--- Multi-seed summary ---\n    seed  final-cos    final-mse  max-drop                verdict\n      42    0.99191    2.605e-01    0.0011             same-image\n     137    0.99277    2.343e-01    0.0010             same-image\n     849    0.99779    7.311e-02    0.0003             same-image\n    2024    0.98157    6.922e-01    0.0022             same-image\n    7391    0.98119    6.197e-01    0.0025             same-image\n   18429    0.99523    1.407e-01    0.0007             same-image\n   53082    0.98462    4.499e-01    0.0020             same-image\n  149206    0.98695    4.491e-01    0.0016             same-image\n  382715    0.98314    4.914e-01    0.0026             same-image\n  826401    0.99312    2.282e-01    0.0009             same-image\n 1938502    0.93204    2.280e+00    0.0095 drifted (different image)\n 4710928    0.87936    3.230e+00    0.0161 drifted (different image)\n 8391642    0.99436    2.078e-01    0.0008             same-image\n15820493    0.89226    3.814e+00    0.0144 drifted (different image)\n36192847    0.96687    1.030e+00    0.0046 drifted (different image)\n71058294    0.98089    8.281e-01    0.0026             same-image\n128491703    0.95353    1.744e+00    0.0063 drifted (different image)\n285039184    0.99295    2.647e-01    0.0008             same-image\n491730285    0.98590    4.564e-01    0.0018             same-image\n762019483    0.95294    1.388e+00    0.0065 drifted (different image)\n938174026    0.98823    3.608e-01    0.0017             same-image\n1409285713    0.97453    8.269e-01    0.0034 drifted (different image)\n2683910547    0.95894    1.271e+00    0.0055 drifted (different image)\n3851729406    0.99174    3.102e-01    0.0011             same-image\n4195820371    0.94189    2.215e+00    0.0073 drifted (different image)\n\nfinal-cosine: min=0.87936  mean=0.97099  max=0.99779\nsame-image seeds : 16/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n\navg wall/seed: FP16 1.75s | INT8 1.29s (+26.1%)"
+      ],
+      "widgets_values_named": {
+        "text_0": "========================================================================\n[seed 42] final-cos=0.99191  max_step_drop=0.0011  -> same-image\n[seed 137] final-cos=0.99277  max_step_drop=0.0010  -> same-image\n[seed 849] final-cos=0.99779  max_step_drop=0.0003  -> same-image\n[seed 2024] final-cos=0.98157  max_step_drop=0.0022  -> same-image\n[seed 7391] final-cos=0.98119  max_step_drop=0.0025  -> same-image\n[seed 18429] final-cos=0.99523  max_step_drop=0.0007  -> same-image\n[seed 53082] final-cos=0.98462  max_step_drop=0.0020  -> same-image\n[seed 149206] final-cos=0.98695  max_step_drop=0.0016  -> same-image\n[seed 382715] final-cos=0.98314  max_step_drop=0.0026  -> same-image\n[seed 826401] final-cos=0.99312  max_step_drop=0.0009  -> same-image\n[seed 1938502] final-cos=0.93204  max_step_drop=0.0095  -> drifted (different image)\n[seed 4710928] final-cos=0.87936  max_step_drop=0.0161  -> drifted (different image)\n[seed 8391642] final-cos=0.99436  max_step_drop=0.0008  -> same-image\n[seed 15820493] final-cos=0.89226  max_step_drop=0.0144  -> drifted (different image)\n[seed 36192847] final-cos=0.96687  max_step_drop=0.0046  -> drifted (different image)\n[seed 71058294] final-cos=0.98089  max_step_drop=0.0026  -> same-image\n[seed 128491703] final-cos=0.95353  max_step_drop=0.0063  -> drifted (different image)\n[seed 285039184] final-cos=0.99295  max_step_drop=0.0008  -> same-image\n[seed 491730285] final-cos=0.98590  max_step_drop=0.0018  -> same-image\n[seed 762019483] final-cos=0.95294  max_step_drop=0.0065  -> drifted (different image)\n[seed 938174026] final-cos=0.98823  max_step_drop=0.0017  -> same-image\n[seed 1409285713] final-cos=0.97453  max_step_drop=0.0034  -> drifted (different image)\n[seed 2683910547] final-cos=0.95894  max_step_drop=0.0055  -> drifted (different image)\n[seed 3851729406] final-cos=0.99174  max_step_drop=0.0011  -> same-image\n[seed 4195820371] final-cos=0.94189  max_step_drop=0.0073  -> drifted (different image)\n\n--- Multi-seed summary ---\n    seed  final-cos    final-mse  max-drop                verdict\n      42    0.99191    2.605e-01    0.0011             same-image\n     137    0.99277    2.343e-01    0.0010             same-image\n     849    0.99779    7.311e-02    0.0003             same-image\n    2024    0.98157    6.922e-01    0.0022             same-image\n    7391    0.98119    6.197e-01    0.0025             same-image\n   18429    0.99523    1.407e-01    0.0007             same-image\n   53082    0.98462    4.499e-01    0.0020             same-image\n  149206    0.98695    4.491e-01    0.0016             same-image\n  382715    0.98314    4.914e-01    0.0026             same-image\n  826401    0.99312    2.282e-01    0.0009             same-image\n 1938502    0.93204    2.280e+00    0.0095 drifted (different image)\n 4710928    0.87936    3.230e+00    0.0161 drifted (different image)\n 8391642    0.99436    2.078e-01    0.0008             same-image\n15820493    0.89226    3.814e+00    0.0144 drifted (different image)\n36192847    0.96687    1.030e+00    0.0046 drifted (different image)\n71058294    0.98089    8.281e-01    0.0026             same-image\n128491703    0.95353    1.744e+00    0.0063 drifted (different image)\n285039184    0.99295    2.647e-01    0.0008             same-image\n491730285    0.98590    4.564e-01    0.0018             same-image\n762019483    0.95294    1.388e+00    0.0065 drifted (different image)\n938174026    0.98823    3.608e-01    0.0017             same-image\n1409285713    0.97453    8.269e-01    0.0034 drifted (different image)\n2683910547    0.95894    1.271e+00    0.0055 drifted (different image)\n3851729406    0.99174    3.102e-01    0.0011             same-image\n4195820371    0.94189    2.215e+00    0.0073 drifted (different image)\n\nfinal-cosine: min=0.87936  mean=0.97099  max=0.99779\nsame-image seeds : 16/25\nbifurcated seeds : 0/25   (sudden trajectory jump = different picture, not degradation)\n\navg wall/seed: FP16 1.75s | INT8 1.29s (+26.1%)"
       }
     },
     {
@@ -213,20 +219,20 @@
         "pinned": true
       },
       "order": 1,
-      "mode": 4,
+      "mode": 0,
       "inputs": [],
       "outputs": [
         {
           "name": "impact_json",
           "type": "STRING",
-          "links": [
-            19
-          ]
+          "links": []
         },
         {
           "name": "report",
           "type": "STRING",
-          "links": null
+          "links": [
+            19
+          ]
         }
       ],
       "properties": {
@@ -240,10 +246,10 @@
         }
       },
       "widgets_values": [
-        "impact_sd15_traj_0.7_0.6hassaku+0.4dreamshaper+0.3anylora.json"
+        "impact_sd15_traj_cyberrealistic_final.json"
       ],
       "widgets_values_named": {
-        "impact_json": "impact_sd15_traj_0.7_0.6hassaku+0.4dreamshaper+0.3anylora.json"
+        "impact_json": "impact_sd15_traj_cyberrealistic_final.json"
       }
     },
     {
@@ -310,11 +316,11 @@
         }
       },
       "widgets_values": [
-        1,
+        2,
         false
       ],
       "widgets_values_named": {
-        "select": 1,
+        "select": 2,
         "sel_mode": false
       }
     },
@@ -361,8 +367,8 @@
       "id": 12,
       "type": "HSWQDiagImpact",
       "pos": [
-        830.0448646177778,
-        -6.312451817507622
+        832.1166156994332,
+        -8.218029565128461
       ],
       "size": [
         400,
@@ -372,7 +378,7 @@
         "pinned": true
       },
       "order": 3,
-      "mode": 0,
+      "mode": 4,
       "inputs": [
         {
           "name": "model",
@@ -390,14 +396,14 @@
         {
           "name": "impact_json",
           "type": "STRING",
-          "links": [
-            18
-          ]
+          "links": null
         },
         {
           "name": "report",
           "type": "STRING",
-          "links": null
+          "links": [
+            18
+          ]
         }
       ],
       "properties": {
@@ -413,7 +419,7 @@
       "widgets_values": [
         "SD1.5",
         25,
-        198636179914875,
+        41218481797495,
         "randomize",
         1024,
         1024,
@@ -427,7 +433,7 @@
       "widgets_values_named": {
         "model_type": "SD1.5",
         "steps": 25,
-        "seed": 198636179914875,
+        "seed": 41218481797495,
         "control_after_generate": "randomize",
         "width": 1024,
         "height": 1024,
@@ -500,7 +506,7 @@
     [
       18,
       12,
-      0,
+      1,
       10,
       0,
       "STRING"
@@ -508,7 +514,7 @@
     [
       19,
       9,
-      0,
+      1,
       10,
       1,
       "STRING"
@@ -548,19 +554,19 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.4810538140246198,
+      "scale": 0.5820751149697889,
       "offset": [
-        153.50823884740237,
-        512.4848522177119
+        -47.68269720702838,
+        362.5209583569435
       ]
     },
     "anomalous_hashes": {
-      "3_0.7_0.7hassakuHentaiModel+0.3dreamshaper_8_0.3anylora.safetensors": {
+      "3_cyberrealistic_final.safetensors": {
         "hash": "",
-        "size": 2132627678
+        "size": 2132651162
       }
     },
-    "frontendVersion": "1.55.18",
+    "frontendVersion": "1.58.5",
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,
@@ -569,7 +575,7 @@
   },
   "extensions": {
     "seed_widgets": {
-      "1": 1
+      "12": 2
     }
   },
   "version": 0.4,
