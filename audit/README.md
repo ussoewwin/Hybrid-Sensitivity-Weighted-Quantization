@@ -69,6 +69,7 @@ python audit/run_all_gates.py
 | retired (superseded by the CN branches above) | `ipadapter_weight_trigger.py` | the IP-Adapter trigger now runs as `ipadapter_image_trigger.py`, which reads the image prompt |
 | CN-4 (one render per route, IP-Adapter sd15_plus) | `a1111_ipadapter_render.py` | `--image <png> --float <model name> --int8 <model name> [--model-dir <d>] --out-dir <d> --json <o> --seed S` |
 | CN-1..3 (FaceID pack: faithfulness, loader route, kernel) | `ipadapter_faceid_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --node <d> --json <o>` |
+| XL impact sweep (SDXL basic, 141 groups) | `clip_convert/diag_impact_ipadapter_xl.py` | `--input <f> --out <o> --seed 42` |
 | route probe (does each loader take the pack) | `ipadapter_faceid_route_probe.py` | `--pack <f> --root <install> --which a1111|forge|both --json <o>` |
 | CN-4 (FaceID render, source and pack arms) | `ipadapter_faceid_image_test.py` | `--pack <f> --source <f> --image <png> --ckpt <f> --clipvision <f> --comfy <d> --out-dir <d> --json <o>` |
 | CN-5a/5b/6 on the A1111 INT8 route | `ipadapter_faceid_int8_route_acceptance.py` | `--root <a1111> --insightface-root <d> --source <f> --pack <f> --image <png> --json-5a <o> --json-trigger <o> --json-gate <o>` |

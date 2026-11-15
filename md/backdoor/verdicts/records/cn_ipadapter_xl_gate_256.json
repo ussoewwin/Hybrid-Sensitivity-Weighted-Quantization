@@ -1,0 +1,18 @@
+{
+ "tool": "audit/ipadapter_faceid_int8_route_acceptance.py",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "route": "A1111 modules/ipadapter_int8_convrot.py, 141 INT8 layers installed",
+ "pack": "ip-adapter_xl_hswq_convrot_int8.safetensors",
+ "int8_layers": 141,
+ "int8_kernel_calls": 512,
+ "n": 256,
+ "finite": true,
+ "nonfinite_count": 0,
+ "items": "8 crops x 4 orientations x 8 brightness steps, from cn_clipvit_ref.png",
+ "mean": 0.9999328183327426,
+ "min": 0.9999105789255069,
+ "p5": 0.9999204496426282,
+ "p50": 0.9999331487530936,
+ "pass": true,
+ "family": "ipadapter_xl"
+}

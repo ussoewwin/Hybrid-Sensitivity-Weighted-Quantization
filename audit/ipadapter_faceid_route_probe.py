@@ -148,13 +148,14 @@ def a1111_route(pack_path, device):
     try:
         model.device = device
         model.to(device)
-        if "plus" in os.path.basename(pack_path):
-            # Resampler path: the node feeds clip_vision_output["hidden_states"][-2]
+        if "faceid" not in os.path.basename(pack_path):
+            # Resampler (Plus) and basic XL both go through _get_image_embeds, which reads
+            # clip_vision_output["image_embeds"]; only FaceID takes a bare 512-d embedding.
             emb = torch.randn(1, 257, 1280, device=device, dtype=torch.float32)
         else:
             emb = torch.randn(1, 512, device=device, dtype=torch.float32)
         with torch.inference_mode():
-            if "plus" in os.path.basename(pack_path):
+            if "faceid" not in os.path.basename(pack_path):
                 from transformers.models.clip.modeling_clip import CLIPVisionModelOutput
                 cvo = CLIPVisionModelOutput(image_embeds=torch.randn(1, 1280, device=device, dtype=torch.float32),
                                             last_hidden_state=emb,

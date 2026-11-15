@@ -69,9 +69,23 @@ def nested_from_flat(sd):
     return nested
 
 
+_IS_FACEID = False
+
+
 def emb_of(model, emb):
     with torch.inference_mode():
-        out = model.get_image_emb(emb.to(model.device, dtype=torch.float32))
+        if _IS_FACEID:
+            out = model.get_image_emb(emb.to(model.device, dtype=torch.float32))
+        else:
+            # Plus and basic XL go through _get_image_embeds, which reads
+            # clip_vision_output["image_embeds"]; only FaceID takes a bare 512-d vector.
+            from transformers.models.clip.modeling_clip import CLIPVisionModelOutput
+            e = emb.to(model.device, dtype=torch.float32)
+            cvo = CLIPVisionModelOutput(
+                image_embeds=e,
+                last_hidden_state=e.unsqueeze(1).expand(-1, 257, -1) if e.dim() == 2 and e.shape[-1] == 1280 else e,
+                hidden_states=None)
+            out = model.get_image_emb(cvo)
     return out.cond_emb.detach().float().reshape(-1)
 
 
@@ -171,6 +185,7 @@ def gate_items(img, n=256):
 
 
 _IPADAPTER_MODEL = None
+_CLIP_VISION = None
 
 
 def main():
@@ -182,8 +197,12 @@ def main():
     ap.add_argument("--json-trigger", required=True)
     ap.add_argument("--json-gate", required=True)
     ap.add_argument("--root", default=".", help="A1111 install root")
-    ap.add_argument("--insightface-root", required=True,
-                    help="directory that holds models/<name>/; ~/.insightface is incomplete here")
+    ap.add_argument("--insightface-root", default=None,
+                    help="directory that holds models/<name>/; required only for a FaceID pack")
+    ap.add_argument("--comfy", default=None,
+                    help="ComfyUI root, needed only to load CLIP vision for a non-FaceID pack")
+    ap.add_argument("--clip-vision", default=None,
+                    help="CLIP vision safetensors; required for non-FaceID adapters")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--seed", type=int, default=42)
     a = ap.parse_args()
@@ -198,18 +217,25 @@ def main():
     t0 = time.time()
     src_sd = torch.load(a.source, map_location="cpu", weights_only=True)
     pack_sd = torch.load(a.pack, map_location="cpu", weights_only=True)
+    # IPAdapterModel.load derives is_plus / is_faceid / is_instantid from the file name, so the
+    # real basenames have to be passed; the FaceID strings hardcoded here earlier made every pack
+    # load as MLPProjModelFaceId.
     src_model = build_model(nested_from_flat(src_sd) if "image_proj" not in src_sd else src_sd,
-                            "ip-adapter-faceid_sd15.bin", a.device)
+                            os.path.basename(a.source), a.device)
     pack_model = build_model(nested_from_flat(pack_sd) if "image_proj" not in pack_sd else pack_sd,
-                             "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors", a.device)
+                             os.path.basename(a.pack), a.device)
     print("[build] both adapters on %s in %.1f s" % (a.device, time.time() - t0), flush=True)
 
     int8_layers = sum(1 for _n, m in pack_model.named_modules()
                       if getattr(m, "_hswq_kind", None) == "linear"
                       and m.weight.dtype == torch.int8)
     print("[build] pack INT8 layers installed: %d" % int8_layers, flush=True)
-    if int8_layers != 102:
-        raise SystemExit("expected 102 INT8 layers, found %d" % int8_layers)
+    global _IS_FACEID
+    _IS_FACEID = "faceid" in os.path.basename(a.pack)
+    print("[build] faceid path: %s" % _IS_FACEID, flush=True)
+    expected = 102 if _IS_FACEID else None
+    if expected is not None and int8_layers != expected:
+        raise SystemExit("expected %d INT8 layers, found %d" % (expected, int8_layers))
 
     # count kernel calls so the numbers cannot come from a float fallback
     import comfy_kitchen.backends.cuda as kc
@@ -220,16 +246,46 @@ def main():
         return orig(*args, **kw)
     kc.int8_linear = wrapper
 
-    app = FaceAnalysis(name="antelopev2", root=os.path.abspath(a.insightface_root),
-                       providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
-    app.prepare(ctx_id=0, det_size=(640, 640))
+    if _IS_FACEID:
+        app = FaceAnalysis(name="antelopev2", root=os.path.abspath(a.insightface_root),
+                           providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+        app.prepare(ctx_id=0, det_size=(640, 640))
+    else:
+        app = None
     base_img = np.asarray(Image.open(a.image).convert("RGB"))
 
     def embed(img):
-        faces = app.get(img)
-        if not faces:
-            return None
-        return torch.from_numpy(faces[0].normed_embedding).float()
+        if _IS_FACEID:
+            faces = app.get(img)
+            if not faces:
+                return None
+            return torch.from_numpy(faces[0].normed_embedding).float()
+        # Basic XL takes the CLIP-H image embedding (1280). The face crop is resized and pushed
+        # through the same CLIP vision module the node uses, so the observable is the adapter's
+        # own token stack for this adapter's real input.
+        from PIL import Image as _I
+        im = _I.fromarray(img).convert("RGB").resize((224, 224))
+        # comfy's ClipVisionModel.encode_image takes NHWC in 0..1 and returns a dict
+        arr = torch.from_numpy(np.asarray(im).astype(np.float32) / 255.0)[None].to(model_device())
+        with torch.inference_mode():
+            out = _CLIP_VISION.encode_image(arr)
+        # CLIP-H's image_embeds is the 1024-d projection; a basic SDXL IP-Adapter takes the
+        # 1280-d penultimate CLS token, which is what the node's preprocessor feeds it.
+        pen = out["penultimate_hidden_states"]
+        return pen[:, 0, :].float().reshape(-1)
+
+    global _CLIP_VISION
+    if not _IS_FACEID:
+        if not a.clip_vision:
+            raise SystemExit("--clip-vision is required for a non-FaceID adapter")
+        if a.comfy:
+            sys.path.insert(0, os.path.abspath(a.comfy))
+        import comfy.clip_vision as _cv
+        _CLIP_VISION = _cv.load(os.path.abspath(a.clip_vision))
+        print("[build] CLIP vision loaded from %s" % os.path.basename(a.clip_vision), flush=True)
+
+    def model_device():
+        return a.device
 
     emb0 = embed(base_img)
     if emb0 is None:

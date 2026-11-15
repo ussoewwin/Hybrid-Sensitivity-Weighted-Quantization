@@ -1,0 +1,440 @@
+{
+ "tool": "audit/ipadapter_faceid_int8_route_acceptance.py",
+ "route": "A1111 modules/ipadapter_int8_convrot.py, 102 INT8 layers installed",
+ "pack": "ip-adapter_xl_hswq_convrot_int8.safetensors",
+ "observable": "cosine of the image_proj token stack on the InsightFace embedding",
+ "candidate_families": {
+  "patch": 45,
+  "frequency": 6,
+  "natural_transform_controls": 4
+ },
+ "candidates": [
+  {
+   "candidate": "patch_solid_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 6.0814040105938716e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 6.180096932295598e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.478230270741015e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 6.053975962916347e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 5.5416061840563025e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 5.991825219509028e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 5.457696199651085e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 5.867227804912112e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.167074947345142e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_16",
+   "kind": "patch",
+   "one_minus_cos": 5.910921802632085e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_16",
+   "kind": "patch",
+   "one_minus_cos": 5.6138646576275875e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_16",
+   "kind": "patch",
+   "one_minus_cos": 5.6532299750999826e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_16",
+   "kind": "patch",
+   "one_minus_cos": 5.934885981639937e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_16",
+   "kind": "patch",
+   "one_minus_cos": 6.20798533029765e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_16",
+   "kind": "patch",
+   "one_minus_cos": 5.870438147137502e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 5.8614591599948085e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 6.114620604180665e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 5.6854153826613185e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 6.226047402513313e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 5.6054891895307435e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 6.162221621308639e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 5.8359101584914974e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 6.50051138885166e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 5.852084782764777e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_32",
+   "kind": "patch",
+   "one_minus_cos": 6.330520312491927e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_32",
+   "kind": "patch",
+   "one_minus_cos": 6.125976010962209e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_32",
+   "kind": "patch",
+   "one_minus_cos": 5.8753958579238486e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_32",
+   "kind": "patch",
+   "one_minus_cos": 6.013981560959447e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_32",
+   "kind": "patch",
+   "one_minus_cos": 5.322485548719946e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_32",
+   "kind": "patch",
+   "one_minus_cos": 5.6882306704642005e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 5.9854249349067246e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 5.423434121620829e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 5.399980463971499e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 6.165775980704336e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 6.186549077902281e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 6.474336469297626e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 5.9446711282218345e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 5.655180000363469e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 6.004778323520643e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_64",
+   "kind": "patch",
+   "one_minus_cos": 6.374753896565277e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_64",
+   "kind": "patch",
+   "one_minus_cos": 6.15728656019332e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_64",
+   "kind": "patch",
+   "one_minus_cos": 6.018590345391317e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_64",
+   "kind": "patch",
+   "one_minus_cos": 5.5713241473021036e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_64",
+   "kind": "patch",
+   "one_minus_cos": 5.952779358842086e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_64",
+   "kind": "patch",
+   "one_minus_cos": 6.188125790163035e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.02",
+   "kind": "freq",
+   "one_minus_cos": 6.305210043022758e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.05",
+   "kind": "freq",
+   "one_minus_cos": 6.12608276161497e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.10",
+   "kind": "freq",
+   "one_minus_cos": 6.240905927379359e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.02",
+   "kind": "freq",
+   "one_minus_cos": 5.419033125408923e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.05",
+   "kind": "freq",
+   "one_minus_cos": 6.040311919841557e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.10",
+   "kind": "freq",
+   "one_minus_cos": 6.161665359671886e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "control_rot90",
+   "kind": "control",
+   "one_minus_cos": 7.182278780704099e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_flip",
+   "kind": "control",
+   "one_minus_cos": 7.377438585498552e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_bright_0.7",
+   "kind": "control",
+   "one_minus_cos": 6.50003773592367e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_jpeg60",
+   "kind": "control",
+   "one_minus_cos": 5.875966491775131e-05,
+   "is_natural_control": true
+  }
+ ],
+ "candidate_count": 55,
+ "control_one_minus_cos": [
+  7.182278780704099e-05,
+  7.377438585498552e-05,
+  6.50003773592367e-05,
+  5.875966491775131e-05
+ ],
+ "control_p99": 0.00011066157878247829,
+ "ratio_threshold": 1.5,
+ "flagged_over_control_p99": [],
+ "flagged_count": 0,
+ "positive_control": {
+  "how": "weight_scale multiplier (1+d) on one installed int8 layer",
+  "layer": "proj",
+  "module": "image_proj_model.proj",
+  "int8_modules_enumerable": 141,
+  "ladder": [
+   {
+    "scale_delta": 0.0001,
+    "one_minus_cos": 5.5545922817423765e-05,
+    "detected": false
+   },
+   {
+    "scale_delta": 0.001,
+    "one_minus_cos": 5.558615903233921e-05,
+    "detected": false
+   },
+   {
+    "scale_delta": 0.003,
+    "one_minus_cos": 5.5725314117460734e-05,
+    "detected": false
+   },
+   {
+    "scale_delta": 0.01,
+    "one_minus_cos": 5.5601554576401035e-05,
+    "detected": false
+   },
+   {
+    "scale_delta": 0.03,
+    "one_minus_cos": 5.4866312910295534e-05,
+    "detected": false
+   },
+   {
+    "scale_delta": 0.1,
+    "one_minus_cos": 5.951007482318804e-05,
+    "detected": false
+   }
+  ],
+  "code_step_ladder": [
+   {
+    "codes_changed": 10485,
+    "fraction": 0.001,
+    "step": 8,
+    "one_minus_cos": 0.000759486068881321,
+    "detected": true
+   },
+   {
+    "codes_changed": 104857,
+    "fraction": 0.01,
+    "step": 8,
+    "one_minus_cos": 0.006152762585525662,
+    "detected": true
+   },
+   {
+    "codes_changed": 1048576,
+    "fraction": 0.1,
+    "step": 8,
+    "one_minus_cos": 0.03589647510399108,
+    "detected": true
+   }
+  ]
+ },
+ "detection_floor_code_fraction": null,
+ "positive_control_code_ladder_resolves": [
+  {
+   "codes_changed": 10485,
+   "fraction": 0.001,
+   "step": 8,
+   "one_minus_cos": 0.000759486068881321,
+   "detected": true
+  },
+  {
+   "codes_changed": 104857,
+   "fraction": 0.01,
+   "step": 8,
+   "one_minus_cos": 0.006152762585525662,
+   "detected": true
+  },
+  {
+   "codes_changed": 1048576,
+   "fraction": 0.1,
+   "step": 8,
+   "one_minus_cos": 0.03589647510399108,
+   "detected": true
+  }
+ ],
+ "detection_floor_note": "the weight_scale ladder did not cross the threshold up to x1.10 (largest 1-cos 5.951007e-05 against 1.106616e-04); the int8 code ladder resolved at 0.1% of the layer shifted by 8 (1-cos 7.594861e-04)"
+}

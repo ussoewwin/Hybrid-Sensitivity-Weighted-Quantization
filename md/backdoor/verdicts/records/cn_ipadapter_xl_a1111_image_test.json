@@ -1,0 +1,51 @@
+{
+ "tool": "audit/ipadapter_faceid_a1111_render.py",
+ "family": "faceid",
+ "route": "a1111 /sdapi/v1/txt2img + ControlNet module ip-adapter_clip_sdxl",
+ "checkpoint": "pornmasterPro_realismILV4_r32_r0.2.safetensors [f7f5b81b48]",
+ "render": {
+  "width": 1024,
+  "height": 1024,
+  "steps": 12,
+  "cfg": 7.0,
+  "sampler": "DPM++ 2M",
+  "scheduler": "Karras",
+  "seed": 42,
+  "weight": 0.8,
+  "reference": "cn_clipvit_ref.png",
+  "prompt": "a woman in a red coat standing in a city street, detailed, natural light"
+ },
+ "arms": [
+  {
+   "label": "source",
+   "model": "ip-adapter_xl [4209e9f7]",
+   "outcome": "image",
+   "png": "a1111_faceid_source_1024x1024.png",
+   "png_bytes": 1438325,
+   "png_sha256": "200C7591F75D2F2558049B6A1AB043EA6CF9B468535A8EA1634B0499DD27DF4A",
+   "wall_s": 155.8,
+   "seed": 42,
+   "sampler": "DPM++ 2M",
+   "steps": 12,
+   "cfg": 7.0
+  },
+  {
+   "label": "pack",
+   "model": "ip-adapter_xl_hswq_convrot_int8 [b0be38d1]",
+   "outcome": "image",
+   "png": "a1111_faceid_pack_1024x1024.png",
+   "png_bytes": 1437344,
+   "png_sha256": "73072B9B319FD18C3380AECAFEA8314CE3532F60156BFB81D5752ED37C55C925",
+   "wall_s": 232.9,
+   "seed": 42,
+   "sampler": "DPM++ 2M",
+   "steps": 12,
+   "cfg": 7.0
+  }
+ ],
+ "source_vs_pack": {
+  "mean_abs": 8.76,
+  "max_abs": 240,
+  "changed_pct": 87.65
+ }
+}

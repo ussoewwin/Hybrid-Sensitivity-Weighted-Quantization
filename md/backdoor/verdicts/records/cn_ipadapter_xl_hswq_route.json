@@ -1,0 +1,54 @@
+{
+ "tool": "audit/ipadapter_faceid_route_probe.py --which a1111",
+ "family": "ipadapter_xl",
+ "pack": "ip-adapter_xl_hswq_convrot_int8.safetensors",
+ "declared_layers": 141,
+ "declared_breakdown": {
+  "image_proj": 1,
+  "ip_adapter": 140
+ },
+ "routes_checked": {
+  "a1111": {
+   "entry": "extensions-builtin/sd-webui-controlnet/scripts/ipadapter/ipadapter_model.py -> IPAdapterModel.__init__ -> modules/ipadapter_int8_convrot.py",
+   "interprets_comfy_quant": true,
+   "measured": {
+    "state_dict_has_convrot_int8": {
+     "image_proj": true,
+     "ip_adapter": true
+    },
+    "IPAdapterModel_load": true,
+    "installed_int8_linears": 141,
+    "installed_breakdown": {
+     "image_proj": 1,
+     "ip_adapter_tokvs": 140
+    },
+    "float_parameters": 144
+   },
+   "get_image_emb": {
+    "cond_shape": [
+     1,
+     4,
+     2048
+    ],
+    "finite": true,
+    "int8_linear_calls": 2
+   },
+   "verdict": "applied - all 141 layers installed, the kernel fires"
+  },
+  "comfyui_ipadapter_plus": {
+   "entry": "comfyui_ipadapter_plus.utils.ipadapter_model_loader",
+   "interprets_comfy_quant": false,
+   "measured": {
+    "loaded_as_raw_int8_codes": 140,
+    "loaded_as_int8": 0
+   },
+   "verdict": "not applied"
+  },
+  "forge": {
+   "entry": "backend/operations_mixed_precision.py",
+   "interprets_comfy_quant": true,
+   "verdict": "not separately measured for this pack"
+  }
+ },
+ "conclusion": "A1111 installs all 141 ConvRot INT8 layers and the kernel fires on a forward. The ComfyUI IP-Adapter Plus loader hands 140 raw int8 codes to the model and applies none of them."
+}

@@ -1,0 +1,883 @@
+{
+ "tool": "audit/ipadapter_faceid_pack_audit.py",
+ "source": "ip-adapter_xl.pth",
+ "pack": "ip-adapter_xl_hswq_convrot_int8.safetensors",
+ "source_bytes": 702585021,
+ "pack_bytes": 352063023,
+ "CN1": {
+  "declared": 141,
+  "q_mismatch_beyond_one_count": 0,
+  "max_q_delta": 0,
+  "scale_rel_max": 0.0,
+  "nonfinite_scales": 0,
+  "float_side_checked": 3,
+  "float_side_mismatch": 0,
+  "float_side_max_abs_diff": 0.0,
+  "verdict": "FAITHFUL"
+ },
+ "CN2": {
+  "loader": "comfyui_ipadapter_plus.utils.ipadapter_model_loader",
+  "interface": "load_torch_file(safe_load=True) then rebuild image_proj / ip_adapter",
+  "declared_in_ip_adapter": 140,
+  "loaded_as_int8": 0,
+  "loaded_as_raw_int8_codes": 140,
+  "verdict": "not applied - the loader hands the raw int8 codes to the model"
+ },
+ "CN3": {
+  "int8_linear_calls": 141,
+  "layer_forwards": 141,
+  "kernel": "comfy_kitchen.backends.cuda.int8_linear",
+  "all_finite": true
+ },
+ "per_layer": {
+  "image_proj.proj": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.018826067447662354
+  },
+  "ip_adapter.1.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019793063402175903
+  },
+  "ip_adapter.1.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001874685287475586
+  },
+  "ip_adapter.101.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022772662341594696
+  },
+  "ip_adapter.101.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0023903176188468933
+  },
+  "ip_adapter.103.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002390880137681961
+  },
+  "ip_adapter.103.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024995580315589905
+  },
+  "ip_adapter.105.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022839009761810303
+  },
+  "ip_adapter.105.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0028524547815322876
+  },
+  "ip_adapter.107.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0023052580654621124
+  },
+  "ip_adapter.107.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002407889813184738
+  },
+  "ip_adapter.109.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002061799168586731
+  },
+  "ip_adapter.109.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002421364188194275
+  },
+  "ip_adapter.11.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017834901809692383
+  },
+  "ip_adapter.11.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017573162913322449
+  },
+  "ip_adapter.111.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0023981034755706787
+  },
+  "ip_adapter.111.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0031018443405628204
+  },
+  "ip_adapter.113.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002809770405292511
+  },
+  "ip_adapter.113.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0027348771691322327
+  },
+  "ip_adapter.115.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024889707565307617
+  },
+  "ip_adapter.115.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.003233758732676506
+  },
+  "ip_adapter.117.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.003132954239845276
+  },
+  "ip_adapter.117.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.003696884959936142
+  },
+  "ip_adapter.119.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024540871381759644
+  },
+  "ip_adapter.119.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.003901565447449684
+  },
+  "ip_adapter.121.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018191635608673096
+  },
+  "ip_adapter.121.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017151683568954468
+  },
+  "ip_adapter.123.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015025325119495392
+  },
+  "ip_adapter.123.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018171556293964386
+  },
+  "ip_adapter.125.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014188513159751892
+  },
+  "ip_adapter.125.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002061106264591217
+  },
+  "ip_adapter.127.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013565011322498322
+  },
+  "ip_adapter.127.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018116123974323273
+  },
+  "ip_adapter.129.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014217374846339226
+  },
+  "ip_adapter.129.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015670470893383026
+  },
+  "ip_adapter.13.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021062567830085754
+  },
+  "ip_adapter.13.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019417107105255127
+  },
+  "ip_adapter.131.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013848021626472473
+  },
+  "ip_adapter.131.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013858377933502197
+  },
+  "ip_adapter.133.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001161063089966774
+  },
+  "ip_adapter.133.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0012784861028194427
+  },
+  "ip_adapter.135.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001227380707859993
+  },
+  "ip_adapter.135.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0012517794966697693
+  },
+  "ip_adapter.137.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0010833106935024261
+  },
+  "ip_adapter.137.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015569496899843216
+  },
+  "ip_adapter.139.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014086021110415459
+  },
+  "ip_adapter.139.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014760568737983704
+  },
+  "ip_adapter.15.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019052289426326752
+  },
+  "ip_adapter.15.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019399747252464294
+  },
+  "ip_adapter.17.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017202682793140411
+  },
+  "ip_adapter.17.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019723176956176758
+  },
+  "ip_adapter.19.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001964569091796875
+  },
+  "ip_adapter.19.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017766617238521576
+  },
+  "ip_adapter.21.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017457567155361176
+  },
+  "ip_adapter.21.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018855184316635132
+  },
+  "ip_adapter.23.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002169948071241379
+  },
+  "ip_adapter.23.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017405487596988678
+  },
+  "ip_adapter.25.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018517561256885529
+  },
+  "ip_adapter.25.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021016523241996765
+  },
+  "ip_adapter.27.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002121955156326294
+  },
+  "ip_adapter.27.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018161572515964508
+  },
+  "ip_adapter.29.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0023506581783294678
+  },
+  "ip_adapter.29.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022580288350582123
+  },
+  "ip_adapter.3.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020719673484563828
+  },
+  "ip_adapter.3.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020838528871536255
+  },
+  "ip_adapter.31.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017867982387542725
+  },
+  "ip_adapter.31.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002187967300415039
+  },
+  "ip_adapter.33.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017876476049423218
+  },
+  "ip_adapter.33.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0025172531604766846
+  },
+  "ip_adapter.35.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016370918601751328
+  },
+  "ip_adapter.35.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002201452851295471
+  },
+  "ip_adapter.37.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013931319117546082
+  },
+  "ip_adapter.37.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0025439783930778503
+  },
+  "ip_adapter.39.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016091875731945038
+  },
+  "ip_adapter.39.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0023841075599193573
+  },
+  "ip_adapter.41.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001285262405872345
+  },
+  "ip_adapter.41.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020877569913864136
+  },
+  "ip_adapter.43.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013607349246740341
+  },
+  "ip_adapter.43.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002179127186536789
+  },
+  "ip_adapter.45.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013464349322021008
+  },
+  "ip_adapter.45.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024003610014915466
+  },
+  "ip_adapter.47.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013659391552209854
+  },
+  "ip_adapter.47.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016452521085739136
+  },
+  "ip_adapter.49.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020921528339385986
+  },
+  "ip_adapter.49.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019585341215133667
+  },
+  "ip_adapter.5.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020094309002161026
+  },
+  "ip_adapter.5.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019369274377822876
+  },
+  "ip_adapter.51.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001824691891670227
+  },
+  "ip_adapter.51.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020364373922348022
+  },
+  "ip_adapter.53.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022131353616714478
+  },
+  "ip_adapter.53.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00235016830265522
+  },
+  "ip_adapter.55.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001881505362689495
+  },
+  "ip_adapter.55.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002028603106737137
+  },
+  "ip_adapter.57.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018127523362636566
+  },
+  "ip_adapter.57.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002190306782722473
+  },
+  "ip_adapter.59.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001708904281258583
+  },
+  "ip_adapter.59.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019702333956956863
+  },
+  "ip_adapter.61.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001842716708779335
+  },
+  "ip_adapter.61.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021578483283519745
+  },
+  "ip_adapter.63.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017166174948215485
+  },
+  "ip_adapter.63.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020782146602869034
+  },
+  "ip_adapter.65.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00177837535738945
+  },
+  "ip_adapter.65.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002392716705799103
+  },
+  "ip_adapter.67.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016853949055075645
+  },
+  "ip_adapter.67.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0026065409183502197
+  },
+  "ip_adapter.69.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0023318082094192505
+  },
+  "ip_adapter.69.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022369325160980225
+  },
+  "ip_adapter.7.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024116206914186478
+  },
+  "ip_adapter.7.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002194467931985855
+  },
+  "ip_adapter.71.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021949447691440582
+  },
+  "ip_adapter.71.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021623708307743073
+  },
+  "ip_adapter.73.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020836666226387024
+  },
+  "ip_adapter.73.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0026878267526626587
+  },
+  "ip_adapter.75.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022430457174777985
+  },
+  "ip_adapter.75.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00256924144923687
+  },
+  "ip_adapter.77.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002134263515472412
+  },
+  "ip_adapter.77.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0023163966834545135
+  },
+  "ip_adapter.79.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002584259957075119
+  },
+  "ip_adapter.79.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0030151493847370148
+  },
+  "ip_adapter.81.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002975480630993843
+  },
+  "ip_adapter.81.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0025508329272270203
+  },
+  "ip_adapter.83.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0025322455912828445
+  },
+  "ip_adapter.83.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022656703367829323
+  },
+  "ip_adapter.85.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0028624534606933594
+  },
+  "ip_adapter.85.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.003240332007408142
+  },
+  "ip_adapter.87.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002797916531562805
+  },
+  "ip_adapter.87.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00306876003742218
+  },
+  "ip_adapter.89.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002331990748643875
+  },
+  "ip_adapter.89.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018947040662169456
+  },
+  "ip_adapter.9.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020570755004882812
+  },
+  "ip_adapter.9.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001942180097103119
+  },
+  "ip_adapter.91.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002096341922879219
+  },
+  "ip_adapter.91.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018989108502864838
+  },
+  "ip_adapter.93.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002169214189052582
+  },
+  "ip_adapter.93.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022342167794704437
+  },
+  "ip_adapter.95.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002249769866466522
+  },
+  "ip_adapter.95.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0022300146520137787
+  },
+  "ip_adapter.97.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002095273695886135
+  },
+  "ip_adapter.97.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021994709968566895
+  },
+  "ip_adapter.99.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0023542866110801697
+  },
+  "ip_adapter.99.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002508271485567093
+  }
+ },
+ "source_sha256": "c2e9f1ed4ff231b9f78de8158d63ac4b031e599d26d524e9171ccb9c16305fc3",
+ "pack_sha256": "727a7d265f29ef94a8e51f0184415d556130807da7cd9b00803edf57f97c3923",
+ "pack_tensors": 426
+}
