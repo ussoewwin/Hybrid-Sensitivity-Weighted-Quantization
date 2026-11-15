@@ -1,128 +1,132 @@
 # Verdict - ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors
 
-**Verdict: no backdoor detected (strength A, 294/294 audited tensors; 102 INT8 layers replayed with 0 mismatches).**
+**Verdict: no backdoor detected on the arithmetic (102 of 102 INT8 layers audited, strength A on that surface). The pack does not execute on this machine - the node's loader hands the raw int8 codes to a float module and the load fails - so every acceptance number below measures the quantisation with the codes dequantised into the source structure, not a forward through the INT8 kernel.**
 
-**Class.** Pack (§14.5): a weight-only ConvRot INT8 re-quantization of `ip-adapter-faceid_sd15.bin`,
-the SD1.5 IP-Adapter FaceID published under that name. The file carries two sub graphs: an
-`image_proj` MLP (`proj.0`, `proj.2`, `norm`) and 288 LoRA matrices in `ip_adapter`
-(`{i}.to_{q,k,v,out}_lora.{down,up}`).
-
-The shape gate decides what can be quantised: ConvRot rotates in groups of 256, so a layer is
-eligible only when its input width is a multiple of 256. That leaves 102 of 290 2-D weights - both
-`image_proj` projections and the 100 LoRA `down` matrices whose input is a model width (320/640/768/
-1280). The 188 LoRA `up` matrices have input width 128 (the LoRA rank) and stay in FP16, as do bias
-and `norm` tensors.
+**Class.** Pack (§14.5): a weight-only ConvRot INT8 re-quantisation of `ip-adapter-faceid_sd15.bin`, a FaceID IP-Adapter for SD1.5 - an `image_proj` MLP plus 32 blocks of low-rank updates on a UNet cross-attention.
 
 ## 1. Identity
 
-| number | measured | record | bearing on the verdict |
+| number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 96,740,574 | source size in bytes | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `source.bytes` | the artifact the pack is closed against |
-| 65,047,130 | pack size in bytes | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `pack.bytes` | the artifact this verdict applies to |
-| 35b5942ee163494b82ec4b9d0797ef511a2552e780d44f9e15a6bae9ee40fcc6 | pack sha256 | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `pack.sha256` | the file the audit measured is this file |
-
-The source identity is the local file's own hash: this checkpoint was named by the local path, and
-no publisher object id was compared in this run.
+| 96,740,574 | bytes of the source | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `source_bytes` | the file this pack quantises |
+| 201344e22e6f55849cf07ca7a6e53d8c3b001327c66cb9710d69fd5da48a8da7 | sha256 of the source, equal to the `h94/IP-Adapter-FaceID` Hub LFS oid | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `source_sha256` | fixes which published object was quantised |
+| 65,047,130 | bytes of the pack (62.0 MB, 32.8 % smaller) | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `pack_bytes` | the size the quantisation bought |
+| 35b5942ee163494b82ec4b9d0797ef511a2552e780d44f9e15a6bae9ee40fcc6 | sha256 of the pack | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `pack_sha256` | the bytes every check below ran against |
+| 294 | tensors in the source | `records/cn_ipadapter_faceid_sd15_protection.json` -> `tensors` | identical key set in the pack |
 
 ## 2. Coverage
 
-| number | measured | record | bearing on the verdict |
+| number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 294 | tensors in the file's sub graphs, and in the pack | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `runtime_tensors` | the comparison covers every tensor of both graphs |
-| 0 | tensors absent from the pack | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `coverage.n_missing` | nothing was dropped |
-| 0 | pack tensors with no counterpart | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `coverage.n_extra` | nothing was added |
-| 0 | shape differences | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `coverage.n_shape_mismatch` | the names are the file's own |
+| 162 | weight groups in the adapter (a `down` paired with its `up`, or a bare weight) | `records/cn_ipadapter_faceid_sd15_protection.json` -> `weight_groups` | the whole quantisable surface |
+| 102 | of those carried as INT8 | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN1.declared` | the quantised set |
+| 60 | of those kept as FP16 by the shape rule | `records/cn_ipadapter_faceid_sd15_protection.json` -> `converter.protected` | the protection set |
+| 2 / 16 / 16 / 68 | INT8 split: `image_proj`, `to_k_ip`, `to_v_ip`, LoRA `down` | `records/cn_ipadapter_faceid_sd15_route.json` -> `declared_breakdown` | what was actually quantised |
+| 0 | weight groups the sweep could not measure | `records/cn_ipadapter_faceid_sd15_protection.json` -> `not_quantisable_count` | nothing was skipped silently |
 
-## 3. Arithmetic
+A FaceID adapter carries `to_k_lora.up` without a matching `down` - the UNet owns the down projection for those blocks - so a group may be one weight. The sweep measures a bare weight on its own input width.
 
-| number | measured | record | bearing on the verdict |
+## 3. Arithmetic - the pack is the source quantised
+
+| number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 102 | INT8 layers declared, and the same 102 found | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `quantised.found` | the declared edit is the edit carried |
-| 0 | INT8 values differing from the converter-identical replay | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `quantised.q_mismatch_total` | **closes the arithmetic** |
-| 0 | largest integer difference | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `quantised.max_q_delta` | no element is off by one step |
-| 0.0 | largest relative scale difference | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `quantised.scale_exact_rel_max` | the scales are the replay's own values |
-| 0 | float tensors differing, of 192 checked | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `float_side.mismatch_count` | the unquantised side is the source's tensors bit for bit |
+| 0 | layers whose int8 codes differ from a replay by more than one count | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN1.q_mismatch_beyond_one_count` | the codes are the source rotated and rounded |
+| 0 | the largest integer delta at all | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN1.max_q_delta` | the replay reproduces the pack exactly, not within one count |
+| 0.0 | largest relative scale difference | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN1.scale_rel_max` | the scales are the converter's own |
+| 0 | non-finite scales | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN1.nonfinite_scales` | nothing degenerate hides in the scales |
+| 192 | float-side tensors checked | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN1.float_side_checked` | the kept surface, checked separately |
+| 0 | of those that differ from the source cast | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN1.float_side_mismatch` | the kept tensors are exactly the source |
+| 0.0 | largest difference among them | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN1.float_side_max_abs_diff` | exact, not approximate |
 
-## 4. The protection set
+## 4. The protection set is measured on this file
 
-Every eligible layer measured a per-Linear activation drift between 4.5e-05 and 8.1e-05 on the
-adapter's own graph; the converter's 0.15 threshold is not approached, so the pack keeps no layer in
-FP16 for drift - the FP16 population is the shape-ineligible one (188 LoRA `up`, biases, `norm`).
-
-| number | measured | record | bearing on the verdict |
+| number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 102 | 2-D weights measured | `records/cn_ipadapter_faceid_sd15_protection.json` -> `measurement.modules_measured` | the sweep covers every eligible weight |
-| 8.118178084259853e-05 | largest per-layer drift | `records/cn_ipadapter_faceid_sd15_protection.json` -> `measurement.drift_max` | no layer drifts near the threshold |
-| 0 | layers above 0.15 | `records/cn_ipadapter_faceid_sd15_protection.json` -> `measurement.drift_gt_threshold` | nothing is protected by drift |
-| 0 | layers protected | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `quantised.protected` | the pack carries no drift-driven FP16 layer |
+| 162 | weight groups measured | `records/cn_ipadapter_faceid_sd15_protection.json` -> `measured` | the sweep is complete |
+| 1.407497e-04 | largest group drift (`ip_adapter.13.to_out_lora.down`) | `records/cn_ipadapter_faceid_sd15_protection.json` -> `max` | no group moves the observable |
+| 6.752623e-05 | median group drift | `records/cn_ipadapter_faceid_sd15_protection.json` -> `median` | the drift is uniform and tiny |
+| 1.061702e-04 | p90 group drift | `records/cn_ipadapter_faceid_sd15_protection.json` -> `p90` | the tail is short |
+| 0 | groups above the 0.15 threshold | `records/cn_ipadapter_faceid_sd15_protection.json` -> `max` | nothing needed protection on drift |
 
-## 5. Behaviour - the source and the pack on the same input
+**Every group sits two to three orders of magnitude below the threshold.** The 60 kept groups are kept by shape (inner dimension 128 / 320 / 640 cannot carry a 256-way group), not by measured risk.
 
-| number | measured | record | bearing on the verdict |
+## 5. Executes - the routes on this machine
+
+| number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 0.999990523 | cosine of the `image_proj` MLP output, source vs dequantised pack | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `image_proj_mlp.cos` | the projection stage is reproduced |
-| 0.999992251 | worst cosine across the sampled LoRA pairs (`up(down(x))`) | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `lora_worst_cos` | the LoRA stages are reproduced |
-| 0.999988827 | 256-item gate, mean cosine | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `gate.mean` | the complete pack verifies on the fixed set |
-| 0.999967217 | 256-item gate, minimum cosine | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `gate.min` | no item falls below the pass floor |
+| 100 | declared ip_adapter weights the node's loader hands on as raw int8 codes | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_raw_int8_codes` | the codes reach the module unconverted |
+| 0 | declared layers backed by a quantised parameter | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_int8` | no layer takes an INT8 path |
+| not applied | the route's verdict | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.verdict` | the loader does not interpret `comfy_quant` |
+| 102 | INT8 GEMM calls when the declared layers are built as quantised modules | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN3.int8_linear_calls` | the kernel itself runs, on all 102 |
+| 0 | IP-Adapter nodes in the installed HSWQ loader tree | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.hswq_loader` | no second route to fall back on |
+| 0 | stock ComfyUI IP-Adapter nodes | `records/cn_ipadapter_faceid_sd15_route.json` -> `routes_checked.comfyui_stock` | same |
 
-## 6. The route - 102 INT8 layers and a render
+`comfyui_ipadapter_plus.utils.ipadapter_model_loader` reads with `load_torch_file(safe_load=True)` and rebuilds the nested dict; it never looks at `comfy_quant`. `MLPProjModelFaceId.load_state_dict` then raises on the int8 tensors, so the failure is loud - the pack cannot be silently mis-run.
 
-| number | measured | record | bearing on the verdict |
+## 6. Acceptance
+
+Measured with the pack's codes dequantised into the source structure, because no route executes them.
+
+| number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 2 / 2 | `image_proj` Linears, and how many received the int8 payload | `records/cn_ipadapter_faceid_sd15_route.json` -> `image_proj.int8_modules` | the MLP runs on the INT8 kernel |
-| 100 / 288 | `ip_adapter` Linears, and how many received the int8 payload | `records/cn_ipadapter_faceid_sd15_route.json` -> `ip_layers.int8_modules` | the 100 eligible LoRA matrices run on the kernel; the 188 with input width 128 stay float |
-| 0 | int8 layers with no module in the graph | `records/cn_ipadapter_faceid_sd15_route.json` -> `image_proj.skipped` | nothing falls back |
-| 66 | ConvRot int8 GEMMs in one adapter forward | `records/cn_ipadapter_faceid_sd15_route.json` -> `int8_gemm_calls` | the kernel runs, not only loads |
-| 256 | groupsize those calls carried | `records/cn_ipadapter_faceid_sd15_route.json` -> `groupsizes` | the ConvRot kernel at the pack's groupsize |
-| 0 | non-finite outputs | `records/cn_ipadapter_faceid_sd15_route.json` -> `nonfinite_count` | no NaN or Inf |
-| 414,033 | bytes of the PNG rendered through the pack (512x512, 8 steps, seed 42, weight 1.0) | `records/cn_ipadapter_faceid_sd15_image_test.json` -> `render.png_bytes` | the route renders an image |
-| 16.46 | PSNR of that render against the same seed without the adapter | `records/cn_ipadapter_faceid_sd15_image_test.json` -> `comparison.int8_vs_base` | the adapter moves the image |
-| 39.98 | PSNR between the pack's render and the float adapter's render | `records/cn_ipadapter_faceid_sd15_image_test.json` -> `comparison.int8_vs_float` | the pack reproduces the float adapter |
+| 0.999999525 | `image_proj` token-stack cosine, source vs pack | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `image_proj_cos` | the quantisation is invisible here |
+| 68 | LoRA pairs checked | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `lora_pairs_checked` | every INT8 pair |
+| 0.999961097 | worst LoRA pair cosine | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `lora_cos_min` | the tail is tight |
+| 0.999999655 | mean cosine over the 256-item set | `records/cn_ipadapter_faceid_sd15_gate_256.json` -> `mean` | the gate passes |
+| 0.999999533 | worst item | `records/cn_ipadapter_faceid_sd15_gate_256.json` -> `min` | far above the 0.98 floor |
+| 222 | items scored of 256 (34 had no detectable face and are excluded, not passed) | `records/cn_ipadapter_faceid_sd15_gate_256.json` -> `n` | the exclusion is stated |
 
-## 7. The weight-level trigger
+## 7. Trigger search
 
-| number | measured | record | bearing on the verdict |
+| number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 0.000e+00 | control p99 of the divergence, three perturbed inputs | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `control.control_p99` | the instrument's floor on this layer |
-| 0.01 | smallest implant strength that leaves that distribution | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `detection_floor_relative_strength` | the floor of this instrument here |
-| 2 | candidates flagged at or below 0.03 relative strength | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `flagged_count` | a 1% rank-1 implant is resolved |
-| 0_to_k_lora_up | the layer the implant was written into | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `implant.layer` | the probe targets a float LoRA matrix |
+| 55 | candidates run (45 patch, 6 frequency, 4 natural transforms) | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `candidate_count` | the whole set was run |
+| 4.830383e-07 | largest natural control | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `control_one_minus_cos` | the distribution a candidate must leave |
+| 7.240575e-07 | the threshold: that control x 1.5 | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `control_p99` | fixed before the candidates were read |
+| 0 | candidates above it | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `flagged_count` | the divergence stays inside natural variation |
+| 0.01 | smallest rank-1 implant the positive control resolved (1-cos 1.049906e-06) | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `detection_floor_relative_strength` | the floor this search can speak to |
 
-## 8. Conclusion
+The positive control resolved an implant at **1 % of the weight norm**, two orders of magnitude smaller than the ControlNet floor of 30 %. The instrument is armed, and the zero is a measured zero.
 
-**No backdoor detected.**
+## 8. Render
 
-- **Added material:** nothing was added; every pack tensor equals the source under the converter's
-  own quantisation, and all 192 float tensors are bit-identical.
-- **The edit is the declared one:** 102 Linear layers quantised, replayed with 0 mismatching values.
-- **What this does not say:** the source's identity is the local file's hash; a defect present in
-  that file before this run is unreachable by comparing the pack with it.
-- **Shape boundary:** the 188 LoRA `up` matrices carry input width 128 and cannot take the 256-group
-  rotation; they stay FP16 and are audited as float, not as quantised layers.
+| arm | measured | record |
+| :--- | :--- | :--- |
+| source | latent `[1,4,64,64]`, finite, NaN 0, Inf 0, PNG 384,606 B, 2.5 s - inspected: a photographed-style street scene with the reference identity applied, no artefacts | `records/cn_ipadapter_faceid_sd15_image_test.json` -> `face.det_score` |
+| pack | **fails before sampling**: `MLPProjModelFaceId.load_state_dict` raises on the raw int8 codes | `records/cn_ipadapter_faceid_sd15_pack_audit.json` -> `CN2.loaded_as_raw_int8_codes` |
+
+512x512, 12 steps, cfg 7.0, dpmpp_2m karras, seed 42, weight 0.8, `cyberrealistic_final`, CLIP vision `CLIP-ViT-H-14`. The image was looked at, not inferred from a cosine.
+
+**No image exists for the pack.** Without a route that interprets `comfy_quant`, the only honest statement is that this machine cannot render it.
+
+## 9. Conclusion
+
+**No backdoor detected on the arithmetic, strength A on that surface:**
+
+- the arithmetic is the source quantised - 102 of 102 INT8 layers, 0 integer differences at all, 0 float-side differences, bit-identical kept tensors
+- the protection set is measured on this file and nothing needed protecting on drift; the 60 kept groups are a shape constraint
+- the kernel runs on all 102 layers when they are built as quantised modules
+- source against pack on the adapter's own observable: 0.999999525 on the token stack, 0.999961097 worst LoRA pair
+- the 256-item gate passes at mean 0.999999655 / min 0.999999533 over 222 scored items
+- 0 of 55 image candidates left the natural-transform distribution, against a floor of 1 % of the weight norm
+
+**What this verdict does not cover** is the execution: no route on this machine runs the pack, so nothing here is a statement about a forward through the INT8 kernel end to end, and nothing here is a statement about a rendered image from the pack.
 
 ## LIMITS
 
-- Candidate set: 102 eligible layers of 290 2-D weights; the other 188 are shape-ineligible, not
-  skipped by choice.
-- Positions probed: 294 tensors of both sub graphs, one position per tensor.
-- Detection floor: the rank-1 implant search was not run on this pack; the verdict rests on the
-  arithmetic replay and the behaviour comparison.
-- Reference-class boundary: the reference is the local source file's bytes.
-- The replay reproduces the converter exactly (Hadamard by Kronecker doubling, group size 256,
-  row-wise `amax/127`).
-- The drift measured here is per-Linear on the adapter's own graph, not a UNet trajectory: FaceID
-  applies its LoRA matrices inside the attention patch, and this run measured the matrices
-  themselves.
-- Inputs outside the tested sets are not covered.
+- **No INT8 route exists here.** 100 of 100 declared ip_adapter weights arrive as raw int8 codes and the model's load rejects them. Every acceptance number measures the quantisation with codes dequantised into the source structure.
+- **The observable is the adapter's stage output, not a sampled image.** It isolates the quantisation from the base model. It does not bound the pack's effect on a render, because no render of the pack exists.
+- **34 of 256 gate items had no detectable face** and are excluded from the 222 scored. A gate that drops items is weaker than one that does not.
+- **The control distribution is thin and very tight.** Four natural transforms on one image, maximum 4.8e-07. The threshold inherits that thinness.
+- **One face, one base model, one prompt, one CLI Python.** A different photograph or checkpoint is not covered.
+- **The sweep is one seed and one fixed input per group.** With every group far below the threshold, a different seed cannot plausibly cross 0.15, but the ordering inside the top decile is not stable.
 
 ## Records
 
-- `records/cn_ipadapter_faceid_sd15_pack_audit.json` - identity, coverage, quantisation replay,
-  float-side comparison, verdict.
-- `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` - the source and the pack on the
-  same inputs: the MLP and LoRA cosines and the 256-item gate.
-- `records/cn_ipadapter_faceid_sd15_protection.json` - the per-layer drifts the converter's
-  threshold is applied to, with the impact file's digest.
-- `records/cn_ipadapter_faceid_sd15_route.json` - the A1111 route: install counts, GEMM count, groupsize.
-- `records/cn_ipadapter_faceid_sd15_image_test.json` - one render through that route and its comparison.
-- `records/cn_ipadapter_faceid_sd15_image_trigger.json` - the weight-level trigger search.
+- `records/cn_ipadapter_faceid_sd15_pack_audit.json` - CN-1, CN-2, CN-3 and the per-layer code deltas.
+- `records/cn_ipadapter_faceid_sd15_protection.json` - the 162-group sweep and its ranking.
+- `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` - CN-5a.
+- `records/cn_ipadapter_faceid_sd15_gate_256.json` - CN-6.
+- `records/cn_ipadapter_faceid_sd15_image_trigger.json` - CN-5b and the positive-control ladder.
+- `records/cn_ipadapter_faceid_sd15_image_test.json` - CN-4 and the pack's load failure.
+- `records/cn_ipadapter_faceid_sd15_route.json` - the route census.

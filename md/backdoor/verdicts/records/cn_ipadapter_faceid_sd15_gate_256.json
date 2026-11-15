@@ -1,0 +1,15 @@
+{
+ "tool": "audit/ipadapter_faceid_gate_and_trigger.py",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
+ "how": "the pack's int8 codes and scales dequantised into the source structure",
+ "n": 222,
+ "finite": true,
+ "nonfinite_count": 0,
+ "items": "8 crops x 4 orientations x 8 brightness steps, from cn_clipvit_ref.png",
+ "mean": 0.9999996547252076,
+ "min": 0.9999995326856068,
+ "p5": 0.9999995463999902,
+ "p50": 0.999999585178253,
+ "pass": true
+}

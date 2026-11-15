@@ -68,6 +68,9 @@ python audit/run_all_gates.py
 | retired (superseded by the CN branches above) | `ipadapter_pack_audit.py` | the IP-Adapter audit now runs as `controlnet_pack_audit.py --family ipadapter` |
 | retired (superseded by the CN branches above) | `ipadapter_weight_trigger.py` | the IP-Adapter trigger now runs as `ipadapter_image_trigger.py`, which reads the image prompt |
 | CN-4 (one render per route, IP-Adapter sd15_plus) | `a1111_ipadapter_render.py` | `--image <png> --float <model name> --int8 <model name> [--model-dir <d>] --out-dir <d> --json <o> --seed S` |
+| CN-1..3 (FaceID pack: faithfulness, loader route, kernel) | `ipadapter_faceid_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --node <d> --json <o>` |
+| CN-4 (FaceID render, source and pack arms) | `ipadapter_faceid_image_test.py` | `--pack <f> --source <f> --image <png> --ckpt <f> --clipvision <f> --comfy <d> --out-dir <d> --json <o>` |
+| CN-5a/5b/6 (FaceID observable, 55 candidates, 256-item gate) | `ipadapter_faceid_gate_and_trigger.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json-5a <o> --json-trigger <o> --json-gate <o>` |
 | CN-1 (pack is the source quantised, CLIP-ViT-H-14) | `clip_vit_h14_pack_audit.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |
 | CN-2/3 (loader route and INT8 execution, CLIP-ViT-H-14) | `clip_vit_h14_route.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |
 | CN-5d (all 92 INT8 layers and structured code edits, CLIP-ViT-H-14) | `clip_vit_h14_int8_sweep.py` | `--pack <f> --image <png> --comfy <d> --loader <d> --threshold <f> --json <o>` |

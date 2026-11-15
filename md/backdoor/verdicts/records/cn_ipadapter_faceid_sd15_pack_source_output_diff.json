@@ -1,35 +1,28 @@
 {
- "tool": "faceid source vs pack",
+ "tool": "audit/ipadapter_faceid_gate_and_trigger.py",
+ "family": "faceid",
  "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
- "declared_layers": 102,
- "gate": {
-  "n": 256,
-  "mean": 0.9999888266902417,
-  "min": 0.9999672174453735,
-  "p5": 0.9999785423278809,
-  "p50": 0.9999899864196777
- },
- "image_proj_mlp": {
-  "cos": 0.9999905228614807,
-  "max_abs": 0.14734458923339844
- },
- "lora_worst_cos": 0.9999922513961792,
- "lora_sample": {
-  "ip_adapter.0.to_k_lora": {
-   "cos": 1.0,
-   "max_abs": 0.0
+ "how": "the pack's int8 codes and scales dequantised into the source structure",
+ "batches": [
+  {
+   "batch": 0,
+   "cos": 0.9999995335032882
   },
-  "ip_adapter.0.to_out_lora": {
-   "cos": 0.9999998807907104,
-   "max_abs": 0.0
+  {
+   "batch": 1,
+   "cos": 0.9999995245606315
   },
-  "ip_adapter.0.to_q_lora": {
-   "cos": 1.0,
-   "max_abs": 0.0
+  {
+   "batch": 2,
+   "cos": 0.9999995310428986
   },
-  "ip_adapter.0.to_v_lora": {
-   "cos": 1.0,
-   "max_abs": 0.0
+  {
+   "batch": 3,
+   "cos": 0.9999995258203407
   }
- }
+ ],
+ "image_proj_cos": 0.9999995252297588,
+ "lora_pairs_checked": 68,
+ "lora_cos_min": 0.9999610968661434,
+ "lora_cos_mean": 0.999976965363692
 }

@@ -1,61 +1,648 @@
 {
- "tool": "controlnet_pack_audit.py",
- "method": "runtime-name coverage from comfy.controlnet.load_controlnet_state_dict, then the converter's own quantisation replayed on the runtime float weights (Hadamard-256 rotation, row-wise amax/127 int8), compared element by element",
- "source": {
-  "file": "ip-adapter-faceid_sd15.bin",
-  "bytes": 96740574,
-  "sha256": "201344e22e6f55849cf07ca7a6e53d8c3b001327c66cb9710d69fd5da48a8da7"
- },
- "pack": {
-  "file": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
-  "bytes": 65047130,
-  "sha256": "35b5942ee163494b82ec4b9d0797ef511a2552e780d44f9e15a6bae9ee40fcc6"
- },
- "declared": {
-  "layers": 102,
-  "formats": [
-   "int8_tensorwise"
-  ],
-  "convrot": [
-   "True"
-  ],
-  "groupsizes": [
-   256
-  ]
- },
- "runtime_tensors": 294,
- "pack_tensors": 294,
- "coverage": {
-  "missing_from_pack": [],
-  "n_missing": 0,
-  "extra_in_pack": [],
-  "n_extra": 0,
-  "shape_mismatch": [],
-  "n_shape_mismatch": 0
- },
- "quantised": {
-  "found": 102,
+ "tool": "audit/ipadapter_faceid_pack_audit.py",
+ "source": "ip-adapter-faceid_sd15.bin",
+ "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
+ "source_bytes": 96740574,
+ "pack_bytes": 65047130,
+ "CN1": {
   "declared": 102,
-  "undeclared_found": [],
-  "declared_not_found": [],
-  "q_mismatch_total": 0,
+  "q_mismatch_beyond_one_count": 0,
   "max_q_delta": 0,
-  "scale_exact_rel_max": 0.0,
+  "scale_rel_max": 0.0,
   "nonfinite_scales": 0,
-  "layers_with_any_difference": [],
-  "n_layers_with_difference": 0,
-  "protected": 0
+  "float_side_checked": 192,
+  "float_side_mismatch": 0,
+  "float_side_max_abs_diff": 0.0,
+  "verdict": "FAITHFUL"
  },
- "float_side": {
-  "checked": 192,
-  "mismatch_count": 0,
-  "max_abs_diff": 0.0
+ "CN2": {
+  "loader": "comfyui_ipadapter_plus.utils.ipadapter_model_loader",
+  "interface": "load_torch_file(safe_load=True) then rebuild image_proj / ip_adapter",
+  "declared_in_ip_adapter": 100,
+  "loaded_as_int8": 0,
+  "loaded_as_raw_int8_codes": 100,
+  "verdict": "not applied - the loader hands the raw int8 codes to the model"
  },
- "loader_route": null,
- "verdict": "FAITHFUL",
- "environment": {
-  "device": "cpu",
-  "comfy": "ComfyUI"
+ "CN3": {
+  "int8_linear_calls": 102,
+  "layer_forwards": 102,
+  "kernel": "comfy_kitchen.backends.cuda.int8_linear",
+  "all_finite": true
  },
- "elapsed_seconds": 0.42
+ "per_layer": {
+  "image_proj.proj.0": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002460859715938568
+  },
+  "image_proj.proj.2": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.05066823959350586
+  },
+  "ip_adapter.1.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002791590988636017
+  },
+  "ip_adapter.1.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017760992050170898
+  },
+  "ip_adapter.1.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017382185906171799
+  },
+  "ip_adapter.1.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014850916340947151
+  },
+  "ip_adapter.10.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001570824533700943
+  },
+  "ip_adapter.10.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014599468559026718
+  },
+  "ip_adapter.10.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001849636435508728
+  },
+  "ip_adapter.10.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014417953789234161
+  },
+  "ip_adapter.11.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024382025003433228
+  },
+  "ip_adapter.11.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019031129777431488
+  },
+  "ip_adapter.11.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013286173343658447
+  },
+  "ip_adapter.11.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018673166632652283
+  },
+  "ip_adapter.11.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021603256464004517
+  },
+  "ip_adapter.11.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015893671661615372
+  },
+  "ip_adapter.12.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001541636884212494
+  },
+  "ip_adapter.12.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001399155706167221
+  },
+  "ip_adapter.12.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017289407551288605
+  },
+  "ip_adapter.12.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017089503817260265
+  },
+  "ip_adapter.13.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0025331899523735046
+  },
+  "ip_adapter.13.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018015652894973755
+  },
+  "ip_adapter.13.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019498039036989212
+  },
+  "ip_adapter.13.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0020230039954185486
+  },
+  "ip_adapter.13.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002480117604136467
+  },
+  "ip_adapter.13.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001585148274898529
+  },
+  "ip_adapter.14.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001656114123761654
+  },
+  "ip_adapter.14.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014299415051937103
+  },
+  "ip_adapter.14.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017670299857854843
+  },
+  "ip_adapter.14.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015147104859352112
+  },
+  "ip_adapter.15.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0025148894637823105
+  },
+  "ip_adapter.15.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018068701028823853
+  },
+  "ip_adapter.15.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017560720443725586
+  },
+  "ip_adapter.15.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002220548689365387
+  },
+  "ip_adapter.15.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00257018581032753
+  },
+  "ip_adapter.15.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018607042729854584
+  },
+  "ip_adapter.16.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002342425286769867
+  },
+  "ip_adapter.16.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015287548303604126
+  },
+  "ip_adapter.16.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019691139459609985
+  },
+  "ip_adapter.16.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014271344989538193
+  },
+  "ip_adapter.17.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002901848405599594
+  },
+  "ip_adapter.17.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024377256631851196
+  },
+  "ip_adapter.17.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017786426469683647
+  },
+  "ip_adapter.17.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001789286732673645
+  },
+  "ip_adapter.17.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002338521182537079
+  },
+  "ip_adapter.17.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001738591119647026
+  },
+  "ip_adapter.19.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0026716887950897217
+  },
+  "ip_adapter.19.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015217140316963196
+  },
+  "ip_adapter.19.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00268632173538208
+  },
+  "ip_adapter.19.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0010808762162923813
+  },
+  "ip_adapter.21.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024674832820892334
+  },
+  "ip_adapter.21.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002021532505750656
+  },
+  "ip_adapter.21.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0025618374347686768
+  },
+  "ip_adapter.21.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019263923168182373
+  },
+  "ip_adapter.23.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0030513331294059753
+  },
+  "ip_adapter.23.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00187595933675766
+  },
+  "ip_adapter.23.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002564050257205963
+  },
+  "ip_adapter.23.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0017709285020828247
+  },
+  "ip_adapter.25.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0029103681445121765
+  },
+  "ip_adapter.25.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014468319714069366
+  },
+  "ip_adapter.25.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021917521953582764
+  },
+  "ip_adapter.25.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0011118948459625244
+  },
+  "ip_adapter.27.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.002781582996249199
+  },
+  "ip_adapter.27.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015170201659202576
+  },
+  "ip_adapter.27.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0018120640888810158
+  },
+  "ip_adapter.27.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0012011677026748657
+  },
+  "ip_adapter.29.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0026661157608032227
+  },
+  "ip_adapter.29.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013249889016151428
+  },
+  "ip_adapter.29.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016144085675477982
+  },
+  "ip_adapter.29.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0012218877673149109
+  },
+  "ip_adapter.3.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0026309117674827576
+  },
+  "ip_adapter.3.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00137459603138268
+  },
+  "ip_adapter.3.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001635819673538208
+  },
+  "ip_adapter.3.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0010157153010368347
+  },
+  "ip_adapter.30.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001597737893462181
+  },
+  "ip_adapter.30.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001989789307117462
+  },
+  "ip_adapter.30.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016635432839393616
+  },
+  "ip_adapter.30.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016789771616458893
+  },
+  "ip_adapter.31.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0026095956563949585
+  },
+  "ip_adapter.31.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016502607613801956
+  },
+  "ip_adapter.31.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001661054790019989
+  },
+  "ip_adapter.31.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015321280807256699
+  },
+  "ip_adapter.31.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0026212260127067566
+  },
+  "ip_adapter.31.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0019058696925640106
+  },
+  "ip_adapter.5.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0036326348781585693
+  },
+  "ip_adapter.5.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015483573079109192
+  },
+  "ip_adapter.5.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001989997923374176
+  },
+  "ip_adapter.5.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0012098653241991997
+  },
+  "ip_adapter.7.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024217814207077026
+  },
+  "ip_adapter.7.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0016192197799682617
+  },
+  "ip_adapter.7.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0021276623010635376
+  },
+  "ip_adapter.7.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001197315752506256
+  },
+  "ip_adapter.8.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015842076390981674
+  },
+  "ip_adapter.8.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014208480715751648
+  },
+  "ip_adapter.8.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001440722495317459
+  },
+  "ip_adapter.8.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001179475337266922
+  },
+  "ip_adapter.9.to_k_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0024578943848609924
+  },
+  "ip_adapter.9.to_k_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0014712586998939514
+  },
+  "ip_adapter.9.to_out_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0013080528005957603
+  },
+  "ip_adapter.9.to_q_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.0015475824475288391
+  },
+  "ip_adapter.9.to_v_ip": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.00251074880361557
+  },
+  "ip_adapter.9.to_v_lora.down": {
+   "max_q_delta": 0,
+   "beyond_one_count": 0,
+   "scale_rel_max": 0.0,
+   "dequant_max_abs_diff": 0.001363459974527359
+  }
+ },
+ "source_sha256": "201344e22e6f55849cf07ca7a6e53d8c3b001327c66cb9710d69fd5da48a8da7",
+ "pack_sha256": "35b5942ee163494b82ec4b9d0797ef511a2552e780d44f9e15a6bae9ee40fcc6"
 }
