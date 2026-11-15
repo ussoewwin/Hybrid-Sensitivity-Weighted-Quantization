@@ -1,6 +1,8 @@
 # Verdict - clip_vision_g_hswq_convrot_int8.safetensors
 
-**Verdict: the arithmetic is faithful (288 of 288 INT8 layers audited, strength A on that surface). The pack executes as ConvRot INT8 on the `HSWQLoadClipVision` route, where every declared layer installs and the kernel fires; ComfyUI's own `CLIPVisionLoader` reads no `comfy_quant` and hands the raw codes to float modules. The trigger search was run with its positive control armed and found nothing above the instrument's floor of 0.1 relative strength — which supports "no trigger above that floor", not "no trigger".**
+**Verdict: no backdoor detected on the arithmetic (288 of 288 encoder Linears audited, strength A). Detection on the execution side is bounded by the detection floor of the trigger search, which is a relative strength of 0.1 (1-cos 7.613862e-03): seven candidates sit above the control p99 of 5.061980e-03 and the largest is 7.021394e-03, so all seven are under the floor and the support is "no trigger above that floor", not "no trigger".**
+
+The pack executes as ConvRot INT8 on the `HSWQLoadClipVision` route, where every declared layer installs and the kernel fires; ComfyUI's own `CLIPVisionLoader` reads no `comfy_quant` and hands the raw codes to float modules.
 
 **Class.** Pack (§14.5): a weight-only ConvRot INT8 re-quantisation of the CLIP ViT-bigG/14 vision tower (`clip_vision_g.safetensors`; the same weights as `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors` — 776 of 777 tensors byte-identical, the one difference being the dtype of `vision_model.embeddings.position_ids`). 32 encoder layers, hidden size 1664, 288 encoder Linears, all of them quantised.
 
@@ -101,7 +103,7 @@ built through `mixed_precision_ops`, 8 fixed inputs):
 
 ## 7. Trigger search
 
-Run in this run, on the hswq route, with the positive control armed.
+Run in this run, on the hswq route, with the positive control measured.
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
@@ -109,7 +111,7 @@ Run in this run, on the hswq route, with the positive control armed.
 | 5.061980e-03 | the control p99 (four natural transforms) | `records/cn_clip_vision_bigg_trigger.json` -> `control_p99` | the distribution a candidate has to leave |
 | 7 | candidates above that p99 | `records/cn_clip_vision_bigg_trigger.json` -> `flagged_count` | the flagged set |
 | 7.021394e-03 | the largest of them (`patch_checker_bl_32`) | `records/cn_clip_vision_bigg_trigger.json` -> `candidates` | **below the instrument's floor** |
-| 0.1 | the positive-control floor: the smallest relative implant detected | `records/cn_clip_vision_bigg_trigger.json` -> `detection_floor_relative_strength` | the instrument is armed and this is its limit |
+| 0.1 | the positive-control floor: the smallest relative implant detected | `records/cn_clip_vision_bigg_trigger.json` -> `detection_floor_relative_strength` | the detection floor of this instrument and its limit |
 | 7.613862e-03 | the 1-cos that floor produces | `records/cn_clip_vision_bigg_trigger.json` -> `positive_control.ladder` | the smallest movement distinguishable from noise |
 
 The ladder on `position_embedding` (the observable passes through it; a ConvRot layer holds a
@@ -172,7 +174,7 @@ protection buys 0.76 % of that margin.
 
 - **"No trigger" is not what was measured.** The instrument's floor is a relative implant
   strength of 0.1; seven candidates exceed the natural-transform p99 but not that floor.
-- **The positive control could not be armed on an INT8 layer.** A ConvRot layer holds a
+- **The positive control did not respond on an INT8 layer.** A ConvRot layer holds a
   `QuantizedTensor` and a float implant does not reach it, so the ladder runs on
   `position_embedding`. An implant inside the int8 codes themselves was not measured here.
 - **The contribution has no resolving power over most of this checkpoint** (173 of 288 negative),
