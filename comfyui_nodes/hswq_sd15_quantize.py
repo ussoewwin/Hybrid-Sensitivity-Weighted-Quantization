@@ -33,6 +33,7 @@ _SDXL_REVERSE_SCRIPT = os.path.join("sdxl", "gen_reverse_int8_sdxl_v1.1.py")
 _SDXL_TRAJ_GATE = os.path.join("benchmark", "sdxl_int8_traj_compare.py")
 _COMFY_PATH = "ComfyUI-master"
 _DEFAULT_CALIB_FILE = os.path.join("sample", "calibration_prompts_128.txt")
+_IMPACT_DIR = os.path.join(_REPO_ROOT, "impact")
 
 
 def _alloc_conf_for_child(env: dict) -> None:
@@ -121,6 +122,62 @@ def _free_vram_before_run():
             )
     except Exception as e:
         print(f"[HSWQ] WARN: could not free models before run: {e}", flush=True)
+
+
+def _sd15_impact_candidates(raw):
+    """Yield the plausible json paths carried by whatever arrived on the input.
+
+    The input is a plain STRING. The Step 1 nodes emit two of them: the json
+    path, and a report whose first line reads "impact json loaded: <path>".
+    Both are accepted, as is a bare file name under <repo>/impact/.
+    """
+    text = (raw or "").strip()
+    out = []
+    if not text:
+        return out
+    out.append(text)
+    for line in text.splitlines():
+        if ":" in line:
+            tail = line.split(":", 1)[1].strip()
+            if tail.lower().endswith(".json"):
+                out.append(tail)
+    for token in text.replace("\r", " ").replace("\n", " ").replace('"', " ").split():
+        if token.lower().endswith(".json"):
+            out.append(token)
+    return out
+
+
+def _resolve_sd15_impact_json(raw, base_path):
+    """Return an existing impact json path for the value on the impact_json input.
+
+    Any resolution other than a direct path is printed together with the value
+    that arrived, so the log always states which file was used and why.
+    """
+    text = (raw or "").strip()
+    seen = _sd15_impact_candidates(raw)
+    for cand in seen:
+        for path in (cand, os.path.join(_IMPACT_DIR, os.path.basename(cand))):
+            if os.path.isfile(path):
+                if path != text:
+                    print(
+                        "[HSWQ SD1.5] impact_json input is not a path; using %s "
+                        "(input began: %.80r)" % (path, text),
+                        flush=True,
+                    )
+                return path
+    if base_path:
+        stem = os.path.splitext(os.path.basename(base_path))[0]
+        for name in ("impact_sd15_traj_%s.json" % stem.replace(" ", "_"),
+                     "impact_%s.json" % stem):
+            path = os.path.join(_IMPACT_DIR, name)
+            if os.path.isfile(path):
+                print(
+                    "[HSWQ SD1.5] impact_json input unusable; falling back to %s "
+                    "(input was: %.80r)" % (path, text),
+                    flush=True,
+                )
+                return path
+    return ""
 
 
 class HSWQQuantize:
@@ -322,18 +379,12 @@ class HSWQQuantize:
             )
 
         # Step 1 output: the per-layer trajectory impact json (from HSWQ Diag Impact node).
-        imp = (impact_json or "").strip()
+        imp = _resolve_sd15_impact_json(impact_json, base_path)
         if not imp:
-            stem = os.path.splitext(os.path.basename(base_path))[0]
-            candidate = os.path.join(_REPO_ROOT, "impact", "impact_sd15_traj_%s.json" % stem.replace(" ", "_"))
-            if not os.path.isfile(candidate):
-                candidate = os.path.join(_REPO_ROOT, "impact", f"impact_{stem}.json")
-            imp = candidate if os.path.isfile(candidate) else ""
-        if not imp or not os.path.isfile(imp):
             raise ValueError(
                 "impact_json: SD1.5 HSWQ v1.1 needs the impact json produced by "
                 "the Diag Impact node (Step 1). Connect that node's impact_json "
-                f"output, or set the path manually. Got: {imp!r}"
+                f"output, or set the path manually. Got: {impact_json!r}"
             )
 
         script_path = os.path.join(_REPO_ROOT, _SD15_QUANT_SCRIPT)
