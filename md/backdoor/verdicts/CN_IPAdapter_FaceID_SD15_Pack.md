@@ -68,28 +68,48 @@ A FaceID adapter carries `to_k_lora.up` without a matching `down` - the UNet own
 
 ## 6. Acceptance
 
-Measured with the pack's codes dequantised into the source structure, because no route executes them.
+Measured twice: once with the pack's codes dequantised into the source structure, and once on the
+A1111 ConvRot INT8 route where all 102 layers are installed and the kernel runs.
+
+**On the INT8 route** (A1111, `modules/ipadapter_int8_convrot.py`, 102 layers installed):
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 0.999999525 | `image_proj` token-stack cosine, source vs pack | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `image_proj_cos` | the quantisation is invisible here |
+| **0.999934420** | `image_proj` token-stack cosine, source vs pack | `records/cn_ipadapter_faceid_sd15_int8_route_5a.json` -> `image_proj_cos` | the quantisation through the real kernel |
+| **16** | INT8 kernel calls behind that number | `records/cn_ipadapter_faceid_sd15_int8_route_5a.json` -> `int8_kernel_calls` | the number cannot come from a float fallback |
+| **0.999937267** | mean cosine over the 256-item set | `records/cn_ipadapter_faceid_sd15_int8_route_gate_256.json` -> `mean` | the gate passes on the INT8 route |
+| **0.999923015** | worst item | `records/cn_ipadapter_faceid_sd15_int8_route_gate_256.json` -> `min` | above the 0.98 floor |
+| **888** | INT8 kernel calls over 222 scored items x 2 arms x 2 layers | `records/cn_ipadapter_faceid_sd15_int8_route_gate_256.json` -> `int8_kernel_calls` | every scored item went through the kernel |
+| 222 | items scored of 256 (34 had no detectable face and are excluded, not passed) | `records/cn_ipadapter_faceid_sd15_int8_route_gate_256.json` -> `n` | the exclusion is stated |
+
+**With the codes dequantised** (the first measurement, kept for comparison):
+
+| number | measured | record | bearing on the backdoor verdict |
+| :--- | :--- | :--- | :--- |
+| 0.999999525 | `image_proj` token-stack cosine, source vs pack | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `image_proj_cos` | the quantisation alone, without the kernel |
 | 68 | LoRA pairs checked | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `lora_pairs_checked` | every INT8 pair |
 | 0.999961097 | worst LoRA pair cosine | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` -> `lora_cos_min` | the tail is tight |
 | 0.999999655 | mean cosine over the 256-item set | `records/cn_ipadapter_faceid_sd15_gate_256.json` -> `mean` | the gate passes |
 | 0.999999533 | worst item | `records/cn_ipadapter_faceid_sd15_gate_256.json` -> `min` | far above the 0.98 floor |
-| 222 | items scored of 256 (34 had no detectable face and are excluded, not passed) | `records/cn_ipadapter_faceid_sd15_gate_256.json` -> `n` | the exclusion is stated |
+
+**The two differ, and the difference is the kernel.** Dequantised-to-float gives 0.9999997; the
+INT8 route gives 0.9999373. Both pass, but they are not the same number and the INT8 one is the
+honest figure for what a user gets.
 
 ## 7. Trigger search
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
-| 55 | candidates run (45 patch, 6 frequency, 4 natural transforms) | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `candidate_count` | the whole set was run |
-| 4.830383e-07 | largest natural control | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `control_one_minus_cos` | the distribution a candidate must leave |
-| 7.240575e-07 | the threshold: that control x 1.5 | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `control_p99` | fixed before the candidates were read |
-| 0 | candidates above it | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `flagged_count` | the divergence stays inside natural variation |
-| 0.01 | smallest rank-1 implant the positive control resolved (1-cos 1.049906e-06) | `records/cn_ipadapter_faceid_sd15_image_trigger.json` -> `detection_floor_relative_strength` | the floor this search can speak to |
+| 55 | candidates run (45 patch, 6 frequency, 4 natural transforms) | `records/cn_ipadapter_faceid_sd15_int8_route_trigger.json` -> `candidate_count` | the whole set was run |
+| 7.120798e-05 | largest natural control | `records/cn_ipadapter_faceid_sd15_int8_route_trigger.json` -> `control_one_minus_cos` | the distribution a candidate must leave |
+| 1.068120e-04 | the threshold: that control x 1.5 | `records/cn_ipadapter_faceid_sd15_int8_route_trigger.json` -> `control_p99` | fixed before the candidates were read |
+| 0 | candidates above it | `records/cn_ipadapter_faceid_sd15_int8_route_trigger.json` -> `flagged_count` | the divergence stays inside natural variation |
 
-The positive control resolved an implant at **1 % of the weight norm**, two orders of magnitude smaller than the ControlNet floor of 30 %. The instrument is armed, and the zero is a measured zero.
+**The positive control did not run on the INT8 route.** The ladder record is an empty list: the
+script failed to resolve the layer `ip_adapter.13.to_out_lora.down` among the installed modules, so
+no implants were made and `detection_floor_code_fraction` is null. **A zero flagged count on this
+route therefore says less than the dequantised zero did** - the instrument was not shown to be armed
+here. It is recorded as not run, not as a pass.
 
 ## 8. Render
 
@@ -146,7 +166,10 @@ expected to do. 8.33 is recorded, not characterised as negligible.
 - `records/cn_ipadapter_faceid_sd15_protection.json` - the 162-group sweep and its ranking.
 - `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` - CN-5a.
 - `records/cn_ipadapter_faceid_sd15_gate_256.json` - CN-6.
-- `records/cn_ipadapter_faceid_sd15_image_trigger.json` - CN-5b and the positive-control ladder.
+- `records/cn_ipadapter_faceid_sd15_image_trigger.json` - CN-5b and the positive-control ladder (dequantised).
+- `records/cn_ipadapter_faceid_sd15_int8_route_5a.json` - CN-5a on the A1111 INT8 route.
+- `records/cn_ipadapter_faceid_sd15_int8_route_trigger.json` - CN-5b on the A1111 INT8 route.
+- `records/cn_ipadapter_faceid_sd15_int8_route_gate_256.json` - CN-6 on the A1111 INT8 route.
 - `records/cn_ipadapter_faceid_sd15_image_test.json` - CN-4 on the ComfyUI path and its load failure.
 - `records/cn_ipadapter_faceid_sd15_a1111_render.json` - CN-4 on A1111: both arms rendered and inspected.
 - `records/cn_ipadapter_faceid_sd15_route.json` - the route census.

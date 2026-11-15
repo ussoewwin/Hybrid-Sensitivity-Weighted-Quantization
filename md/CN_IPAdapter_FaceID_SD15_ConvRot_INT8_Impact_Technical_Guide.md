@@ -204,6 +204,53 @@ float16 with zero difference.
 
 ---
 
+## 7. The acceptance
+
+Measured twice: with the pack's codes dequantised into the source structure, and on the A1111
+ConvRot INT8 route where all 102 layers are installed and the kernel runs.
+
+**On the INT8 route** (A1111, `modules/ipadapter_int8_convrot.py`, 102 layers, kernel counted):
+
+| item | measured |
+| :--- | :--- |
+| `image_proj` token-stack cos | **0.999934420** |
+| INT8 kernel calls behind it | **16** |
+| 256-item cos mean | **0.999937267** |
+| 256-item cos min | **0.999923015** |
+| INT8 kernel calls over the gate | **888** |
+| items scored | **222** of 256 |
+| gate (`mean >= 0.99`, `min >= 0.98`) | **PASS** |
+
+**With the codes dequantised** (the same construction, without the kernel - kept for comparison):
+
+| item | measured |
+| :--- | :--- |
+| `image_proj` token-stack cos | 0.999999525 |
+| LoRA pairs checked | 68 |
+| LoRA cos min | 0.999961097 |
+| 256-item cos mean | 0.999999655 |
+| 256-item cos min | 0.999999533 |
+
+**The two differ by the kernel's own rounding** - 0.9999997 dequantised against 0.9999373 on the
+route. Both pass; the INT8 figure is what a user gets.
+
+**The trigger set, on the INT8 route.** 55 candidate image transforms against the natural-transform
+control distribution:
+
+| item | measured |
+| :--- | :--- |
+| candidates | 55 (45 patch, 6 frequency, 4 natural controls) |
+| control max | 7.120798e-05 |
+| control p99 (max x 1.5) | **1.068120e-04** |
+| candidates above p99 | **0** |
+| positive control | **not run** - the target layer could not be resolved by name |
+
+**The positive control did not run here, and that is recorded as a gap.** The ladder record is an
+empty list - the script could not resolve the target layer among the installed modules, so no
+implants were made. The zero flagged count on this route therefore says less than the dequantised
+zero did: the instrument was not shown to be armed.
+
+
 **The render, on A1111.** 512x512, 12 steps, cfg 7.0, DPM++ 2M Karras, seed 42, weight 0.8, module
 `ip-adapter_face_id`, on `0.5yayoiMix_v25+0.5againmix_v22_hswq_1on_k80_convrot_int8`:
 
@@ -309,7 +356,8 @@ python audit/ipadapter_faceid_gate_and_trigger.py \
 | 3b | `ipadapter_faceid_route_probe.py` | A1111: 102/102 installed, 4 kernel calls, finite; Forge: 102/102 loaded, 3 kernel calls, finite |
 | 4 | `ipadapter_faceid_image_test.py` | CN-4 on ComfyUI: source renders (384,606 B, 2.5 s, inspected); pack fails at `load_state_dict` |
 | 4b | `ipadapter_faceid_a1111_render.py` | CN-4 on A1111: source 394,043 B / pack 391,426 B, both inspected, mean abs diff 8.33 / 255 |
-| 5 | `ipadapter_faceid_gate_and_trigger.py` | CN-5a image_proj cos 0.999999525, 68 LoRA pairs cos_min 0.999961097; CN-5b 55 candidates, control p99 7.240575e-07, flagged 0, floor 0.01; CN-6 mean 0.999999655, min 0.999999533, n 222, PASS |
+| 5 | `ipadapter_faceid_gate_and_trigger.py` | dequantised: cos 0.999999525, 68 LoRA pairs cos_min 0.999961097; 55 candidates, control p99 7.240575e-07, flagged 0, floor 0.01; gate mean 0.999999655, min 0.999999533, n 222, PASS |
+| 5b | `ipadapter_faceid_int8_route_acceptance.py` | INT8 route: cos 0.999934420 over 16 kernel calls; 55 candidates, control p99 1.602180e-04, flagged 0, floor not established; gate mean 0.999937267, min 0.999923015, n 222, 888 kernel calls, PASS |
 
 ---
 
@@ -321,7 +369,10 @@ python audit/ipadapter_faceid_gate_and_trigger.py \
 | `records/cn_ipadapter_faceid_sd15_protection.json` | the 162-group sweep and its ranking |
 | `records/cn_ipadapter_faceid_sd15_pack_source_output_diff.json` | CN-5a, four batches plus the LoRA pairs |
 | `records/cn_ipadapter_faceid_sd15_gate_256.json` | CN-6, the 256-item acceptance |
-| `records/cn_ipadapter_faceid_sd15_image_trigger.json` | CN-5b, the 55 candidates and the positive-control ladder |
+| `records/cn_ipadapter_faceid_sd15_image_trigger.json` | CN-5b, the 55 candidates and the ladder (dequantised) |
+| `records/cn_ipadapter_faceid_sd15_int8_route_5a.json` | CN-5a on the A1111 INT8 route |
+| `records/cn_ipadapter_faceid_sd15_int8_route_trigger.json` | CN-5b on the A1111 INT8 route |
+| `records/cn_ipadapter_faceid_sd15_int8_route_gate_256.json` | CN-6 on the A1111 INT8 route |
 | `records/cn_ipadapter_faceid_sd15_image_test.json` | CN-4 on ComfyUI, the source render and the pack's load failure |
 | `records/cn_ipadapter_faceid_sd15_a1111_render.json` | CN-4 on A1111, both arms rendered and inspected |
 | `records/cn_ipadapter_faceid_sd15_image_test.png` | the ComfyUI source render |

@@ -1,0 +1,26 @@
+{
+ "tool": "audit/ipadapter_faceid_int8_route_acceptance.py",
+ "route": "A1111 modules/ipadapter_int8_convrot.py, 102 INT8 layers installed",
+ "pack": "ip-adapter-faceid_sd15_hswq_convrot_int8.safetensors",
+ "int8_layers": 102,
+ "int8_kernel_calls": 16,
+ "image_proj_cos": 0.9999344200758082,
+ "batches": [
+  {
+   "batch": 0,
+   "cos": 0.9999458526634036
+  },
+  {
+   "batch": 1,
+   "cos": 0.9999505836127123
+  },
+  {
+   "batch": 2,
+   "cos": 0.999945405153988
+  },
+  {
+   "batch": 3,
+   "cos": 0.999945684604846
+  }
+ ]
+}
