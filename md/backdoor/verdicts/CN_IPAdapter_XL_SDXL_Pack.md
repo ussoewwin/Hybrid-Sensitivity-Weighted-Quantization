@@ -42,7 +42,7 @@
 | 141 | groups measured | `records/cn_ipadapter_xl_protection.json` -> `measured` | the sweep is complete |
 | 7.817284e-05 | largest group drift (`ip_adapter.63.to_k_ip`) | `records/cn_ipadapter_xl_protection.json` -> `max` | no group moves the observable |
 | 5.050932e-05 | median group drift | `records/cn_ipadapter_xl_protection.json` -> `median` | the drift is uniform |
-| 6.119710e-05 | p90 group drift | `records/cn_ipadapter_xl_protection.json` -> `p90` | the tail is short |
+| 6.211184e-05 | p90 group drift | `records/cn_ipadapter_xl_protection.json` -> `p90` | the tail is short |
 | 2.709644e-05 | smallest group drift | `records/cn_ipadapter_xl_protection.json` -> `min` | the spread is under three-fold |
 | 0 | groups above the 0.15 threshold | `records/cn_ipadapter_xl_protection.json` -> `above_threshold` | nothing needed protection |
 

@@ -103,7 +103,7 @@ reconstruction and measures the relative MSE of that part's own output, in float
 | groups measured | **141** (0 not quantisable, 0 unmeasured) |
 | largest drift | **7.817284e-05** (`ip_adapter.63.to_k_ip`) |
 | median | 5.050932e-05 |
-| p90 | 6.119710e-05 |
+| p90 | 6.211184e-05 |
 | smallest | 2.709644e-05 |
 | groups above 0.15 | **0** |
 
@@ -278,7 +278,7 @@ python audit/ipadapter_faceid_int8_route_acceptance.py \
 
 | step | tool | result |
 | :--- | :--- | :--- |
-| 1 | `diag_impact_ipadapter_xl.py` | 141 groups, max 7.817284e-05, median 5.050932e-05, p90 6.119710e-05, min 2.709644e-05, 0 above 0.15, 1.0 s |
+| 1 | `diag_impact_ipadapter_xl.py` | 141 groups, max 7.817284e-05, median 5.050932e-05, p90 6.211184e-05, min 2.709644e-05, 0 above 0.15, 1.0 s |
 | 2 | `convert_ipadapter_convrot_int8.py` | 141 INT8, 0 protected, 3 non-quantiser tensors, 352,063,023 B, -49.9 % |
 | 3 | `ipadapter_faceid_pack_audit.py` | CN-1 FAITHFUL 141/141, 0 integer differences, scale 0.0, float 3/3 bit-identical; CN-2 ComfyUI 140 raw codes; CN-3 141 INT8 GEMM, finite |
 | 4 | `ipadapter_faceid_route_probe.py` | A1111: 141/141 installed (1 + 140), 144 float params, forward `[1,4,2048]` finite, 2 kernel calls |
