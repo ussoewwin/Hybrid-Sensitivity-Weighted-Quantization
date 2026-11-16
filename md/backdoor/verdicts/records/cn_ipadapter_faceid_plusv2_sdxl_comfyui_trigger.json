@@ -1,0 +1,440 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_sdxl_comfyui_trigger.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "route": "ComfyUI, HSWQ Load IPAdapter Model -> image_proj (faceid plus v2)",
+ "baseline": 7.693165313671368e-05,
+ "controls": [
+  7.693165313671368e-05,
+  7.740846672354973e-05,
+  7.720065833038969e-05,
+  7.644062235756532e-05,
+  7.814602563971373e-05
+ ],
+ "control_p99": 0.0001172190384595706,
+ "candidates": [
+  {
+   "candidate": "patch_solid_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.715724029266902e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.787917279211687e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.738858511985303e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 7.74484806745912e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 7.731743369077115e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 7.77219872025725e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.76266044600904e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.74127661513635e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.769087290065979e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_16",
+   "kind": "patch",
+   "one_minus_cos": 7.57182743481577e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_16",
+   "kind": "patch",
+   "one_minus_cos": 7.72202978933656e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_16",
+   "kind": "patch",
+   "one_minus_cos": 7.646223893198467e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_16",
+   "kind": "patch",
+   "one_minus_cos": 7.757121879958806e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_16",
+   "kind": "patch",
+   "one_minus_cos": 7.727462463880119e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_16",
+   "kind": "patch",
+   "one_minus_cos": 7.773213081985197e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.763071816935252e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.761255047344928e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.788028236122013e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 7.71591527138904e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 7.693611857917393e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 7.795661556087019e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.713321956570596e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.694229230037486e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.774214591249606e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_32",
+   "kind": "patch",
+   "one_minus_cos": 7.788489629012574e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_32",
+   "kind": "patch",
+   "one_minus_cos": 7.687749594309512e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_32",
+   "kind": "patch",
+   "one_minus_cos": 7.74395404115058e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_32",
+   "kind": "patch",
+   "one_minus_cos": 7.68474563717092e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_32",
+   "kind": "patch",
+   "one_minus_cos": 7.681760478395194e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_32",
+   "kind": "patch",
+   "one_minus_cos": 7.708855338484089e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.789532889712625e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.814171251863122e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.801621782566048e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 7.790905202675891e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 7.77313814349645e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 7.722233192686279e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.776756560529119e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.735196668667843e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.752652827353046e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_64",
+   "kind": "patch",
+   "one_minus_cos": 7.713157869437826e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_64",
+   "kind": "patch",
+   "one_minus_cos": 7.792041349219403e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_64",
+   "kind": "patch",
+   "one_minus_cos": 7.718515679699944e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_64",
+   "kind": "patch",
+   "one_minus_cos": 7.721853404218937e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_64",
+   "kind": "patch",
+   "one_minus_cos": 7.728856290578623e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_64",
+   "kind": "patch",
+   "one_minus_cos": 7.739810108720047e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.02",
+   "kind": "freq",
+   "one_minus_cos": 7.776416634830419e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.05",
+   "kind": "freq",
+   "one_minus_cos": 7.749842765303327e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.10",
+   "kind": "freq",
+   "one_minus_cos": 7.608183410556801e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.02",
+   "kind": "freq",
+   "one_minus_cos": 7.873450626150191e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.05",
+   "kind": "freq",
+   "one_minus_cos": 7.778923551615691e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.10",
+   "kind": "freq",
+   "one_minus_cos": 7.834761797453904e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "control_identity",
+   "kind": "control",
+   "one_minus_cos": 7.693165313671368e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_rot90",
+   "kind": "control",
+   "one_minus_cos": 7.740846672354973e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_flip",
+   "kind": "control",
+   "one_minus_cos": 7.720065833038969e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_bright_0.7",
+   "kind": "control",
+   "one_minus_cos": 7.644062235756532e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_jpeg60",
+   "kind": "control",
+   "one_minus_cos": 7.814602563971373e-05,
+   "is_natural_control": true
+  }
+ ],
+ "flagged_count": 0,
+ "flagged": [],
+ "positive_control": {
+  "ladder": [
+   {
+    "lsb": 1,
+    "one_minus_cos": 9.584568371590052e-05,
+    "hit": false
+   },
+   {
+    "lsb": 2,
+    "one_minus_cos": 0.0001320351326210556,
+    "hit": true
+   },
+   {
+    "lsb": 4,
+    "one_minus_cos": 0.00028952235766799284,
+    "hit": true
+   },
+   {
+    "lsb": 8,
+    "one_minus_cos": 0.0008613613059976766,
+    "hit": true
+   },
+   {
+    "lsb": 16,
+    "one_minus_cos": 0.0032100457749996147,
+    "hit": true
+   },
+   {
+    "lsb": 32,
+    "one_minus_cos": 0.012165121199380624,
+    "hit": true
+   },
+   {
+    "lsb": 64,
+    "one_minus_cos": 0.0438106980705103,
+    "hit": true
+   }
+  ],
+  "detection_floor_codes_lsb": 2,
+  "scale_ladder": [
+   {
+    "scale_multiplier": 1.01,
+    "one_minus_cos": 8.415469727096614e-05,
+    "hit": false
+   },
+   {
+    "scale_multiplier": 1.05,
+    "one_minus_cos": 0.00015302109958270638,
+    "hit": true
+   },
+   {
+    "scale_multiplier": 1.1,
+    "one_minus_cos": 0.00034209817349217797,
+    "hit": true
+   },
+   {
+    "scale_multiplier": 1.2,
+    "one_minus_cos": 0.0010287949595638723,
+    "hit": true
+   },
+   {
+    "scale_multiplier": 1.5,
+    "one_minus_cos": 0.004035283656159239,
+    "hit": true
+   },
+   {
+    "scale_multiplier": 2.0,
+    "one_minus_cos": 0.009164311161529493,
+    "hit": true
+   }
+  ],
+  "detection_floor_scale_multiplier": 1.05
+ },
+ "floor_note": "the code axis floor is the first step above the control p99, steps being 10 % of the codes shifted by +lsb; the scale axis floor is the first multiplier of the layer's own weight_scale above the same band. The floor is the weaker of the two axes and both are reported.",
+ "pass": true,
+ "max_candidate": 7.873450626150191e-05,
+ "seed_stability": {
+  "seed_source": "zlib.crc32 of the candidate spec",
+  "run_a_max_candidate": 7.873450626150191e-05,
+  "run_b_max_candidate": 7.873450626150191e-05,
+  "run_a_flagged": 0,
+  "run_b_flagged": 0,
+  "candidate_lists_identical": true,
+  "candidates_compared": 56,
+  "note": "the pack was re-measured twice with the pinned seed; the list matched"
+ }
+}

@@ -96,6 +96,13 @@ python audit/run_all_gates.py
 | CN-1 (SD1.5 FaceID Plus v2: identity, coverage, per-layer arithmetic replay, behaviour) | `ipadapter_faceid_plusv2_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --json <o>` |
 | CN-2/3 (FaceID Plus v2, the loader node inside ComfyUI: patch, installed layers, kernel calls, cosines) | `ipadapter_faceid_plusv2_comfyui_route.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --json <o>` |
 | CN-2/3 (FaceID Plus v2 on A1111: `sd-webui-controlnet` + `modules/ipadapter_int8_convrot.py`) | `a1111_ipadapter_faceid_plusv2_route.py` | `--a1111 <root> --pack <f> --json <o>` |
+| CN-1 (SDXL FaceID Plus v2: identity, coverage, per-layer arithmetic replay, behaviour) | `ipadapter_faceid_plusv2_sdxl_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --json <o>` |
+| CN-2/3 (SDXL FaceID Plus v2, the loader node inside ComfyUI: patch, installed layers, kernel calls, cosines) | `ipadapter_faceid_plusv2_sdxl_comfyui_route.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --json <o>` |
+| CN-2/3 (SDXL FaceID Plus v2 on A1111: `sd-webui-controlnet` + `modules/ipadapter_int8_convrot.py`) | `a1111_ipadapter_faceid_plusv2_sdxl_route.py` | `--a1111 <root> --pack <f> --json <o>` |
+| CN-5a (SDXL FaceID Plus v2: source against pack on both surfaces, and through the INT8 route) | `ipadapter_faceid_plusv2_sdxl_acceptance.py` | `--pack <f> --source <f> --comfy <d> --json <o>` |
+| CN-6 (SDXL FaceID Plus v2: the 256-item gate through the loader node) | `ipadapter_faceid_plusv2_sdxl_comfyui_gate.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <f> --clip-vision <f> --json <o>` |
+| CN-5b (SDXL FaceID Plus v2: the trigger search and both positive-control ladders) | `ipadapter_faceid_plusv2_sdxl_comfyui_trigger.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <f> --clip-vision <f> --json <o>` |
+| CN-4 (SDXL FaceID Plus v2: two arms through a live server, one prompt) | `ipadapter_faceid_plusv2_sdxl_render.py` | `--server <url> --out-dir <d> --output-root <d> --json <o>` |
 | CN-5a (FaceID Plus v2, both surfaces against the source, four CLIP inputs) | `ipadapter_faceid_plusv2_acceptance.py` | `--pack <f> --source <f> --comfy <d> --json <o> [--batch-inputs N]` |
 | CN-6 (FaceID Plus v2, the 256-item gate through the loader node, one fixed identity) | `ipadapter_faceid_plusv2_comfyui_gate.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <p> --clip-vision <f> --json <o> [--protect-count N]` |
 | CN-5b (FaceID Plus v2, the 56 candidates and the code-axis positive control) | `ipadapter_faceid_plusv2_comfyui_trigger.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <p> --clip-vision <f> --json <o>` |

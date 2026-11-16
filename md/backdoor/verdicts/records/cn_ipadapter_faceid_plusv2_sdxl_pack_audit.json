@@ -1,0 +1,44 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_sdxl_pack_audit.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "source": "ip-adapter-faceid-plusv2_sdxl.bin",
+ "pack": "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors",
+ "identity": {
+  "source_bytes": 1487555181,
+  "source_sha256": "c6945d82b543700cc3ccbb98d363b837e9c596281607857c74b713a876daf5fb",
+  "pack_bytes": 748384560,
+  "pack_sha256": "c9376bc5c5535ee43a96442049e3b7e0a451439209c696a45da5ea09a23323a3"
+ },
+ "coverage": {
+  "missing": [],
+  "extra": [],
+  "shape_mismatch": [],
+  "int8_layers": 1284,
+  "kept_float": 0,
+  "non_2d_float_tensors": 32,
+  "missing_scale": [],
+  "missing_sidecar": []
+ },
+ "arithmetic": {
+  "int8_layers_replayed": 1284,
+  "code_mismatch": 0,
+  "max_code_delta": 0,
+  "scale_mismatch": 0,
+  "max_scale_rel": 0.0,
+  "nonfinite_scale": 0,
+  "groupsizes": {
+   "256": 664,
+   "64": 620
+  },
+  "float_side_bit_identical": 32,
+  "float_side_differs": 0
+ },
+ "behaviour": {
+  "observable": "the 4x2048 token stack on fixed inputs",
+  "cos_mean": 0.9999608004233546,
+  "cos_min": 0.999954440587995,
+  "load_missing": [],
+  "load_unexpected": []
+ },
+ "verdict": "FAITHFUL"
+}

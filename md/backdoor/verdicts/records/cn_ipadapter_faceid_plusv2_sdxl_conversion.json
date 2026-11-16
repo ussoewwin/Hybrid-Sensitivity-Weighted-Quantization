@@ -1,0 +1,10296 @@
+{
+ "tool": "clip_convert/convert_ipadapter_faceid_plusv2_sdxl_convrot_int8.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "source": "ip-adapter-faceid-plusv2_sdxl.bin",
+ "pack": "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors",
+ "arguments": {
+  "drift_threshold": 0.15,
+  "protect_count": 0,
+  "group_sizes": [
+   64,
+   256
+  ]
+ },
+ "counts": {
+  "int8": 1284,
+  "protected": 0,
+  "kept": 32
+ },
+ "pack_bytes": 748384560,
+ "pack_sha256": "c9376bc5c5535ee43a96442049e3b7e0a451439209c696a45da5ea09a23323a3",
+ "source_bytes": 1487555181,
+ "per_layer": {
+  "image_proj.proj.0": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1024,
+    512
+   ]
+  },
+  "image_proj.proj.2": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    8192,
+    1024
+   ]
+  },
+  "image_proj.perceiver_resampler.proj_in": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    1280
+   ]
+  },
+  "image_proj.perceiver_resampler.proj_out": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.0.0.to_q": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.0.0.to_kv": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    4096,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.0.0.to_out": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.0.1.1": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    8192,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.0.1.3": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    8192
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.1.0.to_q": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.1.0.to_kv": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    4096,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.1.0.to_out": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.1.1.1": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    8192,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.1.1.3": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    8192
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.2.0.to_q": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.2.0.to_kv": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    4096,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.2.0.to_out": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.2.1.1": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    8192,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.2.1.3": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    8192
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.3.0.to_q": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.3.0.to_kv": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    4096,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.3.0.to_out": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.3.1.1": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    8192,
+    2048
+   ]
+  },
+  "image_proj.perceiver_resampler.layers.3.1.3": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    2048,
+    8192
+   ]
+  },
+  "ip_adapter.0.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.0.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.0.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.0.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.0.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.0.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.0.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.0.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.1.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.1.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.1.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.1.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.1.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.1.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.1.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.1.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.1.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.1.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.2.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.2.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.2.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.2.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.2.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.2.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.2.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.2.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.3.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.3.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.3.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.3.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.3.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.3.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.3.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.3.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.3.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.3.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.4.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.4.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.4.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.4.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.4.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.4.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.4.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.4.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.5.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.5.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.5.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.5.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.5.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.5.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.5.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.5.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.5.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.5.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.6.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.6.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.6.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.6.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.6.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.6.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.6.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.6.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.7.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.7.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.7.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.7.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.7.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.7.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.7.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.7.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.7.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.7.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.8.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.8.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.8.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.8.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.8.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.8.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.8.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.8.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.9.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.9.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.9.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.9.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.9.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.9.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.9.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.9.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.9.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.9.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.10.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.10.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.10.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.10.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.10.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.10.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.10.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.10.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.11.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.11.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.11.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.11.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.11.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.11.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.11.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.11.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.11.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.11.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.12.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.12.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.12.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.12.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.12.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.12.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.12.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.12.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.13.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.13.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.13.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.13.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.13.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.13.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.13.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.13.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.13.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.13.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.14.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.14.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.14.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.14.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.14.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.14.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.14.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.14.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.15.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.15.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.15.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.15.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.15.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.15.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.15.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.15.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.15.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.15.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.16.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.16.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.16.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.16.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.16.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.16.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.16.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.16.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.17.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.17.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.17.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.17.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.17.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.17.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.17.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.17.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.17.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.17.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.18.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.18.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.18.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.18.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.18.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.18.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.18.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.18.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.19.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.19.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.19.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.19.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.19.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.19.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.19.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.19.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.19.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.19.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.20.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.20.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.20.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.20.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.20.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.20.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.20.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.20.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.21.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.21.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.21.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.21.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.21.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.21.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.21.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.21.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.21.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.21.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.22.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.22.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.22.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.22.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.22.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.22.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.22.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.22.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.23.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.23.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.23.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.23.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.23.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.23.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.23.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.23.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.23.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.23.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.24.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.24.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.24.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.24.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.24.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.24.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.24.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.24.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.25.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.25.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.25.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.25.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.25.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.25.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.25.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.25.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.25.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.25.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.26.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.26.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.26.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.26.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.26.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.26.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.26.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.26.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.27.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.27.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.27.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.27.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.27.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.27.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.27.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.27.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.27.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.27.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.28.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.28.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.28.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.28.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.28.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.28.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.28.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.28.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.29.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.29.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.29.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.29.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.29.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.29.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.29.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.29.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.29.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.29.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.30.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.30.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.30.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.30.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.30.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.30.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.30.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.30.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.31.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.31.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.31.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.31.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.31.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.31.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.31.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.31.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.31.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.31.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.32.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.32.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.32.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.32.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.32.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.32.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.32.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.32.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.33.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.33.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.33.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.33.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.33.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.33.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.33.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.33.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.33.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.33.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.34.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.34.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.34.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.34.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.34.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.34.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.34.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.34.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.35.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.35.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.35.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.35.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.35.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.35.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.35.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.35.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.35.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.35.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.36.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.36.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.36.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.36.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.36.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.36.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.36.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.36.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.37.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.37.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.37.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.37.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.37.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.37.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.37.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.37.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.37.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.37.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.38.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.38.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.38.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.38.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.38.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.38.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.38.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.38.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.39.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.39.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.39.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.39.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.39.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.39.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.39.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.39.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.39.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.39.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.40.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.40.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.40.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.40.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.40.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.40.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.40.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.40.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.41.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.41.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.41.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.41.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.41.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.41.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.41.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.41.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.41.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.41.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.42.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.42.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.42.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.42.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.42.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.42.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.42.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.42.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.43.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.43.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.43.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.43.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.43.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.43.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.43.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.43.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.43.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.43.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.44.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.44.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.44.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.44.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.44.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.44.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.44.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.44.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.45.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.45.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.45.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.45.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.45.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.45.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.45.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.45.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.45.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.45.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.46.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.46.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.46.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.46.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.46.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.46.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.46.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.46.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.47.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.47.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.47.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.47.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.47.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.47.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.47.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.47.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.47.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.47.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.48.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.48.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.48.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.48.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.48.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.48.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.48.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.48.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.49.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.49.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.49.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.49.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.49.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.49.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.49.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.49.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.49.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.49.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.50.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.50.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.50.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.50.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.50.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.50.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.50.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.50.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.51.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.51.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.51.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.51.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.51.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.51.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.51.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.51.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.51.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.51.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.52.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.52.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.52.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.52.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.52.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.52.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.52.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.52.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.53.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.53.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.53.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.53.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.53.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.53.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.53.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.53.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.53.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.53.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.54.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.54.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.54.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.54.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.54.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.54.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.54.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.54.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.55.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.55.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.55.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.55.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.55.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.55.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.55.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.55.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.55.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.55.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.56.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.56.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.56.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.56.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.56.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.56.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.56.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.56.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.57.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.57.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.57.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.57.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.57.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.57.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.57.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.57.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.57.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.57.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.58.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.58.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.58.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.58.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.58.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.58.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.58.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.58.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.59.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.59.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.59.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.59.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.59.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.59.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.59.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.59.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.59.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.59.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.60.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.60.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.60.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.60.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.60.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.60.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.60.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.60.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.61.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.61.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.61.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.61.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.61.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.61.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.61.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.61.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.61.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.61.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.62.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.62.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.62.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.62.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.62.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.62.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.62.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.62.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.63.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.63.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.63.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.63.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.63.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.63.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.63.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.63.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.63.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.63.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.64.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.64.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.64.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.64.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.64.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.64.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.64.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.64.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.65.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.65.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.65.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.65.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.65.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.65.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.65.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.65.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.65.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.65.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.66.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.66.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.66.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.66.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.66.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.66.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.66.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.66.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.67.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.67.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.67.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.67.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.67.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.67.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.67.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.67.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.67.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.67.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.68.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.68.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.68.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.68.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.68.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.68.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.68.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.68.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.69.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.69.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.69.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.69.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.69.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.69.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.69.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.69.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.69.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.69.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.70.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.70.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.70.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.70.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.70.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.70.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.70.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.70.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.71.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.71.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.71.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.71.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.71.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.71.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.71.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.71.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.71.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.71.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.72.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.72.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.72.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.72.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.72.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.72.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.72.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.72.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.73.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.73.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.73.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.73.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.73.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.73.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.73.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.73.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.73.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.73.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.74.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.74.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.74.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.74.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.74.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.74.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.74.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.74.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.75.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.75.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.75.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.75.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.75.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.75.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.75.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.75.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.75.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.75.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.76.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.76.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.76.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.76.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.76.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.76.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.76.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.76.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.77.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.77.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.77.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.77.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.77.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.77.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.77.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.77.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.77.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.77.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.78.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.78.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.78.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.78.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.78.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.78.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.78.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.78.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.79.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.79.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.79.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.79.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.79.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.79.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.79.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.79.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.79.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.79.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.80.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.80.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.80.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.80.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.80.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.80.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.80.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.80.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.81.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.81.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.81.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.81.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.81.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.81.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.81.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.81.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.81.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.81.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.82.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.82.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.82.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.82.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.82.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.82.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.82.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.82.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.83.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.83.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.83.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.83.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.83.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.83.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.83.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.83.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.83.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.83.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.84.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.84.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.84.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.84.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.84.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.84.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.84.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.84.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.85.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.85.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.85.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.85.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.85.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.85.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.85.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.85.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.85.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.85.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.86.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.86.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.86.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.86.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.86.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.86.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.86.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.86.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.87.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.87.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.87.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.87.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.87.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.87.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.87.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.87.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.87.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.87.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.88.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.88.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.88.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.88.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.88.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.88.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.88.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.88.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.89.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.89.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.89.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.89.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.89.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.89.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.89.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.89.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.89.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.89.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.90.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.90.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.90.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.90.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.90.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.90.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.90.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.90.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.91.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.91.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.91.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.91.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.91.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.91.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.91.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.91.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.91.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.91.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.92.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.92.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.92.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.92.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.92.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.92.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.92.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.92.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.93.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.93.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.93.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.93.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.93.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.93.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.93.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.93.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.93.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.93.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.94.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.94.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.94.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.94.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.94.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.94.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.94.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.94.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.95.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.95.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.95.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.95.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.95.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.95.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.95.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.95.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.95.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.95.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.96.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.96.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.96.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.96.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.96.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.96.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.96.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.96.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.97.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.97.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.97.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.97.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.97.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.97.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.97.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.97.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.97.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.97.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.98.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.98.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.98.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.98.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.98.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.98.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.98.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.98.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.99.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.99.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.99.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.99.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.99.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.99.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.99.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.99.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.99.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.99.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.100.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.100.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.100.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.100.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.100.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.100.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.100.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.100.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.101.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.101.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.101.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.101.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.101.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.101.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.101.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.101.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.101.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.101.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.102.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.102.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.102.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.102.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.102.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.102.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.102.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.102.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.103.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.103.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.103.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.103.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.103.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.103.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.103.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.103.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.103.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.103.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.104.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.104.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.104.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.104.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.104.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.104.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.104.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.104.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.105.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.105.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.105.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.105.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.105.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.105.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.105.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.105.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.105.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.105.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.106.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.106.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.106.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.106.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.106.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.106.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.106.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.106.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.107.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.107.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.107.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.107.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.107.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.107.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.107.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.107.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.107.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.107.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.108.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.108.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.108.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.108.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.108.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.108.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.108.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.108.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.109.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.109.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.109.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.109.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.109.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.109.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.109.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.109.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.109.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.109.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.110.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.110.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.110.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.110.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.110.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.110.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.110.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.110.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.111.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.111.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.111.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.111.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.111.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.111.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.111.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.111.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.111.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.111.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.112.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.112.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.112.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.112.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.112.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.112.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.112.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.112.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.113.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.113.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.113.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.113.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.113.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.113.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.113.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.113.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.113.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.113.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.114.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.114.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.114.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.114.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.114.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.114.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.114.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.114.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.115.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.115.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.115.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.115.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.115.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.115.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.115.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.115.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.115.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.115.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.116.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.116.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.116.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.116.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.116.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.116.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.116.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.116.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.117.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.117.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.117.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.117.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.117.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.117.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.117.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.117.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.117.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.117.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.118.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.118.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.118.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.118.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.118.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.118.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.118.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.118.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.119.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.119.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.119.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.119.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.119.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.119.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.119.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    128,
+    640
+   ]
+  },
+  "ip_adapter.119.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    640,
+    128
+   ]
+  },
+  "ip_adapter.119.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.119.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    640,
+    2048
+   ]
+  },
+  "ip_adapter.120.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.120.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.120.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.120.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.120.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.120.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.120.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.120.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.121.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.121.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.121.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.121.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.121.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.121.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.121.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.121.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.121.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.121.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.122.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.122.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.122.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.122.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.122.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.122.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.122.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.122.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.123.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.123.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.123.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.123.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.123.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.123.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.123.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.123.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.123.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.123.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.124.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.124.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.124.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.124.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.124.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.124.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.124.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.124.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.125.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.125.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.125.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.125.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.125.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.125.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.125.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.125.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.125.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.125.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.126.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.126.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.126.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.126.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.126.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.126.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.126.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.126.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.127.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.127.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.127.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.127.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.127.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.127.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.127.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.127.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.127.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.127.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.128.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.128.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.128.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.128.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.128.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.128.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.128.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.128.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.129.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.129.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.129.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.129.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.129.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.129.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.129.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.129.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.129.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.129.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.130.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.130.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.130.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.130.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.130.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.130.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.130.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.130.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.131.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.131.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.131.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.131.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.131.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.131.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.131.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.131.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.131.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.131.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.132.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.132.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.132.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.132.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.132.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.132.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.132.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.132.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.133.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.133.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.133.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.133.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.133.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.133.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.133.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.133.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.133.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.133.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.134.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.134.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.134.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.134.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.134.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.134.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.134.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.134.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.135.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.135.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.135.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.135.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.135.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.135.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.135.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.135.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.135.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.135.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.136.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.136.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.136.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.136.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.136.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.136.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.136.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.136.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.137.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.137.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.137.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.137.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.137.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.137.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.137.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.137.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.137.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.137.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.138.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.138.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.138.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.138.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.138.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.138.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.138.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.138.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.139.to_q_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.139.to_q_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.139.to_k_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.139.to_k_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.139.to_v_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    2048
+   ]
+  },
+  "ip_adapter.139.to_v_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.139.to_out_lora.down": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    128,
+    1280
+   ]
+  },
+  "ip_adapter.139.to_out_lora.up": {
+   "kind": "int8",
+   "groupsize": 64,
+   "shape": [
+    1280,
+    128
+   ]
+  },
+  "ip_adapter.139.to_k_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  },
+  "ip_adapter.139.to_v_ip": {
+   "kind": "int8",
+   "groupsize": 256,
+   "shape": [
+    1280,
+    2048
+   ]
+  }
+ }
+}

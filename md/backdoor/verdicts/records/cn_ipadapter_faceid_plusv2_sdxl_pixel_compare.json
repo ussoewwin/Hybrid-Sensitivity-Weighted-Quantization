@@ -1,0 +1,14 @@
+{
+ "source": "source.png",
+ "pack": "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors",
+ "mean_abs_diff": 16.40839385986328,
+ "max_abs_diff": 255.0,
+ "p99_abs_diff": 143.0,
+ "cosine": 0.9623616337776184,
+ "psnr_db": 18.02725943565584,
+ "pixels_identical_ratio": 0.039916038513183594,
+ "bytes": {
+  "source": 1696348,
+  "pack": 1696653
+ }
+}

@@ -1,0 +1,36 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_sdxl_comfyui_gate.py",
+ "loaded": {
+  "pack_resolved": "",
+  "pack_sha256": "bb0fbe978a57aec6f63cbdc56272313e3366aa17c563f4898c1c85c4ade83abb",
+  "installed_int8": {
+   "image_proj": 24,
+   "ip_adapter": 1220
+  }
+ },
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "pack": "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors",
+ "source": "ip-adapter-faceid-plusv2_sdxl.bin",
+ "route": "ComfyUI, HSWQ Load IPAdapter Model node -> IPAdapter faceid plus v2 SDXL graph",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "instrument": "8 crops x 4 orientations x 8 brightness steps, from cn_clipvit_ref.png, one fixed face embedding",
+ "projection": {
+  "scale": 1.0,
+  "shortcut": true,
+  "is_faceidv2": false
+ },
+ "protect_count": 40,
+ "n": 256,
+ "int8_kernel_calls": 6144,
+ "mean": 0.9999269162071869,
+ "min": 0.9999253451824188,
+ "p5": 0.9999260008335114,
+ "p50": 0.999926969408989,
+ "worst_item": {
+  "name": "c7_o1_b1",
+  "mean_over_tokens": 0.9999253451824188,
+  "min_token": 0.9999216794967651
+ },
+ "pass": true,
+ "finite": true
+}

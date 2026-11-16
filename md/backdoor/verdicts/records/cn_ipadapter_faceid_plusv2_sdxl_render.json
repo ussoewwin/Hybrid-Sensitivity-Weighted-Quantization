@@ -1,0 +1,50 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_sdxl_render.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "route": "ComfyUI, HSWQ Load IPAdapter Model -> IPAdapterFaceID",
+ "settings": {
+  "ckpt": "waiIllustriousSDXL_v170_hswq_1on_re590_convrot_int8.safetensors",
+  "vae": "sdxl_vae.safetensors",
+  "loader": "HSWQCheckpointLoader, weight_dtype SDXL ConvRot INT8",
+  "clip_vision": "clip_vision_h.safetensors",
+  "prompt": "a woman in a red coat standing in a city street, detailed, natural light",
+  "negative": "blurry, low quality, watermark",
+  "width": 1024,
+  "height": 1024,
+  "steps": 12,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "seed": 42,
+  "weight": 0.8,
+  "weight_faceidv2": 1.0,
+  "reference": "cn_clipvit_ref.png",
+  "adapter_dir": "D:\\USERFILES\\StableDiffusion\\models\\ControlNet"
+ },
+ "arms": {
+  "source": {
+   "queued": "4f68bfa8-6302-489d-b877-2f9e7080ec83",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "source.png",
+     "bytes": 1696348
+    }
+   ],
+   "seconds": 42.7
+  },
+  "pack": {
+   "queued": "748ac742-3ab3-40e0-b881-bd3cd8af7f46",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "pack.png",
+     "bytes": 1696653
+    }
+   ],
+   "seconds": 21.6
+  }
+ }
+}

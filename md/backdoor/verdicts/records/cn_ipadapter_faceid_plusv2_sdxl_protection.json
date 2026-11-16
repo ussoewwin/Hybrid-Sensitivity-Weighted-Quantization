@@ -1,0 +1,13 @@
+{
+ "tool": "clip_convert/measure_ipadapter_faceid_plusv2_sdxl_contrib.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "source": "ip-adapter-faceid-plusv2_sdxl.bin",
+ "measured_on_this_checkpoint": true,
+ "ranking_origin": "this checkpoint's own drift screen and its own contribution ranking",
+ "decision": {
+  "protected_layers": 0,
+  "kept_fp16_beyond_bias_and_norm": 0,
+  "rule": "the protection set is this checkpoint's own measurement; K is chosen on the size/quality curve, with the floor measured",
+  "why_zero": "no layer crosses the 0.15 drift threshold, and the top of the contribution ranking is entirely ip_adapter, which the gate cannot see: protecting any number of them moves the gate by 0.0"
+ }
+}

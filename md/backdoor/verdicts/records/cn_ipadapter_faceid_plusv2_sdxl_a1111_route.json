@@ -1,0 +1,68 @@
+{
+ "tool": "audit/a1111_ipadapter_faceid_plusv2_sdxl_route.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "route": "A1111 sd-webui-controlnet ipadapter + modules/ipadapter_int8_convrot.py",
+ "pack": "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors",
+ "pack_sha256": "c9376bc5c5535ee43a96442049e3b7e0a451439209c696a45da5ea09a23323a3",
+ "pack_bytes": 748384560,
+ "declared_sub_tensors": {
+  "image_proj": 104,
+  "ip_adapter": 3780
+ },
+ "id_embeddings_dim": 512,
+ "clip_embeddings_dim": 1280,
+ "cross_attention_dim": 2048,
+ "image_proj": {
+  "linear_modules": 24,
+  "int8_modules": 24,
+  "int8_names_first": [
+   "proj.0",
+   "proj.2",
+   "perceiver_resampler.proj_in"
+  ]
+ },
+ "ip_layers": {
+  "linear_modules": 1260,
+  "int8_modules": 1260,
+  "int8_names_first": [
+   "to_kvs.0_to_k_lora_down",
+   "to_kvs.0_to_k_lora_up",
+   "to_kvs.0_to_out_lora_down"
+  ]
+ },
+ "int8_kernel_calls": 1284,
+ "kernel_groupsizes": [
+  64,
+  256
+ ],
+ "kernel_input_widths": [
+  128,
+  512,
+  640,
+  1024,
+  1280,
+  2048,
+  8192
+ ],
+ "kernel_convrot_all_true": true,
+ "projection": {
+  "input": {
+   "face": [
+    1,
+    512
+   ],
+   "clip": [
+    1,
+    257,
+    1280
+   ]
+  },
+  "output": [
+   1,
+   4,
+   2048
+  ],
+  "finite": true
+ },
+ "applied": true
+}

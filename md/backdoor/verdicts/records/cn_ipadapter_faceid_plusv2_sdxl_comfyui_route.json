@@ -1,0 +1,65 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_sdxl_comfyui_route.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "source": "ip-adapter-faceid-plusv2_sdxl.bin",
+ "pack": "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors",
+ "route": "ComfyUI, the loader package's HSWQ Load IPAdapter Model node",
+ "activation_dtype": "float32 (float16 returns NaN on this graph's 8192-wide projection, on the source too)",
+ "node": {
+  "module_convrot_branch_loaded": true,
+  "patch_applied": true,
+  "To_KV_replaced": true,
+  "faceidplusv2_flag": false,
+  "source_faceidplusv2_flag": true
+ },
+ "installed_int8_layers": {
+  "image_proj": 24,
+  "ip_adapter": 1260
+ },
+ "convrot_module_files": [
+  "hswq_loader.hswq.ipadapter_convrot_int8",
+  "hswq_loader.hswq.ipadapter_convrot_int8"
+ ],
+ "source_float_check": {
+  "image_proj_convrot_layers": 0,
+  "ip_adapter_convrot_layers": 0
+ },
+ "int8_kernel_calls": 1284,
+ "kernel_input_widths": [
+  128,
+  640,
+  1280,
+  2048
+ ],
+ "kernel_groupsizes": [
+  64,
+  256
+ ],
+ "image_proj": {
+  "input": {
+   "face": [
+    1,
+    512
+   ],
+   "clip": [
+    1,
+    257,
+    1280
+   ]
+  },
+  "output": [
+   1,
+   4,
+   2048
+  ],
+  "cos_mean": 0.9999275412831488,
+  "cos_min": 0.9999230336278879,
+  "finite": true
+ },
+ "to_kv": {
+  "projections": 1260,
+  "cos_mean_min": 0.9996124213184081,
+  "cos_min_min": 0.9988242555561482,
+  "finite": true
+ }
+}
