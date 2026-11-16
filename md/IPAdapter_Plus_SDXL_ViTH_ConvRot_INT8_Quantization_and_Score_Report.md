@@ -147,6 +147,8 @@ The drift screen, for reference (`clip_convert/diag_impact_ipadapter_plus_vit_h.
 
 The `ipadapter` surface is scored per projection (140 values); the `image_proj` surface is scored per item and its per-latent worst is reported beside the gate (Section 6 says why it is not the criterion).
 
+**The same gate on the ComfyUI route** (`audit/ipadapter_plus_vit_h_comfyui_gate.py`, through the loader node): mean **0.999833121** / min **0.998484056** / p5 **0.999705834** over the same 256 items, **5632 INT8 kernel calls**, PASS. Against the A1111 figures: delta mean **+9.34e-05**, delta min **-4.04e-04** (`records/cn_ipadapter_plus_vit_h_comfyui_gate.json` -> `agreement_with_a1111`). Two harnesses for one observable, and the agreement is measured rather than assumed.
+
 ---
 
 ## 4. Visible-sample check
@@ -245,6 +247,7 @@ Times are the record files' own last-write times, read from the filesystem on 20
 | 8 | `ipadapter_plus_vit_h_forge_route.py` | Forge install present, 162/162 stamps are the form its reader keys on, no Forge Python runtime | `cn_ipadapter_plus_vit_h_forge_route.json` | 2026-11-16 12:44:25 |
 | 9 | `ipadapter_plus_vit_h_hswq_route.py` | patch applied, 162/162 installed, 162 kernel calls, `image_proj` 0.999526739 / 0.998086035, `to_kv` >= 0.999972105 / 0.999840677 | `cn_ipadapter_plus_vit_h_hswq_route.json` | 2026-11-16 12:44:25 |
 | 10 | Hub upload | card then pack, 424,750,694 B, LFS sha256 matched, 37 files | `cn_ipadapter_plus_vit_h_hf_upload.json` | 2026-11-16 11:46:59 |
+| 14 | `ipadapter_plus_vit_h_comfyui_gate.py` | the 256-item gate on the ComfyUI route: mean 0.999833121 / min 0.998484056, 5632 kernel calls, PASS | `cn_ipadapter_plus_vit_h_comfyui_gate.json` | 2026-11-16 (run in this session) |
 | 13 | `ipadapter_plus_vit_h_render.py` | two ComfyUI renders through the loader node (source / pack), 512x512, seed 42, 12 steps; both read as finished images, pixel cosine 0.955370 | `cn_ipadapter_plus_vit_h_render.json`, `cn_ipadapter_plus_vit_h_comfyui_{source,pack}.png` | 2026-11-16 (run in this session) |
 | 12 | `ipadapter_plus_vit_h_comfyui_route.py` | the loader package's node inside ComfyUI: ConvRot branch, 162/162 installed, 302 kernel calls, `image_proj` 0.999526739 / 0.998086035 | `cn_ipadapter_plus_vit_h_comfyui_route.json` | 2026-11-16 (run in this session) |
 | 11 | `audit/run_all_gates.py --regen` | ALL GATES PASS (procedure, citations, selftest, SHA256SUMS, markdown) | `gate_run_2026-11-16.json` | 2026-11-16 (run in this session) |
@@ -265,6 +268,7 @@ Times are the record files' own last-write times, read from the filesystem on 20
 | `records/cn_ipadapter_plus_vit_h_hswq_route.json` | the loader package's own route: patch, installs, kernel calls, cosines |
 | `records/cn_ipadapter_plus_vit_h_comfyui_route.json` | the same node inside ComfyUI, through its `load_ipadapter_model` |
 | `records/cn_ipadapter_plus_vit_h_render.json` | CN-4: both arms, the settings, the pixel comparison and the read |
+| `records/cn_ipadapter_plus_vit_h_comfyui_gate.json` | CN-6 on the ComfyUI route, with the agreement against the A1111 run |
 | `records/cn_ipadapter_plus_vit_h_comfyui_source.png` / `_pack.png` | the two renders |
 | `records/cn_ipadapter_plus_vit_h_contrib.json` | the 162-layer aggregate contribution |
 | `records/cn_ipadapter_plus_vit_h_curve.json` -> `curve` | the measured size/quality curve |

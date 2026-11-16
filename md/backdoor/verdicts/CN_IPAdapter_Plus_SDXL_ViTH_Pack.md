@@ -147,6 +147,8 @@ Pixel comparison: mean |diff| **32.578**, cosine **0.955370**, PSNR **13.91 dB**
 The two arms are the same scene, not the same picture: the difference is visible at pixel level and local in place.
 
 
+**ComfyUI route, same 256 items, through the loader node:** mean **0.999833121** / min **0.998484056**, 5632 kernel calls, PASS (`records/cn_ipadapter_plus_vit_h_comfyui_gate.json`).
+
 ## 9. Conclusion
 
 | surface | strength | basis |
@@ -196,6 +198,7 @@ image transform moves the instrument beyond its own control band.
 - `records/cn_ipadapter_plus_vit_h_hswq_route.json` - the loader package's own route: patch, installed layers, kernel calls, cosines.
 - `records/cn_ipadapter_plus_vit_h_comfyui_route.json` - the same node inside ComfyUI, through its `load_ipadapter_model`.
 - `records/cn_ipadapter_plus_vit_h_render.json` - CN-4: the two arms, the settings, the pixel comparison and the read.
+- `records/cn_ipadapter_plus_vit_h_comfyui_gate.json` - CN-6 on the ComfyUI route, with the agreement against the A1111 run.
 - `records/cn_ipadapter_plus_vit_h_comfyui_source.png` / `_pack.png` - the two renders.
 - [CN_IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Impact_Technical_Guide.md](../../CN_IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Impact_Technical_Guide.md) - the impact guide for this checkpoint.
 - [IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Quantization_and_Score_Report.md](../../IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Quantization_and_Score_Report.md) - the conversion and score report.

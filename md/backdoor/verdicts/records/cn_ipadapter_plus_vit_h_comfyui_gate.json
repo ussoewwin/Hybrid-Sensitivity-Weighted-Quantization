@@ -1,0 +1,29 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_comfyui_gate.py",
+ "family": "ipadapter_plus_vit_h",
+ "pack": "ip-adapter-plus_sdxl_vit-h_hswq_convrot_int8.safetensors",
+ "route": "ComfyUI, HSWQ Load IPAdapter Model -> IPAdapterAdvanced graph",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "instrument": "8 crops x 4 orientations x 8 brightness steps, from cn_clipvit_ref.png",
+ "n": 256,
+ "int8_kernel_calls": 5632,
+ "mean": 0.999833120891708,
+ "min": 0.998484056442976,
+ "p5": 0.9997058343142271,
+ "p50": 0.9998602196574211,
+ "worst_item": {
+  "name": "c4_o0_b6",
+  "mean_over_latents": 0.998484056442976,
+  "min_latent": 0.9772894978523254
+ },
+ "pass": true,
+ "finite": true,
+ "agreement_with_a1111": {
+  "record": "cn_ipadapter_plus_vit_h_gate_256.json",
+  "a1111_mean": 0.9997396794715488,
+  "a1111_min": 0.9988878608010899,
+  "a1111_p5": 0.9994669555985223,
+  "delta_mean": 9.344142015910162e-05,
+  "delta_min": -0.000403804358113935
+ }
+}
