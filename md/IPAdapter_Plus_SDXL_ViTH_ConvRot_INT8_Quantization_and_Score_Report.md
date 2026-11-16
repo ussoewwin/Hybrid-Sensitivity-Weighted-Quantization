@@ -119,6 +119,18 @@ The curve, measured on the fixed 256-item set through the INT8 route (K = layers
 | 60 | 102 | 60 | 541.3 MB | 0.999837537 | 0.995995511 | 0.999741980 | 0.938652834 | 0.999955528 | 9.8e-05 / 9.84e-03 = 1.0 % | `09c9922d7364` |
 | 162 | 0 | 162 | 808.3 MB | 1.000000000 | 1.000000000 | 1.000000000 | 1.000000000 | 1.000000000 | identity | `087db0b3b6d3` |
 
+The same gate on the ComfyUI route, every K rebuilt from the same ranking and measured through the loader node (`records/cn_ipadapter_plus_vit_h_comfyui_curve.json`):
+
+| K | ComfyUI gate mean | gate min | p5 | INT8 kernel calls | gate |
+| ---: | ---: | ---: | ---: | ---: | :--- |
+| 0 | 0.999833121 | 0.998484056 | 0.999705834 | 5632 | **PASS** |
+| 1 | 0.999928914 | 0.999838363 | 0.999910191 | 5376 | **PASS** |
+| 20 | 0.999928914 | 0.999838363 | 0.999910191 | 5376 | **PASS** |
+| 60 | 0.999928914 | 0.999838363 | 0.999910191 | 5376 | **PASS** |
+| 162 | 1.000000010 | 0.999999944 | 0.999999970 | 0 | **PASS** |
+
+The two routes agree point by point, and both are the same picture of the curve: K = 1 already carries the `image_proj` figures that K = 20 and K = 60 carry, and K = 162 fires no INT8 kernel because it has no INT8 layer left - its 1.000000010 / 0.999999944 is the float path against itself.
+
 **Why K = 1, 20 and 60 report the same `image_proj` figures.** The protection sets differ, but not on this surface: only `image_proj.proj_in` is inside the top 60 of the contribution ranking (share 4.086 %), so K = 1 protects `proj_in` and K = 20 / 60 protect `proj_in` plus 19 / 59 `ip_adapter` layers. The `image_proj` graph is therefore identical in the three packs, and its gate figures can only be equal; the `ip_adapter` surface moves with K (0.999922318 -> 0.999933195 -> 0.999955528), which is where the protection is actually spent (`records/cn_ipadapter_plus_vit_h_contrib.json` -> `contributions`).
 
 **K = 0 is adopted.** It is the smallest pack; it passes with 9.74e-03 of mean margin and 1.89e-03 of min margin; and 0 of the 162 groups is anywhere near the drift threshold (max 8.49e-05 against 0.15). Protection adds 1.5 to 136 MB for +9.8e-05 to +1.1e-04 of gate mean, which is one percent of the gate's own margin, while the worst single latent falls from 0.986 to 0.939.
@@ -248,6 +260,7 @@ Times are the record files' own last-write times, read from the filesystem on 20
 | 9 | `ipadapter_plus_vit_h_hswq_route.py` | patch applied, 162/162 installed, 162 kernel calls, `image_proj` 0.999526739 / 0.998086035, `to_kv` >= 0.999972105 / 0.999840677 | `cn_ipadapter_plus_vit_h_hswq_route.json` | 2026-11-16 12:44:25 |
 | 10 | Hub upload | card then pack, 424,750,694 B, LFS sha256 matched, 37 files | `cn_ipadapter_plus_vit_h_hf_upload.json` | 2026-11-16 11:46:59 |
 | 14 | `ipadapter_plus_vit_h_comfyui_gate.py` | the 256-item gate on the ComfyUI route: mean 0.999833121 / min 0.998484056, 5632 kernel calls, PASS | `cn_ipadapter_plus_vit_h_comfyui_gate.json` | 2026-11-16 (run in this session) |
+| 15 | `ipadapter_plus_vit_h_comfyui_gate.py` at every K | K = 0 / 1 / 20 / 60 / 162 -> 0.999833121 / 0.999928914 / 0.999928914 / 0.999928914 / 1.000000010 mean, all PASS, kernel 5632 / 5376 / 5376 / 5376 / 0 | `cn_ipadapter_plus_vit_h_comfyui_curve.json` | 2026-11-16 (run in this session) |
 | 13 | `ipadapter_plus_vit_h_render.py` | two ComfyUI renders through the loader node (source / pack), 512x512, seed 42, 12 steps; both read as finished images, pixel cosine 0.955370 | `cn_ipadapter_plus_vit_h_render.json`, `cn_ipadapter_plus_vit_h_comfyui_{source,pack}.png` | 2026-11-16 (run in this session) |
 | 12 | `ipadapter_plus_vit_h_comfyui_route.py` | the loader package's node inside ComfyUI: ConvRot branch, 162/162 installed, 302 kernel calls, `image_proj` 0.999526739 / 0.998086035 | `cn_ipadapter_plus_vit_h_comfyui_route.json` | 2026-11-16 (run in this session) |
 | 11 | `audit/run_all_gates.py --regen` | ALL GATES PASS (procedure, citations, selftest, SHA256SUMS, markdown) | `gate_run_2026-11-16.json` | 2026-11-16 (run in this session) |
@@ -269,6 +282,7 @@ Times are the record files' own last-write times, read from the filesystem on 20
 | `records/cn_ipadapter_plus_vit_h_comfyui_route.json` | the same node inside ComfyUI, through its `load_ipadapter_model` |
 | `records/cn_ipadapter_plus_vit_h_render.json` | CN-4: both arms, the settings, the pixel comparison and the read |
 | `records/cn_ipadapter_plus_vit_h_comfyui_gate.json` | CN-6 on the ComfyUI route, with the agreement against the A1111 run |
+| `records/cn_ipadapter_plus_vit_h_comfyui_curve.json` | the ComfyUI gate at every K of the curve |
 | `records/cn_ipadapter_plus_vit_h_comfyui_source.png` / `_pack.png` | the two renders |
 | `records/cn_ipadapter_plus_vit_h_contrib.json` | the 162-layer aggregate contribution |
 | `records/cn_ipadapter_plus_vit_h_curve.json` -> `curve` | the measured size/quality curve |

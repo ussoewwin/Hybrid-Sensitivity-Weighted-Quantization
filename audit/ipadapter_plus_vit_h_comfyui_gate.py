@@ -103,7 +103,7 @@ def main():
     node = load_node(a.loader)
     obj = node.HSWQLoadIPAdapterModel()
     pack_st = obj.load_ipadapter_model(os.path.basename(a.pack), a.dir)[0]
-    source_st = obj.load_ipadapter_model(os.path.basename(a.source), a.dir)[0]
+    source_st = obj.load_ipadapter_model(os.path.abspath(a.source), a.dir)[0]
     patched_ipadapter = ext.IPAdapter
 
     import comfy.clip_vision as cv

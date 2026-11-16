@@ -1,0 +1,66 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_comfyui_gate.py at each K",
+ "instrument": "256 items, seed 42, through the loader node on the ComfyUI route",
+ "rows": [
+  {
+   "k": 0,
+   "int8_layers": 162,
+   "kept_fp16": 0,
+   "pack_bytes": 424750694,
+   "pack_sha256": "ca0ff3706dc3673538eec2683774e384fe3145f2191f2006e03862a7d3c2db7a",
+   "gate_mean": 0.999833120891708,
+   "gate_min": 0.998484056442976,
+   "gate_p5": 0.9997058343142271,
+   "gate_pass": true,
+   "int8_kernel_calls": 5632
+  },
+  {
+   "k": 1,
+   "int8_layers": 161,
+   "kept_fp16": 1,
+   "pack_bytes": 426383611,
+   "pack_sha256": "b8a95bc95992c722bc188dcfe8f994aca30eee353cad702e27d882325608ab82",
+   "gate_mean": 0.9999289135157596,
+   "gate_min": 0.99983836337924,
+   "gate_p5": 0.9999101907014847,
+   "gate_pass": true,
+   "int8_kernel_calls": 5376
+  },
+  {
+   "k": 20,
+   "int8_layers": 142,
+   "kept_fp16": 20,
+   "pack_bytes": 470854026,
+   "pack_sha256": "d920fa95ed6a41dddb8b197ccd928386082297ee9a5b203a01a0414330f5c1db",
+   "gate_mean": 0.9999289135157596,
+   "gate_min": 0.99983836337924,
+   "gate_p5": 0.9999101907014847,
+   "gate_pass": true,
+   "int8_kernel_calls": 5376
+  },
+  {
+   "k": 60,
+   "int8_layers": 102,
+   "kept_fp16": 60,
+   "pack_bytes": 567643066,
+   "pack_sha256": "09c9922d73640d57ffb838df4c4db7fdcd5581cd35e850223bf613728b818df0",
+   "gate_mean": 0.9999289135157596,
+   "gate_min": 0.99983836337924,
+   "gate_p5": 0.9999101907014847,
+   "gate_pass": true,
+   "int8_kernel_calls": 5376
+  },
+  {
+   "k": 162,
+   "int8_layers": 0,
+   "kept_fp16": 162,
+   "pack_bytes": 847517600,
+   "pack_sha256": "087db0b3b6d3aa2559d1491c1a36e79b861dcc3400eef4404be5505f66a957fa",
+   "gate_mean": 1.0000000102591002,
+   "gate_min": 0.9999999441206455,
+   "gate_p5": 0.9999999701976776,
+   "gate_pass": true,
+   "int8_kernel_calls": 0
+  }
+ ]
+}
