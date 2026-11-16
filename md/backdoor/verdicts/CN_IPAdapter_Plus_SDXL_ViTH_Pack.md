@@ -153,6 +153,8 @@ The two arms are the same scene, not the same picture: the difference is visible
 
 The whole curve was then measured on that route as well (K = 0 / 1 / 20 / 60 / 162): mean 0.999833121 / 0.999928914 / 0.999928914 / 0.999928914 / 1.000000010, every point PASS, kernel 5632 / 5376 / 5376 / 5376 / 0 (`records/cn_ipadapter_plus_vit_h_comfyui_curve.json` -> `rows`).
 
+**CN-5b on the ComfyUI route:** 4 of 56 candidates above the control band (threshold 0.020647220, largest 0.070726349, positive-control floor 1 LSB), against 0 on A1111 (threshold 0.100065446). Negative control on the same instrument (source against itself): 0 flagged, largest 2.18e-07. **Open:** which host's control band is the honest one for a user (`records/cn_ipadapter_plus_vit_h_comfyui_trigger.json` -> `flagged`; `records/cn_ipadapter_plus_vit_h_comfyui_trigger_selfcheck.json` -> `candidates`).
+
 ## 9. Conclusion
 
 | surface | strength | basis |
@@ -204,6 +206,8 @@ image transform moves the instrument beyond its own control band.
 - `records/cn_ipadapter_plus_vit_h_render.json` - CN-4: the two arms, the settings, the pixel comparison and the read.
 - `records/cn_ipadapter_plus_vit_h_comfyui_gate.json` - CN-6 on the ComfyUI route, with the agreement against the A1111 run.
 - `records/cn_ipadapter_plus_vit_h_comfyui_curve.json` - the ComfyUI gate at every K of the curve.
+- `records/cn_ipadapter_plus_vit_h_comfyui_trigger.json` - CN-5b on the ComfyUI route.
+- `records/cn_ipadapter_plus_vit_h_comfyui_trigger_selfcheck.json` - the negative control of that instrument.
 - `records/cn_ipadapter_plus_vit_h_comfyui_source.png` / `_pack.png` - the two renders.
 - [CN_IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Impact_Technical_Guide.md](../../CN_IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Impact_Technical_Guide.md) - the impact guide for this checkpoint.
 - [IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Quantization_and_Score_Report.md](../../IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Quantization_and_Score_Report.md) - the conversion and score report.

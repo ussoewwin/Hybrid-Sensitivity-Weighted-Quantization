@@ -85,3 +85,5 @@ bigg_float_routes.json
 bigg_official_tensor_compare.json
 cn_ipadapter_plus_vit_h_comfyui_gate.json
 cn_ipadapter_plus_vit_h_comfyui_curve.json
+cn_ipadapter_plus_vit_h_comfyui_trigger.json
+cn_ipadapter_plus_vit_h_comfyui_trigger_selfcheck.json

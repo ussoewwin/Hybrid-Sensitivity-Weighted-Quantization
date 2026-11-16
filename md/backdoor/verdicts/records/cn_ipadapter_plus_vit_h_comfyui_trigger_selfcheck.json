@@ -1,0 +1,361 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_comfyui_trigger.py",
+ "family": "ipadapter_plus_vit_h",
+ "pack": "ip-adapter-plus_sdxl_vit-h.safetensors",
+ "role": "negative control: source against itself",
+ "baseline": 1.2346746613989268e-07,
+ "controls": [
+  1.2346746613989268e-07,
+  1.4067816056506643e-07,
+  1.6055312668239452e-07,
+  1.4418107741054342e-07,
+  1.0499664071517145e-07
+ ],
+ "control_p99": 2.408296900235918e-07,
+ "candidates": [
+  {
+   "candidate": "patch_solid_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 6.10228074737762e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 8.107330418116732e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 1.2986491870758954e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 1.3595646730646394e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 9.360311026274104e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 1.376144943554536e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 2.0486018170728926e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 1.7875274960221788e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 1.537808399509899e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_16",
+   "kind": "patch",
+   "one_minus_cos": 1.6425231263994533e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_16",
+   "kind": "patch",
+   "one_minus_cos": 8.34441253871887e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_16",
+   "kind": "patch",
+   "one_minus_cos": 7.116938671725137e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_16",
+   "kind": "patch",
+   "one_minus_cos": 1.375020398652893e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_16",
+   "kind": "patch",
+   "one_minus_cos": 1.5604590331008694e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_16",
+   "kind": "patch",
+   "one_minus_cos": 1.1317435244517782e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 1.8264575896154156e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 1.048417310745009e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 1.9371986481608872e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 1.8227585063534946e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 1.2994590203874168e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 1.9112606963744838e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 1.227538947157214e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 4.339055426072491e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 2.0564920910626228e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_32",
+   "kind": "patch",
+   "one_minus_cos": 1.529739060979196e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_32",
+   "kind": "patch",
+   "one_minus_cos": 1.6988169149190213e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_32",
+   "kind": "patch",
+   "one_minus_cos": 1.2384106429230712e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_32",
+   "kind": "patch",
+   "one_minus_cos": 1.4176000628918217e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_32",
+   "kind": "patch",
+   "one_minus_cos": 1.927700241655117e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_32",
+   "kind": "patch",
+   "one_minus_cos": 1.5185372514991968e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 1.1021735701888247e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 1.194178950170155e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 1.0210904222152095e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 2.1477227518662545e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 8.646206550722013e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 8.32709945441934e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 1.3164744150362395e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 1.537791893824192e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 1.631773252075419e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_64",
+   "kind": "patch",
+   "one_minus_cos": 1.8116628264230883e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_64",
+   "kind": "patch",
+   "one_minus_cos": 1.9832241260342443e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_64",
+   "kind": "patch",
+   "one_minus_cos": 1.3847807645017696e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_64",
+   "kind": "patch",
+   "one_minus_cos": 1.4495603128938939e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_64",
+   "kind": "patch",
+   "one_minus_cos": 1.5355643989689582e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_64",
+   "kind": "patch",
+   "one_minus_cos": 1.3924012265409402e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.02",
+   "kind": "freq",
+   "one_minus_cos": 1.235614686123654e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.05",
+   "kind": "freq",
+   "one_minus_cos": 1.9279835361540876e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.10",
+   "kind": "freq",
+   "one_minus_cos": 1.4458937991346232e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.02",
+   "kind": "freq",
+   "one_minus_cos": 2.1799771632302622e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.05",
+   "kind": "freq",
+   "one_minus_cos": 1.0284473173083342e-07,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.10",
+   "kind": "freq",
+   "one_minus_cos": 7.89257784683528e-08,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "control_identity",
+   "kind": "control",
+   "one_minus_cos": 1.2346746613989268e-07,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_rot90",
+   "kind": "control",
+   "one_minus_cos": 1.4067816056506643e-07,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_flip",
+   "kind": "control",
+   "one_minus_cos": 1.6055312668239452e-07,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_bright_0.7",
+   "kind": "control",
+   "one_minus_cos": 1.4418107741054342e-07,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_jpeg60",
+   "kind": "control",
+   "one_minus_cos": 1.0499664071517145e-07,
+   "is_natural_control": true
+  }
+ ],
+ "flagged_count": 0,
+ "flagged": [],
+ "positive_control": {
+  "ladder": [],
+  "detection_floor_codes_lsb": null,
+  "note": "no ConvRot INT8 layer in this pack - positive control not applicable"
+ },
+ "pass": true
+}
