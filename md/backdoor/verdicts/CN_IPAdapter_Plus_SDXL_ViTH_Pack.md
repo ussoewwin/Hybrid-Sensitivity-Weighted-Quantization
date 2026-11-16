@@ -74,15 +74,17 @@ partly cancel at that latent - and it is why the worst latent is reported beside
 being used as a pass criterion. The layer-by-layer number is the gate mean, and it moves the other
 way (+9.8e-05 for K = 1). Neither number is hidden.
 
-## 5. Executes - the routes on this machine
+## 5. Executes - the host the pack is used on, and the others as context
+
+The host used for the judgement is the first row; everything below it is context, not an acceptance item.
 
 | route | what it does | measured | record |
 | :--- | :--- | :--- | :--- |
-| A1111 | `modules/ipadapter_int8_convrot.py` installs the payload in place and binds an instance-level forward to `comfy_kitchen.int8_linear(convrot=True, groupsize=256)` | **162 of 162 installed** (22 `image_proj` + 140 `ip_adapter`), one `image_proj` forward makes **22 kernel calls**, output `[1,16,2048]` finite | `records/cn_ipadapter_plus_vit_h_route.json` -> `routes.a1111` |
-| ComfyUI `comfyui_ipadapter_plus` | `ipadapter_model_loader` rebuilds the adapter from `load_torch_file(safe_load=True)` and never reads `comfy_quant` | **162 int8 tensors presented, `applies_int8` false** - the codes would reach float parameters | `records/cn_ipadapter_plus_vit_h_route.json` -> `routes.comfyui` |
-| Forge | reads `comfy_quant` and dispatches to the same kernel | **install present; 162 of 162 stamps are the form it reads** (int8_tensorwise, convrot true, convrot_groupsize 256); not executed - no Forge Python runtime (env\Scripts\python.exe, env\bin\python, system\python\python.exe, python.exe all absent) | `records/cn_ipadapter_plus_vit_h_forge_route.json` -> `pack_stamps`, `python_runtime.any_present` |
 | ComfyUI, the loader package's `HSWQ Load IPAdapter Model` node | the node loads the pack, installs the runtime patch and returns the state dict the apply node consumes | **ConvRot branch taken, patch applied, 162 of 162 installed** (22 + 140), **302 kernel calls**, `image_proj` cos mean **0.999526739** / min **0.998086035**, `to_kv` same-input mean >= **0.999972105** / min >= **0.999840677**, end-to-end mean >= **0.999393105** / min >= **0.997277856**, finite | `records/cn_ipadapter_plus_vit_h_comfyui_route.json` -> `installed_int8_layers`, `image_proj`, `to_kv` |
+| A1111 | `modules/ipadapter_int8_convrot.py` installs the payload in place and binds an instance-level forward to `comfy_kitchen.int8_linear(convrot=True, groupsize=256)` | **162 of 162 installed** (22 `image_proj` + 140 `ip_adapter`), one `image_proj` forward makes **22 kernel calls**, output `[1,16,2048]` finite | `records/cn_ipadapter_plus_vit_h_route.json` -> `routes.a1111` |
 | HSWQ loader package (direct) | `nodes/hswq_load_ipadapter_model.py` installs the runtime patch and keeps the codes INT8 | **patch applied, 162 of 162 installed** (22 + 140), **162 kernel calls**, `image_proj` cos mean **0.999526739** / min **0.998086035**, 140 `to_kv` mean >= **0.999972105** / min >= **0.999840677**, finite | `records/cn_ipadapter_plus_vit_h_hswq_route.json` -> `image_proj`, `to_kv` |
+| Forge | reads `comfy_quant` and dispatches to the same kernel | **install present; 162 of 162 stamps are the form it reads** (int8_tensorwise, convrot true, convrot_groupsize 256); not executed - no Forge Python runtime (env\Scripts\python.exe, env\bin\python, system\python\python.exe, python.exe all absent) | `records/cn_ipadapter_plus_vit_h_forge_route.json` -> `pack_stamps`, `python_runtime.any_present` |
+| ComfyUI `comfyui_ipadapter_plus` | `ipadapter_model_loader` rebuilds the adapter from `load_torch_file(safe_load=True)` and never reads `comfy_quant` | **162 int8 tensors presented, `applies_int8` false** - the codes would reach float parameters | `records/cn_ipadapter_plus_vit_h_route.json` -> `routes.comfyui` |
 
 ## 6. Acceptance
 

@@ -28,7 +28,9 @@
 
 ## 0. The load path is the whole story
 
-This adapter has one route that installs the pack's INT8 payload and one that does not. Both are measured, and the difference decides where the acceptance numbers come from.
+The pack is judged where it is used. The acceptance and the render below were measured on one host - this machine's ComfyUI, through the loader node - and the other hosts are named here only so a reader knows what else was seen. A host that cannot carry the pack is a statement about that host, not about the pack: the pack is not worse because another tool cannot read it, and not better because several can.
+
+The stock extension's own behaviour is worth knowing because it fails without a message, and that is a property of the extension:
 
 ### 0.1 ComfyUI's IP-Adapter loader does not read `comfy_quant`
 
