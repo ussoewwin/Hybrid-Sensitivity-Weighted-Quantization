@@ -15,6 +15,7 @@
   "shape_mismatch": [],
   "int8_layers": 312,
   "kept_float": 0,
+  "non_2d_float_tensors": 32,
   "missing_scale": [],
   "missing_sidecar": []
  },

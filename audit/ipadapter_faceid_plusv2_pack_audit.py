@@ -75,7 +75,8 @@ def main():
     pack = load_file(a.pack)
 
     coverage = {"missing": [], "extra": [], "shape_mismatch": [], "int8_layers": 0,
-                "kept_float": 0, "missing_scale": [], "missing_sidecar": []}
+                "kept_float": 0, "non_2d_float_tensors": 0,
+                "missing_scale": [], "missing_sidecar": []}
     src_weights = [k for k, v in src.items() if k.endswith(".weight") and v.dim() == 2]
     for k in src_weights:
         mk = k[: -len(".weight")]
@@ -93,6 +94,9 @@ def main():
                 coverage["missing_sidecar"].append(mk)
         else:
             coverage["kept_float"] += 1
+    for k, v in src.items():
+        if not (k.endswith(".weight") and v.dim() == 2) and v.is_floating_point():
+            coverage["non_2d_float_tensors"] += 1
     for k in pack:
         if k in src:
             continue

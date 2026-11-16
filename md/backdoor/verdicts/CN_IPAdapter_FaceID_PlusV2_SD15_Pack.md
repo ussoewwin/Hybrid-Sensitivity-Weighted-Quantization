@@ -17,10 +17,11 @@ ComfyUI route through the loader package's `HSWQ Load IPAdapter Model` node.
 
 ## 2. Coverage
 
-344 tensors in, 344 tensors out. 312 of them are 2-D weights and all 312 are INT8; the 32 that stay
-float are the biases and the LayerNorm weights, which are not Linear weights. Nothing is missing,
-nothing is added, no shape changed, and every INT8 layer carries both its `weight_scale` and its
-`comfy_quant` sidecar (`records/cn_ipadapter_faceid_plusv2_pack_audit.json` -> `coverage`).
+344 tensors in, 344 tensors out. 312 of them are 2-D weights and all 312 are INT8: the record's
+`coverage.kept_float` is 0, i.e. no 2-D weight was left in float. The other 32 are not 2-D weights
+(biases and LayerNorm weights) and stay float - `coverage.non_2d_float_tensors` is 32. Nothing is
+missing, nothing is added, no shape changed, and every INT8 layer carries both its `weight_scale`
+and its `comfy_quant` sidecar (`records/cn_ipadapter_faceid_plusv2_pack_audit.json` -> `coverage`).
 
 ## 3. Arithmetic - the pack is the source quantised
 

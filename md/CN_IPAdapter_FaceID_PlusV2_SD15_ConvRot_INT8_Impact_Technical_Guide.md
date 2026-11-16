@@ -151,7 +151,7 @@ adapter's own forward) and CN-5a (0.999974 / 0.999960 over 288 weights).
 |---|---|
 | tensors | 344 in, 344 out |
 | 2-D weights | 312, all INT8 |
-| float kept | 32 (biases and LayerNorm weights) |
+| float kept | 32 tensors that are not 2-D weights (biases and LayerNorm weights) |
 | group sizes | 256 for 124 layers, 64 for 188 layers |
 | sidecars | one `weight_scale` (float32, `[out, 1]`) and one `comfy_quant` per INT8 layer |
 | size | 79,143,188 B, 0.5056 of the source |

@@ -187,7 +187,7 @@ host with identical settings.
 | pack | `ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8.safetensors`, 79,143,188 B, sha256 `3984cb16...c15e` |
 | size ratio | 0.5056 of the source |
 | INT8 layers | 312 of 312 measured 2-D weights |
-| float kept | 32 (biases, LayerNorm weights) |
+| float kept | 32 tensors that are not 2-D weights (biases, LayerNorm weights); `coverage.kept_float` = 0 |
 | group sizes | 256 (124 layers), 64 (188 layers) |
 | CN-1 | FAITHFUL: 312/312 replay, code delta 0, scale mismatch 0, non-finite scale 0, float side 32/32 bit-identical |
 | CN-1 behaviour | injected stack cosine 0.999968 mean / 0.999955 min |
