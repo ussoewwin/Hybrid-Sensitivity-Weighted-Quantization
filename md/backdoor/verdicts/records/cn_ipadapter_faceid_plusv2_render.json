@@ -1,0 +1,48 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_render.py",
+ "family": "ipadapter_faceid_plusv2_sd15",
+ "route": "ComfyUI, HSWQ Load IPAdapter Model -> IPAdapterFaceID",
+ "settings": {
+  "ckpt": "realisticVisionV60B1_v60B1VAE.safetensors",
+  "clip_vision": "clip_vision_h.safetensors",
+  "prompt": "a woman in a red coat standing in a city street, detailed, natural light",
+  "negative": "blurry, low quality, watermark",
+  "width": 512,
+  "height": 512,
+  "steps": 12,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "seed": 42,
+  "weight": 0.8,
+  "weight_faceidv2": 1.0,
+  "reference": "cn_clipvit_ref.png",
+  "adapter_dir": "D:\\USERFILES\\StableDiffusion\\models\\ControlNet"
+ },
+ "arms": {
+  "source": {
+   "queued": "840914fc-e82b-4d5e-8cec-4080c049fac6",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "source.png",
+     "bytes": 402459
+    }
+   ],
+   "seconds": 12.6
+  },
+  "pack": {
+   "queued": "299614d3-14e2-4542-88df-3801271df59f",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "pack.png",
+     "bytes": 403685
+    }
+   ],
+   "seconds": 6.7
+  }
+ }
+}

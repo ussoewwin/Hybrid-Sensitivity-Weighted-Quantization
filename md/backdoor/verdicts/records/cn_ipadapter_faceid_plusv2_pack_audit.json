@@ -1,0 +1,43 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_pack_audit.py",
+ "family": "ipadapter_faceid_plusv2_sd15",
+ "source": "ip-adapter-faceid-plusv2_sd15.bin",
+ "pack": "ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8.safetensors",
+ "identity": {
+  "source_bytes": 156558509,
+  "source_sha256": "26d0d86a1d60d6cc811d3b8862178b461e1eeb651e6fe2b72ba17aa95411e313",
+  "pack_bytes": 79143188,
+  "pack_sha256": "3984cb16f3ed7507b60e4ac9b5ee21b10dcf8ea02aed9414adb3535a8104c15e"
+ },
+ "coverage": {
+  "missing": [],
+  "extra": [],
+  "shape_mismatch": [],
+  "int8_layers": 312,
+  "kept_float": 0,
+  "missing_scale": [],
+  "missing_sidecar": []
+ },
+ "arithmetic": {
+  "int8_layers_replayed": 312,
+  "code_mismatch": 0,
+  "max_code_delta": 0,
+  "scale_mismatch": 0,
+  "max_scale_rel": 0.0,
+  "nonfinite_scale": 0,
+  "groupsizes": {
+   "256": 124,
+   "64": 188
+  },
+  "float_side_bit_identical": 32,
+  "float_side_differs": 0
+ },
+ "behaviour": {
+  "observable": "the 4x768 token stack on fixed inputs",
+  "cos_mean": 0.9999681131672734,
+  "cos_min": 0.9999549344502868,
+  "load_missing": [],
+  "load_unexpected": []
+ },
+ "verdict": "FAITHFUL"
+}

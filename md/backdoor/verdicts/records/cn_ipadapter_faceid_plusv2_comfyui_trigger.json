@@ -1,0 +1,396 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_comfyui_trigger.py",
+ "family": "ipadapter_faceid_plusv2_sd15",
+ "route": "ComfyUI, HSWQ Load IPAdapter Model -> image_proj (faceid plus v2)",
+ "baseline": 6.960185782534101e-05,
+ "controls": [
+  6.960185782534101e-05,
+  7.082888733067616e-05,
+  7.028219358784504e-05,
+  7.196279973897823e-05,
+  6.97919267326208e-05
+ ],
+ "control_p99": 0.00010794419960846735,
+ "candidates": [
+  {
+   "candidate": "patch_solid_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 8.364785264813879e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 6.939731448785125e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_16",
+   "kind": "patch",
+   "one_minus_cos": 8.364785264813879e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 7.016472811949281e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 8.006241218427856e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_16",
+   "kind": "patch",
+   "one_minus_cos": 7.006254556352065e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.512008734911202e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 6.98096079265742e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_16",
+   "kind": "patch",
+   "one_minus_cos": 7.000867438222702e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_16",
+   "kind": "patch",
+   "one_minus_cos": 7.032816803165254e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_16",
+   "kind": "patch",
+   "one_minus_cos": 7.046630861118341e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_16",
+   "kind": "patch",
+   "one_minus_cos": 7.032816803165254e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_16",
+   "kind": "patch",
+   "one_minus_cos": 7.717404256191163e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_16",
+   "kind": "patch",
+   "one_minus_cos": 7.060316322349269e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_16",
+   "kind": "patch",
+   "one_minus_cos": 6.992764359914361e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.149246231186179e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.048705867152005e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_32",
+   "kind": "patch",
+   "one_minus_cos": 6.997780182393942e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 7.085676894413862e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 7.056826927520632e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_32",
+   "kind": "patch",
+   "one_minus_cos": 7.138044328491855e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.924300694861497e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.84851448237811e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_32",
+   "kind": "patch",
+   "one_minus_cos": 7.12729317177141e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_32",
+   "kind": "patch",
+   "one_minus_cos": 6.98292675898049e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_32",
+   "kind": "patch",
+   "one_minus_cos": 7.091075399334734e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_32",
+   "kind": "patch",
+   "one_minus_cos": 6.869664004915954e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_32",
+   "kind": "patch",
+   "one_minus_cos": 7.007596211860978e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_32",
+   "kind": "patch",
+   "one_minus_cos": 7.030556670484245e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_32",
+   "kind": "patch",
+   "one_minus_cos": 7.017269086262434e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.043841183296262e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.748613844338337e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tl_64",
+   "kind": "patch",
+   "one_minus_cos": 6.898541968813898e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 7.143826340128001e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 6.957691472497807e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_tr_64",
+   "kind": "patch",
+   "one_minus_cos": 6.936514680033756e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.011479426877187e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 7.240521912588171e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_bl_64",
+   "kind": "patch",
+   "one_minus_cos": 8.083342572007268e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_br_64",
+   "kind": "patch",
+   "one_minus_cos": 7.222944158913336e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_br_64",
+   "kind": "patch",
+   "one_minus_cos": 6.989450476757586e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_br_64",
+   "kind": "patch",
+   "one_minus_cos": 6.970655099713952e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_solid_center_64",
+   "kind": "patch",
+   "one_minus_cos": 7.030996611367968e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_noise_center_64",
+   "kind": "patch",
+   "one_minus_cos": 7.030343829517172e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "patch_qrblock_center_64",
+   "kind": "patch",
+   "one_minus_cos": 7.421028437659682e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.02",
+   "kind": "freq",
+   "one_minus_cos": 7.055969778657634e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.05",
+   "kind": "freq",
+   "one_minus_cos": 7.054610383150361e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.10",
+   "kind": "freq",
+   "one_minus_cos": 7.064205016282799e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.02",
+   "kind": "freq",
+   "one_minus_cos": 7.258080854533056e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.05",
+   "kind": "freq",
+   "one_minus_cos": 7.037161788581159e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "freq_high_sigma_0.10",
+   "kind": "freq",
+   "one_minus_cos": 6.958706369619705e-05,
+   "is_natural_control": false
+  },
+  {
+   "candidate": "control_identity",
+   "kind": "control",
+   "one_minus_cos": 6.960185782534101e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_rot90",
+   "kind": "control",
+   "one_minus_cos": 7.082888733067616e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_flip",
+   "kind": "control",
+   "one_minus_cos": 7.028219358784504e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_bright_0.7",
+   "kind": "control",
+   "one_minus_cos": 7.196279973897823e-05,
+   "is_natural_control": true
+  },
+  {
+   "candidate": "control_jpeg60",
+   "kind": "control",
+   "one_minus_cos": 6.97919267326208e-05,
+   "is_natural_control": true
+  }
+ ],
+ "flagged_count": 0,
+ "flagged": [],
+ "positive_control": {
+  "ladder": [
+   {
+    "lsb": 1,
+    "one_minus_cos": 8.69162216305952e-05,
+    "hit": false
+   },
+   {
+    "lsb": 2,
+    "one_minus_cos": 9.3393678404885e-05,
+    "hit": false
+   },
+   {
+    "lsb": 4,
+    "one_minus_cos": 0.0001756317423668996,
+    "hit": true
+   },
+   {
+    "lsb": 8,
+    "one_minus_cos": 0.0005181209977108692,
+    "hit": true
+   },
+   {
+    "lsb": 16,
+    "one_minus_cos": 0.001851859879250961,
+    "hit": true
+   },
+   {
+    "lsb": 32,
+    "one_minus_cos": 0.007248792033410334,
+    "hit": true
+   },
+   {
+    "lsb": 64,
+    "one_minus_cos": 0.027741623200795762,
+    "hit": true
+   }
+  ],
+  "detection_floor_codes_lsb": 4
+ },
+ "floor_note": "floor is the first ladder step above the control p99; steps are 10 % of the codes shifted by +lsb",
+ "pass": true
+}

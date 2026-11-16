@@ -1,0 +1,72 @@
+{
+ "tool": "clip_convert/sweep_ipadapter_faceid_plusv2.py",
+ "family": "ipadapter_faceid_plusv2_sd15",
+ "criterion": "the aggregate contribution measured on this checkpoint's own ranking",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "points": [
+  {
+   "k": 0,
+   "protected_layers": 0,
+   "pack_mb": 79.143,
+   "int8": 312,
+   "protected": 0,
+   "share_of_contribution": 0.0,
+   "gate_mean": 0.9999450437608175,
+   "gate_min": 0.9999305158853531,
+   "gate_p5": 0.9999386295676231,
+   "gate_pass": true,
+   "kernel_calls": 6144,
+   "pack_sha256": "3984cb16f3ed7507b60e4ac9b5ee21b10dcf8ea02aed9414adb3535a8104c15e"
+  },
+  {
+   "k": 20,
+   "protected_layers": 20,
+   "pack_mb": 88.962,
+   "int8": 292,
+   "protected": 20,
+   "share_of_contribution": 0.23015102648461916,
+   "gate_mean": 0.9999863901175559,
+   "gate_min": 0.9999763518571854,
+   "gate_p5": 0.999982874840498,
+   "gate_pass": true,
+   "kernel_calls": 5120,
+   "pack_sha256": "984ec3eb941aff8dee241c81ad2459e1b5db4467b9f040c4c2e0bd479606a1f3"
+  },
+  {
+   "k": 40,
+   "protected_layers": 40,
+   "pack_mb": 101.098,
+   "int8": 272,
+   "protected": 40,
+   "share_of_contribution": 0.33475807726466295,
+   "gate_mean": 0.9999863901175559,
+   "gate_min": 0.9999763518571854,
+   "gate_p5": 0.999982874840498,
+   "gate_pass": true,
+   "kernel_calls": 5120,
+   "pack_sha256": "05442afd0991bac501e4d6f5a47156aa9d9cebbfa7659628ac15c82083a5de71"
+  },
+  {
+   "k": 60,
+   "protected_layers": 60,
+   "pack_mb": 106.471,
+   "int8": 252,
+   "protected": 60,
+   "share_of_contribution": 0.4296385314980467,
+   "gate_mean": 0.9999863901175559,
+   "gate_min": 0.9999763518571854,
+   "gate_p5": 0.999982874840498,
+   "gate_pass": true,
+   "kernel_calls": 5120,
+   "pack_sha256": "cea6b34ca1d97f030b3baba3c5b176e5cfa69a21b2e11cf50b96b026c0ec8bcd"
+  }
+ ],
+ "decision": {
+  "k": 0,
+  "rule": "the smallest passing pack; a larger candidate must beat it by a meaningful share of the gate margin (2026-11-15), otherwise the smallest is the default",
+  "gate_margin_of_k0": 0.009945043760817507,
+  "best_larger_gain": 4.1346356738358736e-05,
+  "best_larger_gain_over_margin": 0.004157483640369619,
+  "size_cost_mb": 27.328000000000003
+ }
+}

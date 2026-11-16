@@ -1,0 +1,14 @@
+{
+ "repo": "ussoewwin/ControlNet-models-ConvRot-INT8",
+ "pack": "ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8.safetensors",
+ "pack_bytes": 79143188,
+ "pack_sha256": "3984cb16f3ed7507b60e4ac9b5ee21b10dcf8ea02aed9414adb3535a8104c15e",
+ "hub_reported_size": 79143188,
+ "hub_lfs_sha256": "3984cb16f3ed7507b60e4ac9b5ee21b10dcf8ea02aed9414adb3535a8104c15e",
+ "size_match": true,
+ "lfs_sha256_match": true,
+ "files_in_repo": 38,
+ "readme_row_added": true,
+ "readme_bytes": 19700,
+ "readme_has_guide_link": true
+}

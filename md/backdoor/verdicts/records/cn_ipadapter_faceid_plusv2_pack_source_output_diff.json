@@ -1,0 +1,50 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_acceptance.py",
+ "family": "ipadapter_faceid_plusv2_sd15",
+ "route": "the source checkpoint against the pack dequantised from its own sidecars",
+ "pack": "ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8.safetensors",
+ "source": "ip-adapter-faceid-plusv2_sd15.bin",
+ "image_proj_surface": {
+  "elements": 4,
+  "element": "one token of the 4x768 injected stack",
+  "cos_mean": 0.9989302868044837,
+  "cos_min": 0.9855207608394373,
+  "rel_mse_max": 0.009773900732398033,
+  "depends_on_the_image": true,
+  "batches": [
+   {
+    "batch": 0,
+    "image_proj_cos_mean": 0.9999642395600655,
+    "image_proj_cos_min": 0.9999497062377853,
+    "image_proj_rel_mse": 0.00011600305151659995
+   },
+   {
+    "batch": 1,
+    "image_proj_cos_mean": 0.9960788518448037,
+    "image_proj_cos_min": 0.9855207608394373,
+    "image_proj_rel_mse": 0.009773900732398033
+   },
+   {
+    "batch": 2,
+    "image_proj_cos_mean": 0.9999376065393645,
+    "image_proj_cos_min": 0.9998511686529451,
+    "image_proj_rel_mse": 0.00016541981312911958
+   },
+   {
+    "batch": 3,
+    "image_proj_cos_mean": 0.9997404492737012,
+    "image_proj_cos_min": 0.9991161537615458,
+    "image_proj_rel_mse": 0.0005345199024304748
+   }
+  ]
+ },
+ "ip_adapter_surface": {
+  "elements": 288,
+  "element": "one 2-D weight applied to a fixed input of its own width",
+  "cos_mean": 0.9999741306849863,
+  "cos_min": 0.9999598823092016,
+  "max_abs_diff_from_one": 4.011769079836913e-05,
+  "depends_on_the_image": false,
+  "note": "these weights consume the UNet cross-attention K/V and the identity/clip stack, not the pixel image, so this surface is measured on fixed inputs"
+ }
+}

@@ -1,0 +1,14 @@
+{
+ "source": "source.png",
+ "pack": "pack.png",
+ "mean_abs_diff": 12.981190999348959,
+ "max_abs_diff": 244.0,
+ "p99_abs_diff": 92.0,
+ "cosine": 0.9878806757699352,
+ "psnr_db": 21.007604938369518,
+ "pixels_identical_ratio": 0.013813018798828125,
+ "bytes": {
+  "source": 402459,
+  "pack": 403685
+ }
+}

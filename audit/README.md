@@ -93,6 +93,12 @@ python audit/run_all_gates.py
 | CN-6 (ComfyUI route, the same 256-item gate, agreement against A1111) | `ipadapter_plus_vit_h_comfyui_gate.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <p> --clip-vision <f> --json <o> [--a1111-record <j>]` |
 | CN-5b (ComfyUI route, the 56 candidates and the code-axis positive control) | `ipadapter_plus_vit_h_comfyui_trigger.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <p> --clip-vision <f> --json <o>` |
 | CN-5a/5b/6 (SDXL Plus, A1111 INT8 route, both surfaces) | `ipadapter_plus_vit_h_acceptance.py` | `--source <f> --pack <f> --image <png> --clip-vision <f> --root <a1111> --comfy <d> --json-5a <o> --json-trigger <o> --json-gate <o> [--expect-int8 N]` |
+| CN-1 (SD1.5 FaceID Plus v2: identity, coverage, per-layer arithmetic replay, behaviour) | `ipadapter_faceid_plusv2_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --json <o>` |
+| CN-2/3 (FaceID Plus v2, the loader node inside ComfyUI: patch, installed layers, kernel calls, cosines) | `ipadapter_faceid_plusv2_comfyui_route.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --json <o>` |
+| CN-5a (FaceID Plus v2, both surfaces against the source, four CLIP inputs) | `ipadapter_faceid_plusv2_acceptance.py` | `--pack <f> --source <f> --comfy <d> --json <o> [--batch-inputs N]` |
+| CN-6 (FaceID Plus v2, the 256-item gate through the loader node, one fixed identity) | `ipadapter_faceid_plusv2_comfyui_gate.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <p> --clip-vision <f> --json <o> [--protect-count N]` |
+| CN-5b (FaceID Plus v2, the 56 candidates and the code-axis positive control) | `ipadapter_faceid_plusv2_comfyui_trigger.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <p> --clip-vision <f> --json <o>` |
+| CN-4 (FaceID Plus v2, ComfyUI render through `IPAdapterFaceID`, source and pack arms) | `ipadapter_faceid_plusv2_render.py` | `--server <url> --out-dir <d> --output-root <d> --json <o>` |
 | CN-5a/5b/6 (FaceID observable, 55 candidates, 256-item gate) | `ipadapter_faceid_gate_and_trigger.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json-5a <o> --json-trigger <o> --json-gate <o>` |
 | CN-1 (pack is the source quantised, CLIP-ViT-H-14) | `clip_vit_h14_pack_audit.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |
 | CN-2/3 (loader route and INT8 execution, CLIP-ViT-H-14) | `clip_vit_h14_route.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |

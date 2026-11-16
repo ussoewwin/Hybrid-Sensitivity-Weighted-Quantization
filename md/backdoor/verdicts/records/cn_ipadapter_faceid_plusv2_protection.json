@@ -1,0 +1,122 @@
+{
+ "tool": "clip_convert/measure_ipadapter_faceid_plusv2_contrib.py",
+ "family": "ipadapter_faceid_plusv2_sd15",
+ "source": "ip-adapter-faceid-plusv2_sd15.bin",
+ "decision": {
+  "protected_layers": 0,
+  "kept_fp16_beyond_bias_and_norm": 0,
+  "rule": "the protection set is this checkpoint's own top-K of the aggregate contribution; K is decided on the size/quality curve, and the smallest passing pack is the default",
+  "why_zero": "K=0 passes the 256-item gate with mean 0.999945044 and min 0.999930516 against mean >= 0.99 / min >= 0.98, and the best larger candidate gains 4.135e-05 of mean for +27.328 MB, which is 0.42 % of the margin that K=0 already holds; a larger candidate must clear a meaningful share of the margin to displace the smallest"
+ },
+ "measured_on_this_checkpoint": true,
+ "ranking_origin": "this checkpoint's own drift screen and its own aggregate-contribution measurement",
+ "total_contribution": 0.005621867118157153,
+ "largest_contributors": [
+  {
+   "layer": "image_proj.proj.0",
+   "share": 0.05182188989729267
+  },
+  {
+   "layer": "image_proj.perceiver_resampler.layers.0.0.to_q",
+   "share": 0.03721737223024739
+  },
+  {
+   "layer": "image_proj.proj.2",
+   "share": 0.02536235976711804
+  },
+  {
+   "layer": "image_proj.perceiver_resampler.proj_in",
+   "share": 0.023661718718251287
+  },
+  {
+   "layer": "ip_adapter.14.to_v_lora.down",
+   "share": 0.0068866923891559816
+  },
+  {
+   "layer": "ip_adapter.8.to_out_lora.down",
+   "share": 0.006146558725107689
+  },
+  {
+   "layer": "ip_adapter.14.to_out_lora.down",
+   "share": 0.006000954044452067
+  },
+  {
+   "layer": "ip_adapter.29.to_k_ip",
+   "share": 0.005934172359294793
+  },
+  {
+   "layer": "ip_adapter.18.to_out_lora.down",
+   "share": 0.005906499161045411
+  },
+  {
+   "layer": "ip_adapter.13.to_out_lora.down",
+   "share": 0.005814356903755422
+  },
+  {
+   "layer": "ip_adapter.3.to_k_ip",
+   "share": 0.005807157078640057
+  },
+  {
+   "layer": "ip_adapter.28.to_out_lora.down",
+   "share": 0.005706695496905284
+  }
+ ],
+ "curve": [
+  {
+   "k": 0,
+   "protected_layers": 0,
+   "pack_mb": 79.143,
+   "int8": 312,
+   "protected": 0,
+   "share_of_contribution": 0.0,
+   "gate_mean": 0.9999450437608175,
+   "gate_min": 0.9999305158853531,
+   "gate_p5": 0.9999386295676231,
+   "gate_pass": true,
+   "kernel_calls": 6144,
+   "pack_sha256": "3984cb16f3ed7507b60e4ac9b5ee21b10dcf8ea02aed9414adb3535a8104c15e"
+  },
+  {
+   "k": 20,
+   "protected_layers": 20,
+   "pack_mb": 88.962,
+   "int8": 292,
+   "protected": 20,
+   "share_of_contribution": 0.23015102648461916,
+   "gate_mean": 0.9999863901175559,
+   "gate_min": 0.9999763518571854,
+   "gate_p5": 0.999982874840498,
+   "gate_pass": true,
+   "kernel_calls": 5120,
+   "pack_sha256": "984ec3eb941aff8dee241c81ad2459e1b5db4467b9f040c4c2e0bd479606a1f3"
+  },
+  {
+   "k": 40,
+   "protected_layers": 40,
+   "pack_mb": 101.098,
+   "int8": 272,
+   "protected": 40,
+   "share_of_contribution": 0.33475807726466295,
+   "gate_mean": 0.9999863901175559,
+   "gate_min": 0.9999763518571854,
+   "gate_p5": 0.999982874840498,
+   "gate_pass": true,
+   "kernel_calls": 5120,
+   "pack_sha256": "05442afd0991bac501e4d6f5a47156aa9d9cebbfa7659628ac15c82083a5de71"
+  },
+  {
+   "k": 60,
+   "protected_layers": 60,
+   "pack_mb": 106.471,
+   "int8": 252,
+   "protected": 60,
+   "share_of_contribution": 0.4296385314980467,
+   "gate_mean": 0.9999863901175559,
+   "gate_min": 0.9999763518571854,
+   "gate_p5": 0.999982874840498,
+   "gate_pass": true,
+   "kernel_calls": 5120,
+   "pack_sha256": "cea6b34ca1d97f030b3baba3c5b176e5cfa69a21b2e11cf50b96b026c0ec8bcd"
+  }
+ ]
+}

@@ -1,0 +1,28 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_comfyui_gate.py",
+ "family": "ipadapter_faceid_plusv2_sd15",
+ "pack": "ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8.safetensors",
+ "source": "ip-adapter-faceid-plusv2_sd15.bin",
+ "route": "ComfyUI, HSWQ Load IPAdapter Model node -> IPAdapter faceid plus v2 graph",
+ "gate": "mean >= 0.99 and min >= 0.98 on the fixed 256-item set",
+ "instrument": "8 crops x 4 orientations x 8 brightness steps, from cn_clipvit_ref.png, one fixed face embedding",
+ "projection": {
+  "scale": 1.0,
+  "shortcut": true,
+  "is_faceidv2": true
+ },
+ "protect_count": 0,
+ "n": 256,
+ "int8_kernel_calls": 6144,
+ "mean": 0.9999450437608175,
+ "min": 0.9999305158853531,
+ "p5": 0.9999386295676231,
+ "p50": 0.9999453201889992,
+ "worst_item": {
+  "name": "c6_o1_b1",
+  "mean_over_tokens": 0.9999305158853531,
+  "min_token": 0.9998955726623535
+ },
+ "pass": true,
+ "finite": true
+}
