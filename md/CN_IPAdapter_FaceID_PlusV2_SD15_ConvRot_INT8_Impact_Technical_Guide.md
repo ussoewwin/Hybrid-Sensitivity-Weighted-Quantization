@@ -151,15 +151,17 @@ over the 312 layers to `5.621867e-03`. The eight largest, with their share:
 The K curve holds the top-K of that ranking in FP16 and rebuilds the pack, then runs the same 256-item
 gate through the same node:
 
-| K | INT8 | FP16 kept | size MB | gate mean | gate min | pass | share of contribution held out |
-| ---: | ---: | ---: | ---: | ---: | ---: | :--- | ---: |
-| 0 | 312 | 0 | 79.143 | 0.999945044 | 0.999930516 | yes | 0.0000 |
-| 20 | 292 | 20 | 88.962 | 0.999986390 | 0.999976352 | yes | 0.2302 |
-| 40 | 272 | 40 | 101.098 | 0.999986390 | 0.999976352 | yes | 0.3348 |
-| 60 | 252 | 60 | 106.471 | 0.999986390 | 0.999976352 | yes | 0.4296 |
+| K | INT8 | FP16 kept | size MB | gate mean | gate min | gate p5 | pass | mean gain / margin |
+|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| 0 | 312 | 0 | 79.143 | 0.999945044 | 0.999930516 | 0.999938630 | yes | 0.00 % |
+| 20 | 292 | 20 | 88.962 | 0.999986390 | 0.999976352 | 0.999982875 | yes | 0.42 % |
+| 40 | 272 | 40 | 101.098 | 0.999986390 | 0.999976352 | 0.999982875 | yes | 0.42 % |
+| 60 | 252 | 60 | 106.471 | 0.999986390 | 0.999976352 | 0.999982875 | yes | 0.42 % |
 
 **K = 0 adopted**, by the method's own rule: the smallest pack whose cosine is not beaten by the
-smaller ones, decided against the gate's margin. K=0 holds `0.009945` of mean margin; the best
+smaller ones, decided against the gate's margin. The criterion's distribution is flat - 312 layers, no
+negative contribution, the largest layer 5.18 % of the sum - which is the same fact from the other
+side. K=0 holds `0.009945` of mean margin; the best
 larger candidate gains `4.135e-05` of mean (%,(gain_ratio).2f % of that margin) and costs `+27.328`
 MB. The three larger points return identical gate numbers because the gate observes the `image_proj`
 stack and they protect the same four `image_proj` layers; their extra budget goes to `ip_adapter`,

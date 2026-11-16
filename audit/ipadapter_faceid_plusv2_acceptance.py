@@ -95,6 +95,80 @@ def dequant_pack(pack):
     return out
 
 
+def measure_int8_route(a, ext, device, face, batches):
+    """CN-5a through the real route: the loader node builds the pack, the kernel runs it.
+
+    The number without the kernel behind it is a dequantised-float number; this block puts the
+    kernel count beside the cosine, which is what section 2.5 asks for.
+    """
+    import importlib
+    import sys
+    import types
+
+    root = "hswq_loader"
+    pkg = types.ModuleType(root)
+    pkg.__path__ = [a.loader]
+    sys.modules[root] = pkg
+    nodes = types.ModuleType(root + ".nodes")
+    nodes.__path__ = [os.path.join(a.loader, "nodes")]
+    sys.modules[root + ".nodes"] = nodes
+    path = os.path.join(a.loader, "nodes", "hswq_load_ipadapter_model.py")
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(root + ".nodes.hswq_load_ipadapter_model", path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+
+    import comfy_kitchen
+
+    calls = {"n": 0}
+    original = comfy_kitchen.int8_linear
+
+    def counting(*args, **kw):
+        calls["n"] += 1
+        return original(*args, **kw)
+
+    comfy_kitchen.int8_linear = counting
+
+    obj = mod.HSWQLoadIPAdapterModel()
+    pack_st = obj.load_ipadapter_model(os.path.basename(a.pack), a.dir)[0]
+    src_st = obj.load_ipadapter_model(os.path.abspath(a.source), a.dir)[0]
+    kw = dict(cross_attention_dim=768, output_cross_attention_dim=768, clip_embeddings_dim=1280,
+              clip_extra_context_tokens=4, is_sdxl=False, is_plus=True, is_faceid=True)
+    stock, patched = ext.IPAdapter, ext.IPAdapter
+    src_model = ext.IPAdapter(src_st, **kw).to(device).eval()
+    pack_model = patched(pack_st, **kw).to(device).eval()
+
+    import torch as _t
+
+    torch.manual_seed(42)
+    rows = []
+    calls["n"] = 0
+    with _t.no_grad():
+        for i in range(batches):
+            torch.manual_seed(1042 + i)
+            clip = torch.randn(1, 257, 1280, device=device)
+            s = src_model.image_proj_model(face, clip, scale=1.0, shortcut=True)
+            p = pack_model.image_proj_model(face, clip, scale=1.0, shortcut=True)
+            cs = []
+            for j in range(s.shape[0]):
+                x, y = s[j].reshape(-1).double(), p[j].reshape(-1).double()
+                cs.append(float((x @ y) / (x.norm() * y.norm()).clamp_min(1e-30)))
+            rows.append({"batch": i, "cos_mean": sum(cs) / len(cs), "cos_min": min(cs)})
+    comfy_kitchen.int8_linear = original
+    return {
+        "route": "ComfyUI loader node, IPAdapter built from the pack, kernel counted",
+        "int8_kernel_calls": calls["n"],
+        "batches": rows,
+        "cos_mean": sum(r["cos_mean"] for r in rows) / len(rows),
+        "cos_min": min(r["cos_min"] for r in rows),
+        "note": "the kernel count covers the image_proj graph only, which is the surface CN-5a compares; "
+                "the ip_adapter surface is measured on dequantised weights above because the projections "
+                "are applied per layer and their count is in the route record",
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pack", required=True)
@@ -102,6 +176,9 @@ def main():
     ap.add_argument("--comfy", required=True)
     ap.add_argument("--json", required=True)
     ap.add_argument("--batch-inputs", type=int, default=4)
+    ap.add_argument("--loader", default="", help="the loader package root; when given, CN-5a is also "
+                                                "measured through the INT8 route with the kernel counted")
+    ap.add_argument("--dir", default="", help="the folder the loader node is pointed at")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--seed", type=int, default=42)
     a = ap.parse_args()
@@ -182,6 +259,9 @@ def main():
                     "not the pixel image, so this surface is measured on fixed inputs",
         },
     }
+    if a.loader and a.dir:
+        out["int8_route"] = measure_int8_route(a, ext, device, face, a.batch_inputs)
+
     os.makedirs(os.path.dirname(os.path.abspath(a.json)), exist_ok=True)
     with open(a.json, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=1, ensure_ascii=False)

@@ -16,7 +16,13 @@
    "gate_p5": 0.9999386295676231,
    "gate_pass": true,
    "kernel_calls": 6144,
-   "pack_sha256": "3984cb16f3ed7507b60e4ac9b5ee21b10dcf8ea02aed9414adb3535a8104c15e"
+   "pack_sha256": "3984cb16f3ed7507b60e4ac9b5ee21b10dcf8ea02aed9414adb3535a8104c15e",
+   "gate_p50": 0.9999453201889992,
+   "mean_margin": 0.009945043760817507,
+   "min_margin": 0.019930515885353106,
+   "gain_over_mean_margin": 0.0,
+   "gain_over_min_margin": 0.0,
+   "size_delta_mb": 0.0
   },
   {
    "k": 20,
@@ -30,7 +36,13 @@
    "gate_p5": 0.999982874840498,
    "gate_pass": true,
    "kernel_calls": 5120,
-   "pack_sha256": "984ec3eb941aff8dee241c81ad2459e1b5db4467b9f040c4c2e0bd479606a1f3"
+   "pack_sha256": "984ec3eb941aff8dee241c81ad2459e1b5db4467b9f040c4c2e0bd479606a1f3",
+   "gate_p50": 0.9999867603182793,
+   "mean_margin": 0.009986390117555866,
+   "min_margin": 0.01997635185718538,
+   "gain_over_mean_margin": 0.004157483640369619,
+   "gain_over_min_margin": 0.002299788530108252,
+   "size_delta_mb": 9.819000000000003
   },
   {
    "k": 40,
@@ -44,7 +56,13 @@
    "gate_p5": 0.999982874840498,
    "gate_pass": true,
    "kernel_calls": 5120,
-   "pack_sha256": "05442afd0991bac501e4d6f5a47156aa9d9cebbfa7659628ac15c82083a5de71"
+   "pack_sha256": "05442afd0991bac501e4d6f5a47156aa9d9cebbfa7659628ac15c82083a5de71",
+   "gate_p50": 0.9999867603182793,
+   "mean_margin": 0.009986390117555866,
+   "min_margin": 0.01997635185718538,
+   "gain_over_mean_margin": 0.004157483640369619,
+   "gain_over_min_margin": 0.002299788530108252,
+   "size_delta_mb": 21.955
   },
   {
    "k": 60,
@@ -58,7 +76,13 @@
    "gate_p5": 0.999982874840498,
    "gate_pass": true,
    "kernel_calls": 5120,
-   "pack_sha256": "cea6b34ca1d97f030b3baba3c5b176e5cfa69a21b2e11cf50b96b026c0ec8bcd"
+   "pack_sha256": "cea6b34ca1d97f030b3baba3c5b176e5cfa69a21b2e11cf50b96b026c0ec8bcd",
+   "gate_p50": 0.9999867603182793,
+   "mean_margin": 0.009986390117555866,
+   "min_margin": 0.01997635185718538,
+   "gain_over_mean_margin": 0.004157483640369619,
+   "gain_over_min_margin": 0.002299788530108252,
+   "size_delta_mb": 27.328000000000003
   }
  ],
  "decision": {
@@ -68,5 +92,6 @@
   "best_larger_gain": 4.1346356738358736e-05,
   "best_larger_gain_over_margin": 0.004157483640369619,
   "size_cost_mb": 27.328000000000003
- }
+ },
+ "ratio_rule": "mean_margin = mean - 0.99, min_margin = min - 0.98; a candidate's gain is divided by the floor's margin. A ratio of a percent or less is movement the gate does not see (section 1.4a)."
 }

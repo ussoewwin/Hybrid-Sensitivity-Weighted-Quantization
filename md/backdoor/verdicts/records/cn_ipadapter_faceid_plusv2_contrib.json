@@ -2267,5 +2267,16 @@
    "one_minus_cos_mean": 8.602306181826336e-06,
    "one_minus_cos_min": 9.619770807711703e-06
   }
- ]
+ ],
+ "distribution": {
+  "layers": 312,
+  "negative_gain_layers": 0,
+  "zero_gain_layers": 0,
+  "positive_gain_layers": 312,
+  "max": 0.00029133577881435,
+  "median": 1.5745880803219592e-05,
+  "min": 1.9832966380306516e-08,
+  "note": "1 - cosine is non-negative by construction here, so a negative gain can only appear as a layer whose error cancels the rest; the count that matters for §1.4a item 4 is how flat the distribution is, carried as the share of the largest layer against the sum",
+  "largest_share": 0.05182188989729267
+ }
 }

@@ -78,45 +78,62 @@ on ComfyUI (the render's route) with CN-5a measured off the weights themselves.
 
 ## 1. What is quantized
 
-| group | 2-D weights | INT8 | float kept |
-|---|---:|---:|---:|
-| `image_proj` (proj 512/1024/3072, resampler 768/1280) | 24 | 24 | 8 (norm + biases) |
-| `ip_adapter` (LoRA down/up 128 pairs, to_k_ip / to_v_ip 16 each) | 288 | 288 | 24 (none - all 2-D) |
-| total | 312 | 312 | 32 |
+| module group | weight shape | modules | INT8 |
+| :--- | :--- | ---: | ---: |
+| `image_proj.proj.0` | 1024 x 512 | 1 | 1 |
+| `image_proj.proj.2` | 3072 x 1024 | 1 | 1 |
+| `image_proj.perceiver_resampler.proj_in` | 768 x 1280 | 1 | 1 |
+| 4 x `layers.N.0.to_q` | 768 x 768 | 4 | 4 |
+| 4 x `layers.N.0.to_kv` | 1536 x 768 | 4 | 4 |
+| 4 x `layers.N.0.to_out` | 768 x 768 | 4 | 4 |
+| 4 x `layers.N.1.1` | 3072 x 768 | 4 | 4 |
+| 4 x `layers.N.1.3` | 768 x 3072 | 4 | 4 |
+| `image_proj.perceiver_resampler.proj_out` | 768 x 768 | 1 | 1 |
+| 128 x LoRA `down` (32 blocks x 4) | 128 x 320/640/768/1280 | 128 | 128 |
+| 128 x LoRA `up` (32 blocks x 4) | 320/640/768/1280 x 128 | 128 | 128 |
+| 16 x `to_k_ip` | 320 x 768 | 16 | 16 |
+| 16 x `to_v_ip` | 320 x 768 | 16 | 16 |
+| **total** | | **312** | **312** |
 
-Group sizes measured on the pack: 256 for 124 layers, 64 for 188 layers. Every INT8 layer carries its
-own `weight_scale` (float32, `[out, 1]`) and a `comfy_quant` sidecar
-`{"format":"int8_tensorwise","convrot":true,"convrot_groupsize":<g>}`.
+32 tensors are not 2-D weights (biases and the LayerNorm weights) and stay float; the record's
+`coverage.kept_float` is 0, so no 2-D weight was left in float. Group sizes on the pack are 256 for
+124 layers and 64 for 188. Every INT8 layer carries its own `weight_scale` (float32, `[out, 1]`) and a
+`comfy_quant` sidecar `{"format":"int8_tensorwise","convrot":true,"convrot_groupsize":<g>}`.
 
 ## 2. What the protection set is based on
 
-The protection set is this checkpoint's own measurement, not another pack's. Two instruments were run
-on it:
+The protection set is this checkpoint's own measurement. Two instruments were run on it: the drift
+screen (one weight reconstructed as ConvRot INT8, the stage output's relative MSE) and the criterion
+(the same sweep scored as the aggregate contribution, 1 - cosine). The criterion is what the decision
+is made on; the screen only says which layers are worth ranking.
 
-* the drift screen (`clip_convert/diag_impact_ipadapter_faceid_plusv2.py`): one weight at a time
-  reconstructed as ConvRot INT8, the stage output's relative MSE recorded. 312 layers measured, max
-  6.150512e-04, median 2.952240e-05, min 4.697038e-08.
-* the criterion (`clip_convert/measure_ipadapter_faceid_plusv2_contrib.py`): the same sweep scored as
-  the aggregate contribution to the stage output (1 - cosine), which is what the protection decision
-  is made on. Sum of contributions 5.621867e-03; the largest are `image_proj.proj.0` (5.18 %),
-  `image_proj.perceiver_resampler.layers.0.0.to_q` (3.72 %), `image_proj.proj.2` (2.54 %),
-  `image_proj.perceiver_resampler.proj_in` (2.37 %).
+| layer | drift (relative MSE) | share of the contribution |
+| :--- | ---: | ---: |
+| `image_proj.proj.0` | 6.150512e-04 | 5.182 % |
+| `image_proj.perceiver_resampler.layers.0.0.to_q` | 4.153478e-04 | 3.722 % |
+| `image_proj.proj.2` | 3.400411e-04 | 2.536 % |
+| `image_proj.perceiver_resampler.proj_in` | 2.664621e-04 | 2.366 % |
+| `ip_adapter.17.to_out_lora.down` | 7.449577e-05 | 0.543 % |
+| `ip_adapter.21.to_out_lora.down` | 7.043230e-05 | 0.493 % |
+| `ip_adapter.29.to_v_ip` | 7.032828e-05 | 0.482 % |
+| `ip_adapter.1.to_k_ip` | 6.521934e-05 | 0.490 % |
+| `ip_adapter.29.to_k_ip` | 6.444912e-05 | 0.593 % |
+| `ip_adapter.25.to_v_ip` | 6.304151e-05 | 0.435 % |
+| `ip_adapter.17.to_k_ip` | 6.215214e-05 | 0.534 % |
+| `ip_adapter.12.to_out_lora.down` | 6.190367e-05 | 0.520 % |
+| `ip_adapter.31.to_k_ip` | 6.182971e-05 | 0.498 % |
+| `ip_adapter.19.to_v_ip` | 6.133644e-05 | 0.542 % |
+| `ip_adapter.19.to_k_ip` | 6.129583e-05 | 0.506 % |
+| `ip_adapter.31.to_v_ip` | 6.085698e-05 | 0.506 % |
+| `ip_adapter.21.to_k_ip` | 6.056366e-05 | 0.505 % |
+| `ip_adapter.5.to_k_ip` | 6.050388e-05 | 0.514 % |
+| `ip_adapter.20.to_out_lora.down` | 6.028744e-05 | 0.529 % |
+| **layers above the 0.15 drift threshold** | **0** | - |
+| **312 layers** | max 6.150512e-04 / median 2.952240e-05 / min 4.697038e-08 | sum 5.621867e-03 |
 
-The K curve was measured on this checkpoint, four points, each converted and each scored with the same
-256-item gate through the same node:
-
-| K (protected) | pack MB | INT8 | gate mean | gate min | pass | share of contribution |
-|---:|---:|---:|---:|---:|---|---:|
-| 0 | 79.143 | 312 | 0.999945044 | 0.999930516 | yes | 0.0000 |
-| 20 | 88.962 | 292 | 0.999986390 | 0.999976352 | yes | 0.2302 |
-| 40 | 101.098 | 272 | 0.999986390 | 0.999976352 | yes | 0.3348 |
-| 60 | 106.471 | 252 | 0.999986390 | 0.999976352 | yes | 0.4296 |
-
-K=0 is adopted. It holds 0.009945 of margin over the 0.99 threshold; the best larger candidate gains
-4.135e-05 of mean (0.42 % of that margin) and costs +27.328 MB, so it does not displace the smallest
-passing pack. K=20, 40 and 60 return the same gate numbers because the gate observes the
-`image_proj` stack and those three protect the same four `image_proj` layers; the budget they add goes
-into `ip_adapter` layers, which the gate does not see and which CN-5a measures separately.
+No layer crosses the 0.15 drift threshold, so the threshold protects nothing here and the decision
+is the K curve. The distribution is flat: no layer with a negative contribution, the largest single
+layer 5.18 % of the sum.
 
 ## 3. The score table (256 items, seed 42, through the real loader)
 
@@ -133,23 +150,26 @@ one fixed face embedding from that image (insightface buffalo_l, 512-d, extracte
 | p50 | 0.999945320 |
 | worst item | see record |
 | INT8 kernel calls | 6,144 |
+| worst item | `c0_o0_b0` at 0.999930516 over its four tokens |
 | pass | yes |
 
 6,144 = 256 x 24: the gate calls the `image_proj` graph per item, and 24 of its layers are INT8.
 
 ## 4. Visible-sample check
 
-Two images, same settings, same seed, the source arm and the pack arm, both through the loader node and
-`IPAdapterFaceID` (512 x 512, 12 steps, cfg 7.0, dpmpp_2m / karras, weight 0.8, weight_faceidv2 1.0,
-identity from the reference image).
+| item | value |
+| :--- | ---: |
+| source arm | `source.png`, 402459 B |
+| pack arm | `pack.png`, 403685 B |
+| settings | 512x512, 12 steps, cfg 7.0, dpmpp_2m / karras, seed 42, weight 0.8, weight_faceidv2 1.0 |
+| mean abs diff / max / p99 | 12.981 / 244 / 92 |
+| pixel cosine / PSNR | 0.987881 / 21.008 dB |
+| identical-pixel ratio | 1.38 % |
+| how it was looked at | image-recognition skill first (code 500, empty text), the PNGs read directly second |
+| what was seen | both arms are finished portraits of the same subject in a red coat; the difference is local (hair ends, a shoulder detail, the car plate); neither is noise |
 
-Read as images: the source arm is a finished portrait of a woman in a red coat in a city street; the
-pack arm is the same scene, the same character, the same coat and pose, with the hair ends, a shoulder
-detail and the car plate differing locally. Neither arm is noise.
-
-Pixel comparison of the two: mean |diff| 12.981, max 244, p99 92, cosine 0.987881, PSNR 21.008 dB,
-identical-pixel ratio 1.38 %. The two arms are not the same picture - the adapter is part of a sampling
-chain and 12 steps amplify any change - but they are the same subject rendered twice, not a collapse.
+The two arms are not the same picture - a 12-step chain amplifies a weight change - but they are the
+same subject rendered twice, not a collapse.
 
 ## 5. Reproduction
 
@@ -224,14 +244,34 @@ Two points about the order, because the timestamps show it and a reader will not
 * the A1111 route was measured after the publication, when the two-host requirement was honoured in
   full; the record is timestamped 15:08 and the commit that carries it follows the first one.
 
+## 7a. Registration
+
+The verdict index row for this pack is written in `md/backdoor/Backdoor_Audit_Verdicts.md`, because the
+gate fails a verdict report that the index does not link. **The finished-pack table
+(`md/HSWQ_High_Quality_Packs_ConvRot_INT8.md`) was not edited**: a catalogue row is added only on
+instruction, so this run records the decision not to add one rather than adding it because the work
+is finished.
+
 ## 8. Files
 
-* converter: `clip_convert/convert_ipadapter_faceid_plusv2_convrot_int8.py`
-* sweep: `clip_convert/sweep_ipadapter_faceid_plusv2.py`
-* drift screen: `clip_convert/diag_impact_ipadapter_faceid_plusv2.py`
-* criterion: `clip_convert/measure_ipadapter_faceid_plusv2_contrib.py`
-* audits: `audit/ipadapter_faceid_plusv2_pack_audit.py`, `audit/ipadapter_faceid_plusv2_comfyui_route.py`,
-  `audit/ipadapter_faceid_plusv2_acceptance.py`, `audit/ipadapter_faceid_plusv2_comfyui_gate.py`,
-  `audit/ipadapter_faceid_plusv2_comfyui_trigger.py`, `audit/ipadapter_faceid_plusv2_render.py`
-* records: `md/backdoor/verdicts/records/cn_ipadapter_faceid_plusv2_*`
-* verdict: `md/backdoor/verdicts/CN_IPAdapter_FaceID_PlusV2_SD15_Pack.md`
+| file | role |
+| :--- | :--- |
+| `clip_convert/diag_impact_ipadapter_faceid_plusv2.py` | the drift screen |
+| `clip_convert/measure_ipadapter_faceid_plusv2_contrib.py` | the criterion |
+| `clip_convert/sweep_ipadapter_faceid_plusv2.py` | the K curve |
+| `clip_convert/convert_ipadapter_faceid_plusv2_convrot_int8.py` | the converter |
+| `audit/ipadapter_faceid_plusv2_pack_audit.py` | CN-1 |
+| `audit/ipadapter_faceid_plusv2_comfyui_route.py` | CN-2 / CN-3 on ComfyUI |
+| `audit/a1111_ipadapter_faceid_plusv2_route.py` | CN-2 on A1111 |
+| `audit/ipadapter_faceid_plusv2_acceptance.py` | CN-5a, dequantised and through the INT8 route |
+| `audit/ipadapter_faceid_plusv2_comfyui_gate.py` | CN-6 |
+| `audit/ipadapter_faceid_plusv2_comfyui_trigger.py` | CN-5b, both positive-control axes |
+| `audit/ipadapter_faceid_plusv2_render.py` | CN-4 |
+| `records/cn_ipadapter_faceid_plusv2_impact.json` | the drift screen numbers |
+| `records/cn_ipadapter_faceid_plusv2_contrib.json` | the contribution numbers and their distribution |
+| `records/cn_ipadapter_faceid_plusv2_curve.json` | the four K points, with p5 and the margin ratios |
+| `records/cn_ipadapter_faceid_plusv2_protection.json` | the protection decision and its reason |
+| `records/cn_ipadapter_faceid_plusv2_pack_source_output_diff.json` | CN-5a, both surfaces and the INT8 route |
+| `records/cn_ipadapter_faceid_plusv2_hf_upload.json` | the published bytes and the card checks |
+| `md/backdoor/verdicts/CN_IPAdapter_FaceID_PlusV2_SD15_Pack.md` | the verdict |
+| `md/CN_IPAdapter_FaceID_PlusV2_SD15_ConvRot_INT8_Impact_Technical_Guide.md` | the runbook |

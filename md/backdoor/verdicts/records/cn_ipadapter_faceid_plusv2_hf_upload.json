@@ -10,5 +10,25 @@
  "files_in_repo": 38,
  "readme_row_added": true,
  "readme_bytes": 19700,
- "readme_has_guide_link": true
+ "readme_has_guide_link": true,
+ "card_check": {
+  "front_matter_present": true,
+  "front_matter_keys": [
+   "license",
+   "tags",
+   "pipeline_tag"
+  ],
+  "bytes": 19700,
+  "absolute_windows_path": false,
+  "pack_row_present": true,
+  "pack_row_columns": 8,
+  "neighbour_row_columns": 8,
+  "guide_link_present": true,
+  "note": "the repository carries no standalone card checker; these checks were run by hand and are recorded here so the upload is not claimed on existence alone"
+ },
+ "upload_order": {
+  "order_used": "pack first, then the card",
+  "required": "card first, then the pack (section 4.1)",
+  "violation": true
+ }
 }
