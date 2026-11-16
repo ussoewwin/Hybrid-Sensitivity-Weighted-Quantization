@@ -149,24 +149,62 @@ No layer crosses the 0.15 drift threshold, so the threshold protects nothing her
 is the K curve. The distribution is flat: no layer with a negative contribution, the largest single
 layer 5.18 % of the sum.
 
+The curve, measured on the fixed 256-item set through the INT8 route (K = layers kept in FP16):
+
+| K | INT8 layers | FP16 kept | size | gate mean | gate min | p5 | worst single token | `ip_adapter` mean | mean gain / gate margin | pack sha256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| **0** | 312 | 0 | 79.1 MB | 0.999945044 | 0.999930516 | 0.999938630 | 0.999895573 | - | - | `3984cb16f3ed` |
+| 20 | 292 | 20 | 89.0 MB | 0.999986390 | 0.999976352 | 0.999982875 | 0.999951005 | - | 4.1e-05 / 9.9e-03 = 0.42 % | `984ec3eb941a` |
+| 40 | 272 | 40 | 101.1 MB | 0.999986390 | 0.999976352 | 0.999982875 | 0.999951005 | - | 4.1e-05 / 9.9e-03 = 0.42 % | `05442afd0991` |
+| 60 | 252 | 60 | 106.5 MB | 0.999986390 | 0.999976352 | 0.999982875 | 0.999951005 | - | 4.1e-05 / 9.9e-03 = 0.42 % | `cea6b34ca1d9` |
+
+Three points of K = 20, 40 and 60 return the same statistics to the last digit because the gate
+observes the `image_proj` graph, and the first four layers of the ranking - the four that carry 13.8 %
+of the contribution - are already protected at K = 20; protecting more `ip_adapter` weights does not
+move that graph. The `ip_adapter` mean is left as `-` for those three packs: the surface exists for the
+adopted pack only, and a value for the others was not measured.
+
+**K = 0 is adopted.** It is the smallest pack and it passes with 9.9e-03 of mean margin and 2.0e-02 of
+min margin. The larger candidates buy 4.1e-05 of mean - 0.42 % of that margin - for 9.8 to 27.3 MB
+more size, and 0.42 % is movement the gate cannot see.
+
 ## 3. The score table (256 items, seed 42, through the real loader)
 
 Instrument: 8 crops x 4 orientations x 8 brightness steps of one reference image, each through CLIP-H;
 one fixed face embedding from that image (insightface buffalo_l, 512-d, extracted once and held for all
 256 items); per item the mean cosine over the 4 injected tokens; `mean >= 0.99`, `min >= 0.98`.
 
-| statistic | value |
-|---|---:|
-| n | 256 |
-| mean | 0.999945044 |
-| min | 0.999930516 |
-| p5 | 0.999938630 |
-| p50 | 0.999945320 |
-| INT8 kernel calls | 6,144 |
-| worst item | `c6_o1_b1` at 0.999930516 over its four tokens, 0.999895573 on its worst token |
-| pass | yes |
+**Two surfaces, reported separately.** The gate calls the `image_proj` graph, 24 INT8 layers of it.
+The `ip_adapter` projections consume the UNet cross-attention K/V and the identity/CLIP stack rather
+than the pixel image, so their agreement does not move with the item - the record states it as
+`"depends_on_the_image": false` - and they are measured on a fixed input of each weight's own width.
+Both surfaces are in the table; only the first is a 256-item surface.
 
-6,144 = 256 x 24: the gate calls the `image_proj` graph per item, and 24 of its layers are INT8.
+| item | `image_proj` (24 layers) | `ip_adapter` (288 weights) |
+| :--- | ---: | ---: |
+| elements | 256 items x 4 tokens | 288 2-D weights, one cosine each |
+| statistic | mean cosine over the item's 4 injected tokens | the weight's own cosine on a fixed input of its width |
+| mean | **0.999945044** | **0.999974131** |
+| min | **0.999930516** | **0.999959882** |
+| p5 / p50 | 0.999938630 / 0.999945320 | - |
+| worst single value | **0.999895573**, `c6_o1_b1`, its worst token (reported, not gated) | largest distance from 1: 4.011769e-05 |
+| through the loader node (CN-5a) | 96 INT8 kernel calls, 0.999232120 mean / 0.997380123 worst batch | - |
+| finite | yes (0 non-finite) | yes |
+| gate (`mean >= 0.99`, `min >= 0.98`) | **PASS** | not gated: no item dependence to gate over |
+
+6,144 = 256 x 24: the gate calls the `image_proj` graph per item, and 24 of its layers are INT8. The
+CN-5a figure is a separate run of that graph over four CLIP inputs, which is why its kernel count is 96
+and not 6,144; its worst batch is the one whose CLIP input differs most from the reference image.
+
+The source against the pack dequantised from its own sidecars, the two surfaces side by side:
+
+| surface | elements | mean | min | relative MSE |
+| :--- | ---: | ---: | ---: | ---: |
+| `image_proj` | 4 tokens | 0.998930287 | 0.985520761 | 9.773901e-03 |
+| `ip_adapter` | 288 weights | 0.999974131 | 0.999959882 | - |
+
+The `image_proj` minimum belongs to one token of one of the four CLIP inputs; the same four batches sit
+at 0.999949706 / 0.999851169 / 0.999116154 on their worst token.
 
 ## 4. Visible-sample check
 
@@ -229,9 +267,11 @@ host with identical settings.
 * **The trigger search does not model a trained trigger.** It injects synthetic perturbations (45
   patches, 6 frequency perturbations) and compares them against natural-transform controls; a trigger
   learned into the weights before quantisation is outside what this can see.
-* **The A1111 route was not measured for this pack.** The host instruction for this run is ComfyUI;
-  the A1111 IP-Adapter runtime that serves the SDXL pack does not carry this graph's module set, and
-  building it there was not part of the instruction. This is a scope statement, not a pass.
+* **The A1111 route is measured at the projection, not rendered.** `modules/ipadapter_int8_convrot.py`
+  installs all 312 layers (24 `image_proj`, 288 `ip_adapter`), the kernel fires 312 times on one pass
+  with group sizes 64 and 256 and input widths 128 / 320 / 512 / 640 / 768 / 1024 / 1280 / 3072, and the
+  injected stack comes back finite. What A1111 did not do for this pack is draw the picture: the two
+  render arms are ComfyUI renders, so the pixel comparison says nothing about an A1111 image.
 * **`proj` widens 512 -> 3072 and the resampler mixes 1280 into 768.** INT8 error concentrates in
   `image_proj.proj.0` (drift 6.15e-04, 5.18 % of the contribution); the measured effect on the injected
   stack under four CLIP inputs is 0.998930 mean / 0.985521 min cosine.
@@ -245,7 +285,6 @@ The clock times below are the records' own file timestamps on this machine's clo
 | 14:28:40 | drift screen, 312 layers | seed 42, float32, the node's own `ProjModelFaceIdPlus` | `cn_ipadapter_faceid_plusv2_impact.json` |
 | 14:29:19 | conversion, K=0 | drift threshold 0.15, group read per layer, no protection | `cn_ipadapter_faceid_plusv2_conversion.json` |
 | 14:30:29 | CN-1 pack audit | the same two files | `cn_ipadapter_faceid_plusv2_pack_audit.json` |
-| 14:33:52 | CN-2 / CN-3 route | ComfyUI, `HSWQ Load IPAdapter Model` | `cn_ipadapter_faceid_plusv2_comfyui_route.json` |
 | 14:36:32 | CN-6 gate at K=0 | 256 items, identity from `cn_clipvit_ref.png`, CLIP-H | `cn_ipadapter_faceid_plusv2_gate_256.json` |
 | 14:37:34 | the criterion | one layer at a time, ConvRot INT8 reconstruction, 1 - cosine | `cn_ipadapter_faceid_plusv2_contrib.json` |
 | 14:37:57 | K curve, four packs built | K = 0 / 20 / 40 / 60, each converted from this checkpoint's ranking | `sweep.json` behind `cn_ipadapter_faceid_plusv2_curve.json` |
@@ -257,7 +296,8 @@ The clock times below are the records' own file timestamps on this machine's clo
 | 14:53:50 | CN-5a | both surfaces, four CLIP inputs | `cn_ipadapter_faceid_plusv2_pack_source_output_diff.json` |
 | 14:54:03 | the curve record | the four points joined with their gate numbers | `cn_ipadapter_faceid_plusv2_curve.json` |
 | 15:08:16 | CN-2 route, second host | A1111, `sd-webui-controlnet` + `modules/ipadapter_int8_convrot.py` | `cn_ipadapter_faceid_plusv2_a1111_route.json` |
-| 15:08:51 | CN-5b trigger | 56 candidates, 5 natural controls, code ladder and scale ladder | `cn_ipadapter_faceid_plusv2_comfyui_trigger.json` |
+| 16:09:30 | CN-2 / CN-3 route, re-run | ComfyUI, `HSWQ Load IPAdapter Model`; the same numbers, now with the input widths and group sizes in the record | `cn_ipadapter_faceid_plusv2_comfyui_route.json` |
+| 16:10:51 | CN-5b trigger, second seeded run | 56 candidates, 5 natural controls; identical candidate list and largest candidate, recorded as `seed_stability` | `cn_ipadapter_faceid_plusv2_comfyui_trigger.json` |
 | 2026-11-16 | publication | Hub upload, README row and guide link | `cn_ipadapter_faceid_plusv2_hf_upload.json` |
 
 Two points about the order, because the timestamps show it and a reader will notice:
@@ -267,6 +307,10 @@ Two points about the order, because the timestamps show it and a reader will not
   and the criterion's corrected keys came after, and the adopted pack was rebuilt with them.
 * the A1111 route was measured after the publication, when the two-host requirement was honoured in
   full; the record is timestamped 15:08 and the commit that carries it follows the first one.
+* the CN-2 and CN-5b records were re-run at 16:09 and 16:10, to carry the input widths and group sizes
+  the route saw and to put a second seeded trigger run beside the first. Both reproduced their earlier
+  numbers - 312 kernel calls, largest candidate 8.364785264813879e-05, 0 flagged - so the times above
+  are the re-runs' and the earlier runs are the reproducibility evidence, not a different measurement.
 
 ## 7a. Registration
 

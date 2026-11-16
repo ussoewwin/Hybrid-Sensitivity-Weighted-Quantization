@@ -24,6 +24,17 @@
   "ip_adapter_convrot_layers": 0
  },
  "int8_kernel_calls": 312,
+ "kernel_input_widths": [
+  128,
+  320,
+  640,
+  768,
+  1280
+ ],
+ "kernel_groupsizes": [
+  64,
+  256
+ ],
  "image_proj": {
   "input": {
    "face": [

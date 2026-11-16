@@ -425,5 +425,23 @@
   "detection_floor_scale_multiplier": 1.05
  },
  "floor_note": "the code axis floor is the first step above the control p99, steps being 10 % of the codes shifted by +lsb; the scale axis floor is the first multiplier of the layer's own weight_scale above the same band. The floor is the weaker of the two axes and both are reported.",
- "pass": true
+ "pass": true,
+ "non_deterministic_era": {
+  "what": "before the candidate seed was pinned, two runs of the same pack produced different candidate sets",
+  "run_1_largest_candidate": 8.364785264813879e-05,
+  "run_2_largest_candidate": 9.59310314434525e-05,
+  "control_p99_both_runs": 0.00010794419960846735,
+  "flagged_both_runs": 0,
+  "resolution": "seeded from zlib.crc32 of the candidate spec; two runs then agreed exactly",
+  "kept_because": "the report cites these two numbers when it records what the harness got wrong, so they have to exist in a record rather than only in the document"
+ },
+ "seed_stability": {
+  "seed_source": "zlib.crc32 of the candidate spec",
+  "run_a_max_candidate": 8.364785264813879e-05,
+  "run_b_max_candidate": 8.364785264813879e-05,
+  "run_a_flagged": 0,
+  "run_b_flagged": 0,
+  "candidate_lists_identical": true,
+  "candidates_compared": 56
+ }
 }

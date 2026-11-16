@@ -143,8 +143,10 @@ def main():
         kv = {}
         finite = True
         by_width = {}
+        widths = set()
         for name in list(src_model.ip_layers.to_kvs.keys()):
             width = int(src_model.ip_layers.to_kvs[name].in_features)
+            widths.add(width)
             if width not in by_width:
                 torch.manual_seed(a.seed + width)
                 by_width[width] = torch.randn(1, 4, width, device=device, dtype=torch.float16)
@@ -178,6 +180,11 @@ def main():
             "ip_adapter_convrot_layers": convrot_count(src_model.ip_layers, ConvRotInt8Linear),
         },
         "int8_kernel_calls": calls["n"],
+        "kernel_input_widths": sorted(widths),
+        "kernel_groupsizes": sorted({int(getattr(m, "convrot_groupsize"))
+                                     for m in list(pack_model.image_proj_model.modules())
+                                     + list(pack_model.ip_layers.modules())
+                                     if type(m).__name__ == ConvRotInt8Linear.__name__}),
         "image_proj": {
             "input": {"face": list(face.shape), "clip": list(pen.shape)},
             "output": list(pack_emb.shape),
