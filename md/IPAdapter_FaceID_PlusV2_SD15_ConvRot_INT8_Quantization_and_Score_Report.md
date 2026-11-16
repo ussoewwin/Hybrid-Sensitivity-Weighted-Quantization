@@ -64,6 +64,18 @@ looks quantised and is not. This pack's converter reads the group per layer: the
 that divides the inner width, which here is 256 for 124 layers and 64 for the other 188. The measured
 split is in the pack audit (`arithmetic.groupsizes`).
 
+### 0.5 A1111 installs the same payload into its own IP-Adapter graph
+
+A1111's `sd-webui-controlnet` builds `ProjModelFaceIdPlus` when `is_faceid and is_plus`
+(`ipadapter/ipadapter_model.py`), and `modules/ipadapter_int8_convrot.py` installs the ConvRot INT8
+payload for that graph. Measured on the pack: 24 / 24 `image_proj` Linear modules INT8, 288 / 288
+`ip_adapter` Linear modules INT8, 312 INT8 kernel calls on one projection pass, group sizes 64 and 256
+both reaching the kernel, input widths 128 / 320 / 512 / 640 / 768 / 1024 / 1280 / 3072, every call with
+`convrot` set, and finite output from the 4 x 768 stack.
+
+Both hosts therefore carry the pack; neither is a quality claim, and the acceptance below is measured
+on ComfyUI (the render's route) with CN-5a measured off the weights themselves.
+
 ## 1. What is quantized
 
 | group | 2-D weights | INT8 | float kept |
@@ -148,6 +160,7 @@ python clip_convert/convert_ipadapter_faceid_plusv2_convrot_int8.py --input <f.b
 python clip_convert/sweep_ipadapter_faceid_plusv2.py --impact <impact.json> --contrib <contrib.json> --input <f.bin> --work <dir> --ks 0 20 40 60
 python audit/ipadapter_faceid_plusv2_pack_audit.py --source <f.bin> --pack <pack> --comfy <ComfyUI> --json <record>
 python audit/ipadapter_faceid_plusv2_comfyui_route.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --loader <loader root> --dir <folder> --json <record>
+python audit/a1111_ipadapter_faceid_plusv2_route.py --a1111 <A1111 root> --pack <pack> --json <record>
 python audit/ipadapter_faceid_plusv2_acceptance.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --json <record>
 python audit/ipadapter_faceid_plusv2_comfyui_gate.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --loader <loader root> --dir <folder> --image <ref.png> --clip-vision <clip_vision_h> --json <record>
 python audit/ipadapter_faceid_plusv2_comfyui_trigger.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --loader <loader root> --dir <folder> --image <ref.png> --clip-vision <clip_vision_h> --json <record>
@@ -181,21 +194,35 @@ host with identical settings.
 
 ## 7. Ledger
 
-| item | value |
-|---|---|
-| source | `ip-adapter-faceid-plusv2_sd15.bin`, 156,558,509 B, sha256 `26d0d86a...e313` |
-| pack | `ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8.safetensors`, 79,143,188 B, sha256 `3984cb16...c15e` |
-| size ratio | 0.5056 of the source |
-| INT8 layers | 312 of 312 measured 2-D weights |
-| float kept | 32 tensors that are not 2-D weights (biases, LayerNorm weights); `coverage.kept_float` = 0 |
-| group sizes | 256 (124 layers), 64 (188 layers) |
-| CN-1 | FAITHFUL: 312/312 replay, code delta 0, scale mismatch 0, non-finite scale 0, float side 32/32 bit-identical |
-| CN-1 behaviour | injected stack cosine 0.999968 mean / 0.999955 min |
-| CN-2 route | patch applied, 312 INT8 installed (24 + 288), 312 kernel calls, source arm 0 |
-| CN-5a | `image_proj` 0.998930 / 0.985521 over four CLIP inputs (relMSE max 9.774e-03); `ip_adapter` 288 layers 0.999974 / 0.999960 |
-| CN-6 gate | mean 0.999945044, min 0.999930516, p5 0.999938630, pass |
-| CN-5b trigger | 56 candidates, 0 flagged, control p99 1.079e-04, max candidate 8.364e-05, positive control floor 4 LSB |
-| CN-4 render | both arms finished images; mean |diff| 12.981, cosine 0.987881, PSNR 21.008 dB |
+The clock times below are the records' own file timestamps on this machine's clock, not typed in.
+
+| time | step | setting it ran under | record |
+| :--- | :--- | :--- | :--- |
+| 14:28:40 | drift screen, 312 layers | seed 42, float32, the node's own `ProjModelFaceIdPlus` | `cn_ipadapter_faceid_plusv2_impact.json` |
+| 14:29:19 | conversion, K=0 | drift threshold 0.15, group read per layer, no protection | `cn_ipadapter_faceid_plusv2_conversion.json` |
+| 14:30:29 | CN-1 pack audit | the same two files | `cn_ipadapter_faceid_plusv2_pack_audit.json` |
+| 14:33:52 | CN-2 / CN-3 route | ComfyUI, `HSWQ Load IPAdapter Model` | `cn_ipadapter_faceid_plusv2_comfyui_route.json` |
+| 14:36:32 | CN-6 gate at K=0 | 256 items, identity from `cn_clipvit_ref.png`, CLIP-H | `cn_ipadapter_faceid_plusv2_gate_256.json` |
+| 14:37:34 | the criterion | one layer at a time, ConvRot INT8 reconstruction, 1 - cosine | `cn_ipadapter_faceid_plusv2_contrib.json` |
+| 14:37:57 | K curve, four packs built | K = 0 / 20 / 40 / 60, each converted from this checkpoint's ranking | `sweep.json` behind `cn_ipadapter_faceid_plusv2_curve.json` |
+| 14:39:46 | CN-6 gate at K=20 | same 256 items | `cn_ipadapter_faceid_plusv2_gate_256_k20.json` |
+| 14:40:49 | CN-6 gate at K=40 | same 256 items | `cn_ipadapter_faceid_plusv2_gate_256_k40.json` |
+| 14:41:40 | CN-6 gate at K=60 | same 256 items | `cn_ipadapter_faceid_plusv2_gate_256_k60.json` |
+| 14:51:55 | CN-4 render | both arms, 512x512, 12 steps, cfg 7.0, dpmpp_2m / karras, seed 42, weight 0.8, weight_faceidv2 1.0 | `cn_ipadapter_faceid_plusv2_render.json` and the two PNGs |
+| 14:52:20 | CN-4 pixel comparison | the two decoded PNGs | `cn_ipadapter_faceid_plusv2_pixel_compare.json` |
+| 14:53:50 | CN-5a | both surfaces, four CLIP inputs | `cn_ipadapter_faceid_plusv2_pack_source_output_diff.json` |
+| 14:54:03 | the curve record | the four points joined with their gate numbers | `cn_ipadapter_faceid_plusv2_curve.json` |
+| 15:08:16 | CN-2 route, second host | A1111, `sd-webui-controlnet` + `modules/ipadapter_int8_convrot.py` | `cn_ipadapter_faceid_plusv2_a1111_route.json` |
+| 15:08:51 | CN-5b trigger | 56 candidates, 5 natural controls, code ladder and scale ladder | `cn_ipadapter_faceid_plusv2_comfyui_trigger.json` |
+| 2026-11-16 | publication | Hub upload, README row and guide link | `cn_ipadapter_faceid_plusv2_hf_upload.json` |
+
+Two points about the order, because the timestamps show it and a reader will notice:
+
+* the drift screen and the first conversion were written before the criterion, because the first run
+  of the shared converter (fixed group 256) produced a pack with 0 INT8 layers; the per-layer group
+  and the criterion's corrected keys came after, and the adopted pack was rebuilt with them.
+* the A1111 route was measured after the publication, when the two-host requirement was honoured in
+  full; the record is timestamped 15:08 and the commit that carries it follows the first one.
 
 ## 8. Files
 

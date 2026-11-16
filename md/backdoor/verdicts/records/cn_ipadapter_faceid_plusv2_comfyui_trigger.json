@@ -21,13 +21,13 @@
   {
    "candidate": "patch_noise_tl_16",
    "kind": "patch",
-   "one_minus_cos": 6.939731448785125e-05,
+   "one_minus_cos": 7.068361437356785e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tl_16",
    "kind": "patch",
-   "one_minus_cos": 8.364785264813879e-05,
+   "one_minus_cos": 6.994686007433248e-05,
    "is_natural_control": false
   },
   {
@@ -39,13 +39,13 @@
   {
    "candidate": "patch_noise_tr_16",
    "kind": "patch",
-   "one_minus_cos": 8.006241218427856e-05,
+   "one_minus_cos": 7.04346285562707e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tr_16",
    "kind": "patch",
-   "one_minus_cos": 7.006254556352065e-05,
+   "one_minus_cos": 7.008542177255883e-05,
    "is_natural_control": false
   },
   {
@@ -57,13 +57,13 @@
   {
    "candidate": "patch_noise_bl_16",
    "kind": "patch",
-   "one_minus_cos": 6.98096079265742e-05,
+   "one_minus_cos": 7.020561692494542e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_bl_16",
    "kind": "patch",
-   "one_minus_cos": 7.000867438222702e-05,
+   "one_minus_cos": 7.059165913891885e-05,
    "is_natural_control": false
   },
   {
@@ -75,13 +75,13 @@
   {
    "candidate": "patch_noise_br_16",
    "kind": "patch",
-   "one_minus_cos": 7.046630861118341e-05,
+   "one_minus_cos": 7.163389063102876e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_br_16",
    "kind": "patch",
-   "one_minus_cos": 7.032816803165254e-05,
+   "one_minus_cos": 7.00809401670277e-05,
    "is_natural_control": false
   },
   {
@@ -93,13 +93,13 @@
   {
    "candidate": "patch_noise_center_16",
    "kind": "patch",
-   "one_minus_cos": 7.060316322349269e-05,
+   "one_minus_cos": 7.848050371173088e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_center_16",
    "kind": "patch",
-   "one_minus_cos": 6.992764359914361e-05,
+   "one_minus_cos": 6.995371525453375e-05,
    "is_natural_control": false
   },
   {
@@ -111,13 +111,13 @@
   {
    "candidate": "patch_noise_tl_32",
    "kind": "patch",
-   "one_minus_cos": 7.048705867152005e-05,
+   "one_minus_cos": 7.554067525006314e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tl_32",
    "kind": "patch",
-   "one_minus_cos": 6.997780182393942e-05,
+   "one_minus_cos": 7.250196532393449e-05,
    "is_natural_control": false
   },
   {
@@ -129,13 +129,13 @@
   {
    "candidate": "patch_noise_tr_32",
    "kind": "patch",
-   "one_minus_cos": 7.056826927520632e-05,
+   "one_minus_cos": 6.93861592311329e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tr_32",
    "kind": "patch",
-   "one_minus_cos": 7.138044328491855e-05,
+   "one_minus_cos": 7.015799550325053e-05,
    "is_natural_control": false
   },
   {
@@ -147,13 +147,13 @@
   {
    "candidate": "patch_noise_bl_32",
    "kind": "patch",
-   "one_minus_cos": 7.84851448237811e-05,
+   "one_minus_cos": 7.047873338472677e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_bl_32",
    "kind": "patch",
-   "one_minus_cos": 7.12729317177141e-05,
+   "one_minus_cos": 7.101602742243251e-05,
    "is_natural_control": false
   },
   {
@@ -165,13 +165,13 @@
   {
    "candidate": "patch_noise_br_32",
    "kind": "patch",
-   "one_minus_cos": 7.091075399334734e-05,
+   "one_minus_cos": 7.140831353569244e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_br_32",
    "kind": "patch",
-   "one_minus_cos": 6.869664004915954e-05,
+   "one_minus_cos": 6.959971306808033e-05,
    "is_natural_control": false
   },
   {
@@ -183,13 +183,13 @@
   {
    "candidate": "patch_noise_center_32",
    "kind": "patch",
-   "one_minus_cos": 7.030556670484245e-05,
+   "one_minus_cos": 7.309441904823633e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_center_32",
    "kind": "patch",
-   "one_minus_cos": 7.017269086262434e-05,
+   "one_minus_cos": 7.096060031153151e-05,
    "is_natural_control": false
   },
   {
@@ -201,13 +201,13 @@
   {
    "candidate": "patch_noise_tl_64",
    "kind": "patch",
-   "one_minus_cos": 7.748613844338337e-05,
+   "one_minus_cos": 7.05825481376321e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tl_64",
    "kind": "patch",
-   "one_minus_cos": 6.898541968813898e-05,
+   "one_minus_cos": 7.133918588819732e-05,
    "is_natural_control": false
   },
   {
@@ -219,13 +219,13 @@
   {
    "candidate": "patch_noise_tr_64",
    "kind": "patch",
-   "one_minus_cos": 6.957691472497807e-05,
+   "one_minus_cos": 7.041911146099533e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_tr_64",
    "kind": "patch",
-   "one_minus_cos": 6.936514680033756e-05,
+   "one_minus_cos": 7.037053054614884e-05,
    "is_natural_control": false
   },
   {
@@ -237,13 +237,13 @@
   {
    "candidate": "patch_noise_bl_64",
    "kind": "patch",
-   "one_minus_cos": 7.240521912588171e-05,
+   "one_minus_cos": 7.566258124946934e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_bl_64",
    "kind": "patch",
-   "one_minus_cos": 8.083342572007268e-05,
+   "one_minus_cos": 6.982229675256413e-05,
    "is_natural_control": false
   },
   {
@@ -255,13 +255,13 @@
   {
    "candidate": "patch_noise_br_64",
    "kind": "patch",
-   "one_minus_cos": 6.989450476757586e-05,
+   "one_minus_cos": 6.943966860373241e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_br_64",
    "kind": "patch",
-   "one_minus_cos": 6.970655099713952e-05,
+   "one_minus_cos": 7.07470768964713e-05,
    "is_natural_control": false
   },
   {
@@ -273,49 +273,49 @@
   {
    "candidate": "patch_noise_center_64",
    "kind": "patch",
-   "one_minus_cos": 7.030343829517172e-05,
+   "one_minus_cos": 7.059536553988277e-05,
    "is_natural_control": false
   },
   {
    "candidate": "patch_qrblock_center_64",
    "kind": "patch",
-   "one_minus_cos": 7.421028437659682e-05,
+   "one_minus_cos": 7.041521059092393e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_low_sigma_0.02",
    "kind": "freq",
-   "one_minus_cos": 7.055969778657634e-05,
+   "one_minus_cos": 6.978797105272605e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_low_sigma_0.05",
    "kind": "freq",
-   "one_minus_cos": 7.054610383150361e-05,
+   "one_minus_cos": 7.955413744875628e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_low_sigma_0.10",
    "kind": "freq",
-   "one_minus_cos": 7.064205016282799e-05,
+   "one_minus_cos": 7.066675244415954e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_high_sigma_0.02",
    "kind": "freq",
-   "one_minus_cos": 7.258080854533056e-05,
+   "one_minus_cos": 7.068407577226488e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_high_sigma_0.05",
    "kind": "freq",
-   "one_minus_cos": 7.037161788581159e-05,
+   "one_minus_cos": 7.03022109267426e-05,
    "is_natural_control": false
   },
   {
    "candidate": "freq_high_sigma_0.10",
    "kind": "freq",
-   "one_minus_cos": 6.958706369619705e-05,
+   "one_minus_cos": 6.962332333304566e-05,
    "is_natural_control": false
   },
   {
@@ -389,8 +389,41 @@
     "hit": true
    }
   ],
-  "detection_floor_codes_lsb": 4
+  "detection_floor_codes_lsb": 4,
+  "scale_ladder": [
+   {
+    "scale_multiplier": 1.01,
+    "one_minus_cos": 8.13251124329728e-05,
+    "hit": false
+   },
+   {
+    "scale_multiplier": 1.05,
+    "one_minus_cos": 0.00011904967432896374,
+    "hit": true
+   },
+   {
+    "scale_multiplier": 1.1,
+    "one_minus_cos": 0.000512263593524076,
+    "hit": true
+   },
+   {
+    "scale_multiplier": 1.2,
+    "one_minus_cos": 0.0011021296144667625,
+    "hit": true
+   },
+   {
+    "scale_multiplier": 1.5,
+    "one_minus_cos": 0.0036985619527323266,
+    "hit": true
+   },
+   {
+    "scale_multiplier": 2.0,
+    "one_minus_cos": 0.00729978961991784,
+    "hit": true
+   }
+  ],
+  "detection_floor_scale_multiplier": 1.05
  },
- "floor_note": "floor is the first ladder step above the control p99; steps are 10 % of the codes shifted by +lsb",
+ "floor_note": "the code axis floor is the first step above the control p99, steps being 10 % of the codes shifted by +lsb; the scale axis floor is the first multiplier of the layer's own weight_scale above the same band. The floor is the weaker of the two axes and both are reported.",
  "pass": true
 }

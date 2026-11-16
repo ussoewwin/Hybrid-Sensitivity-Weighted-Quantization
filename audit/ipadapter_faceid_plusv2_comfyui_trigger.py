@@ -16,6 +16,7 @@ import argparse
 import importlib
 import importlib.util
 import io
+import zlib
 import json
 import os
 import sys
@@ -82,17 +83,17 @@ def apply_spec(img, kind, payload, jpeg_quality=60):
         if pkind == "solid":
             out[y0:y0 + size, x0:x0 + size] = 255
         elif pkind == "noise":
-            rng = np.random.default_rng(abs(hash((pos, size))) % (2 ** 32))
+            rng = np.random.default_rng(zlib.crc32(repr((pos, size)).encode()))
             out[y0:y0 + size, x0:x0 + size] = rng.integers(0, 256, (size, size, 3), dtype=np.uint8)
         else:
             block = 8
-            rng = np.random.default_rng(abs(hash(("qr", pos, size))) % (2 ** 32))
+            rng = np.random.default_rng(zlib.crc32(repr(("qr", pos, size)).encode()))
             cells = rng.integers(0, 2, (size // block, size // block)).astype(np.uint8) * 255
             big = np.kron(cells, np.ones((block, block), dtype=np.uint8))
             out[y0:y0 + size, x0:x0 + size] = np.stack([big] * 3, axis=-1)
     elif kind == "freq":
         band, sigma = payload
-        rng = np.random.default_rng(abs(hash((band, sigma))) % (2 ** 32))
+        rng = np.random.default_rng(zlib.crc32(repr((band, sigma)).encode()))
         noise = rng.standard_normal((h, w)).astype(np.float32)
         if band == "low":
             from PIL import ImageFilter
@@ -239,7 +240,9 @@ def main():
                           "max_candidate": max(c["one_minus_cos"] for c in cands)}, indent=1))
         return
     original = target.int8_weight.clone()
+    original_scale = target.weight_scale.clone()
     ladder = []
+    scale_ladder = []
     floor = None
     for lsb in (1, 2, 4, 8, 16, 32, 64):
         w = original.clone().view(-1)
@@ -254,6 +257,17 @@ def main():
             floor = lsb
         target.int8_weight = original.clone()
 
+    # the other axis: multiply the layer's own weight_scale and see whether the observable moves
+    scale_floor = None
+    for frac in (0.01, 0.05, 0.10, 0.20, 0.50, 1.00):
+        target.weight_scale = (original_scale * (1.0 + frac)).to(original_scale.dtype)
+        d = divergence(base)
+        hit = d > p99
+        scale_ladder.append({"scale_multiplier": 1.0 + frac, "one_minus_cos": d, "hit": bool(hit)})
+        if hit and scale_floor is None:
+            scale_floor = round(1.0 + frac, 4)
+        target.weight_scale = original_scale.clone()
+
     out = {
         "tool": "audit/ipadapter_faceid_plusv2_comfyui_trigger.py",
         "family": "ipadapter_faceid_plusv2_sd15",
@@ -264,9 +278,13 @@ def main():
         "candidates": cands,
         "flagged_count": len(flagged),
         "flagged": flagged,
-        "positive_control": {"ladder": ladder, "detection_floor_codes_lsb": floor},
-        "floor_note": ("floor is the first ladder step above the control p99; steps are 10 % of the"
-                       " codes shifted by +lsb"),
+        "positive_control": {"ladder": ladder, "detection_floor_codes_lsb": floor,
+                             "scale_ladder": scale_ladder,
+                             "detection_floor_scale_multiplier": scale_floor},
+        "floor_note": ("the code axis floor is the first step above the control p99, steps being 10 % of"
+                       " the codes shifted by +lsb; the scale axis floor is the first multiplier of the"
+                       " layer's own weight_scale above the same band. The floor is the weaker of the"
+                       " two axes and both are reported."),
         "pass": len(flagged) == 0 and floor is not None,
     }
     os.makedirs(os.path.dirname(os.path.abspath(a.json)), exist_ok=True)

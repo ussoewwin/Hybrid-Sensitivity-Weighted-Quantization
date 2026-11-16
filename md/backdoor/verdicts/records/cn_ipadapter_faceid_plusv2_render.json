@@ -44,5 +44,17 @@
    ],
    "seconds": 6.7
   }
+ },
+ "inspection": {
+  "first_means": "the image-recognition skill (upload-mix.py then image-recognition.py)",
+  "first_means_outcome": "the upload succeeded (oss_url returned); image-recognition.py answered code 500 with an empty text field and trace cdb5821fc0ff4c438d7709b5732b709a",
+  "second_means": "read the PNG directly, which is the skill's second means",
+  "second_means_outcome": "both PNGs rendered in the inspection and were described from the pixels",
+  "policy": "one attempt at the first means, then the second means; no retry chain, no pixel statistics standing in for looking"
+ },
+ "read_as_image": {
+  "source": "a finished portrait photograph of a young woman in a red hooded coat on a cobbled city street; long dark hair, both eyes open, a car parked behind her on the right, shop fronts on the left, natural light, no noise",
+  "pack": "the same woman, same red coat, same street and the same parked car; the hair ends, a small detail on the shoulder and the car plate differ locally from the source arm; no noise in either",
+  "verdict": "both arms read as finished images; the difference is local, not a collapse to noise"
  }
 }

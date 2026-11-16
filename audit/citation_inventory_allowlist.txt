@@ -104,3 +104,4 @@ cn_ipadapter_faceid_plusv2_comfyui_trigger.json
 cn_ipadapter_faceid_plusv2_render.json
 cn_ipadapter_faceid_plusv2_pixel_compare.json
 cn_ipadapter_faceid_plusv2_hf_upload.json
+cn_ipadapter_faceid_plusv2_a1111_route.json
