@@ -1,0 +1,11 @@
+{
+ "repo": "ussoewwin/ControlNet-models-ConvRot-INT8",
+ "pack": "ip-adapter-plus_sdxl_vit-h_hswq_convrot_int8.safetensors",
+ "pack_bytes": 424750694,
+ "pack_sha256": "ca0ff3706dc3673538eec2683774e384fe3145f2191f2006e03862a7d3c2db7a",
+ "hub_reported_size": 424750694,
+ "hub_lfs_sha256": "ca0ff3706dc3673538eec2683774e384fe3145f2191f2006e03862a7d3c2db7a",
+ "size_match": true,
+ "lfs_sha256_match": true,
+ "files_in_repo": 37
+}
