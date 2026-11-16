@@ -10,7 +10,7 @@
 > checkpoint.
 
 **Checkpoint.** `models/controlnet/ip-adapter-faceid-plusv2_sd15.bin` (156,558,509 B, 344 tensors)
-**Pack.** `ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8.safetensors` (79,143,188 B, **-49.4 %**)
+**Pack.** `ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8.safetensors` (79,143,188 B, **-49.4 %**) (`records/cn_ipadapter_faceid_plusv2_pack_audit.json` -> `identity.pack_bytes`)
 **SHA256 (source).** `26D0D86A1D60D6CC811D3B8862178B461E1EEB651E6FE2B72BA17AA95411E313`
 **SHA256 (pack).** `3984CB16F3ED7507B60E4AC9B5EE21B10DCF8EA02AED9414ADB3535A8104C15E`
 

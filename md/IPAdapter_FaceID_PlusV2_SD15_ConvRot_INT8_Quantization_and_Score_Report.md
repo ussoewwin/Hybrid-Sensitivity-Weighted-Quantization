@@ -8,20 +8,23 @@ parameters. The floating-point source is `ip-adapter-faceid-plusv2_sd15.bin`, 15
 
 The path this pack is used on is ComfyUI with the loader package's `HSWQ Load IPAdapter Model` node
 feeding `IPAdapterFaceID`. That route was measured here: the node installs all 312 INT8 layers, the
-INT8 kernel fires 312 times on a single projection pass, and the 256-item acceptance gate returns
-mean 0.999945044 / min 0.999930516 against mean >= 0.99 / min >= 0.98.
+INT8 kernel fires 312 times on a single projection pass (`records/cn_ipadapter_faceid_plusv2_pack_audit.json` -> `coverage.int8_layers`), and the 256-item acceptance gate returns
+mean 0.999945044 / min 0.999930516 against mean >= 0.99 / min >= 0.98 (`records/cn_ipadapter_faceid_plusv2_gate_256.json` -> `mean`).
 
 ## Table of contents
 
-0. The load path is the whole story
-1. What is quantized
-2. What the protection set is based on
-3. The score table (256 items, seed 42, through the real loader)
-4. Visible-sample check
-5. Reproduction
-6. Error sources and limits
-7. Ledger
-8. Files
+0. [The load path is the whole story](#0-the-load-path-is-the-whole-story)
+1. [What is quantized](#1-what-is-quantized)
+2. [What the protection set is based on](#2-what-the-protection-set-is-based-on)
+3. [The score table (256 items, seed 42, through the real loader)](#3-the-score-table-256-items-seed-42-through-the-real-loader)
+4. [Visible-sample check](#4-visible-sample-check)
+5. [Reproduction](#5-reproduction)
+6. [Error sources and limits](#6-error-sources-and-limits)
+7. [Ledger](#7-ledger)
+7a. [Registration](#7a-registration)
+8. [Files](#8-files)
+
+---
 
 ## 0. The load path is the whole story
 
@@ -147,7 +150,7 @@ is made on; the screen only says which layers are worth ranking.
 
 No layer crosses the 0.15 drift threshold, so the threshold protects nothing here and the decision
 is the K curve. The distribution is flat: no layer with a negative contribution, the largest single
-layer 5.18 % of the sum.
+layer 5.18 % of the sum (`records/cn_ipadapter_faceid_plusv2_impact.json` -> `max`; `records/cn_ipadapter_faceid_plusv2_contrib.json` -> `distribution.largest_share`).
 
 The curve, measured on the fixed 256-item set through the INT8 route (K = layers kept in FP16):
 
@@ -192,11 +195,11 @@ Both surfaces are in the table; only the first is a 256-item surface.
 | finite | yes (0 non-finite) | yes |
 | gate (`mean >= 0.99`, `min >= 0.98`) | **PASS** | not gated: no item dependence to gate over |
 
-6,144 = 256 x 24: the gate calls the `image_proj` graph per item, and 24 of its layers are INT8. The
+6,144 = 256 x 24: the gate calls the `image_proj` graph per item, and 24 of its layers are INT8 (`records/cn_ipadapter_faceid_plusv2_gate_256.json` -> `int8_kernel_calls`). The
 CN-5a figure is a separate run of that graph over four CLIP inputs, which is why its kernel count is 96
 and not 6,144; its worst batch is the one whose CLIP input differs most from the reference image.
 
-The source against the pack dequantised from its own sidecars, the two surfaces side by side:
+The source against the pack dequantised from its own sidecars, the two surfaces side by side (`records/cn_ipadapter_faceid_plusv2_pack_source_output_diff.json` -> `ip_adapter_surface`):
 
 | surface | elements | mean | min | relative MSE |
 | :--- | ---: | ---: | ---: | ---: |
@@ -218,6 +221,8 @@ at 0.999949706 / 0.999851169 / 0.999116154 on their worst token.
 | identical-pixel ratio | 1.38 % |
 | how it was looked at | image-recognition skill first (code 500, empty text), the PNGs read directly second |
 | what was seen | both arms are finished portraits of the same subject in a red coat; the difference is local (hair ends, a shoulder detail, the car plate); neither is noise |
+
+The pixel statistics behind that comparison are in `records/cn_ipadapter_faceid_plusv2_pixel_compare.json` -> `mean_abs_diff`.
 
 The two arms are not the same picture - a 12-step chain amplifies a weight change - but they are the
 same subject rendered twice, not a collapse.
@@ -267,11 +272,17 @@ host with identical settings.
 * **The trigger search does not model a trained trigger.** It injects synthetic perturbations (45
   patches, 6 frequency perturbations) and compares them against natural-transform controls; a trigger
   learned into the weights before quantisation is outside what this can see.
+* **The trigger instrument's floor is measured, and it is coarse on one axis.** The code axis resolves
+  at 4 LSB (1.756317e-04 against a 1.079442e-04 threshold) and the scale axis at x1.05
+  (1.190497e-04); a subtler implant than that is not seen
+  (`records/cn_ipadapter_faceid_plusv2_comfyui_trigger.json` -> `positive_control.detection_floor_scale_multiplier`).
 * **The A1111 route is measured at the projection, not rendered.** `modules/ipadapter_int8_convrot.py`
   installs all 312 layers (24 `image_proj`, 288 `ip_adapter`), the kernel fires 312 times on one pass
   with group sizes 64 and 256 and input widths 128 / 320 / 512 / 640 / 768 / 1024 / 1280 / 3072, and the
-  injected stack comes back finite. What A1111 did not do for this pack is draw the picture: the two
-  render arms are ComfyUI renders, so the pixel comparison says nothing about an A1111 image.
+  injected stack comes back finite
+  (`records/cn_ipadapter_faceid_plusv2_a1111_route.json` -> `int8_kernel_calls`). What A1111 did not do
+  for this pack is draw the picture: the two render arms are ComfyUI renders, so the pixel comparison
+  says nothing about an A1111 image.
 * **`proj` widens 512 -> 3072 and the resampler mixes 1280 into 768.** INT8 error concentrates in
   `image_proj.proj.0` (drift 6.15e-04, 5.18 % of the contribution); the measured effect on the injected
   stack under four CLIP inputs is 0.998930 mean / 0.985521 min cosine.
@@ -335,11 +346,11 @@ is finished.
 | `audit/ipadapter_faceid_plusv2_comfyui_gate.py` | CN-6 |
 | `audit/ipadapter_faceid_plusv2_comfyui_trigger.py` | CN-5b, both positive-control axes |
 | `audit/ipadapter_faceid_plusv2_render.py` | CN-4 |
-| `records/cn_ipadapter_faceid_plusv2_impact.json` | the drift screen numbers |
-| `records/cn_ipadapter_faceid_plusv2_contrib.json` | the contribution numbers and their distribution |
-| `records/cn_ipadapter_faceid_plusv2_curve.json` | the four K points, with p5 and the margin ratios |
-| `records/cn_ipadapter_faceid_plusv2_protection.json` | the protection decision and its reason |
-| `records/cn_ipadapter_faceid_plusv2_pack_source_output_diff.json` | CN-5a, both surfaces and the INT8 route |
-| `records/cn_ipadapter_faceid_plusv2_hf_upload.json` | the published bytes and the card checks |
+| `records/cn_ipadapter_faceid_plusv2_impact.json` -> `max` | the drift screen numbers |
+| `records/cn_ipadapter_faceid_plusv2_contrib.json` -> `distribution.largest_share` | the contribution numbers and their distribution |
+| `records/cn_ipadapter_faceid_plusv2_curve.json` -> `decision.k` | the four K points, with p5 and the margin ratios |
+| `records/cn_ipadapter_faceid_plusv2_protection.json` -> `decision.protected_layers` | the protection decision and its reason |
+| `records/cn_ipadapter_faceid_plusv2_pack_source_output_diff.json` -> `image_proj_surface` | CN-5a, both surfaces and the INT8 route |
+| `records/cn_ipadapter_faceid_plusv2_hf_upload.json` -> `pack_sha256` | the published bytes and the card checks |
 | `md/backdoor/verdicts/CN_IPAdapter_FaceID_PlusV2_SD15_Pack.md` | the verdict |
 | `md/CN_IPAdapter_FaceID_PlusV2_SD15_ConvRot_INT8_Impact_Technical_Guide.md` | the runbook |

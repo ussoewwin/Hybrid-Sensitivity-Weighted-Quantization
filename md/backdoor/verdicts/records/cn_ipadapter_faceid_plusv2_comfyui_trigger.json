@@ -443,5 +443,6 @@
   "run_b_flagged": 0,
   "candidate_lists_identical": true,
   "candidates_compared": 56
- }
+ },
+ "max_candidate": 8.364785264813879e-05
 }
