@@ -151,9 +151,16 @@ The `ipadapter` surface is scored per projection (140 values); the `image_proj` 
 
 ## 4. Visible-sample check
 
-**Not measured for this pack.** The A1111 install carries no IP-Adapter model registration and the ComfyUI extension refuses the pack, so there is no pair of images to place side by side for this checkpoint. The absence is stated as a limit (Section 6), not filled with a number that would not mean what a picture means.
+**Measured on the ComfyUI route through the loader node** (`audit/ipadapter_plus_vit_h_render.py`): the source adapter and the pack, same prompt, seed 42, 12 steps, cfg 7.0, 512x512, DPM++ 2M / Karras, weight 0.8, the same reference image, both through `HSWQ Load IPAdapter Model` -> `IPAdapterAdvanced` on a separate server (port 8189, `--lowvram`; the owner's own instance untouched).
 
-What the pack's numbers say, and do not say: the injected 16x2048 latent stack agrees with the source at 0.9997 per item and 0.986 at its worst single latent, with 162 of 162 layers on the INT8 kernel. Whether that difference reaches the canvas as something visible is exactly what this report does not answer.
+| arm | file | bytes | read as an image |
+| :--- | :--- | ---: | :--- |
+| source | `records/cn_ipadapter_plus_vit_h_comfyui_source.png` | 356,817 | finished anime-style image: a woman in a red hooded coat in a city street, both eyes open, hands at her sides; heavy saturated colour, no noise |
+| pack | `records/cn_ipadapter_plus_vit_h_comfyui_pack.png` | 312,382 | the same scene and character with the same coat and pose; the eye shape, the hair strands and the background panels differ slightly; no noise |
+
+Pixel comparison: mean |diff| **32.578** / max 255 / p99 204, cosine **0.955370**, PSNR **13.91 dB**, 0.01 % of pixels identical (`records/cn_ipadapter_plus_vit_h_render.json` -> `pixel_comparison`).
+
+Read on the images, not on the numbers: both arms are finished images; the difference is local (face, hair, background panels), not a collapse to noise. The pixel distance is nevertheless large for a pack the gate passes at 0.9989 - the gate measures the injected 16x2048 stack, and at 12 steps the sampler amplifies that difference. That is what was measured; it is not turned into a claim that the two images are interchangeable.
 
 ---
 
@@ -212,7 +219,7 @@ python audit/ipadapter_plus_vit_h_acceptance.py \
 - **The stock ComfyUI extension does not take this pack**, and its failure is silent: 162 int8 codes would be read as magnitudes. The pack is taken in ComfyUI by the loader package's own node (section 0.5); the acceptance numbers of section 3 remain the A1111 route's.
 - **The HSWQ loader's own IP-Adapter runtime is measured separately, not for the gate.** That route installs the pack in place of the stock path (Section 0.4: 162 kernel calls, `image_proj` 0.999526739 / 0.998086035, `to_kv` >= 0.999972105 / 0.999840677); the gate numbers in Section 3 remain the A1111 route's.
 - **Forge was not executed.** Its install is present and the pack's 162 stamps are the form its reader keys on; its Python runtime is absent, and the four interpreter paths were each checked (Section 0.3).
-- **No render.** No image pair exists for this checkpoint; Section 4 states it rather than implying a picture was looked at.
+- **The render is one seed, one prompt, 12 steps, 512x512, `--lowvram`.** Section 4 reports what was looked at; the pixel distance (cosine 0.9554) is larger than the gate's margin, so the two arms are the same scene but not the same picture.
 - **The worst single latent is not monotone in the layers' precision.** The all-INT8 pack measures a worse worst-latent (0.986) than every pack with protected layers (0.939). That is the Resampler's error arithmetic — the all-INT8 errors partly cancel at that latent — which is why it is reported beside the gate and not used as a pass criterion. It does not mean the all-INT8 pack is more accurate layer by layer: the layer-by-layer number is the gate mean, and it moves the other way.
 - **`image_proj` mean 0.9957 with worst latent 0.933.** Four attention blocks in series accumulate error; a residual block's error is not the sum of its layers' errors. The pack is measured, not characterised.
 - **The trigger search resolves on a coarser perturbation than the drift it looks for.** The `image_proj` floor is 10 % of the codes shifted by 64 LSB; the largest natural candidate response (3.15e-02) is 31 % of the 1.000654e-01 threshold. A trigger below that floor would not be seen on this surface. The `ip_adapter` surface resolves at 1 LSB but does not consume the image, so it cannot carry an image trigger.
@@ -238,6 +245,7 @@ Times are the record files' own last-write times, read from the filesystem on 20
 | 8 | `ipadapter_plus_vit_h_forge_route.py` | Forge install present, 162/162 stamps are the form its reader keys on, no Forge Python runtime | `cn_ipadapter_plus_vit_h_forge_route.json` | 2026-11-16 12:44:25 |
 | 9 | `ipadapter_plus_vit_h_hswq_route.py` | patch applied, 162/162 installed, 162 kernel calls, `image_proj` 0.999526739 / 0.998086035, `to_kv` >= 0.999972105 / 0.999840677 | `cn_ipadapter_plus_vit_h_hswq_route.json` | 2026-11-16 12:44:25 |
 | 10 | Hub upload | card then pack, 424,750,694 B, LFS sha256 matched, 37 files | `cn_ipadapter_plus_vit_h_hf_upload.json` | 2026-11-16 11:46:59 |
+| 13 | `ipadapter_plus_vit_h_render.py` | two ComfyUI renders through the loader node (source / pack), 512x512, seed 42, 12 steps; both read as finished images, pixel cosine 0.955370 | `cn_ipadapter_plus_vit_h_render.json`, `cn_ipadapter_plus_vit_h_comfyui_{source,pack}.png` | 2026-11-16 (run in this session) |
 | 12 | `ipadapter_plus_vit_h_comfyui_route.py` | the loader package's node inside ComfyUI: ConvRot branch, 162/162 installed, 302 kernel calls, `image_proj` 0.999526739 / 0.998086035 | `cn_ipadapter_plus_vit_h_comfyui_route.json` | 2026-11-16 (run in this session) |
 | 11 | `audit/run_all_gates.py --regen` | ALL GATES PASS (procedure, citations, selftest, SHA256SUMS, markdown) | `gate_run_2026-11-16.json` | 2026-11-16 (run in this session) |
 
@@ -256,5 +264,7 @@ Times are the record files' own last-write times, read from the filesystem on 20
 | `records/cn_ipadapter_plus_vit_h_forge_route.json` | the Forge route: install files, the pack's stamps, the missing runtime |
 | `records/cn_ipadapter_plus_vit_h_hswq_route.json` | the loader package's own route: patch, installs, kernel calls, cosines |
 | `records/cn_ipadapter_plus_vit_h_comfyui_route.json` | the same node inside ComfyUI, through its `load_ipadapter_model` |
+| `records/cn_ipadapter_plus_vit_h_render.json` | CN-4: both arms, the settings, the pixel comparison and the read |
+| `records/cn_ipadapter_plus_vit_h_comfyui_source.png` / `_pack.png` | the two renders |
 | `records/cn_ipadapter_plus_vit_h_contrib.json` | the 162-layer aggregate contribution |
 | `records/cn_ipadapter_plus_vit_h_curve.json` -> `curve` | the measured size/quality curve |

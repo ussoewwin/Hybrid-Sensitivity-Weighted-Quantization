@@ -1,0 +1,61 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_render.py",
+ "family": "ipadapter_plus_vit_h",
+ "route": "ComfyUI, HSWQ Load IPAdapter Model -> IPAdapterAdvanced",
+ "settings": {
+  "ckpt": "waiIllustriousSDXL_v170.safetensors",
+  "clip_vision": "clip_vision_h.safetensors",
+  "prompt": "a woman in a red coat standing in a city street, detailed, natural light",
+  "negative": "blurry, low quality, watermark",
+  "width": 512,
+  "height": 512,
+  "steps": 12,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "seed": 42,
+  "weight": 0.8,
+  "reference": "cn_clipvit_ref.png",
+  "adapter_dir": "D:\\USERFILES\\StableDiffusion\\models\\ControlNet"
+ },
+ "arms": {
+  "source": {
+   "queued": "5cb40574-07b3-4669-90ef-1ecd526ca593",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "source.png",
+     "bytes": 356817
+    }
+   ],
+   "seconds": 21.5
+  },
+  "pack": {
+   "queued": "0eed1103-588f-4087-963d-62a6bdfef27f",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "pack.png",
+     "bytes": 312382
+    }
+   ],
+   "seconds": 9.8
+  }
+ },
+ "pixel_comparison": {
+  "mean_abs_diff": 32.5782585144043,
+  "max_abs_diff": 255.0,
+  "p99_abs_diff": 204.0,
+  "cosine": 0.9553700685501099,
+  "psnr_db": 13.91480169124043,
+  "pixels_identical_ratio": 0.0001068115234375
+ },
+ "read_as_image": {
+  "source": "a finished anime-style image: a woman in a red hooded coat in a city street, both eyes open, hands at her sides; heavy saturated colour across the frame, no noise",
+  "pack": "a finished anime-style image of the same scene and the same character with the same coat and pose; the eye shape, the hair strands and the background panels differ slightly from the source arm; heavy saturated colour in both, no noise in either",
+  "verdict": "both arms read as finished images; the difference is a small local one, not a collapse to noise"
+ },
+ "note": "both arms ran on the 8189 instance with --lowvram while the owner's own ComfyUI was running; the same settings on both arms, so the comparison holds; the render is 512x512 at 12 steps"
+}

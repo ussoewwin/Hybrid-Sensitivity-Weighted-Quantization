@@ -134,10 +134,18 @@ with the perturbation. The code axis is the instrument's axis, and that is what 
 
 ## 8. Render
 
-**Not measured for this checkpoint.** The A1111 install on this machine carries no IP-Adapter model
-registration, and the ComfyUI extension does not apply the pack, so there is no pair of images to look
-at. The absence is recorded here and in the guide's limits; no number in this document stands in for
-a picture.
+**Measured on the ComfyUI route through the loader node.** Source adapter and pack, same prompt, seed 42,
+12 steps, cfg 7.0, 512x512, DPM++ 2M / Karras, weight 0.8, the same reference image.
+
+| arm | file | read as an image |
+| :--- | :--- | :--- |
+| source | `records/cn_ipadapter_plus_vit_h_comfyui_source.png` | finished image, woman in a red hooded coat in a city street, no noise |
+| pack | `records/cn_ipadapter_plus_vit_h_comfyui_pack.png` | same scene, same character, same coat; eye shape, hair strands and background panels differ slightly; no noise |
+
+Pixel comparison: mean |diff| **32.578**, cosine **0.955370**, PSNR **13.91 dB** (`records/cn_ipadapter_plus_vit_h_render.json` -> `pixel_comparison`).
+
+The two arms are the same scene, not the same picture: the difference is visible at pixel level and local in place.
+
 
 ## 9. Conclusion
 
@@ -159,8 +167,8 @@ image transform moves the instrument beyond its own control band.
 - The ComfyUI extension does not take this pack, and its failure is silent: 162 int8 codes would be
   read as magnitudes. Every acceptance number comes from the A1111 route.
 - Forge was not executed: its install is present and the pack's stamps are the form its reader keys on, but Forge's Python runtime is absent (the four interpreter paths were each checked).
-- **No render.** No image pair exists for this checkpoint, so this verdict says nothing about what the
-  pack looks like on canvas. That is a gap, not a pass.
+- **The render is one seed, one prompt, 12 steps, 512x512, `--lowvram`.** Section 8 reports what was
+  looked at; the pixel distance is larger than the gate's margin.
 - The worst single latent is not monotone in the layers' precision (0.986 all-INT8 against 0.939 with
   protection) - the Resampler's error arithmetic, reported beside the gate rather than gated.
 - `image_proj` mean 0.9957 with worst latent 0.933: four attention blocks in series accumulate error.
@@ -187,5 +195,7 @@ image transform moves the instrument beyond its own control band.
 - `records/cn_ipadapter_plus_vit_h_forge_route.json` - the Forge route: the install files, the pack's 162 stamps, the missing runtime.
 - `records/cn_ipadapter_plus_vit_h_hswq_route.json` - the loader package's own route: patch, installed layers, kernel calls, cosines.
 - `records/cn_ipadapter_plus_vit_h_comfyui_route.json` - the same node inside ComfyUI, through its `load_ipadapter_model`.
+- `records/cn_ipadapter_plus_vit_h_render.json` - CN-4: the two arms, the settings, the pixel comparison and the read.
+- `records/cn_ipadapter_plus_vit_h_comfyui_source.png` / `_pack.png` - the two renders.
 - [CN_IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Impact_Technical_Guide.md](../../CN_IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Impact_Technical_Guide.md) - the impact guide for this checkpoint.
 - [IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Quantization_and_Score_Report.md](../../IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Quantization_and_Score_Report.md) - the conversion and score report.

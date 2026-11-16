@@ -89,6 +89,7 @@ python audit/run_all_gates.py
 | CN-2 (route census, SDXL Plus, Forge: the install files, the pack's own stamps, the missing runtime) | `ipadapter_plus_vit_h_forge_route.py` | `--pack <f> --forge <d> --json <o>` |
 | CN-2/3 (the loader package's own IP-Adapter route: patch, installed layers, kernel calls, cosines) | `ipadapter_plus_vit_h_hswq_route.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --json <o>` |
 | CN-2/3 (the same node inside ComfyUI, through its `load_ipadapter_model`) | `ipadapter_plus_vit_h_comfyui_route.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --json <o>` |
+| CN-4 (ComfyUI render through the loader node, source and pack arms) | `ipadapter_plus_vit_h_render.py` | `--server <url> --out-dir <d> --output-root <d> --json <o>` |
 | CN-5a/5b/6 (SDXL Plus, A1111 INT8 route, both surfaces) | `ipadapter_plus_vit_h_acceptance.py` | `--source <f> --pack <f> --image <png> --clip-vision <f> --root <a1111> --comfy <d> --json-5a <o> --json-trigger <o> --json-gate <o> [--expect-int8 N]` |
 | CN-5a/5b/6 (FaceID observable, 55 candidates, 256-item gate) | `ipadapter_faceid_gate_and_trigger.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json-5a <o> --json-trigger <o> --json-gate <o>` |
 | CN-1 (pack is the source quantised, CLIP-ViT-H-14) | `clip_vit_h14_pack_audit.py` | `--source <f> --pack <f> --image <png> --comfy <d> --json <o>` |
