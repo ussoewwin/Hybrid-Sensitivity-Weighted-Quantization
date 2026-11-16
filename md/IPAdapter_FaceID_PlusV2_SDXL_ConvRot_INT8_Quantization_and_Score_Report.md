@@ -238,11 +238,11 @@ The clock times below are the records' own file timestamps as the steps wrote th
 
 ## 7a. Registration
 
-The finished-pack catalogue (`md/HSWQ_High_Quality_Packs_ConvRot_INT8.md`) is a curated list and is
-edited only when it is asked for. It was **not** asked for in this run, so no catalogue row was written;
-the decision is recorded here rather than left implicit. The verdict index
-(`md/backdoor/Backdoor_Audit_Verdicts.md`) carries this pack's row because the gate fails a verdict that
-the index does not link.
+Both tables carry this pack. The verdict index row is in `md/backdoor/Backdoor_Audit_Verdicts.md`
+(the gate fails a verdict that the index does not link), and the finished-pack row is in
+`md/HSWQ_High_Quality_Packs_ConvRot_INT8.md` - `ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8`,
+SDXL / IP-Adapter, gate 0.999927 / 0.999925, 748.4 MB, sha `C9376BC5C5535EE4`, linking this pack's
+guide. The row followed the shape of the rows already in that table.
 
 ## 8. Files
 

@@ -329,11 +329,11 @@ Two points about the order, because the timestamps show it and a reader will not
 
 ## 7a. Registration
 
-The verdict index row for this pack is written in `md/backdoor/Backdoor_Audit_Verdicts.md`, because the
-gate fails a verdict report that the index does not link. **The finished-pack table
-(`md/HSWQ_High_Quality_Packs_ConvRot_INT8.md`) was not edited**: a catalogue row is added only on
-instruction, so this run records the decision not to add one rather than adding it because the work
-is finished.
+Both tables carry this pack. The verdict index row is in `md/backdoor/Backdoor_Audit_Verdicts.md`
+(the gate fails a verdict report that the index does not link), and the finished-pack row is in
+`md/HSWQ_High_Quality_Packs_ConvRot_INT8.md` - `ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8`,
+SD1.5 / IP-Adapter, gate 0.999945 / 0.999931, 79.1 MB, sha `3984CB16F3ED7507`, linking this pack's
+guide. The row followed the shape of the rows already in that table.
 
 ## 8. Files
 
