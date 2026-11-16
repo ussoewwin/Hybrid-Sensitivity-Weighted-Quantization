@@ -162,9 +162,8 @@ one fixed face embedding from that image (insightface buffalo_l, 512-d, extracte
 | min | 0.999930516 |
 | p5 | 0.999938630 |
 | p50 | 0.999945320 |
-| worst item | see record |
 | INT8 kernel calls | 6,144 |
-| worst item | `c0_o0_b0` at 0.999930516 over its four tokens |
+| worst item | `c6_o1_b1` at 0.999930516 over its four tokens, 0.999895573 on its worst token |
 | pass | yes |
 
 6,144 = 256 x 24: the gate calls the `image_proj` graph per item, and 24 of its layers are INT8.
