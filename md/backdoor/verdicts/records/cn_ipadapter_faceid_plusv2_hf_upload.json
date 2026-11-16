@@ -38,6 +38,19 @@
   "machine_scope": "empty",
   "process_scope_at_the_time": "empty - the host process started before the variable was written",
   "verification": "with the user-scope value handed to the child process, whoami returned ussoewwin (type user) and the repository read returned 38 files",
-  "correction": "an earlier note in this run said no token was supplied and used the Hugging Face token file instead; that was wrong - the variable is registered in the user scope and reading the registry is the intended path"
+  "correction": "an earlier note in this run said no token was supplied and used the Hugging Face token file instead; that was wrong - the variable is registered in the user scope and reading the registry is the intended path",
+  "write_check": {
+   "method": "create a throw-away branch and delete it",
+   "branch": "hswq-token-write-check",
+   "branches_before": [
+    "main"
+   ],
+   "branch_created": true,
+   "branches_after": [
+    "main"
+   ],
+   "write_proven": true,
+   "note": "a read (whoami, repo_info) is not evidence of write access; this is"
+  }
  }
 }
