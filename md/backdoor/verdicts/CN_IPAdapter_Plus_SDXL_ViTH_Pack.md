@@ -53,6 +53,8 @@ untouched tensors bit-identical.
 | 1.502143e-04 | largest contribution (`image_proj.proj_in`) | `records/cn_ipadapter_plus_vit_h_contrib.json` -> `contribution_max` | the one layer worth considering |
 | 0 | layers protected in the adopted pack | `records/cn_ipadapter_plus_vit_h_pack_audit.json` -> `declared.protected_by_drift` | the curve's floor is the answer |
 
+**The conversion is recorded in `records/cn_ipadapter_plus_vit_h_conversion.json` -> `arguments`** - the arguments it ran with (`drift_threshold` 0.15, `groupsize` 256, `protect_count` 0) and the per-layer outcome. Re-running it reproduced the shipped pack bit for bit.
+
 **The ranking comes from this checkpoint's own measurement.** No protection set was copied from a
 sibling pack, and the contribution was measured against the all-float source, one layer at a time.
 
@@ -171,6 +173,7 @@ image transform moves the instrument beyond its own control band.
 
 ## Records
 
+- `records/cn_ipadapter_plus_vit_h_conversion.json` - the quantisation record: the arguments it ran with, the per-layer outcome and the hashes on both ends.
 - `records/cn_ipadapter_plus_vit_h_pack_audit.json` - CN-1 / CN-2: identity, coverage, the arithmetic replay and the loader's view.
 - `records/cn_ipadapter_plus_vit_h_route.json` - CN-3: the routes, with the kernel counted.
 - `records/cn_ipadapter_plus_vit_h_pack_source_output_diff.json` - CN-5a on the A1111 INT8 route, both surfaces.

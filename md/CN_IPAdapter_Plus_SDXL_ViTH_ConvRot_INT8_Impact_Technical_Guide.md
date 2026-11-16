@@ -228,6 +228,8 @@ not change the choice: 136 MB for +3.3e-05 on a surface already at 0.99992.
 | dtype differences | 0 |
 | coverage: missing / extra / shape mismatch | **0 / 0 / 0** |
 
+The conversion itself is in `records/cn_ipadapter_plus_vit_h_conversion.json` -> `arguments`: the arguments it ran with and the per-layer outcome. Re-running it reproduced this pack bit for bit.
+
 ---
 
 ## 7. The acceptance

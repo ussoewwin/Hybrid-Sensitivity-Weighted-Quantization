@@ -7,6 +7,8 @@
 
 **Composition.** `image_proj` 22 Linears + `ip_adapter` 140 Linears in INT8 (**162**) · **FP16 kept 29** (`latents`, the LayerNorm vectors, the biases — none of them a quantiser input) · 515 tensors in the pack.
 
+**The quantisation record.** `records/cn_ipadapter_plus_vit_h_conversion.json` -> `arguments` is the record of the conversion itself, not of the audit that follows it: the arguments it ran with (`drift_threshold` 0.15, `groupsize` 256, `protect_count` 0), the per-layer outcome (162 int8, 0 protected, 29 kept), and the hashes on both ends. Re-running it from that record reproduced the shipped pack **bit for bit** (424,750,694 B, sha256 `ca0ff370…`).
+
 ---
 
 ## Table of contents

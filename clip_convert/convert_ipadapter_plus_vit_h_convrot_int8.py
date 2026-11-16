@@ -41,7 +41,7 @@ from convert_ipadapter_convrot_int8 import (  # noqa: E402  (the sibling convert
 
 
 def convert(input_path, impact_path, output_path, drift_threshold=DEFAULT_DRIFT_THRESHOLD,
-            protect_list=None):
+            protect_list=None, record_path=None):
     src = flatten(load_file(input_path))
     impacts = json.load(open(impact_path, encoding="utf-8"))["impacts"]
     h = build_hadamard(GROUP_SIZE)
@@ -95,6 +95,69 @@ def convert(input_path, impact_path, output_path, drift_threshold=DEFAULT_DRIFT_
                                                      separators=(",", ":"))}
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     save_file(out, output_path, metadata=metadata)
+
+    # ---- the quantisation record: what was quantised, with what arguments, and what came out.
+    # This is the record of the conversion itself, not of the audit that follows it.
+    if record_path:
+        import hashlib
+
+        def _sha(path):
+            h = hashlib.sha256()
+            with open(path, "rb") as f:
+                while True:
+                    b = f.read(1 << 20)
+                    if not b:
+                        break
+                    h.update(b)
+            return h.hexdigest()
+
+        per_layer = {}
+        for name, t in src.items():
+            if not (name.endswith(".weight") and t.dim() == 2):
+                continue
+            mk = name[: -len(".weight")]
+            kind = "int8" if mk in meta_layers else ("protected" if mk in protected_names else "kept")
+            entry = {"kind": kind, "shape": [int(t.shape[0]), int(t.shape[1])]}
+            if kind == "int8":
+                entry["groupsize"] = GROUP_SIZE
+                entry["out_dtype"] = "int8"
+            else:
+                entry["out_dtype"] = "float16"
+            per_layer[mk] = entry
+        for mk in meta_layers:
+            if mk not in per_layer:
+                per_layer[mk] = {"kind": "int8", "groupsize": GROUP_SIZE, "out_dtype": "int8"}
+
+        record = {
+            "tool": "clip_convert/convert_ipadapter_plus_vit_h_convrot_int8.py",
+            "family": "ipadapter_plus_vit_h",
+            "input": os.path.basename(input_path),
+            "input_bytes": os.path.getsize(input_path),
+            "input_sha256": _sha(input_path),
+            "impact": os.path.basename(impact_path),
+            "arguments": {
+                "drift_threshold": drift_threshold,
+                "groupsize": GROUP_SIZE,
+                "protect_list": sorted(protected_names),
+                "protect_count": len(protected_names),
+            },
+            "result": {
+                "output": os.path.basename(output_path),
+                "output_bytes": os.path.getsize(output_path),
+                "output_sha256": _sha(output_path),
+                "int8_layers": n_lin,
+                "protected_layers": n_prot,
+                "kept_tensors": n_kept,
+                "tensors_in_output": len(out),
+                "size_ratio": round(os.path.getsize(output_path) / os.path.getsize(input_path), 6),
+            },
+            "protected_detail": protected,
+            "per_layer": per_layer,
+        }
+        os.makedirs(os.path.dirname(os.path.abspath(record_path)), exist_ok=True)
+        with open(record_path, "w", encoding="utf-8") as f:
+            json.dump(record, f, indent=1, ensure_ascii=False)
+        print("  record: %s" % record_path)
     print("Saving: %s" % output_path)
     print("  ConvRot INT8 Linear: %d" % n_lin)
     print("  protected (drift or shape): %d" % n_prot)
@@ -112,6 +175,8 @@ if __name__ == "__main__":
     ap.add_argument("--protect-list", default="",
                     help="JSON file with the module names kept in FP16, from the "
                          "aggregate-contribution ranking")
+    ap.add_argument("--record", default="",
+                    help="write the quantisation record (arguments, per-layer outcome, hashes) here")
     a = ap.parse_args()
     protect = json.load(open(a.protect_list, encoding="utf-8")) if a.protect_list else None
-    convert(a.input, a.impact, a.output, a.drift_threshold, protect)
+    convert(a.input, a.impact, a.output, a.drift_threshold, protect, a.record or None)
