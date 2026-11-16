@@ -83,3 +83,4 @@ cn_ipadapter_xl_a1111_source.png
 cn_ipadapter_xl_a1111_pack.png
 bigg_float_routes.json
 bigg_official_tensor_compare.json
+cn_ipadapter_plus_vit_h_comfyui_gate.json
