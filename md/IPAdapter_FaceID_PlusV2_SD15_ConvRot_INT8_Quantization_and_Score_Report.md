@@ -222,6 +222,10 @@ at 0.999949706 / 0.999851169 / 0.999116154 on their worst token.
 | how it was looked at | image-recognition skill first (code 500, empty text), the PNGs read directly second |
 | what was seen | both arms are finished portraits of the same subject in a red coat; the difference is local (hair ends, a shoulder detail, the car plate); neither is noise |
 
+The two arms are `records/cn_ipadapter_faceid_plusv2_comfyui_source.png` and
+`records/cn_ipadapter_faceid_plusv2_comfyui_pack.png` - `_comfyui_` rather than the family's
+`_a1111_`, because this render ran on ComfyUI.
+
 The pixel statistics behind that comparison are in `records/cn_ipadapter_faceid_plusv2_pixel_compare.json` -> `mean_abs_diff`.
 
 The two arms are not the same picture - a 12-step chain amplifies a weight change - but they are the

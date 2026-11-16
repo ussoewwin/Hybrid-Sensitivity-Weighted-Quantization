@@ -143,6 +143,10 @@ The gate observes `image_proj` only, so its numbers are the 24-layer surface. Th
 | PSNR | 21.007605 dB | `records/cn_ipadapter_faceid_plusv2_pixel_compare.json` -> `psnr_db` |
 | pixels identical at all | 1.38 % | `records/cn_ipadapter_faceid_plusv2_pixel_compare.json` -> `pixels_identical_ratio` |
 
+The two PNGs are `records/cn_ipadapter_faceid_plusv2_comfyui_source.png` and
+`records/cn_ipadapter_faceid_plusv2_comfyui_pack.png`. The host is in the name because this render
+ran on ComfyUI; the family's earlier packs were rendered on A1111 and carry `_a1111_` there.
+
 Both images were looked at, not inferred from the cosine. The first means - the image-recognition skill - returned an empty answer with code 500; the PNGs were then read directly. A 12-step chain amplifies a weight change, so the two arms are not the same picture; they are the same subject rendered twice, and neither is noise.
 
 ## 9. Conclusion
