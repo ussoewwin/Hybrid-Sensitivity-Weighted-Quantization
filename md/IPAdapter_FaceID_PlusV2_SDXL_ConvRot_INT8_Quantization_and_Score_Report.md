@@ -244,6 +244,13 @@ Both tables carry this pack. The verdict index row is in `md/backdoor/Backdoor_A
 SDXL / IP-Adapter, gate 0.999927 / 0.999925, 748.4 MB, sha `C9376BC5C5535EE4`, linking this pack's
 guide. The row followed the shape of the rows already in that table.
 
+The sweep, as the step it is (section 0.1 step 8): the pack was looked up in
+`md/HSWQ_High_Quality_Packs_ConvRot_INT8.md` by name before the gate.
+
+| pack | row before | row after | line |
+| :--- | :--- | :--- | :--- |
+| `ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8` | absent | present | L328 |
+
 ## 8. Files
 
 | file | role |
