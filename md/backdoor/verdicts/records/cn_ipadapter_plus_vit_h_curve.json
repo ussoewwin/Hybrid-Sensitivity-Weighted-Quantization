@@ -183,5 +183,96 @@
    "kept_fp16": 60,
    "pack_mb": 541.3
   }
- ]
+ ],
+ "remeasure_2026_11_16": {
+  "why": "the floor (K=0) and the top (K=162) were missing from ks, no point carried its pack hash, and no point carried the gate margin or the gain/margin ratio (§1.4a)",
+  "instrument": "the fixed 256-item set, seed 42, on the A1111 ConvRot INT8 route",
+  "reference_image": "cn_clipvit_ref.png (ComfyUI input directory)",
+  "k0_recheck": {
+   "pack_sha256_matches_the_published_pack": true,
+   "note": "rebuilt K=0 is byte-identical to the published pack (424,750,694 B, ca0ff370...), and its gate was remeasured"
+  },
+  "points": [
+   {
+    "label": "k0",
+    "kept_fp16": 0,
+    "int8_layers": 162,
+    "pack_bytes": 424750694,
+    "pack_sha256": "ca0ff3706dc3673538eec2683774e384fe3145f2191f2006e03862a7d3c2db7a",
+    "gate_mean": 0.9997396794715488,
+    "gate_min": 0.9988878608010899,
+    "gate_p5": 0.9994669555985223,
+    "gate_margin_mean": 0.009739679471548857,
+    "gate_margin_min": 0.01888786080108995,
+    "gain_mean_vs_floor": 0.0,
+    "gain_over_margin_mean": 0.0,
+    "gate_measured": "remeasured 2026-11-16 (A1111 route)"
+   },
+   {
+    "label": "k1",
+    "kept_fp16": 1,
+    "int8_layers": 161,
+    "pack_bytes": 426383611,
+    "pack_sha256": "b8a95bc95992c722bc188dcfe8f994aca30eee353cad702e27d882325608ab82",
+    "gate_mean": 0.9998375368016315,
+    "gate_min": 0.995995510792768,
+    "gate_p5": 0.9997419799930741,
+    "gate_margin_mean": 0.009837536801631463,
+    "gate_margin_min": 0.015995510792768064,
+    "gain_mean_vs_floor": 9.785733008260689e-05,
+    "gain_over_margin_mean": 0.00994734068658103,
+    "gate_measured": "measured 2026-11-15 (A1111 route)"
+   },
+   {
+    "label": "k20",
+    "kept_fp16": 20,
+    "int8_layers": 142,
+    "pack_bytes": 470854026,
+    "pack_sha256": "d920fa95ed6a41dddb8b197ccd928386082297ee9a5b203a01a0414330f5c1db",
+    "gate_mean": 0.9998375368016315,
+    "gate_min": 0.995995510792768,
+    "gate_p5": 0.9997419799930741,
+    "gate_margin_mean": 0.009837536801631463,
+    "gate_margin_min": 0.015995510792768064,
+    "gain_mean_vs_floor": 9.785733008260689e-05,
+    "gain_over_margin_mean": 0.00994734068658103,
+    "gate_measured": "measured 2026-11-15 (A1111 route)"
+   },
+   {
+    "label": "k60",
+    "kept_fp16": 60,
+    "int8_layers": 102,
+    "pack_bytes": 567643066,
+    "pack_sha256": "09c9922d73640d57ffb838df4c4db7fdcd5581cd35e850223bf613728b818df0",
+    "gate_mean": 0.9998375368016315,
+    "gate_min": 0.995995510792768,
+    "gate_p5": 0.9997419799930741,
+    "gate_margin_mean": 0.009837536801631463,
+    "gate_margin_min": 0.015995510792768064,
+    "gain_mean_vs_floor": 9.785733008260689e-05,
+    "gain_over_margin_mean": 0.00994734068658103,
+    "gate_measured": "measured 2026-11-15 (A1111 route)"
+   },
+   {
+    "label": "k162",
+    "kept_fp16": 162,
+    "int8_layers": 0,
+    "pack_bytes": 847517600,
+    "pack_sha256": "087db0b3b6d3aa2559d1491c1a36e79b861dcc3400eef4404be5505f66a957fa",
+    "gate_mean": 1.0,
+    "gate_min": 1.0,
+    "gate_p5": 1.0,
+    "gate_margin_mean": 0.010000000000000009,
+    "gate_margin_min": 0.020000000000000018,
+    "gain_mean_vs_floor": 0.0002603205284511523,
+    "gain_over_margin_mean": 0.026032052845115203,
+    "gate_measured": "identity (all layers float)"
+   }
+  ],
+  "not_remeasured": {
+   "k1/k20/k60": "pack hashes measured now; the gate values are the 2026-11-15 run, because the A1111 route is not available in this session",
+   "k162": "cosine identity by construction; no gate run"
+  },
+  "image_proj_structure": "only image_proj.proj_in is inside the K<=60 protection sets: K=1 protects proj_in, K=20/60 protect proj_in plus ip_adapter layers, so the image_proj surface of K=1/20/60 is the same graph and its gate figures are necessarily equal"
+ }
 }

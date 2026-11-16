@@ -1,0 +1,57 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_forge_route.py",
+ "family": "ipadapter_plus_vit_h",
+ "pack": "ip-adapter-plus_sdxl_vit-h_hswq_convrot_int8.safetensors",
+ "route": "forge",
+ "install": {
+  "root_present": true,
+  "files": {
+   "launch.py": {
+    "path": "launch.py",
+    "present": true
+   },
+   "webui.py": {
+    "path": "webui.py",
+    "present": true
+   },
+   "operations_mixed_precision": {
+    "path": "backend\\operations_mixed_precision.py",
+    "present": true
+   },
+   "ipadapter_plus": {
+    "path": "extensions-builtin\\sd_forge_ipadapter\\lib_ipadapter\\IPAdapterPlus.py",
+    "present": true
+   }
+  }
+ },
+ "python_runtime": {
+  "candidates": {
+   "venv\\Scripts\\python.exe": false,
+   "venv\\bin\\python": false,
+   "system\\python\\python.exe": false,
+   "python.exe": false
+  },
+  "any_present": false
+ },
+ "pack_stamps": {
+  "count": 162,
+  "formats": {
+   "int8_tensorwise": 162
+  },
+  "convrot_true": 162,
+  "groupsize_values": {
+   "256": 162
+  }
+ },
+ "forge_reader": {
+  "file": "backend\\operations_mixed_precision.py",
+  "keys": [
+   "format == 'int8_tensorwise'",
+   "convrot",
+   "convrot_groupsize"
+  ],
+  "pack_matches_form": true
+ },
+ "executed": false,
+ "why_not_executed": "no Forge Python runtime on this machine; the interpreter paths in python_runtime were each checked and none exists"
+}

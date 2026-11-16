@@ -44,9 +44,15 @@ This matters more here than on the basic adapter, because the constructor does *
 
 Every acceptance number in sections 3 and 4 comes from that route, with the ConvRot kernel firing. One `image_proj` forward calls the kernel **22** times, which is one per installed `image_proj` Linear.
 
-### 0.3 Forge reads the marker, not the codes
+### 0.3 Forge is installed and reads the marker; its runtime is absent
 
-`backend/operations_mixed_precision.py` pops `comfy_quant` (`json.loads(layer_conf.numpy().tobytes())`) and dispatches on the `convrot` flag with `ck.int8_linear(convrot=True)`. The pack's stamps are the form that path expects. **No Forge install is present on this machine**, so that route was not executed here.
+`backend/operations_mixed_precision.py` pops `comfy_quant` and dispatches on the `convrot` flag with `ck.int8_linear(convrot=True)`. Forge's install is present on this machine: `launch.py`, `webui.py`, `backend/operations_mixed_precision.py` and `extensions-builtin/sd_forge_ipadapter/lib_ipadapter/IPAdapterPlus.py` are all present. The pack's stamps are exactly the form that reader keys on: **162 of 162 are `int8_tensorwise`, `convrot` true, `convrot_groupsize` 256** (`records/cn_ipadapter_plus_vit_h_forge_route.json` -> `pack_stamps`).
+
+The route could not be executed, and the reason is measured rather than assumed: Forge's own Python runtime is absent. `venv\Scripts\python.exe`, `venv\bin\python`, `system\python\python.exe` and `python.exe` were each checked and none exists (`records/cn_ipadapter_plus_vit_h_forge_route.json` -> `python_runtime.any_present`).
+
+### 0.4 The loader package's own node keeps the codes INT8
+
+`HSWQ Load IPAdapter Model` (`nodes/hswq_load_ipadapter_model.py`) loads the pack, installs the runtime patch (`patches/ipadapter_convrot_int8.py`) and lets the ConvRot INT8 GEMM evaluate the codes. Measured on this pack (`audit/ipadapter_plus_vit_h_hswq_route.py`): the patch takes (`IPAdapter` replaced true, `To_KV` replaced true), **162 of 162 int8 layers install (image_proj 22, ip_adapter 140)**, and the two forwards fire **162 INT8 kernel calls**. Output against the source's float weights on the same input: `image_proj` cosine mean **0.999526739** / min **0.998086035**, over 140 `to_kv` projections mean >= **0.999972105** / min >= **0.999840677**, all finite (`records/cn_ipadapter_plus_vit_h_hswq_route.json` -> `image_proj`, `to_kv`, `int8_kernel_calls`). The source side builds **0** ConvRot layers, so the comparison is float against INT8 on one graph.
 
 ---
 
@@ -85,25 +91,27 @@ The Resampler's parameters are read off the checkpoint, not assumed, and they ar
 
 The criterion is the aggregate contribution: replace one layer by its ConvRot INT8 reconstruction and measure the change in the stage output it feeds, against the all-float source. On this graph the "restore one layer to float" form of that measurement ranks nothing — starting from the all-INT8 pack and restoring one `image_proj` layer makes the worst-latent divergence **worse for all 22 layers** (measured gains −1.7e-02 to −9.1e-01), because a single layer's precision is not a small perturbation of a residual attention block. So the measurement runs from the other end: all-float source as the reference, one layer at a time quantised.
 
-| rank | layer | contribution |
-| :--- | :--- | ---: |
-| 1 | `image_proj.proj_in` | 1.502143e-04 |
-| 2 | `ip_adapter.25.to_k_ip` | 4.238458e-05 |
-| 3 | `ip_adapter.21.to_k_ip` | 3.436726e-05 |
-| 4 | `ip_adapter.117.to_k_ip` | 3.356947e-05 |
-| 5 | `ip_adapter.131.to_k_ip` | 3.340939e-05 |
-| 6 | `ip_adapter.61.to_v_ip` | 3.333808e-05 |
-| median | 162 layers | 2.409374e-05 |
+| rank | layer | contribution | share of the 162 measured groups |
+| :--- | :--- | ---: | ---: |
+| 1 | `image_proj.proj_in` | 1.502143e-04 | 4.086 % |
+| 2 | `ip_adapter.25.to_k_ip` | 4.238458e-05 | 1.153 % |
+| 3 | `ip_adapter.21.to_k_ip` | 3.436726e-05 | 0.935 % |
+| 4 | `ip_adapter.117.to_k_ip` | 3.356947e-05 | 0.913 % |
+| 5 | `ip_adapter.131.to_k_ip` | 3.340939e-05 | 0.909 % |
+| 6 | `ip_adapter.61.to_v_ip` | 3.333808e-05 | 0.907 % |
+| median | 162 layers | 2.409374e-05 | 0.655 % |
 
 The curve, measured on the fixed 256-item set through the INT8 route (K = layers kept in FP16):
 
-| K | size | gate mean | worst single latent | `ip_adapter` mean | gate |
-| ---: | ---: | ---: | ---: | ---: | :--- |
-| **0** | **405.1 MB** | **0.999739679** | **0.986089059** | 0.999922318 | **PASS** |
-| 1 | 406.6 MB | 0.999837537 | 0.938652834 | 0.999922318 | PASS |
-| 20 | 449.0 MB | 0.999837537 | 0.938652834 | 0.999933195 | PASS |
-| 60 | 541.3 MB | 0.999837537 | 0.938652834 | 0.999955528 | PASS |
-| 162 | 808.3 MB | 1.000000000 | 1.000000000 | 1.000000000 | PASS |
+| K | INT8 layers | FP16 kept | size | gate mean | gate min | p5 | worst single latent | `ip_adapter` mean | mean gain / gate margin | pack sha256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| **0** | 162 | 0 | 405.1 MB | 0.999739679 | 0.998887861 | 0.999466956 | 0.986089059 | 0.999922318 | - | `ca0ff3706dc3` |
+| 1 | 161 | 1 | 406.6 MB | 0.999837537 | 0.995995511 | 0.999741980 | 0.938652834 | 0.999922318 | 9.8e-05 / 9.84e-03 = 1.0 % | `b8a95bc95992` |
+| 20 | 142 | 20 | 449.0 MB | 0.999837537 | 0.995995511 | 0.999741980 | 0.938652834 | 0.999933195 | 9.8e-05 / 9.84e-03 = 1.0 % | `d920fa95ed6a` |
+| 60 | 102 | 60 | 541.3 MB | 0.999837537 | 0.995995511 | 0.999741980 | 0.938652834 | 0.999955528 | 9.8e-05 / 9.84e-03 = 1.0 % | `09c9922d7364` |
+| 162 | 0 | 162 | 808.3 MB | 1.000000000 | 1.000000000 | 1.000000000 | 1.000000000 | 1.000000000 | identity | `087db0b3b6d3` |
+
+**Why K = 1, 20 and 60 report the same `image_proj` figures.** The protection sets differ, but not on this surface: only `image_proj.proj_in` is inside the top 60 of the contribution ranking (share 4.086 %), so K = 1 protects `proj_in` and K = 20 / 60 protect `proj_in` plus 19 / 59 `ip_adapter` layers. The `image_proj` graph is therefore identical in the three packs, and its gate figures can only be equal; the `ip_adapter` surface moves with K (0.999922318 -> 0.999933195 -> 0.999955528), which is where the protection is actually spent (`records/cn_ipadapter_plus_vit_h_contrib.json` -> `contributions`).
 
 **K = 0 is adopted.** It is the smallest pack; it passes with 9.74e-03 of mean margin and 1.89e-03 of min margin; and 0 of the 162 groups is anywhere near the drift threshold (max 8.49e-05 against 0.15). Protection adds 1.5 to 136 MB for +9.8e-05 to +1.1e-04 of gate mean, which is one percent of the gate's own margin, while the worst single latent falls from 0.986 to 0.939.
 
@@ -194,8 +202,8 @@ python audit/ipadapter_plus_vit_h_acceptance.py \
 ## 6. Error sources and limits
 
 - **The ComfyUI extension does not take this pack**, and its failure is silent: 162 int8 codes would be read as magnitudes. All acceptance numbers come from the A1111 route.
-- **The HSWQ loader's own IP-Adapter runtime was not exercised for these numbers.** It installs this pack in place of the stock path; the measurements here are the stock path plus the A1111 runtime patch.
-- **Forge was not measured** (no Forge install on this machine).
+- **The HSWQ loader's own IP-Adapter runtime is measured separately, not for the gate.** That route installs the pack in place of the stock path (Section 0.4: 162 kernel calls, `image_proj` 0.999526739 / 0.998086035, `to_kv` >= 0.999972105 / 0.999840677); the gate numbers in Section 3 remain the A1111 route's.
+- **Forge was not executed.** Its install is present and the pack's 162 stamps are the form its reader keys on; its Python runtime is absent, and the four interpreter paths were each checked (Section 0.3).
 - **No render.** No image pair exists for this checkpoint; Section 4 states it rather than implying a picture was looked at.
 - **The worst single latent is not monotone in the layers' precision.** The all-INT8 pack measures a worse worst-latent (0.986) than every pack with protected layers (0.939). That is the Resampler's error arithmetic — the all-INT8 errors partly cancel at that latent — which is why it is reported beside the gate and not used as a pass criterion. It does not mean the all-INT8 pack is more accurate layer by layer: the layer-by-layer number is the gate mean, and it moves the other way.
 - **`image_proj` mean 0.9957 with worst latent 0.933.** Four attention blocks in series accumulate error; a residual block's error is not the sum of its layers' errors. The pack is measured, not characterised.
@@ -208,17 +216,21 @@ python audit/ipadapter_plus_vit_h_acceptance.py \
 
 ## 7. Ledger
 
-| step | tool | result |
-| :--- | :--- | :--- |
-| 1 | `diag_impact_ipadapter_plus_vit_h.py` | 162 groups, max 8.488220e-05, median 4.826412e-05, p90 5.861301e-05, min 1.370495e-08, 0 above 0.15, 2.2 s |
-| 2 | `measure_ipadapter_plus_vit_h_contrib.py` | 162 layers, max 1.502143e-04 (`image_proj.proj_in`), median 2.409374e-05, 38.8 s |
-| 3 | `convert_ipadapter_plus_vit_h_convrot_int8.py` | 162 INT8, 0 protected, 29 kept as-is, 424,750,694 B, -49.9 % |
-| 4 | `ipadapter_plus_vit_h_pack_audit.py` | CN-1 FAITHFUL 162/162, 0 integer differences, scale 0.0, float 29/29 bit-identical, coverage 0/0/0 |
-| 5 | `ipadapter_plus_vit_h_route.py` | A1111 162/162 installed (22 + 140), forward `[1,16,2048]` finite, 22 kernel calls; ComfyUI 162 raw codes |
-| 6 | `ipadapter_plus_vit_h_acceptance.py` | CN-5a / CN-5b / CN-6: mean 0.999739679, min 0.998887861, worst latent 0.986089059, 5772 kernel calls, PASS |
-| 7 | `sweep_ipadapter_plus_vit_h.py` | K = 0 / 1 / 20 / 60 / 162 -> 405.1 / 406.6 / 449.0 / 541.3 / 808.3 MB, all PASS, K = 0 adopted |
+Times are the record files' own last-write times, read from the filesystem on 2026-11-16 (a record that was rewritten later carries the later time; the time is evidence of when the file last changed, not of when the step first ran).
 
----
+| step | tool | result | record | file time |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | `diag_impact_ipadapter_plus_vit_h.py` | 162 groups, max 8.488220e-05, median 4.826412e-05, p90 5.861301e-05, min 1.370495e-08, 0 above 0.15, 2.2 s | `cn_ipadapter_plus_vit_h_protection.json` | 2026-11-16 04:46:24 |
+| 2 | `measure_ipadapter_plus_vit_h_contrib.py` | 162 layers, max 1.502143e-04 (`image_proj.proj_in`), median 2.409374e-05, 38.8 s | `cn_ipadapter_plus_vit_h_contrib.json` | 2026-11-16 04:46:24 |
+| 3 | `convert_ipadapter_plus_vit_h_convrot_int8.py` | 162 INT8, 0 protected, 29 kept as-is, 424,750,694 B, -49.9 % | `cn_ipadapter_plus_vit_h_conversion.json` | 2026-11-16 10:52:14 |
+| 4 | `ipadapter_plus_vit_h_pack_audit.py` | CN-1 FAITHFUL 162/162, 0 integer differences, scale 0.0, float 29/29 bit-identical, coverage 0/0/0 | `cn_ipadapter_plus_vit_h_pack_audit.json` | 2026-11-16 04:52:52 |
+| 5 | `ipadapter_plus_vit_h_route.py` | A1111 162/162 installed (22 + 140), forward `[1,16,2048]` finite, 22 kernel calls; ComfyUI 162 raw codes | `cn_ipadapter_plus_vit_h_route.json` | 2026-11-16 02:59:33 |
+| 6 | `ipadapter_plus_vit_h_acceptance.py` | CN-5a / CN-5b / CN-6: mean 0.999739679, min 0.998887861, worst latent 0.986089059, 5772 kernel calls, PASS | `cn_ipadapter_plus_vit_h_pack_source_output_diff.json`, `_image_trigger.json`, `_gate_256.json` | 2026-11-16 04:46:37 / 04:47:10 / 04:49:00 |
+| 7 | `sweep_ipadapter_plus_vit_h.py` | K = 0 / 1 / 20 / 60 / 162 -> 405.1 / 406.6 / 449.0 / 541.3 / 808.3 MB, all PASS, K = 0 adopted; K = 0 rebuilt byte-identical, hashes and margins added | `cn_ipadapter_plus_vit_h_curve.json` | 2026-11-16 12:44:25 |
+| 8 | `ipadapter_plus_vit_h_forge_route.py` | Forge install present, 162/162 stamps are the form its reader keys on, no Forge Python runtime | `cn_ipadapter_plus_vit_h_forge_route.json` | 2026-11-16 12:44:25 |
+| 9 | `ipadapter_plus_vit_h_hswq_route.py` | patch applied, 162/162 installed, 162 kernel calls, `image_proj` 0.999526739 / 0.998086035, `to_kv` >= 0.999972105 / 0.999840677 | `cn_ipadapter_plus_vit_h_hswq_route.json` | 2026-11-16 12:44:25 |
+| 10 | Hub upload | card then pack, 424,750,694 B, LFS sha256 matched, 37 files | `cn_ipadapter_plus_vit_h_hf_upload.json` | 2026-11-16 11:46:59 |
+| 11 | `audit/run_all_gates.py --regen` | ALL GATES PASS (procedure, citations, selftest, SHA256SUMS, markdown) | `gate_run_2026-11-16.json` | 2026-11-16 (run in this session) |
 
 ## 8. Files
 
@@ -230,5 +242,9 @@ python audit/ipadapter_plus_vit_h_acceptance.py \
 | `records/cn_ipadapter_plus_vit_h_gate_256.json` | CN-6, the 256-item gate |
 | `records/cn_ipadapter_plus_vit_h_image_trigger.json` | CN-5b, the 56 candidates and both positive-control ladders |
 | `records/cn_ipadapter_plus_vit_h_protection.json` | the 162-group drift screen |
+| `records/cn_ipadapter_plus_vit_h_contrib.json` | the aggregate-contribution ranking (the criterion) |
+| `records/cn_ipadapter_plus_vit_h_curve.json` | the curve, with the floor and the top, the pack hashes and the margin ratios |
+| `records/cn_ipadapter_plus_vit_h_forge_route.json` | the Forge route: install files, the pack's stamps, the missing runtime |
+| `records/cn_ipadapter_plus_vit_h_hswq_route.json` | the loader package's own route: patch, installs, kernel calls, cosines |
 | `records/cn_ipadapter_plus_vit_h_contrib.json` | the 162-layer aggregate contribution |
 | `records/cn_ipadapter_plus_vit_h_curve.json` -> `curve` | the measured size/quality curve |

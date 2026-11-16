@@ -80,7 +80,8 @@ way (+9.8e-05 for K = 1). Neither number is hidden.
 | :--- | :--- | :--- | :--- |
 | A1111 | `modules/ipadapter_int8_convrot.py` installs the payload in place and binds an instance-level forward to `comfy_kitchen.int8_linear(convrot=True, groupsize=256)` | **162 of 162 installed** (22 `image_proj` + 140 `ip_adapter`), one `image_proj` forward makes **22 kernel calls**, output `[1,16,2048]` finite | `records/cn_ipadapter_plus_vit_h_route.json` -> `routes.a1111` |
 | ComfyUI `comfyui_ipadapter_plus` | `ipadapter_model_loader` rebuilds the adapter from `load_torch_file(safe_load=True)` and never reads `comfy_quant` | **162 int8 tensors presented, `applies_int8` false** - the codes would reach float parameters | `records/cn_ipadapter_plus_vit_h_route.json` -> `routes.comfyui` |
-| Forge | reads `comfy_quant` and dispatches to the same kernel | not measured (no Forge install on this machine) | - |
+| Forge | reads `comfy_quant` and dispatches to the same kernel | **install present; 162 of 162 stamps are the form it reads** (int8_tensorwise, convrot true, convrot_groupsize 256); not executed - no Forge Python runtime (env\Scripts\python.exe, env\bin\python, system\python\python.exe, python.exe all absent) | `records/cn_ipadapter_plus_vit_h_forge_route.json` -> `pack_stamps`, `python_runtime.any_present` |
+| HSWQ loader package | `nodes/hswq_load_ipadapter_model.py` installs the runtime patch and keeps the codes INT8 | **patch applied, 162 of 162 installed** (22 + 140), **162 kernel calls**, `image_proj` cos mean **0.999526739** / min **0.998086035**, 140 `to_kv` mean >= **0.999972105** / min >= **0.999840677**, finite | `records/cn_ipadapter_plus_vit_h_hswq_route.json` -> `image_proj`, `to_kv` |
 
 ## 6. Acceptance
 
@@ -156,7 +157,7 @@ image transform moves the instrument beyond its own control band.
 
 - The ComfyUI extension does not take this pack, and its failure is silent: 162 int8 codes would be
   read as magnitudes. Every acceptance number comes from the A1111 route.
-- Forge was not measured (no install on this machine).
+- Forge was not executed: its install is present and the pack's stamps are the form its reader keys on, but Forge's Python runtime is absent (the four interpreter paths were each checked).
 - **No render.** No image pair exists for this checkpoint, so this verdict says nothing about what the
   pack looks like on canvas. That is a gap, not a pass.
 - The worst single latent is not monotone in the layers' precision (0.986 all-INT8 against 0.939 with
@@ -181,6 +182,8 @@ image transform moves the instrument beyond its own control band.
 - `records/cn_ipadapter_plus_vit_h_image_trigger.json` - CN-5b, the 56 candidates and both positive-control ladders.
 - `records/cn_ipadapter_plus_vit_h_protection.json` - the 162-group drift screen and its ranking.
 - `records/cn_ipadapter_plus_vit_h_contrib.json` - the 162-layer aggregate contribution and its ranking.
-- `records/cn_ipadapter_plus_vit_h_curve.json` - the measured size/quality curve.
+- `records/cn_ipadapter_plus_vit_h_curve.json` - the measured size/quality curve, with the floor and the top, the pack hash at each point and the gate-margin ratios.
+- `records/cn_ipadapter_plus_vit_h_forge_route.json` - the Forge route: the install files, the pack's 162 stamps, the missing runtime.
+- `records/cn_ipadapter_plus_vit_h_hswq_route.json` - the loader package's own route: patch, installed layers, kernel calls, cosines.
 - [CN_IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Impact_Technical_Guide.md](../../CN_IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Impact_Technical_Guide.md) - the impact guide for this checkpoint.
 - [IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Quantization_and_Score_Report.md](../../IPAdapter_Plus_SDXL_ViTH_ConvRot_INT8_Quantization_and_Score_Report.md) - the conversion and score report.

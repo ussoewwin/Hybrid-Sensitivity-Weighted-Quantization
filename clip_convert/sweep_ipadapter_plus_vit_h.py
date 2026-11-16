@@ -25,6 +25,7 @@ IP-Adapter pack - and then deleted, so the measurement does not leave packs behi
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -36,6 +37,14 @@ REPO = os.path.dirname(HERE)
 
 CONVERTER = os.path.join(HERE, "convert_ipadapter_plus_vit_h_convrot_int8.py")
 ACCEPT = os.path.join(REPO, "audit", "ipadapter_plus_vit_h_acceptance.py")
+
+
+def sha256_of(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def build_pack(source, impact, out, protect, work):
@@ -70,6 +79,7 @@ def measure(pack, source, a, work, label, expect_int8):
     return {
         "label": label,
         "pack_bytes": os.path.getsize(pack),
+        "pack_sha256": sha256_of(pack),
         "int8_layers": gate["int8_layers"],
         "image_proj_gate": gate["image_proj_surface"],
         "ip_adapter_gate": gate["ip_adapter_surface"],
@@ -125,6 +135,15 @@ def main():
                  "PASS" if row["gate_pass"] else "FAIL"), flush=True)
         os.remove(pack)
         print("[curve] K=%d candidate deleted" % k, flush=True)
+
+    if rows:
+        base = rows[0]
+        for r in rows:
+            r["gate_margin_mean"] = r["gate_mean"] - 0.99
+            r["gate_margin_min"] = r["gate_min"] - 0.98
+            r["gain_mean_vs_floor"] = r["gate_mean"] - base["gate_mean"]
+            r["gain_over_margin_mean"] = (r["gate_mean"] - base["gate_mean"]) / (r["gate_mean"] - 0.99)
+            r["gain_over_margin_min"] = (r["gate_min"] - base["gate_min"]) / (r["gate_min"] - 0.98)
 
     out = {
         "tool": "clip_convert/sweep_ipadapter_plus_vit_h.py",
