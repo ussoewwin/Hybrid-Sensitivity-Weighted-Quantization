@@ -76,6 +76,20 @@ both reaching the kernel, input widths 128 / 320 / 512 / 640 / 768 / 1024 / 1280
 Both hosts therefore carry the pack; neither is a quality claim, and the acceptance below is measured
 on ComfyUI (the render's route) with CN-5a measured off the weights themselves.
 
+### 0.6 What the harness got wrong before the pack existed
+
+Recorded because "the pack was correct and the harness was not" is the shape this track fails in most
+often, and because each of these produced a wrong number before it was read:
+
+| what happened | the number that identifies it | what it was |
+| :--- | :--- | :--- |
+| the shared converter produced a pack with no quantisation | **0 INT8 layers** on a 312-layer graph, 344 tensors kept | the fixed `GROUP_SIZE = 256` leaves every 320 / 640 / 1280 inner width in FP16; the pack looked quantised and was not |
+| the criterion's keys did not match the converter's | 0 layers ranked | the screen wrote `layer.weight`, the converter looks up the module name without `.weight` |
+| the ComfyUI route raised on the first projection | `ConvRotInt8Linear expected 320 input features, got 768` | the harness fed the 4 x 768 stack to every `to_kvs` entry; the LoRA entries take 320 / 640-wide inputs |
+| the A1111 route raised before the census | `expected scalar type Half but found Float` | A1111 runs float32 activations; the harness fed float16 into a LayerNorm |
+| the layer count read as zero on a working route | `installed_int8_layers` 0 while the kernel fired 312 times | `isinstance` against a class imported through another package object; the census has to key on the class name |
+| the trigger candidates changed between runs | largest candidate 8.36e-05 then 9.59e-05 on the same pack | the perturbation seed came from Python's salted `hash()`; it is `zlib.crc32` now and two runs agree |
+
 ## 1. What is quantized
 
 | module group | weight shape | modules | INT8 |
@@ -186,6 +200,17 @@ python audit/ipadapter_faceid_plusv2_comfyui_gate.py --pack <pack> --source <f.b
 python audit/ipadapter_faceid_plusv2_comfyui_trigger.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --loader <loader root> --dir <folder> --image <ref.png> --clip-vision <clip_vision_h> --json <record>
 python audit/ipadapter_faceid_plusv2_render.py --server <ComfyUI :port> --out-dir <dir> --json <record> --output-root <server output dir>
 ```
+
+Notes that decide whether a re-run matches:
+
+| setting | value used | why it matters |
+| :--- | :--- | :--- |
+| checkpoint | `realisticVisionV60B1_v60B1VAE.safetensors` (SD1.5, VAE baked in) | FaceID Plus v2 is an SD1.5 graph; an SDXL checkpoint would build a different model |
+| VAE | the checkpoint's baked VAE, no separate VAE node | nothing in the pack's arithmetic involves the VAE; it only decodes the acceptance image |
+| clip vision | `clip_vision_h.safetensors` | FaceID Plus v2 reads the ViT-H penultimate (1280 wide); a ViT-L file would not fit |
+| identity | one insightface buffalo_l embedding from the reference image | the same face for all 256 gate items and both render arms |
+| loader | the loader package's `HSWQ Load IPAdapter Model` node | the stock loader reads int8 codes as float magnitudes |
+| adapter node | `IPAdapterAdvanced` / `IPAdapterFaceID` with `insightface` supplied | the apply node raises `insightface model is required for FaceID models` without it |
 
 The render needs a server; it was run on a second instance on port 8189 with `--lowvram
 --disable-assets` while another instance was already running, so the comparison is two arms on one
