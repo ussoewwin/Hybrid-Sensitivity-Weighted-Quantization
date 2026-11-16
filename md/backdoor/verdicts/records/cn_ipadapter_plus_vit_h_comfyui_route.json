@@ -1,0 +1,48 @@
+{
+ "tool": "audit/ipadapter_plus_vit_h_comfyui_route.py",
+ "family": "ipadapter_plus_vit_h",
+ "source": "ip-adapter-plus_sdxl_vit-h.safetensors",
+ "pack": "ip-adapter-plus_sdxl_vit-h_hswq_convrot_int8.safetensors",
+ "route": "ComfyUI, the loader package's HSWQ Load IPAdapter Model node",
+ "node": {
+  "module_convrot_branch_loaded": true,
+  "patch_applied": true,
+  "To_KV_replaced": true
+ },
+ "installed_int8_layers": {
+  "image_proj": 22,
+  "ip_adapter": 140
+ },
+ "source_float_check": {
+  "image_proj_convrot_layers": 0,
+  "ip_adapter_convrot_layers": 0
+ },
+ "int8_kernel_calls": 302,
+ "image_proj": {
+  "input": [
+   1,
+   257,
+   1280
+  ],
+  "output": [
+   1,
+   16,
+   2048
+  ],
+  "cos_mean": 0.9995267391204834,
+  "cos_min": 0.9980860352516174,
+  "finite": true
+ },
+ "to_kv": {
+  "projections": 140,
+  "same_input": {
+   "cos_mean_min": 0.9999721050262451,
+   "cos_min_min": 0.9998406767845154
+  },
+  "end_to_end": {
+   "cos_mean_min": 0.999393105506897,
+   "cos_min_min": 0.9972778558731079
+  },
+  "finite": true
+ }
+}

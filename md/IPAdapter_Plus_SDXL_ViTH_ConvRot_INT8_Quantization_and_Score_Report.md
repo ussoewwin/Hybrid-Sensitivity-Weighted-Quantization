@@ -54,6 +54,14 @@ The route could not be executed, and the reason is measured rather than assumed:
 
 `HSWQ Load IPAdapter Model` (`nodes/hswq_load_ipadapter_model.py`) loads the pack, installs the runtime patch (`patches/ipadapter_convrot_int8.py`) and lets the ConvRot INT8 GEMM evaluate the codes. Measured on this pack (`audit/ipadapter_plus_vit_h_hswq_route.py`): the patch takes (`IPAdapter` replaced true, `To_KV` replaced true), **162 of 162 int8 layers install (image_proj 22, ip_adapter 140)**, and the two forwards fire **162 INT8 kernel calls**. Output against the source's float weights on the same input: `image_proj` cosine mean **0.999526739** / min **0.998086035**, over 140 `to_kv` projections mean >= **0.999972105** / min >= **0.999840677**, all finite (`records/cn_ipadapter_plus_vit_h_hswq_route.json` -> `image_proj`, `to_kv`, `int8_kernel_calls`). The source side builds **0** ConvRot layers, so the comparison is float against INT8 on one graph.
 
+### 0.5 In ComfyUI, the loader package's node is the route that takes the pack
+
+`HSWQ Load IPAdapter Model` (`nodes/hswq_load_ipadapter_model.py`, in the loader package) is the node a ComfyUI user connects to the IP-Adapter apply node. Measured through that node's own `load_ipadapter_model` (`audit/ipadapter_plus_vit_h_comfyui_route.py`): the node takes the ConvRot branch (`module_convrot_branch_loaded` true), the runtime patch is applied (`patch_applied` true, `To_KV` replaced true), and the adapter built from what the node returned carries **22 of 22 `image_proj` and 140 of 140 `ip_adapter` layers on the INT8 path** (source side: 0 and 0).
+
+Outputs against the source's float weights: `image_proj` cosine mean **0.999526739** / min **0.998086035**; the 140 `to_kv` projections on the same input mean >= **0.999972105** / min >= **0.999840677**; end to end (each side on its own `image_proj` output) mean >= **0.999393105** / min >= **0.997277856**; **302 INT8 kernel calls** behind those comparisons, all finite (`records/cn_ipadapter_plus_vit_h_comfyui_route.json` -> `installed_int8_layers`, `image_proj`, `to_kv`, `int8_kernel_calls`).
+
+So on this machine the pack has a ComfyUI route through the loader package, separate from the stock extension (section 0.1) and from A1111 (section 0.2).
+
 ---
 
 
@@ -201,7 +209,7 @@ python audit/ipadapter_plus_vit_h_acceptance.py \
 
 ## 6. Error sources and limits
 
-- **The ComfyUI extension does not take this pack**, and its failure is silent: 162 int8 codes would be read as magnitudes. All acceptance numbers come from the A1111 route.
+- **The stock ComfyUI extension does not take this pack**, and its failure is silent: 162 int8 codes would be read as magnitudes. The pack is taken in ComfyUI by the loader package's own node (section 0.5); the acceptance numbers of section 3 remain the A1111 route's.
 - **The HSWQ loader's own IP-Adapter runtime is measured separately, not for the gate.** That route installs the pack in place of the stock path (Section 0.4: 162 kernel calls, `image_proj` 0.999526739 / 0.998086035, `to_kv` >= 0.999972105 / 0.999840677); the gate numbers in Section 3 remain the A1111 route's.
 - **Forge was not executed.** Its install is present and the pack's 162 stamps are the form its reader keys on; its Python runtime is absent, and the four interpreter paths were each checked (Section 0.3).
 - **No render.** No image pair exists for this checkpoint; Section 4 states it rather than implying a picture was looked at.
@@ -230,6 +238,7 @@ Times are the record files' own last-write times, read from the filesystem on 20
 | 8 | `ipadapter_plus_vit_h_forge_route.py` | Forge install present, 162/162 stamps are the form its reader keys on, no Forge Python runtime | `cn_ipadapter_plus_vit_h_forge_route.json` | 2026-11-16 12:44:25 |
 | 9 | `ipadapter_plus_vit_h_hswq_route.py` | patch applied, 162/162 installed, 162 kernel calls, `image_proj` 0.999526739 / 0.998086035, `to_kv` >= 0.999972105 / 0.999840677 | `cn_ipadapter_plus_vit_h_hswq_route.json` | 2026-11-16 12:44:25 |
 | 10 | Hub upload | card then pack, 424,750,694 B, LFS sha256 matched, 37 files | `cn_ipadapter_plus_vit_h_hf_upload.json` | 2026-11-16 11:46:59 |
+| 12 | `ipadapter_plus_vit_h_comfyui_route.py` | the loader package's node inside ComfyUI: ConvRot branch, 162/162 installed, 302 kernel calls, `image_proj` 0.999526739 / 0.998086035 | `cn_ipadapter_plus_vit_h_comfyui_route.json` | 2026-11-16 (run in this session) |
 | 11 | `audit/run_all_gates.py --regen` | ALL GATES PASS (procedure, citations, selftest, SHA256SUMS, markdown) | `gate_run_2026-11-16.json` | 2026-11-16 (run in this session) |
 
 ## 8. Files
@@ -246,5 +255,6 @@ Times are the record files' own last-write times, read from the filesystem on 20
 | `records/cn_ipadapter_plus_vit_h_curve.json` | the curve, with the floor and the top, the pack hashes and the margin ratios |
 | `records/cn_ipadapter_plus_vit_h_forge_route.json` | the Forge route: install files, the pack's stamps, the missing runtime |
 | `records/cn_ipadapter_plus_vit_h_hswq_route.json` | the loader package's own route: patch, installs, kernel calls, cosines |
+| `records/cn_ipadapter_plus_vit_h_comfyui_route.json` | the same node inside ComfyUI, through its `load_ipadapter_model` |
 | `records/cn_ipadapter_plus_vit_h_contrib.json` | the 162-layer aggregate contribution |
 | `records/cn_ipadapter_plus_vit_h_curve.json` -> `curve` | the measured size/quality curve |
