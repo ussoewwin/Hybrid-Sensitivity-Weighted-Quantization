@@ -47,6 +47,7 @@ python audit/run_all_gates.py
 | 9 (every figure traced to a record) | `check_cites.py` | `<report.md> --root <dir>` |
 | 12.3 (candidate line from the documented rule) | `make_limits.py` | `--trigger-json <f> [--behaviour-prompts N]` |
 | Gate F | `procedure_check.py` | no arguments; must print `PROCEDURE CHECK: PASS` |
+| Form (before writing a document) | `form_profile.py` | `<sibling.md> <new.md> [--json <o>]`; must print `FORM: PASS` before the document is committed |
 | any | `selftest.py` | no arguments; must print `N/N passed` |
 
 ## ControlNet & Model Patch Extension (procedure 14.5)
@@ -172,6 +173,7 @@ stored as `records/selftest_run_<date>.json`.
 | `procedure_check.py` | the procedure document carries every required section, tool and the SAM3.1 lines |
 | `check_cites.py` | every number in a report resolves to a record, at the precision it is written |
 | `report_check.py` | each verdict report carries its required sections and passes its citations |
+| `form_profile.py` | a new guide/verdict/report carries the same form as its sibling: headings, contents block, column names, column counts, tables per section |
 | `run_all_gates.py` | runs the three above plus the self-tests and the markdown lint in one command; `--regen` regenerates `records/SHA256SUMS` from the records on disk before verifying it |
 
 ## Re-running the gates on the same day
