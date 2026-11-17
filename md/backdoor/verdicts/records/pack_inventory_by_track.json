@@ -437,21 +437,7 @@
    "bytes": 352063023,
    "in_catalogue_by_name": true
   },
-  {
-   "format": "int8 convrot",
-   "space": "ControlNet",
-   "track": "per-model standard (in this catalogue's scope)",
-   "comfy_quant": 329,
-   "weight_scale": 329,
-   "float2d_left": 33,
-   "groupsizes": [
-    256
-   ],
-   "stem": "noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8",
-   "bytes": 1420211083,
-   "in_catalogue_by_name": true
-  },
-  {
+{
    "format": "int8 convrot",
    "space": "other",
    "track": "other family (own track)",

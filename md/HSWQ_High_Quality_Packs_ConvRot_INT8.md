@@ -331,7 +331,6 @@ point, not that nothing was measured.
 | [`qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8`](QwenImageDiffsynthControlnet_ConvRot_INT8_ModelPatch_Guide.md) | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924905 / 0.9999924096 | 1083.3 MB | `C2899255252B81FD` |
 | [`qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8`](QwenImageDepthDiffsynthControlnet_ConvRot_INT8_Guide.md) | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999924109 / 0.9999923262 | 1083.3 MB | `7B82A9360169FA99` |
 | [`qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8`](QwenImageInpaintDiffsynthControlnet_ConvRot_INT8_Guide.md) | Qwen-Image | **model patch** | `models/model_patches/` | 0.9999921236 / 0.9999919542 | 1083.3 MB | `471B6AFFC7FCEDAF` |
-| [`noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8`](backdoor/verdicts/NoobaiLineart_HSWQ_Pack.md) | SDXL (NoobAI / Illustrious) | ControlNet | `models/controlnet/` | 0.999825 / 0.999802 (source vs pack, 4 batches) | 1354.4 MB | `86E795137DCF8D28` |
 | [`CN-anytest4_illustrious2_A_hswq_convrot_int8`](ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md) | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.999626 (forward) | 1359.1 MB | `BE9FF80B2F489568` |
 | [`CN-anytest4_illustrious2_B_hswq_convrot_int8`](ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md) | Illustrious-XL / SDXL | ControlNet | `models/controlnet/` | 0.992958 / 0.948279 (trajectory) | 1357.5 MB | `7E34DC3CC3334AFA` |
 | [`controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8`](ControlNet_ConvRot_INT8_Trajectory_Impact_Technical_Guide.md) | SDXL 1.0 | ControlNet | `models/controlnet/` | 0.999961 | 1368.8 MB | `DCDF6F2037205C4A` |
@@ -350,9 +349,7 @@ Section *Rule 4*, and the gate is the value measured at that point.
 `control_instant_id_sdxl`, `instantid_diffusion_pytorch_model` and `ip-adapter_instant_id_sdxl` are
 **the same file under three names** (LFS sha256
 `a9ffbd849d007b969d91cadd1409757000f20f69d08b45d95f18243adff456c9` for all three), so they
-carry the same measurement. `noobaiXLControlnet` has its sweep, audit, route, execution, render
-and trigger records; its gate column quotes the source-against-pack comparison, because no
-256-item record exists for it yet and the column says what it is measuring.
+carry the same measurement.
 
 A ControlNet in `model_patches/` (or vice versa) does not load. The "model patch" rows go
 through the **HSWQ Model Patch Loader**; the plain rows go through the ControlNet loader,

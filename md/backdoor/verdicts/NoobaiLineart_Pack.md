@@ -83,7 +83,6 @@ different source.
 | 1,390,220 | bytes of the PNG produced by an end-to-end render on this route (1024x1024, 12 steps, cfg 6.0) | `records/noobai_sdxl_lineart_realistic_image_test.json` -> `measurement.png_bytes` | the route renders an image, not only a loaded graph |
 | 20.7 | wall seconds for that render | `records/noobai_sdxl_lineart_realistic_image_test.json` -> `measurement.wall_seconds` | the route is usable at 1024x1024, not only loadable |
 
-| 0 | inputs (this pack) re-verified by SHA256 before this pass | `records/noobai_inputs_reverified_2026-11-08.json` -> `verified_by_pack.noobaiXLControlnet_epsLineartRealistic_convrot_int8.verified_files` | the file is not present on this machine, so its hash could not be re-verified here |
 
 ## 5. Conclusion
 
