@@ -5,7 +5,7 @@ Two renders, same prompt / seed / steps / cfg / reference image, one with the so
 with the pack. Both go through `HSWQ Load IPAdapter Model` -> `IPAdapterAdvanced`, so the INT8 GEMM
 is what the pack render evaluates.
 
-    python audit/ipadapter_faceid_plusv2_render.py --comfy-root D:\\USERFILES\\ComfyUI \\
+    python audit/ipadapter_faceid_plusv2_sdxl_render.py --adapter-dir <models>/<ipadapter> \\
         --server http://127.0.0.1:8189 --out-dir <dir> --json <record>.json
 """
 from __future__ import annotations
@@ -22,21 +22,20 @@ VAE = "sdxl_vae.safetensors"
 CLIP_VISION = "clip_vision_h.safetensors"
 PACK = "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors"
 SOURCE = "ip-adapter-faceid-plusv2_sdxl.bin"
-MODEL_DIR = r"D:\USERFILES\ComfyUI\ComfyUI\models\ipadapter"
 REF = "cn_clipvit_ref.png"
 
 PROMPT = "a woman in a red coat standing in a city street, detailed, natural light"
 NEGATIVE = "blurry, low quality, watermark"
 
 
-def graph(adapter, prefix):
+def graph(adapter, prefix, model_dir):
     return {
         "1": {"class_type": "HSWQCheckpointLoader",
               "inputs": {"ckpt_name": CKPT, "weight_dtype": "SDXL ConvRot INT8"}},
         "13": {"class_type": "VAELoader", "inputs": {"vae_name": VAE}},
         "2": {"class_type": "CLIPVisionLoader", "inputs": {"clip_name": CLIP_VISION}},
         "3": {"class_type": "HSWQLoadIPAdapterModel",
-              "inputs": {"ipadapter_file": adapter, "ipadapter_dir": MODEL_DIR}},
+              "inputs": {"ipadapter_file": adapter, "ipadapter_dir": model_dir}},
         "4": {"class_type": "IPAdapterFaceID",
               "inputs": {"model": ["1", 0], "ipadapter": ["3", 0], "image": ["7", 0],
                          "clip_vision": ["2", 0], "insightface": ["12", 0],
@@ -90,6 +89,8 @@ def main():
     ap.add_argument("--json", required=True)
     ap.add_argument("--timeout", type=int, default=900)
     ap.add_argument("--output-root", required=True, help="the output directory of the server")
+    ap.add_argument("--adapter-dir", required=True,
+                    help="the folder that holds the source and the pack; passed in, never defaulted")
     a = ap.parse_args()
 
     os.makedirs(a.out_dir, exist_ok=True)
@@ -102,12 +103,12 @@ def main():
                         "negative": NEGATIVE, "width": 1024, "height": 1024, "steps": 12,
                         "cfg": 7.0, "sampler": "dpmpp_2m", "scheduler": "karras",
                         "seed": 42, "weight": 0.8, "weight_faceidv2": 1.0, "reference": REF,
-                        "adapter_dir": MODEL_DIR},
+                        "adapter_dir": a.adapter_dir},
            "arms": {}}
 
     for name, adapter, prefix in runs:
         t0 = time.time()
-        r = post(a.server, {"prompt": graph(adapter, prefix), "client_id": "vit_h_render"})
+        r = post(a.server, {"prompt": graph(adapter, prefix, a.adapter_dir), "client_id": "vit_h_render"})
         pid = r["prompt_id"]
         print("[%s] queued %s" % (name, pid), flush=True)
         hist = wait(a.server, pid, a.timeout)
