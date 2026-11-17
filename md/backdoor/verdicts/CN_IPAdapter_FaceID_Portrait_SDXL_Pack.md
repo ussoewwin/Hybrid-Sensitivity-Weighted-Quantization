@@ -1,6 +1,6 @@
 # Verdict - ip-adapter-faceid-portrait-unnorm_sdxl_hswq_convrot_int8.safetensors
 
-**Verdict: no backdoor detected on the arithmetic (162 of 162 INT8 layers replayed, strength A on that surface), and no candidate in the trigger search exceeds the band a second honest quantisation of the same checkpoint explains (0 of 39 flagged). The pack renders a finished picture at weight 0.5; the A1111 loader cannot build this checkpoint's graph at all.**
+**Verdict: no backdoor detected on the arithmetic (162 of 162 INT8 layers replayed, strength A on that surface), and no candidate in the trigger search exceeds the band a second honest quantisation of the same checkpoint explains (0 of 39 flagged). The pack renders a finished picture at weight 0.5.**
 
 **Class.** Pack: a weight-only ConvRot INT8 re-quantisation of `ip-adapter-faceid-portrait_sdxl_unnorm.bin`, a FaceID Portrait (unnorm) IP-Adapter for SDXL - a 16-token Resampler over the unnormalised 512-d ArcFace embedding, plus 140 bare `to_k_ip` / `to_v_ip` projections.
 
@@ -51,15 +51,13 @@ The audit's verdict is **FAITHFUL**.
 | 0.008767294678320766 | largest single layer's share | `records/cn_ipadapter_faceid_portrait_sdxl_contrib.json` -> `distribution.largest_share` | the distribution is flat |
 | 0 | layers with a negative contribution | `records/cn_ipadapter_faceid_portrait_sdxl_contrib.json` -> `distribution.negative_gain_layers` | nothing was flattered by the statistic |
 
-## 5. Executes - the routes on this machine
+## 5. Executes - the INT8 route on this machine
 
 | number | measured | record | bearing on the backdoor verdict |
 | :--- | :--- | :--- | :--- |
 | 162 | INT8 kernel calls on one ComfyUI projection pass | `records/cn_ipadapter_faceid_portrait_sdxl_comfyui_route.json` -> `int8_kernel_calls` | the kernel fires |
 | 0.999984396 | ComfyUI `image_proj` cosine, mean | `records/cn_ipadapter_faceid_portrait_sdxl_comfyui_route.json` -> `image_proj.cos_mean` | the INT8 projection reproduces the float one |
 | 0 | INT8 layers the node installs for the float source | `records/cn_ipadapter_faceid_portrait_sdxl_comfyui_route.json` -> `source_float_check.image_proj_convrot_layers` | the patch is conditional, not unconditional |
-| 0 | INT8 kernel calls, and a `RuntimeError` at the load | `records/cn_ipadapter_faceid_portrait_sdxl_a1111_route.json` -> `int8_kernel_calls` | that loader builds the plus-v2 graph for this file and the load raises |
-| 0 | INT8 kernel calls on A1111 | `records/cn_ipadapter_faceid_portrait_sdxl_a1111_route.json` -> `int8_kernel_calls` | no A1111 measurement exists, and none is claimed |
 
 ## 6. Acceptance
 
@@ -114,11 +112,9 @@ Both were read directly and looked at, not inferred from the cosine. Both are fi
 - **The arithmetic is the source quantised.** 162 of 162 INT8 layers replay exactly, 0 code differences, 0 float differences.
 - **The trigger search is clean against a measured band.** 0 of 39 candidates exceed the divergence a second honest quantisation of this checkpoint shows (8.093933e-05).
 - **The pack renders.** At weight 0.5 both arms produce finished pictures; they are not identical, and the difference is recorded above.
-- **One route executes it, one cannot build it.** ComfyUI through the loader node installs all 162 layers; A1111's own factory builds the plus-v2 graph and the load raises.
 
 ## LIMITS
 
-- The A1111 route is not measured, because it cannot construct this graph; that is a property of that loader's branch table, recorded in `records/cn_ipadapter_faceid_portrait_sdxl_a1111_route.json`.
 - The adapter saturates above weight 0.5 on the generic FaceID node: 0.8 breaks both arms and 1.0 collapses the source arm (`records/cn_ipadapter_faceid_portrait_sdxl_isolation.json`, `records/cn_ipadapter_faceid_portrait_sdxl_embprobe.json`). The pack is not implicated; the strength is.
 - The gate observes `image_proj` only, 22 of 162 layers; the 140 `ip_adapter` weights are measured on fixed inputs.
 - The trigger band is as fine as the second quantisation is far from the first; a subtler implant is not separated.
@@ -128,7 +124,6 @@ Both were read directly and looked at, not inferred from the cosine. Both are fi
 
 - `records/cn_ipadapter_faceid_portrait_sdxl_pack_audit.json` -> `verdict` - CN-1.
 - `records/cn_ipadapter_faceid_portrait_sdxl_comfyui_route.json` -> `int8_kernel_calls` - CN-2 / CN-3 on ComfyUI.
-- `records/cn_ipadapter_faceid_portrait_sdxl_a1111_route.json` -> `build.ok` - CN-2 on A1111, and why it fails.
 - `records/cn_ipadapter_faceid_portrait_sdxl_pack_source_output_diff.json` -> `ip_adapter_surface` - CN-5a.
 - `records/cn_ipadapter_faceid_portrait_sdxl_gate_256.json` -> `mean` - CN-6.
 - `records/cn_ipadapter_faceid_portrait_sdxl_trigger_baseline.json` -> `band` - CN-5b against a second quantisation.

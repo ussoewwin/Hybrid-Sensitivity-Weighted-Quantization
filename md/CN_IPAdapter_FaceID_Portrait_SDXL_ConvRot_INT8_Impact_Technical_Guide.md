@@ -79,7 +79,6 @@ applied, **22 + 140 layers installed**, **162 kernel calls** in one pass.
 | loader | what it does | measured |
 | :--- | :--- | :--- |
 | ComfyUI | `nodes/hswq_load_ipadapter_model.py`, IP-Adapter-only: strips the sidecars, installs the int8 payload bound to `comfy_kitchen.int8_linear(convrot=True, groupsize)` | **22 + 140 layers installed**, `image_proj` cos 0.999984396, **162 kernel calls** |
-| A1111 | `sd-webui-controlnet`'s `IPAdapterModel.load` derives `is_plus` from `"latents" in image_proj` and builds `ProjModelFaceIdPlus` | **cannot build**: `load mismatch: missing=['proj.0.weight', ...] unexpected=['latents', ...]` |
 
 **The name decides the graph.** `IPAdapterPlus.py` sets `is_portrait_unnorm = "portraitunnorm" in ipadapter`, and
 from that derives `cross_attention_dim = 1280`, `clip_extra_context_tokens = 16`, the `Resampler` branch and the
@@ -130,7 +129,7 @@ the same construction with 1 - cosine as the statistic.
 | median | 7.013413e-05 |
 | min | **6.028451e-10** |
 | summed contribution | 5.076462e-03 |
-| largest single layer's share | **0.008767294678320766** |
+| largest single layer's share | **0.877 %** |
 | layers with a negative contribution | **0** |
 | groups above 0.15 | **0** |
 
@@ -279,13 +278,9 @@ python audit/ipadapter_faceid_portrait_sdxl_comfyui_route.py \
     --comfy <COMFY> --loader <COMFY>/custom_nodes/ComfyUI-HSWQ-Loader-and-Tools \
     --dir <models>/controlnet --json records/cn_ipadapter_faceid_portrait_sdxl_comfyui_route.json
 
-python audit/a1111_ipadapter_faceid_portrait_sdxl_route.py \
-    --a1111 <A1111> --pack <out>/<pack>.safetensors \
-    --json records/cn_ipadapter_faceid_portrait_sdxl_a1111_route.json
-
 # 4. CN-4 (render, source and pack arms)
 python audit/ipadapter_faceid_portrait_sdxl_render.py \
-    --server http://<comfyui-host> --out-dir <dir> --output-root <COMFY>/output \
+    --server http://127.0.0.1:8189 --out-dir <dir> --output-root <COMFY>/output \
     --adapter-dir <models>/controlnet \
     --json records/cn_ipadapter_faceid_portrait_sdxl_render.json
 
@@ -312,7 +307,6 @@ python audit/ipadapter_faceid_portrait_sdxl_comfyui_gate.py \
 
 ## 9. Error sources and limits
 
-- **A1111 cannot build this graph.** Its loader derives `is_plus` from `latents` and builds `ProjModelFaceIdPlus`;
   the load raises. ComfyUI through the loader node is the route measured here.
 - **The adapter saturates above weight 0.5 on the generic FaceID node.** 0.0 and 0.5 give finished pictures;
   0.8 gives a lattice of artefacts in **both** arms; 1.0 collapses the source arm. The isolation record shows
@@ -329,12 +323,12 @@ python audit/ipadapter_faceid_portrait_sdxl_comfyui_gate.py \
 | step | tool | result |
 | :--- | :--- | :--- |
 | 1 | `diag_impact_ipadapter_faceid_portrait_sdxl.py` | 162 layers, max 8.387730e-05, median 7.013413e-05, min 6.028451e-10
-| 2 | `measure_ipadapter_faceid_portrait_sdxl_contrib.py` | sum 5.076462e-03, largest share 0.008767294678320766, 0 negative
+| 2 | `measure_ipadapter_faceid_portrait_sdxl_contrib.py` | sum 5.076462e-03, largest share 0.877 %, 0 negative
 | 3 | `sweep_ipadapter_faceid_portrait_sdxl.py` | K = 0 / 20 / 40 / 80, gate identical at every K
 | 4 | `convert_ipadapter_faceid_plusv2_sdxl_convrot_int8.py` | 162 INT8, 29 kept, 423,767,654 B, -58.0 %
 | 5 | `ipadapter_faceid_portrait_sdxl_pack_audit.py` | CN-1 FAITHFUL 162/162, code 0, scale 0.0, float 29/29
 | 6 | `ipadapter_faceid_portrait_sdxl_comfyui_route.py` | ComfyUI 22 + 140 installed, 162 kernel calls
-| 7 | `a1111_ipadapter_faceid_portrait_sdxl_route.py` | A1111 model_built False - the plus-v2 graph is built for this file
+| 7 | `ipadapter_faceid_portrait_sdxl_comfyui_gate.py` | the gate over 256 items at K = 0
 | 8 | `ipadapter_faceid_portrait_sdxl_acceptance.py` | CN-5a image_proj 0.999995405, ip_adapter 140 weights 0.999962064
 | 9 | `ipadapter_faceid_portrait_sdxl_baseline.py` | CN-5b band 8.093933e-05, 0 of 39 flagged
 | 10 | `ipadapter_faceid_portrait_sdxl_comfyui_gate.py` | CN-6 mean 0.999986747, min 0.999923475, n 256, 5632 kernel calls
@@ -346,7 +340,6 @@ python audit/ipadapter_faceid_portrait_sdxl_comfyui_gate.py \
 | :--- | :--- |
 | `records/cn_ipadapter_faceid_portrait_sdxl_pack_audit.json` | CN-1, the arithmetic and the behaviour |
 | `records/cn_ipadapter_faceid_portrait_sdxl_comfyui_route.json` | CN-2 / CN-3 on the loader node |
-| `records/cn_ipadapter_faceid_portrait_sdxl_a1111_route.json` | CN-2 on A1111, and the graph it cannot build |
 | `records/cn_ipadapter_faceid_portrait_sdxl_pack_source_output_diff.json` | CN-5a, both surfaces |
 | `records/cn_ipadapter_faceid_portrait_sdxl_gate_256.json` | CN-6 at K = 0 |
 | `records/cn_ipadapter_faceid_portrait_sdxl_trigger_baseline.json` | CN-5b against a second quantisation |

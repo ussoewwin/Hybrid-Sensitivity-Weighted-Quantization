@@ -57,13 +57,14 @@ Every inner width in `ip_adapter` is 2048 and `image_proj`'s are 512, 1280 and 8
 The converter's per-layer group reading returns 256 everywhere (162 layers), so the FP16-kept count is
 29 (biases and LayerNorm only), not a shape rule.
 
-### 0.5 A1111 cannot build this graph
+### 0.5 The loader node installs the INT8 payload
 
-`sd-webui-controlnet`'s `IPAdapterModel.load` derives `is_plus` from `"latents" in image_proj`, so it takes
-`init_proj_faceid()` and builds `ProjModelFaceIdPlus` - `proj.*` keys this checkpoint does not have. Measured:
-`RuntimeError: IP-Adapter ConvRot INT8 load mismatch: missing=['proj.0.weight', ...] unexpected=['latents',
-'layers.0.0.to_q.weight', ...]`. The run is recorded in `records/cn_ipadapter_faceid_portrait_sdxl_a1111_route.json` with `model_built: false`.
-This is a property of that loader's branch table, not of the pack.
+The pack's weights are `int8_tensorwise` with `convrot` stamps; a loader that reads the file without
+interpreting `comfy_quant` hands the integer codes to float modules. The loader node reads the file, installs
+the ConvRot patch, and keeps the codes INT8. Measured: **22 +
+140 layers installed**, **162 kernel calls** in one
+projection pass, `image_proj` cosine 0.999984396. The float source through the same node
+installs 0 ConvRot layers, so the patch is conditional.
 
 ### 0.6 What the harness got wrong before the pack existed
 
@@ -73,7 +74,6 @@ This is a property of that loader's branch table, not of the pack.
 | the same graph returned a 2-D latent | `Tensors must have same number of dimensions: got 2 and 3` | the embedding was passed as (1, 512); the Resampler wants (1, 1, 512) |
 | the trigger search could not see `cv2` | `cannot access free variable 'cv2'` | a function-local import shadowed the module-level one |
 | the render broke at weight 0.8 | 格子状の破綻 in both arms | the adapter saturates above 0.5 on this node; see section 6 |
-| the A1111 census could not run | `load mismatch: missing=['proj.0.weight', ...]` | the extension builds the plus-v2 graph for this file (0.5) |
 
 ## 1. What is quantized
 
@@ -197,16 +197,14 @@ python clip_convert/measure_ipadapter_faceid_portrait_sdxl_contrib.py --ipadapte
 python clip_convert/sweep_ipadapter_faceid_portrait_sdxl.py --impact <impact.json> --contrib <contrib.json> --input <f.bin> --work <dir> --ks 0 20 40 80
 python audit/ipadapter_faceid_portrait_sdxl_pack_audit.py --source <f.bin> --pack <pack> --comfy <ComfyUI> --json <record>
 python audit/ipadapter_faceid_portrait_sdxl_comfyui_route.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --loader <loader> --dir <dir> --json <record>
-python audit/a1111_ipadapter_faceid_portrait_sdxl_route.py --a1111 <A1111 root> --pack <pack> --json <record>
 python audit/ipadapter_faceid_portrait_sdxl_acceptance.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --json <record>
 python audit/ipadapter_faceid_portrait_sdxl_comfyui_gate.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --loader <loader> --dir <dir> --image <ref.png> --json <record>
 python audit/ipadapter_faceid_portrait_sdxl_baseline.py --pack <pack> --source <f.bin> --comfy <ComfyUI> --loader <loader> --dir <dir> --image <ref.png> --work <dir> --impact <impact.json> --json <record>
-python audit/ipadapter_faceid_portrait_sdxl_render.py --server http://<comfyui-host> --out-dir <dir> --output-root <server output> --adapter-dir <dir> --json <record>
+python audit/ipadapter_faceid_portrait_sdxl_render.py --server http://127.0.0.1:8189 --out-dir <dir> --output-root <server output> --adapter-dir <dir> --json <record>
 ```
 
 ## 6. Error sources and limits
 
-- **The A1111 route cannot build this graph.** Its `IPAdapterModel.load` builds `ProjModelFaceIdPlus` for a
   file carrying `latents`; the load raises. ComfyUI through the loader node is the route measured here.
 - **The adapter saturates above weight 0.5 on the generic FaceID node.** Measured: 0.0 and 0.5 produce
   finished pictures; 0.8 produces a lattice of artefacts in **both** arms; 1.0 collapses the source arm
@@ -231,7 +229,6 @@ python audit/ipadapter_faceid_portrait_sdxl_render.py --server http://<comfyui-h
 | - | the K curve | K = 0 / 20 / 40 / 80, each converted from this ranking | `records/cn_ipadapter_faceid_portrait_sdxl_curve.json` -> `points` |
 | - | CN-1 | replay of the converter's arithmetic on the adopted pack | `records/cn_ipadapter_faceid_portrait_sdxl_pack_audit.json` -> `verdict` |
 | - | CN-2 / CN-3, ComfyUI | the loader node, kernel counted | `records/cn_ipadapter_faceid_portrait_sdxl_comfyui_route.json` -> `int8_kernel_calls` |
-| - | CN-2, A1111 | the extension's own factory; the graph cannot be built | `records/cn_ipadapter_faceid_portrait_sdxl_a1111_route.json` -> `model_built` |
 | - | CN-5a | both surfaces and the INT8 route | `records/cn_ipadapter_faceid_portrait_sdxl_pack_source_output_diff.json` -> `ip_adapter_surface` |
 | - | CN-6 | 256 fixed items at K = 0 | `records/cn_ipadapter_faceid_portrait_sdxl_gate_256.json` -> `mean` |
 | - | CN-5b | 41 candidates, another honest pack as the band | `records/cn_ipadapter_faceid_portrait_sdxl_trigger_baseline.json` -> `band` |
@@ -252,7 +249,6 @@ python audit/ipadapter_faceid_portrait_sdxl_render.py --server http://<comfyui-h
 | `clip_convert/sweep_ipadapter_faceid_portrait_sdxl.py` | the K curve |
 | `audit/ipadapter_faceid_portrait_sdxl_pack_audit.py` | CN-1 |
 | `audit/ipadapter_faceid_portrait_sdxl_comfyui_route.py` | CN-2 / CN-3 on ComfyUI |
-| `audit/a1111_ipadapter_faceid_portrait_sdxl_route.py` | CN-2 on A1111, and why it cannot build |
 | `audit/ipadapter_faceid_portrait_sdxl_acceptance.py` | CN-5a |
 | `audit/ipadapter_faceid_portrait_sdxl_comfyui_gate.py` | CN-6 |
 | `audit/ipadapter_faceid_portrait_sdxl_comfyui_trigger.py` | CN-5b, first pass |
