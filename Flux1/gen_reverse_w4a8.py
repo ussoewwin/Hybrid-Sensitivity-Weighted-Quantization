@@ -127,7 +127,11 @@ def main():
     n_skip_boundary = 0
     n_skip_not_256 = 0
     for L in ranked[: a.k]:
-        L_stripped = L[len(prefix):] if prefix and L.startswith(prefix) else L
+        L_stripped = L
+        for _p in ("model.diffusion_model.", "diffusion_model."):
+            if L_stripped.startswith(_p):
+                L_stripped = L_stripped[len(_p):]
+                break
 
         if _is_boundary(L_stripped):
             n_skip_boundary += 1
@@ -178,8 +182,9 @@ def main():
             "convrot_groupsize": _CONVROT_GROUPSIZE,
         }
         sd[base_k + ".comfy_quant"] = torch.frombuffer(
-            json.dumps(conf, separators=(",", ":")).encode("utf-8"), dtype=torch.uint8
-        ).clone()
+            bytearray(json.dumps(conf, separators=(",", ":")).encode("utf-8")),
+            dtype=torch.uint8,
+        )
         meta["layers"][base_k] = conf
         meta["layers"][L_stripped] = conf
         n_conv += 1
