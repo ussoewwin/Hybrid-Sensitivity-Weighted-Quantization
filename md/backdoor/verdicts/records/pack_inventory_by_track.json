@@ -1,0 +1,1602 @@
+{
+ "tool": "audit/pack_inventory_by_track.py",
+ "roots": [
+  "D:\\USERFILES\\StableDiffusion\\models",
+  "D:\\USERFILES\\ComfyUI\\ComfyUI\\models",
+  "D:\\USERFILES\\A1111\\models"
+ ],
+ "files": 109,
+ "by_track": {
+  "per-model standard (in this catalogue's scope)": {
+   "files": 50,
+   "without_row": 0
+  },
+  "other family (own track)": {
+   "files": 14,
+   "without_row": 8
+  },
+  "derived merge (universal-engine UNet (own track))": {
+   "files": 12,
+   "without_row": 12
+  },
+  "universal-engine UNet (own track)": {
+   "files": 31,
+   "without_row": 31
+  },
+  "DiT family (own track)": {
+   "files": 2,
+   "without_row": 2
+  }
+ },
+ "rows": [
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 326,
+   "weight_scale": 326,
+   "float2d_left": 36,
+   "groupsizes": [
+    256
+   ],
+   "stem": "CN-anytest4_illustrious2_A_hswq_convrot_int8",
+   "bytes": 1425109714,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 327,
+   "weight_scale": 327,
+   "float2d_left": 35,
+   "groupsizes": [
+    256
+   ],
+   "stem": "CN-anytest4_illustrious2_B_hswq_convrot_int8",
+   "bytes": 1423476797,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 328,
+   "weight_scale": 328,
+   "float2d_left": 42,
+   "groupsizes": [
+    256
+   ],
+   "stem": "controlnet-union-pro-max-sdxl-1.0_hswq_convrot_int8",
+   "bytes": 1435255008,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 329,
+   "weight_scale": 329,
+   "float2d_left": 33,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_instant_id_sdxl_hswq_convrot_int8",
+   "bytes": 1420211083,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11e_sd15_ip2p_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11e_sd15_shuffle_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11f1e_sd15_tile_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11f1p_sd15_depth_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15s2_lineart_anime_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_canny_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_inpaint_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_lineart_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_mlsd_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_normalbae_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_openpose_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_scribble_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_seg_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 53,
+   "weight_scale": 53,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "control_v11p_sd15_softedge_hswq_convrot_int8",
+   "bytes": 607603903,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 54,
+   "weight_scale": 54,
+   "float2d_left": 0,
+   "groupsizes": [
+    256
+   ],
+   "stem": "FLUX.1-dev-ControlNet-Union-Pro-2.0_hswq_convrot_int8",
+   "bytes": 2710624994,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 329,
+   "weight_scale": 329,
+   "float2d_left": 33,
+   "groupsizes": [
+    256
+   ],
+   "stem": "instantid_diffusion_pytorch_model_hswq_convrot_int8",
+   "bytes": 1420211083,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 77,
+   "weight_scale": 77,
+   "float2d_left": 29,
+   "groupsizes": [
+    256
+   ],
+   "stem": "ioclab_sd15_recolor_hswq_convrot_int8",
+   "bytes": 411127471,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "IP-Adapter",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 312,
+   "weight_scale": 312,
+   "float2d_left": 0,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "ip-adapter-faceid-plusv2_sd15_hswq_convrot_int8",
+   "bytes": 79143188,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "IP-Adapter",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 1284,
+   "weight_scale": 1284,
+   "float2d_left": 0,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8",
+   "bytes": 748384560,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "IP-Adapter",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 102,
+   "weight_scale": 102,
+   "float2d_left": 188,
+   "groupsizes": [
+    256
+   ],
+   "stem": "ip-adapter-faceid_sd15_hswq_convrot_int8",
+   "bytes": 65047130,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "IP-Adapter",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 162,
+   "weight_scale": 162,
+   "float2d_left": 0,
+   "groupsizes": [
+    256
+   ],
+   "stem": "ip-adapter-plus_sdxl_vit-h_hswq_convrot_int8",
+   "bytes": 424750694,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 329,
+   "weight_scale": 329,
+   "float2d_left": 33,
+   "groupsizes": [
+    256
+   ],
+   "stem": "ip-adapter_instant_id_sdxl_hswq_convrot_int8",
+   "bytes": 1420211083,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "IP-Adapter",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 173,
+   "weight_scale": 173,
+   "float2d_left": 0,
+   "groupsizes": [
+    256
+   ],
+   "stem": "ip-adapter_pulid_sdxl_hswq_convrot_int8",
+   "bytes": 396740327,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "IP-Adapter",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 54,
+   "weight_scale": 54,
+   "float2d_left": 0,
+   "groupsizes": [
+    256
+   ],
+   "stem": "ip-adapter_sd15_plus_hswq_convrot_int8",
+   "bytes": 49366186,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "IP-Adapter",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 141,
+   "weight_scale": 141,
+   "float2d_left": 0,
+   "groupsizes": [
+    256
+   ],
+   "stem": "ip-adapter_xl_hswq_convrot_int8",
+   "bytes": 352063023,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 329,
+   "weight_scale": 329,
+   "float2d_left": 33,
+   "groupsizes": [
+    256
+   ],
+   "stem": "noobaiXLControlnet_epsLineartRealistic_hswq_convrot_int8",
+   "bytes": 1420211083,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 77,
+   "weight_scale": 77,
+   "float2d_left": 0,
+   "groupsizes": [
+    4,
+    256
+   ],
+   "stem": "Qwen-Image-2512-Fun-Controlnet-Union-2602_hswq_convrot_int8",
+   "bytes": 1758670069,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 95,
+   "weight_scale": 95,
+   "float2d_left": 0,
+   "groupsizes": [
+    4,
+    64,
+    256
+   ],
+   "stem": "Qwen-Image-ControlNet-Inpainting_hswq_convrot_int8",
+   "bytes": 2120290274,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 262,
+   "weight_scale": 262,
+   "float2d_left": 81,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.5xxmix9realistic_v40 0.5BRA7_sd15_unet_hswq_convrot_int8",
+   "bytes": 1136107991,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "SAM",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 274,
+   "weight_scale": 274,
+   "float2d_left": 372,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "sam3_convrot_int8",
+   "bytes": 1296569886,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 129,
+   "weight_scale": 129,
+   "float2d_left": 92,
+   "groupsizes": [
+    256
+   ],
+   "stem": "CLIP-SAE-ViT-L-14-hswq_convrot_int8",
+   "bytes": 690896469,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 253,
+   "weight_scale": 253,
+   "float2d_left": 37,
+   "groupsizes": [
+    64
+   ],
+   "stem": "CLIP-ViT-bigG-14-laion2B-39B-b160k_convrot_int8",
+   "bytes": 2285956858,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 63,
+   "weight_scale": 63,
+   "float2d_left": 11,
+   "groupsizes": [
+    256
+   ],
+   "stem": "clip_l_hswq_convrot_int8",
+   "bytes": 142046629,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 288,
+   "weight_scale": 288,
+   "float2d_left": 3,
+   "groupsizes": [
+    64
+   ],
+   "stem": "clip_vision_g_hswq_convrot_int8",
+   "bytes": 1852954770,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "text encoder",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 312,
+   "weight_scale": 312,
+   "float2d_left": 125,
+   "groupsizes": [
+    256
+   ],
+   "stem": "flan_t5_xxl_hswq_convrot_int8",
+   "bytes": 14739465104,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 328,
+   "weight_scale": 328,
+   "float2d_left": 0,
+   "groupsizes": [
+    256
+   ],
+   "stem": "Huihui-Qwen3-VL-4B-Instruct-abliterated_hswq_convrot_int8",
+   "bytes": 5307147656,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "text encoder",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 157,
+   "weight_scale": 157,
+   "float2d_left": 40,
+   "groupsizes": [
+    256
+   ],
+   "stem": "Josiefied-Qwen3-0.6B-abliterated-v1_hswq_convrot_int8",
+   "bytes": 687044151,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 130,
+   "weight_scale": 130,
+   "float2d_left": 91,
+   "groupsizes": [
+    256
+   ],
+   "stem": "Long-ViT-L-14-BEST-GmP-smooth-ft-full_hswq_convrot_int8",
+   "bytes": 514407840,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 320,
+   "weight_scale": 320,
+   "float2d_left": 0,
+   "groupsizes": [
+    4,
+    256
+   ],
+   "stem": "Qwen2.5-VL-7B-Instruct-abliterated_converted_hswq_convrot_int8",
+   "bytes": 9740832840,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "text encoder",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 369,
+   "weight_scale": 369,
+   "float2d_left": 0,
+   "groupsizes": [
+    16,
+    64,
+    256
+   ],
+   "stem": "Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP_hswq_convrot_int8",
+   "bytes": 9665636078,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "text encoder",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 233,
+   "weight_scale": 233,
+   "float2d_left": 20,
+   "groupsizes": [
+    256
+   ],
+   "stem": "qwen3_4b_abliterated_hswq_convrot_int8",
+   "bytes": 4370806387,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 338,
+   "weight_scale": 338,
+   "float2d_left": 20,
+   "groupsizes": [
+    256
+   ],
+   "stem": "Qwen3_VL_4B_Thinking_abliterated_hswq_convrot_int8",
+   "bytes": 5152681382,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 142,
+   "weight_scale": 142,
+   "float2d_left": 25,
+   "groupsizes": [
+    16,
+    64
+   ],
+   "stem": "sigclip_vision_patch14_384_hswq_convrot_int8",
+   "bytes": 527362044,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 127,
+   "weight_scale": 127,
+   "float2d_left": 93,
+   "groupsizes": [
+    256
+   ],
+   "stem": "ViT-L-14-BEST-smooth-GmP-HF-format_hswq_convrot_int8",
+   "bytes": 678144501,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "w4a8",
+   "space": "text encoder",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 326,
+   "weight_scale": 0,
+   "float2d_left": 0,
+   "groupsizes": [
+    256
+   ],
+   "stem": "wevisone_vl_4b_hswq_convrot_w4a8",
+   "bytes": 4701528058,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 92,
+   "weight_scale": 92,
+   "float2d_left": 102,
+   "groupsizes": [
+    256
+   ],
+   "stem": "CLIP-ViT-H-14_hswq_convrot_int8",
+   "bytes": 1060008108,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "CLIP vision",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 288,
+   "weight_scale": 288,
+   "float2d_left": 3,
+   "groupsizes": [
+    64
+   ],
+   "stem": "clip_vision_g_hswq_convrot_int8",
+   "bytes": 1852954770,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 120,
+   "weight_scale": 120,
+   "float2d_left": 1,
+   "groupsizes": [
+    256
+   ],
+   "stem": "qwen_image_canny_diffsynth_controlnet_hswq_convrot_int8",
+   "bytes": 1135897344,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 120,
+   "weight_scale": 120,
+   "float2d_left": 1,
+   "groupsizes": [
+    256
+   ],
+   "stem": "qwen_image_depth_diffsynth_controlnet_hswq_convrot_int8",
+   "bytes": 1135897344,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "ControlNet",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 120,
+   "weight_scale": 120,
+   "float2d_left": 1,
+   "groupsizes": [
+    256
+   ],
+   "stem": "qwen_image_inpaint_diffsynth_controlnet_hswq_convrot_int8",
+   "bytes": 1135921920,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 38,
+   "weight_scale": 38,
+   "float2d_left": 0,
+   "groupsizes": [
+    4,
+    256
+   ],
+   "stem": "Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps_hswq_convrot_int8",
+   "bytes": 1009742496,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 38,
+   "weight_scale": 38,
+   "float2d_left": 0,
+   "groupsizes": [
+    4,
+    256
+   ],
+   "stem": "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps_hswq_convrot_int8",
+   "bytes": 1009742496,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 other",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 210,
+   "weight_scale": 210,
+   "float2d_left": 6,
+   "groupsizes": [],
+   "stem": "seedvr2_3b_convrot_int8",
+   "bytes": 3458259704,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "w4a8",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 210,
+   "weight_scale": 0,
+   "float2d_left": 8,
+   "groupsizes": [],
+   "stem": "seedvr2_3b_convrot_w4a8",
+   "bytes": 2001231072,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 other",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 210,
+   "weight_scale": 210,
+   "float2d_left": 6,
+   "groupsizes": [],
+   "stem": "seedvr2_3b_nvfp4",
+   "bytes": 1996687726,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 other",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 288,
+   "weight_scale": 288,
+   "float2d_left": 6,
+   "groupsizes": [],
+   "stem": "seedvr2_7b_convrot_int8",
+   "bytes": 8334897976,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "w4a8",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 288,
+   "weight_scale": 0,
+   "float2d_left": 8,
+   "groupsizes": [],
+   "stem": "seedvr2_7b_convrot_w4a8",
+   "bytes": 4767754872,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 other",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 288,
+   "weight_scale": 288,
+   "float2d_left": 6,
+   "groupsizes": [],
+   "stem": "seedvr2_7b_sharp_convrot_int8",
+   "bytes": 8334897976,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "w4a8",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 288,
+   "weight_scale": 0,
+   "float2d_left": 8,
+   "groupsizes": [],
+   "stem": "seedvr2_7b_sharp_convrot_w4a8",
+   "bytes": 4767754872,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 108,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.5xxmix9realistic_v40+0.5BRA7_sd15_unet_hswq_1on_k80_convrot_int8",
+   "bytes": 1216717703,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 108,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.5xxmix9realistic_v40+0.5chilledReGenericV3_hswq_1on_k80_convrot_int8",
+   "bytes": 1190795095,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 108,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.5yayoiMix_v25+0.5againmix_v22_hswq_1on_k80_convrot_int8",
+   "bytes": 1199213916,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 282,
+   "weight_scale": 282,
+   "float2d_left": 74,
+   "groupsizes": [
+    4,
+    64,
+    256
+   ],
+   "stem": "0.5yayoiMix_v25+0.5voidnoisecore_native_convrot_int8",
+   "bytes": 1109982716,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 110,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.5yayoiMix_v25+0.5xxmix9realistic_v40_hswq_1on_k80_convrot_int8",
+   "bytes": 1206454644,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 110,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.7chilledReGenericV3+0.3uberRealisticPornMerge_v13_hswq_k80_1on_convrot_int8",
+   "bytes": 1214372168,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 109,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.7xxmix9realistic_v40+0.3BRA7_hswq_k80_1on_convrot_int8",
+   "bytes": 1196139334,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 110,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.7_0.6hassaku+0.4dreamshaper+0.3anylora_hswq_k80_1on_convrot_int8",
+   "bytes": 1187792806,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 200,
+   "weight_scale": 200,
+   "float2d_left": 110,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.7_0.7hassakuModel+0.3dreamshaper_8_0.3anylora_hswq_k82_1on_convrot_int8",
+   "bytes": 1209498759,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 111,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.9chilledReGenericV3+0.1BRA7_hswq_k80_1on_convrot_int8",
+   "bytes": 1247317495,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "derived merge (universal-engine UNet (own track))",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 110,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "0.9chilledReGenericV3+0.1majicmixRealistic_v7_hswq_k80_1on_convrot_int8",
+   "bytes": 1227112717,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 108,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "againmix_v22_hswq_k80_1on_convrot_int8",
+   "bytes": 1213754322,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 595,
+   "weight_scale": 595,
+   "float2d_left": 363,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "animemix_v80_hswq_1on_re595_convrot_int8",
+   "bytes": 4929013764,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 570,
+   "weight_scale": 570,
+   "float2d_left": 383,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "bluePencilXL_v031_hswq_1on_re570_convrot_int8",
+   "bytes": 4902385883,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 107,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "calicomix_v95_hswq_k80_1on_convrot_int8",
+   "bytes": 1413341265,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 202,
+   "weight_scale": 202,
+   "float2d_left": 109,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "cyberrealistic_final_hswq_k80_bc_convrot_int8",
+   "bytes": 1214305168,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 570,
+   "weight_scale": 570,
+   "float2d_left": 382,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "epicrealismXL_pureFix_hswq_1on_re570_convrot_int8",
+   "bytes": 4869440138,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 550,
+   "weight_scale": 550,
+   "float2d_left": 403,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "JANKUTrainedChenkinNoobai_v777_hswq_1on_re550_convrot_int8",
+   "bytes": 4935282852,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 550,
+   "weight_scale": 550,
+   "float2d_left": 404,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "koronemixIllustrious_v70_hswq_1on_re550_convrot_int8",
+   "bytes": 4945910307,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 550,
+   "weight_scale": 550,
+   "float2d_left": 404,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "koronemixVpred_v20_hswq_1on_re550_convrot_int8",
+   "bytes": 4920328493,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "nvfp4",
+   "space": "other",
+   "track": "other family (own track)",
+   "comfy_quant": 208,
+   "weight_scale": 208,
+   "float2d_left": 0,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "luciddreamerZ_v083AZib_hswq_hybrid_nv100_convrot_nvfp4",
+   "bytes": 4642467947,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 224,
+   "weight_scale": 224,
+   "float2d_left": 1,
+   "groupsizes": [
+    256
+   ],
+   "stem": "moodyCutieMixKrea2_v40_hswq_r128_convrot_int8",
+   "bytes": 14132257360,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 224,
+   "weight_scale": 224,
+   "float2d_left": 1,
+   "groupsizes": [
+    256
+   ],
+   "stem": "moodyKrea2MixUncensoredV8SEGoes_v8se_hswq_128_covrot_int8",
+   "bytes": 14132257360,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "nvfp4",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 208,
+   "weight_scale": 208,
+   "float2d_left": 2,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "moodyProMix_collectorsEdition_hswq_r128_nv99_tcon_hybrid_convrot_nvfp4",
+   "bytes": 4830566105,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "nvfp4",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 208,
+   "weight_scale": 208,
+   "float2d_left": 2,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "moodyRealMix_xhsEdition_hswq_hybrid_r128_nv100_tcon_hybrid_convrot_nvfp4",
+   "bytes": 4778112195,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "nvfp4",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 208,
+   "weight_scale": 208,
+   "float2d_left": 0,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "moodyWildMixZIBZID_v02_hswq_r128_nv99_tcon_hybrid_convrot_nvfp4",
+   "bytes": 4843227889,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 599,
+   "weight_scale": 599,
+   "float2d_left": 360,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "novaAnimeXL_ilV190_hswq_1on_re599_convrot_int8",
+   "bytes": 4923652721,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 550,
+   "weight_scale": 550,
+   "float2d_left": 412,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "novaAsianXL_illustriousV70_hswq_1on_re550_convrot_int8",
+   "bytes": 4786677836,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 572,
+   "weight_scale": 572,
+   "float2d_left": 387,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "oneObsession_v24_hswq_1on_re572_convrot_int8",
+   "bytes": 4889665281,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 794,
+   "weight_scale": 794,
+   "float2d_left": 205,
+   "groupsizes": [
+    4,
+    64,
+    256
+   ],
+   "stem": "perfectionAsianILXL_v10_sci_1off_convrot_int8",
+   "bytes": 4378553316,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 610,
+   "weight_scale": 610,
+   "float2d_left": 385,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "perfectionRealisticILXL_80_hswq_r32_1on_convrot_int8",
+   "bytes": 4692078038,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 610,
+   "weight_scale": 610,
+   "float2d_left": 347,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "prefectIllustriousXL_v8_hswq_1on_re610_convrot_int8",
+   "bytes": 4921856394,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "DiT (other family)",
+   "track": "DiT family (own track)",
+   "comfy_quant": 846,
+   "weight_scale": 846,
+   "float2d_left": 0,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "qwnImageEdit_v16Bf16_convrot_int8",
+   "bytes": 20458757737,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "w4a8",
+   "space": "DiT (other family)",
+   "track": "DiT family (own track)",
+   "comfy_quant": 846,
+   "weight_scale": 1,
+   "float2d_left": 0,
+   "groupsizes": [
+    256
+   ],
+   "stem": "qwnImageEdit_v16_w4a8",
+   "bytes": 11523246707,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 650,
+   "weight_scale": 650,
+   "float2d_left": 314,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "realvisxlV30_v30TurboBakedvae_hswq_1on_re650_convrot_int8",
+   "bytes": 4975769970,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 550,
+   "weight_scale": 550,
+   "float2d_left": 416,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "realvisxlV50_v40Bakedvae_hswq_1on_re550_convrot_int8",
+   "bytes": 4915100093,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 550,
+   "weight_scale": 550,
+   "float2d_left": 417,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "realvisxlV50_v50Bakedvae_hswq_1on_re550_convrot_int8",
+   "bytes": 4800220817,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 314,
+   "weight_scale": 314,
+   "float2d_left": 0,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "redcraftHybridH3A2A_realreveal5_native_convrot_int8",
+   "bytes": 11917004917,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "SAM",
+   "track": "per-model standard (in this catalogue's scope)",
+   "comfy_quant": 41,
+   "weight_scale": 41,
+   "float2d_left": 494,
+   "groupsizes": [
+    256
+   ],
+   "stem": "sam3.1_multiplex_hswq_convrot_int8",
+   "bytes": 1738165347,
+   "in_catalogue_by_name": true
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 590,
+   "weight_scale": 590,
+   "float2d_left": 368,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "unholyDesireMixSinister_v90_hswq_1on_re590_convrot_int8",
+   "bytes": 4906372279,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 720,
+   "weight_scale": 720,
+   "float2d_left": 784,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "uwazumimixILL_v50_hswq_1on_re720_convrot_int8",
+   "bytes": 4993471387,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 670,
+   "weight_scale": 670,
+   "float2d_left": 291,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "waiANIPONYXL_v140_hswq_1on_re650_convrot_int8",
+   "bytes": 4928887443,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 650,
+   "weight_scale": 650,
+   "float2d_left": 307,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "waiANIPONYXL_v90_hswq_1on_re650_convrot_int8",
+   "bytes": 4994432540,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 723,
+   "weight_scale": 723,
+   "float2d_left": 233,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "waiIllustriousSDXL_v170_hswq_1on_re590_convrot_int8",
+   "bytes": 4548370069,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 630,
+   "weight_scale": 630,
+   "float2d_left": 320,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "waiREALCN_v150_hswq_1on_re630_convrot_int8",
+   "bytes": 4935211209,
+   "in_catalogue_by_name": false
+  },
+  {
+   "format": "int8 convrot",
+   "space": "UNet",
+   "track": "universal-engine UNet (own track)",
+   "comfy_quant": 590,
+   "weight_scale": 590,
+   "float2d_left": 367,
+   "groupsizes": [
+    64,
+    256
+   ],
+   "stem": "waiREALISM_v10_hswq_1on_re590_convrot_int8",
+   "bytes": 4948404581,
+   "in_catalogue_by_name": false
+  }
+ ]
+}
