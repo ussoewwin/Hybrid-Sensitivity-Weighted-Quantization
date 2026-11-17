@@ -1,0 +1,18 @@
+{
+ "tool": "audit/ipadapter_faceid_plusv2_sdxl_pixel_compare.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "size": [
+  1024,
+  1024
+ ],
+ "mean_abs_diff": 55.717063,
+ "max_abs_diff": 255.0,
+ "p99_abs_diff": 244.0,
+ "cosine": 0.875642756,
+ "psnr_db": 9.698528,
+ "pixels_identical_ratio": 0.012557983,
+ "bytes": {
+  "source": 1980889,
+  "pack": 2004275
+ }
+}

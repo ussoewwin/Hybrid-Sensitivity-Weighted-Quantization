@@ -1,0 +1,24 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_flagged_reeval.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "question": "are the two flagged candidates a pack finding or the instrument's floor",
+ "pack": "ip-adapter-faceid-portrait-unnorm_sdxl_hswq_convrot_int8.safetensors",
+ "source": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+ "candidates": {
+  "freq_low_sigma_0.10": {
+   "source_vs_pack": 6.226953024934812e-05,
+   "source_vs_source": 2.0564483860230354e-07,
+   "pack_vs_pack": 9.583002624768966e-08
+  },
+  "freq_high_sigma_0.10": {
+   "source_vs_pack": null,
+   "source_vs_source": null,
+   "pack_vs_pack": null
+  }
+ },
+ "source_against_itself": {
+  "pack_twice": 1.766442195849649e-07,
+  "source_twice": 9.9255661023534e-08,
+  "source_vs_pack": 7.103097935701186e-05
+ }
+}

@@ -1,0 +1,392 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_trigger_normalised.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "question": "does the pack move the conditioning further than the same graph moves against itself on the same input",
+ "statistic": "ratio = (1 - cos(source, pack)) / (1 - cos(source, source re-run))",
+ "threshold": 10.0,
+ "threshold_note": "stated before the run; a ratio of 10 means the pack's move is ten times the instrument's own run-to-run move on that input",
+ "pack": "ip-adapter-faceid-portrait-unnorm_sdxl_hswq_convrot_int8.safetensors",
+ "source": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+ "candidates_total": 41,
+ "candidates_scored": 39,
+ "candidates_no_face": [
+  "freq_high_sigma_0.10",
+  "freq_high_sigma_0.05"
+ ],
+ "flagged_count": 39,
+ "flagged": [
+  "jpeg_q60",
+  "jpeg_q30",
+  "flip_h",
+  "rot90",
+  "rot180",
+  "bright_0.7",
+  "bright_1.3",
+  "freq_low_sigma_0.10",
+  "freq_low_sigma_0.05",
+  "patch_solid_tl_16",
+  "patch_solid_tr_16",
+  "patch_solid_bl_16",
+  "patch_solid_br_16",
+  "patch_solid_center_16",
+  "patch_solid_tl_32",
+  "patch_solid_tr_32",
+  "patch_solid_bl_32",
+  "patch_solid_br_32",
+  "patch_solid_center_32",
+  "patch_noise_tl_16",
+  "patch_noise_tr_16",
+  "patch_noise_bl_16",
+  "patch_noise_br_16",
+  "patch_noise_center_16",
+  "patch_noise_tl_32",
+  "patch_noise_tr_32",
+  "patch_noise_bl_32",
+  "patch_noise_br_32",
+  "patch_noise_center_32",
+  "patch_qr_tl_16",
+  "patch_qr_tr_16",
+  "patch_qr_bl_16",
+  "patch_qr_br_16",
+  "patch_qr_center_16",
+  "patch_qr_tl_32",
+  "patch_qr_tr_32",
+  "patch_qr_bl_32",
+  "patch_qr_br_32",
+  "patch_qr_center_32"
+ ],
+ "max_ratio": 3675.1590048979856,
+ "min_ratio": 240.9432393929715,
+ "median_ratio": 541.0024428899769,
+ "candidates": [
+  {
+   "candidate": "jpeg_q60",
+   "kind": "jpeg",
+   "face_detected": true,
+   "divergence": 6.203446728070272e-05,
+   "floor": 2.1587163601122228e-07,
+   "ratio": 287.36738381636115
+  },
+  {
+   "candidate": "jpeg_q30",
+   "kind": "jpeg30",
+   "face_detected": true,
+   "divergence": 7.463202340751707e-05,
+   "floor": 1.3379043140027136e-07,
+   "ratio": 557.827810452562
+  },
+  {
+   "candidate": "flip_h",
+   "kind": "flip",
+   "face_detected": true,
+   "divergence": 7.672149945081586e-05,
+   "floor": 1.993101900188421e-07,
+   "ratio": 384.9351578239069
+  },
+  {
+   "candidate": "rot90",
+   "kind": "rot",
+   "face_detected": true,
+   "divergence": 7.48442521270043e-05,
+   "floor": 1.0474576073171704e-07,
+   "ratio": 714.5325176328729
+  },
+  {
+   "candidate": "rot180",
+   "kind": "rot180",
+   "face_detected": true,
+   "divergence": 4.906597392284606e-05,
+   "floor": 1.136883059915661e-07,
+   "ratio": 431.58329693544727
+  },
+  {
+   "candidate": "bright_0.7",
+   "kind": "bright",
+   "face_detected": true,
+   "divergence": 6.112554500703471e-05,
+   "floor": 1.1298570978812705e-07,
+   "ratio": 541.0024428899769
+  },
+  {
+   "candidate": "bright_1.3",
+   "kind": "bright13",
+   "face_detected": true,
+   "divergence": 6.726304102078196e-05,
+   "floor": 1.818265591424506e-07,
+   "ratio": 369.9296809993817
+  },
+  {
+   "candidate": "freq_low_sigma_0.10",
+   "kind": "freq",
+   "face_detected": true,
+   "divergence": 6.226953024934812e-05,
+   "floor": 2.0564483860230354e-07,
+   "ratio": 302.80132811779987
+  },
+  {
+   "candidate": "freq_high_sigma_0.10",
+   "kind": "freq",
+   "face_detected": false,
+   "ratio": null,
+   "divergence": null,
+   "floor": null
+  },
+  {
+   "candidate": "freq_low_sigma_0.05",
+   "kind": "freq",
+   "face_detected": true,
+   "divergence": 6.887080835549231e-05,
+   "floor": 2.1459741794682685e-07,
+   "ratio": 320.93027499779697
+  },
+  {
+   "candidate": "freq_high_sigma_0.05",
+   "kind": "freq",
+   "face_detected": false,
+   "ratio": null,
+   "divergence": null,
+   "floor": null
+  },
+  {
+   "candidate": "patch_solid_tl_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.083948528967653e-05,
+   "floor": 1.7444277422562493e-07,
+   "ratio": 348.7647198902404
+  },
+  {
+   "candidate": "patch_solid_tr_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.946580004880577e-05,
+   "floor": 1.7827786080726327e-07,
+   "ratio": 445.7412697739092
+  },
+  {
+   "candidate": "patch_solid_bl_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_solid_br_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_solid_center_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 8.093932864616793e-05,
+   "floor": 2.0000122102903362e-07,
+   "ratio": 404.69417251416775
+  },
+  {
+   "candidate": "patch_solid_tl_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.55134272919966e-05,
+   "floor": 1.7827786080726327e-07,
+   "ratio": 367.4793212984722
+  },
+  {
+   "candidate": "patch_solid_tr_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.849923378100421e-05,
+   "floor": 2.1359411572774434e-08,
+   "ratio": 3675.1590048979856
+  },
+  {
+   "candidate": "patch_solid_bl_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_solid_br_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_solid_center_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 5.726650881388018e-05,
+   "floor": 2.0805460154704747e-07,
+   "ratio": 275.24749939707766
+  },
+  {
+   "candidate": "patch_noise_tl_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.673771614540414e-05,
+   "floor": 1.8211297303505347e-07,
+   "ratio": 366.46327295177554
+  },
+  {
+   "candidate": "patch_noise_tr_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.317549975642933e-05,
+   "floor": 2.250040322948621e-07,
+   "ratio": 280.7749670620988
+  },
+  {
+   "candidate": "patch_noise_bl_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_noise_br_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_noise_center_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 5.904554720692623e-05,
+   "floor": 1.7167524801742218e-07,
+   "ratio": 343.93745102342353
+  },
+  {
+   "candidate": "patch_noise_tl_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.413441984787216e-05,
+   "floor": 5.5491338080138064e-08,
+   "ratio": 1155.7555118828122
+  },
+  {
+   "candidate": "patch_noise_tr_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.799471126246349e-05,
+   "floor": 1.8211297303505347e-07,
+   "ratio": 428.27652507463546
+  },
+  {
+   "candidate": "patch_noise_bl_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_noise_br_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_noise_center_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 5.445199057152461e-05,
+   "floor": 1.0156095953117728e-07,
+   "ratio": 536.1508085674288
+  },
+  {
+   "candidate": "patch_qr_tl_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.692790472351273e-05,
+   "floor": 1.0327875410442999e-07,
+   "ratio": 648.0316818678775
+  },
+  {
+   "candidate": "patch_qr_tr_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 8.093713128587421e-05,
+   "floor": 4.376028117647479e-08,
+   "ratio": 1849.5569294784473
+  },
+  {
+   "candidate": "patch_qr_bl_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_qr_br_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_qr_center_16",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 5.411499164165168e-05,
+   "floor": 1.8458120010222956e-07,
+   "ratio": 293.177157867
+  },
+  {
+   "candidate": "patch_qr_tl_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.318294629203969e-05,
+   "floor": 6.69674423692257e-08,
+   "ratio": 943.4875225438632
+  },
+  {
+   "candidate": "patch_qr_tr_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.501207318243551e-05,
+   "floor": 1.3225851835940716e-07,
+   "ratio": 491.55301290891407
+  },
+  {
+   "candidate": "patch_qr_bl_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_qr_br_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 7.103097935701186e-05,
+   "floor": 9.9255661023534e-08,
+   "ratio": 715.636555381663
+  },
+  {
+   "candidate": "patch_qr_center_32",
+   "kind": "patch",
+   "face_detected": true,
+   "divergence": 6.0837784997436195e-05,
+   "floor": 2.5249841062446876e-07,
+   "ratio": 240.9432393929715
+  }
+ ],
+ "pass": false
+}

@@ -121,6 +121,19 @@ python audit/run_all_gates.py
 | CN-5b (image-prompt trigger, IP-Adapter sd15_plus) | `ipadapter_image_trigger.py` | `--source <f> --pack <f> --clipvision <f> --image <png> --comfy <d> --ipadapter_dir <d> --json <o> --seed S` |
 | PU-3 (A1111 route execution) | `a1111_pulid_route.py` | `--a1111 <d> --pack <f> --json <o> [--device cuda] [--seed S]`; builds the adapter through A1111's own `ipadapter_model.py` and counts the ConvRot GEMMs at the `comfy_kitchen` boundary |
 | MP-5 (source vs pack output) | `model_patch_image_trigger.py` | `--source <f> --pack <f> --comfy <d> --vae <f> --family diffsynth\|zimage [--loader-root <d>] [--n N] [--seed S] --json <o>` |
+| CN-1 (SDXL FaceID Portrait unnorm: identity, coverage, per-layer arithmetic replay, behaviour) | `ipadapter_faceid_portrait_sdxl_pack_audit.py` | `--source <f> --pack <f> --comfy <d> --json <o>` |
+| CN-2/3 (SDXL FaceID Portrait unnorm, the loader node inside ComfyUI: patch, installed layers, kernel calls, cosines) | `ipadapter_faceid_portrait_sdxl_comfyui_route.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --json <o>` |
+| CN-2/3 (SDXL FaceID Portrait unnorm on A1111: what `sd-webui-controlnet` builds for this file, and why it raises) | `a1111_ipadapter_faceid_portrait_sdxl_route.py` | `--a1111 <root> --pack <f> --json <o>` |
+| CN-5a (SDXL FaceID Portrait unnorm: source against pack on both surfaces, and through the INT8 route) | `ipadapter_faceid_portrait_sdxl_acceptance.py` | `--pack <f> --source <f> --comfy <d> --json <o>` |
+| CN-6 (SDXL FaceID Portrait unnorm: the 256-item gate through the loader node) | `ipadapter_faceid_portrait_sdxl_comfyui_gate.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <png> --json <o>` |
+| CN-5b (SDXL FaceID Portrait unnorm: the candidates, the graph-rerun floor, and the band a second quantisation explains) | `ipadapter_faceid_portrait_sdxl_baseline.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <png> --work <d> --impact <f> --json <o>` |
+| CN-5b (SDXL FaceID Portrait unnorm, the first pass against a natural-transform band) | `ipadapter_faceid_portrait_sdxl_comfyui_trigger.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <png> --json <o>` |
+| CN-5b (SDXL FaceID Portrait unnorm, normalised against the graph re-run as the floor) | `ipadapter_faceid_portrait_sdxl_trigger_normalised.py` | `--pack <f> --source <f> --comfy <d> --loader <d> --dir <d> --image <png> --json <o>` |
+| CN-4 (SDXL FaceID Portrait unnorm: two arms through a live server, one prompt) | `ipadapter_faceid_portrait_sdxl_render.py` | `--server <url> --out-dir <d> --output-root <d> --adapter-dir <d> --json <o>` |
+| CN-4 (SDXL FaceID Portrait unnorm, the two arms compared as pixels) | `ipadapter_faceid_portrait_sdxl_pixel_compare.py` | `--source <png> --pack <png> --json <o>` |
+| CN-4 (SDXL FaceID Portrait unnorm: base, weight-0, source and pack arms, to isolate the saturation) | `ipadapter_faceid_portrait_sdxl_isolation.py` | `--server <url> --out-dir <d> --output-root <d> --adapter-dir <d> --json <o>` |
+| CN-4 (SDXL FaceID Portrait unnorm: the embedding statistics and the weight ladder, inspected) | `ipadapter_faceid_portrait_sdxl_embprobe.py` | `--server <url> --out-dir <d> --output-root <d> --adapter-dir <d> --json <o>` |
+| CN-5b (SDXL FaceID Portrait unnorm: the flagged candidates re-scored against the band) | `ipadapter_faceid_portrait_sdxl_flagged_reeval.py` | `--pack <f> --source <f> --comfy <d> --image <png> --work <d> --json <o>` |
 
 ## SAM3.1 extension (procedure 12c)
 

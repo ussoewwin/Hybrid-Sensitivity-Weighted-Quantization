@@ -1,0 +1,335 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_baseline.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "question": "which candidates move the shipped pack further than another honest quantisation of the same checkpoint moves it",
+ "reference_pack": {
+  "path": "ip-adapter-faceid-portrait-unnorm_sdxl_reference_int8.safetensors",
+  "bytes": 468237706,
+  "sha256": "4314b2833a30917534eb763507c0f7b41f55f2bf6e66dda8c99daf9880282a21",
+  "int8": 142,
+  "protected": 20,
+  "protect_set": [
+   "ip_adapter.105.to_k_ip",
+   "ip_adapter.5.to_k_ip",
+   "ip_adapter.87.to_k_ip",
+   "ip_adapter.119.to_k_ip",
+   "ip_adapter.127.to_k_ip",
+   "ip_adapter.113.to_k_ip",
+   "ip_adapter.19.to_k_ip",
+   "ip_adapter.99.to_v_ip",
+   "ip_adapter.11.to_v_ip",
+   "ip_adapter.5.to_v_ip",
+   "ip_adapter.59.to_k_ip",
+   "ip_adapter.131.to_k_ip",
+   "ip_adapter.35.to_k_ip",
+   "ip_adapter.23.to_v_ip",
+   "ip_adapter.33.to_k_ip",
+   "ip_adapter.95.to_v_ip",
+   "ip_adapter.39.to_v_ip",
+   "ip_adapter.1.to_k_ip",
+   "ip_adapter.69.to_v_ip",
+   "ip_adapter.3.to_k_ip"
+  ],
+  "note": "same converter, same checkpoint, this run's own 20 top layers kept"
+ },
+ "shipped_pack": {
+  "path": "ip-adapter-faceid-portrait-unnorm_sdxl_hswq_convrot_int8.safetensors"
+ },
+ "rule": "flagged when shipped_divergence exceeds the largest reference_divergence over the same candidates - the band a second honest quantisation explains",
+ "band": 8.093932864616793e-05,
+ "candidates_total": 41,
+ "candidates_scored": 39,
+ "candidates_no_face": [
+  "freq_high_sigma_0.10",
+  "freq_high_sigma_0.05"
+ ],
+ "flagged_count": 0,
+ "flagged": [],
+ "reference_divergence_max": 8.093932864616793e-05,
+ "reference_divergence_median": 7.103097935701186e-05,
+ "shipped_divergence_median": 7.103097935701186e-05,
+ "candidates": [
+  {
+   "candidate": "jpeg_q60",
+   "face_detected": true,
+   "shipped_divergence": 6.203446728070272e-05,
+   "reference_divergence": 6.203446728070272e-05,
+   "reference_vs_shipped": 1.2945303728972846e-07
+  },
+  {
+   "candidate": "jpeg_q30",
+   "face_detected": true,
+   "shipped_divergence": 7.463202340751707e-05,
+   "reference_divergence": 7.463202340751707e-05,
+   "reference_vs_shipped": 2.390708178090506e-07
+  },
+  {
+   "candidate": "flip_h",
+   "face_detected": true,
+   "shipped_divergence": 7.672149945081586e-05,
+   "reference_divergence": 7.672149945081586e-05,
+   "reference_vs_shipped": 1.5120754348618703e-07
+  },
+  {
+   "candidate": "rot90",
+   "face_detected": true,
+   "shipped_divergence": 7.48442521270043e-05,
+   "reference_divergence": 7.48442521270043e-05,
+   "reference_vs_shipped": 1.5816782150679387e-07
+  },
+  {
+   "candidate": "rot180",
+   "face_detected": true,
+   "shipped_divergence": 4.906597392284606e-05,
+   "reference_divergence": 4.906597392284606e-05,
+   "reference_vs_shipped": 1.7408733365975593e-07
+  },
+  {
+   "candidate": "bright_0.7",
+   "face_detected": true,
+   "shipped_divergence": 6.112554500703471e-05,
+   "reference_divergence": 6.112554500703471e-05,
+   "reference_vs_shipped": 1.307937833594508e-07
+  },
+  {
+   "candidate": "bright_1.3",
+   "face_detected": true,
+   "shipped_divergence": 6.726304102078196e-05,
+   "reference_divergence": 6.726304102078196e-05,
+   "reference_vs_shipped": 1.9279416985096276e-07
+  },
+  {
+   "candidate": "freq_low_sigma_0.10",
+   "face_detected": true,
+   "shipped_divergence": 6.226953024934812e-05,
+   "reference_divergence": 6.226953024934812e-05,
+   "reference_vs_shipped": 9.583002624768966e-08
+  },
+  {
+   "candidate": "freq_high_sigma_0.10",
+   "face_detected": false
+  },
+  {
+   "candidate": "freq_low_sigma_0.05",
+   "face_detected": true,
+   "shipped_divergence": 6.887080835549231e-05,
+   "reference_divergence": 6.887080835549231e-05,
+   "reference_vs_shipped": 2.0383724985695295e-07
+  },
+  {
+   "candidate": "freq_high_sigma_0.05",
+   "face_detected": false
+  },
+  {
+   "candidate": "patch_solid_tl_16",
+   "face_detected": true,
+   "shipped_divergence": 6.083948528967653e-05,
+   "reference_divergence": 6.083948528967653e-05,
+   "reference_vs_shipped": 1.8780885602254216e-07
+  },
+  {
+   "candidate": "patch_solid_tr_16",
+   "face_detected": true,
+   "shipped_divergence": 7.946580004880577e-05,
+   "reference_divergence": 7.946580004880577e-05,
+   "reference_vs_shipped": 2.0440059500526075e-07
+  },
+  {
+   "candidate": "patch_solid_bl_16",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_solid_br_16",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_solid_center_16",
+   "face_detected": true,
+   "shipped_divergence": 8.093932864616793e-05,
+   "reference_divergence": 8.093932864616793e-05,
+   "reference_vs_shipped": 1.8418497937933154e-07
+  },
+  {
+   "candidate": "patch_solid_tl_32",
+   "face_detected": true,
+   "shipped_divergence": 6.55134272919966e-05,
+   "reference_divergence": 6.55134272919966e-05,
+   "reference_vs_shipped": 1.985613754529325e-07
+  },
+  {
+   "candidate": "patch_solid_tr_32",
+   "face_detected": true,
+   "shipped_divergence": 7.849923378100421e-05,
+   "reference_divergence": 7.849923378100421e-05,
+   "reference_vs_shipped": 2.259091654854828e-07
+  },
+  {
+   "candidate": "patch_solid_bl_32",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_solid_br_32",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_solid_center_32",
+   "face_detected": true,
+   "shipped_divergence": 5.726650881388018e-05,
+   "reference_divergence": 5.726650881388018e-05,
+   "reference_vs_shipped": 1.884435857357758e-07
+  },
+  {
+   "candidate": "patch_noise_tl_16",
+   "face_detected": true,
+   "shipped_divergence": 6.673771614540414e-05,
+   "reference_divergence": 6.673771614540414e-05,
+   "reference_vs_shipped": 1.147091051034721e-07
+  },
+  {
+   "candidate": "patch_noise_tr_16",
+   "face_detected": true,
+   "shipped_divergence": 6.317549975642933e-05,
+   "reference_divergence": 6.317549975642933e-05,
+   "reference_vs_shipped": 1.7147889286306395e-07
+  },
+  {
+   "candidate": "patch_noise_bl_16",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_noise_br_16",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_noise_center_16",
+   "face_detected": true,
+   "shipped_divergence": 5.904554720692623e-05,
+   "reference_divergence": 5.904554720692623e-05,
+   "reference_vs_shipped": 2.1695346497097034e-07
+  },
+  {
+   "candidate": "patch_noise_tl_32",
+   "face_detected": true,
+   "shipped_divergence": 6.413441984787216e-05,
+   "reference_divergence": 6.413441984787216e-05,
+   "reference_vs_shipped": 1.1374250463713764e-07
+  },
+  {
+   "candidate": "patch_noise_tr_32",
+   "face_detected": true,
+   "shipped_divergence": 7.799471126246349e-05,
+   "reference_divergence": 7.799471126246349e-05,
+   "reference_vs_shipped": 1.9400880180153734e-07
+  },
+  {
+   "candidate": "patch_noise_bl_32",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_noise_br_32",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_noise_center_32",
+   "face_detected": true,
+   "shipped_divergence": 5.445199057152461e-05,
+   "reference_divergence": 5.445199057152461e-05,
+   "reference_vs_shipped": 1.3828831713080803e-07
+  },
+  {
+   "candidate": "patch_qr_tl_16",
+   "face_detected": true,
+   "shipped_divergence": 6.692790472351273e-05,
+   "reference_divergence": 6.692790472351273e-05,
+   "reference_vs_shipped": 1.830369036337487e-07
+  },
+  {
+   "candidate": "patch_qr_tr_16",
+   "face_detected": true,
+   "shipped_divergence": 8.093713128587421e-05,
+   "reference_divergence": 8.093713128587421e-05,
+   "reference_vs_shipped": 1.7016377673595429e-07
+  },
+  {
+   "candidate": "patch_qr_bl_16",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_qr_br_16",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_qr_center_16",
+   "face_detected": true,
+   "shipped_divergence": 5.411499164165168e-05,
+   "reference_divergence": 5.411499164165168e-05,
+   "reference_vs_shipped": 1.2919835168379024e-07
+  },
+  {
+   "candidate": "patch_qr_tl_32",
+   "face_detected": true,
+   "shipped_divergence": 6.318294629203969e-05,
+   "reference_divergence": 6.318294629203969e-05,
+   "reference_vs_shipped": 2.1502058167310878e-07
+  },
+  {
+   "candidate": "patch_qr_tr_32",
+   "face_detected": true,
+   "shipped_divergence": 6.501207318243551e-05,
+   "reference_divergence": 6.501207318243551e-05,
+   "reference_vs_shipped": 8.67115325098311e-08
+  },
+  {
+   "candidate": "patch_qr_bl_32",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_qr_br_32",
+   "face_detected": true,
+   "shipped_divergence": 7.103097935701186e-05,
+   "reference_divergence": 7.103097935701186e-05,
+   "reference_vs_shipped": 1.766442195849649e-07
+  },
+  {
+   "candidate": "patch_qr_center_32",
+   "face_detected": true,
+   "shipped_divergence": 6.0837784997436195e-05,
+   "reference_divergence": 6.0837784997436195e-05,
+   "reference_vs_shipped": 1.309763278944942e-07
+  }
+ ],
+ "pass": true
+}

@@ -1,0 +1,52 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_embprobe.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "embedding": {
+  "detector": "insightface buffalo_l, largest face",
+  "raw_norm": 24.35561218676413,
+  "raw_absmax": 2.8452768325805664,
+  "raw_mean": 0.04347176866212976,
+  "normed_norm": 1.0000000162686378,
+  "normed_absmax": 0.11682222783565521,
+  "cos_raw_vs_normed": 0.9999999999999997,
+  "note": "portrait-unnorm consumes face.embedding (unnormalised); every other FaceID branch consumes face.normed_embedding (IPAdapterPlus.py L293-296)"
+ },
+ "arms": {
+  "source_w0.5": {
+   "queued": "6e9351ce-2d2a-4d17-ba94-f3e6ea03352e",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "source_w0.5.png",
+     "bytes": 1980884
+    }
+   ],
+   "seconds": 18.5
+  },
+  "source_w1.0": {
+   "queued": "87be9efc-ae48-41a7-98d7-6e1be9e4bd59",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "source_w1.0.png",
+     "bytes": 509935
+    }
+   ],
+   "seconds": 15.4
+  },
+  "pack_w0.5": {
+   "queued": "507e7167-ae1a-469e-805e-bd3509f17896",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "pack_w0.5.png",
+     "bytes": 2004270
+    }
+   ],
+   "seconds": 15.5
+  }
+ }
+}

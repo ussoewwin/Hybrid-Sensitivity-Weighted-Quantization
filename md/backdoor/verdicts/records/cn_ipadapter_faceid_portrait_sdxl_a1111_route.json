@@ -1,0 +1,69 @@
+{
+ "tool": "audit/a1111_ipadapter_faceid_portrait_sdxl_route.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "build": {
+  "ok": false,
+  "error": "RuntimeError: IP-Adapter ConvRot INT8 load mismatch: missing=['proj.0.weight', 'proj.0.bias', 'proj.2.weight', 'proj.2.bias', 'norm.weight', 'norm.bias', 'perceiver_resampler.proj_in.weight', 'perceiver_resampler.proj_in.bias', 'perceiver_resampler.proj_out.weight', 'perceiver_resampler.proj_out.bias', 'perceiver_resampler.norm_out.weight', 'perceiver_resampler.norm_out.bias', 'perceiver_resampler.layers.0.0.norm1.weight', 'perceiver_resampler.layers.0.0.norm1.bias', 'perceiver_resampler.layers.0.0.norm2.weight', 'perceiver_resampler.layers.0.0.norm2.bias', 'perceiver_resampler.layers.0.0.to_q.weight', 'per"
+ },
+ "graph": {
+  "image_proj_tensors": 95,
+  "ip_adapter_tensors": 420,
+  "resampler_key": true,
+  "resampler_widths": {
+   "proj_in.weight": [
+    1280,
+    512
+   ],
+   "proj_out.weight": [
+    2048,
+    1280
+   ],
+   "latents": [
+    1,
+    16,
+    1280
+   ]
+  },
+  "layers_prefix": [
+   "layers"
+  ],
+  "to_k_ip_shape": [
+   640,
+   2048
+  ]
+ },
+ "model_built": false,
+ "route": "A1111 sd-webui-controlnet ipadapter + modules/ipadapter_int8_convrot.py",
+ "pack": "ip-adapter-faceid-portrait-unnorm_sdxl_hswq_convrot_int8.safetensors",
+ "pack_sha256": "54b10126efd6205510af3764c6ee53216064b52eb48267f5234e21c005994c38",
+ "pack_bytes": 423767654,
+ "declared_sub_tensors": {
+  "image_proj": 95,
+  "ip_adapter": 420
+ },
+ "id_embeddings_dim": 512,
+ "clip_embeddings_dim": 512,
+ "cross_attention_dim": 1280,
+ "image_proj": {
+  "linear_modules": 0,
+  "int8_modules": 0,
+  "int8_names_first": []
+ },
+ "ip_layers": {
+  "linear_modules": 0,
+  "int8_modules": 0,
+  "int8_names_first": []
+ },
+ "int8_kernel_calls": 0,
+ "kernel_groupsizes": [],
+ "kernel_input_widths": [],
+ "kernel_convrot_all_true": false,
+ "projection": {
+  "input": {
+   "face": null
+  },
+  "output": null,
+  "finite": false
+ },
+ "applied": false
+}

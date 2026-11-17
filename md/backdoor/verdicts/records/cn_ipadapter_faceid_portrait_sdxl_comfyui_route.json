@@ -1,0 +1,57 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_comfyui_route.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "source": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+ "pack": "ip-adapter-faceid-portrait-unnorm_sdxl_hswq_convrot_int8.safetensors",
+ "route": "ComfyUI, the loader package's HSWQ Load IPAdapter Model node",
+ "activation_dtype": "float32 (the 512-d unnorm ArcFace embedding is not a CLIP sequence; float32 keeps the comparison free of overflow)",
+ "node": {
+  "module_convrot_branch_loaded": true,
+  "patch_applied": true,
+  "To_KV_replaced": true,
+  "portraitunnorm_flag": true,
+  "source_portraitunnorm_flag": true
+ },
+ "installed_int8_layers": {
+  "image_proj": 22,
+  "ip_adapter": 140
+ },
+ "convrot_module_files": [
+  "hswq_loader.hswq.ipadapter_convrot_int8",
+  "hswq_loader.hswq.ipadapter_convrot_int8"
+ ],
+ "source_float_check": {
+  "image_proj_convrot_layers": 0,
+  "ip_adapter_convrot_layers": 0
+ },
+ "int8_kernel_calls": 162,
+ "kernel_input_widths": [
+  2048
+ ],
+ "kernel_groupsizes": [
+  256
+ ],
+ "image_proj": {
+  "input": {
+   "face": [
+    1,
+    1,
+    512
+   ]
+  },
+  "output": [
+   1,
+   16,
+   2048
+  ],
+  "cos_mean": 0.9999843957374275,
+  "cos_min": 0.999906724189308,
+  "finite": true
+ },
+ "to_kv": {
+  "projections": 140,
+  "cos_mean_min": 0.9999190833498426,
+  "cos_min_min": 0.999862443723435,
+  "finite": true
+ }
+}

@@ -1,0 +1,49 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_render.py",
+ "family": "ipadapter_faceid_plusv2_sdxl",
+ "settings": {
+  "ckpt": "waiIllustriousSDXL_v170_hswq_1on_re590_convrot_int8.safetensors",
+  "vae": "sdxl_vae.safetensors",
+  "loader": "HSWQCheckpointLoader, weight_dtype SDXL ConvRot INT8",
+  "clip_vision": null,
+  "prompt": "a woman in a red coat standing in a city street, detailed, natural light",
+  "negative": "blurry, low quality, watermark",
+  "width": 1024,
+  "height": 1024,
+  "steps": 12,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "seed": 42,
+  "weight": 0.5,
+  "weight_faceidv2": 1.0,
+  "reference": "cn_clipvit_ref.png",
+  "adapter_dir": "<ipadapter-dir>"
+ },
+ "arms": {
+  "source": {
+   "queued": "c9e29f3d-66ff-4d99-82cd-c8779c7d533b",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "source.png",
+     "bytes": 1980889
+    }
+   ],
+   "seconds": 18.5
+  },
+  "pack": {
+   "queued": "4704b90e-2d88-48cb-8263-3fb1509d249f",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "pack.png",
+     "bytes": 2004275
+    }
+   ],
+   "seconds": 15.5
+  }
+ }
+}

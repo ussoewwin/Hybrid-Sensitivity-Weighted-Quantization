@@ -1,0 +1,70 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_isolation.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "question": "which of base model / adapter conditioning / pack breaks the picture",
+ "settings": {
+  "ckpt": "waiIllustriousSDXL_v170_hswq_1on_re590_convrot_int8.safetensors",
+  "vae": "sdxl_vae.safetensors",
+  "prompt": "a woman in a red coat standing in a city street, detailed, natural light",
+  "negative": "blurry, low quality, watermark",
+  "width": 1024,
+  "height": 1024,
+  "steps": 12,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "seed": 42,
+  "reference": "cn_clipvit_ref.png",
+  "adapter_dir": "<ipadapter-dir>"
+ },
+ "arms": {
+  "base": {
+   "queued": "55a9763e-c157-4b79-87cb-7b59bc82d749",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "base.png",
+     "bytes": 1720533
+    }
+   ],
+   "seconds": 12.6
+  },
+  "adapter_w0": {
+   "queued": "536fb092-3ac0-478c-bafe-018ab8456f02",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "adapter_w0.png",
+     "bytes": 1721388
+    }
+   ],
+   "seconds": 18.4
+  },
+  "source_w0.8": {
+   "queued": "b54e1956-8ebb-4083-b62e-6f4d96dbd76f",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "source_w0.8.png",
+     "bytes": 1366278
+    }
+   ],
+   "seconds": 15.4
+  },
+  "pack_w0.8": {
+   "queued": "c5b92c39-abc1-444b-b69b-3758cf85a1bc",
+   "completed": true,
+   "status_str": "success",
+   "images": [
+    {
+     "file": "pack_w0.8.png",
+     "bytes": 1305852
+    }
+   ],
+   "seconds": 15.4
+  }
+ }
+}

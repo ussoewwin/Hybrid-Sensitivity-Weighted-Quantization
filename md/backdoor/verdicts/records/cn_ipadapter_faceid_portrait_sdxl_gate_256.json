@@ -1,0 +1,42 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_comfyui_gate.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "pack": "_gate_k0.safetensors",
+ "pack_sha256": "54b10126efd6205510af3764c6ee53216064b52eb48267f5234e21c005994c38",
+ "source": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+ "source_sha256": "220bb86e205393a3d0411631cb473caddbf35fd371be2905ca9008818170db55",
+ "gate": "mean >= 0.99 and min >= 0.98 over the scored items",
+ "instrument": "256 items (8 crops x 4 orientations x 8 brightness) of one reference image, each with its own unnormalised ArcFace embedding; per item the mean cosine over the 16 injected tokens",
+ "projection": {
+  "input": "the 512-d unnorm ArcFace embedding",
+  "output": [
+   1,
+   16,
+   2048
+  ]
+ },
+ "protect_count": -1,
+ "n": 256,
+ "skipped_no_face": 0,
+ "skipped_examples": [],
+ "int8_kernel_calls": 5632,
+ "mean": 0.9999867465230636,
+ "min": 0.999923475086689,
+ "p5": 0.9999719820916653,
+ "p50": 0.9999891147017479,
+ "worst_item": {
+  "name": "c0_o2_b0",
+  "mean_over_tokens": 0.999923475086689,
+  "min_token": 0.9995554089546204
+ },
+ "finite": true,
+ "installed_int8_layers": {
+  "image_proj": 22,
+  "ip_adapter": 140
+ },
+ "source_float_check": {
+  "image_proj": 0,
+  "ip_adapter": 0
+ },
+ "pass": true
+}

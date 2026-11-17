@@ -73,7 +73,7 @@ def flatten(sd):
 
 
 def convert(input_path, impact_path, output_path, drift_threshold=DEFAULT_DRIFT_THRESHOLD,
-            protect_list=None, record_path=None):
+            protect_list=None, record_path=None, family="ipadapter_faceid_plusv2_sdxl"):
     src = flatten(torch.load(input_path, map_location="cpu", weights_only=True))
     impacts = json.load(open(impact_path, encoding="utf-8"))["impacts"]
     protected_names = set(protect_list or [])
@@ -146,8 +146,8 @@ def convert(input_path, impact_path, output_path, drift_threshold=DEFAULT_DRIFT_
             for b in iter(lambda: f.read(1 << 20), b""):
                 h256.update(b)
         rec = {
-            "tool": "clip_convert/convert_ipadapter_faceid_plusv2_sdxl_convrot_int8.py",
-            "family": "ipadapter_faceid_plusv2_sdxl",
+            "tool": "clip_convert/" + os.path.basename(__file__),
+            "family": family,
             "source": os.path.basename(input_path),
             "pack": os.path.basename(output_path),
             "arguments": {"drift_threshold": drift_threshold,
@@ -174,6 +174,7 @@ if __name__ == "__main__":
     ap.add_argument("--drift-threshold", type=float, default=DEFAULT_DRIFT_THRESHOLD)
     ap.add_argument("--protect-list", default="")
     ap.add_argument("--record", default="")
+    ap.add_argument("--family", default="ipadapter_faceid_plusv2_sdxl")
     a = ap.parse_args()
     pl = json.load(open(a.protect_list, encoding="utf-8")) if a.protect_list else None
-    convert(a.input, a.impact, a.output, a.drift_threshold, pl, a.record or None)
+    convert(a.input, a.impact, a.output, a.drift_threshold, pl, a.record or None, a.family)

@@ -1,0 +1,43 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_pack_audit.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "source": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+ "pack": "_cn1_k0.safetensors",
+ "identity": {
+  "source_bytes": 1009523411,
+  "source_sha256": "220bb86e205393a3d0411631cb473caddbf35fd371be2905ca9008818170db55",
+  "pack_bytes": 423767654,
+  "pack_sha256": "54b10126efd6205510af3764c6ee53216064b52eb48267f5234e21c005994c38"
+ },
+ "coverage": {
+  "missing": [],
+  "extra": [],
+  "shape_mismatch": [],
+  "int8_layers": 162,
+  "kept_float": 0,
+  "non_2d_float_tensors": 29,
+  "missing_scale": [],
+  "missing_sidecar": []
+ },
+ "arithmetic": {
+  "int8_layers_replayed": 162,
+  "code_mismatch": 0,
+  "max_code_delta": 0,
+  "scale_mismatch": 0,
+  "max_scale_rel": 0.0,
+  "nonfinite_scale": 0,
+  "groupsizes": {
+   "256": 162
+  },
+  "float_side_bit_identical": 29,
+  "float_side_differs": 0
+ },
+ "behaviour": {
+  "observable": "the 16x2048 token stack on a fixed unnorm ArcFace input",
+  "cos_mean": 0.9999948324673373,
+  "cos_min": 0.9999762098088005,
+  "load_missing": [],
+  "load_unexpected": []
+ },
+ "verdict": "FAITHFUL"
+}

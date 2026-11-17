@@ -1,0 +1,79 @@
+{
+ "tool": "audit/ipadapter_faceid_portrait_sdxl_acceptance.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "route": "the source checkpoint against the pack dequantised from its own sidecars",
+ "pack": "ip-adapter-faceid-portrait-unnorm_sdxl_hswq_convrot_int8.safetensors",
+ "source": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+ "image_proj_surface": {
+  "elements": 16,
+  "element": "one token of the 16x2048 injected stack",
+  "cos_mean": 0.9999954047426529,
+  "cos_min": 0.9999718805779406,
+  "rel_mse_max": 2.3469972802558914e-05,
+  "depends_on_the_image": true,
+  "batches": [
+   {
+    "batch": 0,
+    "image_proj_cos_mean": 0.9999945451450813,
+    "image_proj_cos_min": 0.9999722405786473,
+    "image_proj_rel_mse": 2.3469972802558914e-05
+   },
+   {
+    "batch": 1,
+    "image_proj_cos_mean": 0.999995777288353,
+    "image_proj_cos_min": 0.9999765901587364,
+    "image_proj_rel_mse": 1.7598464182810858e-05
+   },
+   {
+    "batch": 2,
+    "image_proj_cos_mean": 0.9999958141409278,
+    "image_proj_cos_min": 0.9999718805779406,
+    "image_proj_rel_mse": 1.8570102838566527e-05
+   },
+   {
+    "batch": 3,
+    "image_proj_cos_mean": 0.9999954823962496,
+    "image_proj_cos_min": 0.9999734042020935,
+    "image_proj_rel_mse": 1.9740135030588135e-05
+   }
+  ]
+ },
+ "ip_adapter_surface": {
+  "elements": 140,
+  "element": "one 2-D weight applied to a fixed input of its own width",
+  "cos_mean": 0.9999648751314352,
+  "cos_min": 0.9999620636564129,
+  "max_abs_diff_from_one": 3.793634358706388e-05,
+  "depends_on_the_image": false,
+  "note": "these weights consume the UNet cross-attention K/V and the identity/clip stack, not the pixel image, so this surface is measured on fixed inputs"
+ },
+ "int8_route": {
+  "route": "ComfyUI loader node, IPAdapter built from the pack, kernel counted",
+  "int8_kernel_calls": 88,
+  "batches": [
+   {
+    "batch": 0,
+    "cos_mean": 0.9999682612881814,
+    "cos_min": 0.9999682612881814
+   },
+   {
+    "batch": 1,
+    "cos_mean": 0.9999763956152571,
+    "cos_min": 0.9999763956152571
+   },
+   {
+    "batch": 2,
+    "cos_mean": 0.9999675089785804,
+    "cos_min": 0.9999675089785804
+   },
+   {
+    "batch": 3,
+    "cos_mean": 0.9999725975976811,
+    "cos_min": 0.9999725975976811
+   }
+  ],
+  "cos_mean": 0.999971190869925,
+  "cos_min": 0.9999675089785804,
+  "note": "the kernel count covers the image_proj graph only, which is the surface CN-5a compares; the ip_adapter surface is measured on dequantised weights above because the projections are applied per layer and their count is in the route record"
+ }
+}

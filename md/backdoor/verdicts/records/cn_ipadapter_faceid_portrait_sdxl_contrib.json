@@ -1,0 +1,1232 @@
+{
+ "tool": "clip_convert/measure_ipadapter_faceid_portrait_sdxl_contrib.py",
+ "family": "ipadapter_faceid_portrait_sdxl",
+ "source": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+ "criterion": "the aggregate contribution of one weight to the stage output it feeds",
+ "instrument": "one weight at a time, ConvRot INT8 reconstruction, 1 - cosine on the stage output",
+ "layers": 162,
+ "sum": 0.005076462171331619,
+ "top": [
+  {
+   "layer": "ip_adapter.105.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 4.450683977941239e-05,
+   "one_minus_cos_min": 5.831918483611975e-05
+  },
+  {
+   "layer": "ip_adapter.87.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 4.079307560500567e-05,
+   "one_minus_cos_min": 5.138408545968254e-05
+  },
+  {
+   "layer": "ip_adapter.127.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 4.018839948027875e-05,
+   "one_minus_cos_min": 5.6930509770181104e-05
+  },
+  {
+   "layer": "ip_adapter.5.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.9835118855857665e-05,
+   "one_minus_cos_min": 5.512238343585718e-05
+  },
+  {
+   "layer": "ip_adapter.131.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.974687750452066e-05,
+   "one_minus_cos_min": 5.9601636574146966e-05
+  },
+  {
+   "layer": "ip_adapter.119.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.961915337513666e-05,
+   "one_minus_cos_min": 5.614546075949356e-05
+  },
+  {
+   "layer": "ip_adapter.113.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.930200193025257e-05,
+   "one_minus_cos_min": 6.160134043942112e-05
+  },
+  {
+   "layer": "ip_adapter.19.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.903458544862737e-05,
+   "one_minus_cos_min": 4.9721368033828206e-05
+  },
+  {
+   "layer": "ip_adapter.99.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.882757256135072e-05,
+   "one_minus_cos_min": 5.6680021411348314e-05
+  },
+  {
+   "layer": "ip_adapter.5.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.8344548009439094e-05,
+   "one_minus_cos_min": 4.7169942560376654e-05
+  },
+  {
+   "layer": "ip_adapter.133.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.834427622073644e-05,
+   "one_minus_cos_min": 5.357920933590776e-05
+  },
+  {
+   "layer": "ip_adapter.59.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.821584119090282e-05,
+   "one_minus_cos_min": 4.6891886714584e-05
+  }
+ ],
+ "contributions": {
+  "image_proj.layers.0.0.to_kv": 3.0960957353443064e-08,
+  "image_proj.layers.0.0.to_out": 4.344507775755346e-08,
+  "image_proj.layers.0.0.to_q": 1.5493684113465633e-10,
+  "image_proj.layers.0.1.1": 1.3940497645137384e-09,
+  "image_proj.layers.0.1.3": 1.978491814824679e-09,
+  "image_proj.layers.1.0.to_kv": 1.2813962346758245e-07,
+  "image_proj.layers.1.0.to_out": 2.100346829791988e-07,
+  "image_proj.layers.1.0.to_q": 4.796431030129611e-10,
+  "image_proj.layers.1.1.1": 3.128190351198157e-08,
+  "image_proj.layers.1.1.3": 1.0411741746541026e-07,
+  "image_proj.layers.2.0.to_kv": 7.922290246042962e-08,
+  "image_proj.layers.2.0.to_out": 1.0090482371882814e-07,
+  "image_proj.layers.2.0.to_q": 3.262567105366543e-08,
+  "image_proj.layers.2.1.1": 1.4437940343281497e-07,
+  "image_proj.layers.2.1.3": 2.407552490701903e-08,
+  "image_proj.layers.3.0.to_kv": 1.7111865513452784e-07,
+  "image_proj.layers.3.0.to_out": 8.66997114101764e-08,
+  "image_proj.layers.3.0.to_q": 1.772959579149358e-08,
+  "image_proj.layers.3.1.1": 5.34979689437165e-08,
+  "image_proj.layers.3.1.3": 3.128090264592487e-08,
+  "image_proj.proj_in": 1.1930037117080516e-06,
+  "image_proj.proj_out": 2.459785334085751e-06,
+  "ip_adapter.1.to_k_ip": 3.764881243062401e-05,
+  "ip_adapter.1.to_v_ip": 3.620291118011654e-05,
+  "ip_adapter.101.to_k_ip": 3.65272265754335e-05,
+  "ip_adapter.101.to_v_ip": 3.604045856997473e-05,
+  "ip_adapter.103.to_k_ip": 3.48504610805378e-05,
+  "ip_adapter.103.to_v_ip": 3.446014595609448e-05,
+  "ip_adapter.105.to_k_ip": 4.450683977941239e-05,
+  "ip_adapter.105.to_v_ip": 3.651680734484408e-05,
+  "ip_adapter.107.to_k_ip": 3.8109364832727977e-05,
+  "ip_adapter.107.to_v_ip": 3.2122572432458085e-05,
+  "ip_adapter.109.to_k_ip": 3.774680299062361e-05,
+  "ip_adapter.109.to_v_ip": 3.564702252112362e-05,
+  "ip_adapter.11.to_k_ip": 3.59607955211505e-05,
+  "ip_adapter.11.to_v_ip": 3.790470042197569e-05,
+  "ip_adapter.111.to_k_ip": 3.644012137482555e-05,
+  "ip_adapter.111.to_v_ip": 3.5348183259786836e-05,
+  "ip_adapter.113.to_k_ip": 3.930200193025257e-05,
+  "ip_adapter.113.to_v_ip": 3.379257416269432e-05,
+  "ip_adapter.115.to_k_ip": 3.778239093610303e-05,
+  "ip_adapter.115.to_v_ip": 3.436753419894245e-05,
+  "ip_adapter.117.to_k_ip": 3.494276534532492e-05,
+  "ip_adapter.117.to_v_ip": 3.7092347812017756e-05,
+  "ip_adapter.119.to_k_ip": 3.961915337513666e-05,
+  "ip_adapter.119.to_v_ip": 3.7825035133609575e-05,
+  "ip_adapter.121.to_k_ip": 3.7574667927309235e-05,
+  "ip_adapter.121.to_v_ip": 3.694094845518858e-05,
+  "ip_adapter.123.to_k_ip": 3.516551341176122e-05,
+  "ip_adapter.123.to_v_ip": 3.505127577174694e-05,
+  "ip_adapter.125.to_k_ip": 3.2284701840912255e-05,
+  "ip_adapter.125.to_v_ip": 3.692920889264428e-05,
+  "ip_adapter.127.to_k_ip": 4.018839948027875e-05,
+  "ip_adapter.127.to_v_ip": 3.4037309303847074e-05,
+  "ip_adapter.129.to_k_ip": 3.591291665416829e-05,
+  "ip_adapter.129.to_v_ip": 3.4566280340264655e-05,
+  "ip_adapter.13.to_k_ip": 3.792282170533845e-05,
+  "ip_adapter.13.to_v_ip": 3.659041786641115e-05,
+  "ip_adapter.131.to_k_ip": 3.974687750452066e-05,
+  "ip_adapter.131.to_v_ip": 3.5745810025189506e-05,
+  "ip_adapter.133.to_k_ip": 3.834427622073644e-05,
+  "ip_adapter.133.to_v_ip": 3.4239872241270675e-05,
+  "ip_adapter.135.to_k_ip": 3.720437078991168e-05,
+  "ip_adapter.135.to_v_ip": 3.338444848000055e-05,
+  "ip_adapter.137.to_k_ip": 3.676105041428013e-05,
+  "ip_adapter.137.to_v_ip": 3.4420225208386945e-05,
+  "ip_adapter.139.to_k_ip": 3.340789314776327e-05,
+  "ip_adapter.139.to_v_ip": 3.516497403732721e-05,
+  "ip_adapter.15.to_k_ip": 3.443990708218436e-05,
+  "ip_adapter.15.to_v_ip": 3.663189506297737e-05,
+  "ip_adapter.17.to_k_ip": 3.2946550131640606e-05,
+  "ip_adapter.17.to_v_ip": 3.4438789656587865e-05,
+  "ip_adapter.19.to_k_ip": 3.903458544862737e-05,
+  "ip_adapter.19.to_v_ip": 3.6955839891827935e-05,
+  "ip_adapter.21.to_k_ip": 3.7318897576521515e-05,
+  "ip_adapter.21.to_v_ip": 3.58493564293072e-05,
+  "ip_adapter.23.to_k_ip": 3.447585350391247e-05,
+  "ip_adapter.23.to_v_ip": 3.775712547293697e-05,
+  "ip_adapter.25.to_k_ip": 3.681950595824102e-05,
+  "ip_adapter.25.to_v_ip": 3.6921055223793076e-05,
+  "ip_adapter.27.to_k_ip": 3.759134584868651e-05,
+  "ip_adapter.27.to_v_ip": 3.470700789132142e-05,
+  "ip_adapter.29.to_k_ip": 3.498395369894158e-05,
+  "ip_adapter.29.to_v_ip": 3.7236390540318354e-05,
+  "ip_adapter.3.to_k_ip": 3.8191926535535714e-05,
+  "ip_adapter.3.to_v_ip": 3.689926032524049e-05,
+  "ip_adapter.31.to_k_ip": 3.586005123734637e-05,
+  "ip_adapter.31.to_v_ip": 3.700188440003416e-05,
+  "ip_adapter.33.to_k_ip": 3.773050075928097e-05,
+  "ip_adapter.33.to_v_ip": 3.589577186979831e-05,
+  "ip_adapter.35.to_k_ip": 3.79396982355118e-05,
+  "ip_adapter.35.to_v_ip": 3.588304293455913e-05,
+  "ip_adapter.37.to_k_ip": 3.504491991246361e-05,
+  "ip_adapter.37.to_v_ip": 3.666401909119266e-05,
+  "ip_adapter.39.to_k_ip": 3.60322829016102e-05,
+  "ip_adapter.39.to_v_ip": 3.7776362816210884e-05,
+  "ip_adapter.41.to_k_ip": 3.507730645346818e-05,
+  "ip_adapter.41.to_v_ip": 3.6539900180487805e-05,
+  "ip_adapter.43.to_k_ip": 3.575933929322872e-05,
+  "ip_adapter.43.to_v_ip": 3.647145636098692e-05,
+  "ip_adapter.45.to_k_ip": 3.5751199066069717e-05,
+  "ip_adapter.45.to_v_ip": 3.6864805112890586e-05,
+  "ip_adapter.47.to_k_ip": 3.514339109833564e-05,
+  "ip_adapter.47.to_v_ip": 3.540451470174233e-05,
+  "ip_adapter.49.to_k_ip": 3.668850980198535e-05,
+  "ip_adapter.49.to_v_ip": 3.5908526828998255e-05,
+  "ip_adapter.5.to_k_ip": 3.9835118855857665e-05,
+  "ip_adapter.5.to_v_ip": 3.8344548009439094e-05,
+  "ip_adapter.51.to_k_ip": 3.502816929801256e-05,
+  "ip_adapter.51.to_v_ip": 3.6897660462553716e-05,
+  "ip_adapter.53.to_k_ip": 3.410350654831085e-05,
+  "ip_adapter.53.to_v_ip": 3.668256676181425e-05,
+  "ip_adapter.55.to_k_ip": 3.4279255957114785e-05,
+  "ip_adapter.55.to_v_ip": 3.6903764560891616e-05,
+  "ip_adapter.57.to_k_ip": 3.7379934909598234e-05,
+  "ip_adapter.57.to_v_ip": 3.7088724626377356e-05,
+  "ip_adapter.59.to_k_ip": 3.821584119090282e-05,
+  "ip_adapter.59.to_v_ip": 3.574737769596048e-05,
+  "ip_adapter.61.to_k_ip": 3.493989169900402e-05,
+  "ip_adapter.61.to_v_ip": 3.652441800494621e-05,
+  "ip_adapter.63.to_k_ip": 3.449141674116696e-05,
+  "ip_adapter.63.to_v_ip": 3.493793010278523e-05,
+  "ip_adapter.65.to_k_ip": 3.441320063335418e-05,
+  "ip_adapter.65.to_v_ip": 3.418794425258387e-05,
+  "ip_adapter.67.to_k_ip": 3.431559225353098e-05,
+  "ip_adapter.67.to_v_ip": 3.534550547934501e-05,
+  "ip_adapter.69.to_k_ip": 3.544939175448292e-05,
+  "ip_adapter.69.to_v_ip": 3.7455843864275806e-05,
+  "ip_adapter.7.to_k_ip": 3.5661971985234686e-05,
+  "ip_adapter.7.to_v_ip": 3.5453594468548566e-05,
+  "ip_adapter.71.to_k_ip": 3.471734080351396e-05,
+  "ip_adapter.71.to_v_ip": 3.6534037922808515e-05,
+  "ip_adapter.73.to_k_ip": 3.4756926524437404e-05,
+  "ip_adapter.73.to_v_ip": 3.67291664313818e-05,
+  "ip_adapter.75.to_k_ip": 3.630801062037836e-05,
+  "ip_adapter.75.to_v_ip": 3.7274857224600666e-05,
+  "ip_adapter.77.to_k_ip": 3.500348120022423e-05,
+  "ip_adapter.77.to_v_ip": 3.6791921862566745e-05,
+  "ip_adapter.79.to_k_ip": 3.605900100911441e-05,
+  "ip_adapter.79.to_v_ip": 3.693136127125296e-05,
+  "ip_adapter.81.to_k_ip": 3.504488031158548e-05,
+  "ip_adapter.81.to_v_ip": 3.63026883978268e-05,
+  "ip_adapter.83.to_k_ip": 3.42822131338405e-05,
+  "ip_adapter.83.to_v_ip": 3.703252106102006e-05,
+  "ip_adapter.85.to_k_ip": 3.561965788101418e-05,
+  "ip_adapter.85.to_v_ip": 3.470382107406689e-05,
+  "ip_adapter.87.to_k_ip": 4.079307560500567e-05,
+  "ip_adapter.87.to_v_ip": 3.733347795975561e-05,
+  "ip_adapter.89.to_k_ip": 3.571466415286384e-05,
+  "ip_adapter.89.to_v_ip": 3.6591199038538136e-05,
+  "ip_adapter.9.to_k_ip": 3.445694774872887e-05,
+  "ip_adapter.9.to_v_ip": 3.651098087809057e-05,
+  "ip_adapter.91.to_k_ip": 3.2442550632727496e-05,
+  "ip_adapter.91.to_v_ip": 3.524374302776856e-05,
+  "ip_adapter.93.to_k_ip": 3.554569225705517e-05,
+  "ip_adapter.93.to_v_ip": 3.6081288064426786e-05,
+  "ip_adapter.95.to_k_ip": 3.6017301471402696e-05,
+  "ip_adapter.95.to_v_ip": 3.781474668362872e-05,
+  "ip_adapter.97.to_k_ip": 3.65611690253953e-05,
+  "ip_adapter.97.to_v_ip": 3.5967187818508606e-05,
+  "ip_adapter.99.to_k_ip": 3.6861188351444696e-05,
+  "ip_adapter.99.to_v_ip": 3.882757256135072e-05
+ },
+ "detail": [
+  {
+   "layer": "image_proj.layers.0.0.to_kv",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.0960957353443064e-08,
+   "one_minus_cos_min": 2.7917047396019967e-07
+  },
+  {
+   "layer": "image_proj.layers.0.0.to_out",
+   "groupsize": 256,
+   "one_minus_cos_mean": 4.344507775755346e-08,
+   "one_minus_cos_min": 2.1562633112370833e-07
+  },
+  {
+   "layer": "image_proj.layers.0.0.to_q",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.5493684113465633e-10,
+   "one_minus_cos_min": 1.4907181045131779e-09
+  },
+  {
+   "layer": "image_proj.layers.0.1.1",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.3940497645137384e-09,
+   "one_minus_cos_min": 7.851227667998728e-09
+  },
+  {
+   "layer": "image_proj.layers.0.1.3",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.978491814824679e-09,
+   "one_minus_cos_min": 9.615129137330314e-09
+  },
+  {
+   "layer": "image_proj.layers.1.0.to_kv",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.2813962346758245e-07,
+   "one_minus_cos_min": 1.1490564646443602e-06
+  },
+  {
+   "layer": "image_proj.layers.1.0.to_out",
+   "groupsize": 256,
+   "one_minus_cos_mean": 2.100346829791988e-07,
+   "one_minus_cos_min": 2.206993095388299e-06
+  },
+  {
+   "layer": "image_proj.layers.1.0.to_q",
+   "groupsize": 256,
+   "one_minus_cos_mean": 4.796431030129611e-10,
+   "one_minus_cos_min": 5.079769049842753e-09
+  },
+  {
+   "layer": "image_proj.layers.1.1.1",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.128190351198157e-08,
+   "one_minus_cos_min": 2.391883403563e-07
+  },
+  {
+   "layer": "image_proj.layers.1.1.3",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.0411741746541026e-07,
+   "one_minus_cos_min": 1.1950767065949108e-06
+  },
+  {
+   "layer": "image_proj.layers.2.0.to_kv",
+   "groupsize": 256,
+   "one_minus_cos_mean": 7.922290246042962e-08,
+   "one_minus_cos_min": 6.156200927920352e-07
+  },
+  {
+   "layer": "image_proj.layers.2.0.to_out",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.0090482371882814e-07,
+   "one_minus_cos_min": 8.444601050650036e-07
+  },
+  {
+   "layer": "image_proj.layers.2.0.to_q",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.262567105366543e-08,
+   "one_minus_cos_min": 3.1041507075890706e-07
+  },
+  {
+   "layer": "image_proj.layers.2.1.1",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.4437940343281497e-07,
+   "one_minus_cos_min": 1.6412871080007108e-06
+  },
+  {
+   "layer": "image_proj.layers.2.1.3",
+   "groupsize": 256,
+   "one_minus_cos_mean": 2.407552490701903e-08,
+   "one_minus_cos_min": 1.9870146672484879e-07
+  },
+  {
+   "layer": "image_proj.layers.3.0.to_kv",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.7111865513452784e-07,
+   "one_minus_cos_min": 1.4068633669150898e-06
+  },
+  {
+   "layer": "image_proj.layers.3.0.to_out",
+   "groupsize": 256,
+   "one_minus_cos_mean": 8.66997114101764e-08,
+   "one_minus_cos_min": 6.479982349594238e-07
+  },
+  {
+   "layer": "image_proj.layers.3.0.to_q",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.772959579149358e-08,
+   "one_minus_cos_min": 1.629943071623785e-07
+  },
+  {
+   "layer": "image_proj.layers.3.1.1",
+   "groupsize": 256,
+   "one_minus_cos_mean": 5.34979689437165e-08,
+   "one_minus_cos_min": 3.663634235984148e-07
+  },
+  {
+   "layer": "image_proj.layers.3.1.3",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.128090264592487e-08,
+   "one_minus_cos_min": 1.9870376355424213e-07
+  },
+  {
+   "layer": "image_proj.proj_in",
+   "groupsize": 256,
+   "one_minus_cos_mean": 1.1930037117080516e-06,
+   "one_minus_cos_min": 9.751983906514106e-06
+  },
+  {
+   "layer": "image_proj.proj_out",
+   "groupsize": 256,
+   "one_minus_cos_mean": 2.459785334085751e-06,
+   "one_minus_cos_min": 1.1118142932753372e-05
+  },
+  {
+   "layer": "ip_adapter.1.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.764881243062401e-05,
+   "one_minus_cos_min": 4.544354608071455e-05
+  },
+  {
+   "layer": "ip_adapter.1.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.620291118011654e-05,
+   "one_minus_cos_min": 4.212674667547489e-05
+  },
+  {
+   "layer": "ip_adapter.101.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.65272265754335e-05,
+   "one_minus_cos_min": 5.179570803282019e-05
+  },
+  {
+   "layer": "ip_adapter.101.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.604045856997473e-05,
+   "one_minus_cos_min": 4.8934899621211336e-05
+  },
+  {
+   "layer": "ip_adapter.103.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.48504610805378e-05,
+   "one_minus_cos_min": 5.115992964488392e-05
+  },
+  {
+   "layer": "ip_adapter.103.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.446014595609448e-05,
+   "one_minus_cos_min": 4.202037472389453e-05
+  },
+  {
+   "layer": "ip_adapter.105.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 4.450683977941239e-05,
+   "one_minus_cos_min": 5.831918483611975e-05
+  },
+  {
+   "layer": "ip_adapter.105.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.651680734484408e-05,
+   "one_minus_cos_min": 5.155403628454014e-05
+  },
+  {
+   "layer": "ip_adapter.107.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.8109364832727977e-05,
+   "one_minus_cos_min": 5.550170628287887e-05
+  },
+  {
+   "layer": "ip_adapter.107.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.2122572432458085e-05,
+   "one_minus_cos_min": 4.1304197202718385e-05
+  },
+  {
+   "layer": "ip_adapter.109.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.774680299062361e-05,
+   "one_minus_cos_min": 4.549300533385203e-05
+  },
+  {
+   "layer": "ip_adapter.109.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.564702252112362e-05,
+   "one_minus_cos_min": 5.6747200647078166e-05
+  },
+  {
+   "layer": "ip_adapter.11.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.59607955211505e-05,
+   "one_minus_cos_min": 4.7659236677488614e-05
+  },
+  {
+   "layer": "ip_adapter.11.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.790470042197569e-05,
+   "one_minus_cos_min": 4.2696399307651234e-05
+  },
+  {
+   "layer": "ip_adapter.111.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.644012137482555e-05,
+   "one_minus_cos_min": 4.9242765781554176e-05
+  },
+  {
+   "layer": "ip_adapter.111.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.5348183259786836e-05,
+   "one_minus_cos_min": 4.7690661417076896e-05
+  },
+  {
+   "layer": "ip_adapter.113.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.930200193025257e-05,
+   "one_minus_cos_min": 6.160134043942112e-05
+  },
+  {
+   "layer": "ip_adapter.113.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.379257416269432e-05,
+   "one_minus_cos_min": 4.207788379473332e-05
+  },
+  {
+   "layer": "ip_adapter.115.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.778239093610303e-05,
+   "one_minus_cos_min": 5.91583932603168e-05
+  },
+  {
+   "layer": "ip_adapter.115.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.436753419894245e-05,
+   "one_minus_cos_min": 7.146243797739871e-05
+  },
+  {
+   "layer": "ip_adapter.117.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.494276534532492e-05,
+   "one_minus_cos_min": 4.8026021331804e-05
+  },
+  {
+   "layer": "ip_adapter.117.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7092347812017756e-05,
+   "one_minus_cos_min": 5.328992040587455e-05
+  },
+  {
+   "layer": "ip_adapter.119.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.961915337513666e-05,
+   "one_minus_cos_min": 5.614546075949356e-05
+  },
+  {
+   "layer": "ip_adapter.119.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7825035133609575e-05,
+   "one_minus_cos_min": 7.121077706673251e-05
+  },
+  {
+   "layer": "ip_adapter.121.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7574667927309235e-05,
+   "one_minus_cos_min": 4.901233073806299e-05
+  },
+  {
+   "layer": "ip_adapter.121.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.694094845518858e-05,
+   "one_minus_cos_min": 4.473569653207221e-05
+  },
+  {
+   "layer": "ip_adapter.123.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.516551341176122e-05,
+   "one_minus_cos_min": 4.6869101168245386e-05
+  },
+  {
+   "layer": "ip_adapter.123.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.505127577174694e-05,
+   "one_minus_cos_min": 3.929953387582508e-05
+  },
+  {
+   "layer": "ip_adapter.125.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.2284701840912255e-05,
+   "one_minus_cos_min": 4.6137047766015016e-05
+  },
+  {
+   "layer": "ip_adapter.125.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.692920889264428e-05,
+   "one_minus_cos_min": 4.198951116807237e-05
+  },
+  {
+   "layer": "ip_adapter.127.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 4.018839948027875e-05,
+   "one_minus_cos_min": 5.6930509770181104e-05
+  },
+  {
+   "layer": "ip_adapter.127.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.4037309303847074e-05,
+   "one_minus_cos_min": 4.34430756452997e-05
+  },
+  {
+   "layer": "ip_adapter.129.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.591291665416829e-05,
+   "one_minus_cos_min": 4.954296524761759e-05
+  },
+  {
+   "layer": "ip_adapter.129.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.4566280340264655e-05,
+   "one_minus_cos_min": 3.910098475590207e-05
+  },
+  {
+   "layer": "ip_adapter.13.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.792282170533845e-05,
+   "one_minus_cos_min": 5.137936454335801e-05
+  },
+  {
+   "layer": "ip_adapter.13.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.659041786641115e-05,
+   "one_minus_cos_min": 4.440595824006799e-05
+  },
+  {
+   "layer": "ip_adapter.131.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.974687750452066e-05,
+   "one_minus_cos_min": 5.9601636574146966e-05
+  },
+  {
+   "layer": "ip_adapter.131.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.5745810025189506e-05,
+   "one_minus_cos_min": 4.295682221266972e-05
+  },
+  {
+   "layer": "ip_adapter.133.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.834427622073644e-05,
+   "one_minus_cos_min": 5.357920933590776e-05
+  },
+  {
+   "layer": "ip_adapter.133.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.4239872241270675e-05,
+   "one_minus_cos_min": 4.284270796306444e-05
+  },
+  {
+   "layer": "ip_adapter.135.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.720437078991168e-05,
+   "one_minus_cos_min": 4.549120038688237e-05
+  },
+  {
+   "layer": "ip_adapter.135.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.338444848000055e-05,
+   "one_minus_cos_min": 3.924231098217934e-05
+  },
+  {
+   "layer": "ip_adapter.137.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.676105041428013e-05,
+   "one_minus_cos_min": 4.6145192834634585e-05
+  },
+  {
+   "layer": "ip_adapter.137.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.4420225208386945e-05,
+   "one_minus_cos_min": 4.2285976997069596e-05
+  },
+  {
+   "layer": "ip_adapter.139.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.340789314776327e-05,
+   "one_minus_cos_min": 5.1762226439655556e-05
+  },
+  {
+   "layer": "ip_adapter.139.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.516497403732721e-05,
+   "one_minus_cos_min": 4.26700873180641e-05
+  },
+  {
+   "layer": "ip_adapter.15.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.443990708218436e-05,
+   "one_minus_cos_min": 4.847086037107484e-05
+  },
+  {
+   "layer": "ip_adapter.15.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.663189506297737e-05,
+   "one_minus_cos_min": 4.597633778635757e-05
+  },
+  {
+   "layer": "ip_adapter.17.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.2946550131640606e-05,
+   "one_minus_cos_min": 4.742350004882656e-05
+  },
+  {
+   "layer": "ip_adapter.17.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.4438789656587865e-05,
+   "one_minus_cos_min": 3.994883184110787e-05
+  },
+  {
+   "layer": "ip_adapter.19.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.903458544862737e-05,
+   "one_minus_cos_min": 4.9721368033828206e-05
+  },
+  {
+   "layer": "ip_adapter.19.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6955839891827935e-05,
+   "one_minus_cos_min": 4.51173567727059e-05
+  },
+  {
+   "layer": "ip_adapter.21.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7318897576521515e-05,
+   "one_minus_cos_min": 4.823219143068602e-05
+  },
+  {
+   "layer": "ip_adapter.21.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.58493564293072e-05,
+   "one_minus_cos_min": 4.302593298144419e-05
+  },
+  {
+   "layer": "ip_adapter.23.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.447585350391247e-05,
+   "one_minus_cos_min": 4.6154461004310754e-05
+  },
+  {
+   "layer": "ip_adapter.23.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.775712547293697e-05,
+   "one_minus_cos_min": 4.300212399199754e-05
+  },
+  {
+   "layer": "ip_adapter.25.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.681950595824102e-05,
+   "one_minus_cos_min": 4.489640397420391e-05
+  },
+  {
+   "layer": "ip_adapter.25.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6921055223793076e-05,
+   "one_minus_cos_min": 4.230936497884308e-05
+  },
+  {
+   "layer": "ip_adapter.27.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.759134584868651e-05,
+   "one_minus_cos_min": 4.631492461792952e-05
+  },
+  {
+   "layer": "ip_adapter.27.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.470700789132142e-05,
+   "one_minus_cos_min": 4.914450634596612e-05
+  },
+  {
+   "layer": "ip_adapter.29.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.498395369894158e-05,
+   "one_minus_cos_min": 4.650947902107294e-05
+  },
+  {
+   "layer": "ip_adapter.29.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7236390540318354e-05,
+   "one_minus_cos_min": 4.394591538081638e-05
+  },
+  {
+   "layer": "ip_adapter.3.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.8191926535535714e-05,
+   "one_minus_cos_min": 5.417470287849557e-05
+  },
+  {
+   "layer": "ip_adapter.3.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.689926032524049e-05,
+   "one_minus_cos_min": 4.817753048902418e-05
+  },
+  {
+   "layer": "ip_adapter.31.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.586005123734637e-05,
+   "one_minus_cos_min": 4.1479893056362016e-05
+  },
+  {
+   "layer": "ip_adapter.31.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.700188440003416e-05,
+   "one_minus_cos_min": 4.195376596249911e-05
+  },
+  {
+   "layer": "ip_adapter.33.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.773050075928097e-05,
+   "one_minus_cos_min": 4.254785568635899e-05
+  },
+  {
+   "layer": "ip_adapter.33.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.589577186979831e-05,
+   "one_minus_cos_min": 4.325638717195268e-05
+  },
+  {
+   "layer": "ip_adapter.35.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.79396982355118e-05,
+   "one_minus_cos_min": 4.605456827788679e-05
+  },
+  {
+   "layer": "ip_adapter.35.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.588304293455913e-05,
+   "one_minus_cos_min": 3.861299663865392e-05
+  },
+  {
+   "layer": "ip_adapter.37.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.504491991246361e-05,
+   "one_minus_cos_min": 4.610522489512103e-05
+  },
+  {
+   "layer": "ip_adapter.37.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.666401909119266e-05,
+   "one_minus_cos_min": 4.169527439645826e-05
+  },
+  {
+   "layer": "ip_adapter.39.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.60322829016102e-05,
+   "one_minus_cos_min": 4.172733479423929e-05
+  },
+  {
+   "layer": "ip_adapter.39.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7776362816210884e-05,
+   "one_minus_cos_min": 4.423882829607262e-05
+  },
+  {
+   "layer": "ip_adapter.41.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.507730645346818e-05,
+   "one_minus_cos_min": 4.349896455402291e-05
+  },
+  {
+   "layer": "ip_adapter.41.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6539900180487805e-05,
+   "one_minus_cos_min": 4.176627958896173e-05
+  },
+  {
+   "layer": "ip_adapter.43.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.575933929322872e-05,
+   "one_minus_cos_min": 5.0255462348047786e-05
+  },
+  {
+   "layer": "ip_adapter.43.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.647145636098692e-05,
+   "one_minus_cos_min": 4.179257112679746e-05
+  },
+  {
+   "layer": "ip_adapter.45.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.5751199066069717e-05,
+   "one_minus_cos_min": 4.596948167945314e-05
+  },
+  {
+   "layer": "ip_adapter.45.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6864805112890586e-05,
+   "one_minus_cos_min": 4.123919122844821e-05
+  },
+  {
+   "layer": "ip_adapter.47.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.514339109833564e-05,
+   "one_minus_cos_min": 5.219183956128859e-05
+  },
+  {
+   "layer": "ip_adapter.47.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.540451470174233e-05,
+   "one_minus_cos_min": 4.4522109439282254e-05
+  },
+  {
+   "layer": "ip_adapter.49.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.668850980198535e-05,
+   "one_minus_cos_min": 4.080568252162742e-05
+  },
+  {
+   "layer": "ip_adapter.49.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.5908526828998255e-05,
+   "one_minus_cos_min": 4.336950100036763e-05
+  },
+  {
+   "layer": "ip_adapter.5.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.9835118855857665e-05,
+   "one_minus_cos_min": 5.512238343585718e-05
+  },
+  {
+   "layer": "ip_adapter.5.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.8344548009439094e-05,
+   "one_minus_cos_min": 4.7169942560376654e-05
+  },
+  {
+   "layer": "ip_adapter.51.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.502816929801256e-05,
+   "one_minus_cos_min": 3.9724109597405466e-05
+  },
+  {
+   "layer": "ip_adapter.51.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6897660462553716e-05,
+   "one_minus_cos_min": 4.2021868723596256e-05
+  },
+  {
+   "layer": "ip_adapter.53.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.410350654831085e-05,
+   "one_minus_cos_min": 4.210121221115415e-05
+  },
+  {
+   "layer": "ip_adapter.53.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.668256676181425e-05,
+   "one_minus_cos_min": 4.367453374554131e-05
+  },
+  {
+   "layer": "ip_adapter.55.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.4279255957114785e-05,
+   "one_minus_cos_min": 4.240261889587593e-05
+  },
+  {
+   "layer": "ip_adapter.55.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6903764560891616e-05,
+   "one_minus_cos_min": 4.09577864916022e-05
+  },
+  {
+   "layer": "ip_adapter.57.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7379934909598234e-05,
+   "one_minus_cos_min": 4.52641563344347e-05
+  },
+  {
+   "layer": "ip_adapter.57.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7088724626377356e-05,
+   "one_minus_cos_min": 4.076242099426697e-05
+  },
+  {
+   "layer": "ip_adapter.59.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.821584119090282e-05,
+   "one_minus_cos_min": 4.6891886714584e-05
+  },
+  {
+   "layer": "ip_adapter.59.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.574737769596048e-05,
+   "one_minus_cos_min": 4.1378788774304454e-05
+  },
+  {
+   "layer": "ip_adapter.61.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.493989169900402e-05,
+   "one_minus_cos_min": 5.85564796490301e-05
+  },
+  {
+   "layer": "ip_adapter.61.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.652441800494621e-05,
+   "one_minus_cos_min": 4.250859398402529e-05
+  },
+  {
+   "layer": "ip_adapter.63.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.449141674116696e-05,
+   "one_minus_cos_min": 4.5014215762195775e-05
+  },
+  {
+   "layer": "ip_adapter.63.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.493793010278523e-05,
+   "one_minus_cos_min": 4.234378335765676e-05
+  },
+  {
+   "layer": "ip_adapter.65.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.441320063335418e-05,
+   "one_minus_cos_min": 4.7165368750934356e-05
+  },
+  {
+   "layer": "ip_adapter.65.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.418794425258387e-05,
+   "one_minus_cos_min": 4.0155001222341724e-05
+  },
+  {
+   "layer": "ip_adapter.67.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.431559225353098e-05,
+   "one_minus_cos_min": 5.175899501286274e-05
+  },
+  {
+   "layer": "ip_adapter.67.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.534550547934501e-05,
+   "one_minus_cos_min": 4.133980333320686e-05
+  },
+  {
+   "layer": "ip_adapter.69.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.544939175448292e-05,
+   "one_minus_cos_min": 4.4443943166161404e-05
+  },
+  {
+   "layer": "ip_adapter.69.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7455843864275806e-05,
+   "one_minus_cos_min": 4.3388871723615274e-05
+  },
+  {
+   "layer": "ip_adapter.7.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.5661971985234686e-05,
+   "one_minus_cos_min": 4.810909463992541e-05
+  },
+  {
+   "layer": "ip_adapter.7.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.5453594468548566e-05,
+   "one_minus_cos_min": 4.700663213252909e-05
+  },
+  {
+   "layer": "ip_adapter.71.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.471734080351396e-05,
+   "one_minus_cos_min": 4.1442532702218315e-05
+  },
+  {
+   "layer": "ip_adapter.71.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6534037922808515e-05,
+   "one_minus_cos_min": 4.1638783596531503e-05
+  },
+  {
+   "layer": "ip_adapter.73.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.4756926524437404e-05,
+   "one_minus_cos_min": 4.110135820689642e-05
+  },
+  {
+   "layer": "ip_adapter.73.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.67291664313818e-05,
+   "one_minus_cos_min": 4.0949926654154645e-05
+  },
+  {
+   "layer": "ip_adapter.75.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.630801062037836e-05,
+   "one_minus_cos_min": 4.1186309693741485e-05
+  },
+  {
+   "layer": "ip_adapter.75.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.7274857224600666e-05,
+   "one_minus_cos_min": 4.577814568285099e-05
+  },
+  {
+   "layer": "ip_adapter.77.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.500348120022423e-05,
+   "one_minus_cos_min": 4.0820912698524836e-05
+  },
+  {
+   "layer": "ip_adapter.77.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6791921862566745e-05,
+   "one_minus_cos_min": 4.148008917448376e-05
+  },
+  {
+   "layer": "ip_adapter.79.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.605900100911441e-05,
+   "one_minus_cos_min": 4.552375906052841e-05
+  },
+  {
+   "layer": "ip_adapter.79.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.693136127125296e-05,
+   "one_minus_cos_min": 4.295320289182669e-05
+  },
+  {
+   "layer": "ip_adapter.81.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.504488031158548e-05,
+   "one_minus_cos_min": 4.0608015312360024e-05
+  },
+  {
+   "layer": "ip_adapter.81.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.63026883978268e-05,
+   "one_minus_cos_min": 4.1462429208327656e-05
+  },
+  {
+   "layer": "ip_adapter.83.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.42822131338405e-05,
+   "one_minus_cos_min": 4.317936174003112e-05
+  },
+  {
+   "layer": "ip_adapter.83.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.703252106102006e-05,
+   "one_minus_cos_min": 4.266296915000911e-05
+  },
+  {
+   "layer": "ip_adapter.85.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.561965788101418e-05,
+   "one_minus_cos_min": 4.745885237322778e-05
+  },
+  {
+   "layer": "ip_adapter.85.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.470382107406689e-05,
+   "one_minus_cos_min": 3.959000958619896e-05
+  },
+  {
+   "layer": "ip_adapter.87.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 4.079307560500567e-05,
+   "one_minus_cos_min": 5.138408545968254e-05
+  },
+  {
+   "layer": "ip_adapter.87.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.733347795975561e-05,
+   "one_minus_cos_min": 4.998146210344334e-05
+  },
+  {
+   "layer": "ip_adapter.89.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.571466415286384e-05,
+   "one_minus_cos_min": 4.1658810351230535e-05
+  },
+  {
+   "layer": "ip_adapter.89.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6591199038538136e-05,
+   "one_minus_cos_min": 4.103410352007675e-05
+  },
+  {
+   "layer": "ip_adapter.9.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.445694774872887e-05,
+   "one_minus_cos_min": 4.393014617254387e-05
+  },
+  {
+   "layer": "ip_adapter.9.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.651098087809057e-05,
+   "one_minus_cos_min": 4.901995310979679e-05
+  },
+  {
+   "layer": "ip_adapter.91.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.2442550632727496e-05,
+   "one_minus_cos_min": 4.0600155870595955e-05
+  },
+  {
+   "layer": "ip_adapter.91.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.524374302776856e-05,
+   "one_minus_cos_min": 4.32478123599811e-05
+  },
+  {
+   "layer": "ip_adapter.93.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.554569225705517e-05,
+   "one_minus_cos_min": 4.3300383374855755e-05
+  },
+  {
+   "layer": "ip_adapter.93.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6081288064426786e-05,
+   "one_minus_cos_min": 4.012314839962894e-05
+  },
+  {
+   "layer": "ip_adapter.95.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6017301471402696e-05,
+   "one_minus_cos_min": 4.754502136861127e-05
+  },
+  {
+   "layer": "ip_adapter.95.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.781474668362872e-05,
+   "one_minus_cos_min": 4.6107028439879016e-05
+  },
+  {
+   "layer": "ip_adapter.97.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.65611690253953e-05,
+   "one_minus_cos_min": 4.590848690955163e-05
+  },
+  {
+   "layer": "ip_adapter.97.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.5967187818508606e-05,
+   "one_minus_cos_min": 4.696686624594548e-05
+  },
+  {
+   "layer": "ip_adapter.99.to_k_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.6861188351444696e-05,
+   "one_minus_cos_min": 5.257255229651481e-05
+  },
+  {
+   "layer": "ip_adapter.99.to_v_ip",
+   "groupsize": 256,
+   "one_minus_cos_mean": 3.882757256135072e-05,
+   "one_minus_cos_min": 5.6680021411348314e-05
+  }
+ ],
+ "distribution": {
+  "layers": 162,
+  "negative_gain_layers": 0,
+  "zero_gain_layers": 0,
+  "positive_gain_layers": 162,
+  "max": 4.450683977941239e-05,
+  "median": 3.586005123734637e-05,
+  "min": 1.5493684113465633e-10,
+  "largest_share": 0.008767294678320766,
+  "note": "1 - cosine is non-negative by construction; a share is a layer's 1-cos over the sum"
+ }
+}
