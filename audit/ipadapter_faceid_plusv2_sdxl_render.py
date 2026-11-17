@@ -22,7 +22,7 @@ VAE = "sdxl_vae.safetensors"
 CLIP_VISION = "clip_vision_h.safetensors"
 PACK = "ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors"
 SOURCE = "ip-adapter-faceid-plusv2_sdxl.bin"
-MODEL_DIR = r"D:\USERFILES\StableDiffusion\models\ControlNet"
+MODEL_DIR = r"D:\USERFILES\ComfyUI\ComfyUI\models\ipadapter"
 REF = "cn_clipvit_ref.png"
 
 PROMPT = "a woman in a red coat standing in a city street, detailed, natural light"
@@ -94,8 +94,9 @@ def main():
 
     os.makedirs(a.out_dir, exist_ok=True)
     runs = [("source", SOURCE, "sdxl_render_source"), ("pack", PACK, "sdxl_render_pack")]
+    # CN-4 records the picture and its agreement with the source. No route field: which loader drew
+    # it is not a CN-4 result (skill 2.4).
     out = {"tool": "audit/ipadapter_faceid_plusv2_sdxl_render.py", "family": "ipadapter_faceid_plusv2_sdxl",
-           "route": "ComfyUI, HSWQ Load IPAdapter Model -> IPAdapterFaceID",
            "settings": {"ckpt": CKPT, "vae": VAE, "loader": "HSWQCheckpointLoader, weight_dtype SDXL ConvRot INT8",
                         "clip_vision": CLIP_VISION, "prompt": PROMPT,
                         "negative": NEGATIVE, "width": 1024, "height": 1024, "steps": 12,

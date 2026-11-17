@@ -151,16 +151,16 @@ The base model is an HSWQ ConvRot INT8 SDXL UNet, `waiIllustriousSDXL_v170_hswq_
 is a separate `sdxl_vae.safetensors`. That it carries a CLIP is a property of the file read from its header, not of its
 name - see section 6.
 
-The two arms are `records/cn_ipadapter_faceid_plusv2_sdxl_comfyui_source.png` and
-`records/cn_ipadapter_faceid_plusv2_sdxl_comfyui_pack.png`.
+The two arms are `records/cn_ipadapter_faceid_plusv2_sdxl_source.png` and
+`records/cn_ipadapter_faceid_plusv2_sdxl_pack.png`.
 
 | item | value |
 | :--- | ---: |
 | settings | 1024x1024, 12 steps, cfg 7.0, dpmpp_2m / karras, seed 42, weight 0.8, weight_faceidv2 1.0 |
-| source arm | 1,696,348 B in 42.7 s |
-| pack arm | 1,696,653 B in 21.6 s |
-| mean abs diff / max / p99 | 16.408394 / 255 / 143 |
-| pixel cosine / PSNR | 0.962361634 / 18.027259 dB |
+| source arm | 1,696,348 B in 36.7 s |
+| pack arm | 1,696,653 B in 19.9 s |
+| mean abs diff / max / p99 | 16.408393 / 255 / 143 |
+| pixel cosine / PSNR | 0.962406428 / 18.02726 dB |
 | identical-pixel ratio | 0.039916 |
 
 Both PNGs were read directly and looked at. Both are finished illustrations of the same subject in the

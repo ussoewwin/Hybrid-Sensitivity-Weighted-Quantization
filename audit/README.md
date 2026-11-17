@@ -47,7 +47,9 @@ python audit/run_all_gates.py
 | 9 (every figure traced to a record) | `check_cites.py` | `<report.md> --root <dir>` |
 | 12.3 (candidate line from the documented rule) | `make_limits.py` | `--trigger-json <f> [--behaviour-prompts N]` |
 | Gate F | `procedure_check.py` | no arguments; must print `PROCEDURE CHECK: PASS` |
-| Form (before writing a document) | `form_profile.py` | `<sibling.md> <new.md> [--json <o>]`; must print `FORM: PASS` before the document is committed |
+| Form (before writing a document) | `form_profile.py` |
+| 8, CN-4 | `ipadapter_faceid_plusv2_sdxl_pixel_compare.py` | `--source <png> --pack <png> --json <o>`; the two arms compared as pixels |
+| Form (before writing a document) | `form_profile.py` |  `<sibling.md> <new.md> [--json <o>]`; must print `FORM: PASS` before the document is committed |
 | any | `selftest.py` | no arguments; must print `N/N passed` |
 
 ## ControlNet & Model Patch Extension (procedure 14.5)

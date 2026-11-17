@@ -1,7 +1,6 @@
 {
  "tool": "audit/ipadapter_faceid_plusv2_sdxl_render.py",
  "family": "ipadapter_faceid_plusv2_sdxl",
- "route": "ComfyUI, HSWQ Load IPAdapter Model -> IPAdapterFaceID",
  "settings": {
   "ckpt": "waiIllustriousSDXL_v170_hswq_1on_re590_convrot_int8.safetensors",
   "vae": "sdxl_vae.safetensors",
@@ -19,11 +18,11 @@
   "weight": 0.8,
   "weight_faceidv2": 1.0,
   "reference": "cn_clipvit_ref.png",
-  "adapter_dir": "D:\\USERFILES\\StableDiffusion\\models\\ControlNet"
+  "adapter_dir": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\ipadapter"
  },
  "arms": {
   "source": {
-   "queued": "4f68bfa8-6302-489d-b877-2f9e7080ec83",
+   "queued": "ddd05c68-81f0-4897-b143-5032eee837e7",
    "completed": true,
    "status_str": "success",
    "images": [
@@ -32,10 +31,10 @@
      "bytes": 1696348
     }
    ],
-   "seconds": 42.7
+   "seconds": 36.7
   },
   "pack": {
-   "queued": "748ac742-3ab3-40e0-b881-bd3cd8af7f46",
+   "queued": "8707cb8d-472f-48f2-b186-123308dee396",
    "completed": true,
    "status_str": "success",
    "images": [
@@ -44,7 +43,7 @@
      "bytes": 1696653
     }
    ],
-   "seconds": 21.6
+   "seconds": 19.9
   }
  }
 }

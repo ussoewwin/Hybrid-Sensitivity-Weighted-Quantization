@@ -122,19 +122,19 @@ The projection comparison is in **float32**: with float16 activations this graph
 
 | arm | measured | record |
 | :--- | :--- | :--- |
-| source | PNG 1,696,348 B in 42.7 s - inspected: a young woman in a red coat on a neon street, the reference identity applied, no artefact | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` -> `arms.source.seconds` |
-| pack | PNG 1,696,653 B in 21.6 s - inspected: the same woman and coat, the same street; the framing is slightly tighter, the shop signs and the bystanders differ | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` -> `arms.pack.seconds` |
+| source | PNG 1,696,348 B in 36.7 s - inspected: a young woman in a red coat on a neon street, the reference identity applied, no artefact | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` -> `arms.source.seconds` |
+| pack | PNG 1,696,653 B in 19.9 s - inspected: the same woman and coat, the same street; the framing is slightly tighter, the shop signs and the bystanders differ | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` -> `arms.pack.seconds` |
 
 | source against pack | measured | record |
 | :--- | :--- | :--- |
-| mean absolute pixel difference | **16.408394** / 255 | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `mean_abs_diff` |
+| mean absolute pixel difference | **16.408393** / 255 | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `mean_abs_diff` |
 | largest single-channel difference | 255 | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `max_abs_diff` |
 | p99 | 143 | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `p99_abs_diff` |
-| pixel cosine | 0.962361634 | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `cosine` |
-| PSNR | 18.027259 dB | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `psnr_db` |
+| pixel cosine | 0.962406428 | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `cosine` |
+| PSNR | 18.02726 dB | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `psnr_db` |
 | pixels identical at all | 0.039916 | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` -> `pixels_identical_ratio` |
 
-The two PNGs are `records/cn_ipadapter_faceid_plusv2_sdxl_comfyui_source.png` and `records/cn_ipadapter_faceid_plusv2_sdxl_comfyui_pack.png` - `_comfyui_` rather than the family's `_a1111_`, because this render ran on ComfyUI.
+The two PNGs are `records/cn_ipadapter_faceid_plusv2_sdxl_source.png` and `records/cn_ipadapter_faceid_plusv2_sdxl_pack.png` - `_comfyui_` rather than the family's `_a1111_`, because this render ran on ComfyUI.
 
 Both were read directly and looked at, not inferred from the cosine. Both are finished illustrations; they are not the same picture, which a 12-step chain amplifies, and neither is noise.
 

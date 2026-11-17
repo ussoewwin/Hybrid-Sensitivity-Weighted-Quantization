@@ -292,8 +292,8 @@ implant would not be seen, which is what section 9 records.
 
 | arm | adapter | measured |
 | :--- | :--- | :--- |
-| source | `ip-adapter-faceid-plusv2_sdxl` | PNG 1,696,348 B in 42.7 s - inspected: a woman in a red coat on a neon street, the reference identity applied, no artefacts |
-| pack | `ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8` | PNG 1,696,653 B in 21.6 s - inspected: the same subject and the same scene, no artefacts, no noise; the framing and the signage differ |
+| source | `ip-adapter-faceid-plusv2_sdxl` | PNG 1,696,348 B in 36.7 s - inspected: a woman in a red coat on a neon street, the reference identity applied, no artefacts |
+| pack | `ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8` | PNG 1,696,653 B in 19.9 s - inspected: the same subject and the same scene, no artefacts, no noise; the framing and the signage differ |
 
 | source against pack | measured |
 | :--- | :--- |
@@ -301,8 +301,8 @@ implant would not be seen, which is what section 9 records.
 | largest single-channel difference | 255 |
 | p99 difference | 143 |
 | pixels that changed at all | 3.99 % |
-| cosine | 0.962361634 |
-| PSNR | 18.027259 dB |
+| cosine | 0.962406428 |
+| PSNR | 18.02726 dB |
 
 Both images were looked at, not inferred from the cosine. 16.41 / 255 is recorded, not
 characterised as negligible: a weight-only quantisation of the conditioning path moves the composition
@@ -404,7 +404,7 @@ python audit/ipadapter_faceid_plusv2_sdxl_comfyui_gate.py \
 | 6 | `ipadapter_faceid_plusv2_sdxl_acceptance.py` | CN-5a: image_proj 0.999960350 / 0.999956486, ip_adapter 1260 weights 0.999972070 / 0.999928368, route 0.999906062 / 0.999905986 |
 | 7 | `ipadapter_faceid_plusv2_sdxl_comfyui_trigger.py` | CN-5b: 56 candidates, baseline 7.693165e-05, p99 1.172190e-04, flagged 0, floor 2 LSB / x1.05 |
 | 8 | `ipadapter_faceid_plusv2_sdxl_comfyui_gate.py` | CN-6: mean 0.999926916, min 0.999925345, n 256, 6,144 kernel calls, PASS |
-| 9 | `ipadapter_faceid_plusv2_sdxl_render.py` | CN-4: source 1,696,348 B / 42.7 s, pack 1,696,653 B / 21.6 s, mean abs diff 16.41 / 255 |
+| 9 | `ipadapter_faceid_plusv2_sdxl_render.py` | CN-4: source 1,696,348 B / 36.7 s, pack 1,696,653 B / 19.9 s, mean abs diff 16.41 / 255 |
 | 10 | `ipadapter_faceid_plusv2_sdxl_model_inventory.py` | 1,307 entries, 1,102 ok, 38 placeholder, 1 partial, 166 unreadable |
 
 ## 11. Files
@@ -424,8 +424,8 @@ python audit/ipadapter_faceid_plusv2_sdxl_comfyui_gate.py \
 | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` | CN-4, the settings and both arms |
 | `records/cn_ipadapter_faceid_plusv2_sdxl_pixel_compare.json` | CN-4, the two PNGs compared |
 | `records/cn_ipadapter_faceid_plusv2_sdxl_model_inventory.json` | the section 1.10 inventory, 1,307 rows |
-| `audit/cn_ipadapter_faceid_plusv2_sdxl_source.png` | the source arm's PNG |
-| `audit/cn_ipadapter_faceid_plusv2_sdxl_pack.png` | the pack arm's PNG |
+| `records/cn_ipadapter_faceid_plusv2_sdxl_source.png` | the source arm's PNG |
+| `records/cn_ipadapter_faceid_plusv2_sdxl_pack.png` | the pack arm's PNG |
 
 ### Retraction
 
