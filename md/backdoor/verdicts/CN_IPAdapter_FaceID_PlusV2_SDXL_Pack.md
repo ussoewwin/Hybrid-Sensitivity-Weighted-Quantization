@@ -116,7 +116,7 @@ The projection comparison is in **float32**: with float16 activations this graph
 
 ## 8. Render
 
-**ComfyUI, both arms, the same prompt, seed, steps and reference image**, on an HSWQ ConvRot INT8 SDXL UNet (`waiIllustriousSDXL_v170_hswq_1on_re590_convrot_int8.safetensors`) with its own embedded CLIP and a separate `sdxl_vae.safetensors`.
+**Both arms, the same prompt, seed, steps and reference image**, on an HSWQ ConvRot INT8 SDXL UNet (`waiIllustriousSDXL_v170_hswq_1on_re590_convrot_int8.safetensors`) with its own embedded CLIP and a separate `sdxl_vae.safetensors`.
 
 1024x1024, 12 steps, cfg 7.0, dpmpp_2m / karras, seed 42, weight 0.8, weight_faceidv2 1.0, reference `cn_clipvit_ref.png`.
 

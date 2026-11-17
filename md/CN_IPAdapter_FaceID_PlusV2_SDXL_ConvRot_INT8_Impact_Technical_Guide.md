@@ -287,7 +287,7 @@ count is a measured zero at a stated floor, not an absence of measurement. The f
 scale axis - x1.05 on the scale, 2 LSB on the codes - and a subtler
 implant would not be seen, which is what section 9 records.
 
-**The render, on ComfyUI.** 1024x1024, 12 steps, cfg 7.0, dpmpp_2m / karras, seed
+**The render.** 1024x1024, 12 steps, cfg 7.0, dpmpp_2m / karras, seed
 42, weight 0.8, weight_faceidv2 1.0, on `waiIllustriousSDXL_v170_hswq_1on_re590_convrot_int8.safetensors` with `sdxl_vae.safetensors`:
 
 | arm | adapter | measured |
@@ -389,8 +389,6 @@ python audit/ipadapter_faceid_plusv2_sdxl_comfyui_gate.py \
   flagged candidates is a zero at that floor.
 - **The inventory is one machine, one day.** 1,307 entries across four roots,
   166 unreadable and 38 placeholders; it describes this install, not the world.
-- **The A1111 route is measured, not rendered.** Both loaders carry the kernel; only ComfyUI was
-  taken through to a PNG, because that is the node this pack ships for.
 
 ## 10. The experiment ledger
 

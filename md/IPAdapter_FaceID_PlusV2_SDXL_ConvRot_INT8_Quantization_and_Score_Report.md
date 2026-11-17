@@ -152,8 +152,7 @@ is a separate `sdxl_vae.safetensors`. That it carries a CLIP is a property of th
 name - see section 6.
 
 The two arms are `records/cn_ipadapter_faceid_plusv2_sdxl_comfyui_source.png` and
-`records/cn_ipadapter_faceid_plusv2_sdxl_comfyui_pack.png`; `_comfyui_` rather than the family's
-`_a1111_`, because this render ran on ComfyUI.
+`records/cn_ipadapter_faceid_plusv2_sdxl_comfyui_pack.png`.
 
 | item | value |
 | :--- | ---: |
