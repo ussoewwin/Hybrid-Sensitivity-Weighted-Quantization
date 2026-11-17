@@ -1,4 +1,4 @@
-# SD1.5→SDXL IP-Adapter FaceID Plus v2 (`ip-adapter-faceid-plusv2_sdxl`) ConvRot INT8 - Quantization and Score Report
+# SDXL IP-Adapter FaceID Plus v2 (`ip-adapter-faceid-plusv2_sdxl`) ConvRot INT8 - Quantization and Score Report
 
 The pack is `ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8.safetensors`, 748,384,560 bytes, sha256
 `c9376bc5c5535ee43a96442049e3b7e0a451439209c696a45da5ea09a23323a3`. Every 2-D weight of the adapter is INT8 ConvRot (1284 layers); the 32 float tensors
@@ -46,15 +46,26 @@ The shared converter fixes `GROUP_SIZE = 256`. This graph's inner widths are 128
 far fewer INT8 layers than the graph has. The group is read per layer as the largest power of four that
 divides the inner width, which here is 256 for 664 layers and 64 for the other 620.
 
-### 0.4 Both hosts execute it
+### 0.4 The loader package's node keeps the codes INT8
 
-ComfyUI through the loader package's `HSWQ Load IPAdapter Model` node; A1111 through
-`sd-webui-controlnet`'s IP-Adapter path plus `modules/ipadapter_int8_convrot.py`. Both were measured by
-importing each host's own classes, not by re-implementing them.
+ComfyUI, through `HSWQ Load IPAdapter Model`: the node patches the extension's `IPAdapter` / `To_KV`
+globals and builds `ConvRotInt8Linear` for the quantised weights. Measured on the pack: 24 INT8 layers in
+`image_proj`, 1,260 in `ip_adapter`, **1,284** INT8 kernel calls on one projection pass, input widths
+`[128, 640, 1280, 2048]`. The same node on the float source installs 0 INT8 layers - the negative control
+for the patch being conditional.
 
-### 0.5 What the harness got wrong before the pack existed
+### 0.5 A1111 installs the same payload into its own IP-Adapter graph
 
-| what happened | the number that showed it | what it was |
+A1111 reaches the same runtime through `extensions-builtin/sd-webui-controlnet/scripts/ipadapter/ipadapter_model.py`
+plus `modules/ipadapter_int8_convrot.py`. Measured on the pack: **24 / 24** `image_proj` Linear modules INT8,
+**1,260 / 1,260** `ip_adapter` modules INT8, **1,284** INT8 kernel calls on one projection pass, group sizes
+64 and 256 both reaching the kernel, widths 128 / 512 / 640 / 1024 / 1280 / 2048 / 8192, every call with
+`convrot` set, finite output from the 4 x 2048 stack. Both hosts were measured by importing each host's own
+classes, not by re-implementing them; neither census is a quality claim.
+
+### 0.6 What the harness got wrong before the pack existed
+
+| what happened | the number that identifies it | what it was |
 | :--- | :--- | :--- |
 | the first projection comparison came back NaN | `image_proj` cos `NaN`, finite false | float16 activations on the 8192-wide projection; the source returns NaN too |
 | the A1111 census read zero INT8 layers on a firing kernel | `installed` 0 while the kernel fired 1,284 times | `isinstance` against a class imported through another package object |
@@ -81,28 +92,32 @@ The protection set is this checkpoint's own measurement. Two instruments were ru
 (one weight reconstructed as ConvRot INT8, the stage output's relative MSE) and the criterion (1 - cosine
 on the same stage output). The criterion decides.
 
-| statistic | measured | record |
-| :--- | ---: | :--- |
-| largest layer drift (`ip_adapter.3.to_k_ip`) | 8.632594e-05 | `records/cn_ipadapter_faceid_plusv2_sdxl_impact.json` -> `max` |
-| median layer drift | 2.053594e-05 | `records/cn_ipadapter_faceid_plusv2_sdxl_impact.json` -> `median` |
-| smallest layer drift | 8.672217e-11 | `records/cn_ipadapter_faceid_plusv2_sdxl_impact.json` -> `min` |
-| layers measured | 1284 | `records/cn_ipadapter_faceid_plusv2_sdxl_impact.json` -> `layers_measured` |
-| summed contribution | 1.704065e-02 | `records/cn_ipadapter_faceid_plusv2_sdxl_contrib.json` -> `sum` |
-| largest single layer's share | 0.002535003 | `records/cn_ipadapter_faceid_plusv2_sdxl_contrib.json` -> `distribution.largest_share` |
-| layers with a negative contribution | 0 | `records/cn_ipadapter_faceid_plusv2_sdxl_contrib.json` -> `distribution.negative_gain_layers` |
-| layers above the 0.15 drift threshold | 0 | `records/cn_ipadapter_faceid_plusv2_sdxl_conversion.json` -> `arguments.protect_count` |
+| layer | drift (relative MSE) | share of the contribution |
+| :--- | ---: | ---: |
+| `ip_adapter.3.to_k_ip` | 8.632594e-05 | 0.254 % |
+| `ip_adapter.105.to_k_ip` | 8.108006e-05 | 0.238 % |
+| `ip_adapter.51.to_k_ip` | 7.729845e-05 | 0.227 % |
+| `ip_adapter.19.to_k_ip` | 7.717069e-05 | 0.226 % |
+| `ip_adapter.77.to_v_ip` | 7.713866e-05 | 0.226 % |
+| `ip_adapter.9.to_k_ip` | 7.707177e-05 | 0.226 % |
+| `ip_adapter.109.to_v_ip` | 7.682696e-05 | 0.226 % |
+| `ip_adapter.43.to_v_ip` | 7.639665e-05 | 0.224 % |
+| `ip_adapter.79.to_v_ip` | 7.579922e-05 | 0.223 % |
+| `ip_adapter.121.to_k_ip` | 7.550011e-05 | 0.223 % |
+| `ip_adapter.67.to_k_ip` | 7.545867e-05 | 0.223 % |
+| `ip_adapter.133.to_k_ip` | 7.530855e-05 | 0.227 % |
 
 No layer crosses the threshold, so nothing is kept by drift, and the distribution is flat: the largest
 single layer is 0.25 % of the total, the median 1.081513e-05.
 
 The curve, measured on the fixed 256-item set through the INT8 route (K = layers kept in FP16):
 
-| K | INT8 layers | FP16 kept | size | gate mean | gate min | p5 | worst single token | mean gain / gate margin | pack sha256 |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
-| **0** | 1284 | 0 | 748.4 MB | 0.999926916 | 0.999925345 | 0.999926001 | 0.999921679 | - | `c9376bc5c553` |
-| 40 | 1244 | 40 | 844.1 MB | 0.999926916 | 0.999925345 | 0.999926001 | 0.999921679 | 0.0 / 9.93e-03 = 0.0 % | `bb0fbe978a57` |
-| 80 | 1204 | 80 | 940.9 MB | 0.999926916 | 0.999925345 | 0.999926001 | 0.999921679 | 0.0 / 9.93e-03 = 0.0 % | `022a181c10d1` |
-| 160 | 1124 | 160 | 1091.7 MB | 0.999926916 | 0.999925345 | 0.999926001 | 0.999921679 | 0.0 / 9.93e-03 = 0.0 % | `6fe95da2ad58` |
+| K | INT8 layers | FP16 kept | size | gate mean | gate min | p5 | worst single token | `ip_adapter` mean | mean gain / gate margin | pack sha256 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| **0** | 1284 | 0 | 748.4 MB | 0.999926916 | 0.999925345 | 0.999926001 | 0.999921679 | **0.999972070** | - | `c9376bc5c553` |
+| 40 | 1244 | 40 | 844.1 MB | 0.999926916 | 0.999925345 | 0.999926001 | 0.999921679 | - | 0.0 / 9.93e-03 = 0.0 % | `bb0fbe978a57` |
+| 80 | 1204 | 80 | 940.9 MB | 0.999926916 | 0.999925345 | 0.999926001 | 0.999921679 | - | 0.0 / 9.93e-03 = 0.0 % | `022a181c10d1` |
+| 160 | 1124 | 160 | 1091.7 MB | 0.999926916 | 0.999925345 | 0.999926001 | 0.999921679 | - | 0.0 / 9.93e-03 = 0.0 % | `6fe95da2ad58` |
 
 **K = 0 is adopted, and here the reason is exact rather than proportional.** Every layer in the top 160 of
 the contribution ranking is an `ip_adapter` weight, and the gate calls the `image_proj` graph only - so
@@ -170,6 +185,15 @@ collapse. The cosine of 0.962362 says the two are not the same picture, which a 
 amplifies; the judgement that both are pictures comes from the look, not from the number.
 
 ## 5. Reproduction
+
+| setting | value used | why it matters |
+| :--- | :--- | :--- |
+| projection dtype | float32 | float16 returns NaN on the 8192-wide `proj`, on the source too (0.2) |
+| group size | read per layer | a fixed 256 leaves every 128- and 640-wide weight in FP16 (0.3) |
+| gate instrument | the loader node, INT8 route | a dequantised comparison would not exercise the kernel |
+| reference image | `cn_clipvit_ref.png`, one face | the 256 items vary the CLIP side of one identity |
+| render base | HSWQ SDXL UNet carrying its own CLIP, plus `sdxl_vae` | the SDXL graph needs the 1280-wide CLIP stack |
+| seed | 42 | the gate, the trigger ladder and the render share it |
 
 ```
 python clip_convert/diag_impact_ipadapter_faceid_plusv2_sdxl.py --ipadapter <f.bin> --out <impact.json> --comfy <ComfyUI>

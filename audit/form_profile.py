@@ -129,15 +129,28 @@ def compare(sib: dict, new: dict):
         if a != b:
             errors.append("contents line %d: %r vs %r" % (i, a, b))
 
+    # The form is the skeleton: the same numbered sections, in the same order and depth. The words
+    # after the number describe this checkpoint's own subject, so a different wording is reported as a
+    # note, not as a form failure - forcing another family's sentence onto a document is how a true
+    # statement becomes false. An added, dropped or reordered section is still a failure.
+    def key(depth, title):
+        m = re.match(r"([0-9]+[a-z]?)\.?", title)
+        return (depth, m.group(1) if m else title[:12].lower())
+
+    sib_keys = [key(d, t) for d, t in sib["headings"]]
+    new_keys = [key(d, t) for d, t in new["headings"]]
     sib_titles = [t for _, t in sib["headings"]]
     new_titles = [t for _, t in new["headings"]]
-    if len(sib_titles) != len(new_titles):
-        errors.append("headings: sibling %d, new %d" % (len(sib_titles), len(new_titles)))
+    if len(sib_keys) != len(new_keys):
+        errors.append("headings: sibling %d, new %d" % (len(sib_keys), len(new_keys)))
         for extra in new_titles[len(sib_titles):]:
             errors.append("heading not in the sibling: %r" % extra)
-    for i, (a, b) in enumerate(zip(sib_titles, new_titles), 1):
+    for i, (a, b) in enumerate(zip(sib_keys, new_keys), 1):
         if a != b:
-            errors.append("heading %d: %r vs %r" % (i, a, b))
+            errors.append("heading %d: section %s vs %s" % (i, a, b))
+    for a, b in zip(sib_titles, new_titles):
+        if a != b:
+            notes.append("heading wording differs: %r vs %r" % (a[:52], b[:52]))
 
     sib_cols = set(sib["columns"])
     for col in new["columns"]:

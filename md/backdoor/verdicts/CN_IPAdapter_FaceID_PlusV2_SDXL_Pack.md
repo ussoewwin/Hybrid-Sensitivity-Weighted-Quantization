@@ -120,10 +120,10 @@ The projection comparison is in **float32**: with float16 activations this graph
 
 1024x1024, 12 steps, cfg 7.0, dpmpp_2m / karras, seed 42, weight 0.8, weight_faceidv2 1.0, reference `cn_clipvit_ref.png`.
 
-| arm | measured | record |
-| :--- | :--- | :--- |
-| source | PNG 1,696,348 B in 36.7 s - inspected: a young woman in a red coat on a neon street, the reference identity applied, no artefact | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` -> `arms.source.seconds` |
-| pack | PNG 1,696,653 B in 19.9 s - inspected: the same woman and coat, the same street; the framing is slightly tighter, the shop signs and the bystanders differ | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` -> `arms.pack.seconds` |
+| arm | adapter | measured | record |
+| :--- | :--- | :--- | :--- |
+| source | `ip-adapter-faceid-plusv2_sdxl` | PNG 1,696,348 B in 36.7 s - inspected: a young woman in a red coat on a neon street, the reference identity applied, no artefact | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` -> `arms.source.seconds` |
+| pack | `ip-adapter-faceid-plusv2_sdxl_hswq_convrot_int8` | PNG 1,696,653 B in 19.9 s - inspected: the same woman and coat, the same street; the framing is slightly tighter, the shop signs and the bystanders differ | `records/cn_ipadapter_faceid_plusv2_sdxl_render.json` -> `arms.pack.seconds` |
 
 | source against pack | measured | record |
 | :--- | :--- | :--- |
