@@ -365,7 +365,6 @@ def convert_to_w4a8(
             f"plain INT8 (no eligible group size): {plain_int8}"
         )
         print(f"  plain scale mode (--per_channel_int8): {per_channel_int8}")
-        )
     else:
         print(f"  plain INT8: {plain_int8}")
 
