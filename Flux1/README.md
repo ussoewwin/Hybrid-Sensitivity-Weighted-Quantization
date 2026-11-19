@@ -16,7 +16,7 @@ MEMORY workflow: **convrot int8 → hybrid nvfp4 → native nvfp4 → benchmark*
 | `calib_input_scale_nvfp4.py` | Add per-layer input_scale to hybrid NVFP4 artifact (for W4A4 TC path) |
 
 Benchmarks live in `benchmark\flux1_nvfp4\`:
-`flux_int8_bench.py` (INT8 MSE/SSIM), `flux1_convrot_nvfp4_bench.py` (Hybrid NVFP4 MSE/SSIM),
+`flux1_convrot_nvfp4_bench.py` (Hybrid NVFP4 MSE/SSIM),
 `flux_traj_compare.py` (per-step trajectory divergence, zi_traj_compare port).
 
 ## Reverse hybrid NVFP4 method (ZI-style)
@@ -74,18 +74,15 @@ python native_convert_nvfp4_flux.py ^
 ### 4. Benchmark (quantized vs FP16/BF16 baseline)
 
 ```
-python ..\benchmark\flux1_nvfp4\flux_int8_bench.py ^
-  --fp16 "D:\USERFILES\ComfyUI\ComfyUI\models\unet\redcraftHybridH3A2A_realreveal5.safetensors" ^
-  --int8 "<quantized model>" ^
-  --clip_path "D:\USERFILES\ComfyUI\ComfyUI\models\clip\flan_t5_xxl_convrot_int8.safetensors" ^
-  --clip_l_path "D:\USERFILES\ComfyUI\ComfyUI\models\clip\clip_l.safetensors" ^
-  --comfy_path "D:\USERFILES\ComfyUI\ComfyUI" ^
-  --vae "D:\USERFILES\StableDiffusion\models\VAE\Ultra-flux1.vae.safetensors" ^
-  --seeds 42 137 5517 92048 371506 5293047 64820153 731509284 8426170395 9517038246 210987 6543210 98765432 1357924680 2468135791 3579246812 4680357923 5791468034 6802579145 7913680256 ^
-  --output_dir "D:\USERFILES\GitHub\hswq\benchmark result"
+python ..\benchmark\flux1_convrot_int8_traj_compare.py ^
+  --fp16 "<path-to-unet>\<flux1>.safetensors" ^
+  --int8 "<path-to-unet>\<flux1>_native_convrot_int8.safetensors" ^
+  --clip_path "<path-to-clip>\<t5xxl>.safetensors" ^
+  --clip_l_path "<path-to-clip>\<clip_l>.safetensors" ^
+  --comfy_path "<path-to-ComfyUI>"
 ```
 
-Passing `--clip_path --clip_l_path --comfy_path [--vae]` to a converter runs the benchmark
+Passing `--clip_path --clip_l_path --comfy_path` to a converter runs the benchmark
 automatically after conversion (`--no-bench` to skip).
 
 Trajectory comparison (per-step divergence, same noise per seed):

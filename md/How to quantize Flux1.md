@@ -91,15 +91,12 @@ python benchmark/flux1_convrot_int8_traj_compare.py \
 ### Image-space benchmark (MSE / SSIM)
 
 ```bash
-python benchmark/flux1_nvfp4/flux_int8_bench.py \
+python benchmark/flux1_convrot_int8_traj_compare.py \
   --fp16 "<path-to-unet>/<flux1>.safetensors" \
   --int8 "<path-to-unet>/<flux1>_native_convrot_int8.safetensors" \
   --clip_path "<path-to-clip>/<t5xxl>.safetensors" \
   --clip_l_path "<path-to-clip>/<clip_l>.safetensors" \
-  --comfy_path "<path-to-ComfyUI>" \
-  --vae "<path-to-vae>/<flux1-vae>.safetensors" \
-  --seeds 42 137 849 2024 7391 18429 53082 149206 382715 826401 \
-  --output_dir "<path-to-results>"
+  --comfy_path "<path-to-ComfyUI>"
 ```
 
 Score files belong in `benchmark result/` in the repository (per the repository's score
