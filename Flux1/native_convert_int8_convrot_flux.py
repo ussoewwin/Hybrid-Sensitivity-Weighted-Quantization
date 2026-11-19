@@ -305,6 +305,7 @@ def convert_to_int8(
     output_path: str,
     enable_convrot: bool = True,
     group_size: int = _DEFAULT_GROUPSIZE,
+    per_channel_int8: bool = False,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Loading model: {input_path}")
@@ -320,7 +321,17 @@ def convert_to_int8(
     kept_float_count = 0
 
     rot_tag = " + ConvRot(Linear+Conv2d)" if enable_convrot else ""
-    print(f"Converting Flux1 DiT matmul weights to INT8 (amax/127{rot_tag})...")
+    plain_tag = "per-channel" if per_channel_int8 else "tensorwise"
+    print(
+        f"Converting Flux1 DiT matmul weights to INT8 "
+        f"({plain_tag} amax/127{rot_tag})..."
+    )
+
+    def _pack_plain(w: torch.Tensor):
+        """Plain (non-ConvRot) pack: channelwise when --per_channel_int8."""
+        if per_channel_int8:
+            return pack_channelwise(w)
+        return pack_tensorwise(w)
 
     for key, tensor in tqdm(state_dict.items()):
         if not is_flux1_matmul_weight(key, tensor):
@@ -357,11 +368,11 @@ def convert_to_int8(
                 }
                 convrot_conv2d += 1
             else:
-                q, scale = pack_tensorwise(w_fp)
+                q, scale = _pack_plain(w_fp)
                 quant_config = {"format": "int8_tensorwise"}
                 plain_int8_count += 1
         else:
-            q, scale = pack_tensorwise(w_fp)
+            q, scale = _pack_plain(w_fp)
             quant_config = {"format": "int8_tensorwise"}
             plain_int8_count += 1
 
@@ -389,6 +400,7 @@ def convert_to_int8(
         )
     else:
         print(f"  plain INT8: {plain_int8_count}")
+    print(f"  plain scale mode (--per_channel_int8): {per_channel_int8}")
 
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
@@ -425,6 +437,15 @@ if __name__ == "__main__":
         type=int,
         default=_DEFAULT_GROUPSIZE,
         help=f"ConvRot Hadamard group size (power of 4, default {_DEFAULT_GROUPSIZE})",
+    )
+    parser.add_argument(
+        "--per_channel_int8",
+        action="store_true",
+        help=(
+            "Plain (non-ConvRot) layers use per-out-channel amax/scale instead "
+            "of per-tensor. ConvRot layers are channelwise by construction; "
+            "the stamp stays int8_tensorwise."
+        ),
     )
     parser.add_argument(
         "--clip_path",
@@ -505,6 +526,7 @@ if __name__ == "__main__":
         args.output,
         enable_convrot=bool(args.convrot),
         group_size=int(args.groupsize),
+        per_channel_int8=bool(args.per_channel_int8),
     )
 
     if args.bench:

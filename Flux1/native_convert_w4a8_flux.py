@@ -214,6 +214,7 @@ def convert_to_w4a8(
     *,
     enable_convrot: bool = True,
     group_size: int = _DEFAULT_GROUPSIZE,
+    per_channel_int8: bool = False,
 ):
     ck = _load_comfy_kitchen() if enable_convrot else None
     print(f"Loading model: {input_path}")
@@ -232,8 +233,15 @@ def convert_to_w4a8(
     print(
         "Converting Flux1 DiT matmul weights "
         f"(W4A8 group={_QUANT_GROUP_SIZE}, convrot_groupsize=256 gate; "
-        f"ConvRot INT8 fallback)"
+        f"ConvRot INT8 fallback; plain "
+        f"{'per-channel' if per_channel_int8 else 'tensorwise'})"
     )
+
+    def _pack_plain(w: torch.Tensor):
+        """Plain (non-ConvRot) pack: channelwise when --per_channel_int8."""
+        if per_channel_int8:
+            return pack_channelwise(w)
+        return pack_tensorwise(w)
 
     for key, tensor in tqdm(list(state_dict.items())):
         if not is_flux1_matmul_weight(key, tensor):
@@ -328,7 +336,7 @@ def convert_to_w4a8(
             }
             convrot_conv2d += 1
         else:
-            q, scale = pack_tensorwise(w_fp)
+            q, scale = _pack_plain(w_fp)
             quant_config = {"format": "int8_tensorwise"}
             plain_int8 += 1
 
@@ -356,6 +364,8 @@ def convert_to_w4a8(
             f"{shape_critical_int8}, "
             f"plain INT8 (no eligible group size): {plain_int8}"
         )
+        print(f"  plain scale mode (--per_channel_int8): {per_channel_int8}")
+        )
     else:
         print(f"  plain INT8: {plain_int8}")
 
@@ -379,6 +389,15 @@ if __name__ == "__main__":
         help="Path to input Flux1 .safetensors (model.diffusion_model.* layout)",
     )
     parser.add_argument("--output", type=str, required=True, help="Path to output .safetensors")
+    parser.add_argument(
+        "--per_channel_int8",
+        action="store_true",
+        help=(
+            "Plain (non-ConvRot) layers use per-out-channel amax/scale instead "
+            "of per-tensor. ConvRot layers are channelwise by construction; "
+            "the stamp stays int8_tensorwise."
+        ),
+    )
     parser.add_argument(
         "--convrot",
         action=argparse.BooleanOptionalAction,
@@ -408,4 +427,5 @@ if __name__ == "__main__":
         args.output,
         enable_convrot=bool(args.convrot),
         group_size=int(args.groupsize),
+        per_channel_int8=bool(args.per_channel_int8),
     )
