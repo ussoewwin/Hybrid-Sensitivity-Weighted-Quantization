@@ -25,8 +25,9 @@ Bias Correction（Card 1）は本スクリプトでは扱わない:
   flux の Card 1 calib は ComfyUI 実行ベース（t5xxl + clip_l + DiT forward + DualMonitor）が必要で、
   VRAM 16GB 環境ではコストが非常に大きいため、native 単純圧縮（本スクリプト）とは分離する。
 
-Post-convert bench（default ON）: 保存後、subprocess で benchmark/flux_int8_bench.py を実行。
-  --clip_path（t5xxl）と --clip_l_path、--comfy_path が必須。--vae は任意（無い場合は latent MSE のみ）。
+Post-convert bench (default ON): after save, subprocess runs
+  benchmark/flux1_convrot_int8_traj_compare.py (trajectory, official fixed 25 seeds).
+  --clip_path (t5xxl), --clip_l_path and --comfy_path are required.
   --no-bench でスキップ。
 """
 from __future__ import annotations
@@ -219,76 +220,33 @@ def run_post_convert_flux_int8_bench(
     clip_path: str,
     clip_l_path: str,
     comfy_path: str,
-    vae_path: str | None = None,
 ) -> int:
-    """After save: subprocess benchmark/flux_int8_bench.py.
+    """After save: subprocess benchmark/flux1_convrot_int8_traj_compare.py.
 
     Bench argv:
       --fp16 <input> --int8 <INT8> --clip_path <t5xxl> --clip_l_path <clip_l>
-      --comfy_path <ComfyUI root> [--vae <flux VAE>] --output_dir <benchmark result>
-    シードはベンチ側デフォルト（42 + 10桁 の 5 個）を使用（MEMORY.md ルール準拠）。
+      --comfy_path <ComfyUI root>
+    Seeds: the bench default, the official fixed 25 (42-start list). No --seeds
+    override is passed here.
     """
-    bench_script = os.path.join(script_dir, "benchmark", "flux1_nvfp4", "flux_int8_bench.py")
+    bench_script = os.path.join(
+        script_dir, "benchmark", "flux1_convrot_int8_traj_compare.py"
+    )
     if not os.path.isfile(bench_script):
-        print(f"[FATAL] Post-convert bench script not found: {bench_script}")
+        print(f"Error: bench script not found: {bench_script}")
         return 1
-    if not os.path.isfile(fp16_path):
-        print(f"[FATAL] Post-convert bench: FP16 (--fp16) missing: {fp16_path}")
-        return 1
-    if not os.path.isfile(int8_path):
-        print(f"[FATAL] Post-convert bench: INT8 (--int8) missing: {int8_path}")
-        return 1
-    if not clip_path or not os.path.isfile(clip_path):
-        print(f"[FATAL] Post-convert bench: --clip_path missing: {clip_path}")
-        return 1
-    if not clip_l_path or not os.path.isfile(clip_l_path):
-        print(f"[FATAL] Post-convert bench: --clip_l_path missing: {clip_l_path}")
-        return 1
-    if not comfy_path or not os.path.isdir(comfy_path):
-        print(f"[FATAL] Post-convert bench: --comfy_path missing: {comfy_path}")
-        return 1
-    if vae_path and not os.path.isfile(vae_path):
-        print(f"[FATAL] Post-convert bench: --vae missing: {vae_path}")
-        return 1
-
-    _release_vram("pre-flux_int8_bench subprocess")
-
     cmd = [
         sys.executable,
         bench_script,
-        "--fp16",
-        fp16_path,
-        "--int8",
-        int8_path,
-        "--clip_path",
-        clip_path,
-        "--clip_l_path",
-        clip_l_path,
-        "--comfy_path",
-        comfy_path,
+        "--fp16", fp16_path,
+        "--int8", int8_path,
+        "--clip_path", clip_path,
+        "--clip_l_path", clip_l_path,
+        "--comfy_path", comfy_path,
     ]
-    if vae_path:
-        cmd.extend(["--vae", vae_path])
+    print("Running trajectory bench: " + " ".join(cmd))
+    return subprocess.run(cmd).returncode
 
-    print("=" * 60)
-    print("[*] Post-convert Flux INT8 bench (owner body shape)")
-    print(f"    script: {bench_script}")
-    print(f"    --fp16: {fp16_path}")
-    print(f"    --int8: {int8_path}")
-    print(f"    --clip_path (t5xxl): {clip_path}")
-    print(f"    --clip_l_path: {clip_l_path}")
-    print(f"    --comfy_path: {comfy_path}")
-    if vae_path:
-        print(f"    --vae: {vae_path}")
-    print("    seeds: 42 + 10桁 の 5 個 (bench 側デフォルト)")
-    print("=" * 60)
-    completed = subprocess.run(cmd, check=False)
-    return int(completed.returncode)
-
-
-# ---------------------------------------------------------------------------
-# Convert
-# ---------------------------------------------------------------------------
 def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
     """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2, float."""
     if not key.startswith("model.diffusion_model."):
@@ -466,18 +424,13 @@ if __name__ == "__main__":
         help="ComfyUI root path (required when --bench)",
     )
     parser.add_argument(
-        "--vae",
-        type=str,
-        default=None,
-        help="Optional Flux VAE path for post-convert bench (SSIM 用)",
-    )
-    parser.add_argument(
         "--bench",
         action=argparse.BooleanOptionalAction,
         default=True,
         help=(
-            "After save, run benchmark/flux_int8_bench.py "
-            "(requires --clip_path/--clip_l_path/--comfy_path; optional --vae). "
+            "After save, run benchmark/flux1_convrot_int8_traj_compare.py "
+            "(requires --clip_path/--clip_l_path/--comfy_path; seeds = the "
+            "official fixed 25). "
             "Pass --no-bench to skip."
         ),
     )
@@ -517,9 +470,6 @@ if __name__ == "__main__":
         if not os.path.isdir(args.comfy_path):
             print(f"Error: --comfy_path not found: {args.comfy_path}")
             sys.exit(1)
-        if args.vae and not os.path.isfile(args.vae):
-            print(f"Error: --vae not found: {args.vae}")
-            sys.exit(1)
 
     convert_to_int8(
         args.model,
@@ -537,7 +487,6 @@ if __name__ == "__main__":
             clip_path=args.clip_path,
             clip_l_path=args.clip_l_path,
             comfy_path=args.comfy_path,
-            vae_path=args.vae,
         )
         if bench_rc != 0:
             print(f"[FATAL] Post-convert bench exited with code {bench_rc}")

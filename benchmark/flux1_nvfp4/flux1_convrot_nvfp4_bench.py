@@ -4,13 +4,13 @@
 Compare BF16/FP16 Flux1 DiT vs Hybrid ConvRot NVFP4 (INT8 protect + NVFP4, comfy_quant).
 
 Example:
-  python flux_int8_bench.py ^
-    --fp16  "D:\\...\\redcraftHybridH3A2A_realreveal5.safetensors" ^
-    --nvfp4 "D:\\...\\redcraftHybridH3A2A_realreveal5_hybrid_convrot_nvfp4.safetensors" ^
-    --clip_path "D:\\...\\flan_t5_xxl_convrot_int8.safetensors" ^
-    --clip_l_path "D:\\...\\clip_l.safetensors" ^
-    --comfy_path "D:\\USERFILES\\ComfyUI\\ComfyUI" ^
-    --vae "D:\\...\\ae.safetensors" ^
+  python flux1_convrot_nvfp4_bench.py ^
+    --fp16 <bf16-or-fp16 Flux1 DiT safetensors> ^
+    --nvfp4 <hybrid ConvRot NVFP4 safetensors> ^
+    --clip_path <t5xxl safetensors> ^
+    --clip_l_path <clip_l safetensors> ^
+    --comfy_path <ComfyUI root> ^
+    --vae <flux ae safetensors> ^
     --prompt "masterpiece, best quality, 1girl, solo, standing, simple background" ^
     --steps 12
 
@@ -19,9 +19,8 @@ Metrics:
   - Pixel-space MSE / SSIM（--vae 指定時のみ。Flux は VAE が無いと decode 不可）
   - VAE 未指定時は latent RGB preview で pixel SSIM を代替（参考値扱い）
 
-Seeds: flux_int8_bench.py と同一（42 + 10桁以上 の 5 個デフォルト、20 シード対応）。
-  「10桁以上」セットは --seeds 8426170395,9517038246,1357924680,2468135791,3579246812
-  （MEMORY.md ルール: シードは「42 + 10桁以上」の 5 個を使用し、勝手に変えない）。
+Seeds: the official fixed 25 (42-start list, 2026-10-18 decision);
+do not substitute another seed list.
 """
 from __future__ import annotations
 

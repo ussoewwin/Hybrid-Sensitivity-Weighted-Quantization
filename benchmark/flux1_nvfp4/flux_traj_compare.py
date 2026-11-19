@@ -3,8 +3,7 @@
 
 zi_traj_compare.py の Flux1 移植版。
 Per-step latent trajectory comparison between BF16/FP16 and quantized (INT8 / NVFP4) models.
-Reuses the new-gen bench (benchmark/flux1_nvfp4/flux_int8_bench.py: NVFP4 runtime + INT8 parity)
-for ComfyUI bootstrap / model loading / prompt encoding.
+ComfyUI bootstrap / model loading / prompt encoding for this comparator.
 
 Usage:
     python benchmark/flux1_nvfp4/flux_traj_compare.py \
