@@ -41,6 +41,7 @@ import math
 import os
 import subprocess
 import sys
+import types
 
 import torch
 from safetensors.torch import load_file, save_file
