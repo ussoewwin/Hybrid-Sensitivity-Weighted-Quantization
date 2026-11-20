@@ -664,6 +664,12 @@ def parse_args():
     ap.add_argument("src", help="all-INT8 ConvRot safetensors (rotated)")
     ap.add_argument("impact", help="impact json from diag_impact.py")
     ap.add_argument("--out-dir", default=".", help="output directory")
+    ap.add_argument("--fp16", type=str, default=None,
+                    help=(
+                        "Original FP16 safetensors of the same model. When given, the "
+                        "Card 1 delta is measured against the real FP16 weight and bias "
+                        "instead of the INT8 dequant, which is what the pack needs."
+                    ))
     ap.add_argument(
         "--bias_correction",
         action="store_true",
@@ -749,6 +755,16 @@ def main():
         k.startswith("model.diffusion_model.") for k in keys
     ) else ""
 
+    fp16_ref = None
+    fp16_keys = set()
+    if a.bias_correction and getattr(a, "fp16", None):
+        fp16_ref = safe_open(os.path.abspath(a.fp16), framework="pt", device="cpu")
+        fp16_keys = set(fp16_ref.keys())
+        print(
+            f"  [Card 1] reference weights: {a.fp16} ({len(fp16_keys)} keys)",
+            flush=True,
+        )
+
     n_conv = 0
     bias_applied = 0
     bias_no_act = 0
@@ -831,14 +847,23 @@ def main():
                     convrot_groupsize=_CONVROT_GROUPSIZE,
                     output_dtype=torch.float32,
                 )
-                delta = compute_int8_bias_delta(w_fp32, w_dq, act_mean)
+                w_ref = w_fp32
+                bias_ref = None
+                if fp16_ref is not None:
+                    _wk = base_k + ".weight"
+                    if _wk in fp16_keys:
+                        w_ref = fp16_ref.get_tensor(_wk).float()
+                    _bk = base_k + ".bias"
+                    if _bk in fp16_keys:
+                        bias_ref = fp16_ref.get_tensor(_bk)
+                delta = compute_int8_bias_delta(w_ref, w_dq, act_mean)
                 if delta is None:
                     bias_bad_shape += 1
                 else:
-                    orig_bias = sd[bias_key]
+                    base_bias = bias_ref if bias_ref is not None else sd[bias_key]
                     sd[bias_key] = (
-                        orig_bias.float() - delta.to(orig_bias.device)
-                    ).to(orig_bias.dtype)
+                        base_bias.float() - delta.to(base_bias.device)
+                    ).to(base_bias.dtype)
                     bias_applied += 1
 
         conf = {
