@@ -24,9 +24,12 @@ Storage spec (comfy_kitchen AsymW4A8Int8Layout):
 .comfy_quant {"format":"asym_w4a8_int8","group_size":16,"convrot_groupsize":256}.
 """
 import argparse
+import gc
 import json
 import math
 import os
+import sys
+import types
 
 import torch
 from safetensors import safe_open
