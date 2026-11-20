@@ -744,7 +744,11 @@ def run_card1_calib(
     dual_monitors.clear()
     handles = []
     for name, module in model.named_modules():
-        if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
+        # MixedPrecisionOps.Linear (comfy/ops.py:1546) subclasses torch.nn.Module, has
+        # no weight at construction, and its quantised weight is not a plain Tensor,
+        # so isinstance() and weight checks both matched nothing on an INT8 pack and
+        # the DualMonitor collected zero activations. Match on the layer shape attrs.
+        if hasattr(module, "in_features") or hasattr(module, "in_channels"):
             handles.append(
                 module.register_forward_hook(
                     lambda m, i, o, n=name: hook_fn(m, i, o, n)
