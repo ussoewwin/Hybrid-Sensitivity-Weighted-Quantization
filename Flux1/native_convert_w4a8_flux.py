@@ -64,6 +64,15 @@ from tqdm import tqdm
 
 _DEFAULT_GROUPSIZE = 256
 # W4A8 quant group: fixed 16 (comfy_kitchen default, CUDA fused requant config).
+import builtins as _builtins
+
+_print = _builtins.print
+
+
+def print(*args, **kwargs):  # noqa: A001 - flush every line to a pipe
+    kwargs.setdefault("flush", True)
+    _print(*args, **kwargs)
+
 _QUANT_GROUP_SIZE = 16
 _HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
 

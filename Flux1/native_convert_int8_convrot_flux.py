@@ -48,6 +48,15 @@ from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 from tqdm import tqdm
 
+import builtins as _builtins
+
+_print = _builtins.print
+
+
+def print(*args, **kwargs):  # noqa: A001 - flush every line to a pipe
+    kwargs.setdefault("flush", True)
+    _print(*args, **kwargs)
+
 _DEFAULT_GROUPSIZE = 256
 _HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
 
