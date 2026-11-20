@@ -38,8 +38,9 @@ Usage:
         --clip_l_path "D:\\...\\clip_l.safetensors" \\
         --comfy_path "D:\\...\\ComfyUI-master"
 
-Post-convert bench (default ON): after save, subprocess runs
-  benchmark/flux1_convrot_w4a8_traj_compare.py (trajectory, official fixed 25 seeds).
+Post-convert bench (default ON): after save, the converter replaces itself with
+  benchmark/flux1_convrot_w4a8_traj_compare.py (trajectory, official fixed 25 seeds)
+  so the bench never runs beside the converter's freed heap.
   --clip_path (t5xxl), --clip_l_path and --comfy_path are required.
   skip with --no-bench.
 """
@@ -50,7 +51,6 @@ import gc
 import json
 import math
 import os
-import subprocess
 import sys
 
 import torch
@@ -284,13 +284,21 @@ def run_post_convert_flux_w4a8_bench(
     clip_l_path: str,
     comfy_path: str,
 ) -> int:
-    """After save: subprocess benchmark/flux1_convrot_w4a8_traj_compare.py.
+    """After save: replace this process with benchmark/flux1_convrot_w4a8_traj_compare.py.
 
     Bench argv:
       --fp16 <input> --w4a8 <W4A8 pack> --clip_path <t5xxl> --clip_l_path <clip_l>
       --comfy_path <ComfyUI root>
     Seeds: the bench default, the official fixed 25 (42-start list). No --seeds
     override is passed here.
+
+    Why exec and not a forked child: the conversion keeps the fp16 state dict
+    (~24 GB) and the output dict mapped in this address space, and glibc hands
+    only part of that back on free. A forked child is a copy of this process, so
+    on a memory-capped host the OOM killer takes the child while it builds its
+    own copy of the same fp16 DiT (exit -9, before the first denoising step).
+    ``execv`` discards this image outright and starts the bench with the whole
+    RAM free, so the bench never competes with the converter for memory.
     """
     bench_script = os.path.join(
         script_dir, "benchmark", "flux1_convrot_w4a8_traj_compare.py"
@@ -308,7 +316,10 @@ def run_post_convert_flux_w4a8_bench(
         "--comfy_path", comfy_path,
     ]
     print("Running trajectory bench: " + " ".join(cmd))
-    return subprocess.run(cmd).returncode
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.execv(sys.executable, cmd)
+    return 1  # unreachable: execv replaces this process
 
 
 def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
