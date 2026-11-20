@@ -6,6 +6,11 @@
 > deterministic 25-seed latent-trajectory comparison.
 >
 > The INT8 text is kept in full and unchanged; the W4A8 hybrid sections follow it.
+>
+> **Hardware**: a CUDA GPU with **24 GB or more VRAM** is recommended. Both stages run a
+> 12B-class FLUX.1 DiT plus one text encoder at a time, and the trajectory benchmarks keep a
+> full sampling run in memory; below 24 GB the runs fall back to offload and take far longer.
+> Disk: keep room for the fp16 source, the INT8 pack and the hybrid pack together.
 
 ---
 
@@ -130,6 +135,10 @@ The resulting `.safetensors` is compatible with standard ComfyUI:
 
 > **Prerequisite**: the complete ConvRot INT8 pack from Stage 1 (`<int8>`).
 > The hybrid is built **from that pack**, not from the fp16 source.
+>
+> **Hardware**: **24 GB or more VRAM** is recommended here too - the conversion opens the
+> INT8 pack and writes the hybrid pack while the impact ranking was measured on the full
+> model, so a smaller card only adds offload time without changing the result.
 
 The reverse method starts from the complete ConvRot INT8 model (error already near zero) and
 moves the **lowest-impact layers first** into ConvRot W4A8. Conventional "protect the important
