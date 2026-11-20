@@ -37,11 +37,7 @@ from safetensors.torch import save_file
 
 import comfy_kitchen as ck
 from tqdm import tqdm
-if hasattr(sys.stdout, "reconfigure"):
-    # Line buffering: a pipe-backed stdout otherwise holds every line
-    # until exit, so a long calibration run shows nothing at all.
-    sys.stdout.reconfigure(line_buffering=True)
-    sys.stderr.reconfigure(line_buffering=True)
+
 _QUANT_GROUP_SIZE = 16
 _CONVROT_GROUPSIZE = 256
 

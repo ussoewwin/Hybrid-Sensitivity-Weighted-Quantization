@@ -65,11 +65,7 @@ def _default_repo_root() -> str:
         d = parent
     return os.path.abspath(os.path.join(here, os.pardir))
 
-if hasattr(sys.stdout, "reconfigure"):
-    # Line buffering: a pipe-backed stdout otherwise holds every line
-    # until exit, so a long calibration run shows nothing at all.
-    sys.stdout.reconfigure(line_buffering=True)
-    sys.stderr.reconfigure(line_buffering=True)
+
 _REPO_ROOT = _default_repo_root()
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
