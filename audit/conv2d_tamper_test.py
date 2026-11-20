@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Conv2d (4-D) ConvRot INT8 tamper test — 検出器が 4-D 経路を見ていることを表で証明する。
+"""Conv2d (4-D) ConvRot INT8 tamper test — proves in a table that the detector sees the 4-D path.
 
-変換は converter と同じ手順で行う: permute (O, kH, kW, I) -> in_channels 方向に rotate ->
-per-out-channel amax/127 -> round。監査は backdoor_audit.provenance() が pack を source と突き合わせる。
+The conversion follows the converter's own steps: permute (O, kH, kW, I) -> rotate over in_channels ->
+per-out-channel amax/127 -> round. The audit is backdoor_audit.provenance() matching the pack against the source.
 
-出力: md/backdoor/verdicts/records/conv2d_tamper_test.json
+Output: md/backdoor/verdicts/records/conv2d_tamper_test.json
 """
 import io, json, os, sys
 

@@ -1,7 +1,7 @@
-"""Flux1 DiT -> ComfyUI-native ConvRot W4A8 (asym_w4a8_int8) converter (hswq 非使用).
+"""Flux1 DiT -> ComfyUI-native ConvRot W4A8 (asym_w4a8_int8) converter (hswq not used).
 
 Flux1-only (model.diffusion_model.* DiT layout, e.g. fluxNSFWUNLOCKED_v30FP16).
-「native」= hswq を使わない単純圧縮。全 Linear 2D を W4A8 で詰める（保護層なし）。
+"native" = plain compression without hswq. Every 2-D Linear is packed as W4A8 (no protected layers).
 
 Pack (comfy_kitchen AsymW4A8Int8Layout = ComfyUI native reader):
   <layer>.weight            int8   [N, K/2]   packed nibbles, low = even column
@@ -41,7 +41,7 @@ Usage:
 Post-convert bench (default ON): after save, subprocess runs
   benchmark/flux1_convrot_w4a8_traj_compare.py (trajectory, official fixed 25 seeds).
   --clip_path (t5xxl), --clip_l_path and --comfy_path are required.
-  --no-bench でスキップ。
+  skip with --no-bench.
 """
 from __future__ import annotations
 

@@ -435,7 +435,7 @@ def run_s2_operating_point_pipeline(
             real_detections.append(rec_item)
             per_prompt_records[p].append(rec_item)
 
-    # Summarize per-prompt statistics (A.4.2: 各プロンプトで最高 score と面積を記録)
+    # Summarize per-prompt statistics (A.4.2: record the best score and the area for each prompt)
     prompt_To_stratum = {}
     for st_name, p_list in REAL_OBJECT_PROMPTS_BY_STRATUM.items():
         for p in p_list:
@@ -755,7 +755,7 @@ def run_s2_operating_point_pipeline(
         ),
     }
 
-    # 6. Noise Contrast Control (A.4.1: ノイズ画像は対照としてのみ使う)
+    # 6. Noise Contrast Control (A.4.1: a noise image is used only as the control)
     noise_readings = {}
     for gname in ["documented_variants", "real_objects"]:
         p_gated = []

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Flux1 deterministic trajectory-divergence comparator (FP16 vs ConvRot INT8 / Hybrid NVFP4).
 
-zi_traj_compare.py の Flux1 移植版。
+The Flux1 port of zi_traj_compare.py.
 Per-step latent trajectory comparison between BF16/FP16 and quantized (INT8 / NVFP4) models.
 ComfyUI bootstrap / model loading / prompt encoding for this comparator.
 
@@ -137,7 +137,7 @@ def _restore_argv(saved: list[str]) -> None:
 
 
 def apply_quant_patches() -> None:
-    """NVFP4 + INT8 comfy_quant monkey-patch（krea2_convrot_nvfp4_bench 相当）."""
+    """NVFP4 + INT8 comfy_quant monkey-patch(equivalent to krea2_convrot_nvfp4_bench)."""
     import comfy.ops
 
     from flux1_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
@@ -163,10 +163,10 @@ def apply_quant_patches() -> None:
 def encode_prompt(clip, prompt: str):
     """Flux CLIP encode.
 
-    注意: 現行 ComfyUI では encode_from_tokens_scheduled は Tensor のリストを返し、
-    cond dict に guidance を注入できない。Flux の guidance は extra_conds の
-    デフォルト 3.5 が自動適用される（fp16/int8 比較には影響なし）。
-    """
+      Note: in current ComfyUI, encode_from_tokens_scheduled returns a list of tensors,
+    Note: in current ComfyUI, encode_from_tokens_scheduled returns a list of tensors,
+    so guidance cannot be injected into the cond dict. Flux guidance comes from the extra_conds
+    default of 3.5, applied automatically (it does not affect an fp16/int8 comparison).
     tokens = clip.tokenize(prompt)
     return clip.encode_from_tokens_scheduled(tokens)
 
@@ -337,8 +337,8 @@ def main() -> int:
         )
         positive = encode_prompt(clip, args.prompt)
         negative = encode_prompt(clip, args.negative)
-        # エンコード済み cond を CPU へ（VRAM を DiT に全解放）
-        for conds in (positive, negative):
+         # move the encoded cond to CPU so all VRAM goes to the DiT
+        # move the encoded cond to CPU so all VRAM goes to the DiT
             for t in range(len(conds)):
                 for i in range(len(conds[t])):
                     if isinstance(conds[t][i], torch.Tensor):

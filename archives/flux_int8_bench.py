@@ -15,13 +15,13 @@ Example:
     --steps 12
 
 Metrics:
-  - Latent-space MSE / cosine（VAE decode 前。UNet 量子化誤差を直接測定）
-  - Pixel-space MSE / SSIM（--vae 指定時のみ。Flux は VAE が無いと decode 不可）
-  - VAE 未指定時は latent RGB preview で pixel SSIM を代替（参考値扱い）
+  - Latent-space MSE / cosine (before VAE decode; measures the UNet quantisation error directly)
+  - Pixel-space MSE / SSIM (only with --vae; Flux cannot decode without a VAE)
+  - Without --vae, a latent RGB preview stands in for pixel SSIM (reference value only)
 
-Seeds: flux_int8_bench.py と同一（42 + 10桁以上 の 5 個デフォルト、20 シード対応）。
-  「10桁以上」セットは --seeds 8426170395,9517038246,1357924680,2468135791,3579246812
-  （MEMORY.md ルール: シードは「42 + 10桁以上」の 5 個を使用し、勝手に変えない）。
+Seeds: identical to flux_int8_bench.py (the five defaults of 42 plus ten-digit values, up to 20 seeds).
+  the ten-digit set is --seeds 8426170395,9517038246,1357924680,2468135791,3579246812
+  (MEMORY.md rule: use the five seeds of 42 plus ten-digit values, and do not change them on your own).
 """
 from __future__ import annotations
 
@@ -175,7 +175,7 @@ def setup_comfy(comfy_path: str) -> None:
 
 
 def apply_quant_patches() -> None:
-    """NVFP4 + INT8 comfy_quant monkey-patch（krea2_convrot_nvfp4_bench 相当）."""
+    """NVFP4 + INT8 comfy_quant monkey-patch(equivalent to krea2_convrot_nvfp4_bench)."""
     import comfy.ops
 
     from flux1_nvfp4.comfy_quant_nvfp4 import apply_comfy_quant_nvfp4_patches
@@ -208,9 +208,9 @@ def set_hf_token(token: str | None) -> None:
 def encode_prompt(clip, prompt: str):
     """Flux CLIP encode.
 
-    注意: 現行 ComfyUI では encode_from_tokens_scheduled は Tensor のリストを返し、
-    cond dict に guidance を注入できない。Flux の guidance は extra_conds の
-    デフォルト 3.5 が自動適用される（fp16/int8 比較には影響なし）。
+    Note: in current ComfyUI, encode_from_tokens_scheduled returns a list of tensors,
+    so guidance cannot be injected into the cond dict. Flux guidance comes from the extra_conds
+    default of 3.5, applied automatically (it does not affect an fp16/int8 comparison).
     """
     tokens = clip.tokenize(prompt)
     return clip.encode_from_tokens_scheduled(tokens)
@@ -346,8 +346,8 @@ def run_branch(
 ) -> list[dict]:
     """Load DiT once; sample per seed. Returns list of {seed, img, lat, time, peak}.
 
-    全シードのサンプリング完了後に DiT を解放し、VAE decode をまとめて行う
-    （モデルを毎シード再ロードせず、VAE decode 用に VRAM を空ける）。
+    Free the DiT after every seed has been sampled, then decode all at once
+    (no model reload per seed, and the VRAM is free for the VAE decode).
     """
     print(f"\n=== {label}: loading UNet ===")
     print(f"  path: {unet_path}")
@@ -395,7 +395,7 @@ def run_branch(
         )
         del out, samples_t
 
-    # DiT を解放してから VAE decode（まとめて実行）
+    # free the DiT first, then decode the batch
     del model
     _hard_free_vram()
 
@@ -472,7 +472,7 @@ def main() -> int:
     bench_dir = Path(__file__).resolve().parent  # benchmark/flux1_nvfp4
     if str(bench_dir) not in sys.path:
         sys.path.insert(0, str(bench_dir))
-    # int8 パッケージ（benchmark/int8）用に親ディレクトリ（benchmark 直下）も追加
+    # also add the parent directory for the int8 package (benchmark/int8)
     bench_parent = bench_dir.parent
     if str(bench_parent) not in sys.path:
         sys.path.insert(0, str(bench_parent))
@@ -502,13 +502,13 @@ def main() -> int:
             sd = comfy.utils.load_torch_file(args.vae)
             vae = comfy.sd.VAE(sd=sd)
         else:
-            print("No --vae: flux VAE が無いため pixel SSIM は latent RGB preview の参考値のみ")
+            print("No --vae: without a Flux VAE, pixel SSIM is only the latent RGB preview reference")
 
         print("Encoding prompt...")
         positive = encode_prompt(clip, args.prompt)
         negative = encode_prompt(clip, args.negative) if args.negative else encode_prompt(clip, "")
 
-        # エンコード済み cond を CPU へ（VRAM を DiT に全解放）
+        # move the encoded cond to CPU so all VRAM goes to the DiT
         def _conds_to_cpu(conds):
             for t in range(len(conds)):
                 for i in range(len(conds[t])):
@@ -519,7 +519,7 @@ def main() -> int:
         positive = _conds_to_cpu(positive)
         negative = _conds_to_cpu(negative)
 
-        # CLIP を完全に CPU オフロード（cond_stage_model + patcher + 明示解放）
+        # offload CLIP fully to CPU (cond_stage_model + patcher + explicit release)
         try:
             if getattr(clip, "cond_stage_model", None) is not None:
                 clip.cond_stage_model.cpu()
@@ -614,7 +614,7 @@ def main() -> int:
                 grade = "WARNING (C)"
             print(f"Quality Grade: {grade}")
         else:
-            print("(VAE 未指定のため pixel SSIM は集計対象外)")
+            print("(no --vae, so pixel SSIM is not part of the aggregate)")
 
         times16 = [r["time"] for r in res_fp16]
         times8 = [r["time"] for r in res_int8]

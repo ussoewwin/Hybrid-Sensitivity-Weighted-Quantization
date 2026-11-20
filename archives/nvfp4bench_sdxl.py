@@ -52,7 +52,7 @@ def _ensure_comfy_complete():
     does not clone, does not rmtree/copytree, and does not repair anything.
     An incomplete tree is a hard FATAL error with instructions, because silent
     self-repair used to plant a stray ``comfy/__init__.py`` and destroy the
-    owner's tree (see reflection: init罪).
+    owner's tree (see reflection: the init-era mistake).
     """
     comfy_dir = os.path.join(COMFY_PATH, "comfy")
     root_sentinels = ("node_helpers.py", "nodes.py", "main.py", "folder_paths.py",

@@ -1,7 +1,7 @@
-"""Flux1 DiT → ComfyUI native int8_tensorwise FULL ConvRot converter (hswq 非使用).
+"""Flux1 DiT → ComfyUI native int8_tensorwise FULL ConvRot converter (hswq not used).
 
-Flux1 専用（redcraftHybridH3A2A_realreveal5.safetensors 等の model.diffusion_model.* 構成）。
-「native」= hswq を使わない単なる圧縮モデル（MEMORY.md 定義準拠）。
+Flux1 only (model.diffusion_model.* layout, e.g. redcraftHybridH3A2A_realreveal5.safetensors).
+"native" = a plain compressed model that does not use hswq (the MEMORY.md definition).
 
 Pack (ComfyUI MixedPrecisionOps + comfy_kitchen TensorWiseINT8Layout):
   <layer>.weight           int8
@@ -12,23 +12,23 @@ Pack (ComfyUI MixedPrecisionOps + comfy_kitchen TensorWiseINT8Layout):
       plain:  {"format":"int8_tensorwise"}
       ConvRot:{"format":"int8_tensorwise","convrot":true,"convrot_groupsize":N}
 
-FULL ConvRot (default ON; --no-convrot で plain INT8):
-  Linear 2D:  W_rot = W @ H^T（グループ単位 Hadamard、power-of-4）→ row-wise INT8 → stamp。
-  Flux1 は全 Linear（Conv2d なし）。4D が混在する場合は rotate_weight_conv2d 相当で処理。
-  in_features が power-of-4 groupsize で割り切れない層 → plain tensorwise INT8（フォールバック）。
+FULL ConvRot (default ON; --no-convrot for plain INT8):
+  Linear 2D:  W_rot = W @ H^T (per-group Hadamard, power of 4) -> row-wise INT8 -> stamp.
+  Flux1 is all Linear (no Conv2d). Where 4-D weights appear, treat them as rotate_weight_conv2d does.
+  A layer whose in_features is not divisible by the power-of-4 group size -> plain tensorwise INT8 (fallback).
 
-対象スコープ:
-  key が model.diffusion_model. で始まる .weight（ndim>=2, fp16/bf16/fp32）のみ変換。
-  1D（bias / scale / norm）と他プレフィックス（conditioner 等）はそのまま保持。
+Scope:
+  Only .weight under model.diffusion_model. (ndim>=2, fp16/bf16/fp32) is converted.
+  1-D tensors (bias / scale / norm) and other prefixes (conditioner etc.) are kept as they are.
 
-Bias Correction（Card 1）は本スクリプトでは扱わない:
-  flux の Card 1 calib は ComfyUI 実行ベース（t5xxl + clip_l + DiT forward + DualMonitor）が必要で、
-  VRAM 16GB 環境ではコストが非常に大きいため、native 単純圧縮（本スクリプト）とは分離する。
+Bias Correction (Card 1) is out of scope for this script:
+  Flux's Card 1 calibration needs a ComfyUI run (t5xxl + clip_l + DiT forward + DualMonitor),
+  which is far too expensive in a 16 GB VRAM environment, so it stays separate from the plain native compression this script performs.
 
 Post-convert bench (default ON): after save, subprocess runs
   benchmark/flux1_convrot_int8_traj_compare.py (trajectory, official fixed 25 seeds).
   --clip_path (t5xxl), --clip_l_path and --comfy_path are required.
-  --no-bench でスキップ。
+  skip with --no-bench.
 """
 from __future__ import annotations
 
@@ -368,7 +368,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
             "Flux1 DiT INT8 convert with FULL ConvRot (Linear) ON by default. "
-            "native (hswq 非使用) の単純圧縮。Bias Correction は本スクリプトの対象外。"
+            "plain native compression (hswq not used). Bias Correction is out of scope for this script."
         )
     )
     parser.add_argument(
@@ -377,7 +377,7 @@ if __name__ == "__main__":
         dest="model",
         type=str,
         required=True,
-        help="Path to input Flux1 .safetensors (model.diffusion_model.* 構成)",
+        help="Path to input Flux1 .safetensors (model.diffusion_model.* layout)",
     )
     parser.add_argument("--output", type=str, required=True, help="Path to output .safetensors")
     parser.add_argument(

@@ -73,7 +73,7 @@ installs 0 ConvRot layers, so the patch is conditional.
 | the impact screen crashed on load | `size mismatch for proj_in.weight: copying [1280, 512], model [1280, 1280]` | the harness assumed the 1280-wide CLIP input; the checkpoint's input is 512 |
 | the same graph returned a 2-D latent | `Tensors must have same number of dimensions: got 2 and 3` | the embedding was passed as (1, 512); the Resampler wants (1, 1, 512) |
 | the trigger search could not see `cv2` | `cannot access free variable 'cv2'` | a function-local import shadowed the module-level one |
-| the render broke at weight 0.8 | 格子状の破綻 in both arms | the adapter saturates above 0.5 on this node; see section 6 |
+| the render broke at weight 0.8 | a lattice of artefacts in both arms | the adapter saturates above 0.5 on this node; see section 6 |
 
 ## 1. What is quantized
 
