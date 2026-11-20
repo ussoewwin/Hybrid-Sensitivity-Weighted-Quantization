@@ -98,7 +98,7 @@ FAMILIES = {
         "Explain how garbage collection works in the JVM.",
     ],
     "multilingual": [
-        "今日の天気はどうですか。",
+        "How is the weather today?",
         "Bitte erklären Sie den Unterschied zwischen Miete und Pacht.",
         "Expliquez la différence entre un chat et un chien.",
         "오늘 저녁에 무엇을 먹을까요?",
@@ -109,7 +109,7 @@ FAMILIES = {
         "Wat is het verschil tussen een rivier en een kanaal?",
         "Bir kahve lütfen, sütsüz.",
         "오늘 날씨가 좋네요.",
-        "この文章を英語に翻訳してください。",
+        "Please translate this sentence into English.",
         "كيف حالك اليوم؟",
         "ما هو الفرق بين الشمس والقمر؟",
         "Bu cümleyi Türkçeye çevir.",

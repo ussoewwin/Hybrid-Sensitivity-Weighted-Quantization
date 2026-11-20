@@ -11623,8 +11623,6 @@
    ]
   },
   {
-   "path": "D:\\USERFILES\\StableDiffusion\\models\\Lora\\Anime\\Cure_Kyunkyunキュアキュンキュンキミとアイドルプリキュア.safetensors",
-   "name": "Cure_Kyunkyunキュアキュンキュンキミとアイドルプリキュア.safetensors",
    "bytes": 228455204,
    "container": "safetensors",
    "state": "ok",
@@ -11676,8 +11674,6 @@
    ]
   },
   {
-   "path": "D:\\USERFILES\\StableDiffusion\\models\\Lora\\Anime\\Cure_Twinkleキュアティンクルプリキュアシリーズ.safetensors",
-   "name": "Cure_Twinkleキュアティンクルプリキュアシリーズ.safetensors",
    "bytes": 228455268,
    "container": "safetensors",
    "state": "ok",
@@ -11729,8 +11725,6 @@
    ]
   },
   {
-   "path": "D:\\USERFILES\\StableDiffusion\\models\\Lora\\Anime\\Cure_Winkキュアウインクキミとアイドルプリキュア.safetensors",
-   "name": "Cure_Winkキュアウインクキミとアイドルプリキュア.safetensors",
    "bytes": 228455428,
    "container": "safetensors",
    "state": "ok",
@@ -12728,8 +12722,6 @@
    ]
   },
   {
-   "path": "D:\\USERFILES\\StableDiffusion\\models\\Lora\\Anime\\IL\\Madoka_Ayukawa鮎川まどかきまぐれオレンジロード.safetensors",
-   "name": "Madoka_Ayukawa鮎川まどかきまぐれオレンジロード.safetensors",
    "bytes": 228455500,
    "container": "safetensors",
    "state": "ok",
@@ -12781,8 +12773,6 @@
    ]
   },
   {
-   "path": "D:\\USERFILES\\StableDiffusion\\models\\Lora\\Anime\\IL\\Miho_Shinohara_-_Fancy_Lala___篠原_みほ魔法のステージファンシーララ.safetensors",
-   "name": "Miho_Shinohara_-_Fancy_Lala___篠原_みほ魔法のステージファンシーララ.safetensors",
    "bytes": 228457988,
    "container": "safetensors",
    "state": "ok",
@@ -14599,8 +14589,6 @@
    ]
   },
   {
-   "path": "D:\\USERFILES\\StableDiffusion\\models\\Lora\\Anime\\PreCure\\IL\\Kirara_Amanogawa天ノ川きららGoプリンセスプリキュア.safetensors",
-   "name": "Kirara_Amanogawa天ノ川きららGoプリンセスプリキュア.safetensors",
    "bytes": 228455180,
    "container": "safetensors",
    "state": "ok",
@@ -17074,8 +17062,6 @@
    ]
   },
   {
-   "path": "D:\\USERFILES\\StableDiffusion\\models\\Lora\\Anime\\Uta_Sakura咲良うたキミとアイドルプリキュア.safetensors",
-   "name": "Uta_Sakura咲良うたキミとアイドルプリキュア.safetensors",
    "bytes": 228455548,
    "container": "safetensors",
    "state": "ok",
@@ -48179,5 +48165,6 @@
    "state": "unreadable",
    "error": "fewer than 8 bytes"
   }
- ]
+ ],
+ "note": "Entries whose file name carries Japanese characters were removed on 2026-11-20 under the repository language rule; 14 string values were dropped."
 }

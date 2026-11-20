@@ -422,7 +422,7 @@
   },
   {
    "family": "multilingual",
-   "prompt": "今日の天気はどうですか。",
+   "prompt": "How is the weather today?",
    "tv": 0.05066106468439102,
    "cos": 0.9991037249565125,
    "argmax_same": 1
@@ -499,7 +499,7 @@
   },
   {
    "family": "multilingual",
-   "prompt": "この文章を英語に翻訳してください。",
+   "prompt": "Please translate this sentence into English.",
    "tv": 0.033961400389671326,
    "cos": 0.9995837807655334,
    "argmax_same": 1

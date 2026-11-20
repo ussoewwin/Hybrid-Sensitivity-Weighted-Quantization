@@ -76,7 +76,7 @@ FAMILIES = {
     ],
     "latin_other": [
         "un chat sur une table", "ein Hund im Schnee", "un gatto sul davanzale",
-        "un perro en la playa", "猫がテーブルの上に座っている",
+        "un perro en la playa", "a cat is sitting on the table",
         "고양이가 탁자 위에 앉아 있다", "кошка сидит на столе",
         "قطة تجلس على الطاولة", "一只猫坐在桌子上", "een kat op een tafel",
         "um gato em uma mesa", "bir kedi masanın üzerinde", "γάτα σε ένα τραπέζι",

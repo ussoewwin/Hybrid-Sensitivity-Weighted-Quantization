@@ -94,7 +94,7 @@ FAMILIES = {
         "ein Hund im Schnee",
         "un gatto sul davanzale",
         "un perro en la playa",
-        "猫がテーブルの上に座っている",
+        "a cat is sitting on the table",
         "고양이가 탁자 위에 앉아 있다",
         "кошка сидит на столе",
         "قطة تجلس على الطاولة",
