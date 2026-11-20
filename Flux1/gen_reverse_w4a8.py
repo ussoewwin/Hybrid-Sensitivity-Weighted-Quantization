@@ -38,15 +38,6 @@ from safetensors.torch import save_file
 import comfy_kitchen as ck
 from tqdm import tqdm
 
-import builtins as _builtins
-
-_print = _builtins.print
-
-
-def print(*args, **kwargs):  # noqa: A001 - flush every line to a pipe
-    kwargs.setdefault("flush", True)
-    _print(*args, **kwargs)
-
 _QUANT_GROUP_SIZE = 16
 _CONVROT_GROUPSIZE = 256
 
