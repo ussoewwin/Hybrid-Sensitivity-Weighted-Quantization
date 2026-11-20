@@ -275,6 +275,52 @@ def _hard_free_vram() -> None:
         torch.cuda.ipc_collect()
 
 
+def _host_ram_available_mib():
+    """Free host RAM in MiB (Linux /proc/meminfo, psutil fallback), or None."""
+    try:
+        with open("/proc/meminfo", "r", encoding="ascii") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) / 1024.0
+    except Exception:
+        pass
+    try:
+        import psutil
+
+        return psutil.virtual_memory().available / (1024 ** 2)
+    except Exception:
+        return None
+
+
+def _free_host_ram(label: str) -> None:
+    """Return freed heap to the OS and print the measured MemAvailable.
+
+    ``comfy.utils.load_torch_file`` materialises the whole checkpoint in host
+    RAM before the model is built (safetensors ``get_tensor`` per key), so a
+    Flux1 fp16 DiT needs ~24 GB of host RAM at load time. The CLIP encoders
+    that ran just before hold several GB of arenas that glibc keeps mapped;
+    ``malloc_trim(0)`` hands them back. Without this the process can be killed
+    by the cgroup OOM killer (exit -9) mid-load on a 32 GB-RAM host.
+    """
+    before = _host_ram_available_mib()
+    gc.collect()
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+    after = _host_ram_available_mib()
+    if before is None or after is None:
+        print(f"  [RAM] released ({label}): unavailable on this platform")
+    else:
+        print(
+            f"  [RAM] released ({label}): available {after:.0f} MiB "
+            f"(was {before:.0f} MiB, +{after - before:.0f} MiB)"
+        )
+
+
 # ---------------------------------------------------------------------------
 # W4A8 patches (vendored module, per-family copy like krea2 / qwen image)
 # ---------------------------------------------------------------------------
@@ -518,6 +564,7 @@ def main() -> int:
         )
 
         # --- FP16 baseline ---
+        _free_host_ram("before FP16 load")
         print("[FP16] loading Flux1 DiT...")
         fp16 = _load_diffusion_model(args.fp16)
         latent = make_empty_latent(fp16, args.width, args.height, batch=1)
@@ -535,6 +582,7 @@ def main() -> int:
         print("  [Offload] FP16 DiT unloaded.")
 
         # --- ConvRot W4A8 (patches already applied) ---
+        _free_host_ram("before W4A8 load")
         print("[W4A8] loading Flux1 DiT...")
         q = _load_diffusion_model(args.w4a8_path)
         for s in seeds:

@@ -46,6 +46,7 @@ Post-convert bench (default ON): after save, subprocess runs
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import math
 import os
@@ -79,6 +80,54 @@ def _default_repo_root() -> str:
 _REPO_ROOT = _default_repo_root()
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
+
+
+def host_ram_available_mib():
+    """Free host RAM in MiB (Linux /proc/meminfo, psutil fallback), or None."""
+    try:
+        with open("/proc/meminfo", "r", encoding="ascii") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) / 1024.0
+    except Exception:
+        pass
+    try:
+        import psutil
+
+        return psutil.virtual_memory().available / (1024 ** 2)
+    except Exception:
+        return None
+
+
+def release_host_ram(label: str = "") -> None:
+    """Return the converter's freed heap to the OS before the bench child starts.
+
+    The conversion holds the full fp16 state dict (~24 GB for Flux1) plus the
+    output dict at its peak. CPython frees them when ``convert_to_w4a8``
+    returns, but glibc keeps the freed arenas mapped, so the bench child -- which
+    loads the same fp16 DiT again -- can be killed by the cgroup OOM killer
+    (exit code -9) even though the parent looks idle. ``malloc_trim(0)`` forces
+    the arenas back to the kernel; the measured MemAvailable is printed so the
+    number is on the record.
+    """
+    before = host_ram_available_mib()
+    gc.collect()
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+    after = host_ram_available_mib()
+    tag = f" ({label})" if label else ""
+    if before is None or after is None:
+        print(f"[*] Host RAM released{tag}: unavailable on this platform")
+    else:
+        print(
+            f"[*] Host RAM released{tag}: available {after:.0f} MiB "
+            f"(was {before:.0f} MiB, +{after - before:.0f} MiB)"
+        )
 
 # Shape-critical Linear keys: ComfyUI-master's FLUX detector reads the SECOND
 # dimension of these weights to size the architecture
@@ -435,6 +484,11 @@ def convert_to_w4a8(
 
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
+    # Drop both dicts here so the peak is gone before the caller starts the
+    # bench child (see release_host_ram).
+    del new_state_dict
+    del state_dict
+    gc.collect()
 
 
 if __name__ == "__main__":
@@ -549,6 +603,7 @@ if __name__ == "__main__":
     )
 
     if args.bench:
+        release_host_ram("after convert, before bench")
         bench_rc = run_post_convert_flux_w4a8_bench(
             script_dir=_REPO_ROOT,
             fp16_path=args.model,
