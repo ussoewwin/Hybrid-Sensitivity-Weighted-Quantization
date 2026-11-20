@@ -36,6 +36,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 import comfy_kitchen as ck
+from tqdm import tqdm
 
 _QUANT_GROUP_SIZE = 16
 _CONVROT_GROUPSIZE = 256
