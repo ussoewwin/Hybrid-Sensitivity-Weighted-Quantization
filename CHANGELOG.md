@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.5.5
+
+**The Z Image reverse-method hybrid ConvRot NVFP4 pipeline published as a technical guide** - 604 lines and 15 sections that carry the direction, the measurement, the builder, the calibration, the gate and the measured results, so the method can be reproduced from the document alone.
+
+- **Why the reverse direction:** the pre-quantized INT8 pack already carries the rotation in its weights, so the NVFP4 pack is quantized from it with the same group size and the same `convrot: true` stamp; the guide states why starting from FP16 would re-derive the rotation for every layer, and what a domain mismatch actually computes (`md/ZImage_Hybrid_ConvRot_NVFP4_Technical_Guide.md` sections 3 and 13).
+- **The measurement, the builder and the calibration:** `Z_Image/diag_impact.py` substitutes one layer at a time and records the terminal-state relative MSE, `Z_Image/gen_reverse_nvfp4.py` builds the pack, and `Z_Image/calib_input_scale_nvfp4.py` measures the activation amax so that `input_scale = amax / (448 x 6)` follows the same formula `comfy_kitchen` uses for the weight scale (sections 5, 6 and 7).
+- **The gate and the measured results:** the deterministic 20-seed trajectory comparison at `benchmark/zi_convrot_nvfp4_traj_compare.py`, the table of 11 checkpoints x 20 seeds, and the measured curve that fixes $K$ (sections 9, 10 and 11).
+- **The operational contracts:** the GEMM mode selection, the loader architecture, the forbidden mistakes and the reproduction checklist, each written as a rule rather than a note (sections 8, 12, 13 and 15).
+
+Release notes: [v2.5.5](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.5.5)
+
 ## v2.5.4
 
 **The SD1.5 ControlNet series quantized and audited, fourteen SD1.5 packs and the InstantID pack added with a protection set measured on each checkpoint** — Every pack carries a weight-level closure with zero differing values, a measured runtime route, and a backdoor verdict of *no backdoor detected* at strength A.
