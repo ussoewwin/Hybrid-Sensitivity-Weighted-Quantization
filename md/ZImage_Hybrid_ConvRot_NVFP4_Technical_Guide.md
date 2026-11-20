@@ -52,10 +52,10 @@ every checkpoint** (native bifurcates on 4 seeds spread over 3 of the 11 checkpo
 | **pristine run $x_{\text{ref}}$** | The trajectory run of the **unquantized FP16 base** — `diag_impact.py` loads `a.base` with `is_nvfp4=False` (L511). The INT8 pack is the *build* input; the measurement's zero point is the FP16 model. |
 | **perturbed run $x_T(l)$** | The trajectory run where candidate $l$'s FP16 weight is replaced by its NVFP4 round-trip reconstruction, every other layer left at FP16. |
 | **trajectory impact $\text{impact}(l)$** | $\dfrac{\lVert x_T(l) - x_{\text{ref}}\rVert_F^2}{\lVert x_{\text{ref}}\rVert_F^2}$ — one scalar per candidate layer. |
-| **reverse order** | Candidates sorted **ascending** by $\text{impact}(l)$; the builder converts the first $K$. |
+| **reverse order** | Candidates sorted **ascending** by $\text{impact}(l)$; the builder takes the first $K$ as conversion candidates (boundary modules inside them are then skipped, §4). |
 | **$K$** | How many lowest-impact layers become NVFP4. A per-checkpoint search value, not a method constant. |
 | **boundary layer** | A module excluded from conversion regardless of its rank: `cap_embedder`, `x_embedder`, `final_layer`, `norm_out`, `t_embedder`, `context_embedder`. |
-| **native NVFP4** | The whole model converted to NVFP4 with no protection set — the comparison baseline, and the definition of "native" used repo-wide. |
+| **native NVFP4** | Every candidate 2D Linear of the Turbo profile (`layers.*`, refiners excluded by the Kitchen blacklist: `cap_embedder`, `x_embedder`, `noise_refiner`, `context_refiner`, `t_embedder`, `final_layer`) converted to NVFP4 — the comparison baseline. It writes **no `input_scale`**, so it runs parity (W4A16) by construction, and "native" is used repo-wide in this sense. |
 | **TC (W4A4)** | Blackwell Tensor Core GEMM: 4-bit weights against 4-bit activations scaled by the calibrated `input_scale`. |
 | **parity (W4A16)** | Stock ComfyUI GEMM in the compute dtype with the online activation rotation; 4-bit weights are dequantized for the multiply. |
 | **gate** | Deterministic 20-seed latent-trajectory comparison: mean final cosine $\ge 0.95$ **and** 0/20 bifurcated, measured in the SA2 + TC production configuration. |
