@@ -210,6 +210,57 @@ python Flux1/gen_reverse_w4a8.py 170 \
 - Source weights are rotated and the W4A8 packer rotates internally, so the converter
   un-rotates first. A double rotation yields noise, not a small error.
 
+## Step 2b - Card 1 bias correction (optional)
+
+A 4-bit weight carries a systematic error, and a Linear/Conv layer turns that error into a
+constant offset in its output. Card 1 folds the offset back into the layer bias:
+
+```
+bias += -(W_q - W) @ E[x]
+```
+
+`W_q` is the quantised weight, `W` the original weight, `E[x]` the per-input-channel mean of
+that layer's input. The pack stores `bias - delta`; the runtime adds no extra work.
+
+The delta has to be measured against the **FP16 weight**, not the INT8 dequant. The reverse
+converter starts from the INT8 pack, so an INT8-based reference covers only the INT8 -> W4A8
+step and under-corrects the pack (measured on one FLUX.1 checkpoint: bias ON 0.95218 vs
+OFF 0.953). Passing `--fp16` makes the converter read the original weight and bias from that
+file instead.
+
+`--bias_correction` runs a calibration: the DiT is loaded through ComfyUI, both text encoders
+build the calib contexts, and a DualMonitor records the per-layer `E[x]` over
+`--num_calib_samples` x `--num_inference_steps` forwards. There is no DualMonitor-less path,
+so `--calib_file`, `--clip_path`, `--clip_l_path` and `--comfy_path` are all required.
+
+```bash
+python Flux1/gen_reverse_w4a8.py 170 \
+  "<flux1>_hybrid_w170_convrot_w4a8_bc.safetensors" \
+  "<path-to-unet>/<flux1>_native_convrot_int8.safetensors" \
+  "impact/impact_<stem>.json" \
+  --bias_correction \
+  --fp16 "<path-to-unet>/<flux1>.safetensors" \
+  --calib_file "sample/calibration_prompts_128.txt" \
+  --clip_path "<path-to-clip>/<t5xxl>.safetensors" \
+  --clip_l_path "<path-to-clip>/<clip_l>.safetensors" \
+  --comfy_path "<path-to-ComfyUI>" \
+  --num_calib_samples 32 \
+  --num_inference_steps 25 \
+  --out-dir "<path-to-output-dir>"
+```
+
+- **The INT8 pack must stay un-corrected.** If the Stage 1 pack already carries a bias
+  correction, the lifted layers would carry both deltas. The native Stage 1 converter writes
+  no bias correction, so its pack is the right input.
+- Only the layers lifted to W4A8 are touched. The layers that stay ConvRot INT8 keep their
+  bias byte for byte.
+- The run aborts instead of saving when zero layers were corrected, so a pack labelled
+  bias-corrected always carries a real correction.
+- Calibration recipe: `--num_calib_samples 32` x `--num_inference_steps 25`,
+  `--latent_size 32`. Both are explicit so the numbers are reproducible.
+- Compare ON and OFF with the same benchmark from Step 3 and report the two means together;
+  a single run of one setting is not a comparison.
+
 ## Step 3 - Trajectory validation (deterministic 25 seeds)
 
 ```bash
