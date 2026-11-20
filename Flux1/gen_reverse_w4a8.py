@@ -386,7 +386,7 @@ def _encode_flux_calib_contexts(
         import comfy.sd  # noqa: WPS433
 
         mm.get_torch_device()
-        print(f"  [Flux1 calib] Loading CLIP (FLUX / clip_l + t5xxl)")
+        print(f"  [Flux1 calib] Loading CLIP (FLUX / clip_l + t5xxl)", flush=True)
         _cpu = torch.device("cpu")
         clip = comfy.sd.load_clip(
             ckpt_paths=[clip_l_path, clip_path],
@@ -400,7 +400,7 @@ def _encode_flux_calib_contexts(
             print(
                 f"  [Flux1 calib] CLIP device contract: load={patcher.load_device} "
                 f"offload={patcher.offload_device}"
-            )
+            , flush=True)
 
         bank: list[tuple[torch.Tensor, torch.Tensor | None]] = []
         for i, prompt in enumerate(prompts):
@@ -439,7 +439,7 @@ def _encode_flux_calib_contexts(
             print(
                 f"  [Flux1 calib] CLIP encoded {i + 1}/{len(prompts)} "
                 f"shape={tuple(cond_t.shape)} y={'none' if y is None else tuple(y.shape)}"
-            )
+            , flush=True)
 
         if getattr(clip, "cond_stage_model", None) is not None:
             clip.cond_stage_model.cpu()
@@ -449,7 +449,7 @@ def _encode_flux_calib_contexts(
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        print("  [Flux1 calib] CLIP unloaded; real contexts on CPU for DiT DualMonitor")
+        print("  [Flux1 calib] CLIP unloaded; real contexts on CPU for DiT DualMonitor", flush=True)
         return bank
     finally:
         _restore_argv(saved_argv)
@@ -472,7 +472,7 @@ def load_flux_from_safetensors(path, device="cuda", comfy_path: str | None = Non
         import comfy.model_management as mm  # noqa: WPS433
         import comfy.sd  # noqa: WPS433
 
-        print(f"Loading Flux1 DiT (ComfyUI native): {path}")
+        print(f"Loading Flux1 DiT (ComfyUI native): {path}", flush=True)
         patcher = comfy.sd.load_diffusion_model(os.path.abspath(path), {})
         mm.get_torch_device()
         # The 23.8 GB fp16 DiT does not fit a 16 GiB card: let ComfyUI decide the
@@ -504,7 +504,7 @@ def load_flux_from_safetensors(path, device="cuda", comfy_path: str | None = Non
         print(
             f"  [Flux1] identity map entries={len(comfyui_to_module_map)} "
             f"(prefix={prefix!r}, header keys={len(file_keys)})"
-        )
+        , flush=True)
         return dm, comfyui_to_module_map, prefix
     finally:
         _restore_argv(saved_argv)
@@ -530,7 +530,7 @@ def run_card1_calib(
     if not str(device).startswith("cuda"):
         raise RuntimeError("Card 1 Flux1 calib requires CUDA.")
 
-    print("Preparing calibration data...")
+    print("Preparing calibration data...", flush=True)
     with open(calib_file, "r", encoding="utf-8") as f:
         prompts = [line.strip() for line in f.readlines() if line.strip()]
     if len(prompts) < num_calib_samples:
@@ -555,7 +555,7 @@ def run_card1_calib(
         input_path, device=device, comfy_path=comfy_path
     )
 
-    print("Preparing calibration (DualMonitor hooks; Card 1 act means)...")
+    print("Preparing calibration (DualMonitor hooks; Card 1 act means)...", flush=True)
     dual_monitors.clear()
     handles = []
     for name, module in model.named_modules():
@@ -569,19 +569,19 @@ def run_card1_calib(
     print(
         f"Running calibration ({num_calib_samples} samples, "
         f"{num_inference_steps} steps)..."
-    )
+    , flush=True)
     if num_calib_samples != 32 or num_inference_steps != 25:
         print(
             "  [WARN] How-to / r32 recipe is num_calib_samples=32, "
             "num_inference_steps=25. current args differ."
-        )
+        , flush=True)
     _calib_progress_disable = False
     guidance = torch.full((1,), 3.5, device=device, dtype=torch.float32)
     gen = torch.Generator(device=device).manual_seed(42)
 
     for i, prompt in enumerate(prompts):
         seed = 42 + i
-        print(f"\nSample {i+1}/{num_calib_samples}: {prompt[:50]}...")
+        print(f"\nSample {i+1}/{num_calib_samples}: {prompt[:50]}...", flush=True)
         gen.manual_seed(seed)
         with torch.no_grad():
             x = torch.randn(
@@ -632,7 +632,7 @@ def run_card1_calib(
         f"act_sq_mean layers={len(act_sq_mean_dict)}, "
         f"importance layers={len(importance_dict)} "
         f"(full Card 1; no VETO; no Approach A)"
-    )
+    , flush=True)
 
     del model
     del context_bank
