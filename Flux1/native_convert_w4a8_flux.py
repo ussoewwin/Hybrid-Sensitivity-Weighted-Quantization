@@ -33,7 +33,15 @@ run-based calibration with t5xxl + clip_l; see Flux1/README.md).
 Usage:
     python Flux1/native_convert_w4a8_flux.py \\
         --model "D:\\...\\flux_fp16.safetensors" \\
-        --output "D:\\...\\flux_native_convrot_w4a8.safetensors"
+        --output "D:\\...\\flux_native_convrot_w4a8.safetensors" \\
+        --clip_path "D:\\...\\t5xxl.safetensors" \\
+        --clip_l_path "D:\\...\\clip_l.safetensors" \\
+        --comfy_path "D:\\...\\ComfyUI-master"
+
+Post-convert bench (default ON): after save, subprocess runs
+  benchmark/flux1_convrot_w4a8_traj_compare.py (trajectory, official fixed 25 seeds).
+  --clip_path (t5xxl), --clip_l_path and --comfy_path are required.
+  --no-bench でスキップ。
 """
 from __future__ import annotations
 
@@ -41,6 +49,8 @@ import argparse
 import json
 import math
 import os
+import subprocess
+import sys
 
 import torch
 from safetensors.torch import load_file, save_file
@@ -50,6 +60,25 @@ _DEFAULT_GROUPSIZE = 256
 # W4A8 quant group: fixed 16 (comfy_kitchen default, CUDA fused requant config).
 _QUANT_GROUP_SIZE = 16
 _HADAMARD_CACHE: dict[tuple[int, str, torch.dtype], torch.Tensor] = {}
+
+
+def _default_repo_root() -> str:
+    """Locate the repo root by walking up until native_convert_int8.py is found."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    d = here
+    for _ in range(8):
+        if os.path.isfile(os.path.join(d, "native_convert_int8.py")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return os.path.abspath(os.path.join(here, os.pardir))
+
+
+_REPO_ROOT = _default_repo_root()
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 # Shape-critical Linear keys: ComfyUI-master's FLUX detector reads the SECOND
 # dimension of these weights to size the architecture
@@ -195,6 +224,42 @@ def _encode_comfy_quant(config: dict) -> torch.Tensor:
         list(json.dumps(config, separators=(",", ":")).encode("utf-8")),
         dtype=torch.uint8,
     )
+
+
+def run_post_convert_flux_w4a8_bench(
+    *,
+    script_dir: str,
+    fp16_path: str,
+    w4a8_path: str,
+    clip_path: str,
+    clip_l_path: str,
+    comfy_path: str,
+) -> int:
+    """After save: subprocess benchmark/flux1_convrot_w4a8_traj_compare.py.
+
+    Bench argv:
+      --fp16 <input> --w4a8 <W4A8 pack> --clip_path <t5xxl> --clip_l_path <clip_l>
+      --comfy_path <ComfyUI root>
+    Seeds: the bench default, the official fixed 25 (42-start list). No --seeds
+    override is passed here.
+    """
+    bench_script = os.path.join(
+        script_dir, "benchmark", "flux1_convrot_w4a8_traj_compare.py"
+    )
+    if not os.path.isfile(bench_script):
+        print(f"Error: bench script not found: {bench_script}")
+        return 1
+    cmd = [
+        sys.executable,
+        bench_script,
+        "--fp16", fp16_path,
+        "--w4a8", w4a8_path,
+        "--clip_path", clip_path,
+        "--clip_l_path", clip_l_path,
+        "--comfy_path", comfy_path,
+    ]
+    print("Running trajectory bench: " + " ".join(cmd))
+    return subprocess.run(cmd).returncode
 
 
 def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
@@ -409,6 +474,35 @@ if __name__ == "__main__":
         default=_DEFAULT_GROUPSIZE,
         help=f"ConvRot Hadamard group size (power of 4, default {_DEFAULT_GROUPSIZE})",
     )
+    parser.add_argument(
+        "--clip_path",
+        type=str,
+        default=None,
+        help="T5XXL text encoder path (required when --bench)",
+    )
+    parser.add_argument(
+        "--clip_l_path",
+        type=str,
+        default=None,
+        help="clip_l text encoder path (required when --bench)",
+    )
+    parser.add_argument(
+        "--comfy_path",
+        type=str,
+        default=None,
+        help="ComfyUI root path (required when --bench)",
+    )
+    parser.add_argument(
+        "--bench",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "After save, run benchmark/flux1_convrot_w4a8_traj_compare.py "
+            "(requires --clip_path/--clip_l_path/--comfy_path; seeds = the "
+            "official fixed 25). "
+            "Pass --no-bench to skip."
+        ),
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
@@ -421,6 +515,31 @@ if __name__ == "__main__":
         print(f"Error: --groupsize must be a power of 4, got {args.groupsize}")
         raise SystemExit(1)
 
+    if args.bench:
+        missing = []
+        if not args.clip_path:
+            missing.append("--clip_path")
+        if not args.clip_l_path:
+            missing.append("--clip_l_path")
+        if not args.comfy_path:
+            missing.append("--comfy_path")
+        if missing:
+            print(
+                "Error: post-convert bench requires "
+                + ", ".join(missing)
+                + " (pass --no-bench to convert without bench)"
+            )
+            raise SystemExit(1)
+        if not os.path.isfile(args.clip_path):
+            print(f"Error: --clip_path not found: {args.clip_path}")
+            raise SystemExit(1)
+        if not os.path.isfile(args.clip_l_path):
+            print(f"Error: --clip_l_path not found: {args.clip_l_path}")
+            raise SystemExit(1)
+        if not os.path.isdir(args.comfy_path):
+            print(f"Error: --comfy_path not found: {args.comfy_path}")
+            raise SystemExit(1)
+
     convert_to_w4a8(
         args.model,
         args.output,
@@ -428,3 +547,18 @@ if __name__ == "__main__":
         group_size=int(args.groupsize),
         per_channel_int8=bool(args.per_channel_int8),
     )
+
+    if args.bench:
+        bench_rc = run_post_convert_flux_w4a8_bench(
+            script_dir=_REPO_ROOT,
+            fp16_path=args.model,
+            w4a8_path=args.output,
+            clip_path=args.clip_path,
+            clip_l_path=args.clip_l_path,
+            comfy_path=args.comfy_path,
+        )
+        if bench_rc != 0:
+            print(f"[FATAL] Post-convert bench exited with code {bench_rc}")
+            raise SystemExit(bench_rc)
+    else:
+        print("[*] Post-convert bench skipped (--no-bench)")
