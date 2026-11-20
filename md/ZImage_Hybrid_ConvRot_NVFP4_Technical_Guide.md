@@ -89,9 +89,12 @@ the runtime will reconstruct. The INT8 pack already carries the rotation in its 
 the rotated float to the NVFP4 quantizer, which stores it with `convrot: true` for the same
 group size. Starting from FP16 instead would require re-deriving the rotation for every layer and
 re-validating the group size — the same arithmetic, but with one more place for the rotation
-domain to disagree with the runtime. The measured failure mode of a domain mismatch is not a
-small error: an un-rotated weight against a rotated activation multiplies to near-orthogonal
-vectors and the output is noise, not a degraded picture.
+domain to disagree with the runtime. A domain mismatch is not a degraded approximation — it is a
+**different operation**: the weight is stored rotated (`convrot: true`, group 256) and the
+runtime rotates the activation for the same group size, so the GEMM assumes both sides are in
+the rotated basis. Feed it a weight outside that basis and the multiply computes a different
+function of the input; the trajectory numbers then describe another model, not a quantization
+error.
 
 ### 3.3 Why not "protect the important layers"
 
@@ -148,7 +151,7 @@ The measurement must use the same quantizer the artifact will be built with. An
 E4M3-per-256 simulation is a different quantization: its error magnitude is roughly an order of
 magnitude smaller and its error is distributed more evenly, which **flattens the ranking** — the
 top of the list stops separating from the middle, and the $K$ cut lands on noise. The docstring
-records the measured ratio (~13×).
+records the ratio (~13×).
 
 ### 5.2 Trajectory loop and the terminal-state metric
 
@@ -294,8 +297,10 @@ sd[base_k + ".comfy_quant"] = torch.frombuffer(
 ```
 
 `orig_shape` is not decoration: packed NVFP4 storage is narrower than the logical width, and the
-loader sizes the module from the stamp. A missing or wrong `orig_shape` produces a module with
-the packed width, which fails at the GEMM rather than at load.
+loader sizes the module from the stamp. With the stamp present the loader takes `orig_shape`
+from the `comfy_quant` conf; without it the loader falls back to reconstructing the logical
+width from the packed tensor (`packed_K × 2`), which is wrong whenever the storage is
+16-padded — the module is then built with a width the GEMM never intended.
 
 The same dict is recorded twice — under the prefixed key and under the stripped key in
 `_quantization_metadata` (L124-125). The metadata block is what `diag_impact.py` reads to
@@ -340,9 +345,15 @@ sd[f"{full}.input_scale"] = torch.tensor(
 
 $$\text{input\_scale} = \frac{\max(\text{amax},\,10^{-12})}{448 \times 6} = \frac{\text{amax}}{2688}$$
 
-The denominator is the product of the two representable maxima of the two-level scale scheme: an
-E4M3 block scale spanning the FP4 grid. Dividing by it maps the observed amax onto the full
-representable range of the 4-bit code, which is what the W4A4 kernel expects.
+The denominator decomposes into the two maxima of the two-level scale scheme: **448** is the
+largest value an E4M3 global scale can represent, and **6** is the largest magnitude an E2M1
+FP4 code can carry. Their product bounds what one group can express, so dividing the observed
+amax by it puts the largest activation element exactly at that upper limit — the dynamic range
+of the grid is used in its entirety, with nothing wasted. The same quotient is the default
+scale that `comfy_kitchen`'s `TensorCoreNVFP4Layout.quantize` computes for weights
+(`scale = torch.amax(tensor.abs()) / (F8_E4M3_MAX * F4_E2M1_MAX)`), so the activation scale and
+the weight scale follow one formula, and the GEMM's two `tensor_scale` factors (`scaled_mm_nvfp4`:
+`y = (a @ b.T) * (tensor_scale_a * tensor_scale_b)`) stay in a shared range.
 
 ### 7.3 Calibration set
 
@@ -553,7 +564,7 @@ is part of the decision, not a footnote.
 
 $$\text{impact}(l) = \frac{\lVert x_T(l) - x_{\text{ref}}\rVert_F^2}{\lVert x_{\text{ref}}\rVert_F^2} \qquad\text{(terminal state, one layer substituted)}$$
 
-$$\text{order} = \operatorname{argsort}_{\uparrow}\,\text{impact}(l), \qquad \text{converted} = \text{order}[0:K]$$
+$$\text{order} = \operatorname{argsort}_{\uparrow}\,\text{impact}(l), \qquad \text{candidates} = \text{order}[0:K], \qquad \text{converted} = \text{candidates} \setminus \text{boundary}$$
 
 $$\text{input\_scale}_l = \frac{\max(\text{amax}_l, 10^{-12})}{448 \times 6}$$
 
