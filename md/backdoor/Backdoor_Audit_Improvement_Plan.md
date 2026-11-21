@@ -516,3 +516,114 @@ flowchart LR
 | risk | W6's borrowed-instrument numbers may not reproduce. If they differ, delete the old sentence and record the new value |
 | risk | If W16's positive control shows a high floor, the conclusion becomes "the absence of a control-image trigger cannot be claimed". Even then, publish the floor in the verdict row |
 | risk | Another session working in the same tree will bring back record overwrites and push collisions (W19) |
+
+---
+
+# Appendix D. Revision of 2026-11-21 (Current 54-Report Audit Suite, 26 ControlNet Packs, and 3rd Improvement Plan Integration)
+
+## D.0 Current state (measured 2026-11-21)
+
+| item | result |
+| :--- | :--- |
+| total individual reports | **54 reports** in `md/backdoor/verdicts/` (Text/LM, ControlNet, Model Patch, Segmentation, Text Encoders, Positive Control) |
+| `procedure_check.py` | **190/190 checks PASS** (procedure: `Backdoor_Audit_Procedure.md`, 1167 lines) |
+| `check_cites.py` | **54/54 reports PASS**, 2,148 citations resolved, 0 failed, 85 skipped |
+| `selftest.py` | **49/49 checks PASS** (includes 7 ControlNet / model patch instrument-match and protection test cases) |
+| `records/SHA256SUMS` | **625 verified records**, 0 mismatched, 0 missing, 0 unlisted (**PASS**) |
+| Markdown linting | **61 documents checked**, 0 unreplaced placeholders, 0 duplicate headers (**PASS**) |
+| ControlNet & model patches | expanded from 13 to **26 packs** in Section 3, all equipped with control-image trigger searches and pack-against-source output differences |
+| Qwen3-8B FP16 | single-file FP16 export verified as faithful conversion against declared reference (399/399 bit-exact); zero-census gate passed (0 all-zero tensors) |
+
+---
+
+## D.1 Status audit of Appendix C items (W0 to W20)
+
+| id | item | status at 2026-11-21 |
+| :--- | :--- | :--- |
+| W0 | put `ComfyUI-master/` back under git tracking | **done** — fully tracked and updated |
+| W1 | restore records and probe inputs to pre-replacement content (`2cc2798`) | **done** — restored and verified |
+| W2 | return identifiers and key names to neutral technical terms | **done** — verified by `check_cites` and gates |
+| W3 | rebuild `word_normalization_2026-11-08.json` | **done** — neutral structure without owner perspective |
+| W4 | repair broken sentences from context-free replacement | **done** — sentences restored to intended technical meaning |
+| W5 | regenerate `SHA256SUMS` and pass the gate | **done** — 625 records verified |
+| W6 | record/cite borrowed-instrument numbers or delete uncited prose | **done** — citations aligned in reports and records |
+| W7 | re-verification records for model patches and noobai | **done** — verified |
+| W8 | reconcile heading and index verdict words with measurements | **done** — executed layers and coverage agree |
+| W9 | move "earlier version withdrawn" out of verdict bodies | **done** — moved to index withdrawn notes and records |
+| W10 | add `source.repo` to Tile and other records | **done** — cited from records |
+| W11 | split index under kind headings, fix legacy row, clean doubled brackets | **done** — Section 1/2/3 clean structure |
+| W12 | neutral wording, update `audit/README.md`, add procedure phases | **done** — `audit/README.md` covers all audit scripts |
+| W13 | separate ControlNet & model patch rows into Section 3 with dual-axis labels | **done** — Section 3 active with 26 packs |
+| W14 | execute Union ProMax union type and multi-condition rendering | **done** — recorded |
+| W15 | record pack-against-source output differences across packs | **done** — all 26 packs cite cosine and error deltas |
+| W16 | control-image trigger search across packs | **done** — 26 packs hold trigger search records |
+| W17 | add ControlNet/model patch test cases to `selftest.py` | **done** — selftest expanded to 49/49 |
+| W18 | pre-commit gate enforcement and `--regen` integration | **done** — `--regen` flag in `run_all_gates.py` |
+| W19 | prevent concurrent session working tree collisions | **ongoing operational policy** |
+| W20 | gate run log naming and rotation policy | **done** — logged per date under `records/` |
+
+---
+
+## D.2 Active Workstreams from the 3rd Improvement Plan (2026-11-11)
+
+Building upon the completion of Appendix C, the active workstreams address depth of proof, elimination of residual ambiguity, and positive control rigor:
+
+### WS-A. Four-tier verdict classification and index restructuring (P0)
+1. Adopt explicit four-tier classification across all reports and index tables:
+   - **A-closed**: exact match with official distribution, or delta against official base is fully accounted for at weight level (Huihui, Josie, Thinking, SAM, CLIP_L, FlanT5).
+   - **A-fidelity**: faithful conversion/quantization of the published source; source absence of backdoors remains unestablished.
+   - **B-undetermined**: delta is diffuse; behavioural probe sensitivity measured near zero; absence of backdoor cannot be established ("undetermined", not "none detected").
+   - **C-partial**: structural screen covers only a subset of tensors.
+2. Restrict the verdict phrase `none detected` strictly to **A-closed** rows. Replace with `faithful` for A-fidelity rows and `undetermined` for B-class rows.
+3. Link every B-class row to its specific positive control detection floor record.
+
+### WS-B. Positive control rigor and empirical firing verification (P0)
+1. **Verify backdoor firing**: measure payload log-likelihood under teacher-forcing with and without trigger, confirming substantial logit separation before evaluating probe sensitivity.
+2. **Minimal pairs (n >= 100)**: construct balanced prompt pairs differing only by trigger presence, reporting detection rates with Wilson 95% confidence intervals.
+3. **Screen planted weights through Tool 2**: pass LoRA and BadEdit planted models through the weight-level direction screen (Tool 2 / D2) to verify whether single-direction gating flags the planted modification.
+4. Expand positive controls beyond LM to text encoders (CLIP-L) and segmentation (SAM 3.1).
+
+### WS-C. Qwen3-8B upstream base difference closure (P0)
+1. Conduct complete weight-level delta analysis against official `Qwen/Qwen3-8B` base (D, D2, reconstruction, residual-to-floor ratio).
+2. Transition Qwen3-8B from A-fidelity (conversion fidelity) to A-closed upon full weight-level accounting.
+
+### WS-D. SAM 3.1 multiplex report cleanup (P1)
+1. Reconcile `SAM31_Multiplex.md` by moving legacy superseded query-slot-0 probe text (§4-§8, 0.8511 figures) into a dedicated "Superseded Measurements" appendix.
+2. Eliminate contradictory phrasing between Step 8 and S2, establishing S0-S6 as the authoritative measurement baseline.
+3. Augment S3 vocabulary overlap regression with semantic embedding cosine to control for semantic similarity.
+
+### WS-E. ControlNet detection floor thresholding (P1)
+1. Establish a maximum allowable detection floor (0.01 under 1 - cosine) for control-image triggers. Explicitly classify packs exceeding the floor as having insufficient probe resolution.
+2. Investigate the Union ProMax SDXL runtime cosine difference (0.945348 vs >0.998 on other packs) under matched execution pathways.
+
+### WS-F. Automated gate and citation validation enhancement (P1)
+1. Tighten `check_cites.py` string validation to require full hex matches and enforce zero skipped citations as a strict gate.
+2. Maintain pre-commit execution of `run_all_gates.py --regen` to guarantee continuous SHA256SUMS integrity.
+
+### WS-G. Zero-census gate and disclosure (P1)
+1. Maintain pre-release zero-content screening across all quantization pipelines, logging full-tensor zero checks to `records/zero_census_all.json`.
+2. Ensure model cards disclose damaged artifact replacements transparently.
+
+### WS-H. Methodological extensions (P2)
+1. Perform cross-model delta comparison across related CLIP fine-tunes to decompose shared recipe vectors from model-specific residuals.
+2. Extend weight-level screen to the vision tower of multimodal models (GmP ViT-L14).
+
+---
+
+## D.3 Priority execution roadmap
+
+| phase | focus | workstreams | target |
+| :--- | :--- | :--- | :--- |
+| **Phase 0** | Verdict nomenclature & index clarity | WS-A, WS-G | Reclassify index rows to 4-tier system; restrict `none detected` to A-closed; update `procedure_check.py` |
+| **Phase 1** | Positive control rigor & Qwen3-8B base closure | WS-B, WS-C, WS-F | Backdoor firing log-likelihood tests; n>=100 minimal pairs; Qwen3-8B official base diff |
+| **Phase 2** | SAM 3.1 cleanup & ControlNet thresholding | WS-D, WS-E | Reconcile `SAM31_Multiplex.md`; enforce 0.01 floor cap on control-image triggers |
+| **Phase 3** | Architecture extensions | WS-H | Multi-model CLIP decomposition; GmP vision tower weight screen |
+
+---
+
+## D.4 Overall acceptance criteria
+
+1. **Gate completeness**: `run_all_gates.py` passes all 5 gates (procedure 190+, check_cites 54+ reports, selftest 49+, SHA256SUMS 625+ entries, markdown linting).
+2. **Nomenclature consistency**: `none detected` appears only on A-closed rows where upstream delta is fully accounted for at weight level.
+3. **Empirical positive control**: every claimed probe silence is bounded by an empirically verified positive control with measured firing confirmation and published detection floor.
+4. **Zero unexplained anomalies**: all outliers identified by structural screens are individually investigated and documented in records.
