@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.5.6
+
+**The Flux1 hybrid ConvRot W4A8 pipeline published as a technical guide** - 778 lines and 15 sections that carry the direction, the measurement, the builder, the bias correction, the gate, the measured pack sizes and the sweep, so the method can be reproduced from the document alone.
+
+- **Why the reverse direction:** the INT8 pack already carries the rotation in its stamps, so the builder un-rotates the INT8 reconstruction once and hands the physical basis to the W4A8 packer that rotates inside; the guide states what a double rotation computes, why FP16 cannot be the base for a 4-bit reverse build, and why a static weight statistic cannot rank the layers (`md/Flux1_Hybrid_ConvRot_W4A8_Technical_Guide.md` sections 3.1 to 3.3).
+- **The measurement and the builder:** `Flux1/diag_impact.py` substitutes one layer at a time with its true ConvRot INT8 reconstruction in the original basis and records the mean per-step relative MSE over the production sampler, and `Flux1/gen_reverse_w4a8.py` converts the $K$ lowest-impact layers to `asym_w4a8_int8` with the group-16 scale, the fp32 channel scale and the 16-entry codebook (sections 5 and 6).
+- **The bias correction:** the Card 1 delta is measured against the FP16 weight rather than the INT8 dequantization, which covers only the INT8 -> W4A8 step; the run aborts rather than saving a pack labelled bias-corrected when zero layers were corrected (section 7).
+- **The gate and the measured results:** the deterministic 25-seed latent-trajectory comparison at `benchmark/flux1_convrot_w4a8_traj_compare.py`, the measured mean final cosine 0.95383 against 0.93006 for the all-W4A8 pack with 0/25 against 1/25 bifurcated seeds, and the measured pack sizes 8,989,783,965 bytes for the hybrid against 11,917,004,917 bytes all-INT8 and 6,723,972,397 bytes all-W4A8 (sections 9 and 10).
+- **The operational contracts:** the two boundary lists and the measured boundary-layer state, the per-layer saving range that makes the size curve non-linear, the forbidden mistakes, the reproduction checklist and the one-command K sweep (sections 4, 11, 13, 14 and 15).
+
+Release notes: [v2.5.6](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.5.6)
+
 ## v2.5.5
 
 **The Z Image reverse-method hybrid ConvRot NVFP4 pipeline published as a technical guide** - 604 lines and 15 sections that carry the direction, the measurement, the builder, the calibration, the gate and the measured results, so the method can be reproduced from the document alone.
