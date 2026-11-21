@@ -532,6 +532,40 @@ def parse_args():
     return ap.parse_args()
 
 
+def _print_protocol(args, seeds) -> None:
+    """Record the run's conditions in the log itself.
+
+    A score log that does not state its own steps, resolution, cfg, sampler and
+    scheduler cannot be compared with another run, because every one of those
+    changes the numbers. The protocol block is printed before any model is
+    loaded, so a log file carries the conditions that produced it.
+    """
+    print("=" * 72)
+    print("PROTOCOL (the conditions this run was measured under)")
+    print("=" * 72)
+    for name, path in (
+        ("fp16", args.fp16),
+        ("w4a8", args.w4a8_path),
+        ("clip_path", args.clip_path),
+        ("clip_l_path", args.clip_l_path),
+        ("comfy_path", args.comfy_path),
+    ):
+        try:
+            size = f"  ({os.path.getsize(path):,} bytes)"
+        except OSError:
+            size = "  (size unavailable)"
+        print(f"  {name:<16} {path}{size}")
+    print(f"  {'seeds':<16} {len(seeds)}: {','.join(str(s) for s in seeds)}")
+    print(f"  {'steps':<16} {args.steps}")
+    print(f"  {'resolution':<16} {args.width}x{args.height}")
+    print(f"  {'cfg':<16} {args.cfg}")
+    print(f"  {'sampler':<16} {args.sampler}")
+    print(f"  {'scheduler':<16} {args.scheduler}")
+    print(f"  {'prompt':<16} {args.prompt}")
+    print(f"  {'negative':<16} {args.negative!r}")
+    print("=" * 72)
+
+
 def main() -> int:
     args = parse_args()
     torch.backends.cudnn.deterministic = True
@@ -541,6 +575,8 @@ def main() -> int:
     if not seeds:
         print("No seeds given")
         return 1
+
+    _print_protocol(args, seeds)
 
     setup_comfy(args.comfy_path)
     apply_w4a8_patches()

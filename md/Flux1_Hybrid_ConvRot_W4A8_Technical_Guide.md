@@ -42,10 +42,12 @@ boundary layers in the source dtype. ComfyUI core reads the `asym_w4a8_int8` lay
 pack sidecars, so the file loads in **Load Diffusion Model** / **UNetLoader**; the HSWQ loader
 is needed only when a **LoRA** has to be applied, because 16 code levels round a LoRA delta
 away and the loader adds it as a factorised residual after the GEMM. Measured on one FLUX.1
-checkpoint at $K = 170$ of a 228-layer ranking over the deterministic 25-seed gate, the hybrid
-reaches a **mean final trajectory cosine of 0.95383 against 0.93006 for the native all-W4A8
-pack**, with **0/25 bifurcated seeds against 1/25** and a mean final latent MSE of **1.1161
-against 1.7803** (about 37 % lower error).
+checkpoint at $K = 170$ over the deterministic 25-seed gate, the hybrid reaches a **mean final
+trajectory cosine of 0.95383 against 0.93006 for the native all-W4A8 pack**, with **0/25
+bifurcated seeds against 1/25** and a mean final latent MSE of **1.1161 against 1.7803** (about
+37 % lower error). The measured pack is **8,989,783,965 bytes (8.990 GB / 8.372 GiB)** on disk,
+against **11,917,004,917 bytes (11.917 GB)** for the same-architecture all-INT8 pack and
+**6,723,972,397 bytes (6.724 GB / 6.262 GiB)** for the all-W4A8 pack (§10).
 
 ---
 
@@ -60,7 +62,7 @@ against 1.7803** (about 37 % lower error).
 | **trajectory impact $\text{impact}(l)$** | $\dfrac{1}{T}\sum_{t=1}^{T}\dfrac{\lVert x_t(l) - x_{\text{ref},t}\rVert_F^2}{\lVert x_{\text{ref},t}\rVert_F^2}$ — one scalar per candidate layer, the mean over the recorded steps. |
 | **reverse order** | Candidates sorted **ascending** by $\text{impact}(l)$; the builder takes the first $K$ as conversion candidates (boundary modules inside them are then skipped, §4). |
 | **$K$** | How many lowest-impact layers become W4A8. A per-checkpoint search value, not a method constant. |
-| **boundary layer** | A module excluded from conversion regardless of its rank: `img_in`, `txt_in`, `time_in`, `vector_in`, `guidance_in`, `final_layer`, `distilled_guidance_layer`, and anything containing `.img_mod`, `.txt_mod`, `.modulation`, `adaLN` or `norm`. |
+| **boundary layer** | A module excluded from the **W4A8** conversion regardless of its rank: `img_in`, `txt_in`, `time_in`, `vector_in`, `guidance_in`, `final_layer`, `distilled_guidance_layer`, and anything containing `.img_mod`, `.txt_mod`, `.modulation`, `adaLN` or `norm`. In the pack it is ConvRot INT8, not base dtype (§4.3). |
 | **native W4A8** | Every eligible 2-D Linear converted to `asym_w4a8_int8` with no protected layers — the comparison baseline. "native" is used repo-wide in the sense of plain compression without hswq. |
 | **W4A8** | `asym_w4a8_int8`: 4-bit codes with a per-group (16) scale, a per-out-channel scale and a 16-entry Lloyd-Max codebook, applied to the weight rotated for ConvRot group size 256. |
 | **gate** | Deterministic 25-seed latent-trajectory comparison: mean final cosine $\ge 0.95$ **and** 0/25 bifurcated. |
@@ -142,6 +144,15 @@ pipeline:
    interface between the latent, the timestep embedding and the text conditioning; converting
    them changes the scale of the model's inputs and outputs rather than the computation inside
    it.
+3. **The boundary modules are INT8 in the pack, not base dtype.** This is what the measured
+   artifact shows: in the r170 pack `img_in.weight` is `int8_tensorwise` with 196,608 bytes, and
+   the same holds for `txt_in`, `vector_in.in_layer`, `time_in`, `guidance_in` and
+   `final_layer`. The INT8 conversion that produced the input pack already quantized them, so the
+   exclusion that matters for this pipeline is the exclusion from the **W4A8** re-encoding: a
+   boundary module is never turned into 4-bit codes, and it keeps the full width the FLUX
+   detector reads. The nibble packing would halve that width (`img_in` is 3072x64, `txt_in` is
+   4096x1536, `vector_in.in_layer` is 3072x768), which is why the three the detector reads are
+   kept out of the 4-bit path.
 3. **The group size decides eligibility, and W4A8 needs 256.** The ConvRot group size is the
    largest power-of-4 divisor of `in_features` that is at most 256; a layer with no such divisor
    is not a ConvRot candidate at all. The reverse converter additionally requires the base
@@ -391,7 +402,9 @@ the per-tensor stamp is what the runtime reads.
 Layers outside the first $K$, boundary modules, layers without the group-256 stamp, and every key
 the builder does not recognize are copied through unchanged (`sd` is loaded from the source and
 only modified keys are replaced). A hybrid pack is therefore the INT8 pack with a subset of layers
-re-encoded — not a rebuild from scratch. This is also why the INT8 pack's own `_quantization_metadata`
+re-encoded — not a rebuild from scratch. The measured artifact confirms the copy-through: the 144
+INT8-kept layers of the r170 pack are byte-for-byte identical to the same layers in the all-INT8
+pack of the same architecture (measured difference 0 bytes over all 144). This is also why the INT8 pack's own `_quantization_metadata`
 survives: the hybrid carries the union of both layer kinds, which is what makes a second build
 from the hybrid possible.
 
@@ -483,6 +496,12 @@ applied exactly once, on the layers that become W4A8.
 - The **pack itself needs no dedicated loader**: core declares and decodes `asym_w4a8_int8`, so
   **Load Diffusion Model** / **UNetLoader** loads the file, and the text encoders and VAE stay
   separate files as usual.
+- **What the storage costs, measured on the r170 pack.** The 170 W4A8 layers occupy
+  **3,769,698,944 bytes** in total: 3,345,481,728 bytes of nibble-packed `int8` weight,
+  418,185,216 bytes of fp8e4m3 group scales, 6,021,120 bytes of fp32 channel scales and
+  10,880 bytes of codebook (170 x 64 B). The 144 INT8-kept layers occupy 5,213,602,048 bytes:
+  5,207,359,488 bytes of `int8` weight and 6,242,560 bytes of fp32 channel scales. The
+  non-quantized remainder of the file is 38,912 bytes of bf16.
 - The **hybrid's INT8 layers** keep the INT8 stack armed. `apply_w4a8_patches` calls
   `apply_comfy_quant_int8_patches()` when the pack also carries `int8_tensorwise` layers, so one
   load arms both formats.
@@ -519,6 +538,16 @@ A seed is the only source of variation: both models start from the noise that se
 the comparison is paired seed by seed. The seed set, the step count and the resolution are all
 **explicit arguments** in a gate run, because each of them changes the numbers; a run that relies
 on an unrecorded default is not comparable to the table in §10.
+
+**The comparator records its own protocol.** Before any model is loaded,
+`flux1_convrot_w4a8_traj_compare.py` prints a `PROTOCOL` block carrying the two model paths with
+their file sizes, both text-encoder paths, the ComfyUI root, the seed list, the step count, the
+resolution, the cfg, the sampler, the scheduler and the prompt. A score log therefore states the
+conditions it was measured under, and a log file can be compared with another one without guessing
+which default was in force. The 25-seed run tabulated in §10 predates that block, so its own
+resolution, step count, cfg, sampler and scheduler are not recoverable from the log file
+`benchmark result/flux1w4a8.txt`; what the log does carry is the seed list, the per-seed cosines
+and MSEs, the verdicts and the wall times. Every run after this change writes the protocol.
 
 ### 9.2 Verdicts
 
@@ -574,10 +603,21 @@ What the table supports, and what it does not:
 6. **What the numbers are not.** They are **not** an image-quality claim. A trajectory cosine
    measures whether two runs produced the same latent; two noise fields would also correlate
    highly. Picture judgement is made by decoding and looking, never from this table.
-7. **What this run does not record.** The pack sizes, the step count, the resolution, the cfg, the sampler
-   and the scheduler of the measured run are not written in the score log. They are stated as script defaults in
-   §9.1 and must be recorded with the next gate run; a size without a gate result, or a gate
-   result without a size, is an incomplete record.
+7. **The pack sizes, measured on disk.** The hybrid pack the gate ran on is
+   **8,989,783,965 bytes (8.990 GB / 8.372 GiB)**. The same-architecture all-INT8 pack is
+   **11,917,004,917 bytes (11.917 GB)**, and the all-W4A8 pack is **6,723,972,397 bytes
+   (6.724 GB / 6.262 GiB)** — the latter built and measured on this machine with the native
+   routing rule (313 layers to W4A8, 1 layer kept ConvRot INT8). The hybrid therefore sits
+   between the two formats it mixes: it gives up 2,927,285,632 bytes against the all-INT8 pack
+   (-24.6 %) and keeps 2,265,811,568 bytes over the all-W4A8 pack, and it buys that with the
+   43.7 % weight reduction the 170 converted layers carry (the measured per-layer saving ranges
+   from 4,128,704 to 28,901,312 bytes, mean 17,219,327).
+8. **What this run does not record.** The step count, the resolution, the cfg, the sampler and the
+   scheduler of the measured run are not written in the score log, because the comparator did not
+   print them when it ran. The comparator prints them now (§9.1), so the next run carries them;
+   this one is fixed by the seed list, the per-seed numbers, the verdicts and the wall times it
+   does carry. A size without a gate result, or a gate result without a size, is an incomplete
+   record — the size is measured (§10.7), and the protocol is recorded from the next run on.
 
 ---
 
@@ -597,10 +637,37 @@ changes with $K$, and quality can recover and fail again. The procedure is a seq
 6. Near an ambiguous boundary, sweep $K \pm 1$–$2$: passing islands exist.
 
 $K$ equal to the ranked set converts every eligible layer and leaves no INT8 remainder; nothing
-outside the ranking is touched at any $K$. The repository holds the measured point ($K = 170$)
-and the search rule, not a measured curve for this checkpoint — a curve is produced by running
-the chain at several $K$ and must be recorded with each point's mean, minimum, bifurcation count
-and pack size.
+outside the ranking is touched at any $K$.
+
+**The size side of the curve is measured, and it is not linear in $K$.** Each W4A8 layer replaces an
+INT8 layer of the same shape, and the saving is fixed by that shape: $N\cdot K$ bytes of INT8
+weight become $N\cdot K/2$ nibble-packed bytes plus $N\cdot K/16$ fp8 group scales plus $N$ fp32
+channel scales and a 16-entry codebook, so the saving is $\frac{7}{16}NK + 4N + 64$ bytes. Measured
+over the 170 layers of the r170 pack, the saving ranges from **4,128,704** bytes
+(`double_blocks.1.img_attn.proj`, 3072x1536) to **28,901,312** bytes
+(`single_blocks.9.linear1`, 21504x1536), mean **17,219,327**. A sweep therefore has to be a
+**measured** sweep: the pack at each $K$ is built and its size read from the file, because the
+per-layer savings differ by a factor of seven and the byte cost of the next $K$ depends on which
+layer the ranking puts next.
+
+**The quality side of the curve needs the FP16 source.** The gate compares the pack against the
+FP16 DiT, so a $K$ curve is a trajectory measurement and cannot be produced without the FP16
+checkpoint and the FP16 text encoders. `benchmark/run_flux1_w4a8_k_sweep.ps1` runs the whole chain
+for a list of $K$ values — build the pack, run the 25-seed gate, record the file size and the
+gate numbers — and `benchmark/build_flux1_w4a8_sweep_md.py` renders the rows as the benchmark
+table:
+
+```powershell
+powershell -File benchmark/run_flux1_w4a8_k_sweep.ps1 `
+  -Base "<flux1-fp16>.safetensors" -Int8 "<flux1>_native_convrot_int8.safetensors" `
+  -Impact "impact/impact_<stem>.json" `
+  -ClipPath "<t5xxl>.safetensors" -ClipLPath "<clip_l>.safetensors" `
+  -Ks "100,130,160,170,190,220" -OutDir "<out-dir>"
+```
+
+The sweep writes one CSV row per $K$ (pack path, pack size in bytes, mean, min, max, same-image
+count, bifurcation count) and one markdown table, and the comparator's own `PROTOCOL` block lands
+in each per-$K$ log, so a swept curve carries its conditions as well as its numbers.
 
 ---
 
@@ -617,7 +684,9 @@ and pack size.
   online for the same group size. Nothing in the pack stores a rotation matrix; the weight is
   stored rotated because that is the basis the GEMM multiplies in.
 - **Hybrid arming.** A hybrid pack carries both formats, so the loader arms the INT8 stack in
-  addition to the W4A8 path; a pack that is purely W4A8 arms only the grouped-int8 path.
+  addition to the W4A8 path; a pack that is purely W4A8 arms only the grouped-int8 path. The
+  measured r170 pack carries both: 170 `asym_w4a8_int8` layers and 144 `int8_tensorwise` layers,
+  314 quantized layers in total, out of the 1,748 tensors in the file.
 - **LoRA.** The loader's residual forward is the only route that applies a LoRA delta to a 4-bit
   pack; the stock loader does not. The residual lives in the original basis and is added after the
   stock GEMM, so the pack bytes are never rewritten.
@@ -680,6 +749,9 @@ $$\Delta\text{bias} = (W_q - W)\,E[x], \qquad \text{gate} = \left[\,\overline{\c
 | `native_convert_w4a8_flux.py` | the all-W4A8 comparison pack; the routing rule is in its header docstring |
 | `flux1_convrot_w4a8_traj_compare.py --fp16 --w4a8` | the 25-seed gate; `--seeds` defaults to the gate set |
 | `comfy/ops.py` grouped-int8 branch | decodes `asym_w4a8_int8`; the pack's reader |
+| `benchmark/run_flux1_w4a8_k_sweep.ps1` | the $K$ sweep: build, gate, record size and gate numbers per $K$ |
+| `benchmark/build_flux1_w4a8_sweep_md.py` | renders the sweep CSV as the benchmark table |
+| the measured pack's own header | the layer set, the format of every layer and every byte of it |
 | `ComfyUI-HSWQ-Loader-and-Tools` `nodes/flux1 convrot w4a8` | LoRA residual + hybrid arming + shape guard |
 
 ---
