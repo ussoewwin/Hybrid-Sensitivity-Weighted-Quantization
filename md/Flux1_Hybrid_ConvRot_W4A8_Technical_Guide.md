@@ -53,7 +53,7 @@ against 1.7803** (about 37 % lower error).
 
 | Term | Definition / Meaning |
 |---|---|
-| **candidate layer** | A ConvRot-eligible 2-D Linear of the FLUX.1 DiT that appears in the complete INT8 pack's `_quantization_metadata.layers`. The candidate set is read from the artifact, not guessed from module names, so it is exactly the set the runtime will arm. |
+| **candidate layer** | A ConvRot-eligible 2-D Linear of the FLUX.1 DiT. When a pack is given as the artifact source, the set is that pack's `_quantization_metadata.layers` — read from the artifact, not guessed from module names; without an artifact it is every eligible Linear of the base. Either way it is the set the runtime will arm. |
 | **per-step latent $x_t$** | The latent recorded at denoising step $t$ by the sampler callback; the last one is what the VAE would decode. |
 | **pristine run $x_{\text{ref}}$** | The trajectory run of the **unquantized FP16 base**. The INT8 pack is the *build* input; the measurement's zero point is the FP16 model. |
 | **perturbed run $x_t(l)$** | The trajectory run where candidate $l$'s FP16 weight is replaced by its ConvRot INT8 reconstruction in the original basis, every other layer left at FP16. |
@@ -130,13 +130,18 @@ pipeline:
    the INT8 conversion did not convert is not a W4A8 candidate either — the two formats are
    produced by the same eligibility rule, so the hybrid never contains a layer that has no
    measured ε at the other precision.
-2. **Boundary modules are excluded by name, not by rank.** `diag_impact.py` skips them while
-   building the candidate set (`is_boundary_layer`), and `gen_reverse_w4a8.py` skips them again
-   while converting (`_is_boundary`). The list is `img_in`, `txt_in`, `time_in`, `vector_in`,
-   `guidance_in`, `final_layer`, `distilled_guidance_layer`, plus anything containing `.img_mod`,
-   `.txt_mod`, `.modulation`, `adaLN` or `norm`. These sit at the interface between the latent,
-   the timestep embedding and the text conditioning; converting them changes the scale of the
-   model's inputs and outputs rather than the computation inside it.
+2. **Boundary modules are excluded by name, not by rank — and the two scripts apply their own
+   lists.** `diag_impact.py` skips a module whose stripped name starts with `img_in`, `txt_in`,
+   `time_in`, `vector_in`, `guidance_in`, `final_layer` or `distilled_guidance_layer`, or that
+   contains `.img_mod`, `.txt_mod`, `.modulation`, `adaLN` or `norm`. `gen_reverse_w4a8.py` skips a
+   key that contains `img_in.`, `txt_in.`, `time_in.`, `vector_in.`, `guidance_in.`,
+   `final_layer.`, `mod` or `norm`. The two lists overlap but are not identical: `img_in` without
+   the trailing dot and `distilled_guidance_layer` are excluded by the measurer only. That
+   asymmetry does not leak into the pack, because the builder works from the ranking the measurer
+   produced — a layer the measurer excluded can never reach the builder. These modules sit at the
+   interface between the latent, the timestep embedding and the text conditioning; converting
+   them changes the scale of the model's inputs and outputs rather than the computation inside
+   it.
 3. **The group size decides eligibility, and W4A8 needs 256.** The ConvRot group size is the
    largest power-of-4 divisor of `in_features` that is at most 256; a layer with no such divisor
    is not a ConvRot candidate at all. The reverse converter additionally requires the base
@@ -158,15 +163,20 @@ every module in a differently prefixed checkpoint.
 ### 5.1 The right quantizer: true ConvRot INT8, not a proxy
 
 ```python
-def convrot_int8_quant_error(w, group_size=256):
-    """The value injected for one layer, in the ORIGINAL basis: W_q = dequant(INT8(W H^T)) H."""
-    gs = convrot_group_size_for_features(w.shape[1], group_size)
+def convrot_int8_quant_error(w: torch.Tensor, group_size: int = 256) -> torch.Tensor | None:
+    """The value injected for one layer, in the ORIGINAL basis: W_q = dequant(INT8(W H^T)) H.
+    n_in = w.shape[1]
+    gs = convrot_group_size_for_features(n_in, group_size)
     h = build_hadamard(gs, device=w.device, dtype=torch.float32)
-    w_rot = rotate_weight(w.float(), h, gs)          # W_rot = W H^T, per group
-    q, s = quantize_int8_channelwise(w_rot)          # per-out-channel INT8
+    if w.ndim != 2:
+        return None
+    w_rot = rotate_weight(w.float(), h, gs)
+    q, s = quantize_int8_channelwise(w_rot)
     dq_rot = q.float() * s.float()
-    return _unrotate(dq_rot, gs)                     # W = W_rot H
+    return _unrotate(dq_rot, gs)
 ```
+
+The block below is the source function, with its docstring truncated after its first line.
 
 The measurement must inject the layer the pack actually ships. The deployed pack stores the
 weight rotated and the kernel rotates the activation online, so the layer's effective weight is
@@ -186,16 +196,23 @@ ranking follows exactly the trajectory the gate measures:
 
 ```python
 def run_trajectory(patcher, positive, negative, latent0, *, seed, steps, cfg, sampler, scheduler):
+    """Production sampler (comfy.sample.sample) with per-step latent capture."""
+    import comfy.sample as comfy_sample
+
     noise = comfy_sample.prepare_noise(latent0, seed, None)
     xs = []
+
     def cb(step, x0, x, total_steps):
         xs.append(x.detach().float().cpu())
+
     with torch.no_grad():
-        comfy_sample.sample(patcher, noise, steps, cfg, sampler, scheduler,
-                            positive, negative, latent0, denoise=1.0,
-                            disable_noise=False, start_step=None, last_step=None,
-                            force_full_denoise=False, noise_mask=None,
-                            callback=cb, disable_pbar=False, seed=seed)
+        comfy_sample.sample(
+            patcher, noise, steps, cfg, sampler, scheduler,
+            positive, negative, latent0, denoise=1.0,
+            disable_noise=False, start_step=None, last_step=None,
+            force_full_denoise=False, noise_mask=None,
+            callback=cb, disable_pbar=False, seed=seed,
+        )
     return xs
 ```
 
@@ -213,7 +230,7 @@ def run_trajectory(patcher, positive, negative, latent0, *, seed, steps, cfg, sa
 $$\text{impact}(l) = \frac{1}{T}\sum_{t=1}^{T}\frac{\lVert x_t(l) - x_{\text{ref},t}\rVert_F^2}{\lVert x_{\text{ref},t}\rVert_F^2}$$
 
 ```python
-def rel_mse(a, b):
+def rel_mse(a: torch.Tensor, b: torch.Tensor) -> float:
     a = a.float().reshape(a.shape[0], -1)
     b = b.float().reshape(b.shape[0], -1)
     return float(((a - b) ** 2).sum() / (b ** 2).sum())
@@ -305,15 +322,15 @@ boundary layers (`n_skip_boundary`), layers without the ConvRot INT8 group-256 s
 ### 6.2 Conversion of one layer
 
 ```python
-q = sd[wk]                 # I8 rotated
-s = sd[sk]                 # F32 [out,1] (or scalar)
-dq_rot = q.float() * s     # W_rot approx in fp32
-w_fp32 = _unrotate(dq_rot, 256)   # W = W_rot H, per group
+q = sd[wk]            # I8 rotated
+s = sd[sk]            # F32 [out,1] (or scalar)
+dq_rot = q.float() * s  # W_rot approx in fp32
+w_fp32 = _unrotate(dq_rot, _CONVROT_GROUPSIZE)
 
 qdata, s_rel, s_channel, _correction, codebook = ck.quantize_w4a8_int8_weight(
     w_fp32,
-    group_size=16,
-    convrot_groupsize=256,
+    group_size=_QUANT_GROUP_SIZE,
+    convrot_groupsize=_CONVROT_GROUPSIZE,
     symmetric=True,
     scale_dtype=torch.float8_e4m3fn,
     codebook=True,
@@ -321,6 +338,9 @@ qdata, s_rel, s_channel, _correction, codebook = ck.quantize_w4a8_int8_weight(
 )
 ```
 
+- The two constants are fixed in the module header: `_QUANT_GROUP_SIZE = 16` (the W4A8 group,
+  the size `comfy_kitchen`'s CUDA fused requant is configured for) and `_CONVROT_GROUPSIZE = 256`
+  (the ConvRot group the same path supports).
 - The INT8 pair `(q, s)` is dequantized in **float32** and the un-rotation is done in float32
   before the W4A8 quantizer sees the weight: dequantizing in bf16 would round the INT8
   reconstruction before the 4-bit quantizer, adding an error that is not part of either quantization step.
@@ -338,8 +358,8 @@ qdata, s_rel, s_channel, _correction, codebook = ck.quantize_w4a8_int8_weight(
 ```python
 conf = {
     "format": "asym_w4a8_int8",
-    "group_size": 16,
-    "convrot_groupsize": 256,
+    "group_size": _QUANT_GROUP_SIZE,
+    "convrot_groupsize": _CONVROT_GROUPSIZE,
 }
 sd[base_k + ".comfy_quant"] = torch.frombuffer(
     bytearray(json.dumps(conf, separators=(",", ":")).encode("utf-8")),
@@ -348,6 +368,8 @@ sd[base_k + ".comfy_quant"] = torch.frombuffer(
 meta["layers"][base_k] = conf
 meta["layers"][L_stripped] = conf
 ```
+
+(`_QUANT_GROUP_SIZE` = 16 and `_CONVROT_GROUPSIZE` = 256 in the module header.)
 
 The sidecars written next to the stamp are the ones the runtime decodes: `.weight` (int8, packed
 nibbles), `.weight_s_rel` (fp8_e4m3, one per 16-element group), `.weight_s_channel` (float32, one
@@ -468,7 +490,7 @@ applied exactly once, on the layers that become W4A8.
   0.1–0.8 % of amax is below half a code step, so baking the delta into the packed weight rounds
   it away. The loader leaves the pack untouched and adds `((x @ dn^T) @ up^T) * scale` after the
   stock GEMM, with `down [r, in]` and `up [out, r]` kept factorised so no dense `[out, in]` matrix
-  is materialised across 228 layers.
+  is materialised for the whole DiT.
 - **Three keys must never be packed.** ComfyUI's FLUX detector reads `shape[1]` of `img_in`,
   `txt_in` and `vector_in.in_layer` to size the architecture; packing any of them halves the K the
   detector reads. The loader refuses such a pack with an explicit message rather than loading a
@@ -552,8 +574,8 @@ What the table supports, and what it does not:
 6. **What the numbers are not.** They are **not** an image-quality claim. A trajectory cosine
    measures whether two runs produced the same latent; two noise fields would also correlate
    highly. Picture judgement is made by decoding and looking, never from this table.
-7. **What this run does not record.** The pack sizes, the step count, the resolution and the cfg
-   of the measured run are not written in the score log. They are stated as script defaults in
+7. **What this run does not record.** The pack sizes, the step count, the resolution, the cfg, the sampler
+   and the scheduler of the measured run are not written in the score log. They are stated as script defaults in
    §9.1 and must be recorded with the next gate run; a size without a gate result, or a gate
    result without a size, is an incomplete record.
 
@@ -602,6 +624,13 @@ and pack size.
 - **Shape guard.** Before arming, the loader probes `img_in.weight`, `txt_in.weight` and
   `vector_in.in_layer.weight` for a W4A8 stamp and raises when one is packed, because the FLUX
   detector would otherwise size the architecture from a halved width.
+- **Benchmark runtime stack.** The comparator loads the W4A8 `comfy_quant` patches from the
+  vendored copy in `benchmark/flux1 convrot w4a8/comfy_quant_w4a8.py` (the folder name contains
+  spaces, so the module is loaded by spec-from-path). That vendored patch covers the
+  `int8_tensorwise` fallback path for Conv2d weights, and a FLUX.1 pack carries no Conv2d layer
+  at all — the native converter's routing table records `Conv2d 4D (absent in Flux1; kept for
+  completeness)` — so on FLUX.1 every layer of the pack loads through the core grouped-int8
+  branch.
 - **ComfyUI-master is untouched.** All patching happens at runtime; the bundled runtime reference
   is read, never edited.
 
