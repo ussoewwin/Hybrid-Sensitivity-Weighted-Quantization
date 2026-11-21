@@ -154,7 +154,7 @@ Full enumeration is $\binom{n}{2}$ trajectories and is not affordable. The candi
 
 ### 7.3 Output and acceptance
 
-A distribution of $I$ normalised by the individual errors, $\tilde I = I / \max(E(A), E(B))$. If $|\tilde I|$ stays small across the sampled pairs, the sum is a usable predictor and the level prediction of section 8 is sound. If it does not, the sum systematically under- or over-states the pack error and the $K$ prediction must carry that bias explicitly.
+A distribution of $I$ normalised by the individual errors, $\tilde I = I / \max(E(A), E(B))$. If $|\tilde I|$ stays small across the sampled pairs, the sum is a usable predictor and the level prediction of section 9 is sound. If it does not, the sum systematically under- or over-states the pack error and the $K$ prediction must carry that bias explicitly.
 
 ## 8. Work item 4 — measurement integrity
 
@@ -214,7 +214,36 @@ Item 4 first is a sequencing requirement, not a preference: the other three prod
 - **The theory.** No rate-distortion reallocation, no per-layer bit-width optimisation, no change from "rank then cut" to "solve an allocation". The ranking and the cut stay; what changes is that the ranking is measured at the right width and its uncertainty is recorded.
 - **The existing $K$ search.** The sequential probe stays as the fallback; the prediction is an accelerator that must be confirmed by the same probe.
 
-## 12. Facts measured before this plan
+## 12. Related work and where this plan sits
+
+Post-training quantization for diffusion models splits along four axes. The pipeline in this repository occupies one of them, and the other three are not alternatives to it.
+
+| Axis | Representative work | What it changes |
+| :--- | :--- | :--- |
+| Outlier handling | PTQ4DM, Q-Diffusion, TFMQ-DM, DGQ | how the large-magnitude tail survives across timesteps |
+| Error absorption | SVDQuant | an auxiliary low-rank FP16 branch absorbs the residual |
+| Code compression | QuaRTZ | 8-bit min-max, then leading-zero suppression to 4 bits, keeping the low-order bits |
+| Per-layer bit allocation | this pipeline | which layers take the lower width, chosen by measured trajectory sensitivity |
+
+QuaRTZ [1] is the closest of these to the accuracy question this plan addresses, so the difference is worth stating precisely.
+
+**What QuaRTZ changes is the code.** An 8-bit min-max quantizer keeps the step small; a per-subgroup $	ext{FLAG} = \max(29 - \mathrm{clz}(m), 0)$ then shifts each block so the top three magnitude bits survive while the outlier magnitude is retained. Its Theorem 1 bounds the two-stage error against direct 4-bit uniform quantization, with the sufficient condition that less than half the probability mass reaches magnitude index 8 or above. The reported consequences are higher per-layer entropy than naive INT4 and an FID of 6.98 on FLUX.1-schnell at W4A4 without an auxiliary FP16 branch.
+
+**What QuaRTZ does not change is which layers are quantized.** The scheme is applied to every quantizable layer; for the LDM experiments it follows TFMQ-DM's layer selection for comparability. The axis this repository occupies — choosing $K$ layers to move down by measured trajectory sensitivity — is orthogonal, and a hybrid pack and a QuaRTZ-coded pack compose: the selected layers would carry the compressed code, the remainder would stay at INT8.
+
+Three consequences for this plan:
+
+1. **The two error sources are distinct and separately measurable.** QuaRTZ's loss is the truncation of low-order bits inside a code; this pipeline's loss is the larger step on the layers that were moved down. The diag measures the second alone. A pack using both would need the measurement extended to the composite layer, which is what the hybrid column of work item 1 already does.
+
+2. **The LSB argument sharpens an open question.** QuaRTZ argues that activations concentrated near zero carry texture and that rounding there is what collapses a generation. If that holds generally, a layer whose activation distribution is dense near zero is more sensitive than its weight-space error would suggest. The trajectory measurement already captures this, because the drift is measured on the output rather than on the weight — which is the same conclusion section 2 reaches from the opposite direction, and the reason a weight-statistics selector mis-ranks such layers.
+
+3. **Their acceptance metric is FID; this pipeline's is a trajectory gate.** FID needs a decoded image set; the gate is 25 fixed seeds and a cosine. The two are not interchangeable, and this plan does not adopt FID as an acceptance criterion. QuaRTZ's numbers are cited as external evidence that low-order-bit loss matters, not as a threshold for this pipeline.
+
+The other axes are outside this plan: SVDQuant's low-rank branch is a deployment-side choice that modifies the architecture, and DGQ and TFMQ-DM change calibration and scaling rather than layer selection. None of them subsumes the ranking question, and none is subsumed by it.
+
+[1] QuaRTZ — *Post-Training Quantization via Residual Truncation and Zero Suppression for Diffusion Models*, ICLR 2026 submission (double-blind review). Reported figures: W4A4 FID 6.98 on FLUX.1-schnell (MJHQ), 6.56 (sDCI), against SVDQuant 7.07 / 6.67; naive NVFP4 7.23 / 6.90.
+
+## 13. Facts measured before this plan
 
 These are recorded because the plan's cost estimates and its correctness arguments depend on them. All were measured on the artifacts in this repository.
 
@@ -230,7 +259,7 @@ These are recorded because the plan's cost estimates and its correctness argumen
 | Prior art for the direct evaluation | `clip_convert/diag_impact_wevisone_w4a8.py` (185 lines): `w4a8_recon` line 60-68, sentinel handling line 157/163, `NaN` exclusion line 175, resume line 142 |
 | Measured W4A8 impact exists | `impact/impact_wevisone_w4a8_full.json`, 359 layers, min 0.0, median 7.77e-05, max 0.0344 |
 
-## 13. Open items
+## 14. Open items
 
 - **$\Delta_{\text{target}}$ itself.** The W4A8 impact has never been measured for the Flux1 checkpoint family. The magnitude of the ranking change is unknown until item 1 runs.
 - **Interaction magnitude.** No pairwise measurement exists for any family; the additivity of the sum in section 9 is an assumption with an unknown error bar.
