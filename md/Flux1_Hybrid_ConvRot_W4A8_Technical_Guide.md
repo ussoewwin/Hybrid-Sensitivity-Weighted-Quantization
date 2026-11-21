@@ -323,7 +323,7 @@ qdata, s_rel, s_channel, _correction, codebook = ck.quantize_w4a8_int8_weight(
 
 - The INT8 pair `(q, s)` is dequantized in **float32** and the un-rotation is done in float32
   before the W4A8 quantizer sees the weight: dequantizing in bf16 would round the INT8
-  reconstruction before the 4-bit quantizer, adding an error the pipeline never intended.
+  reconstruction before the 4-bit quantizer, adding an error that is not part of either quantization step.
 - `_unrotate` is mandatory. The pack stores `W_rot = W H^T`; the W4A8 packer rotates **inside**
   (`quantize_w4a8_int8_weight` is the ConvRot-aware entry point), so handing it `W_rot` would
   give the runtime a weight with two rotations on one side of the GEMM. The converter therefore
@@ -392,8 +392,7 @@ covers only the INT8 → W4A8 step, while the pack carries both transitions. Pas
 the converter read the original weight and bias from that file, so the delta is measured against
 the weight the model actually had. The measurement on one FLUX.1 checkpoint is recorded in the
 how-to: **bias ON 0.95218 against OFF 0.953** — the INT8-referenced correction under-corrects and
-measurably loses quality against leaving the bias alone, which is why the option is opt-in and the
-FP16 reference is the recommended path.
+measurably loses quality against leaving the bias alone, which is why the option is opt-in, and why the how-to states the delta has to be measured against the FP16 weight rather than the INT8 dequant.
 
 ### 7.2 What the correction writes
 
