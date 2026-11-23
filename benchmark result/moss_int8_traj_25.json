@@ -1,0 +1,277 @@
+{
+  "protocol": {
+    "fp16": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\Moody-Moss-Mix-V4.1_00001__clean.safetensors",
+    "int8": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\Moody-Moss-Mix-V4.1_00001__clean_convrot_int8.safetensors",
+    "clip_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP_hswq_convrot_int8.safetensors",
+    "comfy_path": "D:\\USERFILES\\GitHub\\hswq\\ComfyUI-master",
+    "steps": 12,
+    "width": 1024,
+    "height": 1024,
+    "cfg": 1.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "seeds": [
+      42,
+      137,
+      849,
+      2024,
+      7391,
+      18429,
+      53082,
+      149206,
+      382715,
+      826401,
+      1938502,
+      4710928,
+      8391642,
+      15820493,
+      36192847,
+      71058294,
+      128491703,
+      285039184,
+      491730285,
+      762019483,
+      938174026,
+      1409285713,
+      2683910547,
+      3851729406,
+      4195820371
+    ]
+  },
+  "rows": [
+    {
+      "seed": 42,
+      "final_cos": 0.9907580614089966,
+      "final_mse": 0.018488923087716103,
+      "x0_cos": 0.9844857454299927,
+      "verdict": "same-image",
+      "max_drop": 0.005286812782287598,
+      "drop_at": 11
+    },
+    {
+      "seed": 137,
+      "final_cos": 0.9990655183792114,
+      "final_mse": 0.0018842712743207812,
+      "x0_cos": 0.9981210231781006,
+      "verdict": "same-image",
+      "max_drop": 0.0005911588668823242,
+      "drop_at": 11
+    },
+    {
+      "seed": 849,
+      "final_cos": 0.9983194470405579,
+      "final_mse": 0.00337672745808959,
+      "x0_cos": 0.9970506429672241,
+      "verdict": "same-image",
+      "max_drop": 0.0009448528289794922,
+      "drop_at": 11
+    },
+    {
+      "seed": 2024,
+      "final_cos": 0.9645238518714905,
+      "final_mse": 0.07097253948450089,
+      "x0_cos": 0.9449116587638855,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.018961310386657715,
+      "drop_at": 11
+    },
+    {
+      "seed": 7391,
+      "final_cos": 0.9657145142555237,
+      "final_mse": 0.06885474920272827,
+      "x0_cos": 0.9429406523704529,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.020369231700897217,
+      "drop_at": 11
+    },
+    {
+      "seed": 18429,
+      "final_cos": 0.9673750400543213,
+      "final_mse": 0.06539135426282883,
+      "x0_cos": 0.9474537968635559,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.018220901489257812,
+      "drop_at": 11
+    },
+    {
+      "seed": 53082,
+      "final_cos": 0.9954141974449158,
+      "final_mse": 0.009219511412084103,
+      "x0_cos": 0.9915818572044373,
+      "verdict": "same-image",
+      "max_drop": 0.0027983784675598145,
+      "drop_at": 11
+    },
+    {
+      "seed": 149206,
+      "final_cos": 0.9939522743225098,
+      "final_mse": 0.012115257792174816,
+      "x0_cos": 0.98935467004776,
+      "verdict": "same-image",
+      "max_drop": 0.0035886168479919434,
+      "drop_at": 11
+    },
+    {
+      "seed": 382715,
+      "final_cos": 0.9980698227882385,
+      "final_mse": 0.003886039601638913,
+      "x0_cos": 0.9966010451316833,
+      "verdict": "same-image",
+      "max_drop": 0.0011370182037353516,
+      "drop_at": 11
+    },
+    {
+      "seed": 826401,
+      "final_cos": 0.9667976498603821,
+      "final_mse": 0.0665077194571495,
+      "x0_cos": 0.9473961591720581,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.018220245838165283,
+      "drop_at": 11
+    },
+    {
+      "seed": 1938502,
+      "final_cos": 0.9936895966529846,
+      "final_mse": 0.012653296813368797,
+      "x0_cos": 0.9899147748947144,
+      "verdict": "same-image",
+      "max_drop": 0.0033907294273376465,
+      "drop_at": 11
+    },
+    {
+      "seed": 4710928,
+      "final_cos": 0.9874785542488098,
+      "final_mse": 0.02506953477859497,
+      "x0_cos": 0.979972243309021,
+      "verdict": "same-image",
+      "max_drop": 0.006962895393371582,
+      "drop_at": 11
+    },
+    {
+      "seed": 8391642,
+      "final_cos": 0.9959731101989746,
+      "final_mse": 0.00807392131537199,
+      "x0_cos": 0.9921886324882507,
+      "verdict": "same-image",
+      "max_drop": 0.0025064945220947266,
+      "drop_at": 11
+    },
+    {
+      "seed": 15820493,
+      "final_cos": 0.9698678851127625,
+      "final_mse": 0.06073957309126854,
+      "x0_cos": 0.9530479311943054,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.01642155647277832,
+      "drop_at": 11
+    },
+    {
+      "seed": 36192847,
+      "final_cos": 0.982244074344635,
+      "final_mse": 0.03557663410902023,
+      "x0_cos": 0.9716801643371582,
+      "verdict": "same-image",
+      "max_drop": 0.00970238447189331,
+      "drop_at": 11
+    },
+    {
+      "seed": 71058294,
+      "final_cos": 0.9547097682952881,
+      "final_mse": 0.0904623344540596,
+      "x0_cos": 0.9289839267730713,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.024560511112213135,
+      "drop_at": 11
+    },
+    {
+      "seed": 128491703,
+      "final_cos": 0.9299448132514954,
+      "final_mse": 0.14007675647735596,
+      "x0_cos": 0.8907813429832458,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.03839099407196045,
+      "drop_at": 11
+    },
+    {
+      "seed": 285039184,
+      "final_cos": 0.997956395149231,
+      "final_mse": 0.004105282481759787,
+      "x0_cos": 0.9960278868675232,
+      "verdict": "same-image",
+      "max_drop": 0.0012837052345275879,
+      "drop_at": 11
+    },
+    {
+      "seed": 491730285,
+      "final_cos": 0.991503894329071,
+      "final_mse": 0.017030054703354836,
+      "x0_cos": 0.9851006865501404,
+      "verdict": "same-image",
+      "max_drop": 0.005095124244689941,
+      "drop_at": 11
+    },
+    {
+      "seed": 762019483,
+      "final_cos": 0.9254657030105591,
+      "final_mse": 0.14906765520572662,
+      "x0_cos": 0.8876294493675232,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.03855782747268677,
+      "drop_at": 11
+    },
+    {
+      "seed": 938174026,
+      "final_cos": 0.9971815943717957,
+      "final_mse": 0.005657845642417669,
+      "x0_cos": 0.9946686625480652,
+      "verdict": "same-image",
+      "max_drop": 0.0017552375793457031,
+      "drop_at": 11
+    },
+    {
+      "seed": 1409285713,
+      "final_cos": 0.9844826459884644,
+      "final_mse": 0.030988920480012894,
+      "x0_cos": 0.9755889177322388,
+      "verdict": "same-image",
+      "max_drop": 0.008335530757904053,
+      "drop_at": 11
+    },
+    {
+      "seed": 2683910547,
+      "final_cos": 0.9823663234710693,
+      "final_mse": 0.03533598780632019,
+      "x0_cos": 0.9710758924484253,
+      "verdict": "same-image",
+      "max_drop": 0.009918510913848877,
+      "drop_at": 11
+    },
+    {
+      "seed": 3851729406,
+      "final_cos": 0.9826217889785767,
+      "final_mse": 0.0348392054438591,
+      "x0_cos": 0.9696628451347351,
+      "verdict": "same-image",
+      "max_drop": 0.010110020637512207,
+      "drop_at": 11
+    },
+    {
+      "seed": 4195820371,
+      "final_cos": 0.9293615818023682,
+      "final_mse": 0.14273372292518616,
+      "x0_cos": 0.8899487853050232,
+      "verdict": "drifted (different image)",
+      "max_drop": 0.0383375883102417,
+      "drop_at": 11
+    }
+  ],
+  "summary": {
+    "cos_min": 0.9254657030105591,
+    "cos_mean": 0.9777935242652893,
+    "cos_max": 0.9990655183792114,
+    "same_image": 16,
+    "bifurcated": 0,
+    "n": 25,
+    "pass": true
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "protocol": {
+    "fp16": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\Moody-Moss-Mix-V4.1_00001__clean.safetensors",
+    "int8": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\unet\\Moody-Moss-Mix-V4.1_00001__clean_convrot_int8.safetensors",
+    "clip_path": "D:\\USERFILES\\ComfyUI\\ComfyUI\\models\\clip\\Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP_hswq_convrot_int8.safetensors",
+    "comfy_path": "D:\\USERFILES\\GitHub\\hswq\\ComfyUI-master",
+    "steps": 4,
+    "width": 512,
+    "height": 512,
+    "cfg": 1.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "seeds": [
+      42,
+      137
+    ]
+  },
+  "rows": [
+    {
+      "seed": 42,
+      "final_cos": 0.9994796514511108,
+      "final_mse": 0.0010429201647639275,
+      "x0_cos": 0.9904083609580994,
+      "verdict": "same-image",
+      "max_drop": 0.000492393970489502,
+      "drop_at": 3
+    },
+    {
+      "seed": 137,
+      "final_cos": 0.9984580874443054,
+      "final_mse": 0.003086226060986519,
+      "x0_cos": 0.9782494902610779,
+      "verdict": "same-image",
+      "max_drop": 0.0015090107917785645,
+      "drop_at": 3
+    }
+  ],
+  "summary": {
+    "cos_min": 0.9984580874443054,
+    "cos_mean": 0.9989688694477081,
+    "cos_max": 0.9994796514511108,
+    "same_image": 2,
+    "bifurcated": 0,
+    "n": 2,
+    "pass": true
+  }
+}
