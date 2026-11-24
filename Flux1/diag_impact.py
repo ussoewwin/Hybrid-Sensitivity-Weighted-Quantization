@@ -481,7 +481,8 @@ def parse_args():
     ap.add_argument("--clip_l_path", required=True, help="clip_l text encoder")
     ap.add_argument("--comfy_path", default=None, help="ComfyUI root (default <repo>/ComfyUI-master)")
     ap.add_argument("--steps", type=int, default=25, help="trajectory denoising steps (default 25)")
-    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--seed", default="42",
+                    help="comma-separated trajectory seeds (default 42); the stored impact is the mean across the seeds")
     ap.add_argument("--width", type=int, default=1024)
     ap.add_argument("--height", type=int, default=1024)
     ap.add_argument("--prompt", default="masterpiece, best quality, 1girl, solo, standing, simple background")
