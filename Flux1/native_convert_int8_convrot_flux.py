@@ -813,15 +813,25 @@ def run_post_convert_flux_int8_bench(
     print("Running trajectory bench: " + " ".join(cmd))
     return subprocess.run(cmd).returncode
 
-def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
-    """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2, float."""
-    if not key.startswith("model.diffusion_model."):
+def is_flux1_matmul_weight(
+    key: str,
+    tensor: torch.Tensor,
+    prefix: str = "model.diffusion_model.",
+) -> bool:
+    """Flux1 DiT matmul weight under the detected prefix: .weight, ndim>=2, floating.
+
+    The prefix is the one _find_flux_key_prefix() measured from the checkpoint keys,
+    so a checkpoint stored as model.diffusion_model.*, diffusion_model.* or bare
+    double_blocks.* all convert. Any floating dtype is accepted (fp16/bf16/fp32 and
+    the fp8 variants); a non-float weight is never a quantisation target.
+    """
+    if not key.startswith(prefix):
         return False
     if not key.endswith(".weight"):
         return False
     if tensor.ndim < 2:
         return False
-    return tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+    return tensor.is_floating_point()
 
 
 def convert_to_int8(
@@ -836,6 +846,8 @@ def convert_to_int8(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Loading model: {input_path}")
     state_dict = load_file(input_path)
+    conv_prefix = _find_flux_key_prefix(state_dict.keys())
+    print(f"Detected key prefix: {conv_prefix!r}")
 
     new_state_dict = {}
     quant_meta_layers = {}
@@ -864,7 +876,7 @@ def convert_to_int8(
         return pack_tensorwise(w)
 
     for key, tensor in tqdm(state_dict.items()):
-        if not is_flux1_matmul_weight(key, tensor):
+        if not is_flux1_matmul_weight(key, tensor, conv_prefix):
             new_state_dict[key] = tensor
             kept_float_count += 1
             continue
@@ -962,6 +974,13 @@ def convert_to_int8(
         print(
             f"  [Bias Correction Card 1] applied={bias_applied} "
             f"no_act_mean={bias_no_act} bad_shape={bias_bad_shape}"
+        )
+
+    if converted_count == 0:
+        raise RuntimeError(
+            f"0 layers matched the Flux1 matmul predicate under prefix "
+            f"{conv_prefix!r}; refusing to save a file whose contents are an "
+            f"unmodified copy of the input but that would carry comfy_quant stamps"
         )
 
     metadata = {
