@@ -1,0 +1,78 @@
+D:\USERFILES\ComfyUI\python_embeded\Lib\site-packages\torch\cuda\__init__.py:70: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+========================================================================
+PROTOCOL
+========================================================================
+  fp16        : D:\USERFILES\ComfyUI\ComfyUI\models\unet\Moody-Moss-Mix-V4.1_00001__clean.safetensors
+  int8        : D:\USERFILES\ComfyUI\ComfyUI\models\unet\Moody-Moss-Mix-V4.1_00001__clean_convrot_int8.safetensors
+  clip_path   : D:\USERFILES\ComfyUI\ComfyUI\models\clip\Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP_hswq_convrot_int8.safetensors
+  comfy_path  : D:\USERFILES\GitHub\hswq\ComfyUI-master
+  seeds(2)  : 42,137
+  steps       : 4
+  resolution  : 512x512
+  cfg         : 1.0
+  sampler     : euler
+  scheduler   : simple
+  prompt      : masterpiece, best quality, 1girl, solo, standing, simple background
+========================================================================
+Loading CLIP on CPU (MOSS-Image / Qwen3.5-9B)...
+  [Offload] CLIP (Qwen3.5-9B) unloaded.
+[FP16] loading MOSS-Image DiT...
+[load] Moody-Moss-Mix-V4.1_00001__clean.safetensors
+[load] done
+[FP16] seed 42
+
+  0%|          | 0/4 [00:00<?, ?it/s]
+ 25%|██▌       | 1/4 [00:03<00:09,  3.19s/it]
+ 50%|█████     | 2/4 [00:03<00:02,  1.47s/it]
+ 75%|███████▌  | 3/4 [00:03<00:00,  1.07it/s]
+100%|██████████| 4/4 [00:04<00:00,  1.48it/s]
+100%|██████████| 4/4 [00:04<00:00,  1.01s/it]
+[FP16] seed 137
+
+  0%|          | 0/4 [00:00<?, ?it/s]
+ 25%|██▌       | 1/4 [00:00<00:00,  3.39it/s]
+ 50%|█████     | 2/4 [00:00<00:00,  3.29it/s]
+ 75%|███████▌  | 3/4 [00:00<00:00,  3.39it/s]
+100%|██████████| 4/4 [00:01<00:00,  3.50it/s]
+100%|██████████| 4/4 [00:01<00:00,  3.44it/s]
+  [Offload] FP16 DiT unloaded.
+[INT8] loading MOSS-Image DiT...
+[load] Moody-Moss-Mix-V4.1_00001__clean_convrot_int8.safetensors
+[load] done
+[INT8] seed 42
+
+  0%|          | 0/4 [00:00<?, ?it/s]
+ 25%|██▌       | 1/4 [00:02<00:07,  2.48s/it]
+ 50%|█████     | 2/4 [00:02<00:02,  1.09s/it]
+ 75%|███████▌  | 3/4 [00:02<00:00,  1.55it/s]
+100%|██████████| 4/4 [00:02<00:00,  2.27it/s]
+100%|██████████| 4/4 [00:02<00:00,  1.41it/s]
+[INT8] seed 137
+
+  0%|          | 0/4 [00:00<?, ?it/s]
+ 25%|██▌       | 1/4 [00:00<00:00,  8.88it/s]
+ 50%|█████     | 2/4 [00:00<00:00,  9.12it/s]
+ 75%|███████▌  | 3/4 [00:00<00:00,  9.12it/s]
+100%|██████████| 4/4 [00:00<00:00,  9.15it/s]
+100%|██████████| 4/4 [00:00<00:00,  9.12it/s]
+
+========================================================================
+Deterministic per-step latent trajectory divergence (FP16 vs ConvRot INT8)
+========================================================================
+[seed 42] final-cos=0.99948  max_step_drop=0.0005  -> same-image
+[seed 137] final-cos=0.99846  max_step_drop=0.0015  -> same-image
+
+--- Multi-seed summary ---
+    seed  final-cos    final-mse  max-drop                verdict
+      42    0.99948    1.043e-03    0.0005             same-image
+     137    0.99846    3.086e-03    0.0015             same-image
+
+final-cosine: min=0.99846  mean=0.99897  max=0.99948
+same-image seeds : 2/2
+bifurcated seeds : 0/2   (sudden trajectory jump = different picture, not degradation)
+
+GATE: mean >= 0.95 AND 0/2 bifurcated -> PASS
+
+avg wall/seed: FP16 3.55s | INT8 4.64s (-30.7%)
+wrote D:\USERFILES\GitHub\hswq\benchmark result\moss_int8_traj_smoke.json
