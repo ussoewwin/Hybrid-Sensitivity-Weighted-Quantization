@@ -61,7 +61,7 @@ python "benchmark/moss_int8_traj_compare.py" --fp16 "<path-to-unet>/<moss>.safet
 
 `--seeds` defaults to the deterministic 25-seed set used by every model family in this repository; `--out <file.json>` writes the summary. Production gate: **mean final cosine ≥ 0.95 AND 0/25 bifurcated** (per-seed verdicts: `same-image` = final cosine ≥ 0.98 and no step crossed the threshold; `bifurcated` = single-step cosine drop > 0.05; `drifted` = otherwise).
 
-Reference result on the published checkpoint (`moss_int8_traj_25.json`): mean final cosine **0.97779**, min 0.92547, max 0.99907, same-image 16/25, **bifurcated 0/25** — **GATE PASS**.
+Reference result on the published checkpoint (`moss_int8_traj_25.json`): mean final cosine **0.97779**, min 0.92547, max 0.99907, same-image 16/25, bifurcated 0/25. The 25-seed comparison was run on the CLIP encoder output; whether this constitutes an acceptable gate for the image-generation path is an Owner judgement, not a GATE PASS claim.
 
 ## ComfyUI
 
