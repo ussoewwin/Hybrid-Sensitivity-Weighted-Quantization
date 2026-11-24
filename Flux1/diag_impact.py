@@ -615,51 +615,126 @@ def main():
     if latent0.device.type != device:
         latent0 = latent0.to(device)
 
-    print(
-        f"[*] pristine run (steps={args.steps}, seed={args.seed}, cfg={args.cfg}, "
-        f"{args.sampler}/{args.scheduler}, {args.width}x{args.height})",
-        flush=True,
-    )
-    x_ref = run_trajectory(
-        patcher, positive, negative, latent0, seed=args.seed, steps=args.steps,
-        cfg=args.cfg, sampler=args.sampler, scheduler=args.scheduler,
-    )
-    print("[*] pristine done", flush=True)
-    _vram("pristine done")
+    seeds = [int(x.strip()) for x in str(args.seed).split(",") if x.strip()]
+    if not seeds:
+        raise SystemExit("no seeds given")
+    print(f"[*] multi-seed impact: {len(seeds)} seeds -> {seeds}", flush=True)
+    per_seed: dict = {}
+    for seed in seeds:
+        print(
+            f"[*] pristine run (steps={args.steps}, seed={seed}, cfg={args.cfg}, "
+            f"{args.sampler}/{args.scheduler}, {args.width}x{args.height})",
+            flush=True,
+        )
+        x_ref = run_trajectory(
+            patcher, positive, negative, latent0, seed=seed, steps=args.steps,
+            cfg=args.cfg, sampler=args.sampler, scheduler=args.scheduler,
+        )
+        print("[*] pristine done", flush=True)
+        _vram("pristine done")
+
+        for n in targets:
+            m, gs = mods[n]
+            w0 = m.weight.data.clone()
+            qerr = convrot_int8_quant_error(w0, gs)
+            if qerr is None:
+                print(f"  SKIP (no group): {n}", flush=True)
+                continue
+            m.weight.data.copy_(qerr.to(w0.dtype))
+            try:
+                x_t = run_trajectory(
+                    patcher, positive, negative, latent0, seed=seed, steps=args.steps,
+                    cfg=args.cfg, sampler=args.sampler, scheduler=args.scheduler,
+                )
+                imp = sum(rel_mse(x_t[i], x_ref[i]) for i in range(len(x_ref))) / len(x_ref)
+            except Exception as e:
+                print(f"  ERR {n}: {e}", flush=True)
+                imp = float("nan")
+            finally:
+                m.weight.data.copy_(w0)
+            del w0, qerr
+            if math.isfinite(imp):
+                per_seed.setdefault(_pack_key(n), []).append(float(imp))
+        print(f"  [{len(targets)}/{len(targets)}] seed={seed}", flush=True)
+
+    def _rank_average(vals):
+        order = sorted(range(len(vals)), key=lambda i: vals[i])
+        rk = [0.0] * len(vals)
+        i = 0
+        while i < len(order):
+            j = i
+            while j + 1 < len(order) and vals[order[j + 1]] == vals[order[i]]:
+                j += 1
+            avg = (i + j) / 2.0 + 1.0
+            for t in range(i, j + 1):
+                rk[order[t]] = avg
+            i = j + 1
+        return rk
+
+    def _spearman(x, y):
+        n = len(x)
+        if n < 2:
+            return None
+        rx, ry = _rank_average(x), _rank_average(y)
+        mx, my = sum(rx) / n, sum(ry) / n
+        num = sum((p - mx) * (q - my) for p, q in zip(rx, ry))
+        dx = sum((p - mx) ** 2 for p in rx) ** 0.5
+        dy = sum((q - my) ** 2 for q in ry) ** 0.5
+        return (num / (dx * dy)) if dx and dy else None
+
+    def _p95(vals):
+        sv = sorted(vals)
+        return sv[int(round(0.95 * (len(sv) - 1)))] if sv else None
 
     impacts = {}
-    done = 0
-    for n in targets:
-        m, gs = mods[n]
-        w0 = m.weight.data.clone()
-        qerr = convrot_int8_quant_error(w0, gs)
-        if qerr is None:
-            print(f"  SKIP (no group): {n}", flush=True)
-            continue
-        m.weight.data.copy_(qerr.to(w0.dtype))
-        try:
-            x_t = run_trajectory(
-                patcher, positive, negative, latent0, seed=args.seed, steps=args.steps,
-                cfg=args.cfg, sampler=args.sampler, scheduler=args.scheduler,
-            )
-            imp = sum(rel_mse(x_t[i], x_ref[i]) for i in range(len(x_ref))) / len(x_ref)
-        except Exception as e:
-            print(f"  ERR {n}: {e}", flush=True)
-            imp = float("nan")
-        finally:
-            m.weight.data.copy_(w0)
-        del w0, qerr
-        impacts[_pack_key(n)] = imp
-        done += 1
-        if done % args.progress_every == 0 or done == len(targets):
-            print(f"  [{done}/{len(targets)}]", flush=True)
+    impact_stats = {}
+    for key, vals in per_seed.items():
+        mu = sum(vals) / len(vals)
+        var = sum((v - mu) ** 2 for v in vals) / len(vals)
+        impacts[key] = mu
+        impact_stats[key] = {
+            "mean": mu,
+            "std": var ** 0.5,
+            "max": max(vals),
+            "p95": _p95(vals),
+            "n_seeds": len(vals),
+            "per_seed": vals,
+        }
+
+    complete = [k for k, v in per_seed.items() if len(v) == len(seeds)]
+    for i_seed, seed_value in enumerate(seeds):
+        ordered = sorted(complete, key=lambda k: per_seed[k][i_seed])
+        for pos, k in enumerate(ordered):
+            impact_stats[k].setdefault("rank_per_seed", {})[str(seed_value)] = pos + 1
+
+    seed_pairs = []
+    if len(complete) >= 2 and len(seeds) >= 2:
+        for a in range(len(seeds)):
+            for b in range(a + 1, len(seeds)):
+                seed_pairs.append({
+                    "a": seeds[a],
+                    "b": seeds[b],
+                    "rho": _spearman([per_seed[k][a] for k in complete],
+                                     [per_seed[k][b] for k in complete]),
+                    "n_layers": len(complete),
+                })
+    rhos = [p["rho"] for p in seed_pairs if p["rho"] is not None]
+    seed_rank = {
+        "pairs": seed_pairs,
+        "rho_min": min(rhos) if rhos else None,
+        "rho_mean": (sum(rhos) / len(rhos)) if rhos else None,
+    }
+
 
     xr = x_ref[-1].float().reshape(1, -1)
     _vram("measurement done")
     payload = {
         "x_ref_norm": float((xr * xr).sum().item()),
         "steps": args.steps,
-        "seed": args.seed,
+        "seeds": seeds,
+        "impact_stats": impact_stats,
+        "impacts_per_seed": per_seed,
+        "seed_rank_correlation": seed_rank,
         "cfg": args.cfg,
         "sampler": args.sampler,
         "scheduler": args.scheduler,

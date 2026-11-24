@@ -219,7 +219,8 @@ def main():
                     help="output JSON; default: "
                          "impact/<prefix>_<model stem>.json derived from --ckpt")
     ap.add_argument("--n", type=int, default=8)
-    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--seed", default="42",
+                    help="comma-separated probe seeds (default 42); each seed contributes --n fixed inputs and the contribution is averaged over all of them")
     a = ap.parse_args()
     if not a.comfy:
         ap.error("the ComfyUI root is not set: pass --comfy <path> or set COMFY_PATH")
@@ -233,7 +234,12 @@ def main():
     model, _sd = build_unet(a.ckpt, ops)
     print("    the model: %s" % type(model).__name__, flush=True)
 
-    batches = [make_inputs(a.seed + i) for i in range(a.n)]
+    seeds = [int(x.strip()) for x in str(a.seed).split(",") if x.strip()]
+    if not seeds:
+        raise SystemExit("no seeds given")
+    print("[*] multi-seed probe: %d seeds -> %s, %d inputs each" % (len(seeds), seeds, a.n),
+          flush=True)
+    batches = [make_inputs(s_ + i) for s_ in seeds for i in range(a.n)]
     ref = [unet_output(model, *b) for b in batches]
     fin = bool(torch.isfinite(ref[0]).all())
     print("[1] the baseline: %s finite=%s" % (tuple(ref[0].shape), fin), flush=True)
@@ -279,7 +285,7 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    json.dump({"impacts": contrib, "n": a.n, "seed": a.seed},
+    json.dump({"impacts": contrib, "n": a.n, "seeds": seeds, "inputs": len(batches)},
               open(a.out, "w", encoding="utf-8"), indent=1, sort_keys=True)
     print()
     print("saved: %s" % a.out)
