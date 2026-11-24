@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.5.7
+
+**The diag-impact scripts now accept a comma-separated seed list** - Flux1/diag_impact.py, sdxl/diag_impact_sdxl.py, Z_Image/diag_impact.py and sd1.5/measure_sd15_unet_contrib.py gained multi-seed support: the impact is the mean across the seeds, and the checkpoint keeps the per-seed scores, the per-seed rank and the pairwise Spearman rank correlation between seeds, plus the standard deviation, maximum and p95 of each layer.
+
+- **What changed:** --seed now takes a comma-separated list (e.g. --seed 42,137,2024); the pristine trajectory is re-run for each seed and every layer is measured against its own reference, so a single measurement no longer depends on the accident of one initial noise.
+
+- **What is recorded:** impacts stays the mean (so every downstream consumer keeps working), with impacts_per_seed carrying the raw values, impact_stats carrying the mean, std, max, p95 and n_seeds, and seed_rank_correlation carrying the pairwise Spearman rho between seeds over the complete layers.
+
+- **What did not change:** the single-seed command line (--seed 42) keeps working, and the measurement itself (one layer substituted at a time, true ConvRot INT8 reconstruction, production sampler) is unchanged.
+
+Release notes: [v2.5.7](https://github.com/ussoewwin/Hybrid-Sensitivity-Weighted-Quantization/releases/tag/v2.5.7)
+
 ## v2.5.6
 
 **The Flux1 hybrid ConvRot W4A8 pipeline published as a technical guide** - 778 lines and 15 sections that carry the direction, the measurement, the builder, the bias correction, the gate, the measured pack sizes and the sweep, so the method can be reproduced from the document alone.
