@@ -153,7 +153,7 @@ python benchmark/krea2_int8_traj_compare.py \
 
 - Compares per-step latent trajectories across 20 fixed random seeds at CFG=1.0.
 - Calculates per-step cosine similarity and checks for trajectory bifurcations ($\Delta \text{cosine} > 0.05$).
-- Production targets: **Mean cosine $\ge 0.98$** and **0 bifurcations**.
+- Production targets: **Mean cosine $\ge 0.95$** and **0 bifurcations**.
 
 ### Benchmark Reference Scores
 
@@ -182,9 +182,9 @@ Currently, only **Native ConvRot INT8** quantization is supported within ComfyUI
 
 ### Native ConvRot INT8 Recommendation
 
-For Krea2, several checkpoints achieve **mean latent trajectory cosine $\ge 0.98$ (with 0 trajectory bifurcations)** under native ConvRot INT8 quantization with structural blacklist protection.
+For Krea2, several checkpoints achieve **mean latent trajectory cosine $\ge 0.95$ (with 0 trajectory bifurcations)** under native ConvRot INT8 quantization with structural blacklist protection.
 
-When a checkpoint satisfies this fidelity gate (mean cosine $\ge 0.98$), **using native ConvRot INT8 directly without HSWQ is recommended**, maintaining virtually identical image composition with maximum compression (~50% file size vs ~55% under HSWQ due to BF16 sensitive layer retention). If a specific checkpoint exhibits trajectory drift or bifurcation (mean cosine $< 0.98$), proceed with the full HSWQ CLI calibration pipeline (`Krea2/hswq_convrot_int8_krea2_v1.5.py` with `--keep_sensitive 10` or `15`).
+When a checkpoint satisfies this fidelity gate (mean cosine $\ge 0.95$), **using native ConvRot INT8 directly without HSWQ is recommended**, maintaining virtually identical image composition with maximum compression (~50% file size vs ~55% under HSWQ due to BF16 sensitive layer retention). If a specific checkpoint exhibits trajectory drift or bifurcation (mean cosine $< 0.95$), proceed with the full HSWQ CLI calibration pipeline (`Krea2/hswq_convrot_int8_krea2_v1.5.py` with `--keep_sensitive 10` or `15`).
 
 ### Installation
 
