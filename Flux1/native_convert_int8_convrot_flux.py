@@ -247,55 +247,15 @@ def run_post_convert_flux_int8_bench(
     print("Running trajectory bench: " + " ".join(cmd))
     return subprocess.run(cmd).returncode
 
-def _find_flux_key_prefix(keys) -> str:
-    """Return the checkpoint's Flux1 key prefix, measured from the keys only.
-
-    Same detection as Flux1/hswq_convrot_int8_flux1_v1.0.py, gen_reverse_w4a8.py
-    and hswq_convrot_w4a8_flux1_v1.0.py; the native converter simply used to
-    hard-code the first of the three prefixes.
-    """
-    keyset = keys if isinstance(keys, (set, frozenset)) else set(keys)
-    for prefix in ("model.diffusion_model.", "diffusion_model.", ""):
-        if f"{prefix}img_in.weight" in keyset:
-            if f"{prefix}double_blocks.0.img_attn.qkv.weight" not in keyset:
-                raise ValueError(
-                    "Flux1 signature incomplete: img_in.weight present but "
-                    f"{prefix}double_blocks.0.img_attn.qkv.weight missing"
-                )
-            return prefix
-    raise ValueError(
-        "Not a Flux1 checkpoint: missing img_in.weight "
-        "(under model.diffusion_model. / diffusion_model. / root)."
-    )
-
-
-def is_flux1_matmul_weight(
-    key: str,
-    tensor: torch.Tensor,
-    prefix: str = "model.diffusion_model.",
-) -> bool:
-    """Flux1 DiT matmul weight under the measured prefix: .weight, ndim>=2, float.
-
-    The dtype set is the one every native converter in this repository uses
-    (sdxl 582, sd1.5 361, Z_Image 445, Krea2 921). An fp8 checkpoint is already a
-    quantised file, not a float source, so it is refused explicitly below instead
-    of being squeezed into a pack that would then be called native.
-    """
-    if not key.startswith(prefix):
+def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
+    """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2, float."""
+    if not key.startswith("model.diffusion_model."):
         return False
     if not key.endswith(".weight"):
         return False
     if tensor.ndim < 2:
         return False
     return tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
-
-
-_FP8_DTYPES = (
-    torch.float8_e4m3fn,
-    torch.float8_e5m2,
-    torch.float8_e4m3fnuz,
-    torch.float8_e5m2fnuz,
-)
 
 
 def convert_to_int8(
@@ -308,25 +268,6 @@ def convert_to_int8(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Loading model: {input_path}")
     state_dict = load_file(input_path)
-    conv_prefix = _find_flux_key_prefix(state_dict.keys())
-    print(f"Detected key prefix: {conv_prefix!r}")
-
-    fp8_weights = [
-        key
-        for key, tensor in state_dict.items()
-        if key.endswith(".weight")
-        and tensor.ndim >= 2
-        and key.startswith(conv_prefix)
-        and tensor.dtype in _FP8_DTYPES
-    ]
-    if fp8_weights:
-        raise RuntimeError(
-            f"{len(fp8_weights)} matmul weights of this checkpoint are already "
-            f"float8 ({fp8_weights[0]} is {state_dict[fp8_weights[0]].dtype}). "
-            f"native means compressing a float checkpoint; quantising an fp8 "
-            f"file produces a pack that is not native. Convert from the "
-            f"fp16/bf16 release of this model."
-        )
 
     new_state_dict = {}
     quant_meta_layers = {}
@@ -351,7 +292,7 @@ def convert_to_int8(
         return pack_tensorwise(w)
 
     for key, tensor in tqdm(state_dict.items()):
-        if not is_flux1_matmul_weight(key, tensor, conv_prefix):
+        if not is_flux1_matmul_weight(key, tensor):
             new_state_dict[key] = tensor
             kept_float_count += 1
             continue
@@ -418,13 +359,6 @@ def convert_to_int8(
     else:
         print(f"  plain INT8: {plain_int8_count}")
     print(f"  plain scale mode (--per_channel_int8): {per_channel_int8}")
-
-    if converted_count == 0:
-        raise RuntimeError(
-            f"0 layers matched the Flux1 matmul predicate under prefix "
-            f"{conv_prefix!r}; refusing to save a file whose weights are an "
-            f"unmodified copy of the input but that would carry comfy_quant stamps"
-        )
 
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
