@@ -248,17 +248,14 @@ def run_post_convert_flux_int8_bench(
     return subprocess.run(cmd).returncode
 
 def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
-    """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2.
-
-    No dtype condition. The packing path casts the weight to float32 before
-    rotating and quantising, so any 2-D .weight is a target; a dtype list here
-    only excludes weights the path can already handle.
-    """
+    """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2, float."""
     if not key.startswith("model.diffusion_model."):
         return False
     if not key.endswith(".weight"):
         return False
-    return tensor.ndim >= 2
+    if tensor.ndim < 2:
+        return False
+    return tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
 
 
 def convert_to_int8(
