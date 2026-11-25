@@ -274,14 +274,20 @@ def is_flux1_matmul_weight(
     tensor: torch.Tensor,
     prefix: str = "model.diffusion_model.",
 ) -> bool:
-    """Flux1 DiT matmul weight under the measured prefix: .weight, ndim>=2, floating."""
+    """Flux1 DiT matmul weight under the measured prefix: .weight, ndim>=2, float.
+
+    The dtype set is the one every native converter in this repository uses
+    (sdxl 582, sd1.5 361, Z_Image 445, Krea2 921). An fp8 checkpoint is already a
+    quantised file, not a float source, so it is refused explicitly below instead
+    of being squeezed into a pack that would then be called native.
+    """
     if not key.startswith(prefix):
         return False
     if not key.endswith(".weight"):
         return False
     if tensor.ndim < 2:
         return False
-    return tensor.is_floating_point()
+    return tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
 
 
 _FP8_DTYPES = (
@@ -290,18 +296,6 @@ _FP8_DTYPES = (
     torch.float8_e4m3fnuz,
     torch.float8_e5m2fnuz,
 )
-
-
-def _as_float_storage(tensor: torch.Tensor) -> torch.Tensor:
-    """Kept tensors must not stay in an fp8 dtype inside the pack.
-
-    An fp8 source stores bias, norm scale and embeddings in float8 as well.
-    Copying those through puts fp8 next to int8 weights, which the runtime then
-    mixes into bf16 arithmetic. bfloat16 holds every e4m3 value exactly.
-    """
-    if tensor.dtype in _FP8_DTYPES:
-        return tensor.to(torch.bfloat16)
-    return tensor
 
 
 def convert_to_int8(
@@ -316,6 +310,23 @@ def convert_to_int8(
     state_dict = load_file(input_path)
     conv_prefix = _find_flux_key_prefix(state_dict.keys())
     print(f"Detected key prefix: {conv_prefix!r}")
+
+    fp8_weights = [
+        key
+        for key, tensor in state_dict.items()
+        if key.endswith(".weight")
+        and tensor.ndim >= 2
+        and key.startswith(conv_prefix)
+        and tensor.dtype in _FP8_DTYPES
+    ]
+    if fp8_weights:
+        raise RuntimeError(
+            f"{len(fp8_weights)} matmul weights of this checkpoint are already "
+            f"float8 ({fp8_weights[0]} is {state_dict[fp8_weights[0]].dtype}). "
+            f"native means compressing a float checkpoint; quantising an fp8 "
+            f"file produces a pack that is not native. Convert from the "
+            f"fp16/bf16 release of this model."
+        )
 
     new_state_dict = {}
     quant_meta_layers = {}
@@ -341,7 +352,7 @@ def convert_to_int8(
 
     for key, tensor in tqdm(state_dict.items()):
         if not is_flux1_matmul_weight(key, tensor, conv_prefix):
-            new_state_dict[key] = _as_float_storage(tensor)
+            new_state_dict[key] = tensor
             kept_float_count += 1
             continue
 
