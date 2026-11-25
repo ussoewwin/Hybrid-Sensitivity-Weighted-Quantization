@@ -172,20 +172,6 @@ def pack_channelwise(weight: torch.Tensor):
     return q, scale_view.to(dtype=torch.float32)
 
 
-def _float_storage(tensor: torch.Tensor) -> torch.Tensor:
-    """Kept tensors are stored as float16, the dtype the other families' packs carry.
-
-    A pack is compared trajectory-for-trajectory against the float checkpoint it was
-    built from. Every kept tensor (bias, norm scale, embedder) therefore has to be
-    stored at the working float precision, not at whatever narrower float type the
-    source file happened to use for storage. float16 holds every value of such a
-    file exactly, so this changes the file layout, not the numbers.
-    """
-    if tensor.is_floating_point() and tensor.dtype != torch.float16:
-        return tensor.to(torch.float16)
-    return tensor
-
-
 def _encode_comfy_quant(config: dict) -> torch.Tensor:
     return torch.tensor(
         list(json.dumps(config, separators=(",", ":")).encode("utf-8")),
@@ -261,40 +247,15 @@ def run_post_convert_flux_int8_bench(
     print("Running trajectory bench: " + " ".join(cmd))
     return subprocess.run(cmd).returncode
 
-def _find_flux_key_prefix(keys) -> str:
-    """Return the checkpoint's Flux1 key prefix, measured from the keys only."""
-    keyset = keys if isinstance(keys, (set, frozenset)) else set(keys)
-    for prefix in ("model.diffusion_model.", "diffusion_model.", ""):
-        if f"{prefix}img_in.weight" in keyset:
-            if f"{prefix}double_blocks.0.img_attn.qkv.weight" not in keyset:
-                raise ValueError(
-                    "Flux1 signature incomplete: img_in.weight present but "
-                    f"{prefix}double_blocks.0.img_attn.qkv.weight missing"
-                )
-            return prefix
-    raise ValueError(
-        "Not a Flux1 checkpoint: missing img_in.weight "
-        "(under model.diffusion_model. / diffusion_model. / root)."
-    )
-
-
-def is_flux1_matmul_weight(
-    key: str,
-    tensor: torch.Tensor,
-    prefix: str = "model.diffusion_model.",
-) -> bool:
-    """Flux1 DiT matmul weight under the measured prefix: .weight and ndim >= 2.
-
-    No dtype filter: the packing path casts the weight to float32 before rotating
-    and quantising, so every 2-D weight of the checkpoint is a target. Leaving a
-    dtype list here is what made the converter match zero layers on a checkpoint
-    whose weights are not stored in one of the three names on that list.
-    """
-    if not key.startswith(prefix):
+def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
+    """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2, float."""
+    if not key.startswith("model.diffusion_model."):
         return False
     if not key.endswith(".weight"):
         return False
-    return tensor.ndim >= 2
+    if tensor.ndim < 2:
+        return False
+    return tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
 
 
 def convert_to_int8(
@@ -307,8 +268,6 @@ def convert_to_int8(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Loading model: {input_path}")
     state_dict = load_file(input_path)
-    conv_prefix = _find_flux_key_prefix(state_dict.keys())
-    print(f"Detected key prefix: {conv_prefix!r}")
 
     new_state_dict = {}
     quant_meta_layers = {}
@@ -333,8 +292,8 @@ def convert_to_int8(
         return pack_tensorwise(w)
 
     for key, tensor in tqdm(state_dict.items()):
-        if not is_flux1_matmul_weight(key, tensor, conv_prefix):
-            new_state_dict[key] = _float_storage(tensor)
+        if not is_flux1_matmul_weight(key, tensor):
+            new_state_dict[key] = tensor
             kept_float_count += 1
             continue
 
@@ -400,13 +359,6 @@ def convert_to_int8(
     else:
         print(f"  plain INT8: {plain_int8_count}")
     print(f"  plain scale mode (--per_channel_int8): {per_channel_int8}")
-
-    if converted_count == 0:
-        raise RuntimeError(
-            f"0 layers matched the matmul predicate under prefix {conv_prefix!r}; "
-            f"refusing to save a file whose weights are an unmodified copy of the "
-            f"input but that would carry comfy_quant stamps"
-        )
 
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
