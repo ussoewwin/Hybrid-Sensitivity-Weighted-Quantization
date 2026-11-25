@@ -881,25 +881,15 @@ def run_post_convert_flux_w4a8_bench(
     return 1  # unreachable: execv replaces this process
 
 
-def is_flux1_matmul_weight(
-    key: str,
-    tensor: torch.Tensor,
-    prefix: str = "model.diffusion_model.",
-) -> bool:
-    """Flux1 DiT matmul weight under the detected prefix: .weight, ndim>=2, floating.
-
-    The prefix is the one _find_flux_key_prefix() measured from the checkpoint keys,
-    so a checkpoint stored as model.diffusion_model.*, diffusion_model.* or bare
-    double_blocks.* all convert. Any floating dtype is accepted (fp16/bf16/fp32 and
-    the fp8 variants); a non-float weight is never a quantisation target.
-    """
-    if not key.startswith(prefix):
+def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
+    """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2, float."""
+    if not key.startswith("model.diffusion_model."):
         return False
     if not key.endswith(".weight"):
         return False
     if tensor.ndim < 2:
         return False
-    return tensor.is_floating_point()
+    return tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
 
 
 def convert_to_w4a8(
@@ -915,8 +905,6 @@ def convert_to_w4a8(
     ck = _load_comfy_kitchen() if enable_convrot else None
     print(f"Loading model: {input_path}")
     state_dict = load_file(input_path)
-    conv_prefix = _find_flux_key_prefix(state_dict.keys())
-    print(f"Detected key prefix: {conv_prefix!r}")
 
     new_state_dict: dict[str, torch.Tensor] = {}
     quant_meta_layers: dict[str, dict] = {}
@@ -946,7 +934,7 @@ def convert_to_w4a8(
         return pack_tensorwise(w)
 
     for key, tensor in tqdm(list(state_dict.items())):
-        if not is_flux1_matmul_weight(key, tensor, conv_prefix):
+        if not is_flux1_matmul_weight(key, tensor):
             new_state_dict[key] = tensor
             kept += 1
             continue
@@ -1079,13 +1067,6 @@ def convert_to_w4a8(
         new_state_dict[f"{module_key}.comfy_quant"] = _encode_comfy_quant(quant_config)
         quant_meta_layers[module_key] = dict(quant_config)
         converted += 1
-
-    if converted == 0:
-        raise RuntimeError(
-            f"0 layers matched the Flux1 matmul predicate under prefix "
-            f"{conv_prefix!r}; refusing to save a file whose contents are an "
-            f"unmodified copy of the input but that would carry comfy_quant stamps"
-        )
 
     metadata = {
         "_quantization_metadata": json.dumps(
