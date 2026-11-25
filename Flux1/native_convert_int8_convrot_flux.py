@@ -255,7 +255,7 @@ def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
         return False
     if tensor.ndim < 2:
         return False
-    return tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+    return tensor.is_floating_point()
 
 
 def convert_to_int8(
