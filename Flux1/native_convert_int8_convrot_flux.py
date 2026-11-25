@@ -249,7 +249,7 @@ def run_post_convert_flux_int8_bench(
 
 def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
     """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2, float."""
-    if not key.startswith("model.diffusion_model."):
+    if not key.startswith(("model.diffusion_model.", "diffusion_model.", "")):
         return False
     if not key.endswith(".weight"):
         return False

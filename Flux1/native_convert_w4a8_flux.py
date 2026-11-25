@@ -316,7 +316,7 @@ def run_post_convert_flux_w4a8_bench(
 
 def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
     """Flux1 DiT matmul weight: model.diffusion_model.* .weight, ndim>=2, float."""
-    if not key.startswith("model.diffusion_model."):
+    if not key.startswith(("model.diffusion_model.", "diffusion_model.", "")):
         return False
     if not key.endswith(".weight"):
         return False
@@ -368,8 +368,11 @@ def convert_to_w4a8(
 
         w_fp = tensor.float()
         module_key = key[: -len(".weight")]
-        rel_key = module_key[len("model.diffusion_model."):] if module_key.startswith(
-            "model.diffusion_model.") else module_key
+        rel_key = module_key
+        for _p in ("model.diffusion_model.", "diffusion_model."):
+            if rel_key.startswith(_p):
+                rel_key = rel_key[len(_p):]
+                break
         used_gs = (
             convrot_group_size_for_features(int(w_fp.shape[1]), group_size)
             if enable_convrot
