@@ -322,7 +322,7 @@ def is_flux1_matmul_weight(key: str, tensor: torch.Tensor) -> bool:
         return False
     if tensor.ndim < 2:
         return False
-    return tensor.dtype in (torch.float16, torch.float32, torch.bfloat16)
+    return tensor.is_floating_point()
 
 
 def convert_to_w4a8(
@@ -484,6 +484,13 @@ def convert_to_w4a8(
         print(f"  plain scale mode (--per_channel_int8): {per_channel_int8}")
     else:
         print(f"  plain INT8: {plain_int8}")
+
+    if converted == 0:
+        raise RuntimeError(
+            "0 layers matched the Flux1 matmul predicate; refusing to save a file "
+            "whose weights are an unmodified copy of the input but that would carry "
+            "comfy_quant stamps"
+        )
 
     save_file(new_state_dict, output_path, metadata=metadata)
     print("Done!")
