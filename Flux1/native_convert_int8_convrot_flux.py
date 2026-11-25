@@ -172,6 +172,20 @@ def pack_channelwise(weight: torch.Tensor):
     return q, scale_view.to(dtype=torch.float32)
 
 
+def _float_storage(tensor: torch.Tensor) -> torch.Tensor:
+    """Kept tensors are stored as float16, the dtype the other families' packs carry.
+
+    A pack is compared trajectory-for-trajectory against the float checkpoint it was
+    built from. Every kept tensor (bias, norm scale, embedder) therefore has to be
+    stored at the working float precision, not at whatever narrower float type the
+    source file happened to use for storage. float16 holds every value of such a
+    file exactly, so this changes the file layout, not the numbers.
+    """
+    if tensor.is_floating_point() and tensor.dtype != torch.float16:
+        return tensor.to(torch.float16)
+    return tensor
+
+
 def _encode_comfy_quant(config: dict) -> torch.Tensor:
     return torch.tensor(
         list(json.dumps(config, separators=(",", ":")).encode("utf-8")),
@@ -320,7 +334,7 @@ def convert_to_int8(
 
     for key, tensor in tqdm(state_dict.items()):
         if not is_flux1_matmul_weight(key, tensor, conv_prefix):
-            new_state_dict[key] = tensor
+            new_state_dict[key] = _float_storage(tensor)
             kept_float_count += 1
             continue
 
