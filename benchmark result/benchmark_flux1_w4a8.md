@@ -9,7 +9,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 | Label | Meaning |
 |-------|---------|
-| `F1D_unlockV3.1off r170` | Reverse hybrid pack: the K = 170 lowest-impact layers moved to ConvRot W4A8, the remaining converted layers stay ConvRot INT8 |
+| `F1D_unlockV3.1on r170` | Reverse hybrid pack: the K = 170 lowest-impact layers moved to ConvRot W4A8, the remaining converted layers stay ConvRot INT8 |
 | `native convrot w4a8` | Native converter output: every eligible layer converted to ConvRot W4A8 |
 
 ---
@@ -20,7 +20,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 | Model | Setup | HSWQ Mean Cosine (↑) | Native Mean Cosine (↑) | Δ Cosine | HSWQ Mean MSE (↓) | Native Mean MSE (↓) | HSWQ Bifurcated (↓) | Native Bifurcated (↓) | Winner |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F1D_unlockV3** | r170 | **0.95383** | 0.93006 | **+0.02377** | **1.1161** | 1.7803 | **0/25 (0%)** | 1/25 (4%) | **HSWQ** |
+| **F1D_unlockV3** | r170 | **0.95388** | 0.93005 | **+0.02383** | **1.0566** | 1.7803 | **0/25 (0%)** | 1/25 (4%) | **HSWQ** |
 
 **Winner** = better on both mean cosine and mean MSE.
 
@@ -28,57 +28,57 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ## 2. Detailed Results per Model
 
-### 2.1. F1D_unlockV3.1off (r170)
+### 2.1. F1D_unlockV3.1on (r170)
 
 #### Metric Overview
 | Metric / Property | HSWQ Reverse Hybrid W4A8 | Native ConvRot W4A8 | Advantage |
 | :--- | :--- | :--- | :--- |
-| **Mean Final Cosine** (↑ better) | **0.95383** | 0.93006 | **+0.02377** |
-| **Min Final Cosine** (↑ better) | **0.80155** | 0.78136 | **+0.02019** |
-| **Max Final Cosine** (↑ better) | **0.99135** | 0.98410 | **+0.00725** |
-| **Mean Final Latent MSE** (↓ better) | **1.1161** | 1.7803 | **-0.6642 (37% error reduction)** |
+| **Mean Final Cosine** (↑ better) | **0.95388** | 0.93005 | **+0.02383** |
+| **Min Final Cosine** (↑ better) | **0.80882** | 0.78136 | **+0.02746** |
+| **Max Final Cosine** (↑ better) | **0.99241** | 0.98410 | **+0.00831** |
+| **Mean Final Latent MSE** (↓ better) | **1.0566** | 1.7803 | **-0.7238 (40.7% error reduction)** |
 | **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | 1/25 (4%) | **HSWQ eliminates bifurcations** |
-| **Trajectory Verdict** | 11/25 same-image, 14 drifted | 4/25 same-image, 20 drifted, 1 bifurcated | **HSWQ preserves trajectory structure** |
-| **Wall time per seed** | 2.97 s | 2.94 s | **+37.0% against the FP16 reference (4.71 s per seed)** |
+| **Trajectory Verdict** | 14/25 same-image, 11 drifted | 4/25 same-image, 20 drifted, 1 bifurcated | **HSWQ preserves trajectory structure** |
+| **Wall time per seed** | 2.92 s | 2.94 s | **+36.8% against the FP16 reference (4.62 s per seed)** |
 
-#### Side-by-Side per Seed (F1D_unlockV3.1off)
+#### Side-by-Side per Seed (F1D_unlockV3.1on)
 | Seed | HSWQ Cosine | Native Cosine | Δ Cosine (↑ better) | HSWQ MSE | Native MSE | Δ MSE (↓ better) | HSWQ Verdict | Native Verdict | Winner |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **42** | **0.97675** | 0.96796 | +0.00879 | **0.8685** | 1.2290 | -0.3605 | drifted | drifted | **HSWQ** |
-| **137** | **0.80155** | 0.78136 | +0.02019 | **3.5640** | 4.5410 | -0.9770 | drifted | drifted | **HSWQ** |
-| **849** | **0.97373** | 0.97142 | +0.00231 | **1.7080** | 1.5840 | +0.1240 | drifted | drifted | — |
-| **2024** | **0.91622** | 0.84532 | +0.07090 | **1.1610** | 2.2850 | -1.1240 | drifted | drifted | **HSWQ** |
-| **7391** | **0.97366** | 0.93990 | +0.03376 | **0.7998** | 1.8650 | -1.0652 | drifted | drifted | **HSWQ** |
-| **18429** | **0.95980** | 0.88293 | +0.07687 | **0.6067** | 2.0000 | -1.3933 | drifted | drifted | **HSWQ** |
-| **53082** | **0.98388** | 0.97878 | +0.00510 | **0.7104** | 0.9295 | -0.2191 | same-image | drifted | **HSWQ** |
-| **149206** | **0.96337** | 0.87512 | +0.08825 | **0.8784** | 3.1280 | -2.2496 | drifted | drifted | **HSWQ** |
-| **382715** | **0.99135** | 0.97897 | +0.01238 | **0.4348** | 1.0390 | -0.6042 | same-image | drifted | **HSWQ** |
-| **826401** | **0.97848** | 0.91392 | +0.06456 | **0.7706** | 3.0610 | -2.2904 | drifted | drifted | **HSWQ** |
-| **1938502** | **0.98579** | 0.98004 | +0.00575 | **0.5885** | 0.8111 | -0.2226 | same-image | same-image | **HSWQ** |
-| **4710928** | **0.95488** | 0.95779 | -0.00291 | **1.6560** | 1.5870 | +0.0690 | drifted | drifted | Native |
-| **8391642** | **0.83609** | 0.83340 | +0.00269 | **2.8820** | 3.0300 | -0.1480 | drifted | drifted | **HSWQ** |
-| **15820493** | **0.98748** | 0.95480 | +0.03268 | **0.6754** | 2.3740 | -1.6986 | same-image | drifted | **HSWQ** |
-| **36192847** | **0.98957** | 0.97730 | +0.01227 | **0.4190** | 0.9186 | -0.4996 | same-image | drifted | **HSWQ** |
-| **71058294** | **0.98959** | 0.98151 | +0.00808 | **0.5244** | 0.9268 | -0.4024 | same-image | same-image | **HSWQ** |
-| **128491703** | **0.98998** | 0.97815 | +0.01183 | **0.4379** | 0.9700 | -0.5321 | same-image | drifted | **HSWQ** |
-| **285039184** | **0.98464** | 0.98410 | +0.00054 | **1.0110** | 1.0230 | -0.0120 | same-image | same-image | **HSWQ** |
-| **491730285** | **0.95715** | 0.94839 | +0.00876 | **1.1020** | 1.4070 | -0.3050 | drifted | drifted | **HSWQ** |
-| **762019483** | **0.82570** | 0.79032 | +0.03538 | **2.5270** | 2.9520 | -0.4250 | drifted | bifurcated | **HSWQ** |
-| **938174026** | **0.97490** | 0.95993 | +0.01497 | **0.8528** | 1.3760 | -0.5232 | drifted | drifted | **HSWQ** |
-| **1409285713** | **0.90547** | 0.83401 | +0.07146 | **1.3290** | 2.6240 | -1.2950 | drifted | drifted | **HSWQ** |
-| **2683910547** | **0.98053** | 0.97728 | +0.00325 | **0.7968** | 0.9325 | -0.1357 | same-image | drifted | **HSWQ** |
-| **3851729406** | **0.98272** | 0.97818 | +0.00454 | **0.7750** | 0.9878 | -0.2128 | same-image | drifted | **HSWQ** |
-| **4195820371** | **0.98248** | 0.98049 | +0.00199 | **0.8233** | 0.9269 | -0.1036 | same-image | same-image | **HSWQ** |
-
+| **42** | **0.97725** | 0.96796 | +0.00929 | **0.8466** | 1.2290 | -0.3824 | drifted | drifted | **HSWQ** |
+| **137** | **0.80882** | 0.78136 | +0.02746 | **3.4050** | 4.5410 | -1.1360 | drifted | drifted | **HSWQ** |
+| **849** | **0.99180** | 0.97142 | +0.02038 | **0.4619** | 1.5840 | -1.1221 | same-image | drifted | **HSWQ** |
+| **2024** | **0.91057** | 0.84532 | +0.06525 | **1.2140** | 2.2850 | -1.0710 | drifted | drifted | **HSWQ** |
+| **7391** | **0.98289** | 0.93990 | +0.04299 | **0.5053** | 1.8650 | -1.3597 | same-image | drifted | **HSWQ** |
+| **18429** | **0.96684** | 0.88293 | +0.08391 | **0.4987** | 2.0000 | -1.5013 | drifted | drifted | **HSWQ** |
+| **53082** | **0.98401** | 0.97878 | +0.00523 | **0.6972** | 0.9295 | -0.2323 | same-image | drifted | **HSWQ** |
+| **149206** | **0.93230** | 0.87512 | +0.05718 | **1.6200** | 3.1280 | -1.5080 | drifted | drifted | **HSWQ** |
+| **382715** | **0.99241** | 0.97897 | +0.01344 | **0.3761** | 1.0390 | -0.6629 | same-image | drifted | **HSWQ** |
+| **826401** | **0.98793** | 0.91392 | +0.07401 | **0.4296** | 3.0610 | -2.6314 | same-image | drifted | **HSWQ** |
+| **1938502** | **0.98930** | 0.98004 | +0.00926 | **0.4337** | 0.8111 | -0.3774 | same-image | same-image | **HSWQ** |
+| **4710928** | **0.95800** | 0.95779 | +0.00021 | **1.5550** | 1.5870 | -0.0320 | drifted | drifted | **HSWQ** |
+| **8391642** | **0.83878** | 0.83340 | +0.00538 | **2.7320** | 3.0300 | -0.2980 | drifted | drifted | **HSWQ** |
+| **15820493** | **0.98984** | 0.95480 | +0.03504 | **0.5476** | 2.3740 | -1.8264 | same-image | drifted | **HSWQ** |
+| **36192847** | **0.99098** | 0.97730 | +0.01368 | **0.3601** | 0.9186 | -0.5585 | same-image | drifted | **HSWQ** |
+| **71058294** | **0.98423** | 0.98151 | +0.00272 | **0.7911** | 0.9268 | -0.1357 | same-image | same-image | **HSWQ** |
+| **128491703** | **0.98647** | 0.97815 | +0.00832 | **0.5919** | 0.9700 | -0.3781 | same-image | drifted | **HSWQ** |
+| **285039184** | **0.98407** | 0.98410 | -0.00003 | **1.0280** | 1.0230 | +0.0050 | same-image | same-image | Native |
+| **491730285** | **0.95301** | 0.94839 | +0.00462 | **1.1940** | 1.4070 | -0.2130 | drifted | drifted | **HSWQ** |
+| **762019483** | **0.81489** | 0.79032 | +0.02457 | **2.6210** | 2.9520 | -0.3310 | drifted | bifurcated | **HSWQ** |
+| **938174026** | **0.96719** | 0.95993 | +0.00726 | **1.1160** | 1.3760 | -0.2600 | drifted | drifted | **HSWQ** |
+| **1409285713** | **0.90131** | 0.83401 | +0.06730 | **1.3740** | 2.6240 | -1.2500 | drifted | drifted | **HSWQ** |
+| **2683910547** | **0.98327** | 0.97728 | +0.00599 | **0.6757** | 0.9325 | -0.2568 | same-image | drifted | **HSWQ** |
+| **3851729406** | **0.98952** | 0.97818 | +0.01134 | **0.4589** | 0.9878 | -0.5289 | same-image | drifted | **HSWQ** |
+| **4195820371** | **0.98144** | 0.98049 | +0.00095 | **0.8805** | 0.9269 | -0.0464 | same-image | same-image | **HSWQ** |
 ---
 
 ## 3. Key Findings and Trajectory Analysis
 
-1. **Mean cosine:** the reverse hybrid pack reaches 0.95383 against 0.93006 for the native W4A8 pack (+0.02377).
-2. **Latent MSE:** 1.1161 against 1.7803, about 37% lower error.
-3. **Bifurcations:** 0/25 for the reverse hybrid pack against 1/25 for the native pack; same-image seeds 11/25 against 4/25.
-4. **Worst case:** the minimum per-seed cosine is 0.80155 (reverse hybrid) against 0.78136 (native).
-5. **Speed:** 2.97 s per seed against 4.71 s for the FP16 reference, +37.0%.
+1. **Mean cosine:** the reverse hybrid pack reaches 0.95388 against 0.93005 for the native W4A8 pack (+0.02383).
+2. **Latent MSE:** 1.0566 against 1.7803, about 40.7% lower error.
+3. **Bifurcations:** 0/25 for the reverse hybrid pack against 1/25 for the native pack; same-image seeds 14/25 against 4/25.
+4. **Worst case:** the minimum per-seed cosine is 0.80882 (reverse hybrid) against 0.78136 (native).
+5. **Speed:** 2.92 s per seed against 4.62 s for the FP16 reference, +36.8%.
+6. **Per-seed spread:** the reverse hybrid pack is ahead on 24 of 25 seeds, the native pack on 1 (largest margin +0.00003 on seed 285039184). The native pack has the lower MSE on 1 seed (largest difference +0.0050 on seed 285039184).
 
 ---
 
