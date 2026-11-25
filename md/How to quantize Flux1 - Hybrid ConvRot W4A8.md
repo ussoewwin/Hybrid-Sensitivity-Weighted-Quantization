@@ -166,6 +166,14 @@ A hybrid file therefore holds three layer kinds:
 ComfyUI core already decodes this format (`comfy/ops.py`, grouped-int8 branch), so the pack
 loads without a dedicated loader.
 
+## Stage 2 gate - the INT8 score must reach 0.96
+
+Before any layer ranking, run the Stage 1 trajectory comparison on the INT8 pack and require **mean final cosine >= 0.96** with **0/25 bifurcated**. A W4A8 hybrid only moves 4 bits into a pack that is otherwise 8 bits; if the 8-bit pack already drifts, the hybrid inherits the drift and adds to it.
+
+A Flux1 checkpoint can fail this gate on the INT8 pack alone. That is a property of the model, not a fault in the converter. One measured Flux1 checkpoint, converted with 314 of 314 weights quantised and the ConvRot stamp on every one of them, scored mean 0.86099, min 0.62984, max 0.98339, same-image 1/25 and bifurcated 6/25. It cannot tolerate even 8 bits, so there is nothing for W4A8 to build on.
+
+When that happens, stop at Stage 1 for that checkpoint and keep it at a higher precision. Building the hybrid anyway spends the ranking run, the conversion run and the 25-seed validation to reach a pack that is worse than the INT8 one it sits on.
+
 ## Step 1 - Per-layer impact ranking
 
 ```bash
