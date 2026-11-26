@@ -437,7 +437,7 @@ def parse_args():
     ap.add_argument("--prompt",
                     default="masterpiece, best quality, 1girl, solo, standing, simple background")
     ap.add_argument("--negative", default="")
-    ap.add_argument("--steps", type=int, default=12)
+    ap.add_argument("--steps", type=int, default=25)
     ap.add_argument(
         "--seeds",
         default=(
