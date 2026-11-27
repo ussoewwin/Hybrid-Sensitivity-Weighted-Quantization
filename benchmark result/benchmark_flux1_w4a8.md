@@ -11,6 +11,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 |-------|---------|
 | `F1D_unlockV3.1on r170` | Reverse hybrid pack: the K = 170 lowest-impact layers moved to ConvRot W4A8, the remaining converted layers stay ConvRot INT8 |
 | `MYHuman-Flux_1.3 1off r180` | Reverse hybrid pack: the K = 180 lowest-impact layers moved to ConvRot W4A8, the remaining converted layers stay ConvRot INT8 |
+| `UltraRealistic_FineTune_Project_v4 1off r170` | Reverse hybrid pack: the K = 170 lowest-impact layers moved to ConvRot W4A8, the remaining converted layers stay ConvRot INT8 |
 
 ---
 
@@ -22,6 +23,7 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **F1D_unlockV3** | r170 | **0.95388** | 0.93005 | **+0.02383** | **1.0566** | 1.7803 | **0/25 (0%)** | 1/25 (4%) | **HSWQ** |
 | **MYHuman-Flux_1.3** | r180 | **0.96290** | 0.94239 | **+0.02050** | **0.5652** | 0.9551 | **1/25 (4%)** | 1/25 (4%) | **HSWQ** |
+| **UltraRealistic_FineTune_Project_v4** | r170 | **0.96360** | 0.95163 | **+0.01197** | **1.0397** | 1.6154 | **0/25 (0%)** | 0/25 (0%) | **HSWQ** |
 
 **Winner** = better on both mean cosine and mean MSE.
 
@@ -117,6 +119,50 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 
 ---
 
+### 2.3. UltraRealistic_FineTune_Project_v4 (r170)
+
+#### Metric Overview
+| Metric / Property | HSWQ Reverse Hybrid W4A8 | Native ConvRot W4A8 | Advantage |
+| :--- | :--- | :--- | :--- |
+| **Mean Final Cosine** (↑ better) | **0.96360** | 0.95163 | **+0.01197** |
+| **Min Final Cosine** (↑ better) | **0.84420** | 0.80301 | **+0.04119** |
+| **Max Final Cosine** (↑ better) | **0.99802** | 0.99012 | **+0.00790** |
+| **Mean Final Latent MSE** (↓ better) | **1.0397** | 1.6154 | **-0.5757 (35.6% error reduction)** |
+| **Bifurcated Seeds Rate** (↓ better) | **0/25 (0%)** | 0/25 (0%) | — |
+| **Trajectory Verdict** | 12/25 same-image, 13 drifted, 0 bifurcated | 5/25 same-image, 20 drifted, 0 bifurcated | **HSWQ preserves trajectory structure** |
+| **Wall time per seed** | 5.56 s | 11.47 s | **+42.4% against the FP16 reference (9.65 s per seed)** |
+
+#### Side-by-Side per Seed (UltraRealistic_FineTune_Project_v4)
+| Seed | HSWQ Cosine | Native Cosine | Δ Cosine (↑ better) | HSWQ MSE | Native MSE | Δ MSE (↓ better) | HSWQ Verdict | Native Verdict | Winner |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **42** | **0.98651** | 0.97958 | +0.00693 | **0.5141** | 0.8704 | -0.3563 | same-image | drifted | **HSWQ** |
+| **137** | **0.92573** | 0.95062 | -0.02489 | **1.3170** | 1.0630 | +0.2540 | drifted | drifted | Native |
+| **849** | **0.99110** | 0.97862 | +0.01248 | **0.6648** | 2.1180 | -1.4532 | same-image | drifted | **HSWQ** |
+| **2024** | **0.93543** | 0.90429 | +0.03114 | **0.8399** | 1.6470 | -0.8071 | drifted | drifted | **HSWQ** |
+| **7391** | **0.97888** | 0.91747 | +0.06141 | **0.6069** | 2.5290 | -1.9221 | drifted | drifted | **HSWQ** |
+| **18429** | **0.95754** | 0.95452 | +0.00302 | **0.6815** | 0.8796 | -0.1981 | drifted | drifted | **HSWQ** |
+| **53082** | **0.98328** | 0.98367 | -0.00039 | **0.8389** | 0.8491 | -0.0102 | same-image | same-image | Native |
+| **149206** | **0.97143** | 0.91775 | +0.05368 | **0.6343** | 2.1730 | -1.5387 | drifted | drifted | **HSWQ** |
+| **382715** | **0.99420** | 0.98309 | +0.01111 | **0.3289** | 1.0930 | -0.7641 | same-image | same-image | **HSWQ** |
+| **826401** | **0.96426** | 0.97440 | -0.01014 | **1.4790** | 1.3310 | +0.1480 | drifted | drifted | Native |
+| **1938502** | **0.98024** | 0.98277 | -0.00253 | **0.8639** | 0.8118 | +0.0521 | same-image | same-image | Native |
+| **4710928** | **0.95419** | 0.97238 | -0.01819 | **1.8210** | 1.3790 | +0.4420 | drifted | drifted | Native |
+| **8391642** | **0.88273** | 0.89990 | -0.01717 | **1.8520** | 1.8710 | -0.0190 | drifted | drifted | Native |
+| **15820493** | **0.98046** | 0.98248 | -0.00202 | **1.2920** | 0.9749 | +0.3171 | same-image | same-image | Native |
+| **36192847** | **0.99184** | 0.97309 | +0.01875 | **0.3673** | 1.3990 | -1.0317 | same-image | drifted | **HSWQ** |
+| **71058294** | **0.99802** | 0.99012 | +0.00790 | **0.1208** | 0.6860 | -0.5652 | same-image | same-image | **HSWQ** |
+| **128491703** | **0.99592** | 0.97072 | +0.02520 | **0.1990** | 1.6970 | -1.4980 | same-image | drifted | **HSWQ** |
+| **285039184** | **0.98234** | 0.97672 | +0.00562 | **1.3370** | 1.4430 | -0.1060 | same-image | drifted | **HSWQ** |
+| **491730285** | **0.94993** | 0.95308 | -0.00315 | **1.3220** | 1.6110 | -0.2890 | drifted | drifted | Native |
+| **762019483** | **0.84420** | 0.95685 | -0.11265 | **3.4560** | 1.1420 | +2.3140 | drifted | drifted | Native |
+| **938174026** | **0.95954** | 0.92477 | +0.03477 | **1.3260** | 2.5330 | -1.2070 | drifted | drifted | **HSWQ** |
+| **1409285713** | **0.94698** | 0.80301 | +0.14397 | **0.5605** | 2.6780 | -2.1175 | drifted | drifted | **HSWQ** |
+| **2683910547** | **0.98001** | 0.94604 | +0.03397 | **0.9147** | 2.5050 | -1.5903 | same-image | drifted | **HSWQ** |
+| **3851729406** | **0.96186** | 0.95067 | +0.01119 | **2.3300** | 3.2250 | -0.8950 | drifted | drifted | **HSWQ** |
+| **4195820371** | **0.99348** | 0.96415 | +0.02933 | **0.3242** | 1.8760 | -1.5518 | same-image | drifted | **HSWQ** |
+
+---
+
 ## 3. Key Findings and Trajectory Analysis
 
 **F1D_unlockV3 (r170)**
@@ -136,6 +182,15 @@ Deterministic per-step latent trajectory divergence benchmark comparing **FP16 r
 4. **Worst case:** the minimum per-seed cosine is 0.74683 (reverse hybrid) against 0.74210 (native).
 5. **Speed:** 3.19 s per seed against 4.65 s for the FP16 reference, +31.4%.
 6. **Per-seed spread:** the reverse hybrid pack is ahead on 21 of 25 seeds, the native pack on 4 (largest margin +0.00264 on seed 42).
+
+**UltraRealistic_FineTune_Project_v4 (r170)**
+
+1. **Mean cosine:** the reverse hybrid pack reaches 0.96360 against 0.95163 for the native W4A8 pack (+0.01197).
+2. **Latent MSE:** 1.0397 against 1.6154, about 35.6% lower error.
+3. **Bifurcations:** 0/25 for the reverse hybrid pack against 0/25 for the native pack; same-image seeds 12/25 against 5/25.
+4. **Worst case:** the minimum per-seed cosine is 0.84420 (reverse hybrid) against 0.80301 (native).
+5. **Speed:** 5.56 s per seed against 9.65 s for the FP16 reference, +42.4%.
+6. **Per-seed spread:** the reverse hybrid pack is ahead on 16 of 25 seeds, the native pack on 9 (largest margin +0.02489 on seed 137).
 
 
 ## 4. Metric Definitions
